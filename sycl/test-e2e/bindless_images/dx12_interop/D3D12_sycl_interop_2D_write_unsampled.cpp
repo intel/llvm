@@ -2,12 +2,14 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
+// REQUIRES-INTEL-DRIVER: lin: 38303 win: 101.9999
+
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 32x33
 
 // clang-format off
 /*
-    clang++.exe -fsycl -o ds2w.exe D3D12_sycl_interop_2D_write.cpp -ld3d12 -ldxgi -ld3dcompiler
+    clang++.exe -fsycl -o ds2w.exe D3D12_sycl_interop_2D_write_unsampled.cpp -ld3d12 -ldxgi -ld3dcompiler
 
     FLAGS:
     --sampled      ERROR: Sampled image writes are not supported
@@ -42,26 +44,23 @@
 // RUN: %{run} %t.exe --type int8 --channels 1 32x33
 // RUN: %{run} %t.exe --type int8 --channels 2 32x33
 // RUN: %{run} %t.exe --type int8 --channels 4 32x33
-// RUN: %{run} %t.exe --type unorm8 --channels 1 32x33
-// RUN: %{run} %t.exe --type unorm8 --channels 2 32x33
-// RUN: %{run} %t.exe --type unorm8 --channels 4 32x33
 
 // Semaphore coverage tests
-// At this time, semaphores aren't working on DG2 (GSD-12428), and can hang on BMG if run in parallel (GSD-12436).
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 1 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 4 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 1 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int16 --channels 2 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint16 --channels 4 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint8 --channels 1 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int8 --channels 2 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 4 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 4 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 2 --semaphores 32x33
+
+// RUN: %{run} %t.exe --type float --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type float --channels 1 --semaphores 32x33
+// RUN: %{run} %t.exe --type half --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type int32 --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 1 --semaphores 32x33
+// RUN: %{run} %t.exe --type int16 --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 1 --semaphores 32x33
+// RUN: %{run} %t.exe --type int8 --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type half --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 2 --semaphores 32x33
 
 // clang-format on
+#include <iostream>
 
 #include "d3d12_setup.hpp"
 
@@ -71,6 +70,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -189,7 +189,15 @@ int runTest(
   }
 
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
 
     syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemDesc{
         imgRes.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,

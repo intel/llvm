@@ -14,6 +14,7 @@
 
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21594
+#include <iostream>
 
 #include <map>
 

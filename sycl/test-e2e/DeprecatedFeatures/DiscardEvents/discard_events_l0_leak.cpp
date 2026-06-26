@@ -16,6 +16,7 @@
 // checks that urKernelRelease to be executed for each kernel call, and
 // EventRelease for events, that are used for dependencies between
 // command-lists.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>

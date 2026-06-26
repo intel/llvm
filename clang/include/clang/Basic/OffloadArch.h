@@ -45,16 +45,22 @@ enum class OffloadArch {
   SM_90a,
   SM_100,
   SM_100a,
+  SM_100f,
   SM_101,
   SM_101a,
+  SM_101f,
   SM_103,
   SM_103a,
+  SM_103f,
   SM_110,
   SM_110a,
+  SM_110f,
   SM_120,
   SM_120a,
+  SM_120f,
   SM_121,
   SM_121a,
+  SM_121f,
   GFX600,
   GFX601,
   GFX602,
@@ -157,6 +163,7 @@ enum class OffloadArch {
   ADL_P,
   ADL_N,
   DG1,
+  DG2,
   ACM_G10,
   DG2_G10,
   ACM_G11,
@@ -165,15 +172,18 @@ enum class OffloadArch {
   DG2_G12,
   PVC,
   PVC_VG,
+  MTL,
   MTL_U,
   MTL_S,
   ARL_U,
   ARL_S,
   MTL_H,
   ARL_H,
+  BMG,
   BMG_G21,
+  PTL,
   LNL_M,
-  LAST,
+  LAST = LNL_M,
 
   CudaDefault = OffloadArch::SM_75,
   HIPDefault = OffloadArch::GFX906,
@@ -194,7 +204,7 @@ static inline bool IsIntelCPUOffloadArch(OffloadArch Arch) {
 }
 
 static inline bool IsIntelGPUOffloadArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::BDW && Arch < OffloadArch::LAST;
+  return Arch >= OffloadArch::BDW && Arch <= OffloadArch::LAST;
 }
 
 static inline bool IsIntelOffloadArch(OffloadArch Arch) {

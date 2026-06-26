@@ -3,6 +3,7 @@
 
 // Chain of private_alloca test to check runtime support for compilation when
 // the default size is to be used.
+#include <iostream>
 
 #include "Inputs/private_alloca_test.hpp"
 

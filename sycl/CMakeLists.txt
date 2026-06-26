@@ -17,6 +17,7 @@ option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" O
 option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
 option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
 option(SYCL_ENABLE_IPO "Builds SYCL runtime libraries with interprocedural optimization" OFF)
+option(SYCL_HEADERS_ONLY "Only build SYCL headers, skip runtime and dependencies" OFF)
 
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
@@ -88,8 +89,13 @@ if(MSVC)
   endif()
 endif()
 
-include(FetchEmhash)
-include(BuildUnifiedRuntime)
+if(SYCL_HEADERS_ONLY)
+  set(UNIFIED_RUNTIME_INCLUDE_DIR "${LLVM_SOURCE_DIR}/../unified-runtime/include")
+  cmake_path(NORMAL_PATH UNIFIED_RUNTIME_INCLUDE_DIR)
+else()
+  include(FetchEmhash)
+  include(BuildUnifiedRuntime)
+endif()
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
@@ -150,22 +156,24 @@ set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION
 set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
 
-add_llvm_external_project(opencl)
-list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_PROJ_FOUND)
-if(OPENCL_PROJ_FOUND EQUAL -1)
-  message(FATAL_ERROR "opencl external project required but not found.")
-endif()
+if(NOT SYCL_HEADERS_ONLY)
+  add_llvm_external_project(opencl)
+  list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_PROJ_FOUND)
+  if(OPENCL_PROJ_FOUND EQUAL -1)
+    message(FATAL_ERROR "opencl external project required but not found.")
+  endif()
 
-if(NOT OpenCL_FOUND)
-  # Copy OpenCL Headers into sycl headers build directory
-  # Compiler does automatic lookup bin/../include based on clang binary location,
-  # e.g. when run LIT tests
-  file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
+  if(NOT OpenCL_FOUND)
+    # Copy OpenCL Headers into sycl headers build directory
+    # Compiler does automatic lookup bin/../include based on clang binary location,
+    # e.g. when run LIT tests
+    file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
 
-  # Include OpenCL Headers into final bundle.
-  install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-          DESTINATION ${SYCL_INCLUDE_DIR}
-          COMPONENT OpenCL-Headers)
+    # Include OpenCL Headers into final bundle.
+    install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
+            DESTINATION ${SYCL_INCLUDE_DIR}
+            COMPONENT OpenCL-Headers)
+  endif()
 endif()
 
 # Option for enabling building the SYCL major release preview library.
@@ -346,6 +354,30 @@ endif()
 
 set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
+if(SYCL_HEADERS_ONLY)
+  # The libdevice project can be built alongside the SYCL headers without the
+  # full SYCL runtime. It depends on the `sycl-compiler` aggregate target to
+  # ensure the tools used to build the device libraries are available. The full
+  # `sycl-compiler` target is defined after this early return, so provide a
+  # minimal equivalent here that aggregates whichever toolchain components are
+  # present in this build (e.g. for SPIR/SPIRV device libraries only clang,
+  # llvm-link and llvm-spirv are required).
+  if(NOT TARGET sycl-compiler)
+    add_custom_target(sycl-compiler)
+    foreach(sycl_compiler_tool
+        append-file clang clang-offload-bundler clang-offload-deps
+        clang-offload-extract clang-offload-wrapper clang-linker-wrapper
+        file-table-tform llc llvm-ar llvm-config llvm-foreach llvm-link
+        llvm-offload-binary llvm-objcopy llvm-spirv spirv-to-ir-wrapper
+        sycl-post-link)
+      if(TARGET ${sycl_compiler_tool})
+        add_dependencies(sycl-compiler ${sycl_compiler_tool})
+      endif()
+    endforeach()
+  endif()
+  return()
+endif()
+
 # SYCL runtime library
 add_subdirectory( source )
 
@@ -402,6 +434,7 @@ add_custom_target(sycl-compiler
           file-table-tform
           llc
           llvm-ar
+          llvm-config
           llvm-foreach
           llvm-spirv
           llvm-link
@@ -485,6 +518,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      file-table-tform
      llc
      llvm-ar
+     llvm-config
      llvm-foreach
      llvm-spirv
      llvm-link

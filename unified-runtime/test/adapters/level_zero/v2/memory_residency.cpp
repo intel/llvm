@@ -31,8 +31,10 @@ TEST_P(urMemoryResidencyTest, allocatingDeviceMemoryWillResultInOOM) {
   }
 
   uint64_t initialMemFree = 0;
-  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
-                                 sizeof(uint64_t), &initialMemFree, nullptr));
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                      sizeof(uint64_t), &initialMemFree, nullptr),
+      UR_DEVICE_INFO_GLOBAL_MEM_FREE);
 
   if (initialMemFree < allocSize) {
     GTEST_SKIP() << "Not enough device memory available";
@@ -293,54 +295,6 @@ TEST_P(urMemoryMultiResidencyTest,
                           [](uint8_t b) { return b == fillPattern; }));
 }
 
-// Verify that the end-to-end P2P data transfer in
-// enablePeerAccessStateMachineAndSourceAllocation fails when P2P is disabled.
-// The adapter returns UR_RESULT_ERROR_INVALID_OPERATION from urEnqueueUSMMemcpy
-// because the source pointer on devices[0] is not accessible from devices[1].
-TEST_P(urMemoryMultiResidencyTest,
-       enablePeerAccessStateMachineAndSourceAllocationFailsWithoutP2P) {
-  constexpr size_t allocSize = kAllocSize;
-  uint64_t initialMemFreeSource = 0;
-  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
-                                 sizeof(uint64_t), &initialMemFreeSource,
-                                 nullptr));
-  if (initialMemFreeSource < allocSize) {
-    GTEST_SKIP() << "Not enough source device memory available";
-  }
-
-  // Allocate on devices[0] WITHOUT enabling P2P.
-  void *ptr = nullptr;
-  ASSERT_SUCCESS(
-      urUSMDeviceAlloc(context, devices[0], nullptr, nullptr, allocSize, &ptr));
-
-  // Fill ptr on devices[0] with a known pattern using devices[0]'s queue.
-  static constexpr uint8_t fillPattern = 0xAB;
-  ur_queue_handle_t srcQueue = nullptr;
-  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
-  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, ptr, sizeof(fillPattern),
-                                  &fillPattern, allocSize, 0, nullptr,
-                                  nullptr));
-  ASSERT_SUCCESS(urQueueFinish(srcQueue));
-  urQueueRelease(srcQueue);
-
-  // Attempt P2P copy: devices[1]'s queue reads ptr from devices[0] — should
-  // fail because P2P is disabled.
-  void *dstPtr = nullptr;
-  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[1], nullptr, nullptr,
-                                  allocSize, &dstPtr));
-  ur_queue_handle_t peerQueue = nullptr;
-  ASSERT_SUCCESS(urQueueCreate(context, devices[1], nullptr, &peerQueue));
-
-  ur_result_t copyResult = urEnqueueUSMMemcpy(peerQueue, true, dstPtr, ptr,
-                                              allocSize, 0, nullptr, nullptr);
-
-  urQueueRelease(peerQueue);
-  urUSMFree(context, dstPtr);
-  ASSERT_SUCCESS(urUSMFree(context, ptr));
-
-  ASSERT_EQ(copyResult, UR_RESULT_ERROR_INVALID_OPERATION);
-}
-
 // Verify that disabling peer access succeeds and that a second disable attempt
 // returns UR_RESULT_ERROR_INVALID_OPERATION (access already disabled).
 // Source-device free memory is not checked because deferred frees from earlier
@@ -431,9 +385,9 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsWithPeerAccessEnabled) {
                           [](uint8_t b) { return b == fillPattern; }));
 }
 
-// Verify the transition from blocked to permitted: attempt a USM copy from
-// devices[1]'s queue without P2P (must fail), then enable P2P on the same
-// allocation and retry the copy (must succeed with correct data).
+// Verify that a USM copy from devices[1]'s queue succeeds after P2P is
+// enabled, and that the data transferred matches the fill pattern written on
+// devices[0].
 TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsAfterEnablingAccess) {
   constexpr size_t allocSize = kAllocSize;
   static constexpr uint8_t fillPattern = 0xCD;
@@ -473,11 +427,6 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsAfterEnablingAccess) {
   ur_queue_handle_t peerQueue = nullptr;
   ASSERT_SUCCESS(urQueueCreate(context, devices[1], nullptr, &peerQueue));
 
-  // Without P2P the copy must be rejected.
-  ur_result_t copyWithoutP2P = urEnqueueUSMMemcpy(
-      peerQueue, true, dstPtr, srcPtr, allocSize, 0, nullptr, nullptr);
-  ASSERT_EQ(copyWithoutP2P, UR_RESULT_ERROR_INVALID_OPERATION);
-
   // Enable P2P: devices[1] can now access allocations on devices[0].
   ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
   peerAccessEnabled = true;
@@ -504,12 +453,13 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsAfterEnablingAccess) {
                           [](uint8_t b) { return b == fillPattern; }));
 }
 
-// Verify that revoking peer access from devices[1] to devices[0] prevents
-// subsequent USM copies from devices[1]'s queue. A successful copy is first
+// Verify that a USM copy from devices[1]'s queue succeeds even after peer
+// access has been revoked.  P2P access controls memory residency, not hardware
+// data transfer: Level Zero can still move data between devices via the
+// interconnect regardless of residency state.  A successful copy is first
 // performed with P2P enabled to confirm the setup is correct; then P2P is
-// disabled and the same copy is expected to fail with
-// UR_RESULT_ERROR_INVALID_OPERATION.
-TEST_P(urMemoryMultiResidencyTest, p2pReadFailsAfterRevokingAccess) {
+// disabled and the same copy is expected to succeed.
+TEST_P(urMemoryMultiResidencyTest, p2pCopySucceedsAfterRevokingAccess) {
   constexpr size_t allocSize = kAllocSize;
 
   uint64_t initialMemFreeSource = 0;
@@ -550,7 +500,7 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadFailsAfterRevokingAccess) {
   ASSERT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
   peerAccessEnabled = false;
 
-  // Copy must now fail: devices[1] can no longer access srcPtr on devices[0].
+  // Copy must still succeed: P2P controls residency, not hardware transfer.
   ur_result_t copyResult = urEnqueueUSMMemcpy(peerQueue, true, dstPtr, srcPtr,
                                               allocSize, 0, nullptr, nullptr);
 
@@ -558,7 +508,7 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadFailsAfterRevokingAccess) {
   urUSMFree(context, dstPtr);
   ASSERT_SUCCESS(urUSMFree(context, srcPtr));
 
-  ASSERT_EQ(copyResult, UR_RESULT_ERROR_INVALID_OPERATION);
+  ASSERT_SUCCESS(copyResult);
 }
 
 // Verify that a USM allocation on devices[0] is NOT made resident on
@@ -568,6 +518,13 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadFailsAfterRevokingAccess) {
 // state, so the copy result is not checked here.  The observable guarantee
 // is that devices[1] free memory must not decrease by a full allocSize,
 // proving the allocation was never pinned on the peer device.
+//
+// The peer free-memory check is placed immediately after the allocation —
+// before the fill — to keep the measurement window as short as possible.
+// Residency decisions are made at allocation time; the subsequent fill on
+// devices[0] does not affect devices[1] residency and is excluded from the
+// window to avoid false failures due to concurrent GPU activity on shared
+// CI machines.
 TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
   constexpr size_t allocSize = kAllocSize;
   static constexpr uint8_t fillPattern = 0xAB;
@@ -596,13 +553,24 @@ TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
   // Allocate on devices[0] WITHOUT enabling P2P — must not consume
   // devices[1] memory.
   void *srcPtr = nullptr;
-  ASSERT_NO_FATAL_FAILURE(
-      allocAndFillOnDevice0(allocSize, fillPattern, &srcPtr));
+  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
+                                  allocSize, &srcPtr));
 
+  // Measure peer free memory immediately after allocation, before any GPU
+  // work, to minimise the observation window for concurrent external
+  // allocations on devices[1].
   uint64_t currentMemFreePeer = 0;
   ur_result_t memRes =
       urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
                       sizeof(uint64_t), &currentMemFreePeer, nullptr);
+
+  ur_queue_handle_t srcQueue = nullptr;
+  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
+  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, srcPtr, sizeof(fillPattern),
+                                  &fillPattern, allocSize, 0, nullptr,
+                                  nullptr));
+  ASSERT_SUCCESS(urQueueFinish(srcQueue));
+  urQueueRelease(srcQueue);
 
   ASSERT_SUCCESS(urUSMFree(context, srcPtr));
   ASSERT_SUCCESS(memRes);

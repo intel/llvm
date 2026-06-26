@@ -706,9 +706,11 @@ with test_env():
     # Count physical GPU devices: each physical GPU produces one output line
     # that contains ":gpu]". Add a feature when at least two are present so
     # tests requiring multi-GPU hardware can be skipped on single-GPU machines.
-    gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
-    if len(gpu_device_lines) >= 2:
-        config.available_features.add("two-or-more-gpu-devices")
+    # This is a runtime-only feature since it queries actual hardware.
+    if config.test_mode != "build-only":
+        gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
+        if len(gpu_device_lines) >= 2:
+            config.available_features.add("two-or-more-gpu-devices")
 
     if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         devices = set()
@@ -1054,7 +1056,13 @@ for full_name, sycl_device in zip(
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            if sycl_device.endswith("gpu"):
+            if sycl_device.endswith("cpu"):
+                intel_driver_ver["cpu"] = driver_str
+            else:
+                # Treat any non-CPU selector as a GPU candidate. Arch-pinned
+                # selectors like "level_zero:arch-intel_gpu_mtl_u" don't end
+                # in "gpu" but still need driver-version parsing for
+                # REQUIRES-INTEL-DRIVER to work.
                 lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
                 if lin:
                     intel_driver_ver["lin"] = int(lin.group(1))
@@ -1063,8 +1071,6 @@ for full_name, sycl_device in zip(
                 )
                 if win:
                     intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
-            elif sycl_device.endswith("cpu"):
-                intel_driver_ver["cpu"] = driver_str
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -1260,9 +1266,9 @@ try:
     import psutil
 
     if config.test_mode == "run-only":
-        lit_config.maxIndividualTestTime = 300
+        config.maxIndividualTestTime = 300
     else:
-        lit_config.maxIndividualTestTime = 600
+        config.maxIndividualTestTime = 600
 
 except ImportError:
     pass

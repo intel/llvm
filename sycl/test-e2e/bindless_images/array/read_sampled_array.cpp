@@ -4,9 +4,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
-
 // Print test names and pass status.
 // #define VERBOSE_LV1
 
@@ -23,6 +20,7 @@
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

@@ -727,7 +727,37 @@ etors:
 - name: GRAPH_SET_DESTRUCTION_CALLBACK_EXP
   desc: Enumerator for $xGraphSetDestructionCallbackExp
   value: '315'
-max_id: '315'
+- name: IPC_GET_PHYS_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCGetPhysMemHandleExp
+  value: '316'
+- name: IPC_PUT_PHYS_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCPutPhysMemHandleExp
+  value: '317'
+- name: IPC_OPEN_PHYS_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCOpenPhysMemHandleExp
+  value: '318'
+- name: IPC_CLOSE_PHYS_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCClosePhysMemHandleExp
+  value: '319'
+- name: GRAPH_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xGraphGetNativeHandleExp
+  value: '320'
+- name: GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xGraphExecutableGraphGetNativeHandleExp
+  value: '321'
+- name: EVENT_CREATE_EXP
+  desc: Enumerator for $xEventCreateExp
+  value: '322'
+- name: IPC_GET_EVENT_HANDLE_EXP
+  desc: Enumerator for $xIPCGetEventHandleExp
+  value: '323'
+- name: IPC_PUT_EVENT_HANDLE_EXP
+  desc: Enumerator for $xIPCPutEventHandleExp
+  value: '324'
+- name: IPC_OPEN_EVENT_HANDLE_EXP
+  desc: Enumerator for $xIPCOpenEventHandleExp
+  value: '325'
+max_id: '325'
 ---
 type: enum
 desc: Defines structure types

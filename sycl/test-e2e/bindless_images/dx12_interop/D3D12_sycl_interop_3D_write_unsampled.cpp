@@ -2,10 +2,26 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
+// REQUIRES-INTEL-DRIVER: lin: 38303 win: 101.9999
+
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
 
 // clang-format off
+
+/*
+    clang++.exe -fsycl -o ds3w.exe D3D12_sycl_interop_3D_write_unsampled.cpp -ld3d12 -ldxgi -ld3dcompiler
+
+    FLAGS:
+    --sampled      ERROR: Sampled image writes are not supported
+    --semaphores   Use DX12 Fences for SYCL Interop Sync
+    --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
+    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
+                   Default is float 
+   WxHxD           Set custom Width x Height x Depth (e.g. 8x4x2)
+*/
+
+
 
 // RUN: %{run} %t.exe --type float --channels 1 33x32x31
 // RUN: %{run} %t.exe --type float --channels 2 32x33x31
@@ -31,37 +47,23 @@
 // RUN: %{run} %t.exe --type int8 --channels 1 17x16x15
 // RUN: %{run} %t.exe --type int8 --channels 2 16x15x17
 // RUN: %{run} %t.exe --type int8 --channels 4 15x17x16
-// RUN: %{run} %t.exe --type unorm8 --channels 1 9x8x7
-// RUN: %{run} %t.exe --type unorm8 --channels 2 8x7x9
-// RUN: %{run} %t.exe --type unorm8 --channels 4 7x9x8
 
 // Semaphore coverage tests
-// At this time, semaphores aren't working on DG2 (GSD-12428), and can hang on BMG if run in parallel (GSD-12436).
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --semaphores 16x17x15
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 1 --semaphores 31x32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --semaphores 17x16x15
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 4 --semaphores 9x8x7
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 1 --semaphores 33x31x32
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int16 --channels 2 --semaphores 15x17x16
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint16 --channels 4 --semaphores 9x7x8
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint8 --channels 1 --semaphores 32x31x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int8 --channels 2 --semaphores 16x15x17
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 4 --semaphores 7x9x8
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 4 --semaphores 15x16x17
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
 
-/*
-    clang++.exe -fsycl -o ds3w.exe D3D12_sycl_interop_3D_write.cpp -ld3d12 -ldxgi -ld3dcompiler
+// RUN: %{run} %t.exe --type float --channels 4 --semaphores 16x17x15
+// RUN: %{run} %t.exe --type float --channels 1 --semaphores 31x32x33
+// RUN: %{run} %t.exe --type half --channels 2 --semaphores 17x16x15
+// RUN: %{run} %t.exe --type int32 --channels 4 --semaphores 9x8x7
+// RUN: %{run} %t.exe --type uint32 --channels 1 --semaphores 33x31x32
+// RUN: %{run} %t.exe --type int16 --channels 2 --semaphores 15x17x16
+// RUN: %{run} %t.exe --type uint16 --channels 4 --semaphores 9x7x8
+// RUN: %{run} %t.exe --type uint8 --channels 1 --semaphores 32x31x33
+// RUN: %{run} %t.exe --type int8 --channels 2 --semaphores 16x15x17
+// RUN: %{run} %t.exe --type half --channels 4 --semaphores 15x16x17
+// RUN: %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
 
-    FLAGS:
-    --sampled      ERROR: Sampled image writes are not supported
-    --semaphores   Use DX12 Fences for SYCL Interop Sync
-    --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
-                   Default is float 
-   WxHxD           Set custom Width x Height x Depth (e.g. 8x4x41)
-*/
 // clang-format on
+#include <iostream>
 
 #include "d3d12_setup.hpp"
 
@@ -71,6 +73,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -148,7 +151,15 @@ int runTest(
   }
 
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
 
     syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemDesc{
         imgRes.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,

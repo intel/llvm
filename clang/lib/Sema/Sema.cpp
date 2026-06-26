@@ -2133,8 +2133,24 @@ public:
     // Always emit deferred diagnostics for the direct users. This does not
     // lead to explosion of diagnostics since each user is visited at most
     // twice.
+#if 1 // INTEL_CUSTOMIZATION
+    // xmain emits deferred diagnostics inline during this traversal (unlike
+    // the upstream collect-then-emit model that uses emitCollectedDiags). For
+    // an implicit __host__ __device__ member that is a device-emission
+    // candidate only because of an explicit template instantiation, emitting
+    // inline here would (a) surface the error against the bare instantiation
+    // root with no call stack and (b) duplicate it when reached via an organic
+    // device caller. Skip the inline emission and let the end-of-TU
+    // classification in Sema::emitDeferredDiags decide whether to surface the
+    // diagnostics (organic caller) or drop them and emit a trap body (no
+    // caller). See #197214.
+    if ((ShouldEmitRootNode || InOMPDeviceContext) &&
+        !SemaCUDA::isImplicitHDExplicitInstantiation(FD))
+      emitDeferredDiags(FD, Caller);
+#else  // INTEL_CUSTOMIZATION
     if (ShouldEmitRootNode || InOMPDeviceContext)
       emitDeferredDiags(FD, Caller);
+#endif // INTEL_CUSTOMIZATION
     // Do not revisit a function if the function body has been completely
     // visited before.
     if (!Done.insert(FD).second)
@@ -2213,14 +2229,74 @@ void Sema::emitDeferredDiags() {
     ExternalSource->ReadDeclsToCheckForDeferredDiags(
         DeclsToCheckForDeferredDiags);
 
+  // For each implicit-H+D-explicit-inst function with deferred errors but no
+  // organic device caller, drop the diagnostics and mark for a trap body.
+  auto ClassifyImplicitHDExplicitInst = [&]() {
+    if (!LangOpts.CUDAIsDevice)
+      return;
+    for (auto &Pair : DeviceDeferredDiags) {
+      const FunctionDecl *FD = Pair.first;
+      if (!SemaCUDA::isImplicitHDExplicitInstantiation(FD))
+        continue;
+#if 1 // INTEL_CUSTOMIZATION
+      // xmain emits deferred diagnostics inline during the
+      // DeferredDiagnosticsEmitter traversal rather than collecting them for a
+      // final emitCollectedDiags pass. The inline emission is intentionally
+      // skipped for these functions (see
+      // DeferredDiagnosticsEmitter::checkFunc), so when an organic device
+      // caller exists the diagnostics are surfaced here with the usual
+      // call-stack notes. See #197214.
+      if (CUDA().DeviceKnownEmittedFns.count(FD)) {
+        bool HasWarningOrError = false;
+        bool FirstDiag = true;
+        for (DeviceDeferredDiagnostic &D : Pair.second) {
+          if (Diags.hasFatalErrorOccurred())
+            break;
+          const SourceLocation &Loc = D.getDiag().first;
+          const PartialDiagnostic &PD = D.getDiag().second;
+          HasWarningOrError |=
+              getDiagnostics().getDiagnosticLevel(PD.getDiagID(), Loc) >=
+              DiagnosticsEngine::Warning;
+          {
+            DiagnosticBuilder Builder(Diags.Report(Loc, PD.getDiagID()));
+            PD.Emit(Builder);
+          }
+          if (FirstDiag && HasWarningOrError) {
+            emitCallStackNotes(*this, FD);
+            FirstDiag = false;
+          }
+        }
+        Pair.second.clear();
+        continue;
+      }
+#else  // INTEL_CUSTOMIZATION
+      if (CUDA().DeviceKnownEmittedFns.count(FD))
+        continue;
+#endif // INTEL_CUSTOMIZATION
+      bool HasError =
+          llvm::any_of(Pair.second, [&](const DeviceDeferredDiagnostic &DDiag) {
+            return getDiagnostics().getDiagnosticLevel(
+                       DDiag.getDiag().second.getDiagID(),
+                       DDiag.getDiag().first) >= DiagnosticsEngine::Error;
+          });
+      if (!HasError)
+        continue;
+      Pair.second.clear();
+      Context.CUDADeviceInvalidFuncs.insert(FD->getCanonicalDecl());
+    }
+  };
+
   if ((DeviceDeferredDiags.empty() && !LangOpts.OpenMP &&
        !LangOpts.SYCLIsDevice) ||
-      DeclsToCheckForDeferredDiags.empty())
+      DeclsToCheckForDeferredDiags.empty()) {
+    ClassifyImplicitHDExplicitInst();
     return;
+  }
 
   DeferredDiagnosticsEmitter DDE(*this);
   for (auto *D : DeclsToCheckForDeferredDiags)
     DDE.checkRecordedDecl(D);
+  ClassifyImplicitHDExplicitInst();
 }
 
 // In CUDA, there are some constructs which may appear in semantically-valid

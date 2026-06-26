@@ -10,6 +10,7 @@
 //
 // The test checks that ESIMD kernels support use of function pointers from
 // within other functions.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

@@ -90,14 +90,16 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, const char *OArch,
   // Deps job uses the host kinds.
   if (Kind == OffloadDepsJobClass)
     return;
-  // Packaging actions can use host kinds for preprocessing.  When packaging
-  // preprocessed files, these packaged files will contain both host and device
-  // files, where the host side does not have any device info to propagate.
-  bool hasPreprocessJob =
+  // Packaging actions can use host kinds for preprocessing or generating
+  // PCH files.  When packaging such files, these packaged files will contain
+  // both host and device files, where the host side does not have any device
+  // info to propagate.
+  bool hasPreprocessOrPCHJob =
       std::any_of(Inputs.begin(), Inputs.end(), [](const Action *A) {
-        return A->getKind() == PreprocessJobClass;
+        return A->getKind() == PreprocessJobClass ||
+               A->getKind() == PrecompileJobClass;
       });
-  if (Kind == OffloadPackagerJobClass && hasPreprocessJob)
+  if (Kind == OffloadPackagerJobClass && hasPreprocessOrPCHJob)
     return;
 
   assert((OffloadingDeviceKind == OKind || OffloadingDeviceKind == OFK_None) &&
@@ -501,8 +503,9 @@ OffloadPackagerJobAction::OffloadPackagerJobAction(ActionList &Inputs,
 void OffloadPackagerExtractJobAction::anchor() {}
 
 OffloadPackagerExtractJobAction::OffloadPackagerExtractJobAction(
-    ActionList &Inputs, types::ID Type)
-    : JobAction(OffloadPackagerExtractJobClass, Inputs, Type) {}
+    ActionList &Inputs, types::ID Type, const clang::driver::ToolChain *TC)
+    : JobAction(OffloadPackagerExtractJobClass, Inputs, Type),
+      OPEToolChain(TC) {}
 
 void OffloadDepsJobAction::anchor() {}
 

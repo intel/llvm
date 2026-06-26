@@ -1048,8 +1048,11 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       case TypeSpecifierWidth::LongLong:
         Result = Context.LongLongTy;
 
-        // 'long long' is a C99 or C++11 feature.
-        if (!S.getLangOpts().C99) {
+        if (S.getLangOpts().OpenCL) {
+          // OpenCL v3.0 s6.3.4: 'long long' is a reserved data type.
+          S.Diag(DS.getTypeSpecWidthLoc(), diag::warn_opencl_longlong);
+        } else if (!S.getLangOpts().C99) {
+          // 'long long' is a C99 or C++11 feature.
           if (S.getLangOpts().CPlusPlus)
             S.Diag(DS.getTypeSpecWidthLoc(),
                    S.getLangOpts().CPlusPlus11 ?
@@ -1073,8 +1076,11 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       case TypeSpecifierWidth::LongLong:
         Result = Context.UnsignedLongLongTy;
 
-        // 'long long' is a C99 or C++11 feature.
-        if (!S.getLangOpts().C99) {
+        if (S.getLangOpts().OpenCL) {
+          // OpenCL v3.0 s6.3.4: 'long long' is a reserved data type.
+          S.Diag(DS.getTypeSpecWidthLoc(), diag::warn_opencl_longlong);
+        } else if (!S.getLangOpts().C99) {
+          // 'long long' is a C99 or C++11 feature.
           if (S.getLangOpts().CPlusPlus)
             S.Diag(DS.getTypeSpecWidthLoc(),
                    S.getLangOpts().CPlusPlus11 ?
@@ -8403,7 +8409,6 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
   // much ability to diagnose it later.
   if (!supportsVariadicCall(CC)) {
     const FunctionProtoType *FnP = dyn_cast<FunctionProtoType>(fn);
-    // Disable these diagnostics for SYCL
     if (FnP && FnP->isVariadic() && !S.getLangOpts().SYCLIsDevice) {
       // stdcall and fastcall are ignored with a warning for GCC and MS
       // compatibility.
@@ -9152,6 +9157,13 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
         // regardless of the order of groupshared or in/out/inout specified in
         // the parameter. And checking there produces a better error message.
       }
+      attr.setUsedAsTypeAttr();
+      break;
+    case ParsedAttr::AT_HLSLRowMajor:
+    case ParsedAttr::AT_HLSLColumnMajor:
+      if (Attr *A =
+              state.getSema().HLSL().buildMatrixLayoutTypeAttr(type, attr))
+        type = state.getAttributedType(A, type, type);
       attr.setUsedAsTypeAttr();
       break;
     OBJC_POINTER_TYPE_ATTRS_CASELIST:
@@ -10041,7 +10053,7 @@ QualType Sema::getDecltypeForExpr(Expr *E) {
   // parameter object. This rule makes no difference before C++20 so we apply
   // it unconditionally.
   if (const auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(IDExpr))
-    return SNTTPE->getParameterType(Context);
+    IDExpr = SNTTPE->getReplacement();
 
   //     - if e is an unparenthesized id-expression or an unparenthesized class
   //       member access (5.2.5), decltype(e) is the type of the entity named
