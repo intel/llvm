@@ -170,14 +170,11 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
 
 // Check that program is built once for all sub-sub-devices
 TEST(SubDevices, BuildProgramForSubSubDevices) {
-#if defined(_WIN32) && defined(__INTEL_LLVM_COMPILER)
-  // Disabled on Windows built with icx: a Managed<ur_program_handle_t> can
-  // release its UR program through an already-freed adapter_impl (use-after-
-  // free), which on this configuration calls a null function pointer and
-  // crashes with SEH 0xC0000005. Tracked in
-  // https://github.com/intel/llvm/issues/22367
-  GTEST_SKIP() << "Disabled on Windows/icx, see intel/llvm#22367";
-#endif
+  // NOTE(intel/llvm#22367 experiment): re-enabled to confirm whether the
+  // crash is a test-local lifetime issue. This test has no local PM (it uses
+  // the global ProgramManager::getInstance()), so there is no Mock/PM order to
+  // change here; the suspected dangling Managed lives in the default context's
+  // KernelProgramCache, which outlives the test.
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback("urDeviceGet", &redefinedDeviceGet);
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",

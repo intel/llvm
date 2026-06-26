@@ -333,14 +333,11 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
 }
 
 TEST(ImageRemoval, NativePrograms) {
-#if defined(_WIN32) && defined(__INTEL_LLVM_COMPILER)
-  // Disabled on Windows built with icx: a Managed<ur_program_handle_t> can
-  // release its UR program through an already-freed adapter_impl (use-after-
-  // free), which on this configuration calls a null function pointer and
-  // crashes with SEH 0xC0000005. Tracked in
-  // https://github.com/intel/llvm/issues/22367
-  GTEST_SKIP() << "Disabled on Windows/icx, see intel/llvm#22367";
-#endif
+  // NOTE(intel/llvm#22367 experiment): Mock is declared before PM so that, by
+  // reverse destruction order, Mock outlives PM. Testing the reviewer's
+  // hypothesis that PM was releasing UR resources through a torn-down mock.
+  sycl::unittest::UrMock<> Mock;
+
   ProgramManagerExposed PM;
 
   sycl_device_binary_struct NativeImages[ImagesToKeepKernelOnly.size()];
@@ -353,7 +350,6 @@ TEST(ImageRemoval, NativePrograms) {
   convertAndAddImages(PM, ImagesToRemoveKernelOnly, NativeImagesForRemoval,
                       TestBinaries);
 
-  sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
