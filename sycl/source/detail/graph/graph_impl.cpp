@@ -688,6 +688,7 @@ void graph_impl::setDestructionCallback(std::function<void()> Callback) {
 
 sycl::detail::EnqueueHostTaskData *graph_impl::addNativeHostTaskCallback(
     std::unique_ptr<sycl::detail::EnqueueHostTaskData> Data) {
+  graph_impl::WriteLock Lock(MMutex);
   MNativeHostTaskCallbacks.push_back(std::move(Data));
   return MNativeHostTaskCallbacks.back().get();
 }

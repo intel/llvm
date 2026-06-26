@@ -91,9 +91,13 @@ struct EnqueueHostTaskData {
 
 template <bool OwnsData> inline void NativeHostTask(void *Data) {
   auto *HostTaskData = static_cast<EnqueueHostTaskData *>(Data);
-  HostTaskData->Func();
-  if constexpr (OwnsData)
-    delete HostTaskData;
+  if constexpr (OwnsData) {
+    // so it's freed if the user function throws
+    std::unique_ptr<EnqueueHostTaskData> Owner(HostTaskData);
+    Owner->Func();
+  } else {
+    HostTaskData->Func();
+  }
 }
 
 } // namespace detail
