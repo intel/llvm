@@ -616,8 +616,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
             {"zeGraphSetDestructionCallbackExp",
              reinterpret_cast<void **>(
                  &ZeGraphExt.zeGraphSetDestructionCallbackExp)},
-            {"zeGraphGetIdExt",
-             reinterpret_cast<void **>(&ZeGraphExt.zeGraphGetIdExt)},
         };
 
     for (auto &[funcName, funcAddr] : ZeGraphOptionalFuncNameToAddrMap) {
