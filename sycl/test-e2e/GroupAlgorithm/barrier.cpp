@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
+#include <sycl/group_barrier.hpp>
 #include <vector>
 
 using namespace sycl;
@@ -31,7 +32,7 @@ void basic() {
         if (idx < 2) {
           loc_barrier[idx].initialize(N);
         }
-        item.barrier(access::fence_space::local_space);
+        group_barrier(item.get_group());
         for (int i = 0; i < N; i++) {
           int val = loc[idx];
           barrier::arrival_token arr = loc_barrier[0].arrive();
@@ -78,7 +79,7 @@ void interface() {
         if (idx == 1) {
           loc_barrier[1].initialize(N * N);
         }
-        item.barrier(access::fence_space::local_space);
+        group_barrier(item.get_group());
 
         item.async_work_group_copy(
             loc.get_multi_ptr<access::decorated::yes>(),
@@ -93,12 +94,12 @@ void interface() {
           *reused_barrier_space = loc[0];
           loc[0] = 0;
         }
-        item.barrier(access::fence_space::local_space);
+        group_barrier(item.get_group());
         if (idx == 1) {
           int *reused_barrier_space = (int *)(void *)loc_barrier.get_pointer();
           loc[0] = *reused_barrier_space;
         }
-        item.barrier(access::fence_space::local_space);
+        group_barrier(item.get_group());
         if (idx == 0) {
           loc_barrier[0].initialize(N);
         }
@@ -119,7 +120,7 @@ void interface() {
         arr = loc_barrier[1].arrive();
         test1_acc[idx] = loc_barrier[1].test_wait(arr);
         arr = loc_barrier[1].arrive();
-        item.barrier(access::fence_space::local_space);
+        group_barrier(item.get_group());
         test2_acc[idx] = loc_barrier[1].test_wait(arr);
         loc_barrier[1].wait(arr);
 
