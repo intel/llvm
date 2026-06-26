@@ -2558,6 +2558,10 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports registering host
   /// memory ranges.
   UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP = 0x2090,
+  /// [::ur_bool_t] returns true if the device can produce profiling
+  /// information for individual events without the whole queue being
+  /// created with ::UR_QUEUE_FLAG_PROFILING_ENABLE.
+  UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP = 0x20A0,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
