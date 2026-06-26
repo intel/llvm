@@ -350,6 +350,15 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
     assert(MNativeGraphHandle != nullptr &&
            "Native UR graph handle should not be null if graph creation "
            "succeeded");
+
+    uint64_t NativeId = 0;
+    Result = Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphGetIdExp>(
+        MNativeGraphHandle, &NativeId);
+    if (Result == UR_RESULT_SUCCESS) {
+      MNativeID = NativeId;
+    }
+    // On failure (e.g. backend lacks urGraphGetIdExp), MNativeID stays unset
+    // and getID() falls back to the SYCL atomic counter MID.
   }
 
   if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&

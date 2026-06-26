@@ -503,7 +503,7 @@ public:
     return MBarrierDependencyMap[Queue];
   }
 
-  unsigned long long getID() const { return MID; }
+  unsigned long long getID() const { return MNativeID.value_or(MID); }
 
   /// Get the memory pool used for graph-owned allocations.
   graph_mem_pool &getMemPool() { return MGraphMemPool; }
@@ -646,6 +646,11 @@ private:
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
+
+  /// Backend graph ID, queried from urGraphGetIdExp when native recording is
+  /// enabled. Unset for non-native graphs, or for native graphs whose backend
+  /// does not provide the ID; getID() then falls back to MID.
+  std::optional<unsigned long long> MNativeID;
 
   // The number of live executable graphs that have been created from this
   // modifiable graph

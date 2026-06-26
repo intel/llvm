@@ -1544,7 +1544,18 @@ state is `graph_state::modifiable`.
 
 _Returns:_ A process-unique ID associated with this graph object. The ID is stable across
 `begin_recording`/`end_recording` cycles on the same graph object. That is, multiple
-recording sessions on the same graph return the same ID.
+recording sessions on the same graph return the same ID. IDs increase
+monotonically as graph objects are created.
+
+When the graph was created with the `property::graph::enable_native_recording`
+property (or under `SYCL_GRAPH_FORCE_NATIVE_RECORDING=1`), the returned ID is
+obtained from the backend's native graph object if supported. IDs are guaranteed
+unique among graphs that use native recording, and separately unique among
+graphs that do not use native recording. Within each of these two groups the IDs
+increase monotonically. There is *no* guarantee of uniqueness or relative
+ordering between a native-recording graph and a non-native-recording graph; an
+application that mixes both must not assume IDs from the two groups are
+distinct.
 
 [NOTE]
 ====

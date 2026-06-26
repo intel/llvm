@@ -8,13 +8,20 @@ int main() {
   context Ctx{Dev};
   queue Q{Ctx, Dev, {property::queue::in_order{}}};
 
+#ifdef GRAPH_E2E_NATIVE_RECORDING
+  const property_list GraphProps{
+      exp_ext::property::graph::enable_native_recording{}};
+#else
+  const property_list GraphProps{};
+#endif
+
   // Test 1: Monotonic uniqueness
   {
     constexpr int N = 5;
     std::vector<exp_ext::command_graph<>> Graphs;
     Graphs.reserve(N);
     for (int i = 0; i < N; ++i)
-      Graphs.emplace_back(Ctx, Dev);
+      Graphs.emplace_back(Ctx, Dev, GraphProps);
     for (int i = 1; i < N; ++i) {
       assert(Graphs[i].get_id() > Graphs[i - 1].get_id() &&
              "IDs must be strictly increasing");
@@ -29,7 +36,7 @@ int main() {
 
   // Test 2: Stability across begin_recording/end_recording cycles.
   {
-    exp_ext::command_graph Graph{Ctx, Dev};
+    exp_ext::command_graph Graph{Ctx, Dev, GraphProps};
     size_t ID = Graph.get_id();
 
     Graph.begin_recording(Q);
@@ -47,8 +54,8 @@ int main() {
 
   // Test 3: Distinct graphs have distinct IDs.
   {
-    exp_ext::command_graph GraphA{Ctx, Dev};
-    exp_ext::command_graph GraphB{Ctx, Dev};
+    exp_ext::command_graph GraphA{Ctx, Dev, GraphProps};
+    exp_ext::command_graph GraphB{Ctx, Dev, GraphProps};
     assert(GraphA.get_id() != GraphB.get_id() &&
            "Distinct graphs must have distinct IDs");
   }
@@ -56,7 +63,7 @@ int main() {
   // Test 4: On fork/join, both queues see the same ID.
   {
     queue Q2{Ctx, Dev, {property::queue::in_order{}}};
-    exp_ext::command_graph Graph{Ctx, Dev};
+    exp_ext::command_graph Graph{Ctx, Dev, GraphProps};
 
     Graph.begin_recording(Q);
     auto ForkEvent = Q.ext_oneapi_submit_barrier();
@@ -76,6 +83,15 @@ int main() {
            "Both queues must see the same ID for a fork/join graph");
 
     Graph.end_recording();
+  }
+
+  // Test 5: IDs are unique across contexts.
+  {
+    context Ctx2{Dev};
+    exp_ext::command_graph GraphA{Ctx, Dev, GraphProps};
+    exp_ext::command_graph GraphB{Ctx2, Dev, GraphProps};
+    assert(GraphA.get_id() != GraphB.get_id() &&
+           "Graphs in different contexts must have distinct IDs");
   }
 
   return 0;
