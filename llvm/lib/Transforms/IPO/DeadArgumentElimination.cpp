@@ -489,8 +489,15 @@ DeadArgumentEliminationPass::surveyUses(const Value *V,
 /// We consider arguments of non-internal functions to be intrinsically alive as
 /// well as arguments to functions which have their "address taken".
 void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
-  // Can only change function signature for functions with local linkage.
-  if (!F.hasLocalLinkage()) {
+  // We can't modify arguments if the function is not local
+  // but we can do so for SYCL kernel functions.
+  bool FuncIsSyclKernel =
+      CheckSYCLKernels &&
+      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
+
+  // Can only change function signature for functions with local linkage,
+  // except SYCL kernel functions which are handled specially.
+  if (!F.hasLocalLinkage() && !FuncIsSyclKernel) {
     markFrozen(F);
     return;
   }
@@ -520,7 +527,8 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
   }
 
   // Ensure function definition is available for interprocedural analysis.
-  if (!F.isDefinitionExact()) {
+  // SYCL kernels may have weak_odr linkage but still have a unique definition.
+  if (!F.isDefinitionExact() && !FuncIsSyclKernel) {
     markFrozen(F);
     return;
   }
@@ -546,17 +554,6 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
       if (markFnOrRetTyFrozenOnMusttail(F))
         return;
     }
-  }
-
-  // We can't modify arguments if the function is not local
-  // but we can do so for SYCL kernel functions.
-  bool FuncIsSyclKernel =
-      CheckSYCLKernels &&
-      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
-  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclKernel;
-  if (FuncIsLive) {
-    markFrozen(F);
-    return;
   }
 
   // Do not modify arguments when the SYCL kernel is a free function kernel.
