@@ -40,12 +40,8 @@ void test() {
   //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
-  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
-  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
   //CHECK:  %{{.*}} = load i32, ptr %{{.*}}
-  //CHECK:  call void @_ZTS6init_aIiE.NativeCPUKernel(ptr addrspace(1) {{.*}}, ptr {{.*}}, ptr {{.*}}, ptr {{.*}}, i32 {{.*}}, ptr addrspace(1) {{.*}})
+  //CHECK:  call void @_ZTS6init_aIiE.NativeCPUKernel(ptr {{.*}}, ptr {{.*}}, i32 {{.*}}, ptr {{.*}})
   //CHECK:  ret void
   //CHECK:}
   gen_test<float>(q);
@@ -53,15 +49,11 @@ void test() {
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK:  %{{.*}} = load ptr addrspace(1), ptr %{{.*}}
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
-  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
-  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
+  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}, align 8
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
   //CHECK:  %{{.*}} = load float, ptr %{{.*}}
-  //CHECK:  call void @_ZTS6init_aIfE.NativeCPUKernel(ptr addrspace(1) {{.*}}, ptr {{.*}}, ptr {{.*}}, ptr {{.*}}, float {{.*}}, ptr addrspace(1) {{.*}})
+  //CHECK:  call void @_ZTS6init_aIfE.NativeCPUKernel(ptr {{.*}}, ptr {{.*}}, float {{.*}}, ptr {{.*}})
   //CHECK:  ret void
   //CHECK:}
 
@@ -74,7 +66,7 @@ void test() {
     });
   });
   //CHECK:define void @_ZTS5Test1.SYCLNCPU(ptr %{{.*}}, ptr addrspace(1) %[[STATE2:.*]]) #{{.*}} {
-  //CHECK:       call void @_ZTS5Test1.NativeCPUKernel(ptr addrspace(1) {{.*}}, ptr {{.*}}, ptr {{.*}}, ptr {{.*}}, ptr addrspace(1) %[[STATE2]])
+  //CHECK:       call void @_ZTS5Test1.NativeCPUKernel(ptr addrspace(1) %[[STATE2]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
