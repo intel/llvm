@@ -33,8 +33,8 @@ int main() {
     const int dataSize = 32;
     const size_t numBytes = static_cast<size_t>(dataSize) * sizeof(int);
 
-    auto dataA = malloc_shared<int>(numBytes, Queue);
-    auto dataB = malloc_shared<int>(numBytes, Queue);
+    auto dataA = malloc_shared<int>(dataSize, Queue);
+    auto dataB = malloc_shared<int>(dataSize, Queue);
 
     for (int i = 0; i < dataSize; i++) {
       dataA[i] = i;
