@@ -552,11 +552,7 @@ if cl_options:
         hip_lib = normalize_windows_network_path(hip_lib)
     hip_options = (
         " "
-        + (
-            quote_path(hip_lib)
-            if config.hip_libs_dir
-            else "amdhip64.lib"
-        )
+        + (quote_path(hip_lib) if config.hip_libs_dir else "amdhip64.lib")
         + " /I"
         + config.hip_include
     )
@@ -570,7 +566,9 @@ with test_env():
         config.available_features.add("hip_dev_kit")
         config.substitutions.append(("%hip_options", hip_options))
     else:
-        config.substitutions.append(("%hip_options", ""))
+        config.substitutions.append(
+            ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
+        )
 
 # Add ROCM_PATH from system environment, this is used by clang to find ROCm
 # libraries in non-standard installation locations.
