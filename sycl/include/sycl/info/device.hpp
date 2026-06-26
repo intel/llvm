@@ -412,10 +412,13 @@ struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
 };
 
 // Extensions/deprecated
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct __SYCL_DEPRECATED("use sycl::aspect::atomic64 instead") atomic64
     : device_traits<UR_DEVICE_INFO_ATOMIC_64> {
   using return_type = bool;
 };
+#endif
+
 struct reference_count : device_traits<UR_DEVICE_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };

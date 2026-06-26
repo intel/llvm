@@ -1248,7 +1248,9 @@ public:
     CASE(int64_extended_atomics) {
       return has_extension("cl_khr_int64_extended_atomics");
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(atomic64) { return get_info<info::device::atomic64>(); }
+#endif
     CASE(image) { return get_info<info::device::image_support>(); }
     CASE(online_compiler) {
       return get_info<info::device::is_compiler_available>();
