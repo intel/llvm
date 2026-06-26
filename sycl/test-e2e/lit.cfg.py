@@ -570,9 +570,7 @@ with test_env():
         config.available_features.add("hip_dev_kit")
         config.substitutions.append(("%hip_options", hip_options))
     else:
-        config.substitutions.append(
-            ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
-        )
+        config.substitutions.append(("%hip_options", ""))
 
 # Add ROCM_PATH from system environment, this is used by clang to find ROCm
 # libraries in non-standard installation locations.
@@ -580,15 +578,17 @@ llvm_config.with_system_environment("ROCM_PATH")
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
-    opencl_lib = config.opencl_libs_dir + "/OpenCL.lib"
+    opencl_win_lib = config.opencl_libs_dir + "/OpenCL.lib"
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
     config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
-        if is_windows_unc_network_path(opencl_lib):
-            opencl_lib = normalize_windows_network_path(opencl_lib)
-        config.substitutions.append(("%opencl_lib", " " + quote_path(opencl_lib)))
+        if is_windows_unc_network_path(opencl_win_lib):
+            opencl_win_lib = normalize_windows_network_path(opencl_win_lib)
+        config.substitutions.append(("%opencl_lib", " " + quote_path(opencl_win_lib)))
     else:
-        config.substitutions.append(("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL"))
+        config.substitutions.append(
+            ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
+        )
     config.available_features.add("opencl_icd")
 config.substitutions.append(("%opencl_include_dir", config.opencl_include_dir))
 
