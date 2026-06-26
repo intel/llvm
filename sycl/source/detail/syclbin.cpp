@@ -300,95 +300,29 @@ void overrideKernelParamOpt(PropertySetRegistry &Reg, device_image_impl &Img) {
   }
 }
 
-// Replace the [SYCL/specialization constants] descriptor set and the
-// [SYCL/specialization constants default values] blob with the runtime-
-// effective view. The descriptor set is re-emitted from
-// device_image_impl::MSpecConstSymMap; the default-value blob is re-emitted
-// from MSpecConstsBlob, which holds the current value (default, or the value
-// most recently set via set_specialization_constant) for each scalar leaf.
+// Carry user-set spec-constant values into the serialized SYCLBIN via the
+// optional [...set values] property, so they survive a round-trip.
 //
-// This is the channel through which user-set spec-constant overrides reach
-// the serialized SYCLBIN: a value set via set_specialization_constant on an
-// input bundle, then ext_oneapi_get_content'd, will appear as the new
-// "default" in the emitted SYCLBIN, so a re-loaded bundle starts at that
-// value without the user re-setting it.
+// The descriptor set and default-value blob are left to the raw-forward pass,
+// which copies them verbatim in producer order. Re-emitting descriptors from
+// MSpecConstSymMap (keyed by name) would reorder them relative to the flat blob
+// (indexed by BlobOffset in producer order) and corrupt multi-constant
+// round-trips; the default blob must also stay the original compile-time
+// defaults. We add only the effective value blob, when any descriptor is set;
+// the reader restores IsSet from it. Absent for compiler-produced SYCLBIN; old
+// readers ignore it (no version bump).
 void overrideSpecConstants(PropertySetRegistry &Reg, device_image_impl &Img) {
-  using device_image_impl_for_spec = sycl::detail::device_image_impl;
-  const device_image_impl_for_spec::SpecConstMapT &SymMap =
-      Img.get_spec_const_data_ref();
-  if (SymMap.empty())
-    return;
-
-  // Spec constant scalar descriptor: { ID, CompositeOffset, Size } as 3
-  // little-endian uint32_t. Matches the layout consumed by
-  // ProgramManager / device_image_impl on read.
-  PropertySet &Descriptors = Reg["SYCL/specialization constants"];
-  Descriptors.clear();
-  for (const auto &[Name, Descs] : SymMap) {
-    std::vector<std::uint32_t> Packed;
-    Packed.reserve(Descs.size() * 3);
-    for (const auto &Desc : Descs) {
-      Packed.push_back(static_cast<std::uint32_t>(Desc.ID));
-      Packed.push_back(static_cast<std::uint32_t>(Desc.CompositeOffset));
-      Packed.push_back(static_cast<std::uint32_t>(Desc.Size));
-    }
-    Descriptors[Name] = PropertyValue{
-        reinterpret_cast<const PropertyValue::byte *>(Packed.data()),
-        static_cast<PropertyValue::SizeTy>(Packed.size() *
-                                           sizeof(std::uint32_t) * 8)};
-  }
-
-  // Default-value blob. The reader (device_image_impl::getSpecConstsDefValBlob)
-  // expects a single property holding the whole flat blob, indexed by each
-  // descriptor's BlobOffset, NOT one property per spec constant. The producer
-  // convention (sycl-post-link) names this single property "all". Emit the
-  // runtime-effective blob (which reflects any set_specialization_constant
-  // overrides applied before serialization) verbatim under that key so the
-  // reloaded bundle's host-side spec-constant reads return the same values.
-  const std::vector<unsigned char> &Blob =
-      const_cast<device_image_impl &>(Img).get_spec_const_blob_ref();
-  if (Blob.empty())
-    return;
-  PropertySet &Defaults = Reg["SYCL/specialization constants default values"];
-  Defaults.clear();
-  Defaults["all"] =
-      PropertyValue{reinterpret_cast<const PropertyValue::byte *>(Blob.data()),
-                    static_cast<PropertyValue::SizeTy>(Blob.size() * 8)};
-
-  // Optional [SYCL/specialization constants set values] property set. SYCLBIN
-  // (like the offline property-set format) has no notion of "user-set vs
-  // default": the blob above is consumed on reload purely as the default
-  // value, and a reloaded image's descriptors all start IsSet=false. That
-  // loses any value applied via set_specialization_constant before
-  // ext_oneapi_get_content, because the host getter
-  // (kernel_bundle::get_specialization_constant) returns the C++ static
-  // default for an unset constant rather than consulting the blob.
-  //
-  // To round-trip the user-set state, emit a second copy of the same blob
-  // under this dedicated key whenever at least one descriptor is set. The
-  // reader restores IsSet from its presence (see
-  // device_image_impl::updateSpecConstSymMap). Emitting only when something
-  // is set keeps compiler-produced SYCLBIN free of the property, and old
-  // readers simply ignore the unknown set (backward compatible, no version
-  // bump).
-  bool AnySet = false;
-  for (const auto &[Name, Descs] : SymMap) {
-    std::ignore = Name;
-    for (const auto &Desc : Descs)
-      if (Desc.IsSet) {
-        AnySet = true;
-        break;
-      }
-    if (AnySet)
-      break;
-  }
-  if (!AnySet)
+  // The helper locks the spec-constant state internally and returns nullopt
+  // when nothing is set.
+  std::optional<std::vector<unsigned char>> Blob =
+      Img.get_spec_const_set_values_blob();
+  if (!Blob)
     return;
   PropertySet &SetValues = Reg["SYCL/specialization constants set values"];
   SetValues.clear();
   SetValues["all"] =
-      PropertyValue{reinterpret_cast<const PropertyValue::byte *>(Blob.data()),
-                    static_cast<PropertyValue::SizeTy>(Blob.size() * 8)};
+      PropertyValue{reinterpret_cast<const PropertyValue::byte *>(Blob->data()),
+                    static_cast<PropertyValue::SizeTy>(Blob->size() * 8)};
 }
 
 constexpr CategoryOverride OverrideTable[] = {

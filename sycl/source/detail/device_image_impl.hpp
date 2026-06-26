@@ -560,6 +560,46 @@ public:
     return MSpecConstsBlob;
   }
 
+  // Effective value blob for SYCLBIN's [...set values] property: set
+  // descriptors carry their current value, unset ones their default (not the
+  // stale bytes set_specialization_constant_raw_value leaves on reset). Lets
+  // the reader recover IsSet by comparing against the default blob. nullopt
+  // when nothing is set, so the serializer emits nothing.
+  std::optional<std::vector<unsigned char>>
+  get_spec_const_set_values_blob() noexcept {
+    std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+    bool AnySet = false;
+    for (const auto &[Name, Descs] : MSpecConstSymMap) {
+      std::ignore = Name;
+      for (const SpecConstDescT &Desc : Descs)
+        if (Desc.IsSet) {
+          AnySet = true;
+          break;
+        }
+      if (AnySet)
+        break;
+    }
+    if (!AnySet || MSpecConstsBlob.empty())
+      return std::nullopt;
+
+    std::vector<unsigned char> Result = MSpecConstsBlob;
+    // Unset descriptors carry default bytes, so a set-then-reset constant
+    // round-trips as default, not its stale value.
+    if (MSpecConstsDefValBlob.size() == Result.size()) {
+      for (const auto &[Name, Descs] : MSpecConstSymMap) {
+        std::ignore = Name;
+        for (const SpecConstDescT &Desc : Descs) {
+          if (Desc.IsSet)
+            continue;
+          std::memcpy(Result.data() + Desc.BlobOffset,
+                      MSpecConstsDefValBlob.begin() + Desc.BlobOffset,
+                      Desc.Size);
+        }
+      }
+    }
+    return Result;
+  }
+
   ur_mem_handle_t &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
@@ -972,10 +1012,8 @@ private:
     return DefValDescriptors;
   }
 
-  // Get the optional spec-constant "set values" blob. Only present in SYCLBIN
-  // produced by ext_oneapi_get_content when a value was user-set; see
-  // overrideSpecConstants in syclbin.cpp. Returns an empty ByteArray when the
-  // property set is absent (the common case for compiler-produced images).
+  // Optional [...set values] blob, present only in ext_oneapi_get_content
+  // output when a value was user-set. Empty ByteArray when absent.
   ByteArray getSpecConstsSetValBlob() const {
     if (!hasRTDeviceBinaryImage())
       return ByteArray(nullptr, 0);
@@ -1046,16 +1084,14 @@ private:
                                 MSpecConstsBlob.data());
       }
 
-      // Optional [SYCL/specialization constants set values] property set,
-      // emitted only by ext_oneapi_get_content when a value was user-set (see
-      // overrideSpecConstants in syclbin.cpp). When present, it carries the
-      // runtime-effective blob of user-set values. SYCLBIN has no per-constant
-      // "user-set vs default" bit, so without this the reloaded image would
-      // start with every descriptor IsSet=false and the host getter
-      // (kernel_bundle::get_specialization_constant) would return the C++
-      // static default instead of the round-tripped value. Restore both the
-      // value blob and the IsSet state from it. Absent property -> leave
-      // IsSet=false (default behavior for compiler-produced images).
+      // Optional [...set values] property, emitted by ext_oneapi_get_content
+      // when a value was user-set (see overrideSpecConstants in syclbin.cpp).
+      // SYCLBIN has no per-constant set/default bit, so without this a reloaded
+      // image starts IsSet=false and the host getter returns the static
+      // default. Overlay the blob and mark IsSet per descriptor only where it
+      // differs from the default (mirrors set_specialization_constant_raw_value
+      // so is_specialization_constant_set stays accurate). Absent -> IsSet
+      // stays false (compiler-produced images).
       ByteArray SetValBlob = getSpecConstsSetValBlob();
       if (SetValBlob.size()) {
         assert(SetValBlob.size() == MSpecConstsBlob.size() &&
@@ -1064,10 +1100,19 @@ private:
         std::copy(SetValBlob.begin(),
                   SetValBlob.begin() + MSpecConstsBlob.size(),
                   MSpecConstsBlob.data());
+        const bool HaveDefaults =
+            MSpecConstsDefValBlob.size() == MSpecConstsBlob.size();
         for (auto &[Name, Descs] : MSpecConstSymMap) {
           std::ignore = Name;
-          for (SpecConstDescT &Desc : Descs)
-            Desc.IsSet = true;
+          for (SpecConstDescT &Desc : Descs) {
+            // Set iff the set-values bytes differ from the default. With no
+            // defaults to compare, treat a present blob as set.
+            Desc.IsSet =
+                !HaveDefaults ||
+                std::memcmp(MSpecConstsBlob.data() + Desc.BlobOffset,
+                            MSpecConstsDefValBlob.begin() + Desc.BlobOffset,
+                            Desc.Size) != 0;
+          }
         }
       }
     }

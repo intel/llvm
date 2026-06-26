@@ -1,19 +1,24 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// -- End-to-end round-trip test for ext_oneapi_get_content() preserving a
-// -- user-set specialization constant value.
+// -- End-to-end round-trip test for ext_oneapi_get_content() preserving
+// -- user-set specialization constant values.
 // --
 // -- Flow:
 // --   1. Build an input-state kernel_bundle. The kernel below references
-// --      the spec const, so it is statically registered with the image.
-// --   2. Override the spec const via set_specialization_constant<>.
-// --   3. sycl::build it to executable; the override is applied at JIT time.
+// --      two spec constants, so they are statically registered with the
+// --      image.
+// --   2. Override the spec constants via set_specialization_constant<>:
+// --      SCA is set to a user value; SCB is set then reset back to its
+// --      default. This exercises the default-vs-set distinction across more
+// --      than one constant.
+// --   3. sycl::build it to executable; the overrides are applied at JIT time.
 // --   4. ext_oneapi_get_content() to serialize.
 // --   5. Reload the bytes as an executable kernel_bundle.
-// --   6. Read the spec const value back via the *bundle* host API on the
-// --      reloaded bundle. It must equal the user-set value (12345), not
-// --      the default (42).
+// --   6. Read the spec const values back via the *bundle* host API on the
+// --      reloaded bundle. SCA must equal the user value (12345); SCB must
+// --      read back as its default (7), not the stale intermediate value, and
+// --      the two constants' blob slices must not be swapped.
 // --
 
 // RUN: %{build} -o %t.out
@@ -30,15 +35,17 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-constexpr static int DefaultValue = 42;
-constexpr static int UserValue = 12345;
+constexpr static int DefaultA = 42;
+constexpr static int UserA = 12345;
+constexpr static int DefaultB = 7;
+constexpr static int StaleB = 99;
 
-constexpr sycl::specialization_id<int> SC{DefaultValue};
+constexpr sycl::specialization_id<int> SCA{DefaultA};
+constexpr sycl::specialization_id<int> SCB{DefaultB};
 
-// A trivial kernel that references the spec const at compile time so the
-// frontend ties the spec const to a registered device image. We do not need
-// to actually run this kernel against the reloaded bundle to verify the
-// round-trip.
+// A trivial kernel that references the spec constants at compile time so the
+// frontend ties them to a registered device image. We do not need to actually
+// run this kernel against the reloaded bundle to verify the round-trip.
 class ReadSpecConstKernel;
 
 int main() {
@@ -46,14 +53,14 @@ int main() {
   const sycl::context Ctx = Q.get_context();
   const sycl::device Dev = Q.get_device();
 
-  // Touch the kernel once at compile-time so the spec const is associated
-  // with a registered image. We submit it on the side to also exercise the
-  // baseline path; the round-trip work below uses a fresh input-state bundle.
+  // Touch the kernel once at compile-time so the spec consts are associated
+  // with a registered image.
   {
-    int *Sink = sycl::malloc_shared<int>(1, Q);
+    int *Sink = sycl::malloc_shared<int>(2, Q);
     Q.submit([&](sycl::handler &CGH) {
        CGH.single_task<ReadSpecConstKernel>([=](sycl::kernel_handler KH) {
-         *Sink = KH.get_specialization_constant<SC>();
+         Sink[0] = KH.get_specialization_constant<SCA>();
+         Sink[1] = KH.get_specialization_constant<SCB>();
        });
      }).wait_and_throw();
     sycl::free(Sink, Q);
@@ -67,25 +74,43 @@ int main() {
     return 1;
   }
 
-  // 2. Override the spec const.
-  if (KBInput.get_specialization_constant<SC>() != DefaultValue) {
+  // 2. Override the spec constants. SCB is set to a stale value then reset to
+  // its default; after that it must report as unset (default). SCA is set to
+  // a distinct user value.
+  if (KBInput.get_specialization_constant<SCA>() != DefaultA ||
+      KBInput.get_specialization_constant<SCB>() != DefaultB) {
     std::cout << "Pre-condition failed: input bundle did not start with the "
-                 "default spec const value.\n";
+                 "default spec const values.\n";
     return 1;
   }
-  KBInput.set_specialization_constant<SC>(UserValue);
-  if (KBInput.get_specialization_constant<SC>() != UserValue) {
-    std::cout << "Pre-condition failed: host read of input bundle spec const "
-                 "did not return user value after set.\n";
+  KBInput.set_specialization_constant<SCB>(StaleB);
+  KBInput.set_specialization_constant<SCB>(DefaultB);
+  KBInput.set_specialization_constant<SCA>(UserA);
+
+  if (KBInput.get_specialization_constant<SCA>() != UserA) {
+    std::cout << "Pre-condition failed: host read of input bundle SCA did not "
+                 "return user value after set.\n";
+    return 1;
+  }
+  if (KBInput.get_specialization_constant<SCB>() != DefaultB) {
+    std::cout << "Pre-condition failed: SCB on input did not short-circuit to "
+                 "default; got "
+              << KBInput.get_specialization_constant<SCB>() << "\n";
     return 1;
   }
 
-  // 3. Build to executable. The override is applied to the UR program here.
+  // 3. Build to executable. The overrides are applied to the UR program here.
   auto KBExe = sycl::build(KBInput);
 
-  if (KBExe.get_specialization_constant<SC>() != UserValue) {
-    std::cout << "Pre-condition failed: host read of executable bundle "
-                 "spec const did not return user value after build.\n";
+  if (KBExe.get_specialization_constant<SCA>() != UserA) {
+    std::cout << "Pre-condition failed: host read of executable bundle SCA did "
+                 "not return user value after build.\n";
+    return 1;
+  }
+  if (KBExe.get_specialization_constant<SCB>() != DefaultB) {
+    std::cout << "Pre-condition failed: SCB on exe did not short-circuit to "
+                 "default; got "
+              << KBExe.get_specialization_constant<SCB>() << "\n";
     return 1;
   }
 
@@ -100,28 +125,37 @@ int main() {
   auto KBReloaded = syclexp::get_kernel_bundle<sycl::bundle_state::executable>(
       Ctx, {Dev}, sycl::span<char>{Bytes});
 
-  // 6. Compare host-side spec const value on the reloaded bundle.
-  if (!KBReloaded.has_specialization_constant<SC>()) {
+  // 6. Compare host-side spec const values on the reloaded bundle.
+  if (!KBReloaded.has_specialization_constant<SCA>() ||
+      !KBReloaded.has_specialization_constant<SCB>()) {
     std::cout
-        << "FAIL: reloaded bundle does not advertise the spec const at all. "
+        << "FAIL: reloaded bundle does not advertise the spec consts at all. "
         << "ext_oneapi_get_content lost the [SYCL/specialization "
         << "constants] property set on serialization.\n";
     return 1;
   }
 
-  const int Got = KBReloaded.get_specialization_constant<SC>();
-  if (Got == UserValue) {
-    std::cout << "OK: round-tripped spec const value " << Got << "\n";
-    return 0;
+  const int GotA = KBReloaded.get_specialization_constant<SCA>();
+  const int GotB = KBReloaded.get_specialization_constant<SCB>();
+
+  std::cout << "After round-trip:\n"
+            << "  SCA = " << GotA << "  (expected " << UserA << ")\n"
+            << "  SCB = " << GotB << "  (expected " << DefaultB << ")\n";
+
+  int Failed = 0;
+  if (GotA != UserA) {
+    std::cout << "FAIL: SCA round-tripped to " << GotA << "; expected " << UserA
+              << ". The user-set override did not survive the "
+                 "SYCLBIN round-trip.\n";
+    ++Failed;
   }
-  if (Got == DefaultValue) {
-    std::cout << "FAIL: round-tripped spec const reverted to default "
-              << "(got " << Got << ", expected " << UserValue << "). "
-              << "The user-set override did not survive the SYCLBIN "
-              << "round-trip.\n";
-    return 1;
+  if (GotB != DefaultB) {
+    std::cout << "FAIL: SCB read back as " << GotB << "; expected " << DefaultB
+              << ". A reset-to-default const must not round-trip as set, and "
+                 "the two constants' blob slices must not be swapped.\n";
+    ++Failed;
   }
-  std::cout << "FAIL: unexpected spec const value " << Got << " (expected "
-            << UserValue << ")\n";
-  return 1;
+  if (!Failed)
+    std::cout << "OK: round-tripped spec const values\n";
+  return Failed;
 }
