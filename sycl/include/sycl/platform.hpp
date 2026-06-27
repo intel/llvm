@@ -114,9 +114,19 @@ public:
 
   platform &operator=(platform &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const platform &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const platform &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const platform &lhs, const platform &rhs) {
+    return lhs.impl == rhs.impl;
+  }
+
+  friend bool operator!=(const platform &lhs, const platform &rhs) {
+    return !(lhs == rhs);
+  }
+#endif
 
   /// Returns an OpenCL interoperability platform.
   ///
