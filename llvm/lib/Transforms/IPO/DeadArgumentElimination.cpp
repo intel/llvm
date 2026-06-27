@@ -493,7 +493,7 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
   // but we can do so for SYCL kernel functions.
   bool FuncIsSyclKernel =
       CheckSYCLKernels &&
-      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
+      (F.hasKernelCallingConv());
 
   // Can only change function signature for functions with local linkage,
   // except SYCL kernel functions which are handled specially.
