@@ -491,9 +491,7 @@ DeadArgumentEliminationPass::surveyUses(const Value *V,
 void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
   // We can't modify arguments if the function is not local
   // but we can do so for SYCL kernel functions.
-  bool FuncIsSyclKernel =
-      CheckSYCLKernels &&
-      (F.hasKernelCallingConv());
+  bool FuncIsSyclKernel = CheckSYCLKernels && F.hasKernelCallingConv();
 
   // Can only change function signature for functions with local linkage,
   // except SYCL kernel functions which are handled specially.
