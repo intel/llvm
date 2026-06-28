@@ -4469,6 +4469,7 @@ void OmpStructureChecker::Enter(const parser::OmpClause::If &x) {
   // diagnostics.
   llvm::omp::Directive appliesTo{llvm::omp::Directive::OMPD_unknown};
 
+
   if (!OmpVerifyModifiers(
           x.v, llvm::omp::OMPC_if, GetContext().clauseSource, context_)) {
     return;
