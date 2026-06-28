@@ -1391,6 +1391,11 @@ public:
                  UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_register_host_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP>()
+          .value_or(0);
+    }
     CASE(ext_oneapi_external_semaphore_import) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP>()
