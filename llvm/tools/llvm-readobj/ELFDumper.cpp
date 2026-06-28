@@ -462,6 +462,8 @@ protected:
   // in the input file.
   bool processCallGraphSection(const Elf_Shdr *CGSection);
 
+  std::string getProgramHeadersNumString();
+
 private:
   mutable SmallVector<std::optional<VersionEntry>, 0> VersionMap;
 };
@@ -3581,6 +3583,22 @@ static inline void printFields(formatted_raw_ostream &OS, StringRef Str1,
 }
 
 template <class ELFT>
+std::string ELFDumper<ELFT>::getProgramHeadersNumString() {
+  const ELFFile<ELFT> &Obj = this->Obj;
+  Expected<uint32_t> PhNumOrErr = Obj.getPhNum();
+  if (!PhNumOrErr) {
+    this->reportUniqueWarning(PhNumOrErr.takeError());
+    return "<?>";
+  }
+
+  uint32_t PhNum;
+  PhNum = *PhNumOrErr;
+  if (Obj.getHeader().e_phnum != ELF::PN_XNUM)
+    return to_string(PhNum);
+  return "65535 (" + to_string(PhNum) + ")";
+}
+
+template <class ELFT>
 static std::string getSectionHeadersNumString(const ELFFile<ELFT> &Obj,
                                               StringRef FileName) {
   const typename ELFT::Ehdr &ElfHeader = Obj.getHeader();
@@ -3773,7 +3791,7 @@ template <class ELFT> void GNUELFDumper<ELFT>::printFileHeaders() {
   printFields(OS, "Size of this header:", Str);
   Str = to_string(e.e_phentsize) + " (bytes)";
   printFields(OS, "Size of program headers:", Str);
-  Str = to_string(e.e_phnum);
+  Str = this->getProgramHeadersNumString();
   printFields(OS, "Number of program headers:", Str);
   Str = to_string(e.e_shentsize) + " (bytes)";
   printFields(OS, "Size of section headers:", Str);
@@ -4365,7 +4383,7 @@ void GNUELFDumper<ELFT>::printSymbol(const Elf_Sym &Symbol, unsigned SymIndex,
       SymbolType >= ELF::STT_LOOS && SymbolType < ELF::STT_HIOS)
     Fields[3].Str = enumToString(SymbolType, ArrayRef(AMDGPUSymbolTypes));
   else
-    Fields[3].Str = enumToString(SymbolType, ArrayRef(ElfSymbolTypes));
+    Fields[3].Str = getElfSymbolTypes().toStringOrHex(SymbolType, 1);
 
   Fields[4].Str =
       enumToString(Symbol.getBinding(), ArrayRef(ElfSymbolBindings));
@@ -4430,7 +4448,7 @@ void GNUELFDumper<ELFT>::printHashedSymbol(const Elf_Sym *Symbol,
       SymbolType >= ELF::STT_LOOS && SymbolType < ELF::STT_HIOS)
     Fields[4].Str = enumToString(SymbolType, ArrayRef(AMDGPUSymbolTypes));
   else
-    Fields[4].Str = enumToString(SymbolType, ArrayRef(ElfSymbolTypes));
+    Fields[4].Str = getElfSymbolTypes().toStringOrHex(SymbolType, 1);
 
   Fields[5].Str =
       enumToString(Symbol->getBinding(), ArrayRef(ElfSymbolBindings));
@@ -4779,15 +4797,18 @@ static bool checkPTDynamic(const typename ELFT::Phdr &Phdr,
 template <class ELFT>
 void GNUELFDumper<ELFT>::printProgramHeaders(
     bool PrintProgramHeaders, cl::boolOrDefault PrintSectionMapping) {
-  const bool ShouldPrintSectionMapping =
+  bool ShouldPrintSectionMapping =
       (PrintSectionMapping != cl::boolOrDefault::BOU_FALSE);
   // Exit early if no program header or section mapping details were requested.
   if (!PrintProgramHeaders && !ShouldPrintSectionMapping)
     return;
 
   if (PrintProgramHeaders) {
-    const Elf_Ehdr &Header = this->Obj.getHeader();
-    if (Header.e_phnum == 0) {
+    Expected<uint32_t> PhNumOrErr = this->Obj.getPhNum();
+    if (!PhNumOrErr) {
+      this->reportUniqueWarning(PhNumOrErr.takeError());
+      ShouldPrintSectionMapping = false;
+    } else if (*PhNumOrErr == 0) {
       OS << "\nThere are no program headers in this file.\n";
     } else {
       printProgramHeaders();
@@ -4803,10 +4824,19 @@ template <class ELFT> void GNUELFDumper<ELFT>::printProgramHeaders() {
   const Elf_Ehdr &Header = this->Obj.getHeader();
   Field Fields[8] = {2,         17,        26,        37 + Bias,
                      48 + Bias, 56 + Bias, 64 + Bias, 68 + Bias};
+  uint32_t PhNum = 0;
+  Expected<uint32_t> PhNumOrErr = this->Obj.getPhNum();
+
+  // The caller already performs this check, so failure is impossible.
+  if (PhNumOrErr)
+    PhNum = *PhNumOrErr;
+  else
+    cantFail(PhNumOrErr.takeError());
+
   OS << "\nElf file type is "
      << enumToString(Header.e_type, ArrayRef(ElfObjectFileType)) << "\n"
      << "Entry point " << format_hex(Header.e_entry, 3) << "\n"
-     << "There are " << Header.e_phnum << " program headers,"
+     << "There are " << PhNum << " program headers,"
      << " starting at offset " << Header.e_phoff << "\n\n"
      << "Program Headers:\n";
   if (ELFT::Is64Bits)
@@ -7373,7 +7403,7 @@ void GNUELFDumper<ELFT>::printMipsGOT(const MipsGOTParser<ELFT> &Parser) {
       OS.PadToColumn(31 + 2 * Bias);
       OS << to_string(format_hex_no_prefix(Sym.st_value, 8 + Bias));
       OS.PadToColumn(40 + 3 * Bias);
-      OS << enumToString(Sym.getType(), ArrayRef(ElfSymbolTypes));
+      OS << getElfSymbolTypes().toStringOrHex(Sym.getType(), 1);
       OS.PadToColumn(48 + 3 * Bias);
       OS << getSymbolSectionNdx(Sym, &Sym - this->dynamic_symbols().begin(),
                                 ShndxTable);
@@ -7427,7 +7457,7 @@ void GNUELFDumper<ELFT>::printMipsPLT(const MipsGOTParser<ELFT> &Parser) {
       OS.PadToColumn(20 + 2 * Bias);
       OS << to_string(format_hex_no_prefix(Sym.st_value, 8 + Bias));
       OS.PadToColumn(29 + 3 * Bias);
-      OS << enumToString(Sym.getType(), ArrayRef(ElfSymbolTypes));
+      OS << getElfSymbolTypes().toStringOrHex(Sym.getType(), 1);
       OS.PadToColumn(37 + 3 * Bias);
       OS << getSymbolSectionNdx(Sym, &Sym - this->dynamic_symbols().begin(),
                                 ShndxTable);
@@ -7609,7 +7639,7 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printFileHeaders() {
       W.printFlags("Flags", E.e_flags);
     W.printNumber("HeaderSize", E.e_ehsize);
     W.printNumber("ProgramHeaderEntrySize", E.e_phentsize);
-    W.printNumber("ProgramHeaderCount", E.e_phnum);
+    W.printString("ProgramHeaderCount", this->getProgramHeadersNumString());
     W.printNumber("SectionHeaderEntrySize", E.e_shentsize);
     W.printString("SectionHeaderCount",
                   getSectionHeadersNumString(this->Obj, this->FileName));
@@ -7873,7 +7903,7 @@ void LLVMELFDumper<ELFT>::printSymbol(const Elf_Sym &Symbol, unsigned SymIndex,
       SymbolType >= ELF::STT_LOOS && SymbolType < ELF::STT_HIOS)
     W.printEnum("Type", SymbolType, ArrayRef(AMDGPUSymbolTypes));
   else
-    W.printEnum("Type", SymbolType, ArrayRef(ElfSymbolTypes));
+    W.printEnum("Type", SymbolType, getElfSymbolTypes());
   if (Symbol.st_other == 0)
     printZeroSymbolOtherField(Symbol);
   else
@@ -8798,7 +8828,7 @@ void LLVMELFDumper<ELFT>::printMipsGOT(const MipsGOTParser<ELFT> &Parser) {
 
       const Elf_Sym &Sym = *Parser.getGotSym(&E);
       W.printHex("Value", Sym.st_value);
-      W.printEnum("Type", Sym.getType(), ArrayRef(ElfSymbolTypes));
+      W.printEnum("Type", Sym.getType(), getElfSymbolTypes());
 
       const unsigned SymIndex = &Sym - this->dynamic_symbols().begin();
       DataRegion<Elf_Word> ShndxTable(
@@ -8848,7 +8878,7 @@ void LLVMELFDumper<ELFT>::printMipsPLT(const MipsGOTParser<ELFT> &Parser) {
 
       const Elf_Sym &Sym = *Parser.getPltSym(&E);
       W.printHex("Value", Sym.st_value);
-      W.printEnum("Type", Sym.getType(), ArrayRef(ElfSymbolTypes));
+      W.printEnum("Type", Sym.getType(), getElfSymbolTypes());
       printSymbolSection(Sym, &Sym - this->dynamic_symbols().begin(),
                          ShndxTable);
 

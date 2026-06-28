@@ -1063,7 +1063,7 @@ void LoopInfoStack::InsertHelper(Instruction *I) const {
   }
 }
 
-void LoopInfo::collectIVDepMetadata(
+void clang::CodeGen::LoopInfo::collectIVDepMetadata(
     const ValueDecl *Array, llvm::SmallVectorImpl<llvm::Metadata *> &MD) const {
   if (Parent)
     Parent->collectIVDepMetadata(Array, MD);
@@ -1090,8 +1090,8 @@ void LoopInfo::collectIVDepMetadata(
   MD.push_back(GlobalArrayPairItr->second);
 }
 
-void LoopInfo::addIVDepMetadata(const ValueDecl *Array,
-                                llvm::Instruction *GEP) const {
+void clang::CodeGen::LoopInfo::addIVDepMetadata(const ValueDecl *Array,
+                                                llvm::Instruction *GEP) const {
   llvm::SmallVector<llvm::Metadata *, 4> MD;
   collectIVDepMetadata(Array, MD);
 
