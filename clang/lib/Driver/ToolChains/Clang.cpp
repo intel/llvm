@@ -10971,7 +10971,7 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
       Targets += '-';
-      Targets += Dep.DependentBoundArch;
+      Targets += Dep.DependentBoundArch.ArchName;
     }
   }
   CmdArgs.push_back(TCArgs.MakeArgString(Targets));

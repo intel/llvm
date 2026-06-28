@@ -4992,7 +4992,7 @@ class OffloadingActionBuilder final {
       for (unsigned I = 0; I < ToolChains.size(); ++I) {
         // Register dependent toolchain.
         DA->registerDependentActionInfo(
-            ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_OpenMP);
+            ToolChains[I], /*BoundArch=*/BoundArch(), Action::OFK_OpenMP);
 
         if (!ToolChains[I]->getTriple().isSPIROrSPIRV()) {
           // Create object from the deps bitcode.
@@ -6033,8 +6033,8 @@ class OffloadingActionBuilder final {
     void addDeviceLinkDependencies(OffloadDepsJobAction *DA) override {
       unsigned I = 0;
       for (auto &TargetInfo : SYCLTargetInfoList) {
-        DA->registerDependentActionInfo(
-            TargetInfo.TC, TargetInfo.BoundArch.ArchName, Action::OFK_SYCL);
+        DA->registerDependentActionInfo(TargetInfo.TC, TargetInfo.BoundArch,
+                                        Action::OFK_SYCL);
         DeviceLinkerInputs[I++].push_back(DA);
       }
     }
