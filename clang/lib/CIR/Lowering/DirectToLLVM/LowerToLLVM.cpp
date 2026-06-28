@@ -2588,8 +2588,7 @@ mlir::LogicalResult CIRToLLVMGlobalOpLowering::matchAndRewrite(
         return mlir::success();
       }
       return matchAndRewriteRegionInitializedGlobal(op, init.value(), rewriter);
-    } else if (mlir::isa<cir::BlockAddrInfoAttr, cir::ConstVectorAttr,
-                         cir::ConstRecordAttr, cir::ConstPtrAttr,
+    } else if (mlir::isa<cir::ConstVectorAttr, cir::ConstPtrAttr,
                          cir::ConstComplexAttr, cir::GlobalViewAttr,
                          cir::TypeInfoAttr, cir::UndefAttr, cir::PoisonAttr,
                          cir::VTableAttr, cir::ZeroAttr>(init.value())) {
