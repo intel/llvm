@@ -126,7 +126,7 @@ public:
   friend bool operator!=(const platform &lhs, const platform &rhs) {
     return !(lhs == rhs);
   }
-#endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Returns an OpenCL interoperability platform.
   ///
