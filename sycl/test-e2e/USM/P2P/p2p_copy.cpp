@@ -3,6 +3,7 @@
 // RUN:  %{run} %t.out
 #include <iostream>
 
+#include <algorithm>
 #include <cassert>
 #include <numeric>
 #include <sycl/detail/core.hpp>

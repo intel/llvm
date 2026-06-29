@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <algorithm>
+
 template <typename T, size_t TM, size_t TK> class add;
 template <typename T, size_t TM, size_t TK> class add_func;
 

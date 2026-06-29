@@ -24,3 +24,4 @@
 #define SG_SZ 32
 
 #include "joint_matrix_apply_bf16_impl.hpp"
+#include <algorithm>
