@@ -88,6 +88,7 @@
 
  */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 

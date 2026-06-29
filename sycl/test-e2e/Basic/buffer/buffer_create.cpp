@@ -7,9 +7,13 @@
 // RUN:     ZEL_LOADER_LOG_CONSOLE=1 ZE_ENABLE_VALIDATION_LAYER=1 \
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 // UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21954
+
+// UNSUPPORTED: linux && arch-intel_gpu_mtl_u
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 
 #include <iostream>
 #include <level_zero/ze_api.h>

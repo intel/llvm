@@ -10,6 +10,7 @@
 // RUN: %{run} %t.out
 
 // This test checks simd::copy_from/to methods with alignment flags.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

@@ -2,6 +2,7 @@
 //
 // RUN: %{build} %opencl_lib -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>

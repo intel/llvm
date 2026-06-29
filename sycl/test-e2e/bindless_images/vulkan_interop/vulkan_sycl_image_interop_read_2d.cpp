@@ -119,6 +119,7 @@
   NOTE: --linear is not currently working with 2D images on Linux
 */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 

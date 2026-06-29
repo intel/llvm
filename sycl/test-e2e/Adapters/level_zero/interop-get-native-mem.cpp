@@ -10,6 +10,7 @@
 // Test get_native_mem for the Level Zero backend.
 
 // Level-Zero
+#include <iostream>
 #include <level_zero/ze_api.h>
 
 // SYCL
