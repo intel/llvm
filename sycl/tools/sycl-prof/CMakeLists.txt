@@ -25,7 +25,7 @@ add_dependencies(sycl-toolchain sycl-prof)
 
 include(GNUInstallDirs)
 install(TARGETS sycl-prof sycl_profiler_collector
-  RUNTIME DESTINATION ${DPCPP_INSTALL_INTERNAL_BINDIR} COMPONENT sycl-prof
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT sycl-prof
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sycl-prof
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sycl-prof
 )

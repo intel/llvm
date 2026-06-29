@@ -69,23 +69,31 @@ using namespace clang;
 using namespace llvm::opt;
 
 llvm::SmallString<128> clang::driver::findSYCLInstallRoot(const Driver &D) {
-  llvm::SmallString<128> Root(D.Dir);
-  bool Found = false;
-  for (int Depth = 0; Depth < 4; ++Depth) {
-    llvm::SmallString<128> Probe(Root);
-    llvm::sys::path::append(Probe, "..", "include", "sycl");
-    llvm::sys::path::remove_dots(Probe, /*remove_dot_dot=*/true);
-    if (D.getVFS().exists(Probe)) {
-      llvm::sys::path::append(Root, "..");
-      llvm::sys::path::remove_dots(Root, /*remove_dot_dot=*/true);
-      Found = true;
-      break;
-    }
-    llvm::sys::path::append(Root, "..");
-    llvm::sys::path::remove_dots(Root, /*remove_dot_dot=*/true);
+  // Deduce the install root from the directory the driver was invoked from,
+  // recognizing the directory layouts the compiler may be installed into.
+  // This mirrors RocmInstallationDetector::getInstallationPathCandidates() in
+  // AMDGPU.cpp, which walks up from the clang binary by matching the names of
+  // the enclosing directories rather than guessing a fixed depth.
+  StringRef ParentDir = llvm::sys::path::parent_path(D.Dir);
+  StringRef ParentName = llvm::sys::path::filename(ParentDir);
+
+  // Some layouts install the compiler into lib/<arch>/bin, so go up again.
+  if (ParentName == "bin") {
+    ParentDir = llvm::sys::path::parent_path(ParentDir);
+    ParentName = llvm::sys::path::filename(ParentDir);
   }
-  if (!Found) {
-    // Fallback: one level up from D.Dir (original behaviour).
+
+  // Some layouts nest the compiler under lib/llvm/bin, so back up out of the
+  // lib directory as well. Honor a custom libdir name (e.g. lib64).
+  if (ParentName == CLANG_INSTALL_LIBDIR_BASENAME)
+    ParentDir = llvm::sys::path::parent_path(ParentDir);
+
+  // Validate the deduced root by checking for the SYCL headers it should
+  // contain; if they are not present, fall back to one level up from D.Dir.
+  llvm::SmallString<128> Root(ParentDir);
+  llvm::SmallString<128> Probe(Root);
+  llvm::sys::path::append(Probe, "include", "sycl");
+  if (!D.getVFS().exists(Probe)) {
     Root = D.Dir;
     llvm::sys::path::append(Root, "..");
     llvm::sys::path::remove_dots(Root, /*remove_dot_dot=*/true);

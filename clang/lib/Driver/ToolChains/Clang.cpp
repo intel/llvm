@@ -11947,7 +11947,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.
     SmallString<128> DeviceLibDir(D.Dir);
-    llvm::sys::path::append(DeviceLibDir, "..", "lib");
+    llvm::sys::path::append(DeviceLibDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
     // Check the library location candidates for the the libsycl-crt library
     // and use that location.  Base the location on relative to driver if this
     // is not resolved.

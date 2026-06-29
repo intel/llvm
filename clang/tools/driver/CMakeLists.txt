@@ -105,6 +105,13 @@ endforeach()
 # the real binaries live in ${DPCPP_INSTALL_INTERNAL_BINDIR} alongside all companion
 # tools so that the driver can find them via its own executable path.
 if(CLANG_BUILD_TOOLS)
+  # Locate LLVM's install_symlink() helper script. This mirrors the loop in
+  # llvm_install_symlink() in LLVM's AddLLVM.cmake: LLVMInstallSymlink.cmake
+  # lives in llvm/cmake/modules for an in-tree build but in
+  # <llvm-install>/lib/cmake/llvm for a standalone clang build. Both candidate
+  # directories are on CMAKE_MODULE_PATH, so we walk it and take whichever one
+  # actually exists rather than hardcoding a path that only works for one build
+  # layout.
   foreach(path ${CMAKE_MODULE_PATH})
     if(EXISTS ${path}/LLVMInstallSymlink.cmake)
       set(INSTALL_SYMLINK ${path}/LLVMInstallSymlink.cmake)

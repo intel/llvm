@@ -384,15 +384,16 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
   // Also handles the SYCL runtime library: when binaries live in a versioned
   // subdirectory (e.g. lib/dpcpp-N/bin/), findSYCLInstallRoot walks up to
-  // find the root that contains lib/libsycl.so.
+  // find the root that contains <libdir>/libsycl.so.
   {
     SmallString<128> SYCLRoot = findSYCLInstallRoot(D);
     SmallString<128> SYCLLibProbe(SYCLRoot);
-    llvm::sys::path::append(SYCLLibProbe, "lib", "libsycl.so");
+    llvm::sys::path::append(SYCLLibProbe, CLANG_INSTALL_LIBDIR_BASENAME,
+                            "libsycl.so");
     if (StringRef(SYCLRoot).starts_with(SysRoot) &&
         (Args.hasArg(options::OPT_fsycl) || D.getVFS().exists(SYCLLibProbe))) {
       SmallString<128> SYCLLib(SYCLRoot);
-      llvm::sys::path::append(SYCLLib, "lib");
+      llvm::sys::path::append(SYCLLib, CLANG_INSTALL_LIBDIR_BASENAME);
       addPathIfExists(D, SYCLLib, Paths);
     }
   }
