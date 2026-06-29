@@ -899,7 +899,7 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
     if (EventImpl->isHost()) {
       depends_on(EventImpl);
     }
-    impl->MEventsWaitWithBarrier.push_back(EventImpl);
+    impl->MEventsWaitWithBarrier.push_back(std::move(EventImpl));
   }
 }
 

@@ -1,6 +1,7 @@
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with types that may require additional runtime checks for extensions
 // supported by the device, e.g. 'half' or 'double'
+#include <iostream>
 
 #include "reduction_utils.hpp"
 

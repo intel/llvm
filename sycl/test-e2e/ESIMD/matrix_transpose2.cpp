@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 
 // This test checks matrix transpose implementation with media block read/write
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

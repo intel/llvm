@@ -13,6 +13,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN:  %{l0_leak_check} %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

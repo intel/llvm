@@ -133,7 +133,7 @@ kernel::ext_oneapi_get_info(queue Queue, const range<1> &WorkGroupSize,
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<3> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>
@@ -147,13 +147,13 @@ kernel::ext_oneapi_get_info(queue Queue, const range<2> &WorkGroupSize,
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<2> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<1> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>

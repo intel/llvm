@@ -3,6 +3,7 @@
 
 // Test has_2d_block_io_supported device descriptor for some known
 // architectures.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>

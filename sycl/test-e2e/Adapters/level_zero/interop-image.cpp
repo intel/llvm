@@ -1,5 +1,5 @@
 // REQUIRES: target-spir, level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} %level_zero_options -o %t.out -Wno-error=deprecated-declarations
 // RUN: %{run} %t.out
 
 // spir-v gen for legacy images at O0 not working
@@ -23,6 +23,7 @@
 
 // clang++ -fsycl -o ilzi.bin -I$SYCL_HOME/build/install/include/sycl
 // -lze_loader interop-level-zero-image.cpp
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/accessor_image.hpp>

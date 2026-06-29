@@ -8,6 +8,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22419
+
+#include <iostream>
+
 #include "esimd_test_utils.hpp"
 
 #define WIDTH 16
