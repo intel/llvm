@@ -9,6 +9,7 @@
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+#include <iostream>
 
 #include "dx11_interop.h"
 

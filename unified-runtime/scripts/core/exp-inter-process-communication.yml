@@ -33,6 +33,30 @@ etors:
       value: "0x2024"
       desc: "[$x_bool_t] returns true if the device supports inter-process communicable physical memory handles"
 --- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support inter-process communicable event handles."
+name: $x_device_info_t
+etors:
+    - name: IPC_EVENT_SUPPORT_EXP
+      value: "0x2026"
+      desc: "[$x_bool_t] returns true if the device supports inter-process communicable event handles"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Extension enums to $x_exp_event_flags_t for inter-process sharing of events."
+name: $x_exp_event_flags_t
+etors:
+    - name: IPC_EXP
+      value: "$X_BIT(1)"
+      desc: >
+            The event can be shared with other processes through the
+            $xIPCGetEventHandleExp and $xIPCOpenEventHandleExp APIs. This flag
+            must be passed to $xEventCreateExp for any event whose IPC handle
+            will later be obtained; it cannot be enabled after creation. Must
+            not be combined with $X_EXP_EVENT_FLAG_ENABLE_PROFILING.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Gets an inter-process memory handle for a pointer to device USM memory"
 class: $xIPC
@@ -240,5 +264,121 @@ returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
       - "`NULL == hContext`"
       - "`NULL == hPhysMem`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Gets an inter-process event handle for an event object"
+class: $xIPC
+name: GetEventHandleExp
+ordinal: "0"
+details:
+    - >
+        The event must have been created by $xEventCreateExp with the
+        $X_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that flag,
+        and events opened with $xIPCOpenEventHandleExp, cannot be exported.
+    - >
+        On success, `ppIPCEventHandleData` receives an opaque byte buffer
+        allocated and owned by the implementation, and `pIPCEventHandleDataSizeRet`
+        receives its size. The contents of this buffer may be copied and
+        transferred, by the application's own means, to another process on the
+        same system, which passes those bytes to $xIPCOpenEventHandleExp to
+        obtain an event object that shares state with `hEvent`.
+    - >
+        The returned handle data must be released in the originating process
+        with $xIPCPutEventHandleExp once it is no longer needed.
+    - "Events created with $X_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be exported."
+params:
+    - type: $x_event_handle_t
+      name: hEvent
+      desc: "[in] handle of the event object"
+    - type: void**
+      name: ppIPCEventHandleData
+      desc: "[out] a pointer to the IPC event handle data"
+    - type: size_t*
+      name: pIPCEventHandleDataSizeRet
+      desc: "[out] size of the resulting IPC event handle data"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hEvent`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == ppIPCEventHandleData`"
+      - "`NULL == pIPCEventHandleDataSizeRet`"
+    - $X_RESULT_ERROR_INVALID_EVENT:
+      - "`hEvent` was not created with the $X_EXP_EVENT_FLAG_IPC_EXP flag."
+      - "`hEvent` was obtained from $xIPCOpenEventHandleExp."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+      - "`hEvent` has profiling or timestamping enabled."
+      - "The device associated with `hEvent` does not support event IPC, as reported by $X_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Releases an inter-process event handle"
+class: $xIPC
+name: PutEventHandleExp
+ordinal: "0"
+details:
+    - >
+        Releases the resources associated with IPC event handle data returned by
+        $xIPCGetEventHandleExp. Must be called in the same process that obtained
+        the handle data. This does not destroy the source event and does not
+        affect event objects already opened with $xIPCOpenEventHandleExp.
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: void*
+      name: pIPCEventHandleData
+      desc: "[in] a pointer to the IPC event handle data obtained with $xIPCGetEventHandleExp"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pIPCEventHandleData`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Opens an inter-process event handle to get the corresponding event object in the current process"
+class: $xIPC
+name: OpenEventHandleExp
+ordinal: "0"
+details:
+    - >
+        Returns an event object that shares state with the event that produced
+        the IPC handle. Either event can be signaled, waited on, or queried, and
+        a state change made through one event is observable through the other.
+    - >
+        The returned event is a normal $x_event_handle_t with an initial
+        reference count of 1. It may be passed to entry points that accept an
+        event, retained with $xEventRetain, and must be released with
+        $xEventRelease. On the final release, the adapter performs the native
+        cleanup required for an opened IPC event.
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: const void *
+      name: pIPCEventHandleData
+      desc: "[in] the IPC event handle data"
+    - type: size_t
+      name: ipcEventHandleDataSize
+      desc: "[in] size of the IPC event handle data"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][alloc] pointer to the handle of the event object created"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pIPCEventHandleData`"
+      - "`NULL == phEvent`"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "`ipcEventHandleDataSize` is not the same as the size of the IPC event handle data"
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+      - "A device in `hContext` does not support event IPC, as reported by $X_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES

@@ -1,5 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>

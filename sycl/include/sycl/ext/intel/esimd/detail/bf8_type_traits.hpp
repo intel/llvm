@@ -13,11 +13,6 @@
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
 #include <sycl/ext/intel/experimental/esimd/bf8.hpp>
 
-// <ostream> is required for the inline operator<< below. Including it adds
-// non-trivial compile-time overhead; kept here for backwards compatibility
-// only so this header stays self-contained.
-#include <ostream>
-
 /// @cond ESIMD_DETAIL
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -84,11 +79,9 @@ template <> struct scalar_conversion_traits<bf8> {
   }
 };
 
-// Misc
-inline std::ostream &operator<<(std::ostream &O, bf8 const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
-}
+// Stream operator for this type is intentionally not provided in the
+// public header. Pulling <ostream> here would drag iostream machinery into
+// device compilation.
 
 template <> struct is_esimd_arithmetic_type<bf8, void> : std::true_type {};
 

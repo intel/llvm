@@ -8,6 +8,7 @@
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_chunk
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/chunk.hpp>

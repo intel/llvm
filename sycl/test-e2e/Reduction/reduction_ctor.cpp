@@ -4,6 +4,7 @@
 // This performs basic checks such as reduction creation, identity methods,
 // and the combine() method of the aux class 'reducer'.
 // Note: This test relies on non-standard implementation details.
+#include <iostream>
 
 #include "reduction_utils.hpp"
 

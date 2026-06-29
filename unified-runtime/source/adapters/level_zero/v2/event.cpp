@@ -416,4 +416,12 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
+                             ur_device_handle_t /*hDevice*/,
+                             const ur_exp_event_desc_t * /*pEventDesc*/,
+                             ur_event_handle_t * /*phEvent*/) {
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero

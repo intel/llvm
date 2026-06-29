@@ -261,6 +261,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
+    ur_api_version_t version, ur_event_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnCreateExp = ur::level_zero::urEventCreateExp;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
     ur_api_version_t version, ur_graph_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -278,6 +290,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
   pDdiTable->pfnSetDestructionCallbackExp =
       ur::level_zero::urGraphSetDestructionCallbackExp;
   pDdiTable->pfnDumpContentsExp = ur::level_zero::urGraphDumpContentsExp;
+  pDdiTable->pfnGetNativeHandleExp = ur::level_zero::urGraphGetNativeHandleExp;
+  pDdiTable->pfnExecutableGraphGetNativeHandleExp =
+      ur::level_zero::urGraphExecutableGraphGetNativeHandleExp;
 
   return result;
 }
@@ -299,6 +314,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
       ur::level_zero::urIPCOpenPhysMemHandleExp;
   pDdiTable->pfnClosePhysMemHandleExp =
       ur::level_zero::urIPCClosePhysMemHandleExp;
+  pDdiTable->pfnGetEventHandleExp = ur::level_zero::urIPCGetEventHandleExp;
+  pDdiTable->pfnPutEventHandleExp = ur::level_zero::urIPCPutEventHandleExp;
+  pDdiTable->pfnOpenEventHandleExp = ur::level_zero::urIPCOpenEventHandleExp;
 
   return result;
 }
@@ -672,6 +690,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return result;
   result =
       NAMESPACE_::urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Event);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetEventExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->EventExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetGraphExpProcAddrTable(UR_API_VERSION_CURRENT,

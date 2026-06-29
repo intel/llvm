@@ -10,6 +10,7 @@
 //
 // The test checks functionality of the memory access APIs which are members of
 // the simd class.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

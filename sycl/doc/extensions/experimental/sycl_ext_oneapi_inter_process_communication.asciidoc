@@ -61,6 +61,8 @@ This extension also depends on the following other SYCL extensions:
 
 * link:sycl_ext_oneapi_virtual_mem.asciidoc[sycl_ext_oneapi_virtual_mem]
 * link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+* link:../proposed/sycl_ext_oneapi_reusable_events.asciidoc[
+  sycl_ext_oneapi_reusable_events]
 
 == Status
 
@@ -1117,6 +1119,287 @@ _Effects:_ Equivalent to:
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
 return ipc::physical_memory::open(handle_data_view, ctxt, d);
+----
+
+|====
+
+=== Inter-process exchange of events
+
+This extension allows for the exchange of an event object between processes.
+The event object can then be signaled in one of the processes and waited on in
+another process.
+The following aspect and set of free functions are specific to the event object
+sharing feature.
+
+==== Extension to `enum class aspect` for events
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_ipc_event
+}
+}
+----
+
+If a SYCL device has this aspect, that device supports inter-process exchange
+of events as described in this section.
+
+==== Use of `enable_ipc` property for the make_event function
+
+This feature uses the `enable_ipc` property (defined above for `physical_mem`),
+which can be used with `make_event`
+(from the link:../proposed/sycl_ext_oneapi_reusable_events.asciidoc[
+sycl_ext_oneapi_reusable_events] extension):
+
+The `enable_ipc` property controls whether the event can be shared across
+processes.
+
+_Remarks:_
+
+ * `make_event` throws an exception with the `errc::feature_not_supported`
+   error code if inter-process sharing is enabled via `enable_ipc` and not all
+   devices that are part of the context passed to the `make_event` function
+   have the aspect `aspect::ext_oneapi_ipc_event`.
+
+ * `make_event` throws an exception with the `errc::invalid` error code if
+   both the `enable_profiling` and `enable_ipc` properties are set to true.
+
+ * `enqueue_signal_event` function throws an exception with the `errc::invalid`
+   error code if inter-process sharing of the event is enabled via `enable_ipc`
+   and profiling is enabled for the queue with the
+   `property::queue::enable_profiling` property.
+
+ * `enqueue_signal_event`, `enqueue_wait_event`, `enqueue_wait_events` (from
+   the sycl_ext_oneapi_reusable_events extension) and `handler::depends_on`
+   functions throw an exception with the `errc::feature_not_supported` error
+   code if inter-process sharing of the event is enabled via `enable_ipc` and a
+   device associated with the queue (passed to those functions or associated
+   with the `handler`) does not have the aspect `aspect::ext_oneapi_ipc_event`.
+
+ * `enqueue_signal_event`, `enqueue_wait_event`, `enqueue_wait_events` (from
+   the sycl_ext_oneapi_reusable_events extension) and `handler::depends_on`
+   functions throw an exception with the `errc::feature_not_supported` error
+   code if inter-process sharing of the event is enabled via `enable_ipc` and a
+   queue (passed to those functions or associated with the `handler`) has an
+   enqueued host task that has not completed (scheduled using the
+   `handler::host_task` function).
+
+ * If the event has been enqueued for signaling (using `enqueue_signal_event`)
+   in some process, and the IPC handle associated with that event has been
+   passed to the `open` function in another process, then the resulting event
+   can be used as a dependency (using `handler::depends_on`) or passed to
+   `enqueue_wait_event` or `enqueue_wait_events` functions only if the device
+   associated with the queue passed to `enqueue_signal_event` and the device
+   associated with the queue where the dependency is set, can P2P access each
+   other.
+
+==== New event member function
+
+This extension adds a new event type member function, which can be used to
+check if a given event can be passed between processes.
+
+[source,c++]
+----
+namespace sycl {
+
+class event {
+  // ...
+  bool ext_oneapi_ipc_enabled() const;
+};
+
+} // namespace sycl
+----
+
+_Returns:_ True if the event was created with inter-process sharing enabled.
+
+==== New functions associated with an event object
+
+This extension adds new free functions under the `ipc::event` experimental
+namespace.
+
+```
+namespace sycl::ext::oneapi::experimental::ipc::event {
+
+handle get(const sycl::event &evt);
+
+void put(handle &ipc_handle, const sycl::context &ctx);
+
+void put(handle &ipc_handle);
+
+sycl::event open(const handle_data_t &handle_data, const sycl::context &ctx);
+
+sycl::event open(const handle_data_t &handle_data);
+
+// Requires C++20
+sycl::event open(const handle_data_view_t &handle_data_view,
+                 const sycl::context &ctx);
+
+// Requires C++20
+sycl::event open(const handle_data_view_t &handle_data_view);
+
+}
+```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+handle get(const sycl::event &evt)
+----
+!====
+
+_Returns:_ An IPC "handle" to this event. The bytes of this handle can be
+transferred to another process on the same system, and the other process can
+use the handle to get an event object synchronized with event `evt` through a
+call to the `open` function.
+
+_Throws:_ An exception with the `errc::invalid` error code if event `evt` was
+not created with the `enable_ipc` property.
+
+!====
+a!
+[source]
+----
+void put(handle &ipc_handle, const sycl::context &ctx)
+----
+!====
+
+_Preconditions:_
+
+ * `ipc_handle` is the IPC "handle" to an event that was returned from a call
+   to `get` in this same process. The `put` function has not been previously
+   called on the handle.
+ * `ctx` is a context associated with the event object, which was passed to the
+   `get` function call that produced `ipc_handle`.
+
+_Effects:_ Deallocates resources associated with the handle. After the call to
+the `put` function, the handle data is invalid and using it in the `put` and
+`open` functions will result in undefined behavior.
+
+[_Note:_ Any objects retrieved through a call to the `open` function in any
+process on the system will still be valid after a call to the `put` function.
+_{endnote}_]
+
+[_Note:_ A call to `put` is required for each handle received from the `get`
+function.
+_{endnote}_]
+
+[_Note:_ The `put` function can only be called in the same process where the
+handle was generated using `get`.
+_{endnote}_]
+
+!====
+a!
+[source]
+----
+void put(handle &ipc_handle)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+ipc::event::put(ipc_handle, ctxt);
+----
+
+!====
+a!
+[source]
+----
+sycl::event open(const handle_data_t &handle_data, const sycl::context &ctx)
+----
+!====
+
+_Preconditions:_
+
+ * `handle_data` is the IPC "handle" to an event that was returned from a call
+   to the `get` function either in this process or in some other process on the
+   same system.
+ * `ctx` is the same context (contains the same set of devices) as the context
+   passed to the `make_event` function (from the
+   sycl_ext_oneapi_reusable_events extension) which was used to create the
+   event which produced `handle_data`.
+
+_Returns:_ An `event` object that represents the same event identified by
+`handle_data`. The returned event is associated with context `ctx`. The
+returned event and the event identified by `handle_data` share the same state.
+When one is signaled, the state of the other event automatically becomes
+signaled also.
+
+[_Note:_ The `open` function can be called multiple times on the same handle
+within the same process. Each call to the `open` function may return a unique
+event object even for the same handle.
+_{endnote}_]
+
+[_Note:_ The event returned from a call to the `open` function is no longer
+valid if the event associated with `handle_data` (passed to a `get` call) is
+destroyed.
+_{endnote}_]
+
+_Throws:_
+
+ * An exception with the `errc::feature_not_supported` error code if not all
+   devices that are part of `ctx` have `aspect::ext_oneapi_ipc_event`.
+ * An exception with the `errc::invalid` error code if the handle data
+   `handle_data` has an unexpected number of bytes.
+
+!====
+a!
+[source]
+----
+sycl::event open(const handle_data_t &handle_data)
+----
+!====
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc::event::open(handle_data, ctxt);
+----
+
+!====
+a!
+[source]
+----
+sycl::event open(const handle_data_view_t &handle_data_view,
+                 const sycl::context &ctx)
+----
+!====
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+handle_data_t handle_data{handle_data_view.begin(), handle_data_view.end()};
+return ipc::event::open(handle_data, ctx);
+----
+
+!====
+a!
+[source]
+----
+sycl::event open(const handle_data_view_t &handle_data_view)
+----
+!====
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc::event::open(handle_data_view, ctxt);
 ----
 
 |====

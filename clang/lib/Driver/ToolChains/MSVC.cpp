@@ -299,7 +299,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (C.getDriver().isUsingLTO()) {
+  if (TC.isUsingLTO(Args)) {
     if (Arg *A = tools::getLastProfileSampleUseArg(Args))
       CmdArgs.push_back(Args.MakeArgString(std::string("-lto-sample-profile:") +
                                            A->getValue()));
@@ -382,7 +382,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString(std::string("/vfsoverlay:") + A->getValue()));
 
-    if (C.getDriver().isUsingLTO() &&
+    if (TC.isUsingLTO(Args) &&
         Args.hasFlag(options::OPT_gsplit_dwarf, options::OPT_gno_split_dwarf,
                      false))
       CmdArgs.push_back(Args.MakeArgString(Twine("/dwodir:") +

@@ -13,6 +13,7 @@
 // and optional compile-time esimd::properties.
 // The scatter() calls in this test use VS > 1 (number of loads per
 // offset) and requires DG2 or PVC.
+#include <iostream>
 
 #include "Inputs/scatter.hpp"
 

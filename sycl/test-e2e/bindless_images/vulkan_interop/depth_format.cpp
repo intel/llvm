@@ -13,6 +13,7 @@
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
+#include <iostream>
 
 #include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
