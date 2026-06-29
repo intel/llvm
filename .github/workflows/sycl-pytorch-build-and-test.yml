@@ -64,15 +64,14 @@ jobs:
           ln -sf "$SYCL_INSTALL_DIR/bin/clang" "$SYCL_INSTALL_DIR/bin/dpclang"
           ln -sf "$SYCL_INSTALL_DIR/bin/clang++" "$SYCL_INSTALL_DIR/bin/dpclang++"
 
-      - name: Clone PyTorch
-        shell: bash
-        env:
-          PYTORCH_REF: ${{ inputs.pytorch_ref }}
-        run: |
-          git clone https://github.com/pytorch/pytorch.git "$PYTORCH_SRC_DIR"
-          cd "$PYTORCH_SRC_DIR"
-          git checkout "$PYTORCH_REF"
-          git submodule update --init --recursive
+      - name: Checkout PyTorch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ inputs.pytorch_ref }}
+          submodules: recursive
+          persist-credentials: false
+          path: ${{ env.PYTORCH_SRC_DIR }}
 
       - name: Build PyTorch
         shell: bash
@@ -135,21 +134,13 @@ jobs:
           name: ${{ env.PYTORCH_WHEEL_ARTIFACT }}
           path: dist
 
-      - name: Clone PyTorch Test Sources
-        shell: bash
-        env:
-          PYTORCH_REF: ${{ inputs.pytorch_ref }}
-        run: |
-          # The test suite (test/test_xpu.py) isn't part of the wheel, so get
-          # the matching source tree. We only need the test sources, so do a
-          # shallow clone without submodules.
-          git clone --depth 1 --branch "$PYTORCH_REF" \
-            https://github.com/pytorch/pytorch.git "$PYTORCH_SRC_DIR"
-          # Remove the in-tree 'torch' source package. pytest runs from the repo
-          # root, so an in-tree 'torch/' would shadow the installed wheel on the
-          # import path -- and since it lacks the build-generated torch/version.py
-          # the import fails. Deleting it makes 'import torch' resolve to the wheel.
-          rm -rf "$PYTORCH_SRC_DIR/torch"
+      - name: Checkout PyTorch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ inputs.pytorch_ref }}
+          persist-credentials: false
+          path: ${{ env.PYTORCH_SRC_DIR }}
 
       - name: Install just-built PyTorch
         shell: bash
@@ -167,6 +158,12 @@ jobs:
       - name: Run PyTorch XPU Sanity Check
         shell: bash
         run: |
+          # Remove the in-tree 'torch' source package. pytest runs from the repo
+          # root, so an in-tree 'torch/' would shadow the installed wheel on the
+          # import path -- and since it lacks the build-generated torch/version.py
+          # the import fails. Deleting it makes 'import torch' resolve to the wheel.
+          rm -rf "$PYTORCH_SRC_DIR/torch"
+
           source "$VENV_DIR/bin/activate"
           # Print diagnostics, then assert the XPU is available.
           python -c "import torch; print('torch', torch.__version__); print('device count', torch.xpu.device_count()); print('xpu available', torch.xpu.is_available()); assert torch.xpu.is_available()"
