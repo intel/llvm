@@ -24,27 +24,30 @@ using namespace sycl;
 
 // This test simply captures the current way we handle duplicate kernel names
 // in multiiple DSOs: there's no diagnostic issued for this, and the backend
-// will pick one of the two images, which should remain the same no matter
-// how we attempt to enqueue any of the two kernels.
+// will pick one of the two images. There's no guarantee the backend will pick
+// the same image every time we need to select one, so while direct submissions
+// should reuse the same kernel via caching, there's no guarantee which kernel
+// ends up being submitted using the kernel bundle API.
 
 int main() {
   queue Q;
   int *Ptr = malloc_shared<int>(1, Q);
 
-  enqueueWithKernelId<TestKernel>(Q, Ptr);
-  Q.wait();
-  int FirstResult = *Ptr;
-
   auto RunTest = [&](auto Func) {
     *Ptr = 0;
     Func(Q, Ptr);
     Q.wait();
-    assert(*Ptr == FirstResult);
+    assert(*Ptr == 1 || *Ptr == 2);
   };
 
   RunTest(submitKernelDirectA);
-  RunTest(submitKernelWithIdA);
+  int FirstResult = *Ptr;
   RunTest(submitKernelDirectB);
+  assert(*Ptr == FirstResult);
+  RunTest([](queue &Q, int *Ptr) {
+    enqueueWithKernelId(Q, sycl::get_kernel_id<TestKernel>(), Ptr);
+  });
+  RunTest(submitKernelWithIdA);
   RunTest(submitKernelWithIdB);
 
   free(Ptr, Q);

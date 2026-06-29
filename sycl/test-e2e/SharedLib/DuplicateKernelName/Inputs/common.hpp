@@ -9,12 +9,11 @@
 #define API_EXPORT
 #endif
 
-template <typename KernelName>
-void enqueueWithKernelId(sycl::queue &Q, int *Ptr) {
+inline void enqueueWithKernelId(sycl::queue &Q, sycl::kernel_id Id, int *Ptr) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Q.get_context(),
                                                               {Q.get_device()});
-  auto Kernel = KernelBundle.get_kernel(sycl::get_kernel_id<KernelName>());
+  auto Kernel = KernelBundle.get_kernel(Id);
   Q.submit([&](sycl::handler &CGH) {
     CGH.set_args(Ptr);
     CGH.single_task(Kernel);
