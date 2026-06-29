@@ -92,7 +92,7 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_VERSION:
   case UR_PLATFORM_INFO_EXTENSIONS:
   case UR_PLATFORM_INFO_PROFILE: {
-    auto Platform = ur_cast<ur::opencl::ur_platform_handle_t_ *>(hPlatform);
+    auto Platform = cast(hPlatform);
     cl_platform_id Plat = Platform->CLPlatform;
 
     CL_RETURN_ON_FAILURE(
@@ -125,7 +125,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
-  auto Adapter = ur_cast<ur::opencl::ur_adapter_handle_t_ *>(AdapterHandle);
+  auto Adapter = cast(AdapterHandle);
   if (Adapter->NumPlatforms == 0) {
     std::lock_guard guard{adapterPopulationMutex};
 
@@ -182,8 +182,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   }
   if (NumEntries && phPlatforms) {
     for (uint32_t i = 0; i < NumEntries; i++) {
-      phPlatforms[i] =
-          ur_cast<ur_platform_handle_t>(Adapter->URPlatforms[i].get());
+      phPlatforms[i] = cast(Adapter->URPlatforms[i].get());
     }
   }
 
@@ -192,7 +191,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
-  auto Platform = ur_cast<ur::opencl::ur_platform_handle_t_ *>(hPlatform);
+  auto Platform = cast(hPlatform);
   *phNativePlatform =
       reinterpret_cast<ur_native_handle_t>(Platform->CLPlatform);
   return UR_RESULT_SUCCESS;
@@ -212,9 +211,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
                                                  Platforms.data(), nullptr));
 
   for (uint32_t i = 0; i < NumPlatforms; i++) {
-    auto Platform = ur_cast<ur::opencl::ur_platform_handle_t_ *>(Platforms[i]);
+    auto Platform = cast(Platforms[i]);
     if (Platform->CLPlatform == NativeHandle) {
-      *phPlatform = ur_cast<ur_platform_handle_t>(Platform);
+      *phPlatform = cast(Platform);
       return UR_RESULT_SUCCESS;
     }
   }

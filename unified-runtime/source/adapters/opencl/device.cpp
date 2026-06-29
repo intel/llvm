@@ -48,7 +48,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
   try {
-    auto Platform = ur_cast<ur::opencl::ur_platform_handle_t_ *>(hPlatform);
+    auto Platform = cast(hPlatform);
     uint32_t AllDevicesNum = Platform->Devices.size();
     uint32_t DeviceNumIter = 0;
     for (uint32_t i = 0; i < AllDevicesNum; i++) {
@@ -56,8 +56,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
       if (DevTy == Type || Type == CL_DEVICE_TYPE_ALL ||
           Type == CL_DEVICE_TYPE_DEFAULT) {
         if (phDevices) {
-          phDevices[DeviceNumIter] =
-              ur_cast<ur_device_handle_t>(Platform->Devices[i].get());
+          phDevices[DeviceNumIter] = cast(Platform->Devices[i].get());
         }
         DeviceNumIter++;
         // For default, the first device is the only returned device.
@@ -131,7 +130,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    * | cl_device_atomic_capabilities | ur_memory_order_capability_flags_t |
    */
 
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
+  auto Device = cast(hDevice);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   /* TODO UR: Casting to uint32_t to silence warnings due to some values not
@@ -1420,8 +1419,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(
-        ur_cast<ur::opencl::ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-            ->clSetProgramSpecializationConstantFn != nullptr);
+        cast(ur::cl::getAdapter())->clSetProgramSpecializationConstantFn !=
+        nullptr);
   }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT: {
     bool Supported = false;
@@ -1608,7 +1607,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     const ur_device_partition_properties_t *pProperties, uint32_t NumDevices,
     ur_device_handle_t *phSubDevices, uint32_t *pNumDevicesRet) {
 
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
+  auto Device = cast(hDevice);
   std::vector<cl_device_partition_property> CLProperties(
       pProperties->PropCount + 2);
 
@@ -1664,17 +1663,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
       try {
         auto URSubDevice = std::make_unique<ur_device_handle_t_>(
             CLSubDevices[i], Device->Platform, Device);
-        phSubDevices[i] = ur_cast<ur_device_handle_t>(URSubDevice.release());
+        phSubDevices[i] = cast(URSubDevice.release());
       } catch (std::bad_alloc &) {
         // Delete all the successfully created subdevices before the failed one.
         for (uint32_t j = 0; j < i; j++) {
-          delete ur_cast<ur::opencl::ur_device_handle_t_ *>(phSubDevices[j]);
+          delete cast(phSubDevices[j]);
         }
         return UR_RESULT_ERROR_OUT_OF_RESOURCES;
       } catch (...) {
         // Delete all the successfully created subdevices before the failed one.
         for (uint32_t j = 0; j < i; j++) {
-          delete ur_cast<ur::opencl::ur_device_handle_t_ *>(phSubDevices[j]);
+          delete cast(phSubDevices[j]);
         }
         return UR_RESULT_ERROR_UNKNOWN;
       }
@@ -1686,7 +1685,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 
 // Root devices ref count are unchanged through out the program lifetime.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
+  auto Device = cast(hDevice);
   if (Device->ParentDevice) {
     Device->RefCount.retain();
   }
@@ -1697,7 +1696,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 // Root devices ref count are unchanged through out the program lifetime.
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(ur_device_handle_t hDevice) {
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
+  auto Device = cast(hDevice);
   if (Device->ParentDevice) {
     if (Device->RefCount.release()) {
       delete Device;
@@ -1709,7 +1708,7 @@ urDeviceRelease(ur_device_handle_t hDevice) {
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeDevice) {
 
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
+  auto Device = cast(hDevice);
   *phNativeDevice = reinterpret_cast<ur_native_handle_t>(Device->CLDevice);
   return UR_RESULT_SUCCESS;
 }
@@ -1720,7 +1719,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_device_handle_t *phDevice) {
 
   auto SetDeviceProps = [&]() {
-    ur_cast<ur::opencl::ur_device_handle_t_ *>(*phDevice)->IsNativeHandleOwned =
+    cast(*phDevice)->IsNativeHandleOwned =
         pProperties ? pProperties->isNativeHandleOwned : false;
   };
 
@@ -1742,8 +1741,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         Platforms[i], UR_DEVICE_TYPE_ALL, NumDevices, Devices.data(), nullptr));
 
     for (auto &Device : Devices) {
-      if (ur_cast<ur::opencl::ur_device_handle_t_ *>(Device)->CLDevice ==
-          NativeHandle) {
+      if (cast(Device)->CLDevice == NativeHandle) {
         *phDevice = Device;
         SetDeviceProps();
         return UR_RESULT_SUCCESS;
@@ -1762,29 +1760,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         reinterpret_cast<ur_native_handle_t>(Parent), nullptr, nullptr,
         &ParentUrHandle));
 
-    auto ParentUrDevice =
-        ur_cast<ur::opencl::ur_device_handle_t_ *>(ParentUrHandle);
-    ur_platform_handle_t PlatformHandle =
-        ur_cast<ur_platform_handle_t>(ParentUrDevice->Platform);
+    auto ParentUrDevice = cast(ParentUrHandle);
+    ur_platform_handle_t PlatformHandle = cast(ParentUrDevice->Platform);
     assert(PlatformHandle);
 
     {
-      auto Platform =
-          ur_cast<ur::opencl::ur_platform_handle_t_ *>(PlatformHandle);
+      auto Platform = cast(PlatformHandle);
       std::lock_guard lock{Platform->SubDevicesLock};
 
       if (Platform->SubDevices.count(NativeHandle)) {
-        *phDevice =
-            ur_cast<ur_device_handle_t>(Platform->SubDevices[NativeHandle]);
+        *phDevice = cast(Platform->SubDevices[NativeHandle]);
       } else {
         auto NewDevice =
             std::make_unique<ur_device_handle_t_>(
-                NativeHandle,
-                ur_cast<ur::opencl::ur_platform_handle_t_ *>(PlatformHandle),
-                ur_cast<ur::opencl::ur_device_handle_t_ *>(ParentUrHandle))
+                NativeHandle, cast(PlatformHandle), cast(ParentUrHandle))
                 .release();
         Platform->SubDevices[NativeHandle] = NewDevice;
-        *phDevice = ur_cast<ur_device_handle_t>(NewDevice);
+        *phDevice = cast(NewDevice);
       }
     }
 
@@ -1798,7 +1790,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     ur_device_handle_t hDevice, uint64_t *pDeviceTimestamp,
     uint64_t *pHostTimestamp) {
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
+  auto Device = cast(hDevice);
   oclv::OpenCLVersion DevVer, PlatVer;
   cl_device_id DeviceId = Device->CLDevice;
 
@@ -1810,8 +1802,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
   }
   CL_RETURN_ON_FAILURE(RetErr);
 
-  auto Platform =
-      ur_cast<ur::opencl::ur_platform_handle_t_ *>(Device->Platform);
+  auto Platform = Device->Platform;
   RetErr = Platform->getPlatformVersion(PlatVer);
 
   if (PlatVer < oclv::V2_1 || DevVer < oclv::V2_1) {
@@ -1847,7 +1838,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   // where context->dispatch is set to the dispatch table provided by PI
   // plugin for platform/device the ctx was created for.
 
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
+  auto Device = cast(hDevice);
   // Choose the binary target for the provided device
   const char *ImageTarget = nullptr;
   // Get the type of the device

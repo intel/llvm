@@ -22,18 +22,17 @@ namespace ur::opencl {
 /// The ur_exp_command_buffer_handle_t_ destructor calls CL release
 /// command-buffer to free the underlying object.
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
-  ur::opencl::urQueueRelease(hInternalQueue);
+  ur::opencl::urQueueRelease(cast(hInternalQueue));
   if (LastSubmission) {
     clReleaseEvent(LastSubmission);
   }
 
-  cl_context CLContext = ur_cast<ur_context_handle_t_ *>(hContext)->CLContext;
+  cl_context CLContext = hContext->CLContext;
   cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
   cl_int Res =
       cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clReleaseCommandBufferKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
           cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
   assert(Res == CL_SUCCESS);
   (void)Res;
@@ -46,20 +45,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
 
-  auto Context = ur_cast<ur::opencl::ur_context_handle_t_ *>(hContext);
+  auto Context = cast(hContext);
   cl_context CLContext = Context->CLContext;
   cl_ext::clCreateCommandBufferKHR_fn clCreateCommandBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCreateCommandBufferKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clCreateCommandBufferKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clCreateCommandBufferKHRCache,
           cl_ext::CreateCommandBufferName, &clCreateCommandBufferKHR));
 
   const bool IsUpdatable = pCommandBufferDesc->isUpdatable;
 
   ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
+  auto Device = cast(hDevice);
   cl_device_id CLDevice = Device->CLDevice;
   CL_RETURN_ON_FAILURE(
       getDeviceCommandBufferUpdateCapabilities(CLDevice, UpdateCapabilities));
@@ -90,7 +88,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
       ur::opencl::urQueueCreate(hContext, hDevice, &QueueProperties, &Queue));
 
   cl_int Res = CL_SUCCESS;
-  auto QueuePtr = ur_cast<ur::opencl::ur_queue_handle_t_ *>(Queue);
+  auto QueuePtr = cast(Queue);
   const cl_command_queue CLQueue = QueuePtr->CLQueue;
   auto CLCommandBuffer =
       clCreateCommandBufferKHR(1, &CLQueue, Properties, &Res);
@@ -101,9 +99,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
   try {
     auto URCommandBuffer = std::make_unique<ur_exp_command_buffer_handle_t_>(
-        Queue, hContext, hDevice, CLCommandBuffer, IsUpdatable, IsInOrder);
-    *phCommandBuffer =
-        ur_cast<ur_exp_command_buffer_handle_t>(URCommandBuffer.release());
+        QueuePtr, cast(hContext), cast(hDevice), CLCommandBuffer, IsUpdatable,
+        IsInOrder);
+    *phCommandBuffer = cast(URCommandBuffer.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -116,16 +114,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  auto CommandBuffer =
-      ur_cast<ur::opencl::ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
+  auto CommandBuffer = cast(hCommandBuffer);
   CommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  auto CommandBuffer =
-      ur_cast<ur::opencl::ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
+  auto CommandBuffer = cast(hCommandBuffer);
   if (CommandBuffer->RefCount.release()) {
     delete CommandBuffer;
   }
@@ -135,18 +131,15 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  auto CommandBuffer =
-      ur_cast<ur::opencl::ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
+  auto CommandBuffer = cast(hCommandBuffer);
   UR_ASSERT(!CommandBuffer->IsFinalized, UR_RESULT_ERROR_INVALID_OPERATION);
-  auto Context =
-      ur_cast<ur::opencl::ur_context_handle_t_ *>(CommandBuffer->hContext);
+  auto Context = CommandBuffer->hContext;
   cl_context CLContext = Context->CLContext;
   cl_ext::clFinalizeCommandBufferKHR_fn clFinalizeCommandBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clFinalizeCommandBufferKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clFinalizeCommandBufferKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clFinalizeCommandBufferKHRCache,
           cl_ext::FinalizeCommandBufferName, &clFinalizeCommandBufferKHR));
 
   CL_RETURN_ON_FAILURE(
@@ -172,22 +165,20 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
   (void)phEventWaitList;
   (void)phEvent;
 
-  auto CommandBuffer =
-      ur_cast<ur::opencl::ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  auto Kernel = ur_cast<ur::opencl::ur_kernel_handle_t_ *>(hKernel);
+  auto CommandBuffer = cast(hCommandBuffer);
+  auto Kernel = cast(hKernel);
   // Command handles can only be obtained from updatable command-buffers
   UR_ASSERT(!(phCommandHandle && !CommandBuffer->IsUpdatable),
             UR_RESULT_ERROR_INVALID_OPERATION);
 
-  auto Context =
-      ur_cast<ur::opencl::ur_context_handle_t_ *>(CommandBuffer->hContext);
+  auto Context = CommandBuffer->hContext;
   cl_context CLContext = Context->CLContext;
 
   clSetKernelArgMemPointerINTEL_fn SetKernelArgMemPointerPtr = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          cast(ur::cl::getAdapter())
               ->fnCache.clSetKernelArgMemPointerINTELCache,
           cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
 
@@ -205,8 +196,7 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
       auto Mem = pArgs[i].value.memObjTuple.hMem
-                     ? ur_cast<ur::opencl::ur_mem_handle_t_ *>(
-                           pArgs[i].value.memObjTuple.hMem)
+                     ? cast(pArgs[i].value.memObjTuple.hMem)
                      : nullptr;
       cl_mem mem = Mem ? Mem->CLMemory : nullptr;
       CL_RETURN_ON_FAILURE(clSetKernelArg(Kernel->CLKernel,
@@ -220,8 +210,7 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
           pArgs[i].value.pointer));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-      auto Sampler =
-          ur_cast<ur::opencl::ur_sampler_handle_t_ *>(pArgs[i].value.sampler);
+      auto Sampler = cast(pArgs[i].value.sampler);
       CL_RETURN_ON_FAILURE(clSetKernelArg(Kernel->CLKernel,
                                           static_cast<cl_uint>(pArgs[i].index),
                                           pArgs[i].size, &Sampler->CLSampler));
@@ -254,22 +243,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   (void)phEventWaitList;
   (void)phEvent;
 
-  auto CommandBuffer =
-      ur_cast<ur::opencl::ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  auto Kernel = ur_cast<ur::opencl::ur_kernel_handle_t_ *>(hKernel);
+  auto CommandBuffer = cast(hCommandBuffer);
+  auto Kernel = cast(hKernel);
   // Command handles can only be obtained from updatable command-buffers
   UR_ASSERT(!(phCommandHandle && !CommandBuffer->IsUpdatable),
             UR_RESULT_ERROR_INVALID_OPERATION);
 
-  auto Context =
-      ur_cast<ur::opencl::ur_context_handle_t_ *>(CommandBuffer->hContext);
+  auto Context = CommandBuffer->hContext;
   cl_context CLContext = Context->CLContext;
   cl_ext::clCommandNDRangeKernelKHR_fn clCommandNDRangeKernelKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandNDRangeKernelKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clCommandNDRangeKernelKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clCommandNDRangeKernelKHRCache,
           cl_ext::CommandNRRangeKernelName, &clCommandNDRangeKernelKHR));
 
   cl_mutable_command_khr CommandHandle = nullptr;
@@ -299,11 +285,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   try {
     auto Handle = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
-        hCommandBuffer, CommandHandle, hKernel, workDim,
+        CommandBuffer, CommandHandle, Kernel, workDim,
         pLocalWorkSize != nullptr);
     if (phCommandHandle) {
-      *phCommandHandle =
-          ur_cast<ur_exp_command_buffer_command_handle_t>(Handle.get());
+      *phCommandHandle = cast(Handle.get());
     }
 
     CommandBuffer->CommandHandles.push_back(std::move(Handle));
@@ -322,17 +307,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   // No extension entry-point exists for USM memcpy, use SVM memcpy in
   // preparation for USVM.
-  auto CommandBuffer =
-      ur_cast<ur::opencl::ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  auto Context =
-      ur_cast<ur::opencl::ur_context_handle_t_ *>(CommandBuffer->hContext);
+  auto CommandBuffer = cast(hCommandBuffer);
+  auto Context = CommandBuffer->hContext;
   cl_context CLContext = Context->CLContext;
   cl_ext::clCommandSVMMemcpyKHR_fn clCommandSVMMemcpyKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandSVMMemcpyKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clCommandSVMMemcpyKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clCommandSVMMemcpyKHRCache,
           cl_ext::CommandSVMMemcpyName, &clCommandSVMMemcpyKHR));
 
   const bool IsInOrder = CommandBuffer->IsInOrder;
@@ -356,17 +338,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   // No extension entry-point exists for USM fill, use SVM fill in preparation
   // for USVM.
-  auto CommandBuffer =
-      ur_cast<ur::opencl::ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  auto Context =
-      ur_cast<ur::opencl::ur_context_handle_t_ *>(CommandBuffer->hContext);
+  auto CommandBuffer = cast(hCommandBuffer);
+  auto Context = CommandBuffer->hContext;
   cl_context CLContext = Context->CLContext;
   cl_ext::clCommandSVMMemFillKHR_fn clCommandSVMMemFillKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandSVMMemFillKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clCommandSVMMemFillKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clCommandSVMMemFillKHRCache,
           cl_ext::CommandSVMMemFillName, &clCommandSVMMemFillKHR));
 
   const bool IsInOrder = CommandBuffer->IsInOrder;
@@ -394,19 +373,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   (void)phEventWaitList;
   (void)phEvent;
   (void)phCommand;
-  auto CommandBuffer =
-      ur_cast<ur::opencl::ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  auto SrcMem = ur_cast<ur::opencl::ur_mem_handle_t_ *>(hSrcMem);
-  auto DstMem = ur_cast<ur::opencl::ur_mem_handle_t_ *>(hDstMem);
-  auto Context =
-      ur_cast<ur::opencl::ur_context_handle_t_ *>(CommandBuffer->hContext);
+  auto CommandBuffer = cast(hCommandBuffer);
+  auto SrcMem = cast(hSrcMem);
+  auto DstMem = cast(hDstMem);
+  auto Context = CommandBuffer->hContext;
   cl_context CLContext = Context->CLContext;
   cl_ext::clCommandCopyBufferKHR_fn clCommandCopyBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandCopyBufferKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clCommandCopyBufferKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clCommandCopyBufferKHRCache,
           cl_ext::CommandCopyBufferName, &clCommandCopyBufferKHR));
 
   const bool IsInOrder = CommandBuffer->IsInOrder;
@@ -444,18 +420,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
   size_t OpenCLDstRect[3]{dstOrigin.x, dstOrigin.y, dstOrigin.z};
   size_t OpenCLRegion[3]{region.width, region.height, region.depth};
 
-  auto CommandBuffer =
-      ur_cast<ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  auto SrcMem = ur_cast<ur_mem_handle_t_ *>(hSrcMem);
-  auto DstMem = ur_cast<ur_mem_handle_t_ *>(hDstMem);
-  cl_context CLContext =
-      ur_cast<ur_context_handle_t_ *>(CommandBuffer->hContext)->CLContext;
+  auto CommandBuffer = cast(hCommandBuffer);
+  auto SrcMem = cast(hSrcMem);
+  auto DstMem = cast(hDstMem);
+  cl_context CLContext = CommandBuffer->hContext->CLContext;
   cl_ext::clCommandCopyBufferRectKHR_fn clCommandCopyBufferRectKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandCopyBufferRectKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clCommandCopyBufferRectKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clCommandCopyBufferRectKHRCache,
           cl_ext::CommandCopyBufferRectName, &clCommandCopyBufferRectKHR));
 
   const bool IsInOrder = CommandBuffer->IsInOrder;
@@ -559,17 +532,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     [[maybe_unused]] ur_event_handle_t *phEvent,
     [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
 
-  auto CommandBuffer =
-      ur_cast<ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  auto Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
-  cl_context CLContext =
-      ur_cast<ur_context_handle_t_ *>(CommandBuffer->hContext)->CLContext;
+  auto CommandBuffer = cast(hCommandBuffer);
+  auto Buffer = cast(hBuffer);
+  cl_context CLContext = CommandBuffer->hContext->CLContext;
   cl_ext::clCommandFillBufferKHR_fn clCommandFillBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandFillBufferKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clCommandFillBufferKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clCommandFillBufferKHRCache,
           cl_ext::CommandFillBufferName, &clCommandFillBufferKHR));
 
   const bool IsInOrder = CommandBuffer->IsInOrder;
@@ -636,17 +606,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  auto CommandBuffer =
-      ur_cast<ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  auto Queue = ur_cast<ur_queue_handle_t_ *>(hQueue);
-  cl_context CLContext =
-      ur_cast<ur_context_handle_t_ *>(CommandBuffer->hContext)->CLContext;
+  auto CommandBuffer = cast(hCommandBuffer);
+  auto Queue = cast(hQueue);
+  cl_context CLContext = CommandBuffer->hContext->CLContext;
   cl_ext::clEnqueueCommandBufferKHR_fn clEnqueueCommandBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clEnqueueCommandBufferKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clEnqueueCommandBufferKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clEnqueueCommandBufferKHRCache,
           cl_ext::EnqueueCommandBufferName, &clEnqueueCommandBufferKHR));
 
   // If we've submitted the command-buffer before, then add a dependency on the
@@ -656,8 +623,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
       AddExtraDep ? numEventsInWaitList + 1 : numEventsInWaitList;
   std::vector<cl_event> CLWaitEvents(CLWaitListLength);
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-    CLWaitEvents[i] =
-        ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->CLEvent;
+    CLWaitEvents[i] = cast(phEventWaitList[i])->CLEvent;
   }
   if (AddExtraDep) {
     CLWaitEvents[numEventsInWaitList] = CommandBuffer->LastSubmission;
@@ -679,8 +645,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   }
   CommandBuffer->LastSubmission = Event;
 
-  UR_RETURN_ON_FAILURE(createUREvent(
-      Event, ur_cast<ur_context_handle_t>(Queue->Context), hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), hQueue, phEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -720,8 +686,7 @@ void updateKernelArgs(std::vector<cl_mutable_dispatch_arg_khr> &CLArgs,
   for (uint32_t i = 0; i < NumMemobjArgs; i++) {
     const ur_exp_command_buffer_update_memobj_arg_desc_t &URMemObjArg =
         ArgMemobjList[i];
-    cl_mem arg_value =
-        ur_cast<ur_mem_handle_t_ *>(URMemObjArg.hNewMemObjArg)->CLMemory;
+    cl_mem arg_value = cast(URMemObjArg.hNewMemObjArg)->CLMemory;
     cl_mutable_dispatch_arg_khr CLArg{
         URMemObjArg.argIndex, // arg_index
         sizeof(cl_mem),       // arg_size
@@ -746,21 +711,18 @@ void updateKernelArgs(std::vector<cl_mutable_dispatch_arg_khr> &CLArgs,
 ur_result_t validateCommandDesc(
     ur_exp_command_buffer_handle_t hCommandBuffer,
     const ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) {
-  auto CommandBuffer =
-      ur_cast<ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
+  auto CommandBuffer = cast(hCommandBuffer);
   if (!CommandBuffer->IsFinalized || !CommandBuffer->IsUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  auto Command =
-      ur_cast<ur_exp_command_buffer_command_handle_t_ *>(UpdateDesc.hCommand);
-  if (hCommandBuffer !=
-      ur_cast<ur_exp_command_buffer_handle_t>(Command->hCommandBuffer)) {
+  auto Command = cast(UpdateDesc.hCommand);
+  if (hCommandBuffer != cast(Command->hCommandBuffer)) {
     return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP;
   }
 
   // Kernel handle updates are not yet supported.
-  if (UpdateDesc.hNewKernel && UpdateDesc.hNewKernel != Command->Kernel) {
+  if (UpdateDesc.hNewKernel && UpdateDesc.hNewKernel != cast(Command->Kernel)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -772,7 +734,7 @@ ur_result_t validateCommandDesc(
 
   // Verify that the device supports updating the aspects of the kernel that
   // the user is requesting.
-  auto URDevice = ur_cast<ur_device_handle_t_ *>(CommandBuffer->hDevice);
+  auto URDevice = CommandBuffer->hDevice;
   cl_device_id CLDevice = URDevice->CLDevice;
 
   ur_device_command_buffer_update_capability_flags_t UpdateCapabilities = 0;
@@ -825,17 +787,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         validateCommandDesc(hCommandBuffer, pUpdateKernelLaunch[i]));
   }
 
-  auto CommandBuffer =
-      ur_cast<ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  cl_context CLContext =
-      ur_cast<ur_context_handle_t_ *>(CommandBuffer->hContext)->CLContext;
+  auto CommandBuffer = cast(hCommandBuffer);
+  cl_context CLContext = CommandBuffer->hContext->CLContext;
 
   cl_ext::clUpdateMutableCommandsKHR_fn clUpdateMutableCommandsKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clUpdateMutableCommandsKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-              ->fnCache.clUpdateMutableCommandsKHRCache,
+          cast(ur::cl::getAdapter())->fnCache.clUpdateMutableCommandsKHRCache,
           cl_ext::UpdateMutableCommandsName, &clUpdateMutableCommandsKHR));
 
   std::vector<cl_mutable_dispatch_config_khr> ConfigList(numKernelUpdates);
@@ -872,8 +831,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     updateKernelArgs(CLArgs, UpdateDesc);
 
     // Find the updated ND-Range configuration of the kernel.
-    auto Command =
-        ur_cast<ur_exp_command_buffer_command_handle_t_ *>(UpdateDesc.hCommand);
+    auto Command = cast(UpdateDesc.hCommand);
     cl_uint &CommandWorkDim = Command->WorkDim;
 
     if (auto GlobalWorkOffsetPtr = UpdateDesc.pNewGlobalWorkOffset) {
@@ -937,8 +895,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     size_t *pPropSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
-  auto CommandBuffer =
-      ur_cast<ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
+  auto CommandBuffer = cast(hCommandBuffer);
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
@@ -968,16 +925,14 @@ ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  auto CommandBuffer =
-      ur_cast<ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
-  cl_context CLContext =
-      ur_cast<ur_context_handle_t_ *>(CommandBuffer->hContext)->CLContext;
+  auto CommandBuffer = cast(hCommandBuffer);
+  cl_context CLContext = CommandBuffer->hContext->CLContext;
   cl_ext::clCommandBarrierWithWaitListKHR_fn clCommandBarrierWithWaitListKHR =
       nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandBarrierWithWaitListKHR)>(
           CLContext,
-          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          cast(ur::cl::getAdapter())
               ->fnCache.clCommandBarrierWithWaitListKHRCache,
           cl_ext::CommandBarrierWithWaitListName,
           &clCommandBarrierWithWaitListKHR));
@@ -1005,8 +960,7 @@ ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                                   ur_native_handle_t *phNativeCommandBuffer) {
-  auto CommandBuffer =
-      ur_cast<ur_exp_command_buffer_handle_t_ *>(hCommandBuffer);
+  auto CommandBuffer = cast(hCommandBuffer);
   *phNativeCommandBuffer =
       reinterpret_cast<ur_native_handle_t>(CommandBuffer->CLCommandBuffer);
   return UR_RESULT_SUCCESS;

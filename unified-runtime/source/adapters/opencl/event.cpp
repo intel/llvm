@@ -117,13 +117,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     const ur_event_native_properties_t *pProperties,
     ur_event_handle_t *phEvent) {
   cl_event NativeHandle = reinterpret_cast<cl_event>(hNativeEvent);
-  auto Context = ur_cast<ur_context_handle_t_ *>(hContext);
+  auto Context = cast(hContext);
   try {
     auto UREvent =
         std::make_unique<ur_event_handle_t_>(NativeHandle, Context, nullptr);
     UREvent->IsNativeHandleOwned =
         pProperties ? pProperties->isNativeHandleOwned : false;
-    *phEvent = ur_cast<ur_event_handle_t>(UREvent.release());
+    *phEvent = cast(UREvent.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -134,12 +134,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ur_native_handle_t *phNativeEvent) {
-  auto Event = ur_cast<ur_event_handle_t_ *>(hEvent);
+  auto Event = cast(hEvent);
   return getNativeHandle(Event->CLEvent, phNativeEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
-  auto Event = ur_cast<ur_event_handle_t_ *>(hEvent);
+  auto Event = cast(hEvent);
   if (Event->RefCount.release()) {
     delete Event;
   }
@@ -147,15 +147,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  auto Event = ur_cast<ur_event_handle_t_ *>(hEvent);
+  auto Event = cast(hEvent);
   Event->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
-  ur_context_handle_t_ *hContext =
-      ur_cast<ur_event_handle_t_ *>(phEventWaitList[0])->Context;
+  ur_context_handle_t_ *hContext = cast(phEventWaitList[0])->Context;
   std::vector<cl_event> CLEvents;
   CLEvents.reserve(numEvents);
 
@@ -163,15 +162,13 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   // If the events are from different contexts, we need to wait for each
   // set of events separately.
   for (uint32_t i = 0; i < numEvents; i++) {
-    if (ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->Context !=
-        hContext) {
+    if (cast(phEventWaitList[i])->Context != hContext) {
       CL_RETURN_ON_FAILURE(clWaitForEvents(CLEvents.size(), CLEvents.data()));
       CLEvents.clear();
     }
 
-    CLEvents.push_back(
-        ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->CLEvent);
-    hContext = ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->Context;
+    CLEvents.push_back(cast(phEventWaitList[i])->CLEvent);
+    hContext = cast(phEventWaitList[i])->Context;
   }
   if (CLEvents.size()) {
     CL_RETURN_ON_FAILURE(clWaitForEvents(CLEvents.size(), CLEvents.data()));
@@ -184,17 +181,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    size_t propSize,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
-  auto Event = ur_cast<ur_event_handle_t_ *>(hEvent);
+  auto Event = cast(hEvent);
   cl_event_info CLEventInfo = convertUREventInfoToCL(propName);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
   case UR_EVENT_INFO_CONTEXT: {
-    return ReturnValue(ur_cast<ur_context_handle_t>(Event->Context));
+    return ReturnValue(cast(Event->Context));
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
     Event->ensureQueue();
-    return ReturnValue(ur_cast<ur_queue_handle_t>(Event->Queue));
+    return ReturnValue(cast(Event->Queue));
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
     return ReturnValue(Event->RefCount.getCount());
@@ -238,7 +235,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     ur_event_handle_t hEvent, ur_profiling_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropSizeRet) {
-  auto Event = ur_cast<ur_event_handle_t_ *>(hEvent);
+  auto Event = cast(hEvent);
   cl_profiling_info CLProfilingInfo = convertURProfilingInfoToCL(propName);
   cl_int RetErr = clGetEventProfilingInfo(Event->CLEvent, CLProfilingInfo,
                                           propSize, pPropValue, pPropSizeRet);
@@ -249,7 +246,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
                    ur_event_callback_t pfnNotify, void *pUserData) {
-  auto Event = ur_cast<ur_event_handle_t_ *>(hEvent);
+  auto Event = cast(hEvent);
   static std::unordered_map<ur_event_handle_t, std::set<ur_event_callback_t>>
       EventCallbackMap;
   static std::mutex EventCallbackMutex;

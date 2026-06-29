@@ -33,7 +33,7 @@ struct ur_context_handle_t_ : handle_base {
       : handle_base(), CLContext(Ctx), DeviceCount(DevCount) {
     for (uint32_t i = 0; i < DeviceCount; i++) {
       Devices.emplace_back(phDevices[i]);
-      ur::opencl::urDeviceRetain(ur_cast<ur_device_handle_t>(phDevices[i]));
+      ur::opencl::urDeviceRetain(cast(phDevices[i]));
     }
   }
 
@@ -45,11 +45,10 @@ struct ur_context_handle_t_ : handle_base {
     // clear the ext function pointer cache. This isn't foolproof sadly but it
     // should drastically reduce the chances of the pathological case described
     // in the comments in common.hpp.
-    ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-        ->fnCache.clearCache(CLContext);
+    cast(ur::cl::getAdapter())->fnCache.clearCache(CLContext);
 
     for (uint32_t i = 0; i < DeviceCount; i++) {
-      ur::opencl::urDeviceRelease(ur_cast<ur_device_handle_t>(Devices[i]));
+      ur::opencl::urDeviceRelease(cast(Devices[i]));
     }
     if (IsNativeHandleOwned) {
       clReleaseContext(CLContext);

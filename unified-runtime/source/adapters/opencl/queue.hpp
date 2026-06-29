@@ -37,8 +37,8 @@ struct ur_queue_handle_t_ : handle_base {
                      ur_device_handle_t_ *Dev, bool InOrder)
       : handle_base(), CLQueue(Queue), Context(Ctx), Device(Dev),
         IsInOrder(InOrder) {
-    ur::opencl::urDeviceRetain(ur_cast<ur_device_handle_t>(Device));
-    ur::opencl::urContextRetain(ur_cast<ur_context_handle_t>(Context));
+    ur::opencl::urDeviceRetain(cast(Device));
+    ur::opencl::urContextRetain(cast(Context));
   }
 
   static ur_result_t makeWithNative(native_type NativeQueue,
@@ -47,13 +47,13 @@ struct ur_queue_handle_t_ : handle_base {
                                     ur_queue_handle_t &Queue);
 
   ~ur_queue_handle_t_() {
-    ur::opencl::urDeviceRelease(ur_cast<ur_device_handle_t>(Device));
-    ur::opencl::urContextRelease(ur_cast<ur_context_handle_t>(Context));
+    ur::opencl::urDeviceRelease(cast(Device));
+    ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
       clReleaseCommandQueue(CLQueue);
     }
     if (DeviceDefault.has_value()) {
-      ur::opencl::urQueueRelease(ur_cast<ur_queue_handle_t>(*DeviceDefault));
+      ur::opencl::urQueueRelease(cast(*DeviceDefault));
     }
   }
 
@@ -64,13 +64,11 @@ struct ur_queue_handle_t_ : handle_base {
       return UR_RESULT_SUCCESS;
     }
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(
-          ur::opencl::urEventRelease(ur_cast<ur_event_handle_t>(LastEvent)));
+      UR_RETURN_ON_FAILURE(ur::opencl::urEventRelease(cast(LastEvent)));
     }
-    LastEvent = ur_cast<ur_event_handle_t_ *>(Event);
+    LastEvent = cast(Event);
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(
-          ur::opencl::urEventRetain(ur_cast<ur_event_handle_t>(LastEvent)));
+      UR_RETURN_ON_FAILURE(ur::opencl::urEventRetain(cast(LastEvent)));
     }
     return UR_RESULT_SUCCESS;
   }

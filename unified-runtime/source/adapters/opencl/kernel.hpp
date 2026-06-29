@@ -33,19 +33,18 @@ struct ur_kernel_handle_t_ : handle_base {
   ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t_ *Program,
                       ur_context_handle_t_ *Context)
       : handle_base(), CLKernel(Kernel), Program(Program), Context(Context) {
-    ur::opencl::urProgramRetain(ur_cast<ur_program_handle_t>(Program));
-    ur::opencl::urContextRetain(ur_cast<ur_context_handle_t>(Context));
+    ur::opencl::urProgramRetain(cast(Program));
+    ur::opencl::urContextRetain(cast(Context));
 
     cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
         Context->CLContext,
-        ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
-            ->fnCache.clSetKernelArgMemPointerINTELCache,
+        cast(ur::cl::getAdapter())->fnCache.clSetKernelArgMemPointerINTELCache,
         cl_ext::SetKernelArgMemPointerName, &clSetKernelArgMemPointerINTEL);
   }
 
   ~ur_kernel_handle_t_() {
-    ur::opencl::urProgramRelease(ur_cast<ur_program_handle_t>(Program));
-    ur::opencl::urContextRelease(ur_cast<ur_context_handle_t>(Context));
+    ur::opencl::urProgramRelease(cast(Program));
+    ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
       clReleaseKernel(CLKernel);
     }

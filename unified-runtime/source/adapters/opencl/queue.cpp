@@ -78,8 +78,8 @@ ur_result_t ur_queue_handle_t_::makeWithNative(native_type NativeQueue,
                                                ur_device_handle_t Device,
                                                ur_queue_handle_t &Queue) {
   try {
-    auto UrContext = ur_cast<ur::opencl::ur_context_handle_t_ *>(Context);
-    auto UrDevice = ur_cast<ur::opencl::ur_device_handle_t_ *>(Device);
+    auto UrContext = cast(Context);
+    auto UrDevice = cast(Device);
     cl_context CLContext;
     CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
         NativeQueue, CL_QUEUE_CONTEXT, sizeof(CLContext), &CLContext, nullptr));
@@ -98,11 +98,11 @@ ur_result_t ur_queue_handle_t_::makeWithNative(native_type NativeQueue,
           reinterpret_cast<ur_native_handle_t>(CLDevice);
       UR_RETURN_ON_FAILURE(ur::opencl::urDeviceCreateWithNativeHandle(
           hNativeHandle, nullptr, nullptr, &Device));
-      UrDevice = ur_cast<ur::opencl::ur_device_handle_t_ *>(Device);
+      UrDevice = cast(Device);
     }
     auto URQueue = std::make_unique<ur_queue_handle_t_>(NativeQueue, UrContext,
                                                         UrDevice, false);
-    Queue = ur_cast<ur_queue_handle_t>(URQueue.release());
+    Queue = cast(URQueue.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -115,10 +115,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *pProperties, ur_queue_handle_t *phQueue) {
 
-  auto Context = ur_cast<ur::opencl::ur_context_handle_t_ *>(hContext);
-  auto Device = ur_cast<ur::opencl::ur_device_handle_t_ *>(hDevice);
-  auto CurPlatform =
-      ur_cast<ur::opencl::ur_platform_handle_t_ *>(Device->Platform);
+  auto Context = cast(hContext);
+  auto Device = cast(hDevice);
+  auto CurPlatform = Device->Platform;
 
   cl_command_queue_properties CLProperties =
       pProperties ? convertURQueuePropertiesToCL(pProperties) : 0;
@@ -144,7 +143,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     try {
       auto URQueue =
           std::make_unique<ur_queue_handle_t_>(Queue, Context, Device, InOrder);
-      *phQueue = ur_cast<ur_queue_handle_t>(URQueue.release());
+      *phQueue = cast(URQueue.release());
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
@@ -163,7 +162,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   try {
     auto URQueue =
         std::make_unique<ur_queue_handle_t_>(Queue, Context, Device, InOrder);
-    *phQueue = ur_cast<ur_queue_handle_t>(URQueue.release());
+    *phQueue = cast(URQueue.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -177,7 +176,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t propSize,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
-  auto Queue = ur_cast<ur::opencl::ur_queue_handle_t_ *>(hQueue);
+  auto Queue = cast(hQueue);
   cl_command_queue_info CLCommandQueueInfo = mapURQueueInfoToCL(propName);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   if (propName == UR_QUEUE_INFO_EMPTY) {
@@ -198,7 +197,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
     } else {
       ur_event_status_t Status;
       UR_RETURN_ON_FAILURE(ur::opencl::urEventGetInfo(
-          Queue->LastEvent, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+          cast(Queue->LastEvent), UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
           sizeof(ur_event_status_t), (void *)&Status, nullptr));
       if (Status == UR_EVENT_STATUS_COMPLETE) {
         return ReturnValue(true);
@@ -208,10 +207,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   }
   switch (propName) {
   case UR_QUEUE_INFO_CONTEXT: {
-    return ReturnValue(ur_cast<ur_context_handle_t>(Queue->Context));
+    return ReturnValue(Queue->Context);
   }
   case UR_QUEUE_INFO_DEVICE: {
-    return ReturnValue(ur_cast<ur_device_handle_t>(Queue->Device));
+    return ReturnValue(Queue->Device);
   }
   case UR_QUEUE_INFO_DEVICE_DEFAULT: {
     size_t CheckPropSize = 0;
@@ -226,8 +225,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 
     // If we have an existing default device, release it
     if (Queue->DeviceDefault.has_value()) {
-      ur::opencl::urQueueRelease(
-          ur_cast<ur_queue_handle_t>(*Queue->DeviceDefault));
+      ur::opencl::urQueueRelease(cast(*Queue->DeviceDefault));
       Queue->DeviceDefault.reset();
     }
 
@@ -238,10 +236,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
     } else {
       ur_queue_handle_t NewHandle;
       UR_RETURN_ON_FAILURE(ur_queue_handle_t_::makeWithNative(
-          NewDefault, ur_cast<ur_context_handle_t>(Queue->Context),
-          ur_cast<ur_device_handle_t>(Queue->Device), NewHandle));
-      Queue->DeviceDefault =
-          ur_cast<ur::opencl::ur_queue_handle_t_ *>(NewHandle);
+          NewDefault, cast(Queue->Context), cast(Queue->Device), NewHandle));
+      Queue->DeviceDefault = cast(NewHandle);
       return ReturnValue(NewHandle);
     }
     break;
@@ -280,7 +276,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
                        ur_native_handle_t *phNativeQueue) {
-  auto Queue = ur_cast<ur::opencl::ur_queue_handle_t_ *>(hQueue);
+  auto Queue = cast(hQueue);
   return getNativeHandle(Queue->CLQueue, phNativeQueue);
 }
 
@@ -295,7 +291,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   UR_RETURN_ON_FAILURE(ur_queue_handle_t_::makeWithNative(
       NativeHandle, hContext, hDevice, *phQueue));
 
-  auto Queue = ur_cast<ur::opencl::ur_queue_handle_t_ *>(*phQueue);
+  auto Queue = cast(*phQueue);
   Queue->IsNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
 
@@ -303,27 +299,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
-  auto Queue = ur_cast<ur::opencl::ur_queue_handle_t_ *>(hQueue);
+  auto Queue = cast(hQueue);
   cl_int RetErr = clFinish(Queue->CLQueue);
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  auto Queue = ur_cast<ur::opencl::ur_queue_handle_t_ *>(hQueue);
+  auto Queue = cast(hQueue);
   cl_int RetErr = clFlush(Queue->CLQueue);
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  auto Queue = ur_cast<ur::opencl::ur_queue_handle_t_ *>(hQueue);
+  auto Queue = cast(hQueue);
   Queue->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  auto Queue = ur_cast<ur::opencl::ur_queue_handle_t_ *>(hQueue);
+  auto Queue = cast(hQueue);
   if (Queue->RefCount.release()) {
     delete Queue;
   }

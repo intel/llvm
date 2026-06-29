@@ -27,16 +27,16 @@ struct ur_event_handle_t_ : handle_base {
   ur_event_handle_t_(native_type Event, ur_context_handle_t_ *Ctx,
                      ur_queue_handle_t_ *Queue)
       : handle_base(), CLEvent(Event), Context(Ctx), Queue(Queue) {
-    ur::opencl::urContextRetain(ur_cast<ur_context_handle_t>(Context));
+    ur::opencl::urContextRetain(cast(Context));
     if (Queue) {
-      ur::opencl::urQueueRetain(ur_cast<ur_queue_handle_t>(Queue));
+      ur::opencl::urQueueRetain(cast(Queue));
     }
   }
 
   ~ur_event_handle_t_() {
-    ur::opencl::urContextRelease(ur_cast<ur_context_handle_t>(Context));
+    ur::opencl::urContextRelease(cast(Context));
     if (Queue) {
-      ur::opencl::urQueueRelease(ur_cast<ur_queue_handle_t>(Queue));
+      ur::opencl::urQueueRelease(cast(Queue));
     }
     if (IsNativeHandleOwned) {
       clReleaseEvent(CLEvent);
@@ -51,9 +51,8 @@ struct ur_event_handle_t_ : handle_base {
                                           nullptr));
       ur_queue_handle_t OpaqueQueue = nullptr;
       UR_RETURN_ON_FAILURE(ur_queue_handle_t_::makeWithNative(
-          native_queue, ur_cast<ur_context_handle_t>(Context), nullptr,
-          OpaqueQueue));
-      Queue = ur_cast<ur_queue_handle_t_ *>(OpaqueQueue);
+          native_queue, cast(Context), nullptr, OpaqueQueue));
+      Queue = cast(OpaqueQueue);
     }
 
     return UR_RESULT_SUCCESS;
@@ -68,12 +67,12 @@ inline ur_result_t createUREvent(cl_event Event, ur_context_handle_t Context,
                                  ur_queue_handle_t Queue,
                                  ur_event_handle_t *ReturnedEvent) {
   assert(Queue);
-  auto UrQueue = ur_cast<ur_queue_handle_t_ *>(Queue);
+  auto UrQueue = cast(Queue);
   if (ReturnedEvent) {
     try {
-      auto UREvent = std::make_unique<ur_event_handle_t_>(
-          Event, ur_cast<ur_context_handle_t_ *>(Context), UrQueue);
-      *ReturnedEvent = ur_cast<ur_event_handle_t>(UREvent.release());
+      auto UREvent =
+          std::make_unique<ur_event_handle_t_>(Event, cast(Context), UrQueue);
+      *ReturnedEvent = cast(UREvent.release());
       UR_RETURN_ON_FAILURE(UrQueue->storeLastEvent(*ReturnedEvent));
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;

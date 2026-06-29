@@ -172,6 +172,139 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 
 namespace ur::opencl {
 using handle_base = ur::handle_base<ur::opencl::ddi_getter>;
+
+// Forward declarations of the adapter's internal handle types. Full
+// definitions live in the per-type headers (context.hpp, device.hpp, ...).
+// They reside in `namespace ur::opencl` so that the global opaque
+// `::ur_X_handle_t` types from ur_api.h do not collide when several adapters
+// are statically linked into the same image.
+struct ur_adapter_handle_t_;
+struct ur_platform_handle_t_;
+struct ur_device_handle_t_;
+struct ur_context_handle_t_;
+struct ur_event_handle_t_;
+struct ur_program_handle_t_;
+struct ur_kernel_handle_t_;
+struct ur_queue_handle_t_;
+struct ur_sampler_handle_t_;
+struct ur_mem_handle_t_;
+struct ur_physical_mem_handle_t_;
+struct ur_exp_command_buffer_handle_t_;
+struct ur_exp_command_buffer_command_handle_t_;
+
+// Cast from an opaque UR handle to the adapter's concrete type and back. The
+// handles passed through the UR API are opaque, so adapter code uses these
+// helpers to reach the internal members. Both trait mappings are intentionally
+// left undefined for unregistered types so that `cast` below participates in
+// overload resolution only for known handles.
+//
+// TODO: the two specialization lists below are mechanical inverses of each
+// other. They could be collapsed into a single
+//   UR_CL_HANDLE_MAP(::ur_context_handle_t, ur_context_handle_t_)
+// X-macro that emits both directions at once. The same applies to the L0
+// adapter's v1_handle_traits/v1_opaque_handle_for pair (see #21845); worth
+// unifying once both PRs have landed.
+namespace detail {
+// Maps an opaque handle typedef to its corresponding internal struct.
+template <typename Opaque> struct handle_traits;
+template <> struct handle_traits<::ur_adapter_handle_t> {
+  using type = ur_adapter_handle_t_;
+};
+template <> struct handle_traits<::ur_platform_handle_t> {
+  using type = ur_platform_handle_t_;
+};
+template <> struct handle_traits<::ur_device_handle_t> {
+  using type = ur_device_handle_t_;
+};
+template <> struct handle_traits<::ur_context_handle_t> {
+  using type = ur_context_handle_t_;
+};
+template <> struct handle_traits<::ur_event_handle_t> {
+  using type = ur_event_handle_t_;
+};
+template <> struct handle_traits<::ur_program_handle_t> {
+  using type = ur_program_handle_t_;
+};
+template <> struct handle_traits<::ur_kernel_handle_t> {
+  using type = ur_kernel_handle_t_;
+};
+template <> struct handle_traits<::ur_queue_handle_t> {
+  using type = ur_queue_handle_t_;
+};
+template <> struct handle_traits<::ur_sampler_handle_t> {
+  using type = ur_sampler_handle_t_;
+};
+template <> struct handle_traits<::ur_mem_handle_t> {
+  using type = ur_mem_handle_t_;
+};
+template <> struct handle_traits<::ur_physical_mem_handle_t> {
+  using type = ur_physical_mem_handle_t_;
+};
+template <> struct handle_traits<::ur_exp_command_buffer_handle_t> {
+  using type = ur_exp_command_buffer_handle_t_;
+};
+template <> struct handle_traits<::ur_exp_command_buffer_command_handle_t> {
+  using type = ur_exp_command_buffer_command_handle_t_;
+};
+
+template <typename Opaque>
+using internal_t = typename handle_traits<Opaque>::type;
+
+// Reverse mapping: internal struct -> opaque handle.
+template <typename Internal> struct opaque_handle_for;
+template <> struct opaque_handle_for<ur_adapter_handle_t_> {
+  using type = ::ur_adapter_handle_t;
+};
+template <> struct opaque_handle_for<ur_platform_handle_t_> {
+  using type = ::ur_platform_handle_t;
+};
+template <> struct opaque_handle_for<ur_device_handle_t_> {
+  using type = ::ur_device_handle_t;
+};
+template <> struct opaque_handle_for<ur_context_handle_t_> {
+  using type = ::ur_context_handle_t;
+};
+template <> struct opaque_handle_for<ur_event_handle_t_> {
+  using type = ::ur_event_handle_t;
+};
+template <> struct opaque_handle_for<ur_program_handle_t_> {
+  using type = ::ur_program_handle_t;
+};
+template <> struct opaque_handle_for<ur_kernel_handle_t_> {
+  using type = ::ur_kernel_handle_t;
+};
+template <> struct opaque_handle_for<ur_queue_handle_t_> {
+  using type = ::ur_queue_handle_t;
+};
+template <> struct opaque_handle_for<ur_sampler_handle_t_> {
+  using type = ::ur_sampler_handle_t;
+};
+template <> struct opaque_handle_for<ur_mem_handle_t_> {
+  using type = ::ur_mem_handle_t;
+};
+template <> struct opaque_handle_for<ur_physical_mem_handle_t_> {
+  using type = ::ur_physical_mem_handle_t;
+};
+template <> struct opaque_handle_for<ur_exp_command_buffer_handle_t_> {
+  using type = ::ur_exp_command_buffer_handle_t;
+};
+template <> struct opaque_handle_for<ur_exp_command_buffer_command_handle_t_> {
+  using type = ::ur_exp_command_buffer_command_handle_t;
+};
+} // namespace detail
+
+// Opaque handle -> internal pointer.
+template <typename Opaque>
+inline detail::internal_t<Opaque> *cast(Opaque handle) {
+  return reinterpret_cast<detail::internal_t<Opaque> *>(handle);
+}
+
+// Internal pointer -> opaque handle (reverse direction).
+template <typename Internal>
+inline typename detail::opaque_handle_for<Internal>::type cast(Internal *ptr) {
+  return reinterpret_cast<typename detail::opaque_handle_for<Internal>::type>(
+      ptr);
+}
 } // namespace ur::opencl
 
 namespace cl_ext {
@@ -249,17 +382,17 @@ using clEnqueueReadGlobalVariableINTEL_fn = CL_API_ENTRY
                           cl_event *);
 
 using clEnqueueReadHostPipeINTEL_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
-                      const char *pipe_symbol, cl_bool blocking, void *ptr,
-                      size_t size, cl_uint num_events_in_waitlist,
-                      const cl_event *events_waitlist, cl_event *event);
+    cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
+                          const char *pipe_symbol, cl_bool blocking, void *ptr,
+                          size_t size, cl_uint num_events_in_waitlist,
+                          const cl_event *events_waitlist, cl_event *event);
 
 using clEnqueueWriteHostPipeINTEL_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
-                      const char *pipe_symbol, cl_bool blocking,
-                      const void *ptr, size_t size,
-                      cl_uint num_events_in_waitlist,
-                      const cl_event *events_waitlist, cl_event *event);
+    cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
+                          const char *pipe_symbol, cl_bool blocking,
+                          const void *ptr, size_t size,
+                          cl_uint num_events_in_waitlist,
+                          const cl_event *events_waitlist, cl_event *event);
 
 using clCreateCommandBufferKHR_fn = CL_API_ENTRY cl_command_buffer_khr(
     CL_API_CALL *)(cl_uint num_queues, const cl_command_queue *queues,
@@ -267,13 +400,13 @@ using clCreateCommandBufferKHR_fn = CL_API_ENTRY cl_command_buffer_khr(
                    cl_int *errcode_ret);
 
 using clRetainCommandBufferKHR_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+    cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
 
 using clReleaseCommandBufferKHR_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+    cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
 
 using clFinalizeCommandBufferKHR_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+    cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
 
 using clCommandNDRangeKernelKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
@@ -333,26 +466,27 @@ using clCommandSVMMemFillKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
 
 using clEnqueueCommandBufferKHR_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_uint num_queues, cl_command_queue *queues,
-                      cl_command_buffer_khr command_buffer,
-                      cl_uint num_events_in_wait_list,
-                      const cl_event *event_wait_list, cl_event *event);
+    cl_int(CL_API_CALL *)(cl_uint num_queues, cl_command_queue *queues,
+                          cl_command_buffer_khr command_buffer,
+                          cl_uint num_events_in_wait_list,
+                          const cl_event *event_wait_list, cl_event *event);
 
 using clGetCommandBufferInfoKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_buffer_info_khr param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 using clUpdateMutableCommandsKHR_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer, cl_uint num_configs,
-                      const cl_command_buffer_update_type_khr *config_types,
-                      const void **configs);
+    cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer,
+                          cl_uint num_configs,
+                          const cl_command_buffer_update_type_khr *config_types,
+                          const void **configs);
 
 using clCreateProgramWithILKHR_fn = CL_API_ENTRY
-cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
+    cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
 
 using clGetKernelSubGroupInfoKHR_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_kernel, cl_device_id, cl_kernel_sub_group_info, size_t,
-                      const void *, size_t, void *, size_t *);
+    cl_int(CL_API_CALL *)(cl_kernel, cl_device_id, cl_kernel_sub_group_info,
+                          size_t, const void *, size_t, void *, size_t *);
 
 template <typename T> struct FuncPtrCache {
   std::map<cl_context, T> Map;

@@ -96,23 +96,7 @@ ur_result_t mock_urDeviceGetInfo(void *pParams) {
 }
 
 //////////////////////////////////////////////////////////////////////////
-ur_result_t mock_urAdapterGetInfo(void *pParams) {
-  const auto &params = *static_cast<ur_adapter_get_info_params_t *>(pParams);
-  if (*params.ppropName == UR_ADAPTER_INFO_BACKEND) {
-    if (*params.ppPropValue) {
-      *reinterpret_cast<ur_backend_t *>(*params.ppPropValue) =
-          UR_BACKEND_UNKNOWN;
-    }
-    if (*params.ppPropSizeRet) {
-      **params.ppPropSizeRet = sizeof(ur_backend_t);
-    }
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-//////////////////////////////////////////////////////////////////////////
 context_t::context_t() {
-  urGetAdapterProcAddrTable(version, &urDdiTable.Adapter);
   urGetBindlessImagesExpProcAddrTable(version, &urDdiTable.BindlessImagesExp);
   urGetCommandBufferExpProcAddrTable(version, &urDdiTable.CommandBufferExp);
   urGetContextProcAddrTable(version, &urDdiTable.Context);
@@ -138,8 +122,6 @@ context_t::context_t() {
                                             &mock_urPlatformGetApiVersion);
   // Set the default info stuff as before overrides, this way any application
   // passing in an override for them in any slot will take precedence.
-  mock::getCallbacks().set_before_callback("urAdapterGetInfo",
-                                           &mock_urAdapterGetInfo);
   mock::getCallbacks().set_before_callback("urPlatformGetInfo",
                                            &mock_urPlatformGetInfo);
   mock::getCallbacks().set_before_callback("urDeviceGetInfo",

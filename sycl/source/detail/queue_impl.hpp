@@ -114,9 +114,8 @@ public:
   queue_impl(device_impl &Device, std::shared_ptr<context_impl> &&Context,
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
-      : MDevice(Device), MPlatform(Device.getPlatformImpl().shared_from_this()),
-        MContext(std::move(Context)), MAsyncHandler(AsyncHandler),
-        MPropList(PropList),
+      : MDevice(Device), MContext(std::move(Context)),
+        MAsyncHandler(AsyncHandler), MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
@@ -206,7 +205,6 @@ public:
           }
           return *Device;
         }()),
-        MPlatform(MDevice.getPlatformImpl().shared_from_this()),
         MContext(Context.shared_from_this()), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MQueue(UrQueue),
         MIsInorder(has_property<property::queue::in_order>()),
@@ -1042,13 +1040,6 @@ protected:
   mutable std::mutex MMutex;
 
   device_impl &MDevice;
-  // The device above is a raw reference into the platform's device list, which
-  // is owned by the platform. Hold a shared_ptr to the owning platform so that
-  // `MDevice` (and the per-device queue list it is registered in) is guaranteed
-  // to outlive this queue. Without this, a queue_impl kept alive by a deferred
-  // scheduler command can outlive its device_impl and crash in ~queue_impl when
-  // unregistering from the (already freed) device's queue list.
-  const std::shared_ptr<platform_impl> MPlatform;
   const std::shared_ptr<context_impl> MContext;
 
   /// These events are tracked, but not owned, by the queue.

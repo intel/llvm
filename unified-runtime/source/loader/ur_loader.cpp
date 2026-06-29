@@ -44,22 +44,9 @@ ur_result_t context_t::init() {
     adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_level_zero");
 #endif
 #ifdef UR_STATIC_ADAPTER_OPENCL
-    {
-      // Probe the adapter before registering: urAdapterGet triggers
-      // loadOCLLibrary(). If the OpenCL library is absent the global
-      // ocl::*_ptr function pointers stay null, and any later call through
-      // the DDI table (e.g. urPlatformGetInfo) would segfault.
-      ur_dditable_t ocl_ddi = {};
-      ur::opencl::urAdapterGetDdiTables(&ocl_ddi);
-      ur_adapter_handle_t hAdapter = nullptr;
-      if (ocl_ddi.Adapter.pfnGet &&
-          ocl_ddi.Adapter.pfnGet(1, &hAdapter, nullptr) == UR_RESULT_SUCCESS) {
-        ocl_ddi.Adapter.pfnRelease(hAdapter);
-        auto &opencl = platforms.emplace_back(nullptr);
-        opencl.dditable = ocl_ddi;
-        adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_opencl");
-      }
-    }
+    auto &opencl = platforms.emplace_back(nullptr);
+    ur::opencl::urAdapterGetDdiTables(&opencl.dditable);
+    adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_opencl");
 #endif
   }
 #endif
