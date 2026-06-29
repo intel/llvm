@@ -478,8 +478,11 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
 }
 
 // Convert floating-point value to hexadecimal format (e.g., 0x1.921f9fp+1)
+// Overload for float and double
 template <typename T>
-EnableIfFP<T, unsigned> floatingPointToHexStr(T AbsVal, char *Digits) {
+typename std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>,
+                          unsigned>
+floatingPointToHexStr(T AbsVal, char *Digits) {
   unsigned Offset = 0;
 
   // Handle special case of zero
@@ -494,27 +497,23 @@ EnableIfFP<T, unsigned> floatingPointToHexStr(T AbsVal, char *Digits) {
   }
 
   // Determine type characteristics and extract bits
-  using UIntType = typename std::conditional<
-      sizeof(T) == 8, uint64_t,
-      typename std::conditional<sizeof(T) == 4, uint32_t,
-                                uint16_t>::type>::type;
+  using UIntType =
+      typename std::conditional<sizeof(T) == 8, uint64_t, uint32_t>::type;
 
   UIntType bits;
-  if constexpr (sizeof(T) == 2) {
-    bits = sycl::bit_cast<uint16_t>(AbsVal);
-  } else if constexpr (sizeof(T) == 4) {
+  if constexpr (sizeof(T) == 4) {
     bits = sycl::bit_cast<uint32_t>(AbsVal);
   } else {
     bits = sycl::bit_cast<uint64_t>(AbsVal);
   }
 
-  constexpr int MantissaBits = sizeof(T) == 8 ? 52 : (sizeof(T) == 4 ? 23 : 10);
-  constexpr int ExponentBits = sizeof(T) == 8 ? 11 : (sizeof(T) == 4 ? 8 : 5);
-  constexpr int ExponentBias =
-      sizeof(T) == 8 ? 1023 : (sizeof(T) == 4 ? 127 : 15);
+  // float: 23-bit mantissa, 8-bit exponent, bias 127
+  // double: 52-bit mantissa, 11-bit exponent, bias 1023
+  constexpr int MantissaBits = sizeof(T) == 8 ? 52 : 23;
+  constexpr int ExponentBias = sizeof(T) == 8 ? 1023 : 127;
   constexpr UIntType MantissaMask = (UIntType{1} << MantissaBits) - 1;
-  constexpr UIntType ExponentMask = ((UIntType{1} << ExponentBits) - 1)
-                                    << MantissaBits;
+  constexpr UIntType ExponentMask =
+      sizeof(T) == 8 ? (0x7ffULL << 52) : (0xffU << 23);
 
   UIntType mantissa = bits & MantissaMask;
   int exponent = static_cast<int>((bits & ExponentMask) >> MantissaBits);
@@ -583,6 +582,15 @@ EnableIfFP<T, unsigned> floatingPointToHexStr(T AbsVal, char *Digits) {
   Digits[Offset++] = digitToChar(exponent);
 
   return Offset;
+}
+
+// Convert half and bfloat16 to hexadecimal format by converting to float first
+template <typename T>
+typename std::enable_if_t<std::is_same_v<T, half> ||
+                              std::is_same_v<T, ext::oneapi::bfloat16>,
+                          unsigned>
+floatingPointToHexStr(T AbsVal, char *Digits) {
+  return floatingPointToHexStr(static_cast<float>(AbsVal), Digits);
 }
 
 // Returns number of symbols written to the buffer
