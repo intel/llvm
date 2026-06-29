@@ -36,37 +36,6 @@ inline ur_result_t urBindlessImagesMapExternalArrayExp_replace(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
-
-// We define this specialization to satisfy the linker.
-template <>
-external_mem import_external_memory<int>(external_mem_descriptor<int>,
-                                         const sycl::device &,
-                                         const sycl::context &) {
-
-  // Mock: We cannot access the private constructor of external_mem.
-  // But we know it contains a shared_ptr<detail::external_mem_impl>.
-  // SO allocate a raw buffer of that size and cast it.
-  // Since we mock the consumer (MapExternalArray), we just need a non-null
-  // object that doesn't crash on copy/move.
-
-  // Allocate raw storage for the object
-  // sizeof(external_mem) is typically sizeof(shared_ptr) = 16 bytes (64-bit)
-  // We allocate enough space to be safe.
-  static char dummy_storage[64] = {0};
-
-  // We pretend this storage is a valid external_mem object.
-  return *reinterpret_cast<external_mem *>(dummy_storage);
-}
-
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
-
 // -----------------------------------------------------------------------------
 // Tests
 // -----------------------------------------------------------------------------
@@ -88,17 +57,13 @@ TEST(BindlessImagesExtensionTests, ImageDescriptorPropagatesLayout) {
                                  syclexp::image_type::standard, 1, 1,
                                  ExpectedNumSamples, ExpectedRowPitch);
 
-  int fd = 123;
-  syclexp::external_mem_descriptor<int> ExtMemDesc{
-      fd, syclexp::external_mem_handle_type::opaque_fd, 0};
+  syclexp::external_mem_descriptor<syclexp::resource_fd> ExtMemDesc{
+      {123}, syclexp::external_mem_handle_type::opaque_fd, 0};
 
-  // This calls our local dirty specialization
   auto MemHandle = syclexp::import_external_memory(ExtMemDesc, Q.get_device(),
                                                    Q.get_context());
 
   try {
-    // Pass the dirty object. The Mock intercepts it before the runtime
-    // tries to dereference the internal (null) pointer.
     auto ImgHandle = syclexp::map_external_image_memory(MemHandle, Desc, Q);
     (void)ImgHandle;
   } catch (const sycl::exception &e) {
@@ -126,9 +91,8 @@ TEST(BindlessImagesExtensionTests, ImageDescriptorPropagatesSlicePitch) {
       syclexp::image_type::standard, 1, 1, ExpectedNumSamples, ExpectedRowPitch,
       ExpectedSlicePitch);
 
-  int fd = 456;
-  syclexp::external_mem_descriptor<int> ExtMemDesc{
-      fd, syclexp::external_mem_handle_type::opaque_fd, 0};
+  syclexp::external_mem_descriptor<syclexp::resource_fd> ExtMemDesc{
+      {456}, syclexp::external_mem_handle_type::opaque_fd, 0};
 
   auto MemHandle = syclexp::import_external_memory(ExtMemDesc, Q.get_device(),
                                                    Q.get_context());
