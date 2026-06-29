@@ -1,6 +1,5 @@
-// Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #ifndef UR_LOGGER_HPP
@@ -88,6 +87,18 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
 #define UR_LOG_LEGACY(level, legacy_message, ...)                              \
   URLOG_L_(::logger::get_logger(), level, legacy_message, __VA_ARGS__)
 #define UR_LOG_L(logger, level, ...) URLOG_(logger, level, __VA_ARGS__)
+
+// safe version of UR_LOG that catches exceptions from the logger
+#define UR_LOG_SAFE(level, ...)                                                \
+  do {                                                                         \
+    try {                                                                      \
+      UR_LOG(level, __VA_ARGS__);                                              \
+    } catch (const std::exception &e) {                                        \
+      std::fprintf(stderr, "Error during logging: %s\n", e.what());            \
+    } catch (...) {                                                            \
+      std::fprintf(stderr, "Unknown error during logging\n");                  \
+    }                                                                          \
+  } while (0)
 
 inline void setLevel(ur_logger_level_t level) { get_logger().setLevel(level); }
 

@@ -1,9 +1,8 @@
 //===--------- queue_immediate_in_order.cpp - Level Zero Adapter ---------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -187,7 +186,7 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
   }
 
   for (size_t id = phEvent ? 1 : 0; id < numCommandLists; id++) {
-    UR_CALL(std::invoke(barrierFn, commandListManagersLocked[0],
+    UR_CALL(std::invoke(barrierFn, commandListManagersLocked[id],
                         barrierEventsWaitList, nullptr));
   }
 

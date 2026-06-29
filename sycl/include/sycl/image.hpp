@@ -28,7 +28,7 @@
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
 #include <sycl/vector.hpp>                            // for vec
-#include <ur_api.h>                                   // for ur_native_hand...
+#include <unified-runtime/ur_api.h>                   // for ur_native_hand...
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -427,7 +427,9 @@ private:
 ///
 /// \ingroup sycl_api
 template <int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
-class image : public detail::unsampled_image_common<Dimensions, AllocatorT> {
+class __SYCL2020_DEPRECATED(
+    "The SYCL 1.2.1 image class has been removed in SYCL 2020") image
+    : public detail::unsampled_image_common<Dimensions, AllocatorT> {
 private:
   friend sycl::detail::ImplUtils;
   using common_base =

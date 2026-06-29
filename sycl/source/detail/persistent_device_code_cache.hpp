@@ -12,6 +12,7 @@
 #include <detail/device_binary_image.hpp>
 #include <fcntl.h>
 #include <string>
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>

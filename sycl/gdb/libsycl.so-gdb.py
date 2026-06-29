@@ -1011,7 +1011,7 @@ class SYCLHandlerPrinter(SYCLPrinter):
         super().__init__(gdb_value)
 
     def impl_ptr(self):
-        return self.gdb_value()["impl"]["_M_ptr"]
+        return self.gdb_value()["impl"]
 
     def to_string(self):
         return self.type_name(self.gdb_type())

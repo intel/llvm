@@ -62,6 +62,8 @@ public:
   SpecConstantsPass(HandlingMode Mode = HandlingMode::emulation) : Mode(Mode) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
+  static StringRef convertHandlingModeToString(HandlingMode Mode);
+
   // Searches given module for occurrences of specialization constant-specific
   // metadata and builds "spec constant name" -> vector<"spec constant int ID">
   // map

@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 
 // This test implements parallel radix sort on GPU
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

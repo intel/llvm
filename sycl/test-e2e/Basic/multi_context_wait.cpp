@@ -1,10 +1,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20828
+
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
 #include <iostream>
+#include <sycl/builtins.hpp>
 #include <vector>
 
 std::vector<sycl::event> submit_dependencies(sycl::queue q1, sycl::queue q2,

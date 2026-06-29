@@ -8,229 +8,27 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <ur_api.h>
+// Umbrella that pulls the per-trait-class headers plus the ext-trait chain.
+// Existing consumers of <sycl/info/info_desc.hpp> see the same set of trait
+// declarations as before; per-class consumers should prefer the matching
+// per-class header to avoid pulling unrelated trait families.
 
-// FIXME: .def files included to this file use all sorts of SYCL objects like
-// id, range, traits, etc. We have to include some headers before including .def
-// files.
-#include <sycl/aspects.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <sycl/info/context.hpp>
+#include <sycl/info/device.hpp>
+#include <sycl/info/event.hpp>
+#include <sycl/info/kernel.hpp>
+#include <sycl/info/platform.hpp>
+#include <sycl/info/queue.hpp>
+
+// Ext trait headers participate in is_*_info_desc SFINAE through the umbrella.
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/device.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
-
-#include <sycl/range.hpp>
-
-#include <string>
-#include <vector>
-
-// This is used in trait .def files when there isn't a corresponding backend
-// query but we still need a value to instantiate the template.
-#define __SYCL_TRAIT_HANDLED_IN_RT 0
-
-namespace sycl {
-inline namespace _V1 {
-
-class context;
-class device;
-class platform;
-class kernel_id;
-enum class memory_scope;
-enum class memory_order;
-
-// TODO: stop using OpenCL directly, use UR.
-namespace info {
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  struct Desc {                                                                \
-    using return_type = ReturnT;                                               \
-  };
-// A.1 Platform information desctiptors
-namespace platform {
-// TODO Despite giving this deprecation warning, we're still yet to implement
-// info::device::aspects.
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use device::get_info() "
-                             "with info::device::aspects instead") extensions;
-#include <sycl/info/platform_traits.def>
-} // namespace platform
-// A.2 Context information desctiptors
-namespace context {
-#include <sycl/info/context_traits.def>
-} // namespace context
-
-// A.3 Device information descriptors
-enum class device_type : uint32_t {
-  cpu = UR_DEVICE_TYPE_CPU,
-  gpu = UR_DEVICE_TYPE_GPU,
-  accelerator = 0x10000,
-  // TODO: evaluate the need for equivalent UR enums for these types
-  custom = 0x10001,
-  automatic = 0x10002,
-  host = 0x10003,
-  all = UR_DEVICE_TYPE_ALL
-};
-
-enum class partition_property : intptr_t {
-  no_partition = 0,
-  partition_equally = UR_DEVICE_PARTITION_EQUALLY,
-  partition_by_counts = UR_DEVICE_PARTITION_BY_COUNTS,
-  partition_by_affinity_domain = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-  ext_intel_partition_by_cslice = UR_DEVICE_PARTITION_BY_CSLICE
-};
-
-enum class partition_affinity_domain : intptr_t {
-  not_applicable = 0,
-  numa = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
-  L4_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
-  L3_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
-  L2_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
-  L1_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
-  next_partitionable = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE
-};
-
-enum class local_mem_type : int { none, local, global };
-
-enum class fp_config : uint32_t {
-  denorm = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM,
-  inf_nan = UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN,
-  round_to_nearest = UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST,
-  round_to_zero = UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO,
-  round_to_inf = UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF,
-  fma = UR_DEVICE_FP_CAPABILITY_FLAG_FMA,
-  correctly_rounded_divide_sqrt,
-  soft_float
-};
-
-enum class global_mem_cache_type : int { none, read_only, read_write };
-
-enum class execution_capability : unsigned int {
-  exec_kernel,
-  exec_native_kernel
-};
-
-namespace device {
-
-#define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
-  struct __SYCL2020_DEPRECATED(Message) Desc;
-#include <sycl/info/device_traits_2020_deprecated.def>
-#undef __SYCL_PARAM_TRAITS_DEPRECATED
-
-#define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
-  struct __SYCL_DEPRECATED(Message) Desc;
-#include <sycl/info/device_traits_deprecated.def>
-#undef __SYCL_PARAM_TRAITS_DEPRECATED
-
-template <int Dimensions = 3> struct max_work_item_sizes;
-#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, UrCode)     \
-  template <> struct Desc {                                                    \
-    using return_type = ReturnT;                                               \
-  };
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
-
-#include <sycl/info/device_traits.def>
-} // namespace device
-#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-#undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
-
-// A.4 Queue information descriptors
-namespace queue {
-#include <sycl/info/queue_traits.def>
-} // namespace queue
-
-// A.5 Kernel information desctiptors
-namespace kernel {
-#include <sycl/info/kernel_traits.def>
-} // namespace kernel
-
-namespace kernel_device_specific {
-#include <sycl/info/kernel_device_specific_traits.def>
-} // namespace kernel_device_specific
-
-// A.6 Event information desctiptors
-enum class event_command_status : int32_t {
-  submitted = UR_EVENT_STATUS_SUBMITTED,
-  running = UR_EVENT_STATUS_RUNNING,
-  complete = UR_EVENT_STATUS_COMPLETE,
-  // Since all BE values are positive, it is safe to use a negative value If you
-  // add other ext_oneapi values
-  ext_oneapi_unknown = -1
-};
-
-namespace event {
-#include <sycl/info/event_traits.def>
-} // namespace event
-namespace event_profiling {
-#include <sycl/info/event_profiling_traits.def>
-} // namespace event_profiling
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-} // namespace info
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  namespace Namespace {                                                        \
-  namespace info {                                                             \
-  namespace DescType {                                                         \
-  struct Desc {                                                                \
-    using return_type = ReturnT;                                               \
-  };                                                                           \
-  } /*DescType*/                                                               \
-  } /*info*/                                                                   \
-  } /*Namespace*/
-
-#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(Namespace, DescType, Desc, ReturnT,  \
-                                          UrCode)                              \
-  namespace Namespace {                                                        \
-  namespace info {                                                             \
-  namespace DescType {                                                         \
-  template <> struct Desc {                                                    \
-    using return_type = ReturnT;                                               \
-  };                                                                           \
-  } /*namespace DescType */                                                    \
-  } /*namespace info */                                                        \
-  } /*namespace Namespace */
-
-#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
-                                                  ReturnT, UrCode)             \
-  namespace Namespace::info {                                                  \
-  namespace Desctype {                                                         \
-  template <int Dimensions> struct Desc {                                      \
-    using return_type = ReturnT<Dimensions>;                                   \
-  };                                                                           \
-  }                                                                            \
-  }
-
-namespace ext::oneapi::experimental::info::device {
-template <int Dimensions> struct max_work_groups;
-template <ext::oneapi::experimental::execution_scope CoordinationScope>
-struct work_group_progress_capabilities;
-template <ext::oneapi::experimental::execution_scope CoordinationScope>
-struct sub_group_progress_capabilities;
-template <ext::oneapi::experimental::execution_scope CoordinationScope>
-struct work_item_progress_capabilities;
-
-} // namespace ext::oneapi::experimental::info::device
-
-namespace ext::intel {
-enum class throttle_reason {
-  power_cap,
-  current_limit,
-  thermal_limit,
-  psu_alert,
-  sw_range,
-  hw_range,
-  other
-};
-} // namespace ext::intel
-
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_intel_kernel_info_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
-#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
-#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
-} // namespace _V1
-} // namespace sycl

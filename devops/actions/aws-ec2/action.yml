@@ -71,5 +71,5 @@ inputs:
     default: "us-east-1" # North Virginia
 
 runs:
-  using: node16
+  using: node24
   main: ./aws-ec2.js

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/helpers.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <algorithm>
 
 #include <detail/buffer_impl.hpp>
@@ -35,7 +35,6 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
@@ -43,6 +42,7 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <detail/xpti_registry.hpp>
@@ -159,15 +159,15 @@ fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
 // Fill image format
 static ur_image_format_t
 fill_format(const ext::oneapi::experimental::image_descriptor &Desc) {
-  ur_image_format_t PiFormat;
+  ur_image_format_t UrFormat;
 
-  PiFormat.channelType =
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.channelOrder = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(Desc.num_channels));
 
-  return PiFormat;
+  return UrFormat;
 }
 
 static void
@@ -204,10 +204,14 @@ verify_sub_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
             static_cast<bool>(result[2]));
   };
 
-  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
-                                 SrcImgDesc.depth};
-  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
-                                  DestImgDesc.depth};
+  // If this is a multi-layer array image, use the layer count; otherwise, use
+  // the depth dimension (following the logic in fill_image_type() ).
+  sycl::range<3> SrcImageSize = {
+      SrcImgDesc.width, SrcImgDesc.height,
+      SrcImgDesc.array_size > 1 ? SrcImgDesc.array_size : SrcImgDesc.depth};
+  sycl::range<3> DestImageSize = {
+      DestImgDesc.width, DestImgDesc.height,
+      DestImgDesc.array_size > 1 ? DestImgDesc.array_size : DestImgDesc.depth};
 
   if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
       isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
@@ -492,6 +496,14 @@ detail::EventImplPtr handler::finalize() {
               std::string_view(MKernelName)));
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
+    if (!impl->MHasWorkGroupScratchSizeProperty &&
+        impl->MKernelData.getDeviceKernelInfoPtr()
+            ->getWorkGroupDynamicLocalMem())
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::memory_allocation),
+          "Kernel allocates work group scratch memory but an allocation size "
+          "has not been specified through the work_group_scratch_size "
+          "property!");
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
@@ -754,8 +766,21 @@ detail::EventImplPtr handler::finalize() {
     return EventImpl;
   }
 
-  // Because graph case is handled right above.
+  // Because command graph case is handled right above.
   assert(Queue);
+
+  // Native graph recording limitation
+  if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "SYCL host_task is not supported in native recording mode. Use "
+        "zeCommandListAppendHostFunction as a workaround.");
+  }
+  if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "sycl::buffer accessors are not supported in native recording mode.");
+  }
 
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
@@ -764,17 +789,19 @@ detail::EventImplPtr handler::finalize() {
                                           type, impl->MUserFacingNodeType);
   }
 
-  // For kernel submission, regardless of whether an event has been requested,
-  // the scheduler needs to generate an event so the commands are properly
-  // ordered (for in-order queue) and synchronized with a barrier (for
-  // out-of-order queue). The event can only be skipped for the scheduler bypass
-  // path.
+  // For kernel and host task submission, regardless of whether an event has
+  // been requested, the scheduler needs to generate an event so the commands
+  // are properly ordered (for in-order queue) and synchronized with a barrier
+  // (for out-of-order queue). The event can only be skipped for the scheduler
+  // bypass path.
   //
-  // For commands other than kernel submission, if an event has not been
-  // requested, the queue supports events discarding, and the scheduler
+  // For commands other than kernel and host task submission, if an event has
+  // not been requested, the queue supports events discarding, and the scheduler
   // could have been bypassed (not supported yet), the event can be skipped.
+  // TODO: check if it's possible to discard an event for host task.
   bool DiscardEvent =
-      (type != detail::CGType::Kernel && KernelSchedulerBypass &&
+      (type != detail::CGType::Kernel &&
+       type != detail::CGType::CodeplayHostTask && KernelSchedulerBypass &&
        !impl->MEventNeeded && Queue->isInOrder());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
@@ -878,7 +905,7 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
     if (EventImpl->isHost()) {
       depends_on(EventImpl);
     }
-    impl->MEventsWaitWithBarrier.push_back(EventImpl);
+    impl->MEventsWaitWithBarrier.push_back(std::move(EventImpl));
   }
 }
 
@@ -1359,6 +1386,8 @@ void handler::ext_oneapi_wait_external_semaphore(
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       win32_nt_dx12_fence:
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_dx11_fence:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       timeline_fd:
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       timeline_win32_nt_handle:
@@ -1413,6 +1442,8 @@ void handler::ext_oneapi_signal_external_semaphore(
   switch (ExtSemaphore.handle_type) {
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       win32_nt_dx12_fence:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_dx11_fence:
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       timeline_fd:
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
@@ -1574,6 +1605,9 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
 
 void handler::setKernelLaunchProperties(
     const detail::KernelPropertyHolderStructTy &Kprop) {
+  impl->MHasWorkGroupScratchSizeProperty |= static_cast<bool>(
+      Kprop.get<sycl::ext::oneapi::experimental::work_group_scratch_size>()
+          ->MProperty);
   impl->MKernelData.validateAndSetKernelLaunchProperties(
       Kprop, getCommandGraph() != nullptr /*hasGraph?*/,
       impl->get_device() /*device_impl*/);
@@ -1651,6 +1685,15 @@ void handler::SetHostTask(std::function<void()> Func) {
   range<1> r(1);
   setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
+  setType(detail::CGType::CodeplayHostTask);
+}
+
+void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
+  impl->MHostTask.reset(
+      new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
+                           true));
   setType(detail::CGType::CodeplayHostTask);
 }
 

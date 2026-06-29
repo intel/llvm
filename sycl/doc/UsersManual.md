@@ -46,18 +46,26 @@ and not recommended to use in production environment.
 
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT.
-    A comma-separated list of valid Intel, NVIDIA and AMD Processor Graphics values are supported.
+    A comma-separated list of valid Intel, NVIDIA and AMD Processor Graphics values is supported.
+    * intel_gpu_cri, intel_gpu_35_11_0 - Crescent Island Intel graphics architecture
+    * intel_gpu_nvl_p, intel_gpu_35_10_0 - Nova Lake P Intel graphics architecture
+    * intel_gpu_ptl - Panther Lake * Intel graphics architecture - compatible with all intel_gpu_nvl_u*, intel_gpu_nvl_h*, intel_gpu_nvl_s, intel_gpu_wcl and intel_gpu_ptl_* targets
+    * intel_gpu_nvl_u, intel_gpu_nvl_h, intel_gpu_30_5_0 - Nova Lake U/H Intel graphics architecture
+    * intel_gpu_nvl_s, intel_gpu_nvl_hx, intel_gpu_nvl_ul, intel_gpu_30_4_0 - Nova Lake S/HX/UL Intel graphics architecture
     * intel_gpu_wcl, intel_gpu_30_3_0 - Wildcat Lake Intel graphics architecture
     * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
     * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
+    * intel_gpu_bmg - Battlemage * Intel graphics architecture - compatible with all intel_gpu_bmg_g* and intel_gpu_lnl_m targets
     * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
     * intel_gpu_bmg_g31, intel_gpu_20_2_0 - Battlemage G31 Intel graphics architecture
     * intel_gpu_bmg_g21, intel_gpu_20_1_4 - Battlemage G21 Intel graphics architecture
     * intel_gpu_arl_h, intel_gpu_12_74_4 - Arrow Lake H Intel graphics architecture
+    * intel_gpu_mtl - Meteor Lake * Intel graphics architecture - compatible with all intel_gpu_mtl_* targets
     * intel_gpu_mtl_h, intel_gpu_12_71_4 - Meteor Lake H Intel graphics architecture
     * intel_gpu_mtl_u, intel_gpu_mtl_s, intel_gpu_arl_u, intel_gpu_arl_s, intel_gpu_12_70_4 - Meteor Lake U/S or Arrow Lake U/S Intel graphics architecture
     * intel_gpu_pvc_vg, intel_gpu_12_61_7 - Ponte Vecchio VG Intel graphics architecture
     * intel_gpu_pvc, intel_gpu_12_60_7 - Ponte Vecchio Intel graphics architecture
+    * intel_gpu_dg2 - Alchemist * Intel graphics architecture - compatible with all intel_gpu_dg2_g* targets
     * intel_gpu_acm_g12, intel_gpu_dg2_g12, intel_gpu_12_57_0 - Alchemist G12 Intel graphics architecture
     * intel_gpu_acm_g11, intel_gpu_dg2_g11, intel_gpu_12_56_5 - Alchemist G11 Intel graphics architecture
     * intel_gpu_acm_g10, intel_gpu_dg2_g10, intel_gpu_12_55_8 - Alchemist G10 Intel graphics architecture
@@ -177,14 +185,29 @@ and not recommended to use in production environment.
     Currently has effect only on spir64\* targets.
     Enabled by default.
 
+**`-fsycl-id-queries-range={int,uint,size_t}`**
+
+    Asserts that the kernels and SYCL_EXTERNAL functions defined in this source
+    file (translation unit) will always be launched with a global range that is
+    less than or equal to INT_MAX, UINT_MAX, or SIZE_MAX. The application is
+    responsible for ensuring that it never invokes these kernels with a larger
+    global range. The compiler may assume that the return values from the
+    following functions fit within the data type specified by this option:
+
+    * id class get() member function and operator[]
+    * item class get_id()/get_linear_id() member function and operator[]
+    * nd_item class get_global_id()/get_global_linear_id() member functions
+
+    The compiler uses these assumptions to optimize code generation. When an
+    assumption is specified, the runtime validates kernel launch parameters and
+    throws an exception if they would violate the assumption.
+
+    Default value is "int".
+
 **`-f[no-]sycl-id-queries-fit-in-int`**
 
-    Assume/Do not assume that SYCL ID queries fit within MAX_INT. It assumes
-    that these values fit within MAX_INT:
-    * id class get() member function and operator[]
-    * item class get_id() member function and operator[]
-    * nd_item class get_global_id()/get_global_linear_id() member functions
-    Enabled by default.
+    -fsycl-id-queries-fit-in-int is equivalent to -fsycl-id-queries-range=int.
+    -fno-sycl-id-queries-fit-in-int is equivalent to -fsycl-id-queries-range=size_t.
 
 **`-f[no-]sycl-force-inline-kernel-lambda`**
 

@@ -1,6 +1,5 @@
-// Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -8,10 +7,10 @@
 #include <uur/known_failure.h>
 #include <vector>
 
-struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
+struct urEnqueueUSMMemcpyTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::SetUp());
 
     ur_device_usm_access_capability_flags_t device_usm = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
@@ -43,7 +42,7 @@ struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
       EXPECT_SUCCESS(urUSMFree(context, device_dst));
     }
 
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::TearDown());
   }
 
   bool memsetHasFinished() {
@@ -174,7 +173,7 @@ TEST_P(urEnqueueUSMMemcpyTest, InvalidNullPtrEventWaitList) {
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMMemcpyTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueUSMMemcpyTest);
 
 struct urEnqueueUSMMemcpyMultiDeviceTest : uur::urAllDevicesTest {
   void SetUp() override {

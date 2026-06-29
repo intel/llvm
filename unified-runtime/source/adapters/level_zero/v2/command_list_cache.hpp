@@ -1,9 +1,8 @@
 //===--------- command_list_cache.hpp - Level Zero Adapter ---------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -13,8 +12,8 @@
 #include <stack>
 
 #include "latency_tracker.hpp"
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 
 #include "common.hpp"
@@ -29,13 +28,16 @@ using command_list_unique_handle =
 struct supported_extensions_descriptor_t {
   supported_extensions_descriptor_t(bool ZeCopyOffloadExtensionSupported,
                                     bool ZeMutableCmdListExtentionSupported,
-                                    bool ZeCopyOffloadFlagSupported)
+                                    bool ZeCopyOffloadQueueFlagSupported,
+                                    bool ZeCopyOffloadListFlagSupported)
       : ZeCopyOffloadExtensionSupported(ZeCopyOffloadExtensionSupported),
         ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported),
-        ZeCopyOffloadFlagSupported(ZeCopyOffloadFlagSupported) {}
+        ZeCopyOffloadQueueFlagSupported(ZeCopyOffloadQueueFlagSupported),
+        ZeCopyOffloadListFlagSupported(ZeCopyOffloadListFlagSupported) {}
   bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
-  bool ZeCopyOffloadFlagSupported;
+  bool ZeCopyOffloadQueueFlagSupported;
+  bool ZeCopyOffloadListFlagSupported;
 };
 
 struct command_list_desc_t {
@@ -100,7 +102,8 @@ private:
   ze_context_handle_t ZeContext;
   bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
-  bool ZeCopyOffloadFlagSupported;
+  bool ZeCopyOffloadQueueFlagSupported;
+  bool ZeCopyOffloadListFlagSupported;
   std::unordered_map<command_list_descriptor_t,
                      std::stack<raii::ze_command_list_handle_t>,
                      command_list_descriptor_hash_t>

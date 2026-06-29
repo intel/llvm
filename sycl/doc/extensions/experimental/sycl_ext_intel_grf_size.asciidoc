@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 7 specification.  All
+This extension is written against the SYCL 2020 revision 11 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -87,7 +87,6 @@ the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
 supports.
 
-
 [%header,cols="1,5"]
 |===
 |Value
@@ -117,7 +116,9 @@ At most one of the `grf_size` and `grf_size_automatic` properties may be associa
 If a kernel is not associated with a `grf_size` or `grf_size_automatic` property, the manner in which the GRF size is selected is implementation-defined.
 
 The properties are defined as follows:
-```c++
+
+[source,c++]
+----
 namespace sycl::ext::intel::experimental {
 
 struct grf_size_key {
@@ -138,8 +139,10 @@ inline constexpr grf_size_key::value_t<Size> grf_size;
 inline constexpr grf_size_automatic_key::value_t grf_size_automatic;
 
 } // namespace sycl::ext::intel::experimental
-```
+----
+
 The supported values are as follows:
+
 [%header,cols="1,5"]
 |===
 |GPU |Supported Values
@@ -153,25 +156,37 @@ Providing a value not consistent with the supported values may result in undefin
 
 A simple example of using this extension is below.
 
-```c++
+[source,c++]
+----
+#include <sycl/sycl.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 namespace intelex = sycl::ext::intel::experimental;
-{
-  ...
-  syclex::properties kernel_properties{intelex::grf_size<256>};
 
-  q.single_task(kernel_properties, [=] {
-   ...
-  }).wait();
+struct Kernel1 {
+  Kernel1() {}
+
+  void operator()(sycl::nd_item<1> it) const { /* ... */ }
+
+  auto get(syclex::properties_tag) const {
+    return syclex::properties{intelex::grf_size<256>};
+  }
+};
+
+struct Kernel2 {
+  Kernel2() {}
+
+  void operator()(sycl::nd_item<1> it) const { /* ... */ }
+
+  auto get(syclex::properties_tag) const {
+    return syclex::properties{intelex::grf_size_automatic};
+  }
+};
+
+int main() {
+  sycl::queue q;
+
+  sycl::nd_range ndr{{256},{16}};
+  q.parallel_for(ndr, Kernel1{}).wait();
+  q.parallel_for(ndr, Kernel2{}).wait();
 }
-{
-  ...
-  syclex::properties kernel_properties{intelex:grf_size_automatic};
-
-  q.single_task(kernel_properties, [=] {
-   ...
-  }).wait();
-}
-```
-
-
+----

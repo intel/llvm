@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/builtins/builtins.hpp>
+#include <sycl/vector.hpp>
+
+#include <cstdlib>
 
 #include "host_helper_macros.hpp"
 

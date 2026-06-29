@@ -736,6 +736,9 @@ The following values are supported:
 * `read_write`: The user provides no assertions, and the host code may either
   copy to or copy from the variable.  This is the default.
 
+If the property is instantiated with a numeric value that does not correspond
+to one of the above values, then the application is ill-formed, no diagnostic required.
+
 |===
 
 [NOTE]

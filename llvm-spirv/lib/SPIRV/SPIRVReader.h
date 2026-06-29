@@ -63,7 +63,6 @@ class LLVMContext;
 class MDString;
 class IntrinsicInst;
 class LoadInst;
-class BranchInst;
 class BinaryOperator;
 class Value;
 } // namespace llvm
@@ -108,8 +107,9 @@ public:
   void transAuxDataInst(SPIRVExtInst *BC);
   std::vector<Value *> transValue(const std::vector<SPIRVValue *> &,
                                   Function *F, BasicBlock *);
-  Function *transFunction(SPIRVFunction *F, unsigned AS = SPIRAS_Private);
+  Function *transFunction(SPIRVFunction *F, unsigned AS);
   void transFunctionAttrs(SPIRVFunction *BF, Function *F);
+  Constant *castFunctionToAddrSpace(Function *Func, unsigned ExpectedAS);
   Value *transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB);
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
@@ -274,6 +274,14 @@ private:
   void
   transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI,
                                              SPIRVTypeFunction *CalledFnTy);
+
+  using FunctionAndTypeIdPair = std::pair<Function *, Type *>;
+  using FunctionToFastMathFlagsMap =
+      DenseMap<FunctionAndTypeIdPair, FastMathFlags>;
+  FunctionToFastMathFlagsMap FuncToFastMathFlags;
+  FastMathFlags translateFastMathFlags(SPIRVWord V) const;
+  void parseFloatControls2ExecutionModeId(SPIRVFunction *BF, Function *F);
+  void applyFPFastMathModeDecorations(const SPIRVValue *BV, Instruction *Inst);
 }; // class SPIRVToLLVM
 
 } // namespace SPIRV

@@ -1,9 +1,8 @@
 //===--------- usm.hpp - Level Zero Adapter -------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -13,7 +12,7 @@
 #include "common/ur_ref_count.hpp"
 #include "enqueued_pool.hpp"
 #include "event.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_pool_manager.hpp"
 #include "usm.hpp"
 #include <umf_helpers.hpp>
@@ -71,8 +70,7 @@ struct ur_usm_pool_handle_t_ : ur_object {
 
   std::optional<std::pair<void *, ur_event_handle_t>>
   allocateEnqueued(ur_queue_handle_t Queue, ur_device_handle_t Device,
-                   const ur_usm_desc_t *USMDesc, ur_usm_type_t Type,
-                   size_t Size);
+                   ur_usm_type_t Type, size_t Size);
 
   bool hasPool(const umf_memory_pool_handle_t Pool);
   UsmPool *getPoolByHandle(const umf_memory_pool_handle_t Pool);

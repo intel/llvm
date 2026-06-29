@@ -1,6 +1,5 @@
-# Copyright (C) 2024-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
@@ -16,7 +15,6 @@ from utils.utils import run
 from utils.validate import Validate
 from utils.logger import log
 from utils.detect_versions import DetectVersion
-from utils.unitrace import get_unitrace
 
 
 class BenchmarkHistory:
@@ -58,8 +56,8 @@ class BenchmarkHistory:
             except IndexError:
                 return ""
 
-        baseline_drop_after = options.archive_baseline_days * 3
-        pr_drop_after = options.archive_pr_days * 3
+        baseline_drop_after = options.archive_baseline_days * 2
+        pr_drop_after = options.archive_pr_days * 2
         baseline_cutoff_date = datetime.now(timezone.utc) - timedelta(
             days=baseline_drop_after
         )
@@ -67,7 +65,7 @@ class BenchmarkHistory:
         pr_cutoff_date = datetime.now(timezone.utc) - timedelta(days=pr_drop_after)
         log.debug(f"PR cutoff date: {pr_cutoff_date}")
 
-        # Filter out files that exceed archiving criteria three times the specified days
+        # Filter out files that exceed archiving criteria two times the specified days
         def is_file_too_old(file_path: Path) -> bool:
             try:
                 if file_path.stem.startswith("Baseline_"):
@@ -162,7 +160,7 @@ class BenchmarkHistory:
         if hostname is None:
             hostname = socket.gethostname()
         else:
-            Validate.runner_name(
+            Validate.clean_name(
                 hostname,
                 throw=ValueError("Illegal characters found in specified RUNNER_NAME."),
             )
@@ -186,12 +184,23 @@ class BenchmarkHistory:
 
         # Get platform information
         platform_info = get_platform_info()
+        if platform_info.gpu_info is None:
+            log.warning("GPU information detection failed.")
+            platform_info.gpu_info = []
+
+        run_date = (
+            datetime.strptime(
+                options.timestamp_override, options.TIMESTAMP_FORMAT
+            ).replace(tzinfo=timezone.utc)
+            if options.timestamp_override is not None
+            else datetime.now(tz=timezone.utc)
+        )
 
         return BenchmarkRun(
             name=name,
             git_hash=git_hash,
             github_repo=github_repo,
-            date=datetime.now(tz=timezone.utc),
+            date=run_date,
             results=results,
             hostname=hostname,
             compute_runtime=compute_runtime,
@@ -209,9 +218,7 @@ class BenchmarkHistory:
         results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
-        if options.unitrace:
-            timestamp = get_unitrace().timestamp  # type: ignore
-        elif options.timestamp_override is not None:
+        if options.timestamp_override is not None:
             timestamp = options.timestamp_override
         else:
             timestamp = (

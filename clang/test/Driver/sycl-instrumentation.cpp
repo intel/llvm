@@ -14,25 +14,25 @@
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV %s
 
 // CHECK-SPIRV: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-instrument-device-code"
+// CHECK-SPIRV: "-mlink-builtin-bitcode" "{{.*}}libsycl-itt-user-wrappers.bc"
+// CHECK-SPIRV-SAME: libsycl-itt-compiler-wrappers.bc
+// CHECK-SPIRV-SAME: libsycl-itt-stubs.bc
 // CHECK-HOST-NOT: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-instrument-device-code"
-// CHECK-SPIRV: clang-linker-wrapper{{.*}} {{.*}}libsycl-itt-user-wrappers.new.o
-// CHECK-SPIRV-SAME: libsycl-itt-compiler-wrappers.new.o
-// CHECK-SPIRV-SAME: libsycl-itt-stubs.new.o
 
 // ITT annotations in device code are disabled by default. However, for SYCL offloading,
 // we still link ITT annotations libraries to ensure ABI compatibility with previous release.
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-ITT-LINK-ONLY %s
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv -nocudalib -### %s 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
 // CHECK-ITT-LINK-ONLY-NOT: "-fsycl-instrument-device-code"
-// CHECK-ITT-LINK-ONLY: clang-linker-wrapper{{.*}} {{.*}}libsycl-itt-{{.*}}
+// CHECK-ITT-LINK-ONLY: "-mlink-builtin-bitcode" "{{.*}}libsycl-itt-{{.*}}"
 
-// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -fno-sycl-libspirv -nocudalib -### %s 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -fno-sycl-libspirv -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
 // CHECK-NONPASSED-NOT: "-fsycl-instrument-device-code"
-// CHECK-NONPASSED-NOT: clang-linker-wrapper{{.*}} {{.*}}libsycl-itt-{{.*}}
+// CHECK-NONPASSED-NOT: {{.*}}libsycl-itt-{{.*}}

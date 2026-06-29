@@ -1,6 +1,5 @@
-// Copyright (C) 2024 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -113,11 +112,25 @@ inline bool isKnownFailureOn(ur_platform_handle_t platform,
   urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
                     sizeof(ur_adapter_handle_t), &adapter, nullptr);
   auto adapterInfo = detail::getAdapterInfo(adapter);
-  std::string name;
-  uur::GetPlatformInfo<std::string>(platform, UR_PLATFORM_INFO_NAME, name);
+  std::string platformName, platformVersion;
+  uur::GetPlatformInfo<std::string>(platform, UR_PLATFORM_INFO_NAME,
+                                    platformName);
+  uur::GetPlatformInfo<std::string>(platform, UR_PLATFORM_INFO_VERSION,
+                                    platformVersion);
+  auto [_, devices] = uur::GetDevices(platform);
   for (const auto &matcher : matchers) {
-    if (matcher.matches(adapterInfo, name)) {
+    if (matcher.matches(adapterInfo, platformName)) {
       return true;
+    }
+    if (matcher.matches(adapterInfo, platformVersion)) {
+      return true;
+    }
+    for (const auto &device : devices) {
+      std::string deviceName;
+      uur::GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_NAME, deviceName);
+      if (matcher.matches(adapterInfo, deviceName)) {
+        return true;
+      }
     }
   }
   return false;
@@ -134,13 +147,27 @@ isKnownFailureOn(const std::tuple<ur_platform_handle_t, Param> &param,
 inline bool isKnownFailureOn(const DeviceTuple &param,
                              const std::vector<Matcher> &matchers) {
   auto adapterInfo = detail::getAdapterInfo(param.adapter);
-  std::string name;
-  uur::GetDeviceInfo<std::string>(param.device, UR_DEVICE_INFO_NAME, name);
+
+  std::string deviceName, platformName, platformVersion;
+  uur::GetDeviceInfo<std::string>(param.device, UR_DEVICE_INFO_NAME,
+                                  deviceName);
+  uur::GetPlatformInfo<std::string>(param.platform, UR_PLATFORM_INFO_NAME,
+                                    platformName);
+  uur::GetPlatformInfo<std::string>(param.platform, UR_PLATFORM_INFO_VERSION,
+                                    platformVersion);
+
   for (const auto &matcher : matchers) {
-    if (matcher.matches(adapterInfo, name)) {
+    if (matcher.matches(adapterInfo, deviceName)) {
+      return true;
+    }
+    if (matcher.matches(adapterInfo, platformName)) {
+      return true;
+    }
+    if (matcher.matches(adapterInfo, platformVersion)) {
       return true;
     }
   }
+
   return false;
 }
 

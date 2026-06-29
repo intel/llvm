@@ -1,9 +1,8 @@
 //===----------- kernel.hpp - LLVM Offload Adapter  -----------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -14,7 +13,7 @@
 #include <array>
 #include <cstring>
 #include <numeric>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <vector>
 
 #include "common.hpp"
@@ -47,10 +46,15 @@ struct ur_kernel_handle_t_ : RefCounted {
         Pointers.resize(Index + 1);
         ParamSizes.resize(Index + 1);
       }
-      ParamSizes[Index] = Size;
       // Calculate the insertion point in the array.
       size_t InsertPos = std::accumulate(std::begin(ParamSizes),
                                          std::begin(ParamSizes) + Index, 0);
+      // Validate bounds before memcpy to prevent heap buffer overflow
+      // Check for integer overflow: validate Size first to avoid underflow
+      if (Size > MaxParamBytes || InsertPos > MaxParamBytes - Size) {
+        throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      }
+      ParamSizes[Index] = Size;
       // Update the stored value for the argument.
       std::memcpy(&Storage[InsertPos], Arg, Size);
       Pointers[Index] = &Storage[InsertPos];

@@ -1,10 +1,11 @@
-// XFAIL: new-offload-model && linux
+// XFAIL: new-offload-model && cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: gpu
 // RUN: %{build} -o %t.out %debug_option
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 // Note that the UR call might be urProgramBuild OR urProgramBuildExp .
 // The same is true for Compile and Link.

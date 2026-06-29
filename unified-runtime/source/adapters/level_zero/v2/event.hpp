@@ -1,9 +1,8 @@
 //===--------- event.hpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -11,8 +10,8 @@
 
 #include <stack>
 
+#include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 #include <ze_api.h>
 
 #include "adapters/level_zero/v2/queue_api.hpp"
@@ -48,7 +47,8 @@ private:
   uint64_t recordEventEndTimestamp = 0;
   uint64_t adjustedEventEndTimestamp = 0;
 
-  uint64_t zeTimerResolution = 0;
+  // Timer resolution in nanoseconds (converted from cycles/sec)
+  double zeTimerResolution = 0;
   uint64_t timestampMaxValue = 0;
 
   bool timestampRecorded = false;

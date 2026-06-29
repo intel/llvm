@@ -16,7 +16,6 @@
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
 
@@ -90,13 +89,21 @@ context::get_info() const {
   return impl->template get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT context::get_info<info::DescType::Desc>()     \
+#define __SYCL_CONTEXT_INFO_INST(NAME, RETURN_T)                               \
+  template __SYCL_EXPORT RETURN_T context::get_info<info::context::NAME>()     \
       const;
-
-#include <sycl/info/context_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+__SYCL_CONTEXT_INFO_INST(reference_count, uint32_t)
+__SYCL_CONTEXT_INFO_INST(platform, sycl::platform)
+__SYCL_CONTEXT_INFO_INST(devices, std::vector<sycl::device>)
+__SYCL_CONTEXT_INFO_INST(atomic_memory_order_capabilities,
+                         std::vector<sycl::memory_order>)
+__SYCL_CONTEXT_INFO_INST(atomic_memory_scope_capabilities,
+                         std::vector<sycl::memory_scope>)
+__SYCL_CONTEXT_INFO_INST(atomic_fence_order_capabilities,
+                         std::vector<sycl::memory_order>)
+__SYCL_CONTEXT_INFO_INST(atomic_fence_scope_capabilities,
+                         std::vector<sycl::memory_scope>)
+#undef __SYCL_CONTEXT_INFO_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type

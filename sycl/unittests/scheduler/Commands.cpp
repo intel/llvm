@@ -25,7 +25,7 @@ ur_result_t redefineEnqueueEventsWaitWithBarrierExt(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-// Hack that allows to return a context in redefinePiEventGetInfo
+// Hack that allows to return a context in redefineUrEventGetInfo
 ur_context_handle_t queue_global_context = nullptr;
 
 ur_result_t redefineUrEventGetInfo(void *pParams) {

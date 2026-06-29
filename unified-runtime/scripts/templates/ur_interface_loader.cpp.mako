@@ -10,16 +10,15 @@ from templates import helper as th
     Adapter=adapter.upper()
 %>//===--------- ${n}_interface_loader.cpp - Level Zero Adapter ------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <${n}_api.h>
-#include <${n}_ddi.h>
+#include <unified-runtime/${n}_api.h>
+#include <unified-runtime/${n}_ddi.h>
 #include <mutex>
 
 #include "ur_interface_loader.hpp"

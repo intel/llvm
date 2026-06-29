@@ -8,6 +8,7 @@
 //
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
+// RUN: %if level_zero %{ env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t1.out %}
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>

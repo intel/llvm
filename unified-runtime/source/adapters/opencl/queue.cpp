@@ -295,7 +295,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  cl_int RetErr = clFinish(hQueue->CLQueue);
+  cl_int RetErr = clFlush(hQueue->CLQueue);
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
@@ -338,6 +338,11 @@ urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     ur_queue_handle_t /* hQueue */, bool * /* hResult */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

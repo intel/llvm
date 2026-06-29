@@ -1,6 +1,5 @@
-# Copyright (C) 2025-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
@@ -50,8 +49,8 @@ class GitProject:
         return self._directory / f"{self._name}-install"
 
     def needs_rebuild(self) -> bool:
-        if options.no_rebuild:
-            log.debug("Rebuild is disabled due to --no-rebuild option.")
+        if options.offline:
+            log.debug("Rebuild is disabled due to --offline option.")
             return False
         if self._rebuild_needed:
             log.debug(
@@ -185,9 +184,9 @@ class GitProject:
                 f"Skipping git operations during unit testing of {self._name} (LLVM_BENCHMARKS_UNIT_TESTING=1)."
             )
             return False
-        if options.no_rebuild:
+        if options.offline:
             log.debug(
-                f"Skipping git operations for {self._name} due to --no-rebuild option."
+                f"Skipping git operations for {self._name} due to --offline option."
             )
             return False
         if not self.src_dir.exists():

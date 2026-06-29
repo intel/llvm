@@ -1,9 +1,8 @@
 //===--------- graph.hpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -12,7 +11,7 @@
 #include "../external/driver_experimental/zex_graph.h"
 #include "common.hpp"
 #include "context.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 struct ur_exp_graph_handle_t_ : ur_object {
 public:
@@ -20,6 +19,9 @@ public:
   ur_exp_graph_handle_t_(ur_context_handle_t hContext,
                          ze_graph_handle_t zeGraph);
   ~ur_exp_graph_handle_t_();
+
+  ur_exp_graph_handle_t_(const ur_exp_graph_handle_t_ &) = delete;
+  ur_exp_graph_handle_t_ &operator=(const ur_exp_graph_handle_t_ &) = delete;
 
   ze_graph_handle_t getZeHandle() { return zeGraph; }
   ur_context_handle_t getContext() { return hContext; }
@@ -34,6 +36,11 @@ public:
   ur_exp_executable_graph_handle_t_(ur_context_handle_t hContext,
                                     ur_exp_graph_handle_t hGraph);
   ~ur_exp_executable_graph_handle_t_();
+
+  ur_exp_executable_graph_handle_t_(const ur_exp_executable_graph_handle_t_ &) =
+      delete;
+  ur_exp_executable_graph_handle_t_ &
+  operator=(const ur_exp_executable_graph_handle_t_ &) = delete;
 
   ze_executable_graph_handle_t &getZeHandle() { return zeExGraph; }
   ur_context_handle_t getContext() const { return hContext; }

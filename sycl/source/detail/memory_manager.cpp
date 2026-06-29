@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -18,6 +18,7 @@
 
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
@@ -1048,7 +1049,7 @@ memcpyToDeviceGlobalUSM(queue_impl &Queue,
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Dest = DeviceGlobalUSM.getPtr();
 
-  // OwnedPiEvent will keep the initialization event alive for the duration
+  // OwnedUrEvent will keep the initialization event alive for the duration
   // of this function call.
   OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue.getAdapter());
 
@@ -1080,7 +1081,7 @@ static void memcpyFromDeviceGlobalUSM(
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Src = DeviceGlobalUSM.getPtr();
 
-  // OwnedPiEvent will keep the initialization event alive for the duration
+  // OwnedUrEvent will keep the initialization event alive for the duration
   // of this function call.
   OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue.getAdapter());
 

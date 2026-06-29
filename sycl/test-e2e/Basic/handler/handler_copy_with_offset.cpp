@@ -1,5 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if level_zero %{ env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out %}
+
 //==--- handler_copy_with_offset.cpp - SYCL handler copy with offset test --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

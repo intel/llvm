@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -46,7 +45,12 @@ TEST_P(cudaUrContextCreateTest, CreateWithChildThread) {
 TEST_P(cudaUrContextCreateTest, ContextLifetimeExisting) {
   // start by setting up a CUDA context on the thread
   CUcontext original;
+#if CUDA_VERSION >= 13000
+  ASSERT_SUCCESS_CUDA(
+      cuCtxCreate(&original, nullptr, CU_CTX_MAP_HOST, device->get()));
+#else
   ASSERT_SUCCESS_CUDA(cuCtxCreate(&original, CU_CTX_MAP_HOST, device->get()));
+#endif
 
   // ensure the CUDA context is active
   CUcontext current = nullptr;

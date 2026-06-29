@@ -9,8 +9,9 @@
 #pragma once
 
 #include <sycl/detail/array.hpp>       // for array
-#include <sycl/detail/helpers.hpp>     // for loop
+#include <sycl/detail/helpers.hpp>     // for Builder
 #include <sycl/detail/item_base.hpp>   // for id, range
+#include <sycl/detail/loop.hpp>        // for loop
 #include <sycl/detail/type_traits.hpp> // for remove_pointer, is_pointer
 #include <sycl/exception.hpp>          // for make_error_code, errc, exception
 #include <sycl/functional.hpp>         // for plus, multiplies, maximum

@@ -37,18 +37,18 @@ template<typename T>
 void templated_on_A(ns::feature_A<T> Arg) {}
 template void templated_on_A(ns::feature_A<int>);
 
-// CHECK: template <typename T> void templated_on_A(ns::feature_A<T, ns::enum_A::B>);
+// CHECK: template <typename T> void templated_on_A(ns::feature_A<T, static_cast<ns::enum_A>(1)>);
 
 template<typename T, int V = 42>
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void templated_on_B(ns::nested::feature_B<T, V> Arg) {}
 template void templated_on_B(ns::nested::feature_B<int, 12>);
 
-// CHECK: template <typename T, int V> void templated_on_B(ns::nested::feature_B<T, V, ns::nested::enum_B::A, ns::enum_A::C>);
+// CHECK: template <typename T, int V> void templated_on_B(ns::nested::feature_B<T, V, static_cast<ns::nested::enum_B>(0), static_cast<ns::enum_A>(2)>);
 
 template<int V>
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void templated_on_C(ns::nested2::feature_C<V> Arg) {}
 template void templated_on_C(ns::nested2::feature_C<42>);
 
-// CHECK: template <int V> void templated_on_C(ns::nested2::feature_C<V, ns::nested2::enum_C::B>);
+// CHECK: template <int V> void templated_on_C(ns::nested2::feature_C<V, static_cast<ns::nested2::enum_C>(1)>);

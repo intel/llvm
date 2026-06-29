@@ -9,11 +9,10 @@ from templates import print_helper as tph
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -21,8 +20,8 @@ from templates import print_helper as tph
  *
  */
 
-#include "${n}_print.h"
-#include "${n}_print.hpp"
+#include "unified-runtime/${n}_print.h"
+#include "unified-runtime/${n}_print.hpp"
 
 #include <algorithm>
 #include <sstream>

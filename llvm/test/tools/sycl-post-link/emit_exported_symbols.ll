@@ -1,7 +1,7 @@
 ; This test checks that the post-link tool generates list of exported symbols.
 ;
 ; Global scope
-; RUN: sycl-post-link -properties -symbols -emit-exported-symbols -S < %s -o %t.global.files.table
+; RUN: sycl-post-link -split=none -properties -symbols -emit-exported-symbols -S < %s -o %t.global.files.table
 ; RUN: FileCheck %s -input-file=%t.global.files_0.prop --implicit-check-not="NotExported" --check-prefix=CHECK-GLOBAL-PROP
 ;
 ; Per-module split

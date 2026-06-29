@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2022-2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -13,8 +12,8 @@
 #ifndef UR_LOADER_HPP
 #define UR_LOADER_HPP 1
 
+#include "unified-runtime/ur_ddi.h"
 #include "ur_adapter_registry.hpp"
-#include "ur_ddi.h"
 #include "ur_lib_loader.hpp"
 
 namespace ur_loader {

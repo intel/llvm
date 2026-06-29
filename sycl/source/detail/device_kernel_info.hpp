@@ -99,6 +99,8 @@ public:
     return MImplicitLocalArgPos;
   }
 
+  bool getWorkGroupDynamicLocalMem() const { return MWorkGroupDynamicLocalMem; }
+
   const sycl::kernel_id &getKernelID() const {
     // Expected to be called only for DeviceKernelInfo instances created by
     // program manager (as opposed to allocated by sycl::kernel with
@@ -111,12 +113,30 @@ public:
   // function allows setting it as more images are added.
   void setImplicitLocalArgPos(int Pos);
 
+  // Indicates that this kernel uses dynamic work group local memory also
+  // known as work group scratch memory.
+  void setWorkGroupDynamicLocalMem();
+
+  int &getRefCount() { return RefCount; }
+
+  // Returns the demangled kernel name, caching the result to avoid repeated
+  // demangling overhead.
+  std::string_view getDemangledName() const;
+
 private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
+  bool MWorkGroupDynamicLocalMem = false;
   const std::optional<sycl::kernel_id> MKernelID;
+  // Keeps track of binary image to kernel name reference count.
+  // Used for checking if the last image referencing the kernel name
+  // is removed in order to trigger cleanup of this struct.
+  int RefCount = 0;
+  // Cached demangled kernel name for instrumentation
+  mutable std::string MDemangledName;
+  mutable std::once_flag MDemangledNameInitFlag;
 };
 
 } // namespace detail

@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 // Tests the size and iterator members of an empty zero-dimensional accessor.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

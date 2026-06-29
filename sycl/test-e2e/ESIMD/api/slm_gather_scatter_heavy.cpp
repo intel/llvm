@@ -27,6 +27,7 @@
 // lanes masked out by pred will still be overwritten by some undefined values
 // returned in these lanes by 'slm_gather'.
 //
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

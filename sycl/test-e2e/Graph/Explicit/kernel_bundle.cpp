@@ -22,7 +22,7 @@
 //
 // CHECK:<--- urKernelRetain(.hKernel = [[KERNEL_HANDLE]]) -> UR_RESULT_SUCCESS
 //
-// CHECK:<--- urCommandBufferAppendKernelLaunchExp(
+// CHECK:<--- urCommandBufferAppendKernelLaunchWithArgsExp(
 // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
 //
 // CHECK:<--- urKernelRelease(.hKernel = [[KERNEL_HANDLE]]) -> UR_RESULT_SUCCESS

@@ -118,7 +118,8 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps,
-                                     bool AllowDeviceImageDependencies) {
+                                     bool AllowDeviceImageDependencies,
+                                     int IdQueriesRange) {
 
   PropSetRegTy PropSet;
   {
@@ -192,12 +193,23 @@ PropSetRegTy computeModuleProperties(const Module &M,
                     /*PropVal=*/true);
       }
     }
+
+    // Export device_global variables.
+    for (auto &GV : M.globals()) {
+      if (!isDeviceGlobalVariable(GV))
+        continue;
+      if (GV.isDeclaration()) // Skip declarations.
+        continue;
+      if (hasDeviceImageScopeProperty(GV)) // Skip per-image globals.
+        continue;
+      if (GV.hasExternalLinkage()) {
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, GV.getName(), true);
+      }
+    }
   }
   if (GlobProps.EmitKernelNames) {
     for (const auto *F : EntryPoints) {
-      if (F->getCallingConv() == CallingConv::SPIR_KERNEL ||
-          F->getCallingConv() == CallingConv::PTX_Kernel ||
-          F->getCallingConv() == CallingConv::AMDGPU_KERNEL) {
+      if (F->hasKernelCallingConv()) {
         PropSet.add(PropSetRegTy::SYCL_KERNEL_NAMES, F->getName(),
                     /*PropVal=*/true);
       }
@@ -226,6 +238,26 @@ PropSetRegTy computeModuleProperties(const Module &M,
         assert(!F.use_empty() && "Function F has no uses");
         PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(),
                     /*PropVal=*/true);
+      }
+    }
+
+    // Check for imported device_global variables.
+    for (auto &GV : M.globals()) {
+      if (!GV.isDeclaration())
+        continue;
+      if (!GV.hasExternalLinkage())
+        continue;
+
+      // Check if it's a device_global by type name (declarations don't have
+      // attributes).
+      std::string TypeName;
+      raw_string_ostream(TypeName) << *GV.getValueType();
+
+      if (TypeName.find("device_global") == std::string::npos)
+        continue;
+
+      if (AllowDeviceImageDependencies) {
+        PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, GV.getName(), true);
       }
     }
   }
@@ -347,11 +379,24 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
   }
   {
+    // Add device image property only if the image has a non-default
+    // SYCL Id range. The default range is 0 (signed int).
+    if (IdQueriesRange != 0)
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "idQueriesRange",
+                  IdQueriesRange);
+  }
+  {
     std::vector<std::pair<StringRef, int>> ArgPos =
         getKernelNamesUsingImplicitLocalMem(M);
     for (const auto &FuncAndArgPos : ArgPos)
       PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, FuncAndArgPos.first,
                   FuncAndArgPos.second);
+  }
+
+  {
+    SmallVector<StringRef> Kernels = getKernelNamesUsingWorkGroupDynamicMem(M);
+    for (const auto &Kernel : Kernels)
+      PropSet.add(PropSetRegTy::SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM, Kernel, 1);
   }
 
   {

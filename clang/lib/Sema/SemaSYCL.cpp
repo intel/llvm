@@ -661,17 +661,10 @@ static void collectSYCLAttributes(FunctionDecl *FD,
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
                  SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
-                 SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-                 SYCLIntelSchedulerTargetFmaxMhzAttr,
-                 SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelKernelArgsRestrictAttr,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
-                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
-                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
-                 SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
-                 SYCLIntelDisableLoopPipeliningAttr,
-                 SYCLIntelInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
-                 SYCLAddIRAttributesFunctionAttr>(A);
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr, SYCLSimdAttr,
+                 SYCLDeviceHasAttr, SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
 }
@@ -2338,7 +2331,8 @@ public:
             SemaSYCLRef.getASTContext()));
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2374,7 +2368,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2393,7 +2388,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2423,7 +2419,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2457,7 +2454,8 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         FD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
       PointerStack.back() = true;
@@ -2479,6 +2477,7 @@ static QualType ModifyAddressSpace(SemaSYCL &SemaSYCLRef, QualType Ty) {
   // same type as field but global address space, because OpenCL requires it.
   // Function pointers should have program address space. This is set in
   // CodeGen.
+  Qualifiers PtrQuals = Ty.getQualifiers();
   QualType PointeeTy = Ty->getPointeeType();
   Qualifiers Quals = PointeeTy.getQualifiers();
   LangAS AS = Quals.getAddressSpace();
@@ -2489,7 +2488,8 @@ static QualType ModifyAddressSpace(SemaSYCL &SemaSYCLRef, QualType Ty) {
     Quals.setAddressSpace(LangAS::sycl_global);
   PointeeTy = SemaSYCLRef.getASTContext().getQualifiedType(
       PointeeTy.getUnqualifiedType(), Quals);
-  return SemaSYCLRef.getASTContext().getPointerType(PointeeTy);
+  QualType PtrTy = SemaSYCLRef.getASTContext().getPointerType(PointeeTy);
+  return SemaSYCLRef.getASTContext().getQualifiedType(PtrTy, PtrQuals);
 }
 
 // This visitor is used to traverse a non-decomposed record/array to
@@ -3957,7 +3957,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
     InitListExpr *ILE = new (SemaSYCLRef.getASTContext())
         InitListExpr(SemaSYCLRef.getASTContext(), KernelCallerSrcLoc, {},
-                     KernelCallerSrcLoc);
+                     KernelCallerSrcLoc, /*isExplicit=*/false);
     ILE->reserveInits(SemaSYCLRef.getASTContext(), NumChildInits);
     ILE->setType(InitTy);
 
@@ -4094,8 +4094,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
     InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
 
-    InitializedEntity Entity = InitializedEntity::InitializeMember(
-        FD, &VarEntity.value(), /*Implicit*/ true);
+    InitializedEntity Entity = InitializedEntity::InitializeMemberImplicit(FD);
 
     addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
   }
@@ -5733,19 +5732,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
         S.Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
         SYCLKernel->setInvalidDecl();
       }
-    } else if (auto *Existing =
-                   SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      if (S.checkMaxAllowedWorkGroupSize(
-              RWGSA->getXDim(), RWGSA->getYDim(), RWGSA->getZDim(),
-              Existing->getXDim(), Existing->getYDim(), Existing->getZDim())) {
-        S.Diag(SYCLKernel->getLocation(),
-               diag::err_conflicting_sycl_kernel_attributes);
-        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-        S.Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
-        SYCLKernel->setInvalidDecl();
-      } else {
-        SYCLKernel->addAttr(A);
-      }
     } else {
       SYCLKernel->addAttr(A);
     }
@@ -5767,25 +5753,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
     SYCLKernel->addAttr(A);
     break;
   }
-  case attr::Kind::SYCLIntelMaxWorkGroupSize: {
-    auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      if (S.checkMaxAllowedWorkGroupSize(
-              Existing->getXDim(), Existing->getYDim(), Existing->getZDim(),
-              SIMWGSA->getXDim(), SIMWGSA->getYDim(), SIMWGSA->getZDim())) {
-        S.Diag(SYCLKernel->getLocation(),
-               diag::err_conflicting_sycl_kernel_attributes);
-        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-        S.Diag(SIMWGSA->getLocation(), diag::note_conflicting_attribute);
-        SYCLKernel->setInvalidDecl();
-      } else {
-        SYCLKernel->addAttr(A);
-      }
-    } else {
-      SYCLKernel->addAttr(A);
-    }
-    break;
-  }
   case attr::Kind::SYCLSimd:
     if (KernelBody && !KernelBody->getAttr<SYCLSimdAttr>()) {
       // Usual kernel can't call ESIMD functions.
@@ -5798,17 +5765,8 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
     }
     LLVM_FALLTHROUGH;
   case attr::Kind::SYCLIntelKernelArgsRestrict:
-  case attr::Kind::SYCLIntelNumSimdWorkItems:
-  case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
-  case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
-  case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelLoopFuse:
-  case attr::Kind::SYCLIntelMaxConcurrency:
-  case attr::Kind::SYCLIntelDisableLoopPipelining:
-  case attr::Kind::SYCLIntelInitiationInterval:
-  case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:
     SYCLKernel->addAttr(A);
@@ -5945,8 +5903,8 @@ Sema::SemaDiagnosticBuilder
 SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
                            DeviceDiagnosticReason Reason) {
   assert(getLangOpts().SYCLIsDevice &&
-         "Should only be called during SYCL compilation");
-  FunctionDecl *FD = dyn_cast<FunctionDecl>(SemaRef.getCurLexicalContext());
+         "Device diagnostics Should only be issued during device compilation");
+  FunctionDecl *FD = SemaRef.getCurFunctionDecl(/*AllowLambda=*/true);
   SemaDiagnosticBuilder::Kind DiagKind = [this, FD, Reason] {
     if (DiagnosingSYCLKernel)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
@@ -6079,7 +6037,8 @@ void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
     return;
 
   // If Callee has a SYCL attribute, no diagnostic needed.
-  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>() ||
+      Callee->hasAttr<SYCLExternalAttr>())
     return;
 
   // If Callee has a CUDA device attribute, no diagnostic needed.
@@ -6482,6 +6441,32 @@ public:
     TA.print(Policy, OS, false /* IncludeType */);
   }
 
+  void VisitDeclarationTemplateArgument(const TemplateArgument &TA) {
+    // A non-type template argument that refers to a function template
+    // specialization (e.g. a free function kernel pointer such as
+    // `&vec_add_kernel<int>`) is printed by TemplateArgument::print using only
+    // the function's qualified name, dropping its template arguments. This
+    // produces an ambiguous `<overloaded function type>` initializer in the
+    // integration header. Emit the template arguments explicitly so the
+    // resulting kernel name type names the exact specialization.
+    const ValueDecl *VD = TA.getAsDecl();
+    const auto *FD = dyn_cast<FunctionDecl>(VD);
+    const TemplateArgumentList *TAL =
+        FD ? FD->getTemplateSpecializationArgs() : nullptr;
+    if (!TAL) {
+      VisitTemplateArgument(TA);
+      return;
+    }
+
+    const QualType ParamType = TA.getParamTypeForDecl();
+    if (ParamType->isPointerType() || ParamType->isMemberPointerType())
+      OS << "&";
+    VD->printQualifiedName(OS, Policy);
+    OS << "<";
+    printTemplateArgs(TAL->asArray());
+    OS << ">";
+  }
+
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
     Policy.SuppressTagKeyword = true;
     QualType T = TA.getAsType();
@@ -6648,6 +6633,10 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 ///
 /// Moral of the story: drop integration header ASAP (but that is blocked
 /// by support for 3rd-party host compilers, which is important).
+static std::string stringifyTypeWithEnumValues(QualType T,
+                                               PrintingPolicy &Policy,
+                                               ASTContext &Ctx);
+
 class FreeFunctionTemplateKernelArgsPrinter
     : public ConstTemplateArgumentVisitor<FreeFunctionTemplateKernelArgsPrinter,
                                           void, ArrayRef<TemplateArgument>> {
@@ -6683,6 +6672,18 @@ class FreeFunctionTemplateKernelArgsPrinter
     DesugarTemplateArgument(Arg).print(Policy, O, /*IncludeType=*/false);
   }
 
+  void printEnumValue(QualType EnumTy, const llvm::APSInt &Val) {
+    O << "static_cast<";
+    if (const auto *ET = EnumTy->getAs<EnumType>())
+      ET->getOriginalDecl()->printQualifiedName(O, Policy,
+                                                /*WithGlobalNsPrefix=*/false);
+    else
+      EnumTy.print(O, Policy);
+    llvm::SmallString<8> Num;
+    Val.toString(Num, /*Radix=*/10, /*Signed=*/Val.isSigned());
+    O << ">(" << Num << ")";
+  }
+
 public:
   FreeFunctionTemplateKernelArgsPrinter(raw_ostream &O, PrintingPolicy &Policy,
                                         ASTContext &Context)
@@ -6711,7 +6712,8 @@ public:
     const auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
     const auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
     if (!TST || !CTST) {
-      O << T.getDesugaredType(Context).getAsString(Policy);
+      O << stringifyTypeWithEnumValues(T.getDesugaredType(Context), Policy,
+                                       Context);
       return;
     }
 
@@ -6728,6 +6730,7 @@ public:
       TD = TST->getTemplateName().getAsTemplateDecl();
     assert(TD->getIdentifier() &&
            "Either the type or the canonical type should have an identifier.");
+    T.getLocalQualifiers().print(O, Policy, /*appendSpaceIfNotEmpty=*/true);
     TD->printQualifiedName(O);
 
     O << "<";
@@ -6814,11 +6817,17 @@ public:
 
   void VisitIntegralTemplateArgument(const TemplateArgument &Arg,
                                      ArrayRef<TemplateArgument>) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
     PrintDesugared(Arg);
   }
 
   void VisitStructuralValueTemplateArgument(const TemplateArgument &Arg,
                                             ArrayRef<TemplateArgument>) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
     PrintDesugared(Arg);
   }
 
@@ -6837,22 +6846,23 @@ public:
     Expr *E = Arg.getAsExpr();
     assert(E && "Failed to get an Expr for an Expression template arg?");
 
-    if (Arg.isInstantiationDependent() ||
-        E->getType()->isScopedEnumeralType()) {
-      // Scoped enumerations can't be implicitly cast from integers, so
-      // we don't need to evaluate them.
-      // If expression is instantiation-dependent, then we can't evaluate it
-      // either, let's fallback to default printing mechanism.
+    if (Arg.isInstantiationDependent()) {
       PrintDesugared(Arg);
       return;
     }
 
+    if (E->getType()->isEnumeralType()) {
+      Expr::EvalResult Res;
+      if (E->EvaluateAsConstantExpr(Res, Context) && !Res.Val.isAbsent() &&
+          Res.Val.isInt())
+        return printEnumValue(E->getType(), Res.Val.getInt());
+    }
+
     Expr::EvalResult Res;
-    [[maybe_unused]] bool Success =
-        Arg.getAsExpr()->EvaluateAsConstantExpr(Res, Context);
+    [[maybe_unused]] bool Success = E->EvaluateAsConstantExpr(Res, Context);
     assert(Success && "invalid non-type template argument?");
     assert(!Res.Val.isAbsent() && "couldn't read the evaulation result?");
-    Res.Val.printPretty(O, Policy, Arg.getAsExpr()->getType(), &Context);
+    Res.Val.printPretty(O, Policy, E->getType(), &Context);
   }
 
   void VisitPackTemplateArgument(const TemplateArgument &Arg,
@@ -6860,6 +6870,164 @@ public:
     PrintDesugared(Arg);
   }
 };
+
+class EnumValueTemplateArgPrinter
+    : public ConstTemplateArgumentVisitor<EnumValueTemplateArgPrinter> {
+  raw_ostream &OS;
+  PrintingPolicy &Policy;
+  ASTContext &Ctx;
+
+  void printEnumValue(QualType EnumTy, const llvm::APSInt &Val) {
+    OS << "static_cast<";
+    if (const auto *ET = EnumTy->getAs<EnumType>())
+      ET->getOriginalDecl()->printQualifiedName(OS, Policy,
+                                                /*WithGlobalNsPrefix=*/false);
+    else
+      EnumTy.print(OS, Policy);
+    llvm::SmallString<8> Num;
+    Val.toString(Num, /*Radix=*/10, /*Signed=*/Val.isSigned());
+    OS << ">(" << Num << ")";
+  }
+
+  void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    llvm::ListSeparator LS(", ");
+    for (const auto &A : Args) {
+      // Skip empty packs without emitting separators.
+      if (A.getKind() == TemplateArgument::ArgKind::Pack && !A.pack_size())
+        continue;
+      OS << LS;
+      Visit(A);
+    }
+  }
+
+  void printTypeWithEnumValues(QualType T) {
+    QualType DT = T.getDesugaredType(Ctx);
+
+    if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+            DT->getAsCXXRecordDecl())) {
+      T.getLocalQualifiers().print(OS, Policy, /*appendSpaceIfNotEmpty=*/true);
+      if (!Policy.SuppressTagKeyword)
+        OS << CTSD->getKindName() << " ";
+      CTSD->printQualifiedName(OS, Policy,
+                               /*WithGlobalNsPrefix=*/false);
+      OS << "<";
+      printTemplateArgs(CTSD->getTemplateArgs().asArray());
+      OS << ">";
+      return;
+    }
+
+    if (const auto *TST = DT->getAs<TemplateSpecializationType>()) {
+      T.getLocalQualifiers().print(OS, Policy, /*appendSpaceIfNotEmpty=*/true);
+      if (const auto *RT = TST->getAs<RecordType>()) {
+        if (!Policy.SuppressTagKeyword)
+          OS << RT->getDecl()->getKindName() << " ";
+      }
+
+      if (TemplateDecl *TD = TST->getTemplateName().getAsTemplateDecl())
+        TD->printQualifiedName(OS, Policy,
+                               /*WithGlobalNsPrefix=*/false);
+      else
+        TST->getTemplateName().print(OS, Policy);
+
+      OS << "<";
+      printTemplateArgs(TST->template_arguments());
+      OS << ">";
+      return;
+    }
+
+    T.print(OS, Policy);
+  }
+
+public:
+  EnumValueTemplateArgPrinter(raw_ostream &OS, PrintingPolicy &Policy,
+                              ASTContext &Ctx)
+      : OS(OS), Policy(Policy), Ctx(Ctx) {}
+
+  void PrintType(QualType T) { printTypeWithEnumValues(T); }
+
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    ConstTemplateArgumentVisitor::Visit(TA);
+  }
+
+  void VisitTypeTemplateArgument(const TemplateArgument &Arg) {
+    printTypeWithEnumValues(Arg.getAsType());
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &Arg) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitExpressionTemplateArgument(const TemplateArgument &Arg) {
+    Expr *E = Arg.getAsExpr();
+    if (!E || Arg.isInstantiationDependent()) {
+      Arg.print(Policy, OS, /*IncludeType=*/false);
+      return;
+    }
+
+    if (E->getType()->isEnumeralType()) {
+      Expr::EvalResult Res;
+      if (E->EvaluateAsConstantExpr(Res, Ctx) && !Res.Val.isAbsent() &&
+          Res.Val.isInt()) {
+        return printEnumValue(E->getType(), Res.Val.getInt());
+      }
+    }
+
+    E = E->IgnoreParenImpCasts();
+    const EnumConstantDecl *ECD = nullptr;
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
+      ECD = dyn_cast<EnumConstantDecl>(DRE->getDecl());
+    else if (const auto *ME = dyn_cast<MemberExpr>(E))
+      ECD = dyn_cast<EnumConstantDecl>(ME->getMemberDecl());
+
+    if (ECD)
+      return printEnumValue(ECD->getType(), ECD->getInitVal());
+
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitTemplateTemplateArgument(const TemplateArgument &Arg) {
+    Arg.getAsTemplate().print(OS, Policy);
+  }
+
+  void VisitTemplateExpansionTemplateArgument(const TemplateArgument &Arg) {
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitStructuralValueTemplateArgument(const TemplateArgument &Arg) {
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &Arg) {
+    printTemplateArgs(Arg.getPackAsArray());
+  }
+};
+
+static std::string
+stringifyTemplateArgWithEnumValues(const TemplateArgument &Arg,
+                                   PrintingPolicy &Policy, ASTContext &Ctx) {
+  std::string Out;
+  llvm::raw_string_ostream OS(Out);
+  EnumValueTemplateArgPrinter Printer(OS, Policy, Ctx);
+  Printer.Visit(Arg);
+  OS.flush();
+  return Out;
+}
+
+static std::string stringifyTypeWithEnumValues(QualType T,
+                                               PrintingPolicy &Policy,
+                                               ASTContext &Ctx) {
+  std::string Out;
+  llvm::raw_string_ostream OS(Out);
+  EnumValueTemplateArgPrinter Printer(OS, Policy, Ctx);
+  Printer.PrintType(T);
+  OS.flush();
+  return Out;
+}
 
 class FreeFunctionPrinter {
   raw_ostream &O;
@@ -6993,13 +7161,14 @@ private:
       else if (X.getKind() == TemplateArgument::Pack) {
         for (const auto &PackArg : X.pack_elements()) {
           StringStream << ", ";
-          PackArg.print(Policy, StringStream, /*IncludeType*/ true);
+          StringStream << stringifyTemplateArgWithEnumValues(PackArg, Policy,
+                                                             Context);
         }
         continue;
       } else
         StringStream << ", ";
 
-      X.print(Policy, StringStream, /*IncludeType*/ true);
+      StringStream << stringifyTemplateArgWithEnumValues(X, Policy, Context);
     }
     StringStream.flush();
     if (Buffer.front() != '<')
@@ -7103,7 +7272,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // Disable printing anonymous tag locations because on Windows
   // file path separators are treated as escape sequences and cause errors
   // when integration header is compiled with host compiler.
-  Policy.AnonymousTagLocations = 0;
+  Policy.AnonymousTagNameStyle =
+            llvm::to_underlying(PrintingPolicy::AnonymousTagMode::Plain);
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
   // Predefines which need to be set for custom host compilation
@@ -7270,95 +7440,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // mathematical error.
   O << "  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 }, \n";
   O << "};\n\n";
-
-  O << "// Specializations of KernelInfo for kernel function types:\n";
-  unsigned CurStart = 0;
-
-  for (const KernelDesc &K : KernelDescs) {
-    const size_t N = K.Params.size();
-    if (S.isFreeFunction(K.SyclKernel)) {
-      CurStart += N;
-      continue;
-    }
-    PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
-        S.getASTContext()
-            .getSourceManager()
-            .getExpansionRange(K.KernelLocation)
-            .getEnd());
-    if (K.IsUnnamedKernel) {
-      O << "template <> struct KernelInfoData<";
-      OutputStableNameInChars(O, K.StableName);
-      O << "> {\n";
-    } else {
-      O << "template <> struct KernelInfo<";
-      SYCLKernelNameTypePrinter Printer(O, Policy);
-      Printer.Visit(K.NameType);
-      O << "> {\n";
-    }
-
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getName() { return \"" << K.Name
-      << "\"; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const kernel_param_desc_t& ";
-    O << "getParamDesc(unsigned i) {\n";
-    O << "    return kernel_signatures[i+" << CurStart << "];\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
-      << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFileName() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return \""
-      << std::string(PLoc.getFilename())
-             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
-    O << "\";\n";
-    O << "#else\n";
-    O << "    return \"\";\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFunctionName() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return \"";
-    SYCLKernelNameTypePrinter Printer(O, Policy);
-    Printer.Visit(K.NameType);
-    O << "\";\n";
-    O << "#else\n";
-    O << "    return \"\";\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getLineNumber() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return " << PLoc.getLine() << ";\n";
-    O << "#else\n";
-    O << "    return 0;\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getColumnNumber() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return " << PLoc.getColumn() << ";\n";
-    O << "#else\n";
-    O << "    return 0;\n";
-    O << "#endif\n";
-    O << "  }\n";
-    StringRef ReturnType = (S.getASTContext().getTargetInfo().getInt64Type() ==
-                            TargetInfo::SignedLong)
-                               ? "long"
-                               : "long long";
-    O << "  // Returns the size of the kernel object in bytes.\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr " << ReturnType << " getKernelSize() { return "
-      << K.ObjSize << "; }\n";
-    O << "};\n";
-    CurStart += N;
-  }
-  O << "\n";
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
@@ -7372,7 +7453,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
-  // Structs with special types inside needs some special code generation in the
+  // Structs with special types inside need some special code generation in the
   // header and we keep this visited map to not have duplicates in case several
   // free function kernels use the same struct type as parameters.
   llvm::DenseMap<const RecordDecl *, bool> visitedStructWithSpecialType;
@@ -7388,6 +7469,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
+    // Forward declare template arguments as well.
+    if (const TemplateArgumentList *TAL =
+            K.SyclKernel->getTemplateSpecializationArgs())
+      for (const TemplateArgument &TA : TAL->asArray())
+        FwdDeclEmitter.Visit(TA);
 
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
@@ -7409,12 +7495,15 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         ParmList += "Args ...";
       } else {
         Policy.SuppressTagKeyword = true;
-        Param->getType().print(ParmListWithNamesOstream, Policy);
+        ParmListWithNamesOstream << stringifyTypeWithEnumValues(
+            Param->getType(), Policy, S.getASTContext());
         Policy.SuppressTagKeyword = false;
         ParmListWithNamesOstream << " " << Param->getNameAsString();
-        ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+        ParmList += stringifyTypeWithEnumValues(
+            Param->getType().getCanonicalType(), Policy, S.getASTContext());
       }
     }
+
     ParmListWithNamesOstream.flush();
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
@@ -7579,6 +7668,103 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "static GlobalMapUpdater updater;\n";
     O << "} // namespace\n";
   }
+
+  O << "// Specializations of KernelInfo for kernel function types:\n";
+  O << "namespace sycl {\n";
+  O << "inline namespace _V1 {\n";
+  O << "namespace detail {\n";
+  unsigned CurStart = 0;
+
+  for (const KernelDesc &K : KernelDescs) {
+    const size_t N = K.Params.size();
+    if (S.isFreeFunction(K.SyclKernel)) {
+      CurStart += N;
+      continue;
+    }
+    PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
+        S.getASTContext()
+            .getSourceManager()
+            .getExpansionRange(K.KernelLocation)
+            .getEnd());
+    if (K.IsUnnamedKernel) {
+      O << "template <> struct KernelInfoData<";
+      OutputStableNameInChars(O, K.StableName);
+      O << "> {\n";
+    } else {
+      Policy.SuppressDefaultTemplateArgs = false;
+      Policy.EnforceDefaultTemplateArgs = true;
+      O << "template <> struct KernelInfo<";
+      SYCLKernelNameTypePrinter Printer(O, Policy);
+      Printer.Visit(K.NameType);
+      O << "> {\n";
+    }
+
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getName() { return \"" << K.Name
+      << "\"; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const kernel_param_desc_t& ";
+    O << "getParamDesc(unsigned i) {\n";
+    O << "    return kernel_signatures[i+" << CurStart << "];\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
+      << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFileName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \""
+      << std::string(PLoc.getFilename())
+             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFunctionName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \"";
+    SYCLKernelNameTypePrinter Printer(O, Policy);
+    Printer.Visit(K.NameType);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getLineNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getLine() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getColumnNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getColumn() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    StringRef ReturnType = (S.getASTContext().getTargetInfo().getInt64Type() ==
+                            TargetInfo::SignedLong)
+                               ? "long"
+                               : "long long";
+    O << "  // Returns the size of the kernel object in bytes.\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr " << ReturnType << " getKernelSize() { return "
+      << K.ObjSize << "; }\n";
+    O << "};\n";
+    CurStart += N;
+  }
+  O << "\n";
+  O << "} // namespace detail\n";
+  O << "} // namespace _V1\n";
+  O << "} // namespace sycl\n";
 }
 
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
@@ -8002,6 +8188,23 @@ void SemaSYCL::handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL) {
                  SYCLKernelEntryPointAttr(SemaRef.Context, AL, TSI));
 }
 
+void SemaSYCL::CheckDeviceUseOfDecl(NamedDecl *ND, SourceLocation Loc) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL device compilation");
+
+  // Function declarations with the sycl_kernel_entry_point attribute cannot
+  // be ODR-used in a potentially evaluated context.
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(ND)) {
+    if (const auto *SKEPAttr = FD->getAttr<SYCLKernelEntryPointAttr>()) {
+      if (SemaRef.currentEvaluationContext().isPotentiallyEvaluated()) {
+        DiagIfDeviceCode(Loc, diag::err_sycl_entry_point_device_use)
+            << FD << SKEPAttr;
+        DiagIfDeviceCode(SKEPAttr->getLocation(), diag::note_attribute) << FD;
+      }
+    }
+  }
+}
+
 // Given a potentially qualified type, SourceLocationForUserDeclaredType()
 // returns the source location of the canonical declaration of the unqualified
 // desugared user declared type, if any. For non-user declared types, an
@@ -8106,10 +8309,20 @@ void SemaSYCL::CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD) {
     }
   }
 
+  if (isa<CXXConstructorDecl>(FD)) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+        << SKEPAttr << diag::InvalidSKEPReason::Constructor;
+    SKEPAttr->setInvalidAttr();
+  }
+  if (isa<CXXDestructorDecl>(FD)) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+        << SKEPAttr << diag::InvalidSKEPReason::Destructor;
+    SKEPAttr->setInvalidAttr();
+  }
   if (const auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
-    if (!MD->isStatic()) {
+    if (MD->isExplicitObjectMemberFunction()) {
       Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-          << SKEPAttr << diag::InvalidSKEPReason::NonStaticMemberFn;
+          << SKEPAttr << diag::InvalidSKEPReason::ExplicitObjectFn;
       SKEPAttr->setInvalidAttr();
     }
   }
@@ -8178,7 +8391,164 @@ void SemaSYCL::CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD) {
   }
 }
 
+ExprResult SemaSYCL::BuildSYCLKernelLaunchIdExpr(FunctionDecl *FD,
+                                                 QualType KNT) {
+  // The current context must be the function definition context to ensure
+  // that name lookup is performed within the correct scope.
+  assert(SemaRef.CurContext == FD && "The current declaration context does not "
+                                     "match the requested function context");
+
+  // An appropriate source location is required to emit diagnostics if
+  // lookup fails to produce an overload set. The desired location is the
+  // start of the function body, but that is not yet available since the
+  // body of the function has not yet been set when this function is called.
+  // The general location of the function is used instead.
+  SourceLocation Loc = FD->getLocation();
+
+  ASTContext &Ctx = SemaRef.getASTContext();
+  IdentifierInfo &SYCLKernelLaunchID =
+      Ctx.Idents.get("sycl_kernel_launch", tok::TokenKind::identifier);
+
+  // Establish a code synthesis context for the implicit name lookup of
+  // a template named 'sycl_kernel_launch'. In the event of an error, this
+  // ensures an appropriate diagnostic note is issued to explain why the
+  // lookup was performed.
+  Sema::CodeSynthesisContext CSC;
+  CSC.Kind = Sema::CodeSynthesisContext::SYCLKernelLaunchLookup;
+  CSC.Entity = FD;
+  Sema::ScopedCodeSynthesisContext ScopedCSC(SemaRef, CSC);
+
+  // Perform ordinary name lookup for a function or variable template that
+  // accepts a single type template argument.
+  LookupResult Result(SemaRef, &SYCLKernelLaunchID, Loc,
+                      Sema::LookupOrdinaryName);
+  CXXScopeSpec EmptySS;
+  if (SemaRef.LookupTemplateName(Result, SemaRef.getCurScope(), EmptySS,
+                                 /*ObjectType*/ QualType(),
+                                 /*EnteringContext*/ false,
+                                 Sema::TemplateNameIsRequired))
+    return ExprError();
+  if (Result.isAmbiguous())
+    return ExprError();
+
+  TemplateArgumentListInfo TALI{Loc, Loc};
+  TemplateArgument KNTA = TemplateArgument(KNT);
+  TemplateArgumentLoc TAL =
+      SemaRef.getTrivialTemplateArgumentLoc(KNTA, QualType(), Loc);
+  TALI.addArgument(TAL);
+
+  ExprResult IdExpr;
+  if (SemaRef.isPotentialImplicitMemberAccess(EmptySS, Result,
+                                              /*IsAddressOfOperand*/ false)) {
+    // The lookup result allows for a possible implicit member access that
+    // would require an implicit or explicit 'this' argument.
+    IdExpr = SemaRef.BuildPossibleImplicitMemberExpr(
+        EmptySS, SourceLocation(), Result, &TALI, SemaRef.getCurScope());
+  } else {
+    IdExpr = SemaRef.BuildTemplateIdExpr(EmptySS, SourceLocation(), Result,
+                                         /*RequiresADL*/ true, &TALI);
+  }
+
+  // The resulting expression may be invalid if, for example, 'FD' is a
+  // non-static member function and sycl_kernel_launch lookup selects a
+  // member function (which would require a 'this' argument which is
+  // not available).
+  if (IdExpr.isInvalid())
+    return ExprError();
+
+  return IdExpr;
+}
+
 namespace {
+
+// Constructs the arguments to be passed for the SYCL kernel launch call.
+// The first argument is a string literal that contains the SYCL kernel
+// name. The remaining arguments are the parameters of 'FD' passed as
+// move-elligible xvalues. Returns true on error and false otherwise.
+bool BuildSYCLKernelLaunchCallArgs(Sema &SemaRef, FunctionDecl *FD,
+                                   const SYCLKernelInfo *SKI,
+                                   SmallVectorImpl<Expr *> &Args,
+                                   SourceLocation Loc) {
+  // The current context must be the function definition context to ensure
+  // that parameter references occur within the correct scope.
+  assert(SemaRef.CurContext == FD && "The current declaration context does not "
+                                     "match the requested function context");
+
+  // Prepare a string literal that contains the kernel name.
+  ASTContext &Ctx = SemaRef.getASTContext();
+  const std::string &KernelName = SKI->GetKernelName();
+  QualType KernelNameCharTy = Ctx.CharTy.withConst();
+  llvm::APInt KernelNameSize(Ctx.getTypeSize(Ctx.getSizeType()),
+                             KernelName.size() + 1);
+  QualType KernelNameArrayTy = Ctx.getConstantArrayType(
+      KernelNameCharTy, KernelNameSize, nullptr, ArraySizeModifier::Normal, 0);
+  Expr *KernelNameExpr =
+      StringLiteral::Create(Ctx, KernelName, StringLiteralKind::Ordinary,
+                            /*Pascal*/ false, KernelNameArrayTy, Loc);
+  Args.push_back(KernelNameExpr);
+
+  // Forward all parameters of 'FD' to the SYCL kernel launch function as if
+  // by std::move().
+  for (ParmVarDecl *PVD : FD->parameters()) {
+    QualType ParamType = PVD->getOriginalType().getNonReferenceType();
+    ExprResult E = SemaRef.BuildDeclRefExpr(PVD, ParamType, VK_LValue, Loc);
+    if (E.isInvalid())
+      return true;
+    if (!PVD->getType()->isLValueReferenceType())
+      E = ImplicitCastExpr::Create(SemaRef.Context, E.get()->getType(), CK_NoOp,
+                                   E.get(), nullptr, VK_XValue,
+                                   FPOptionsOverride());
+    if (E.isInvalid())
+      return true;
+    Args.push_back(E.get());
+  }
+
+  return false;
+}
+
+// Constructs the SYCL kernel launch call.
+StmtResult BuildSYCLKernelLaunchCallStmt(Sema &SemaRef, FunctionDecl *FD,
+                                         const SYCLKernelInfo *SKI,
+                                         Expr *IdExpr, SourceLocation Loc) {
+  SmallVector<Stmt *> Stmts;
+  // IdExpr may be null if name lookup failed.
+  if (IdExpr) {
+    llvm::SmallVector<Expr *, 12> Args;
+
+    // Establish a code synthesis context for construction of the arguments
+    // for the implicit call to 'sycl_kernel_launch'.
+    {
+      Sema::CodeSynthesisContext CSC;
+      CSC.Kind = Sema::CodeSynthesisContext::SYCLKernelLaunchLookup;
+      CSC.Entity = FD;
+      Sema::ScopedCodeSynthesisContext ScopedCSC(SemaRef, CSC);
+
+      if (BuildSYCLKernelLaunchCallArgs(SemaRef, FD, SKI, Args, Loc))
+        return StmtError();
+    }
+
+    // Establish a code synthesis context for the implicit call to
+    // 'sycl_kernel_launch'.
+    {
+      Sema::CodeSynthesisContext CSC;
+      CSC.Kind = Sema::CodeSynthesisContext::SYCLKernelLaunchOverloadResolution;
+      CSC.Entity = FD;
+      CSC.CallArgs = Args.data();
+      CSC.NumCallArgs = Args.size();
+      Sema::ScopedCodeSynthesisContext ScopedCSC(SemaRef, CSC);
+
+      ExprResult LaunchResult =
+          SemaRef.BuildCallExpr(SemaRef.getCurScope(), IdExpr, Loc, Args, Loc);
+      if (LaunchResult.isInvalid())
+        return StmtError();
+
+      Stmts.push_back(SemaRef.MaybeCreateExprWithCleanups(LaunchResult).get());
+    }
+  }
+
+  return CompoundStmt::Create(SemaRef.getASTContext(), Stmts,
+                              FPOptionsOverride(), Loc, Loc);
+}
 
 // The body of a function declared with the [[sycl_kernel_entry_point]]
 // attribute is cloned and transformed to substitute references to the original
@@ -8190,9 +8560,10 @@ class OutlinedFunctionDeclBodyInstantiator
 public:
   using ParmDeclMap = llvm::DenseMap<ParmVarDecl *, VarDecl *>;
 
-  OutlinedFunctionDeclBodyInstantiator(Sema &S, ParmDeclMap &M)
+  OutlinedFunctionDeclBodyInstantiator(Sema &S, ParmDeclMap &M,
+                                       FunctionDecl *FD)
       : TreeTransform<OutlinedFunctionDeclBodyInstantiator>(S), SemaRef(S),
-        MapRef(M) {}
+        MapRef(M), FD(FD) {}
 
   // A new set of AST nodes is always required.
   bool AlwaysRebuild() { return true; }
@@ -8204,10 +8575,10 @@ public:
       ParmDeclMap::iterator I = MapRef.find(PVD);
       if (I != MapRef.end()) {
         VarDecl *VD = I->second;
-        assert(SemaRef.getASTContext().hasSameUnqualifiedType(PVD->getType(),
-                                                              VD->getType()));
-        assert(!VD->getType().isMoreQualifiedThan(PVD->getType(),
-                                                  SemaRef.getASTContext()));
+        assert(SemaRef.getASTContext().hasSameUnqualifiedType(
+            PVD->getType().getNonReferenceType(), VD->getType()));
+        assert(!VD->getType().isMoreQualifiedThan(
+            PVD->getType().getNonReferenceType(), SemaRef.getASTContext()));
         VD->setIsUsed();
         return DeclRefExpr::Create(
             SemaRef.getASTContext(), DRE->getQualifierLoc(),
@@ -8218,18 +8589,62 @@ public:
     return DRE;
   }
 
+  // Diagnose CXXThisExpr in a potentially evaluated expression.
+  ExprResult TransformCXXThisExpr(CXXThisExpr *CTE) {
+    if (SemaRef.currentEvaluationContext().isPotentiallyEvaluated()) {
+      SemaRef.Diag(CTE->getExprLoc(), diag::err_sycl_entry_point_invalid_this)
+          << (CTE->isImplicitCXXThis() ? /* implicit */ 1 : /* empty */ 0)
+          << FD->getAttr<SYCLKernelEntryPointAttr>();
+    }
+    return CTE;
+  }
+
 private:
   Sema &SemaRef;
   ParmDeclMap &MapRef;
+  FunctionDecl *FD;
 };
+
+OutlinedFunctionDecl *BuildSYCLKernelEntryPointOutline(Sema &SemaRef,
+                                                       FunctionDecl *FD,
+                                                       CompoundStmt *Body) {
+  using ParmDeclMap = OutlinedFunctionDeclBodyInstantiator::ParmDeclMap;
+  ParmDeclMap ParmMap;
+
+  OutlinedFunctionDecl *OFD = OutlinedFunctionDecl::Create(
+      SemaRef.getASTContext(), FD, FD->getNumParams());
+  unsigned i = 0;
+  for (ParmVarDecl *PVD : FD->parameters()) {
+    ImplicitParamDecl *IPD = ImplicitParamDecl::Create(
+        SemaRef.getASTContext(), OFD, SourceLocation(), PVD->getIdentifier(),
+        PVD->getType().getNonReferenceType(), ImplicitParamKind::Other);
+    OFD->setParam(i, IPD);
+    ParmMap[PVD] = IPD;
+    ++i;
+  }
+
+  OutlinedFunctionDeclBodyInstantiator OFDBodyInstantiator(SemaRef, ParmMap,
+                                                           FD);
+  Stmt *OFDBody = OFDBodyInstantiator.TransformStmt(Body).get();
+  OFD->setBody(OFDBody);
+  OFD->setNothrow();
+
+  return OFD;
+}
 
 } // unnamed namespace
 
 StmtResult SemaSYCL::BuildSYCLKernelCallStmt(FunctionDecl *FD,
-                                             CompoundStmt *Body) {
+                                             CompoundStmt *Body,
+                                             Expr *LaunchIdExpr) {
   assert(!FD->isInvalidDecl());
   assert(!FD->isTemplated());
   assert(FD->hasPrototype());
+  // The current context must be the function definition context to ensure
+  // that name lookup and parameter and local variable creation are performed
+  // within the correct scope.
+  assert(SemaRef.CurContext == FD && "The current declaration context does not "
+                                     "match the requested function context");
 
   const auto *SKEPAttr = FD->getAttr<SYCLKernelEntryPointAttr>();
   assert(SKEPAttr && "Missing sycl_kernel_entry_point attribute");
@@ -8242,29 +8657,28 @@ StmtResult SemaSYCL::BuildSYCLKernelCallStmt(FunctionDecl *FD,
       getASTContext().getSYCLKernelInfo(SKEPAttr->getKernelName());
   assert(declaresSameEntity(SKI.getKernelEntryPointDecl(), FD) &&
          "SYCL kernel name conflict");
-  (void)SKI;
 
-  using ParmDeclMap = OutlinedFunctionDeclBodyInstantiator::ParmDeclMap;
-  ParmDeclMap ParmMap;
-
-  assert(SemaRef.CurContext == FD);
+  // Build the outline of the synthesized device entry point function.
   OutlinedFunctionDecl *OFD =
-      OutlinedFunctionDecl::Create(getASTContext(), FD, FD->getNumParams());
-  unsigned i = 0;
-  for (ParmVarDecl *PVD : FD->parameters()) {
-    ImplicitParamDecl *IPD = ImplicitParamDecl::Create(
-        getASTContext(), OFD, SourceLocation(), PVD->getIdentifier(),
-        PVD->getType(), ImplicitParamKind::Other);
-    OFD->setParam(i, IPD);
-    ParmMap[PVD] = IPD;
-    ++i;
-  }
+      BuildSYCLKernelEntryPointOutline(SemaRef, FD, Body);
+  assert(OFD);
 
-  OutlinedFunctionDeclBodyInstantiator OFDBodyInstantiator(SemaRef, ParmMap);
-  Stmt *OFDBody = OFDBodyInstantiator.TransformStmt(Body).get();
-  OFD->setBody(OFDBody);
-  OFD->setNothrow();
-  Stmt *NewBody = new (getASTContext()) SYCLKernelCallStmt(Body, OFD);
+  // Build the host kernel launch statement. An appropriate source location
+  // is required to emit diagnostics.
+  SourceLocation Loc = Body->getLBracLoc();
+  StmtResult LaunchResult =
+      BuildSYCLKernelLaunchCallStmt(SemaRef, FD, &SKI, LaunchIdExpr, Loc);
+  if (LaunchResult.isInvalid())
+    return StmtError();
+
+  Stmt *NewBody =
+      new (getASTContext()) SYCLKernelCallStmt(Body, LaunchResult.get(), OFD);
 
   return NewBody;
+}
+
+StmtResult SemaSYCL::BuildUnresolvedSYCLKernelCallStmt(CompoundStmt *Body,
+                                                       Expr *LaunchIdExpr) {
+  return UnresolvedSYCLKernelCallStmt::Create(SemaRef.getASTContext(), Body,
+                                              LaunchIdExpr);
 }

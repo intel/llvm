@@ -1,9 +1,8 @@
 //===--------- usm.cpp - Level Zero Adapter -------------------------------===//
 //
-// Copyright (C) 2023-2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -18,7 +17,7 @@
 #include "event.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
@@ -707,6 +706,18 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t Context,
                                              pSrc, Size, nullptr, 0, nullptr));
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/, size_t /*size*/,
+    const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
@@ -1154,20 +1165,8 @@ UsmPool *ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &Desc) {
 std::optional<std::pair<void *, ur_event_handle_t>>
 ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
                                         ur_device_handle_t Device,
-                                        const ur_usm_desc_t *USMDesc,
                                         ur_usm_type_t Type, size_t Size) {
-  uint32_t Alignment = USMDesc ? USMDesc->align : 0;
-  if (Alignment > 0) {
-    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-      return std::nullopt;
-  }
-
   bool DeviceReadOnly = false;
-  if (auto UsmDeviceDesc = find_stype_node<ur_usm_device_desc_t>(USMDesc)) {
-    DeviceReadOnly =
-        (Type == UR_USM_TYPE_SHARED) &&
-        (UsmDeviceDesc->flags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY);
-  }
 
   auto *Pool = getPool(
       usm::pool_descriptor{this, Queue->Context, Device, Type, DeviceReadOnly});
@@ -1175,7 +1174,7 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
     return std::nullopt;
   }
 
-  auto Allocation = Pool->AsyncPool.getBestFit(Size, Alignment, Queue);
+  auto Allocation = Pool->AsyncPool.getBestFit(Size, Queue);
 
   if (!Allocation) {
     return std::nullopt;

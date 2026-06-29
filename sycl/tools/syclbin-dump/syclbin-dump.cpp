@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::unique_ptr<llvm::object::OffloadBinary> ParsedOffloadBinary;
+  SmallVector<std::unique_ptr<llvm::object::OffloadBinary>> ParsedOffloadBinary;
   MemoryBufferRef SYCLBINImageBuffer = [&]() {
     if (llvm::Error E =
             llvm::object::OffloadBinary::create(**FileMemBufferOrError)
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
           [](std::unique_ptr<ECError>) -> Error { return Error::success(); });
       return MemoryBufferRef(**FileMemBufferOrError);
     } else {
-      return MemoryBufferRef(ParsedOffloadBinary->getImage(), "");
+      return MemoryBufferRef(ParsedOffloadBinary[0]->getImage(), "");
     }
   }();
 

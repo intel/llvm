@@ -145,6 +145,7 @@ LLVMInitializePowerPCTarget() {
   initializeGlobalISel(PR);
   initializePPCCTRLoopsPass(PR);
   initializePPCDAGToDAGISelLegacyPass(PR);
+  initializePPCPrepareIFuncsOnAIXPass(PR);
   initializePPCLinuxAsmPrinterPass(PR);
   initializePPCAIXAsmPrinterPass(PR);
 }
@@ -245,8 +246,12 @@ getEffectivePPCCodeModel(const Triple &TT, std::optional<CodeModel::Model> CM,
 
   if (JIT)
     return CodeModel::Small;
-  if (TT.isOSAIX())
+  if (TT.isOSAIX()) {
+    // Use large code model for 64-bit AIX by default.
+    if (TT.isArch64Bit())
+      return CodeModel::Large;
     return CodeModel::Small;
+  }
 
   assert(TT.isOSBinFormatELF() && "All remaining PPC OSes are ELF based.");
 
@@ -437,6 +442,9 @@ void PPCPassConfig::addIRPasses() {
     // invariant.
     addPass(createLICMPass());
   }
+
+  if (TM->getTargetTriple().isOSAIX())
+    addPass(createPPCPrepareIFuncsOnAIXPass());
 
   TargetPassConfig::addIRPasses();
 }

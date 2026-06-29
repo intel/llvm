@@ -6,11 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: arch-intel_gpu_pvc
-// TODO: GPU Driver fails with "add3 src operand only supports integer D/W type"
-// error. Enable the test when it is fixed.
-// UNSUPPORTED: gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "Inputs/lsc_store_2d.hpp"
 

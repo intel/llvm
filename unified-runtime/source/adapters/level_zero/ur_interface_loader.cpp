@@ -1,16 +1,15 @@
 //===--------- ur_interface_loader.cpp - Level Zero Adapter ------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #include <mutex>
-#include <ur_api.h>
-#include <ur_ddi.h>
+#include <unified-runtime/ur_api.h>
+#include <unified-runtime/ur_ddi.h>
 
 #include "ur_interface_loader.hpp"
 
@@ -119,6 +118,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnFinalizeExp = ur::level_zero::urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp =
       ur::level_zero::urCommandBufferAppendKernelLaunchExp;
+  pDdiTable->pfnAppendKernelLaunchWithArgsExp =
+      ur::level_zero::urCommandBufferAppendKernelLaunchWithArgsExp;
   pDdiTable->pfnAppendUSMMemcpyExp =
       ur::level_zero::urCommandBufferAppendUSMMemcpyExp;
   pDdiTable->pfnAppendUSMFillExp =
@@ -183,7 +184,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnKernelLaunch = ur::level_zero::urEnqueueKernelLaunch;
   pDdiTable->pfnEventsWait = ur::level_zero::urEnqueueEventsWait;
   pDdiTable->pfnEventsWaitWithBarrier =
       ur::level_zero::urEnqueueEventsWaitWithBarrier;
@@ -231,9 +231,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
   pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
   pDdiTable->pfnUSMFreeExp = ur::level_zero::urEnqueueUSMFreeExp;
-  pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
   pDdiTable->pfnTimestampRecordingExp =
       ur::level_zero::urEnqueueTimestampRecordingExp;
+  pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
   pDdiTable->pfnHostTaskExp = ur::level_zero::urEnqueueHostTaskExp;
   pDdiTable->pfnNativeCommandExp = ur::level_zero::urEnqueueNativeCommandExp;
   pDdiTable->pfnGraphExp = ur::level_zero::urEnqueueGraphExp;
@@ -261,6 +261,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
+    ur_api_version_t version, ur_event_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnCreateExp = ur::level_zero::urEventCreateExp;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
     ur_api_version_t version, ur_graph_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -275,7 +287,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
   pDdiTable->pfnExecutableGraphDestroyExp =
       ur::level_zero::urGraphExecutableGraphDestroyExp;
   pDdiTable->pfnIsEmptyExp = ur::level_zero::urGraphIsEmptyExp;
+  pDdiTable->pfnSetDestructionCallbackExp =
+      ur::level_zero::urGraphSetDestructionCallbackExp;
   pDdiTable->pfnDumpContentsExp = ur::level_zero::urGraphDumpContentsExp;
+  pDdiTable->pfnGetNativeHandleExp = ur::level_zero::urGraphGetNativeHandleExp;
+  pDdiTable->pfnExecutableGraphGetNativeHandleExp =
+      ur::level_zero::urGraphExecutableGraphGetNativeHandleExp;
 
   return result;
 }
@@ -291,6 +308,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
   pDdiTable->pfnPutMemHandleExp = ur::level_zero::urIPCPutMemHandleExp;
   pDdiTable->pfnOpenMemHandleExp = ur::level_zero::urIPCOpenMemHandleExp;
   pDdiTable->pfnCloseMemHandleExp = ur::level_zero::urIPCCloseMemHandleExp;
+  pDdiTable->pfnGetPhysMemHandleExp = ur::level_zero::urIPCGetPhysMemHandleExp;
+  pDdiTable->pfnPutPhysMemHandleExp = ur::level_zero::urIPCPutPhysMemHandleExp;
+  pDdiTable->pfnOpenPhysMemHandleExp =
+      ur::level_zero::urIPCOpenPhysMemHandleExp;
+  pDdiTable->pfnClosePhysMemHandleExp =
+      ur::level_zero::urIPCClosePhysMemHandleExp;
+  pDdiTable->pfnGetEventHandleExp = ur::level_zero::urIPCGetEventHandleExp;
+  pDdiTable->pfnPutEventHandleExp = ur::level_zero::urIPCPutEventHandleExp;
+  pDdiTable->pfnOpenEventHandleExp = ur::level_zero::urIPCOpenEventHandleExp;
 
   return result;
 }
@@ -313,12 +339,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
       ur::level_zero::urKernelCreateWithNativeHandle;
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       ur::level_zero::urKernelGetSuggestedLocalWorkSize;
-  pDdiTable->pfnSetArgValue = ur::level_zero::urKernelSetArgValue;
-  pDdiTable->pfnSetArgLocal = ur::level_zero::urKernelSetArgLocal;
-  pDdiTable->pfnSetArgPointer = ur::level_zero::urKernelSetArgPointer;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur::level_zero::urKernelGetSuggestedLocalWorkSizeWithArgs;
   pDdiTable->pfnSetExecInfo = ur::level_zero::urKernelSetExecInfo;
-  pDdiTable->pfnSetArgSampler = ur::level_zero::urKernelSetArgSampler;
-  pDdiTable->pfnSetArgMemObj = ur::level_zero::urKernelSetArgMemObj;
   pDdiTable->pfnSetSpecializationConstants =
       ur::level_zero::urKernelSetSpecializationConstants;
   pDdiTable->pfnSuggestMaxCooperativeGroupCount =
@@ -478,6 +501,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   pDdiTable->pfnEndGraphCaptureExp = ur::level_zero::urQueueEndGraphCaptureExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =
       ur::level_zero::urQueueIsGraphCaptureEnabledExp;
+  pDdiTable->pfnGetGraphExp = ur::level_zero::urQueueGetGraphExp;
 
   return result;
 }
@@ -540,6 +564,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolTrimToExp = ur::level_zero::urUSMPoolTrimToExp;
   pDdiTable->pfnPitchedAllocExp = ur::level_zero::urUSMPitchedAllocExp;
   pDdiTable->pfnContextMemcpyExp = ur::level_zero::urUSMContextMemcpyExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur::level_zero::urUSMHostAllocUnregisterExp;
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur::level_zero::urUSMHostAllocRegisterExp;
   pDdiTable->pfnImportExp = ur::level_zero::urUSMImportExp;
   pDdiTable->pfnReleaseExp = ur::level_zero::urUSMReleaseExp;
 
@@ -662,6 +690,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return result;
   result =
       NAMESPACE_::urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Event);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetEventExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->EventExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetGraphExpProcAddrTable(UR_API_VERSION_CURRENT,

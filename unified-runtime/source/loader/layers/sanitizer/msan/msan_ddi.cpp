@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -80,14 +79,12 @@ ur_result_t urEnqueueUSMFill2DFallback(ur_queue_handle_t hQueue, void *pMem,
     WaitEvents.push_back(Event);
   }
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, WaitEvents.size(), WaitEvents.data(), phEvent));
-  }
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, WaitEvents.size(), WaitEvents.data(), phEvent));
 
-  for (const auto Event : WaitEvents) {
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(Event));
-  }
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(WaitEvents);
 
   return UR_RESULT_SUCCESS;
 }
@@ -144,7 +141,8 @@ ur_result_t urUSMDeviceAlloc(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
 
   return getMsanInterceptor()->allocateMemory(
-      hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
+      hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::DEVICE_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -161,8 +159,9 @@ ur_result_t urUSMHostAlloc(
 ) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
 
-  return getMsanInterceptor()->allocateMemory(hContext, nullptr, pUSMDesc, pool,
-                                              size, AllocType::HOST_USM, ppMem);
+  return getMsanInterceptor()->allocateMemory(
+      hContext, nullptr, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::HOST_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -181,7 +180,8 @@ ur_result_t urUSMSharedAlloc(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
 
   return getMsanInterceptor()->allocateMemory(
-      hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
+      hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::SHARED_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -454,65 +454,6 @@ ur_result_t urProgramRelease(
     UR_CALL(getMsanInterceptor()->unregisterProgram(hProgram));
     UR_CALL(getMsanInterceptor()->eraseProgram(hProgram));
   }
-
-  return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunch
-ur_result_t urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function. If nullptr, the runtime implementation will
-    /// choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If
-    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this
-    /// particular kernel execution instance.
-    ur_event_handle_t *phEvent) {
-  // This mutex is to prevent concurrent kernel launches across different queues
-  // as the DeviceMSAN local/private shadow memory does not support concurrent
-  // kernel launches now.
-  std::scoped_lock<ur_shared_mutex> Guard(
-      getMsanInterceptor()->KernelLaunchMutex);
-
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
-
-  USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
-                           pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                           workDim);
-  UR_CALL(LaunchInfo.initialize());
-
-  UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent));
-
-  UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   return UR_RESULT_SUCCESS;
 }
@@ -887,21 +828,17 @@ ur_result_t urEnqueueMemBufferWrite(
     // Update shadow memory
     std::shared_ptr<DeviceInfo> DeviceInfo =
         getMsanInterceptor()->getDeviceInfo(Device);
-    const char Val = 0;
     uptr ShadowAddr = DeviceInfo->Shadow->MemToShadow((uptr)pDst + offset);
     Event = nullptr;
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-        hQueue, (void *)ShadowAddr, 1, &Val, size, numEventsInWaitList,
-        phEventWaitList, &Event));
+    UR_CALL(EnqueueUSMSetZero(hQueue, (void *)ShadowAddr, size,
+                              numEventsInWaitList, phEventWaitList, &Event));
     Events.push_back(Event);
 
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
-
-    for (const auto &E : Events)
-      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+        hQueue, Events.size(), Events.data(), phEvent));
+    getMsanInterceptor()
+        ->getContextInfo(GetContext(hQueue))
+        ->DeferredEvents.add(Events);
   } else {
     UR_CALL(pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size,
                               pSrc, numEventsInWaitList, phEventWaitList,
@@ -1096,13 +1033,11 @@ ur_result_t urEnqueueMemBufferCopy(
         numEventsInWaitList, phEventWaitList, &Event));
     Events.push_back(Event);
 
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
-
-    for (const auto &E : Events)
-      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+        hQueue, Events.size(), Events.data(), phEvent));
+    getMsanInterceptor()
+        ->getContextInfo(GetContext(hQueue))
+        ->DeferredEvents.add(Events);
   } else {
     UR_CALL(pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
                              dstOffset, size, numEventsInWaitList,
@@ -1221,21 +1156,17 @@ ur_result_t urEnqueueMemBufferFill(
     // Update shadow memory
     std::shared_ptr<DeviceInfo> DeviceInfo =
         getMsanInterceptor()->getDeviceInfo(Device);
-    const char Val = 0;
     uptr ShadowAddr = DeviceInfo->Shadow->MemToShadow((uptr)Handle + offset);
     Event = nullptr;
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-        hQueue, (void *)ShadowAddr, 1, &Val, size, numEventsInWaitList,
-        phEventWaitList, &Event));
+    UR_CALL(EnqueueUSMSetZero(hQueue, (void *)ShadowAddr, size,
+                              numEventsInWaitList, phEventWaitList, &Event));
     Events.push_back(Event);
 
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
-
-    for (const auto &E : Events)
-      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+        hQueue, Events.size(), Events.data(), phEvent));
+    getMsanInterceptor()
+        ->getContextInfo(GetContext(hQueue))
+        ->DeferredEvents.add(Events);
   } else {
     UR_CALL(pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset,
                              size, numEventsInWaitList, phEventWaitList,
@@ -1427,91 +1358,6 @@ ur_result_t urKernelRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgValue
-ur_result_t urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    const void *pArgValue) {
-  auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
-
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgValue");
-
-  std::shared_ptr<MemBuffer> MemBuffer;
-  if (argSize == sizeof(ur_mem_handle_t) &&
-      (MemBuffer = getMsanInterceptor()->getMemBuffer(
-           *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
-    auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
-  } else {
-    UR_CALL(pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue));
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgMemObj
-ur_result_t urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) {
-  auto pfnSetArgMemObj = getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
-
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgMemObj");
-
-  std::shared_ptr<MemBuffer> MemBuffer;
-  std::shared_ptr<KernelInfo> KernelInfo;
-  if ((MemBuffer = getMsanInterceptor()->getMemBuffer(hArgValue))) {
-    auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
-  } else {
-    UR_CALL(pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue));
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
-
-  UR_LOG_L(getContext()->logger, DEBUG,
-           "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex,
-           argSize);
-
-  {
-    auto &KI = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-    KI.LocalArgs[argIndex] = MsanLocalArgsInfo{argSize};
-  }
-
-  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMFill
 ur_result_t urEnqueueUSMFill(
     /// [in] handle of the queue object
@@ -1559,13 +1405,11 @@ ur_result_t urEnqueueUSMFill(
 
   // NOTE: No need to set origin, since its shadow is clean
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, Events.size(), Events.data(), phEvent));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, Events.size(), Events.data(), phEvent));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1651,13 +1495,11 @@ ur_result_t urEnqueueUSMMemcpy(
     }
   }
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, Events.size(), Events.data(), phEvent));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, Events.size(), Events.data(), phEvent));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1716,13 +1558,11 @@ ur_result_t urEnqueueUSMFill2D(
 
   // NOTE: No need to set origin, since its shadow is clean
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, Events.size(), Events.data(), phEvent));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, Events.size(), Events.data(), phEvent));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1824,13 +1664,11 @@ ur_result_t urEnqueueUSMMemcpy2D(
     Events.push_back(Event);
   }
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, Events.size(), Events.data(), phEvent));
-  }
-
-  for (const auto E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, Events.size(), Events.data(), phEvent));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1883,76 +1721,121 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   UR_LOG_L(getContext()->logger, DEBUG,
            "==== urEnqueueKernelLaunchWithArgsExp");
 
-  // We need to set all the args now rather than letting LaunchWithArgs handle
-  // them. This is because some implementations of
-  // urKernelGetSuggestedLocalWorkSize, which is used in preLaunchKernel, rely
-  // on all the args being set.
+  auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
+  KernelInfo.ArgProps.resize(numArgs);
+  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
-      UR_CALL(ur_sanitizer_layer::msan::urKernelSetArgLocal(
-          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size,
-          nullptr));
-      break;
-    }
-    case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
-      auto pfnKernelSetArgPointer =
-          getContext()->urDdiTable.Kernel.pfnSetArgPointer;
-      UR_CALL(pfnKernelSetArgPointer(hKernel, pArgs[ArgPropIndex].index,
-                                     nullptr,
-                                     pArgs[ArgPropIndex].value.pointer));
+      KernelInfo.LocalArgs[pArgs[ArgPropIndex].index] =
+          MsanLocalArgsInfo{pArgs[ArgPropIndex].size};
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
-      UR_CALL(ur_sanitizer_layer::msan::urKernelSetArgValue(
-          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size, nullptr,
-          pArgs[ArgPropIndex].value.value));
+      std::shared_ptr<MemBuffer> MemBuffer;
+      if (pArgs[ArgPropIndex].size == sizeof(ur_mem_handle_t) &&
+          (MemBuffer = getMsanInterceptor()->getMemBuffer(
+               *ur_cast<const ur_mem_handle_t *>(
+                   pArgs[ArgPropIndex].value.value)))) {
+        char *Handle = nullptr;
+        UR_CALL(MemBuffer->getHandle(GetDevice(hQueue), Handle));
+        KernelInfo.ArgProps[ArgPropIndex].type =
+            ur_exp_kernel_arg_type_t::UR_EXP_KERNEL_ARG_TYPE_POINTER;
+        KernelInfo.ArgProps[ArgPropIndex].value.pointer = Handle;
+      }
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-      ur_kernel_arg_mem_obj_properties_t Properties = {
-          UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
-          pArgs[ArgPropIndex].value.memObjTuple.flags};
-      UR_CALL(ur_sanitizer_layer::msan::urKernelSetArgMemObj(
-          hKernel, pArgs[ArgPropIndex].index, &Properties,
-          pArgs[ArgPropIndex].value.memObjTuple.hMem));
+      if (std::shared_ptr<MemBuffer> MemBuffer =
+              getMsanInterceptor()->getMemBuffer(
+                  pArgs[ArgPropIndex].value.memObjTuple.hMem)) {
+        char *Handle = nullptr;
+        UR_CALL(MemBuffer->getHandle(GetDevice(hQueue), Handle));
+        KernelInfo.ArgProps[ArgPropIndex].type =
+            ur_exp_kernel_arg_type_t::UR_EXP_KERNEL_ARG_TYPE_POINTER;
+        KernelInfo.ArgProps[ArgPropIndex].value.pointer = Handle;
+      }
       break;
     }
-    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-      auto pfnKernelSetArgSampler =
-          getContext()->urDdiTable.Kernel.pfnSetArgSampler;
-      UR_CALL(pfnKernelSetArgSampler(hKernel, pArgs[ArgPropIndex].index,
-                                     nullptr,
-                                     pArgs[ArgPropIndex].value.sampler));
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
       break;
-    }
     default:
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
   }
 
-  USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
-                           pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                           workDim);
-  UR_CALL(LaunchInfo.initialize());
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, workDim);
 
   UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  /*
-    // TODO: revert to the correct call to pfnKernelLaunchWithArgsExp():
-    UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        LaunchInfo.LocalWorkSize.data(), numArgs, pArgs,
-    launchPropList, numEventsInWaitList,
-    phEventWaitList, phEvent));
-  */
-
-  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
+  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), numArgs, KernelInfo.ArgProps.data(),
+      launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urMemoryExportAllocExportableMemoryExp");
+
+  UR_CALL(getMsanInterceptor()->allocateMemory(
+      hContext, hDevice,
+      AllocMemoryParams::forExportableMem(alignment, handleTypeToExport), size,
+      AllocType::EXPORTABLE_MEM, ppMem));
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urIPCOpenMemHandleExp");
+
+  UR_CALL(getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp(
+      hContext, hDevice, pIPCMemHandleData, ipcMemHandleDataSize, ppMem));
+
+  // Mark IPC memory as initialized in shadow memory
+  size_t MemSize;
+  UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+      hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
+      nullptr));
+  std::shared_ptr<DeviceInfo> DI = getMsanInterceptor()->getDeviceInfo(hDevice);
+  ManagedQueue Queue(hContext, hDevice);
+  UR_CALL(DI->Shadow->EnqueuePoisonShadow(Queue, reinterpret_cast<uptr>(*ppMem),
+                                          MemSize, &kMemInitializedMagic));
 
   return UR_RESULT_SUCCESS;
 }
@@ -2035,9 +1918,6 @@ ur_result_t urGetKernelProcAddrTable(
 
   pDdiTable->pfnRetain = ur_sanitizer_layer::msan::urKernelRetain;
   pDdiTable->pfnRelease = ur_sanitizer_layer::msan::urKernelRelease;
-  pDdiTable->pfnSetArgValue = ur_sanitizer_layer::msan::urKernelSetArgValue;
-  pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::msan::urKernelSetArgMemObj;
-  pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::msan::urKernelSetArgLocal;
 
   return result;
 }
@@ -2110,7 +1990,6 @@ ur_result_t urGetEnqueueProcAddrTable(
       ur_sanitizer_layer::msan::urEnqueueMemBufferFill;
   pDdiTable->pfnMemBufferMap = ur_sanitizer_layer::msan::urEnqueueMemBufferMap;
   pDdiTable->pfnMemUnmap = ur_sanitizer_layer::msan::urEnqueueMemUnmap;
-  pDdiTable->pfnKernelLaunch = ur_sanitizer_layer::msan::urEnqueueKernelLaunch;
   pDdiTable->pfnUSMFill = ur_sanitizer_layer::msan::urEnqueueUSMFill;
   pDdiTable->pfnUSMMemcpy = ur_sanitizer_layer::msan::urEnqueueUSMMemcpy;
   pDdiTable->pfnUSMFill2D = ur_sanitizer_layer::msan::urEnqueueUSMFill2D;
@@ -2150,6 +2029,43 @@ ur_result_t urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnKernelLaunchWithArgsExp =
       ur_sanitizer_layer::msan::urEnqueueKernelLaunchWithArgsExp;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExport table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL
+urGetMemoryExportExpProcAddrTable(ur_memory_export_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnAllocExportableMemoryExp =
+      ur_sanitizer_layer::msan::urMemoryExportAllocExportableMemoryExp;
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// @brief Exported function for filling application's IPCExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetIPCExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_ipc_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnOpenMemHandleExp =
+      ur_sanitizer_layer::msan::urIPCOpenMemHandleExp;
 
   return result;
 }
@@ -2221,6 +2137,16 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::msan::urGetEnqueueExpProcAddrTable(
         &dditable->EnqueueExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::msan::urGetMemoryExportExpProcAddrTable(
+        &dditable->MemoryExportExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::msan::urGetIPCExpProcAddrTable(&dditable->IPCExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

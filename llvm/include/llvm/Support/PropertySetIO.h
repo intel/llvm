@@ -183,7 +183,9 @@ private:
 
 /// Structure for specialization of DenseMap in PropertySetRegistry.
 struct PropertySetKeyInfo {
-  static unsigned getHashValue(const SmallString<16> &K) { return xxHash64(K); }
+  static unsigned getHashValue(const SmallString<16> &K) {
+    return xxHash64(reinterpret_cast<const uint8_t *>(K.data()), K.size());
+  }
 
   static SmallString<16> getEmptyKey() { return SmallString<16>(""); }
 
@@ -221,6 +223,8 @@ public:
   static constexpr char SYCL_HOST_PIPES[] = "SYCL/host pipes";
   static constexpr char SYCL_VIRTUAL_FUNCTIONS[] = "SYCL/virtual functions";
   static constexpr char SYCL_IMPLICIT_LOCAL_ARG[] = "SYCL/implicit local arg";
+  static constexpr char SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM[] =
+      "SYCL/work group dynamic local mem";
   static constexpr char SYCL_REGISTERED_KERNELS[] = "SYCL/registered kernels";
 
   static constexpr char PROPERTY_REQD_WORK_GROUP_SIZE[] =

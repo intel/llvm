@@ -87,22 +87,22 @@ void constexpr_ns2(Arg<ns::Foo::D>) {}
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void constexpr_ns2(Arg2<ns::non_class_enum::VAL_A>) {}
 
-// CHECK: void constexpr_ns2(Arg2<ns::VAL_A> );
+// CHECK: void constexpr_ns2(Arg2<static_cast<ns::non_class_enum>(0)> );
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void constexpr_ns2(Arg3<ns::non_class_enum_typed::VAL_C>) {}
 
-// CHECK: void constexpr_ns2(Arg3<ns::VAL_C> );
+// CHECK: void constexpr_ns2(Arg3<static_cast<ns::non_class_enum_typed>(0)> );
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void constexpr_ns2(Arg4<ns::class_enum::VAL_A>) {}
 
-// CHECK: void constexpr_ns2(Arg4<ns::class_enum::VAL_A> );
+// CHECK: void constexpr_ns2(Arg4<static_cast<ns::class_enum>(0)> );
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void constexpr_ns2(Arg5<ns::class_enum_typed::VAL_C>) {}
 
-// CHECK: void constexpr_ns2(Arg5<ns::class_enum_typed::VAL_C> );
+// CHECK: void constexpr_ns2(Arg5<static_cast<ns::class_enum_typed>(0)> );
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
 void constexpr_call(Arg<ns::bar(B)>) {}

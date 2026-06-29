@@ -17,11 +17,13 @@
 using namespace llvm;
 
 void llvm::initializeIPO(PassRegistry &Registry) {
+  initializeAlwaysInlinerLegacyPassPass(Registry);
+  initializeBarrierNoopPass(Registry);
   initializeDAEPass(Registry);
   initializeDAHPass(Registry);
   initializeDAESYCLPass(Registry);
-  initializeAlwaysInlinerLegacyPassPass(Registry);
+  initializeExpandVariadicsPass(Registry);
+  initializeGlobalDCELegacyPassPass(Registry);
   initializeLoopExtractorLegacyPassPass(Registry);
   initializeSingleLoopExtractorPass(Registry);
-  initializeBarrierNoopPass(Registry);
 }

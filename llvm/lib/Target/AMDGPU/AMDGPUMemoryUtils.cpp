@@ -17,6 +17,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/ReplaceConstant.h"
 
 #define DEBUG_TYPE "amdgpu-memory-utils"
@@ -28,6 +29,22 @@ namespace llvm::AMDGPU {
 Align getAlign(const DataLayout &DL, const GlobalVariable *GV) {
   return DL.getValueOrABITypeAlignment(GV->getPointerAlignment(DL),
                                        GV->getValueType());
+}
+
+void copyMetadataForWidenedLoad(LoadInst &Dest, const LoadInst &Source) {
+  SmallVector<std::pair<unsigned, MDNode *>, 8> MD;
+  Source.getAllMetadata(MD);
+  for (const auto [ID, N] : MD) {
+    switch (ID) {
+    case LLVMContext::MD_dbg:
+    case LLVMContext::MD_invariant_load:
+    case LLVMContext::MD_nontemporal:
+      Dest.setMetadata(ID, N);
+      break;
+    default:
+      break;
+    }
+  }
 }
 
 // Returns the target extension type of a global variable,
@@ -70,7 +87,7 @@ bool isDynamicLDS(const GlobalVariable &GV) {
   const DataLayout &DL = M->getDataLayout();
   if (GV.getType()->getPointerAddressSpace() != AMDGPUAS::LOCAL_ADDRESS)
     return false;
-  return DL.getTypeAllocSize(GV.getValueType()) == 0;
+  return GV.getGlobalSize(DL) == 0;
 }
 
 bool isLDSVariableToLower(const GlobalVariable &GV) {

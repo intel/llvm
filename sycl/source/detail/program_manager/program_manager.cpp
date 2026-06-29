@@ -197,7 +197,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
 
   if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     Format = ur::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
-  // sycl::detail::pi::PiDeviceBinaryType Format = Img->Format;
+  // ur::DeviceBinaryType Format = Img->Format;
   // assert(Format != SYCL_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(ContextImpl, Format))
@@ -474,8 +474,6 @@ ProgramManager::getOrCreateURProgram(
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     context_impl &ContextImpl, devices_range Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
-  Managed<ur_program_handle_t> NativePrg;
-
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
       Devices, AllImages, SpecConsts, CompileAndLinkOptions);
@@ -864,16 +862,15 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   return getBuiltURProgram(std::move(AllImages), ContextImpl, {*BuildDev});
 }
 
-Managed<ur_program_handle_t>
-ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
-                                  context_impl &ContextImpl, devices_range Devs,
-                                  const DevImgPlainWithDeps *DevImgWithDeps,
-                                  const SerializedObj &SpecConsts) {
+Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
+    const BinImgWithDeps &ImgWithDeps, context_impl &ContextImpl,
+    devices_range Devs, const DevImgPlainWithDeps *DevImgWithDeps,
+    const SerializedObj &SpecConsts, bool AllowUnresolvedSymbols) {
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   auto BuildF = [this, &ImgWithDeps, &DevImgWithDeps, &ContextImpl, &Devs,
-                 &CompileOpts, &LinkOpts, &SpecConsts] {
+                 &CompileOpts, &LinkOpts, &SpecConsts, AllowUnresolvedSymbols] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
     const RTDeviceBinaryImage &MainImg = *ImgWithDeps.getMain();
     applyOptionsFromImage(CompileOpts, LinkOpts, MainImg, Devs, Adapter);
@@ -922,10 +919,12 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
         build(std::move(NativePrg), ContextImpl, CompileOpts, LinkOpts,
               URDevices, ProgramsToLink,
               /*CreatedFromBinary*/ MainImg.getFormat() !=
-                  SYCL_DEVICE_BINARY_TYPE_SPIRV);
+                  SYCL_DEVICE_BINARY_TYPE_SPIRV,
+              AllowUnresolvedSymbols);
 
     // Those extra programs won't be used anymore, just the final
     // linked result:
+    bool WasLinked = !ProgramsToLink.empty();
     ProgramsToLink.clear();
     emitBuiltProgramInfo(BuiltProgram, ContextImpl);
 
@@ -942,7 +941,26 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
       }
     }
 
-    ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, &MainImg);
+    // If we linked multiple images, we need to register device_globals from
+    // all of them, not just the main image. Create a merged binary image.
+    if (WasLinked && ImgWithDeps.getAll().size() > 1) {
+      auto MergedImg =
+          std::make_unique<DynRTDeviceBinaryImage>(ImgWithDeps.getAll());
+      const RTDeviceBinaryImage *MergedImgPtr = MergedImg.get();
+
+      // Store the merged image to keep it alive and add to NativePrograms for
+      // lookup consistency.
+      {
+        std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+        m_MergedImages[BuiltProgram] = std::move(MergedImg);
+        NativePrograms.insert(
+            {BuiltProgram, {ContextImpl.shared_from_this(), MergedImgPtr}});
+      }
+
+      ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, MergedImgPtr);
+    } else {
+      ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, &MainImg);
+    }
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache) {
@@ -963,7 +981,8 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                  std::inserter(URDevicesSet, URDevicesSet.begin()),
                  [](device_impl &Dev) { return Dev.getHandleRef(); });
   auto CacheKey =
-      std::make_pair(std::make_pair(SpecConsts, ImgId), URDevicesSet);
+      std::make_pair(std::make_pair(SpecConsts, ImgId),
+                     std::make_pair(URDevicesSet, AllowUnresolvedSymbols));
 
   KernelProgramCache &Cache = ContextImpl.getKernelProgramCache();
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
@@ -1021,7 +1040,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
         }
       }
       // Change device in the cache key to reduce copying of spec const data.
-      CacheKey.second = std::move(Subset);
+      CacheKey.second.first = std::move(Subset);
       bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
       (void)DidInsert;
       CacheLinkedImages();
@@ -1236,6 +1255,22 @@ const char *getArchName(const device_impl &DeviceImpl) {
   return "unknown";
 }
 
+// Get a human-readable target label for a device binary image, usable in
+// error messages.
+// - For AOT-compiled images with a compile_target property returns the
+// architecture name (e.g. "intel_gpu_bdw")
+// - For JIT / generic images returns the raw DeviceTargetSpec string
+static std::string_view getImageTargetLabel(const RTDeviceBinaryImage &Img) {
+  auto PropRange = Img.getDeviceRequirements();
+  auto PropIt =
+      std::find_if(PropRange.begin(), PropRange.end(), [](const auto &Prop) {
+        return Prop->Name == std::string_view("compile_target");
+      });
+  if (PropIt != PropRange.end())
+    return DeviceBinaryProperty(*PropIt).asStringView();
+  return Img.getRawData().DeviceTargetSpec;
+}
+
 template <typename StorageKey>
 const RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, const RTDeviceBinaryImage *>
@@ -1290,6 +1325,19 @@ const RTDeviceBinaryImage *getBinImageFromMultiMap(
   return DeviceFilteredImgs[ImgInd];
 }
 
+std::string ProgramManager::getKernelTargetList(const kernel_id &KernelID) {
+  std::lock_guard<std::mutex> Guard(m_ImgMapsMutex);
+  auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelID);
+  assert(ItBegin != ItEnd && "Expected at least one image");
+
+  std::string TargetList{getImageTargetLabel(*ItBegin->second)};
+  for (auto It = std::next(ItBegin); It != ItEnd; ++It) {
+    TargetList += ", ";
+    TargetList += getImageTargetLabel(*It->second);
+  }
+  return TargetList;
+}
+
 const RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(std::string_view KernelName,
                                context_impl &ContextImpl,
@@ -1310,23 +1358,34 @@ ProgramManager::getDeviceImage(std::string_view KernelName,
   }
 
   const RTDeviceBinaryImage *Img = nullptr;
+  std::optional<kernel_id> FoundKernelID;
   {
     std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-    if (auto It = m_DeviceKernelInfoMap.find(KernelName);
+    if (auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
         It != m_DeviceKernelInfoMap.end()) {
-      Img = getBinImageFromMultiMap(m_KernelIDs2BinImage,
-                                    It->second.getKernelID(), ContextImpl,
-                                    DeviceImpl);
+      FoundKernelID = It->second.getKernelID();
+      Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, *FoundKernelID,
+                                    ContextImpl, DeviceImpl);
     }
   }
 
   // Decompress the image if it is compressed.
   CheckAndDecompressImage(Img);
 
-  if (!Img)
+  if (!Img) {
+    if (!FoundKernelID)
+      throw exception(make_error_code(errc::runtime),
+                      "No kernel named " + std::string(KernelName) +
+                          " was found");
+    // The kernel is registered but none of its images target the selected
+    // device. Enumerate the available targets so the user can see what the
+    // binary supports.
     throw exception(make_error_code(errc::runtime),
-                    "No kernel named " + std::string(KernelName) +
-                        " was found");
+                    "Kernel " + std::string(KernelName) +
+                        " has no image for the selected device. "
+                        "Its available images target: [" +
+                        getKernelTargetList(*FoundKernelID) + "].");
+  }
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
@@ -1390,7 +1449,7 @@ Managed<ur_program_handle_t> ProgramManager::build(
     const std::string &CompileOptions, const std::string &LinkOptions,
     std::vector<ur_device_handle_t> &Devices,
     const std::vector<Managed<ur_program_handle_t>> &ExtraProgramsToLink,
-    bool CreatedFromBinary) {
+    bool CreatedFromBinary, bool AllowUnresolvedSymbols) {
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build("
@@ -1398,7 +1457,7 @@ Managed<ur_program_handle_t> ProgramManager::build(
               << CompileOptions << ", " << LinkOptions << ", "
               << VecToString(Devices) << ", " << std::dec << ", "
               << VecToString(ExtraProgramsToLink) << ", " << CreatedFromBinary
-              << ")\n";
+              << ", " << AllowUnresolvedSymbols << ")\n";
   }
 
   std::vector<ur_program_handle_t> LinkPrograms;
@@ -1406,15 +1465,27 @@ Managed<ur_program_handle_t> ProgramManager::build(
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
   static bool ForceLink = ForceLinkEnv && (*ForceLinkEnv == '1');
 
+  ur_exp_program_flags_t Flags{};
+  if (AllowUnresolvedSymbols)
+    Flags |= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+
   adapter_impl &Adapter = Context.getAdapter();
   if (ExtraProgramsToLink.empty() && !ForceLink) {
     const std::string &Options = LinkOptions.empty()
                                      ? CompileOptions
                                      : (CompileOptions + " " + LinkOptions);
     ur_result_t Error = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-        Program, Devices.size(), Devices.data(), ur_exp_program_flags_t{},
-        Options.c_str());
+        Program, Devices.size(), Devices.data(), Flags, Options.c_str());
     if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      // The non-Exp build entry point cannot carry program flags, so any
+      // non-default flag value (e.g. ALLOW_UNRESOLVED_SYMBOLS for a SYCLBIN
+      // AOT image whose imported symbols will be resolved at the cross-image
+      // dynamic link below) cannot be honored on this adapter.
+      if (AllowUnresolvedSymbols)
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "Cross-image link with unresolved symbols requires "
+                        "urProgramBuildExp; the active adapter does not "
+                        "support it.");
       Error = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
           Context.getHandleRef(), Program, Options.c_str());
     }
@@ -1448,10 +1519,19 @@ Managed<ur_program_handle_t> ProgramManager::build(
   Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
-        Context.getHandleRef(), Devices.size(), Devices.data(),
-        ur_exp_program_flags_t{}, LinkPrograms.size(), LinkPrograms.data(),
-        LinkOptions.c_str(), &LinkedProg);
+        Context.getHandleRef(), Devices.size(), Devices.data(), Flags,
+        LinkPrograms.size(), LinkPrograms.data(), LinkOptions.c_str(),
+        &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      // urProgramLink (non-Exp) cannot carry the ALLOW_UNRESOLVED_SYMBOLS
+      // flag; reject the configuration on adapters that do not implement
+      // urProgramLinkExp rather than silently dropping the requested
+      // semantics.
+      if (AllowUnresolvedSymbols)
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "Cross-image link with unresolved symbols requires "
+                        "urProgramLinkExp; the active adapter does not "
+                        "support it.");
       Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
           Context.getHandleRef(), LinkPrograms.size(), LinkPrograms.data(),
           LinkOptions.c_str(), &LinkedProg);
@@ -1495,10 +1575,22 @@ void ProgramManager::cacheKernelImplicitLocalArg(
     }
 }
 
+void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
+    const RTDeviceBinaryImage &Img) {
+  const RTDeviceBinaryImage::PropertyRange &WorkGroupDynamicLocalMemRange =
+      Img.getWorkGroupDynamicLocalMem();
+  if (WorkGroupDynamicLocalMemRange.isAvailable())
+    for (auto Prop : WorkGroupDynamicLocalMemRange) {
+      auto It = m_DeviceKernelInfoMap.find(Prop->Name);
+      assert(It != m_DeviceKernelInfoMap.end());
+      It->second.setWorkGroupDynamicLocalMem();
+    }
+}
+
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(Info.Name);
+  auto It = m_DeviceKernelInfoMap.find(std::string(Info.Name));
   assert(It != m_DeviceKernelInfoMap.end());
   It->second.setCompileTimeInfoIfNeeded(Info);
   return It->second;
@@ -1507,7 +1599,7 @@ ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
   assert(It != m_DeviceKernelInfoMap.end());
   return It->second;
 }
@@ -1515,7 +1607,7 @@ ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
 DeviceKernelInfo *
 ProgramManager::tryGetDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
   return It != m_DeviceKernelInfoMap.end() ? &It->second : nullptr;
 }
 
@@ -1708,21 +1800,21 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
       continue;
 
-    auto It = m_DeviceKernelInfoMap.find(std::string_view(name));
+    auto It = m_DeviceKernelInfoMap.find(name);
     if (It == m_DeviceKernelInfoMap.end()) {
       sycl::kernel_id KernelID = detail::createSyclObjFromImpl<sycl::kernel_id>(
           std::make_shared<detail::kernel_id_impl>(name));
       CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(name)};
-      It = m_DeviceKernelInfoMap.emplace_hint(
-          It, std::piecewise_construct, std::forward_as_tuple(name),
-          std::forward_as_tuple(DefaultCompileTimeInfo, KernelID));
+      It = m_DeviceKernelInfoMap
+               .emplace(std::piecewise_construct, std::forward_as_tuple(name),
+                        std::forward_as_tuple(DefaultCompileTimeInfo, KernelID))
+               .first;
     }
     m_KernelIDs2BinImage.insert(
         std::make_pair(It->second.getKernelID(), Img.get()));
     KernelIDs->push_back(It->second.getKernelID());
-
     // Keep track of image to kernel name reference count for cleanup.
-    m_KernelNameRefCount[name]++;
+    ++It->second.getRefCount();
   }
 
   // check if kernel uses sanitizer
@@ -1742,7 +1834,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
   }
 
   cacheKernelImplicitLocalArg(*Img);
-
+  cacheKernelWorkGroupDynamicLocalMem(*Img);
   // Sort kernel ids for faster search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
 
@@ -1829,9 +1921,12 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         auto CurIt = It++;
         if (CurIt->second.second == Img) {
           if (auto ContextImpl = CurIt->second.first.lock()) {
+            ContextImpl->removeDeviceGlobalInitializer(CurIt->first, Img);
             ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
                 Img->getImageID());
           }
+          // Also clean up any merged image associated with this program
+          m_MergedImages.erase(CurIt->first);
           NativePrograms.erase(CurIt);
         }
       }
@@ -1847,23 +1942,17 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         continue;
       }
 
-      auto DKIIt = m_DeviceKernelInfoMap.find(Name);
+      auto DKIIt = m_DeviceKernelInfoMap.find(std::string(Name));
       assert(DKIIt != m_DeviceKernelInfoMap.end());
       removeFromMultimapByVal(m_KernelIDs2BinImage, DKIIt->second.getKernelID(),
                               Img);
 
-      auto RefCountIt = m_KernelNameRefCount.find(Name);
-      assert(RefCountIt != m_KernelNameRefCount.end());
-      int &RefCount = RefCountIt->second;
+      int &RefCount = DKIIt->second.getRefCount();
       assert(RefCount > 0);
-
-      // Remove everything associated with this KernelName if this is the last
+      // Clean up the device kernel info instance if this is the last
       // image referencing it.
       if (--RefCount == 0) {
-        // TODO aggregate all these maps into a single one since their entries
-        // share lifetime.
         m_DeviceKernelInfoMap.erase(DKIIt);
-        m_KernelNameRefCount.erase(RefCountIt);
       }
     }
 
@@ -1950,19 +2039,22 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
   return nullptr;
 }
 
+bool ProgramManager::isAOTBinaryTarget(const char *DeviceTargetSpec) {
+  if (!DeviceTargetSpec)
+    return false;
+  return strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+             0 ||
+         strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0;
+}
+
 bundle_state
 ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
-  auto IsAOTBinary = [](const char *Format) {
-    return ((strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0));
-  };
-
   // Three possible initial states:
   // - SPIRV that needs to be compiled and linked
   // - AOT compiled binary with dependnecies, needs linking.
   // - AOT compiled binary without dependencies.
 
-  const bool IsAOT = IsAOTBinary(BinImage->getRawData().DeviceTargetSpec);
+  const bool IsAOT = isAOTBinaryTarget(BinImage->getRawData().DeviceTargetSpec);
 
   if (!IsAOT)
     return sycl::bundle_state::input;
@@ -1985,8 +2077,7 @@ std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
 
   std::vector<sycl::kernel_id> AllKernelIDs;
   AllKernelIDs.reserve(m_DeviceKernelInfoMap.size());
-  for (const std::pair<const std::string_view, DeviceKernelInfo> &Pair :
-       m_DeviceKernelInfoMap) {
+  for (const auto &Pair : m_DeviceKernelInfoMap) {
     AllKernelIDs.push_back(Pair.second.getKernelID());
   }
   return AllKernelIDs;
@@ -2170,8 +2261,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     // Track the highest image state for each requested kernel.
     using StateImagesPairT =
         std::pair<bundle_state, std::vector<const RTDeviceBinaryImage *>>;
-    using KernelImageMapT =
-        std::map<kernel_id, StateImagesPairT, LessByNameComp>;
+    using KernelImageMapT = std::unordered_map<kernel_id, StateImagesPairT>;
     KernelImageMapT KernelImageMap;
     if (!KernelIDs.empty())
       for (const kernel_id &KernelID : KernelIDs)
@@ -2483,6 +2573,25 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
     applyCompileOptionsFromEnvironment(CompileOptions);
     appendCompileOptionsFromImage(
         CompileOptions, *(InputImpl.get_bin_image_ref()), Devs, Adapter);
+    // When the image was produced with -fsycl-allow-device-image-dependencies
+    // (the only path that emits SYCL/exported symbols and SYCL/imported
+    // symbols property sets), keep symbol visibility through compile so that
+    // cross-image resolution at sycl::link time via zeModuleDynamicLink can
+    // see those symbols. Without this option IGC internalizes them and the
+    // dynamic link fails with "Unresolved Symbol". The flag is currently
+    // only plumbed for Level Zero; OpenCL CPU/GPU AOT cross-image link uses
+    // a different option (-create-library) and is not in scope here.
+    {
+      const auto *Bin = InputImpl.get_bin_image_ref();
+      bool HasCrossImageSymbols = Bin && (!Bin->getExportedSymbols().empty() ||
+                                          !Bin->getImportedSymbols().empty());
+      backend Be = InputImpl.get_context().get_backend();
+      if (HasCrossImageSymbols && Be == backend::ext_oneapi_level_zero) {
+        if (!CompileOptions.empty())
+          CompileOptions += ' ';
+        CompileOptions += "-library-compilation";
+      }
+    }
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOptions);
     ur_result_t Error = doCompile(
@@ -2599,7 +2708,7 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
 
   ur_exp_program_flags_t UrLinkFlags{};
   if (AllowUnresolvedSymbols)
-    UrLinkFlags &= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+    UrLinkFlags |= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
 
   Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
@@ -2700,7 +2809,8 @@ void ProgramManager::dynamicLink(device_images_range Imgs) {
 
 device_image_plain
 ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
-                      devices_range Devs, const property_list &PropList) {
+                      devices_range Devs, const property_list &PropList,
+                      bool AllowUnresolvedSymbols) {
   {
     auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
@@ -2741,8 +2851,9 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
     SpecConstMap = MainInputImpl.get_spec_const_data_ref();
   }
 
-  Managed<ur_program_handle_t> ResProgram = getBuiltURProgram(
-      std::move(BinImgs), ContextImpl, Devs, &DevImgWithDeps, SpecConstBlob);
+  Managed<ur_program_handle_t> ResProgram =
+      getBuiltURProgram(std::move(BinImgs), ContextImpl, Devs, &DevImgWithDeps,
+                        SpecConstBlob, AllowUnresolvedSymbols);
 
   // The origin becomes the combination of all the origins.
   uint8_t CombinedOrigins = 0;
@@ -3425,6 +3536,11 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
         return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0 ||
                 strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN) == 0);
       }
+      if (PlatformName == "LEVEL_ZERO") {
+        return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+                strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0);
+      }
+
       assert(false && "Unhandled liboffload platform");
       return false;
     }
@@ -3456,23 +3572,33 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
 
   // Device image has the compile_target property, so it is AOT compiled for
   // some device, check if that architecture is Device's architecture.
-  auto CompileTargetByteArray = DeviceBinaryProperty(*PropIt).asByteArray();
-  // Drop 8 bytes describing the size of the byte array.
-  CompileTargetByteArray.dropBytes(8);
-  std::string_view CompileTarget(
-      reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
-      CompileTargetByteArray.size());
+  std::string_view CompileTarget = DeviceBinaryProperty(*PropIt).asStringView();
   std::string_view ArchName = getArchName(DevImpl);
+  if (ArchName == CompileTarget)
+    return true;
   // Note: there are no explicit targets for CPUs, so on x86_64,
   // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64
   // compile target image.
   // TODO: When dedicated targets for CPU are added, (i.e.
   // -fsycl-targets=intel_cpu_spr etc.) remove this special
   // handling of CPU targets.
-  return ((ArchName == CompileTarget) ||
-          (CompileTarget == "spir64_x86_64" &&
-           (ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
-            ArchName == "intel_cpu_gnr" || ArchName == "intel_cpu_dmr")));
+  if (CompileTarget == "spir64_x86_64")
+    return ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
+           ArchName == "intel_cpu_gnr" || ArchName == "intel_cpu_dmr";
+  // Targets compatible with multiple GPU architectures
+  if (CompileTarget == "intel_gpu_bmg")
+    return ArchName == "intel_gpu_bmg_g21" || ArchName == "intel_gpu_bmg_g31" ||
+           ArchName == "intel_gpu_lnl_m";
+  if (CompileTarget == "intel_gpu_dg2")
+    return ArchName == "intel_gpu_acm_g10" || ArchName == "intel_gpu_acm_g11" ||
+           ArchName == "intel_gpu_acm_g12";
+  if (CompileTarget == "intel_gpu_mtl")
+    return ArchName == "intel_gpu_mtl_h" || ArchName == "intel_gpu_mtl_u";
+  if (CompileTarget == "intel_gpu_ptl")
+    return ArchName == "intel_gpu_ptl_h" || ArchName == "intel_gpu_ptl_u" ||
+           ArchName == "intel_gpu_wcl" || ArchName == "intel_gpu_nvl_u" ||
+           ArchName == "intel_gpu_nvl_s";
+  return false;
 }
 
 } // namespace detail

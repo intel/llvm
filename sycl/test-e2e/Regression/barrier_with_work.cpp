@@ -6,19 +6,15 @@
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 //
-// UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21 || arch-intel_gpu_pvc)
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20600
-//
-// XFAIL: windows && arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20861
-//
 // Tests that barriers block all following execution on queues with active work.
 // For L0 we currently need to set
 // SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS to enable fix on certain
 // hardware.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/builtins.hpp>
 #include <sycl/usm.hpp>
 
 constexpr size_t NElemsPerSplit = 1000;

@@ -10,13 +10,19 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ID_QUERIES_FIT_...
 
+// Unified macro for ID query range assumptions
 #if __SYCL_ID_QUERIES_FIT_IN_INT__ && __has_builtin(__builtin_assume)
 #include <climits>
-#define __SYCL_ASSUME_INT(x) __builtin_assume((x) <= INT_MAX)
+#define __SYCL_ASSUME_ID_RANGE(x) __builtin_assume((x) <= INT_MAX)
+#elif __SYCL_ID_QUERIES_FIT_IN_UINT__ && __has_builtin(__builtin_assume)
+#include <climits>
+#define __SYCL_ASSUME_ID_RANGE(x) __builtin_assume((x) <= UINT_MAX)
 #else
-#define __SYCL_ASSUME_INT(x)
-#if __SYCL_ID_QUERIES_FIT_IN_INT__ && !__has_builtin(__builtin_assume)
-#warning "No assumptions will be emitted due to no __builtin_assume available"
+#define __SYCL_ASSUME_ID_RANGE(x)
+#if (__SYCL_ID_QUERIES_FIT_IN_INT__ || __SYCL_ID_QUERIES_FIT_IN_UINT__) &&     \
+    !__has_builtin(__builtin_assume)
+#pragma message(                                                               \
+    "No assumptions will be emitted due to no __builtin_assume available")
 #endif
 #endif
 
@@ -49,4 +55,13 @@
 #define __SYCL_STANDALONE_DEBUG [[_Clang::__standalone_debug__]]
 #else
 #define __SYCL_STANDALONE_DEBUG
+#endif
+
+// `__builtin_expect` is a GCC/Clang builtin; MSVC has no equivalent. Provide a
+// no-op shim here so headers using `__builtin_expect(cond, hint)` compile
+// cleanly under MSVC. Defined unconditionally in this central header to avoid
+// relying on transitive includes from headers that happen to define their own
+// shim.
+#if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
+#define __builtin_expect(a, b) (a)
 #endif

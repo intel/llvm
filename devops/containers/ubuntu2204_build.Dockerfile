@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
+FROM nvidia/cuda:12.6.3-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -36,6 +36,7 @@ RUN apt update && apt install -yqq rocm-dev && \
 # Fix Vulkan install inside container
 # https://stackoverflow.com/questions/74965945/vulkan-is-unable-to-detect-nvidia-gpu-from-within-a-docker-container-when-using
 RUN apt-get update && \
+    apt-get install -y libegl1 && \
     apt-get install -y --no-install-recommends --download-only libnvidia-gl-565 && \
     dpkg-deb --extract /var/cache/apt/archives/libnvidia-gl-565_*.deb extracted && \
     cp -R ./extracted/usr/* /usr/ && \

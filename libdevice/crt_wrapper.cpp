@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "fallback-cstring.hpp"
 #include "include/spir_global_var.hpp"
 #include "spirv_vars.h"
 #include "wrapper.h"
@@ -13,10 +14,9 @@
 #include <cstdint>
 
 #define RAND_NEXT_LEN 1024
-DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
+__attribute__((weak)) DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
-    defined(__AMDGCN__)
+#ifdef __LIBDEVICE_TARGET_SUPPORT
 DEVICE_EXTERN_C_INLINE
 void *memcpy(void *dest, const void *src, size_t n) {
   return __devicelib_memcpy(dest, src, n);
@@ -203,4 +203,4 @@ void __glibcxx_assert_fail(const char *file, int line, const char *func,
 } // namespace std
 
 #endif
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
+#endif // __LIBDEVICE_TARGET_SUPPORT

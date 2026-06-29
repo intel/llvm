@@ -1,9 +1,8 @@
 //===--------- command_list_cache.cpp - Level Zero Adapter ---------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -82,8 +81,10 @@ command_list_cache_t::command_list_cache_t(
           supportedExtensions.ZeCopyOffloadExtensionSupported},
       ZeMutableCmdListExtentionSupported{
           supportedExtensions.ZeMutableCmdListExtentionSupported},
-      ZeCopyOffloadFlagSupported{
-          supportedExtensions.ZeCopyOffloadFlagSupported} {}
+      ZeCopyOffloadQueueFlagSupported{
+          supportedExtensions.ZeCopyOffloadQueueFlagSupported},
+      ZeCopyOffloadListFlagSupported{
+          supportedExtensions.ZeCopyOffloadListFlagSupported} {}
 
 static bool ForceDisableCopyOffload = [] {
   return getenv_tobool("UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD");
@@ -123,8 +124,8 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       QueueDesc.index = ImmCmdDesc->Index.value();
     }
 
-    // ZeCopyOffloadFlagSupported is set during platform initialization
-    if (requestedCopyOffload && ZeCopyOffloadFlagSupported) {
+    // ZeCopyOffloadQueueFlagSupported is set during platform initialization
+    if (requestedCopyOffload && ZeCopyOffloadQueueFlagSupported) {
       QueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT;
       QueueDesc.pNext = nullptr;
     } else {
@@ -153,11 +154,25 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     CmdListDesc.flags =
         RegCmdDesc.IsInOrder ? ZE_COMMAND_LIST_FLAG_IN_ORDER : 0;
     CmdListDesc.commandQueueGroupOrdinal = RegCmdDesc.Ordinal;
-    CmdListDesc.pNext = &offloadDesc;
+
+    // Pointer to the last element in the pNext chain,
+    // used to append extensions.
+    const void **ppNext;
+
+    // ZeCopyOffloadListFlagSupported is set during platform initialization
+    if (requestedCopyOffload && ZeCopyOffloadListFlagSupported) {
+      CmdListDesc.flags |= ZE_COMMAND_LIST_FLAG_COPY_OFFLOAD_HINT;
+      CmdListDesc.pNext = nullptr;
+      ppNext = &CmdListDesc.pNext;
+    } else {
+      CmdListDesc.pNext = &offloadDesc;
+      ppNext = &offloadDesc.pNext;
+    }
+
     ZeStruct<ze_mutable_command_list_exp_desc_t> ZeMutableCommandListDesc;
     if (IsMutable) {
       ZeMutableCommandListDesc.flags = 0;
-      offloadDesc.pNext = &ZeMutableCommandListDesc;
+      *ppNext = &ZeMutableCommandListDesc;
     }
 
     UR_LOG(DEBUG,

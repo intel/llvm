@@ -29,6 +29,7 @@ compiler and runtime.
 | `SYCL_JIT_AMDGCN_PTX_KERNELS` | '1' or '0' | Enable ('1') or disable ('0') JIT compilation of kernels. Only supported for Nvidia and AMD backends. Note, that it is required to have a valid binary for the desired backend (AMD or CUDA), that was compiled with `-fsycl-embed-ir` in order to use JIT-ing. When JIT-ing is enabled SYCL runtime will try to cache and reuse JIT-compiled kernels, furthermore if a kernel uses specialization constants the compiler will attempt to materialize the values in place, turning them to de-facto compile time constants. Default is '0'. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target architecture to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
+| `SYCL_GRAPH_FORCE_NATIVE_RECORDING` | '1' or '0' | When set to '1', forces every `command_graph` to use native recording as if `property::graph::enable_native_recording` was passed in its property list. When unset or set to any other value, native recording is enabled only when that property is set explicitly. Default is disabled. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -160,6 +161,8 @@ For a description of parallel for range rounding in DPC++ see
 | `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero adapter (each memory request will go directly to Level Zero runtime) |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero adapter. |
 | `SYCL_UR_USE_LEVEL_ZERO_V2` | Integer | Enable ('1') or disable ('0') the use of the Level Zero V2 adapter, which features a redesigned architecture aimed at optimizing performance for different queue modes (immediate/batched, in-order/out-of-order). This version is expected to reduce runtime overhead and currently only support immediate command lists. By default, this adapter is used on platforms with GPUs based on the Xe2 architecture or later, such as Battlemage, Lunar Lake, and Arrow Lake. If you experience any performance or functional issues with this adapter enabled, please report them on GitHub, specifying the adapter used. |
+| `SYCL_UR_L0_LOADER_SKIPLIST` | String | Comma-separated list of L0 loader versions. Skips loading the L0 adapter if the version of the L0 loader found during runtime initialization on the system matches an entry in this list. |
+| `SYCL_UR_L0_DRIVER_SKIPLIST` | String | Comma-separated list of L0 driver versions. Skips loading the L0 adapter if the version of the L0 driver found during runtime initialization on the system matches an entry in this list. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 

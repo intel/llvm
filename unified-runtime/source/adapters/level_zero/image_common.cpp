@@ -1,9 +1,8 @@
 //===--------- image.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -731,34 +730,26 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   UR_ASSERT(Origin, UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(Region, UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D ||
-      ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
-    Region->height = 1;
-    Region->depth = 1;
-  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D ||
-             ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) {
-    Region->depth = 1;
-  }
-
 #ifndef NDEBUG
+  // Validate Origin constraints based on image type
   UR_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
              Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->y == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  UR_ASSERT(Region->width && Region->height && Region->depth,
+  // Validate Region width is non-zero
+  UR_ASSERT(Region->width != 0, UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Validate Region depth for 1D arrays contains layer count
+  UR_ASSERT(ZeImageDesc.type != ZE_IMAGE_TYPE_1DARRAY || Region->depth != 0,
             UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(
-      (ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
-       Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
-      UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Validate Region depth for 2D arrays contains layer count
+  UR_ASSERT(ZeImageDesc.type != ZE_IMAGE_TYPE_2DARRAY || Region->depth != 0,
+            UR_RESULT_ERROR_INVALID_VALUE);
 #endif // !NDEBUG
 
   uint32_t OriginX = ur_cast<uint32_t>(Origin->x);
@@ -766,12 +757,24 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   uint32_t OriginZ = ur_cast<uint32_t>(Origin->z);
 
   uint32_t Width = ur_cast<uint32_t>(Region->width);
-  uint32_t Height = (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY)
-                        ? ZeImageDesc.arraylevels
-                        : ur_cast<uint32_t>(Region->height);
-  uint32_t Depth = (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY)
-                       ? ZeImageDesc.arraylevels
-                       : ur_cast<uint32_t>(Region->depth);
+  uint32_t Height = ur_cast<uint32_t>(Region->height);
+  uint32_t Depth = ur_cast<uint32_t>(Region->depth);
+
+  // Normalize Region dimensions based on image type
+  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
+    // 1D images: height and depth must be 1
+    Height = 1;
+    Depth = 1;
+  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+    // UR uses depth for 1D array layers, but Level Zero uses height
+    OriginY = OriginZ;
+    OriginZ = 0;
+    Height = Depth;
+    Depth = 1;
+  } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D) {
+    // 2D images: depth must be 1
+    Depth = 1;
+  }
 
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
 
@@ -811,7 +814,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
     uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents) {
 
   ZeStruct<ze_image_desc_t> zeSrcImageDesc;
-  ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
+  UR_CALL(ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc));
   uint32_t SrcPixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
   uint32_t DstPixelSizeInBytes = getPixelSizeBytes(pDstImageFormat);
 
@@ -1280,15 +1283,34 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
         delete externalMemoryData;
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
-      importFd->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD;
       externalMemoryData->importExtensionDesc = importFd;
       externalMemoryData->type = UR_ZE_EXTERNAL_OPAQUE_FD;
-    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE ||
+               BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_NAME) {
       ze_external_memory_import_win32_handle_t *importWin32 =
           new ze_external_memory_import_win32_handle_t;
       importWin32->stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMPORT_WIN32;
       importWin32->pNext = nullptr;
-      auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+      importWin32->handle = nullptr;
+      importWin32->name = nullptr;
+
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+        auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+        if (Win32Handle->handle == nullptr) {
+          delete importWin32;
+          delete externalMemoryData;
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        importWin32->handle = Win32Handle->handle;
+      } else {
+        auto Win32Name = static_cast<const ur_exp_win32_name_t *>(pNext);
+        if (Win32Name->name == nullptr) {
+          delete importWin32;
+          delete externalMemoryData;
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        importWin32->name = Win32Name->name;
+      }
 
       switch (memHandleType) {
       case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT:
@@ -1305,7 +1327,6 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
         delete externalMemoryData;
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
-      importWin32->handle = Win32Handle->handle;
       externalMemoryData->importExtensionDesc = importWin32;
       externalMemoryData->type = UR_ZE_EXTERNAL_WIN32;
     }
@@ -1414,15 +1435,18 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
       default:
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
-    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE ||
+               BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_NAME) {
       SemDesc.pNext = &Win32ExpDesc;
-      auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
       switch (semHandleType) {
       case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
         SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_OPAQUE_WIN32;
         break;
       case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
         SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_D3D12_FENCE;
+        break;
+      case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE:
+        SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_D3D11_FENCE;
         break;
       case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
         SemDesc.flags =
@@ -1431,7 +1455,21 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
       default:
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
-      Win32ExpDesc.handle = Win32Handle->handle;
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+        auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+        if (Win32Handle->handle == nullptr) {
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        Win32ExpDesc.handle = Win32Handle->handle;
+        Win32ExpDesc.name = nullptr;
+      } else {
+        auto Win32Name = static_cast<const ur_exp_win32_name_t *>(pNext);
+        if (Win32Name->name == nullptr) {
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        Win32ExpDesc.name = static_cast<const char *>(Win32Name->name);
+        Win32ExpDesc.handle = nullptr;
+      }
     }
     pNext = const_cast<void *>(BaseDesc->pNext);
   }

@@ -1,9 +1,8 @@
 //===--------- command_buffer.cpp - NativeCPU Adapter ---------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -51,6 +50,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const size_t *, const size_t *, const size_t *, uint32_t,
     ur_kernel_handle_t *, uint32_t, const ur_exp_command_buffer_sync_point_t *,
     uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendKernelLaunchWithArgsExp(
+    ur_exp_command_buffer_handle_t, ur_kernel_handle_t, uint32_t,
+    const size_t *, const size_t *, const size_t *, uint32_t,
+    const ur_exp_kernel_arg_properties_t *, uint32_t, ur_kernel_handle_t *,
+    uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   die("Experimental Command-buffer feature is not "
       "implemented for the NativeCPU adapter.");

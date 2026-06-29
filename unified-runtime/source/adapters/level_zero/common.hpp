@@ -1,9 +1,8 @@
 //===--------- common.hpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -26,8 +25,8 @@
 #endif
 
 #include <loader/ze_loader.h>
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
@@ -351,3 +350,14 @@ extern thread_local int32_t ErrorAdapterNativeCode;
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode);
+
+// Returns the host memory page size in bytes.
+inline size_t getHostPageSize() {
+#ifdef _WIN32
+  SYSTEM_INFO SystemInfo;
+  GetSystemInfo(&SystemInfo);
+  return static_cast<size_t>(SystemInfo.dwPageSize);
+#else
+  return static_cast<size_t>(sysconf(_SC_PAGESIZE));
+#endif
+}

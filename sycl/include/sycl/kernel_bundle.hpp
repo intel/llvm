@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>          // for backend, backend_return_t
+#include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
@@ -20,10 +21,10 @@
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
 #include <sycl/sycl_span.hpp>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
+#include <sycl/ext/oneapi/properties.hpp>                // PropertyT
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
@@ -1012,12 +1013,12 @@ struct include_files
     record.emplace_back(name, content);
   }
   void add(const std::string &name, const std::string &content) {
-    if (std::find_if(record.begin(), record.end(), [&name](auto &p) {
-          return p.first == name;
-        }) != record.end()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Include file '" + name +
-                                "' is already registered");
+    for (auto &p : record) {
+      if (p.first == name) {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Include file '" + name +
+                                  "' is already registered");
+      }
     }
     record.emplace_back(name, content);
   }

@@ -1,6 +1,5 @@
-# Copyright (C) 2024-2025 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
@@ -18,6 +17,10 @@ class OneAPI:
         self.oneapi_dir = os.path.join(options.workdir, "oneapi")
         Path(self.oneapi_dir).mkdir(parents=True, exist_ok=True)
         self.oneapi_instance_id = self.generate_unique_oneapi_id(self.oneapi_dir)
+
+        if options.offline:
+            log.info("Skipping OneAPI download and installation.")
+            return
 
         self.install_package(
             "base",

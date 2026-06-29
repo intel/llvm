@@ -1,6 +1,5 @@
-# Copyright (C) 2025-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from dataclasses import dataclass, field
@@ -51,10 +50,10 @@ class Options:
     TIMESTAMP_FORMAT: str = "%Y%m%d_%H%M%S"
     workdir: str = None
     sycl: str = None
-    ur: str = None
     ur_adapter: str = None
     umf: str = None
-    no_rebuild: bool = False
+    pytorch_root: str = None
+    offline: bool = False
     redownload: bool = False
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
@@ -66,6 +65,7 @@ class Options:
     output_html: str = "local"
     output_directory: str = None
     dry_run: bool = False
+    list_benchmarks: bool = False
     stddev_threshold: float = 0.02
     iterations_stddev: int = 5
     extra_ld_libraries: list[str] = field(default_factory=list)
@@ -78,7 +78,6 @@ class Options:
     build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
     flamegraph: bool = False
-    unitrace: bool = False
 
     # Options intended for CI:
 

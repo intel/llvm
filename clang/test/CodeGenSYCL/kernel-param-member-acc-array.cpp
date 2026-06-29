@@ -28,8 +28,8 @@ int main() {
       });
 }
 
-// CHECK-LABEL: define {{.*}}spir_kernel void @_ZTSZ4mainE8kernel_C(
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[_ARG_MEMBER_ACC:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_MEMBER_ACC1:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_MEMBER_ACC2:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_MEMBER_ACC3:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_MEMBER_ACC4:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_MEMBER_ACC6:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_MEMBER_ACC7:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_MEMBER_ACC8:%.*]]) #[[ATTR0:[0-9]+]]
+// CHECK-LABEL: define weak_odr spir_kernel void @_ZTSZ4mainE8kernel_C(
+// CHECK-SAME: ptr addrspace(1) noundef align 4 [[_ARG_MEMBER_ACC:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_MEMBER_ACC1:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_MEMBER_ACC2:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_MEMBER_ACC3:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_MEMBER_ACC4:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_MEMBER_ACC6:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_MEMBER_ACC7:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_MEMBER_ACC8:%.*]]) #[[ATTR0:[0-9]+]] comdat !srcloc [[META12:![0-9]+]] !kernel_arg_buffer_location [[META13:![0-9]+]] !kernel_arg_runtime_aligned [[META14:![0-9]+]] !kernel_arg_exclusive_ptr [[META14]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[_ARG_MEMBER_ACC_ADDR:%.*]] = alloca ptr addrspace(1), align 8
 // CHECK-NEXT:    [[_ARG_MEMBER_ACC_ADDR5:%.*]] = alloca ptr addrspace(1), align 8

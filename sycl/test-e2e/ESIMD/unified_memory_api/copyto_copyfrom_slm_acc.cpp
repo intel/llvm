@@ -11,6 +11,7 @@
 // The test verifies copyto_copyfrom() functions writing to SLM memory
 // and using optional compile-time esimd::properties and local accessors.
 // The copyto_copyfrom() calls in this test do not require PVC features.
+#include <iostream>
 
 #include "Inputs/copyto_copyfrom.hpp"
 

@@ -14,9 +14,17 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/ur.hpp>
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/device.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
+#include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/platform.hpp>
 
@@ -24,6 +32,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <utility>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -585,7 +594,7 @@ public:
       return MCache.get<Param>();
     }
 #define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
-    // device_traits.def
+    // SYCL 2020 info::device traits (defined in sycl/info/device.hpp).
 
     CASE(info::device::device_type) {
       return detail::ConvertDeviceType(get_info_impl<UR_DEVICE_INFO_TYPE>());
@@ -889,23 +898,17 @@ public:
           SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
-    // ext_oneapi_device_traits.def
+    // ext::oneapi device traits (defined under sycl/ext/oneapi/...).
 
     CASE(ext::oneapi::experimental::info::device::max_global_work_groups) {
-      return static_cast<size_t>((std::numeric_limits<int>::max)());
+      return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
-      size_t Limit = get_info<
-          ext::oneapi::experimental::info::device::max_global_work_groups,
-          DependentFalse>();
-
-      // TODO: std::array<size_t, 3> ?
       size_t result[3];
       getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
-      return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
-                   std::min(Limit, result[0]));
+      return id<3>(result[2], result[1], result[0]);
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<2>) {
       id<3> max_3d =
@@ -1004,7 +1007,7 @@ public:
           get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>());
     }
 
-    // ext_intel_device_traits.def
+    // ext::intel device traits (defined under sycl/ext/intel/info/device.hpp).
 
     CASE(ext::intel::info::device::device_id) {
       if (!has(aspect::ext_intel_device_id))
@@ -1170,6 +1173,48 @@ public:
                         "ext_intel_device_info_node_mask aspect");
       return get_info_impl<UR_DEVICE_INFO_NODE_MASK>();
     }
+    CASE(ext::intel::info::device::xe_stack_count) {
+      if (!has(aspect::ext_intel_xe_stack_count))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_xe_stack_count aspect");
+      return get_info_impl<UR_DEVICE_INFO_XE_STACK_COUNT>();
+    }
+    CASE(ext::intel::info::device::xe_regions_per_stack) {
+      if (!has(aspect::ext_intel_xe_regions_per_stack))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_xe_regions_per_stack aspect");
+      return get_info_impl<UR_DEVICE_INFO_XE_REGIONS_PER_STACK>();
+    }
+    CASE(ext::intel::info::device::xe_clusters_per_region) {
+      if (!has(aspect::ext_intel_xe_clusters_per_region))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_xe_clusters_per_region aspect");
+      return get_info_impl<UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION>();
+    }
+    CASE(ext::intel::info::device::xe_cores_per_cluster) {
+      if (!has(aspect::ext_intel_xe_cores_per_cluster))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_xe_cores_per_cluster aspect");
+      return get_info_impl<UR_DEVICE_INFO_XE_CORES_PER_CLUSTER>();
+    }
+    CASE(ext::intel::info::device::eus_per_xe_core) {
+      if (!has(aspect::ext_intel_eus_per_xe_core))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_eus_per_xe_core aspect");
+      return get_info_impl<UR_DEVICE_INFO_EUS_PER_XE_CORE>();
+    }
+    CASE(ext::intel::info::device::max_lanes_per_hw_thread) {
+      if (!has(aspect::ext_intel_max_lanes_per_hw_thread))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_max_lanes_per_hw_thread aspect");
+      return get_info_impl<UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD>();
+    }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
       return static_cast<typename Param::return_type>(get_info_impl<Desc>());
@@ -1294,6 +1339,24 @@ public:
       return has_info_desc(UR_DEVICE_INFO_MIN_POWER_LIMIT) &&
              has_info_desc(UR_DEVICE_INFO_MAX_POWER_LIMIT);
     }
+    CASE(ext_intel_xe_stack_count) {
+      return has_info_desc(UR_DEVICE_INFO_XE_STACK_COUNT);
+    }
+    CASE(ext_intel_xe_regions_per_stack) {
+      return has_info_desc(UR_DEVICE_INFO_XE_REGIONS_PER_STACK);
+    }
+    CASE(ext_intel_xe_clusters_per_region) {
+      return has_info_desc(UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION);
+    }
+    CASE(ext_intel_xe_cores_per_cluster) {
+      return has_info_desc(UR_DEVICE_INFO_XE_CORES_PER_CLUSTER);
+    }
+    CASE(ext_intel_eus_per_xe_core) {
+      return has_info_desc(UR_DEVICE_INFO_EUS_PER_XE_CORE);
+    }
+    CASE(ext_intel_max_lanes_per_hw_thread) {
+      return has_info_desc(UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
+    }
     CASE(ext_oneapi_srgb) { return get_info<info::device::ext_oneapi_srgb>(); }
     CASE(ext_oneapi_native_assert) {
       return get_info_impl<UR_DEVICE_INFO_USE_NATIVE_ASSERT>();
@@ -1326,6 +1389,11 @@ public:
     CASE(ext_oneapi_external_memory_import) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_register_host_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP>()
           .value_or(0);
     }
     CASE(ext_oneapi_external_semaphore_import) {
@@ -1434,7 +1502,7 @@ public:
           arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
           arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
           arch::intel_gpu_ptl_u,   arch::intel_gpu_wcl,
-      };
+          arch::intel_gpu_cri};
       try {
         return std::any_of(
             std::begin(supported_archs), std::end(supported_archs),
@@ -1556,6 +1624,11 @@ public:
     }
     CASE(ext_oneapi_device_wait) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_ipc_physical_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
     else {
@@ -1848,6 +1921,14 @@ public:
         {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
         {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
         {0x0780c000, oneapi_exp_arch::intel_gpu_wcl},     // A0
+        {0x0780c001, oneapi_exp_arch::intel_gpu_wcl},     // A1
+        {0x07810000, oneapi_exp_arch::intel_gpu_nvl_s},   // A0
+        {0x07810004, oneapi_exp_arch::intel_gpu_nvl_s},   // B0
+        {0x07814000, oneapi_exp_arch::intel_gpu_nvl_u},   // A0
+        {0x07814004, oneapi_exp_arch::intel_gpu_nvl_u},   // B0
+        {0x08c28000, oneapi_exp_arch::intel_gpu_nvl_p},   // A0
+        {0x08c28004, oneapi_exp_arch::intel_gpu_nvl_p},   // B0
+        {0x08c2c000, oneapi_exp_arch::intel_gpu_cri},     // A0
     };
 
     // Only for Intel CPU architectures
@@ -1978,7 +2059,8 @@ public:
              (architecture::intel_gpu_lnl_m == DeviceArch) ||
              (architecture::intel_gpu_ptl_h == DeviceArch) ||
              (architecture::intel_gpu_ptl_u == DeviceArch) ||
-             (architecture::intel_gpu_wcl == DeviceArch)) {
+             (architecture::intel_gpu_wcl == DeviceArch) ||
+             (architecture::intel_gpu_cri == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -2226,14 +2308,30 @@ public:
   // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
   void throwAsynchronous();
 
-  void registerQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its constructor.
+  void registerQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    MQueues.insert(Q);
+    MQueues.push_back(Q);
   }
 
-  void unregisterQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its destructor.
+  void unregisterQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    MQueues.erase(Q);
+    auto It = std::find(MQueues.begin(), MQueues.end(), Q);
+
+    // device_impl can be destroyed before queue_impl in unittests.
+    // On Windows, unittests involving host tasks race with scheduler
+    // cleanup (invoked by ~UrMock). UrMock constructor destroys the
+    // platform cache, along with device_impl. Now, when two unittests
+    // involving host tasks run one after another, URMock destructor of
+    // first can race with URMock constructor of second, causing device_impl
+    // to not have registered queue.
+    if (It != MQueues.end()) {
+      // Swap with last element and pop — O(1) removal,
+      // order doesn't matter.
+      std::swap(*It, MQueues.back());
+      MQueues.pop_back();
+    }
   }
 
 private:
@@ -2241,17 +2339,12 @@ private:
   // This is used for getAdapter so should be above other properties.
   platform_impl &MPlatform;
 
-  std::shared_mutex MDeviceHostBaseTimeMutex;
-  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
-
   const ur_device_handle_t MRootDevice;
 
   // Devices track a list of active queues on it, to allow for synchronization
   // with host_task and not-yet-enqueued commands.
   std::mutex MQueuesMutex;
-  std::set<std::weak_ptr<queue_impl>,
-           std::owner_less<std::weak_ptr<queue_impl>>>
-      MQueues;
+  std::vector<queue_impl *> MQueues;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both
@@ -2294,7 +2387,13 @@ private:
           aspect::ext_oneapi_bindless_images,
           aspect::ext_oneapi_bindless_images_1d_usm,
           aspect::ext_oneapi_bindless_images_2d_usm,
-          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
+          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component,
+          aspect::ext_intel_xe_stack_count,
+          aspect::ext_intel_xe_regions_per_stack,
+          aspect::ext_intel_xe_clusters_per_region,
+          aspect::ext_intel_xe_cores_per_cluster,
+          aspect::ext_intel_eus_per_xe_core,
+          aspect::ext_intel_max_lanes_per_hw_thread>>
       MCache;
 
   const size_t MIndexWithinPlatform = 0;

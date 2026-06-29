@@ -2,12 +2,14 @@
 // RUN: %{run} %t.out
 //
 // Test CPU AOT as well when possible.
-// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s %}
-// RUN: %if cpu && opencl-aot %{ %{run} %t.x86.out %}
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
+// RUN-IF: cpu, %{run} %t.x86.out
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: aspect-ext_oneapi_fragment
+#include <iostream>
 
+#include <algorithm>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <vector>

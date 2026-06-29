@@ -1,9 +1,8 @@
 //===----------- adapter.cpp - LLVM Offload Adapter  ----------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -16,15 +15,15 @@
 #include "adapter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
+#include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
 #include "ur2offload.hpp"
-#include "ur_api.h"
 
 ur_adapter_handle_t Adapter = nullptr;
 
 // Initialize liboffload and perform the initial platform and device discovery
 ur_result_t ur_adapter_handle_t_::init() {
-  auto Res = olInit();
+  auto Res = olInit(nullptr);
   (void)Res;
 
   // Discover every platform and device

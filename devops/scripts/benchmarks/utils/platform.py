@@ -1,12 +1,10 @@
-# Copyright (C) 2025 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import platform
 import subprocess
 import os
-from datetime import datetime
 from utils.result import Platform
 from options import options
 
@@ -42,7 +40,11 @@ def get_project_clang_version(bin_dir):
             [clang_path, "--version"], capture_output=True, text=True
         )
         if result.returncode == 0:
-            return result.stdout.split("\n")[0]
+            out = result.stdout.splitlines()
+            val = out[0]
+            if len(out) > 1:
+                val += " " + out[1]
+            return val
     except (FileNotFoundError, subprocess.CalledProcessError):
         pass
 
@@ -98,7 +100,6 @@ def get_compute_runtime_version_detailed():
 def get_gpu_info():
     """Get GPU information including device list and driver version"""
     gpu_list = []
-    gpu_count = 0
     gpu_driver_version = "(unknown)"
 
     # Get GPU info from lspci
@@ -116,11 +117,8 @@ def get_gpu_info():
                 if ": " in line:
                     gpu_name = line.split(": ", 1)[1]
                     gpu_list.append(gpu_name)
-
-            gpu_count = len(gpu_list)
     except Exception:
-        gpu_list = ["Detection failed"]
-        gpu_count = 0
+        gpu_list = None
 
     # Try to get GPU driver version
     try:
@@ -146,7 +144,7 @@ def get_gpu_info():
     except Exception:
         pass
 
-    return gpu_list, gpu_count, gpu_driver_version
+    return gpu_list, gpu_driver_version
 
 
 def get_platform_info() -> Platform:
@@ -178,7 +176,7 @@ def get_platform_info() -> Platform:
         cpu_info = f"Detection failed: {str(e)}"
 
     # Get GPU information
-    gpu_list, gpu_count, gpu_driver_version = get_gpu_info()
+    gpu_list, gpu_driver_version = get_gpu_info()
 
     # Compiler versions - GCC from system, clang project-built
     gcc_version = "gcc (unknown)"
@@ -230,12 +228,10 @@ def get_platform_info() -> Platform:
         level_zero_version = f"{adapter_name} | level-zero (version unknown)"
 
     return Platform(
-        timestamp=datetime.now().isoformat(),
         os=os_info,
         python=python_info,
         cpu_count=cpu_count,
         cpu_info=cpu_info,
-        gpu_count=gpu_count,
         gpu_info=gpu_list,
         gpu_driver_version=gpu_driver_version,
         gcc_version=gcc_version,

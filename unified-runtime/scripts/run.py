@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2022 Intel Corporation
 #
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
@@ -187,7 +186,7 @@ def main():
     if args["clean"]:
         clean()
 
-    incpath = os.path.join("../include/")
+    incpath = os.path.join("../include/unified-runtime/")
     srcpath = os.path.join("../source/")
     docpath = os.path.join("../docs/")
 

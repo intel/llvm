@@ -15,7 +15,6 @@
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -85,11 +84,6 @@ public:
 
   static std::shared_ptr<event_impl> create_device_event(queue_impl &queue) {
     return std::make_shared<event_impl>(queue, private_tag{});
-  }
-
-  static std::shared_ptr<event_impl> create_discarded_event() {
-    return std::make_shared<event_impl>(HostEventState::HES_Discarded,
-                                        private_tag{});
   }
 
   static std::shared_ptr<event_impl> create_completed_host_event() {

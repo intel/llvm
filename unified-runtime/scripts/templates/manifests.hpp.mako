@@ -2,11 +2,10 @@
 from templates import helper as th
 %>/*
  *
- * Copyright (C) 2025 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -22,7 +21,7 @@ from templates import helper as th
 #include <vector>
 
 #include "ur_util.hpp"
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace ur_loader {
 struct ur_adapter_manifest {

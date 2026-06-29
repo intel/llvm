@@ -1,6 +1,8 @@
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 // RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

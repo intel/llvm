@@ -1,6 +1,5 @@
-# Copyright (C) 2022 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 set(TARGET_NAME ur_adapter_hip)
@@ -145,12 +144,22 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
         endif()
 
         add_library(amd_comgr SHARED IMPORTED GLOBAL)
+        if(WIN32)
+        set_target_properties(
+            amd_comgr PROPERTIES
+                IMPORTED_LOCATION                    "${UR_HIP_ROCM_DIR}/bin/amd_comgr_3.dll"
+                IMPORTED_IMPLIB                      "${UR_HIP_LIB_DIR}/amd_comgr_3.lib"
+                INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+            )
+        else()
         set_target_properties(
         amd_comgr PROPERTIES
             IMPORTED_LOCATION                    "${UR_HIP_LIB_DIR}/libamd_comgr.so"
             INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
             INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
         )
+        endif()
         target_link_libraries(${TARGET_NAME} PUBLIC amd_comgr)
         target_compile_definitions(${TARGET_NAME} PRIVATE SYCL_ENABLE_KERNEL_FUSION)
     endif(UR_ENABLE_COMGR)

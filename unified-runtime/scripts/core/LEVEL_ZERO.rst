@@ -133,8 +133,14 @@ Environment Variables
 |                                             |                                                              | engine to be used.                                           |                  |
 |                                             |                                                              | Negative value: All available compute engines may be used.   |                  |
 +---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
-| UR_L0_USM_RESIDENT                          | Controls memory residency for USM allocations.               | "0xHSD": Specifies residency for host, shared, and device    | 0x2              |
-|                                             |                                                              | allocations.                                                 |                  |
+| UR_L0_USM_RESIDENT                          | Controls memory residency for USM allocations.               | "0xHSD": Specifies initial residency for Host, Shared, and   | 0x002            |
+|                                             |                                                              | Device USM allocations as a bitmask where 4 bits control     |                  |
+|                                             |                                                              | each kind of allocation. Each 4-bit component holds one of   |                  |
+|                                             |                                                              | the following values: "0" - no special residency, "1" -      |                  |
+|                                             |                                                              | resident on the device of allocation, or "2" - resident on   |                  |
+|                                             |                                                              | all devices in the context of the allocation that have P2P   |                  |
+|                                             |                                                              | access to the device of allocation. Default forces           |                  |
+|                                             |                                                              | residency on all devices for device allocations only.        |                  |
 +---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
 | UR_L0_DISABLE_USM_ALLOCATOR                 | Controls the use of the USM allocator.                       | "0": USM allocator is enabled.                               | "0"              |
 |                                             |                                                              | Any other value: USM allocator is disabled.                  |                  |

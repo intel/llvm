@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
 #include <clc/math/clc_sinh.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_FUNCTION __spirv_ocl_sinh
 #define __CLC_IMPL_FUNCTION(x) __clc_sinh

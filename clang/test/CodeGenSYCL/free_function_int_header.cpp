@@ -1486,9 +1486,9 @@ void ff_28(TemplatedAccessorStruct<int> arg1) {
 // CHECK-NEXT: template <typename dataT, int dimensions, sycl::access::mode accessmode, sycl::access::target accessTarget, sycl::access::placeholder isPlaceholder, typename propertyListT> class accessor;
 // CHECK-NEXT: }}
 
-// CHECK: void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > acc);
+// CHECK: void ff_20(sycl::accessor<int, 1, static_cast<sycl::access::mode>(1026), static_cast<sycl::access::target>(2014), static_cast<sycl::access::placeholder>(0), sycl::ext::oneapi::accessor_property_list<>> acc);
 // CHECK-NEXT: static constexpr auto __sycl_shim29() {
-// CHECK-NEXT:  return (void (*)(class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t, class sycl::ext::oneapi::accessor_property_list<> >))ff_20;
+// CHECK-NEXT:  return (void (*)(class sycl::accessor<int, 1, static_cast<sycl::access::mode>(1026), static_cast<sycl::access::target>(2014), static_cast<sycl::access::placeholder>(0), class sycl::ext::oneapi::accessor_property_list<>>))ff_20;
 // CHECK-NEXT: }
 
 // CHECK: namespace sycl {

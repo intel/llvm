@@ -497,6 +497,45 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_handle>(
       externalMemDesc, syclQueue.get_device(), syclQueue.get_context());
 }
 
+template <>
+__SYCL_EXPORT external_mem import_external_memory<resource_win32_name>(
+    external_mem_descriptor<resource_win32_name> externalMemDesc,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+
+  ur_exp_external_mem_handle_t urExternalMem = nullptr;
+  ur_exp_win32_name_t urWin32Name = {};
+  urWin32Name.stype = UR_STRUCTURE_TYPE_EXP_WIN32_NAME;
+  urWin32Name.name = externalMemDesc.external_resource.name;
+  ur_exp_external_mem_desc_t urExternalMemDescriptor{};
+  urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC;
+  urExternalMemDescriptor.pNext = &urWin32Name;
+
+  const auto urHandleType = detail::to_ur_type(externalMemDesc.handle_type);
+  if ((urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT) &&
+      (urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE) &&
+      (urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE)) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Invalid memory handle type");
+  }
+
+  Adapter
+      ->call<sycl::errc::invalid,
+             sycl::detail::UrApiKind::urBindlessImagesImportExternalMemoryExp>(
+          urCtx, urDevice, externalMemDesc.size_in_bytes, urHandleType,
+          &urExternalMemDescriptor, &urExternalMem);
+
+  return external_mem{urExternalMem};
+}
+
+template <>
+__SYCL_EXPORT external_mem import_external_memory<resource_win32_name>(
+    external_mem_descriptor<resource_win32_name> externalMemDesc,
+    const sycl::queue &syclQueue) {
+  return import_external_memory<resource_win32_name>(
+      externalMemDesc, syclQueue.get_device(), syclQueue.get_context());
+}
+
 __SYCL_EXPORT
 image_mem_handle map_external_image_memory(external_mem extMem,
                                            const image_descriptor &desc,
@@ -673,6 +712,9 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
   case external_semaphore_handle_type::win32_nt_dx12_fence:
     urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE;
     break;
+  case external_semaphore_handle_type::win32_nt_dx11_fence:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE;
+    break;
   case external_semaphore_handle_type::timeline_win32_nt_handle:
     urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT;
     break;
@@ -693,6 +735,56 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
 template <>
 __SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_win32_handle> externalSemaphoreDesc,
+    const sycl::queue &syclQueue) {
+  return import_external_semaphore(
+      externalSemaphoreDesc, syclQueue.get_device(), syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT external_semaphore import_external_semaphore(
+    external_semaphore_descriptor<resource_win32_name> externalSemaphoreDesc,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+
+  ur_exp_external_semaphore_handle_t urExternalSemaphore = nullptr;
+  ur_exp_win32_name_t urWin32Name = {};
+  urWin32Name.stype = UR_STRUCTURE_TYPE_EXP_WIN32_NAME;
+  urWin32Name.name = externalSemaphoreDesc.external_resource.name;
+  ur_exp_external_semaphore_desc_t urExternalSemDesc = {};
+  urExternalSemDesc.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC;
+  urExternalSemDesc.pNext = &urWin32Name;
+
+  ur_exp_external_semaphore_type_t urHandleType;
+  switch (externalSemaphoreDesc.handle_type) {
+  case external_semaphore_handle_type::win32_nt_handle:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT;
+    break;
+  case external_semaphore_handle_type::win32_nt_dx12_fence:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE;
+    break;
+  case external_semaphore_handle_type::win32_nt_dx11_fence:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE;
+    break;
+  case external_semaphore_handle_type::timeline_win32_nt_handle:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT;
+    break;
+  default:
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Invalid semaphore handle type");
+  }
+
+  Adapter->call<
+      sycl::errc::invalid,
+      sycl::detail::UrApiKind::urBindlessImagesImportExternalSemaphoreExp>(
+      urCtx, urDevice, urHandleType, &urExternalSemDesc, &urExternalSemaphore);
+
+  return external_semaphore{urExternalSemaphore,
+                            externalSemaphoreDesc.handle_type};
+}
+
+template <>
+__SYCL_EXPORT external_semaphore import_external_semaphore(
+    external_semaphore_descriptor<resource_win32_name> externalSemaphoreDesc,
     const sycl::queue &syclQueue) {
   return import_external_semaphore(
       externalSemaphoreDesc, syclQueue.get_device(), syclQueue.get_context());

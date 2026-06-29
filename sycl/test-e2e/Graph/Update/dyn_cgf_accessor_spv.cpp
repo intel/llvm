@@ -5,6 +5,9 @@
 
 // REQUIRES: level_zero
 
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21769
+
 // Tests updating an accessor argument to a graph node created from SPIR-V
 // using dynamic command-groups.
 
@@ -38,6 +41,7 @@ int main(int, char **argv) {
 
   int PatternA = 42;
   int PatternB = 0xA;
+  int AccOffset = 0;
 
   auto AccA = BufA.get_access();
   auto AccB = BufB.get_access();
@@ -52,6 +56,7 @@ int main(int, char **argv) {
   auto CGFA = [&](handler &CGH) {
     CGH.require(AccA);
     CGH.set_arg(0, AccA);
+    CGH.set_arg(1, AccOffset);
     CGH.set_arg(2, PatternA);
     CGH.parallel_for(sycl::range<1>(Size), kernelA);
   };
@@ -59,6 +64,7 @@ int main(int, char **argv) {
   auto CGFB = [&](handler &CGH) {
     CGH.require(AccB);
     CGH.set_arg(0, AccB);
+    CGH.set_arg(1, AccOffset);
     CGH.set_arg(2, PatternB);
     CGH.parallel_for(sycl::range<1>(Size), kernelB);
   };

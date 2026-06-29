@@ -594,8 +594,13 @@ void Sema::Initialize() {
   }
 
   if (Context.getTargetInfo().getTriple().isAMDGPU() ||
+      (Context.getTargetInfo().getTriple().isSPIRV() &&
+       Context.getTargetInfo().getTriple().getVendor() == llvm::Triple::AMD) ||
       (Context.getAuxTargetInfo() &&
-       Context.getAuxTargetInfo()->getTriple().isAMDGPU())) {
+       (Context.getAuxTargetInfo()->getTriple().isAMDGPU() ||
+        (Context.getAuxTargetInfo()->getTriple().isSPIRV() &&
+         Context.getAuxTargetInfo()->getTriple().getVendor() ==
+             llvm::Triple::AMD)))) {
 #define AMDGPU_TYPE(Name, Id, SingletonId, Width, Align)                       \
   addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/AMDGPUTypes.def"
@@ -707,12 +712,12 @@ void Sema::PrintStats() const {
 void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
                                                QualType SrcType,
                                                SourceLocation Loc) {
-  std::optional<NullabilityKind> ExprNullability = SrcType->getNullability();
+  NullabilityKindOrNone ExprNullability = SrcType->getNullability();
   if (!ExprNullability || (*ExprNullability != NullabilityKind::Nullable &&
                            *ExprNullability != NullabilityKind::NullableResult))
     return;
 
-  std::optional<NullabilityKind> TypeNullability = DstType->getNullability();
+  NullabilityKindOrNone TypeNullability = DstType->getNullability();
   if (!TypeNullability || *TypeNullability != NullabilityKind::NonNull)
     return;
 
@@ -869,6 +874,20 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
     }
   }
 
+  bool IsExplicitCast = isa<CStyleCastExpr>(E) || isa<CXXStaticCastExpr>(E) ||
+                        isa<CXXFunctionalCastExpr>(E);
+
+  if ((Kind == CK_IntegralCast || Kind == CK_IntegralToBoolean ||
+       (Kind == CK_NoOp && E->getType()->isIntegerType() &&
+        Ty->isIntegerType())) &&
+      IsExplicitCast) {
+    if (const auto *SourceOBT = E->getType()->getAs<OverflowBehaviorType>()) {
+      if (Ty->isIntegerType() && !Ty->isOverflowBehaviorType()) {
+        Ty = Context.getOverflowBehaviorType(SourceOBT->getBehaviorKind(), Ty);
+      }
+    }
+  }
+
   return ImplicitCastExpr::Create(Context, Ty, Kind, E, BasePath, VK,
                                   CurFPFeatureOverrides());
 }
@@ -966,6 +985,12 @@ bool Sema::isExternalWithNoLinkageType(const ValueDecl *VD) const {
   return getLangOpts().CPlusPlus && VD->hasExternalFormalLinkage() &&
          !isExternalFormalLinkage(VD->getType()->getLinkage()) &&
          !isFunctionOrVarDeclExternC(VD);
+}
+
+bool Sema::isMainFileLoc(SourceLocation Loc) const {
+  if (TUKind != TU_Complete || getLangOpts().IsHeaderFile)
+    return false;
+  return SourceMgr.isInMainFile(Loc);
 }
 
 /// Obtains a sorted list of functions and variables that are undefined but
@@ -1095,6 +1120,15 @@ void Sema::LoadExternalWeakUndeclaredIdentifiers() {
     (void)WeakUndeclaredIdentifiers[WeakID.first].insert(WeakID.second);
 }
 
+void Sema::LoadExternalExtnameUndeclaredIdentifiers() {
+  if (!ExternalSource)
+    return;
+
+  SmallVector<std::pair<IdentifierInfo *, AsmLabelAttr *>, 4> ExtnameIDs;
+  ExternalSource->ReadExtnameUndeclaredIdentifiers(ExtnameIDs);
+  for (auto &ExtnameID : ExtnameIDs)
+    ExtnameUndeclaredIdentifiers[ExtnameID.first] = ExtnameID.second;
+}
 
 typedef llvm::DenseMap<const CXXRecordDecl*, bool> RecordCompleteMap;
 
@@ -1442,22 +1476,18 @@ void Sema::ActOnEndOfTranslationUnit() {
   // in the module purview but has no definition before the end of the TU or
   // the start of a Private Module Fragment (if one is present).
   if (!PendingInlineFuncDecls.empty()) {
-    for (auto *D : PendingInlineFuncDecls) {
-      if (auto *FD = dyn_cast<FunctionDecl>(D)) {
-        bool DefInPMF = false;
-        if (auto *FDD = FD->getDefinition()) {
-          DefInPMF = FDD->getOwningModule()->isPrivateModule();
-          if (!DefInPMF)
-            continue;
-        }
-        Diag(FD->getLocation(), diag::err_export_inline_not_defined)
-            << DefInPMF;
-        // If we have a PMF it should be at the end of the ModuleScopes.
-        if (DefInPMF &&
-            ModuleScopes.back().Module->Kind == Module::PrivateModuleFragment) {
-          Diag(ModuleScopes.back().BeginLoc,
-               diag::note_private_module_fragment);
-        }
+    for (auto *FD : PendingInlineFuncDecls) {
+      bool DefInPMF = false;
+      if (auto *FDD = FD->getDefinition()) {
+        DefInPMF = FDD->getOwningModule()->isPrivateModule();
+        if (!DefInPMF)
+          continue;
+      }
+      Diag(FD->getLocation(), diag::err_export_inline_not_defined) << DefInPMF;
+      // If we have a PMF it should be at the end of the ModuleScopes.
+      if (DefInPMF &&
+          ModuleScopes.back().Module->Kind == Module::PrivateModuleFragment) {
+        Diag(ModuleScopes.back().BeginLoc, diag::note_private_module_fragment);
       }
     }
     PendingInlineFuncDecls.clear();
@@ -1536,6 +1566,12 @@ void Sema::ActOnEndOfTranslationUnit() {
       continue;
 
     Consumer.CompleteExternalDeclaration(D);
+  }
+
+  // Visit all pending #pragma export.
+  for (const PendingPragmaInfo &Exported : PendingExportedNames.values()) {
+    if (!Exported.Used)
+      Diag(Exported.NameLoc, diag::warn_failed_to_resolve_pragma) << "export";
   }
 
   if (LangOpts.HLSL)
@@ -1626,6 +1662,40 @@ void Sema::ActOnEndOfTranslationUnit() {
     emitAndClearUnusedLocalTypedefWarnings();
   }
 
+  if (!Diags.isIgnored(diag::warn_unused_but_set_global, SourceLocation())) {
+    // Diagnose unused-but-set static globals in a deterministic order.
+    // Not tracking shadowing info for static globals; there's nothing to
+    // shadow.
+    struct LocAndDiag {
+      SourceLocation Loc;
+      PartialDiagnostic PD;
+    };
+    SmallVector<LocAndDiag, 16> DeclDiags;
+    auto addDiag = [&DeclDiags](SourceLocation Loc, PartialDiagnostic PD) {
+      DeclDiags.push_back(LocAndDiag{Loc, std::move(PD)});
+    };
+
+    // For -Wunused-but-set-variable we only care about variables that were
+    // referenced by the TU end.
+    for (const auto &Ref : RefsMinusAssignments) {
+      const VarDecl *VD = Ref.first;
+      // Only diagnose internal linkage file vars defined in the main file to
+      // match -Wunused-variable behavior and avoid false positives from
+      // headers.
+      if (VD->isInternalLinkageFileVar() && isMainFileLoc(VD->getLocation()))
+        DiagnoseUnusedButSetDecl(VD, addDiag);
+    }
+
+    llvm::sort(DeclDiags,
+               [](const LocAndDiag &LHS, const LocAndDiag &RHS) -> bool {
+                 // Sorting purely for determinism; matches behavior in
+                 // Sema::ActOnPopScope.
+                 return LHS.Loc < RHS.Loc;
+               });
+    for (const LocAndDiag &D : DeclDiags)
+      Diag(D.Loc, D.PD);
+  }
+
   if (!Diags.isIgnored(diag::warn_unused_private_field, SourceLocation())) {
     // FIXME: Load additional unused private field candidates from the external
     // source.
@@ -1633,7 +1703,7 @@ void Sema::ActOnEndOfTranslationUnit() {
     RecordCompleteMap MNCComplete;
     for (const NamedDecl *D : UnusedPrivateFields) {
       const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D->getDeclContext());
-      if (RD && !RD->isUnion() &&
+      if (RD && !RD->isUnion() && !D->hasAttr<UnusedAttr>() &&
           IsRecordFullyDefined(RD, RecordsComplete, MNCComplete)) {
         Diag(D->getLocation(), diag::warn_unused_private_field)
               << D->getDeclName();
@@ -2063,8 +2133,24 @@ public:
     // Always emit deferred diagnostics for the direct users. This does not
     // lead to explosion of diagnostics since each user is visited at most
     // twice.
+#if 1 // INTEL_CUSTOMIZATION
+    // xmain emits deferred diagnostics inline during this traversal (unlike
+    // the upstream collect-then-emit model that uses emitCollectedDiags). For
+    // an implicit __host__ __device__ member that is a device-emission
+    // candidate only because of an explicit template instantiation, emitting
+    // inline here would (a) surface the error against the bare instantiation
+    // root with no call stack and (b) duplicate it when reached via an organic
+    // device caller. Skip the inline emission and let the end-of-TU
+    // classification in Sema::emitDeferredDiags decide whether to surface the
+    // diagnostics (organic caller) or drop them and emit a trap body (no
+    // caller). See #197214.
+    if ((ShouldEmitRootNode || InOMPDeviceContext) &&
+        !SemaCUDA::isImplicitHDExplicitInstantiation(FD))
+      emitDeferredDiags(FD, Caller);
+#else  // INTEL_CUSTOMIZATION
     if (ShouldEmitRootNode || InOMPDeviceContext)
       emitDeferredDiags(FD, Caller);
+#endif // INTEL_CUSTOMIZATION
     // Do not revisit a function if the function body has been completely
     // visited before.
     if (!Done.insert(FD).second)
@@ -2143,14 +2229,74 @@ void Sema::emitDeferredDiags() {
     ExternalSource->ReadDeclsToCheckForDeferredDiags(
         DeclsToCheckForDeferredDiags);
 
+  // For each implicit-H+D-explicit-inst function with deferred errors but no
+  // organic device caller, drop the diagnostics and mark for a trap body.
+  auto ClassifyImplicitHDExplicitInst = [&]() {
+    if (!LangOpts.CUDAIsDevice)
+      return;
+    for (auto &Pair : DeviceDeferredDiags) {
+      const FunctionDecl *FD = Pair.first;
+      if (!SemaCUDA::isImplicitHDExplicitInstantiation(FD))
+        continue;
+#if 1 // INTEL_CUSTOMIZATION
+      // xmain emits deferred diagnostics inline during the
+      // DeferredDiagnosticsEmitter traversal rather than collecting them for a
+      // final emitCollectedDiags pass. The inline emission is intentionally
+      // skipped for these functions (see
+      // DeferredDiagnosticsEmitter::checkFunc), so when an organic device
+      // caller exists the diagnostics are surfaced here with the usual
+      // call-stack notes. See #197214.
+      if (CUDA().DeviceKnownEmittedFns.count(FD)) {
+        bool HasWarningOrError = false;
+        bool FirstDiag = true;
+        for (DeviceDeferredDiagnostic &D : Pair.second) {
+          if (Diags.hasFatalErrorOccurred())
+            break;
+          const SourceLocation &Loc = D.getDiag().first;
+          const PartialDiagnostic &PD = D.getDiag().second;
+          HasWarningOrError |=
+              getDiagnostics().getDiagnosticLevel(PD.getDiagID(), Loc) >=
+              DiagnosticsEngine::Warning;
+          {
+            DiagnosticBuilder Builder(Diags.Report(Loc, PD.getDiagID()));
+            PD.Emit(Builder);
+          }
+          if (FirstDiag && HasWarningOrError) {
+            emitCallStackNotes(*this, FD);
+            FirstDiag = false;
+          }
+        }
+        Pair.second.clear();
+        continue;
+      }
+#else  // INTEL_CUSTOMIZATION
+      if (CUDA().DeviceKnownEmittedFns.count(FD))
+        continue;
+#endif // INTEL_CUSTOMIZATION
+      bool HasError =
+          llvm::any_of(Pair.second, [&](const DeviceDeferredDiagnostic &DDiag) {
+            return getDiagnostics().getDiagnosticLevel(
+                       DDiag.getDiag().second.getDiagID(),
+                       DDiag.getDiag().first) >= DiagnosticsEngine::Error;
+          });
+      if (!HasError)
+        continue;
+      Pair.second.clear();
+      Context.CUDADeviceInvalidFuncs.insert(FD->getCanonicalDecl());
+    }
+  };
+
   if ((DeviceDeferredDiags.empty() && !LangOpts.OpenMP &&
        !LangOpts.SYCLIsDevice) ||
-      DeclsToCheckForDeferredDiags.empty())
+      DeclsToCheckForDeferredDiags.empty()) {
+    ClassifyImplicitHDExplicitInst();
     return;
+  }
 
   DeferredDiagnosticsEmitter DDE(*this);
   for (auto *D : DeclsToCheckForDeferredDiags)
     DDE.checkRecordedDecl(D);
+  ClassifyImplicitHDExplicitInst();
 }
 
 // In CUDA, there are some constructs which may appear in semantically-valid

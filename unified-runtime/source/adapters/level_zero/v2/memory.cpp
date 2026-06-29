@@ -1,9 +1,8 @@
 //===--------- memory.cpp - Level Zero Adapter ---------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -141,17 +140,16 @@ void *ur_integrated_buffer_handle_t::getDevicePtr(
 
 void *ur_integrated_buffer_handle_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t mapSize,
-    ze_command_list_handle_t /*cmdList*/, wait_list_view & /*waitListView*/) {
+    ze_command_list_handle_t cmdList, wait_list_view & /*waitListView*/) {
   if (writeBackPtr) {
     // Copy-back path: user gets back their original pointer
     void *mappedPtr = ur_cast<char *>(writeBackPtr) + offset;
 
     if (flags & UR_MAP_FLAG_READ) {
       // Use Level Zero copy for USM HOST memory to ensure GPU visibility
-      auto hDevice = hContext->getDevices()[0];
-      UR_CALL_THROWS(synchronousZeCopy(hContext, hDevice, mappedPtr,
-                                       ur_cast<char *>(ptr.get()) + offset,
-                                       mapSize));
+      ZE_CALL_NOCHECK(zeCommandListAppendMemoryCopy,
+                      (cmdList, mappedPtr, ur_cast<char *>(ptr.get()) + offset,
+                       mapSize, nullptr, 0, nullptr));
     }
 
     // Track this mapping for unmap
@@ -166,7 +164,7 @@ void *ur_integrated_buffer_handle_t::mapHostPtr(
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
-    void *pMappedPtr, ze_command_list_handle_t /*cmdList*/,
+    void *pMappedPtr, ze_command_list_handle_t cmdList,
     wait_list_view & /*waitListView*/) {
   if (writeBackPtr) {
     // Copy-back path: find the mapped region and copy data back if needed
@@ -184,10 +182,10 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
     if (mappedRegion->flags &
         (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION)) {
       // Use Level Zero copy for USM HOST memory to ensure GPU visibility
-      auto hDevice = hContext->getDevices()[0];
-      UR_CALL_THROWS(synchronousZeCopy(
-          hContext, hDevice, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
-          mappedRegion->ptr.get(), mappedRegion->size));
+      ZE_CALL_NOCHECK(
+          zeCommandListAppendMemoryCopy,
+          (cmdList, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
+           mappedRegion->ptr.get(), mappedRegion->size, nullptr, 0, nullptr));
     }
 
     mappedRegions.erase(mappedRegion);
@@ -220,7 +218,7 @@ void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
     if (result2 == UR_RESULT_SUCCESS) {
       writeBackPtr = nullptr;
     } else {
-      UR_LOG(ERR, "Failed to copy-back buffer data: {}", result2);
+      UR_LOG_SAFE(ERR, "Failed to copy-back buffer data: {}", result2);
     }
   }
 }
@@ -326,8 +324,11 @@ ur_discrete_buffer_handle_t::~ur_discrete_buffer_handle_t() {
     return;
 
   auto srcPtr = getActiveDeviceAlloc();
-  synchronousZeCopy(hContext, activeAllocationDevice, writeBackPtr, srcPtr,
-                    getSize());
+  auto ret = synchronousZeCopy(hContext, activeAllocationDevice, writeBackPtr,
+                               srcPtr, getSize());
+  if (ret != UR_RESULT_SUCCESS) {
+    UR_LOG_SAFE(ERR, "Failed to copy-back buffer data: {}", ret);
+  }
 }
 
 void *ur_discrete_buffer_handle_t::getActiveDeviceAlloc(size_t offset) {
@@ -359,12 +360,17 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
     return getActiveDeviceAlloc(offset);
   }
 
-  auto &p2pDevices = hContext->getP2PDevices(hDevice);
+  auto p2pDevices =
+      hContext->getDevicesWhoseAllocationsCanBeAccessedFrom(hDevice);
   auto p2pAccessible = std::find(p2pDevices.begin(), p2pDevices.end(),
                                  activeAllocationDevice) != p2pDevices.end();
 
   if (!p2pAccessible) {
     // TODO: migrate buffer through the host
+    UR_LOG(WARN,
+           "p2p is not accessible: requesting device ptr:{} cannot access "
+           "allocation on device ptr:{}",
+           (void *)hDevice, (void *)activeAllocationDevice);
     throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

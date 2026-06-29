@@ -11,16 +11,17 @@ from templates import helper as th
     handle_create_get_retain_release_funcs=th.get_handle_create_get_retain_release_functions(specs, n, tags)
 %>/*
  *
- * Copyright (C) 2023-2025 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ${name}.cpp
  *
+ * NOTE: This file is auto-generated. To edit this file, modify
+ *       unified-runtime/scripts/templates/${name}.cpp.mako.
  */
 #include "${x}_leak_check.hpp"
 #include "${x}_validation_layer.hpp"

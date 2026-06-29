@@ -17,6 +17,10 @@
 
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
     defined(__AMDGCN__)
+#define __LIBDEVICE_TARGET_SUPPORT
+#endif
+
+#ifdef __LIBDEVICE_TARGET_SUPPORT
 #ifdef __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
 #else // __SYCL_DEVICE_ONLY__
@@ -29,7 +33,7 @@
   DEVICE_EXTERNAL EXTERN_C __attribute__((always_inline))
 #define DEVICE_EXTERN_C_NOINLINE                                               \
   DEVICE_EXTERNAL EXTERN_C __attribute__((noinline))
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
+#endif // __LIBDEVICE_TARGET_SUPPORT
 
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__LIBDEVICE_HOST_IMPL__)
 #define __LIBDEVICE_IMF_ENABLED__

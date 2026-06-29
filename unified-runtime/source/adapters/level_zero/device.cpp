@@ -1,9 +1,8 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -225,6 +224,46 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
+static bool
+supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  constexpr const char *ExtensionName =
+      ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
+  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
+
+  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
+  return Extension != Platform->zeDriverExtensionMap.end() &&
+         Extension->second >= MinVersion;
+#else
+  std::ignore = Platform;
+  return false;
+#endif
+}
+
+static std::optional<uint64_t>
+getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  if (!supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+    return std::nullopt;
+  }
+
+  ZeStruct<ze_device_properties_t> DeviceProperties;
+  ZeStruct<ze_device_usablemem_size_ext_properties_t> UsableMemProperties;
+  DeviceProperties.pNext = &UsableMemProperties;
+
+  auto ZeResult = ZE_CALL_NOCHECK(zeDeviceGetProperties,
+                                  (Device->ZeDevice, &DeviceProperties));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    return std::nullopt;
+  }
+
+  return UsableMemProperties.currUsableMemSize;
+#else
+  std::ignore = Device;
+  return std::nullopt;
+#endif
+}
+
 // Return the Sysman device handle and correpsonding data for the given UR
 // device.
 static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
@@ -432,6 +471,14 @@ ur_result_t urDeviceGetInfo(
                          Device->ZeDeviceComputeProperties->maxGroupCountZ}};
     return ReturnValue(MaxGroupCounts);
   }
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    // Multiply the max group counts in each dimension to get the total max
+    // number of work groups. Prevent overflow.
+    return ReturnValue(multiplyWithOverflowCheck(
+        Device->ZeDeviceComputeProperties->maxGroupCountX,
+        Device->ZeDeviceComputeProperties->maxGroupCountY,
+        Device->ZeDeviceComputeProperties->maxGroupCountZ));
+  }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->coreClockRate});
   case UR_DEVICE_INFO_ADDRESS_BITS: {
@@ -573,6 +620,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue("");
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(true));
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(static_cast<ur_bool_t>(true));
+#else
+    return ReturnValue(static_cast<ur_bool_t>(false));
+#endif
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -586,8 +639,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(
         Device->ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_ECC));
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-    return ReturnValue(
-        static_cast<size_t>(Device->ZeDeviceProperties->timerResolution));
+    return ReturnValue(static_cast<size_t>(Device->getTimerResolution()));
   case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
     return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_LOCAL);
   case UR_DEVICE_INFO_MAX_CONSTANT_ARGS:
@@ -744,9 +796,11 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_int);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_long);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG:
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_long);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
@@ -864,6 +918,21 @@ ur_result_t urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
+    if (!ParamValue && pSize) {
+      if (supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+        return ReturnValue(uint64_t{0});
+      }
+
+      auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
+      (void)ZesDevice;
+      (void)ZesDeviceData;
+      if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+      }
+
+      return ReturnValue(uint64_t{0});
+    }
+
     // Calculate the global memory size as the max limit that can be reported as
     // "free" memory for the user to allocate.
     uint64_t GlobalMemSize = calculateGlobalMemSize(Device);
@@ -871,6 +940,10 @@ ur_result_t urDeviceGetInfo(
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
+
+    if (auto CoreUsableMemSize = getDeviceUsableMemSizeFromCore(Device)) {
+      return ReturnValue(std::min(GlobalMemSize, *CoreUsableMemSize));
+    }
 
     auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
@@ -1175,34 +1248,21 @@ ur_result_t urDeviceGetInfo(
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
-    ze_device_image_properties_t imageProps = {};
-    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
-    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
-    imageAllocProps.stype =
-        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
-    imageProps.pNext = (void *)&imageAllocProps;
-
-    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
-
-    return ReturnValue(imageAllocProps.maxImageLinearWidth);
+    return ReturnValue(
+        Device->ZeDevicePitchedAllocProperties->AllocProps.maxImageLinearWidth);
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
-    ze_device_image_properties_t imageProps = {};
-    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
-    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
-    imageAllocProps.stype =
-        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
-    imageProps.pNext = (void *)&imageAllocProps;
-
-    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
-
-    return ReturnValue(imageAllocProps.maxImageLinearHeight);
+    return ReturnValue(Device->ZeDevicePitchedAllocProperties->AllocProps
+                           .maxImageLinearHeight);
   }
-  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
-    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
-    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
+    return ReturnValue(static_cast<uint32_t>(
+        Device->ZeDevicePitchedAllocProperties->PitchInfo.pitchAlign));
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
+    return ReturnValue(
+        Device->ZeDevicePitchedAllocProperties->PitchInfo.maxSupportedPitch);
+  }
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // L0 does not support mipmaps.
     return ReturnValue(false);
@@ -1222,6 +1282,16 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP: {
     // L0 supports importing external memory.
     return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP: {
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+    // Registering existing host memory as a USM host allocation relies on the
+    // external system memory mapping extension being supported by the driver.
+    return ReturnValue(
+        Device->Platform->ZeExternalMemoryMappingExtensionSupported);
+#else
+    return ReturnValue(false);
+#endif
   }
   case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
     return ReturnValue(Device->Platform->ZeExternalSemaphoreExt.Supported);
@@ -1313,6 +1383,12 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(true);
 #endif
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+    return ReturnValue(true);
+#else
+    return ReturnValue(false);
+#endif
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
@@ -1325,8 +1401,10 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
+    auto Supported = Device->Platform->ZeDeviceSynchronizeSupported;
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
@@ -1506,7 +1584,25 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(Device->isIntegrated() != 0));
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    return ReturnValue(Device->Platform->ZeGraphExt.Supported);
+  {
+    if (!Device->Platform->ZeGraphExt.Supported) {
+      return ReturnValue(false);
+    }
+
+    ze_record_replay_graph_exp_properties_t GraphProperties{};
+    GraphProperties.stype =
+        ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXP_PROPERTIES;
+    GraphProperties.pNext = nullptr;
+    ZeStruct<ze_device_properties_t> DeviceProperties;
+    DeviceProperties.pNext = &GraphProperties;
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProperties));
+
+    constexpr ze_record_replay_graph_exp_flags_t GraphModeMask =
+        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_IMMUTABLE_GRAPH |
+        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_MUTABLE_GRAPH;
+    return ReturnValue(static_cast<ur_bool_t>(
+        (GraphProperties.graphFlags & GraphModeMask) != 0));
+  }
 #else
     return ReturnValue(false);
 #endif
@@ -1516,6 +1612,23 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(false);
 #endif
+  case UR_DEVICE_INFO_XE_STACK_COUNT:
+    return ReturnValue(uint32_t{Device->ZeXEDeviceProperties->numXeStacks});
+  case UR_DEVICE_INFO_XE_REGIONS_PER_STACK:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeRegionsPerStack});
+  case UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeClustersPerRegion});
+  case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeCorePerCluster});
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numExecutionEnginesPerXeCore});
+  case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -1772,8 +1885,7 @@ ur_result_t urDeviceGetGlobalTimestamps(
 #endif
   }
 
-  const uint64_t &ZeTimerResolution =
-      Device->ZeDeviceProperties->timerResolution;
+  const double ZeTimerResolution = Device->getTimerResolution();
   const uint64_t TimestampMaxCount = Device->getTimestampMask();
   uint64_t DeviceClockCount, Dummy;
 
@@ -2102,6 +2214,32 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         }
       };
 
+  ZeXEDeviceProperties.Compute =
+      [ZeDevice](ze_intel_xe_device_exp_properties_t &Properties) {
+        // Set up default values of 0
+        Properties.numXeStacks = 0;
+        Properties.numXeRegionsPerStack = 0;
+        Properties.numXeClustersPerRegion = 0;
+        Properties.numXeCorePerCluster = 0;
+        Properties.numExecutionEnginesPerXeCore = 0;
+        Properties.maxNumHwThreadsPerExecutionEngine = 0;
+        Properties.maxNumLanesPerHwThread = 0;
+
+        ze_device_properties_t P;
+        P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+        P.pNext = (void *)&Properties;
+        ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
+      };
+
+  ZeDevicePitchedAllocProperties.Compute =
+      [ZeDevice](ZeDevicePitchedAllocInfo &Properties) {
+        ze_device_image_properties_t ImageProps = {};
+        ImageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+        ImageProps.pNext = &Properties.AllocProps;
+        Properties.AllocProps.pNext = &Properties.PitchInfo;
+        ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &ImageProps));
+      };
+
   ImmCommandListUsed = this->useImmediateCommandLists();
 
   uint32_t numQueueGroups = 0;
@@ -2258,4 +2396,25 @@ void ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
 void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
                                           void *HostPtr) {
   ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
+}
+
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_ const &device_handle) {
+  if (device_handle.Id.has_value()) {
+    return os << device_handle.Id.value();
+  }
+  return os << "NONE";
+}
+
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_::PeerStatus peer_status) {
+  switch (peer_status) {
+  case ur_device_handle_t_::PeerStatus::DISABLED:
+    return os << "DISABLED";
+  case ur_device_handle_t_::PeerStatus::ENABLED:
+    return os << "ENABLED";
+  case ur_device_handle_t_::PeerStatus::NO_CONNECTION:
+    return os << "NO_CONNECTION";
+  }
+  return os << "UNKNOWN";
 }
