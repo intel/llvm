@@ -248,8 +248,9 @@ PropSetRegTy computeModuleProperties(const Module &M,
       if (!GV.hasExternalLinkage())
         continue;
 
+      // Only named structs carry the device_global type name.
       auto *ST = dyn_cast<StructType>(GV.getValueType());
-      if (!ST || ST->isLiteral()) // Literal structs don't have names.
+      if (!ST || !ST->hasName())
         continue;
 
       // Check if it's a device_global by type name (declarations don't have
