@@ -18,6 +18,7 @@
 
 // Tests that launching kernels with large ranges produces proper error
 // messages. Validates overflow detection and Level Zero work-group limits
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

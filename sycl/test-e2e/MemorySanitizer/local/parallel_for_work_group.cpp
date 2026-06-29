@@ -8,6 +8,7 @@
 
 // XFAIL: spirv-backend && gpu && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+#include <iostream>
 
 #include <sycl/group.hpp>
 #include <sycl/h_item.hpp>

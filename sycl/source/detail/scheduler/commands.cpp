@@ -1321,7 +1321,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
     UnmapEventImpl->setHandle(UREvent);
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
-    EventImpls.push_back(UnmapEventImpl);
+    EventImpls.push_back(std::move(UnmapEventImpl));
   }
   ur_event_handle_t UREvent = nullptr;
   if (SkipRelease)

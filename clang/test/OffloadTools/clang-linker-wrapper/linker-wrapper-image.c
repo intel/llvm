@@ -314,16 +314,16 @@
 
 // SYCL-INTEL: spirv-to-ir-wrapper
 
-//      SYCL: @.sycl_offloading.binary = internal unnamed_addr constant [[[SIZE:[0-9]+]] x i8] c"{{.*}}", section ".llvm.offloading"
+//      SYCL: @.sycl_offloading.binary = internal unnamed_addr constant [0 x i8] zeroinitializer, section ".llvm.offloading"
 
 //      SYCL: define internal void @sycl.descriptor_reg() section ".text.startup" {
 // SYCL-NEXT: entry:
-// SYCL-NEXT:   call void @__sycl_register_lib(ptr @.sycl_offloading.binary, i64 [[SIZE]])
+// SYCL-NEXT:   call void @__sycl_register_lib(ptr @.sycl_offloading.binary, i64 0)
 // SYCL-NEXT:   ret void
 // SYCL-NEXT: }
 
 //      SYCL: define internal void @sycl.descriptor_unreg() section ".text.startup" {
 // SYCL-NEXT: entry:
-// SYCL-NEXT:   call void @__sycl_unregister_lib(ptr @.sycl_offloading.binary, i64 [[SIZE]])
+// SYCL-NEXT:   call void @__sycl_unregister_lib(ptr @.sycl_offloading.binary, i64 0)
 // SYCL-NEXT:   ret void
 // SYCL-NEXT: }

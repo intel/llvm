@@ -4,6 +4,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/sub_group.hpp>
 
+#include <algorithm>
 #include <iostream>
 
 using namespace sycl;

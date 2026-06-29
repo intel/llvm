@@ -63,9 +63,6 @@ libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   math/tan.cl
   math/tanh.cl
   math/tgamma.cl
-  relational/isfinite.cl
-  relational/isinf.cl
-  relational/isnan.cl
   synchronization/barrier.cl
   synchronization/aw_barrier.cl
   async/async_work_group_strided_copy.cl
@@ -83,17 +80,4 @@ libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   group/collectives_helpers.cl
   group/collectives.cl
   group/group_non_uniform.cl
-  atomic/atomic_add.cl
-  atomic/atomic_and.cl
-  atomic/atomic_cmpxchg.cl
-  atomic/atomic_dec.cl
-  atomic/atomic_inc.cl
-  atomic/atomic_max.cl
-  atomic/atomic_min.cl
-  atomic/atomic_sub.cl
-  atomic/atomic_xchg.cl
-  atomic/atomic_or.cl
-  atomic/atomic_xor.cl
-  atomic/atomic_load.cl
-  atomic/atomic_store.cl
 )

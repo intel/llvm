@@ -15,6 +15,7 @@
 //  - call init_simd.data() to retrieve vector_type and then provide it to the
 //    simd constructor
 //  - bitwise comparing expected and retrieved values
+#include <iostream>
 
 #include "ctor_vector.hpp"
 

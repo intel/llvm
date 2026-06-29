@@ -7,7 +7,9 @@
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: aspect-ext_oneapi_tangle
+#include <iostream>
 
+#include <algorithm>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <vector>

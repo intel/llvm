@@ -8,6 +8,7 @@
 // UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 // RUN: %{build} -o %t.out
 

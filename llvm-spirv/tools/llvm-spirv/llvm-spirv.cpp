@@ -169,6 +169,23 @@ static cl::opt<bool> SPIRVEmitFunctionPtrAddrSpace(
     "spirv-emit-function-ptr-addr-space", cl::init(false),
     cl::desc("Emit and consume CodeSectionINTEL for function pointers"));
 
+static cl::opt<std::string> SPIRVAddrSpaceMap(
+    "spirv-addrspace-map",
+    cl::desc("Remap SPIR-V address spaces when translating SPIR-V to LLVM IR.\n"
+             "Comma-separated list of from:to pairs, e.g. \"0:4,4:0\".\n"
+             "from is a SPIRAddressSpace index (0-9); to is the LLVM IR "
+             "address space number to emit.\n"
+             "Unmapped entries keep their original SPIRAS value."),
+    cl::value_desc("from1:to1,from2:to2,..."));
+
+static cl::opt<unsigned> SPIRVFunctionProgramAddrSpace(
+    "spirv-function-program-addrspace",
+    cl::desc("Address space to assign to function definitions when translating "
+             "SPIR-V to LLVM IR (used for OpConstantFunctionPointerINTEL). "
+             "Defaults to 0 (SPIRAS_Private). Please note that this flag is not"
+             "supported by SPIR-V generator (writer). "),
+    cl::value_desc("address-space"));
+
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
@@ -758,6 +775,40 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
   return false;
 }
 
+// Returns true on error.
+static bool parseAddrSpaceMapOpt(SPIRV::TranslatorOpts &Opts) {
+  SPIRV::AddrSpaceMap ParsedMap;
+  for (unsigned I = 0; I < SPIRV::SPIRAS_Count; ++I)
+    ParsedMap[I] = I;
+
+  SmallVector<StringRef, 16> Pairs;
+  StringRef(SPIRVAddrSpaceMap).split(Pairs, ',', -1, false);
+  for (StringRef Pair : Pairs) {
+    SmallVector<StringRef, 2> KV;
+    Pair.split(KV, ':', 1);
+    if (KV.size() != 2) {
+      errs() << "Error: Invalid format for --spirv-addrspace-map entry \""
+             << Pair << "\". Expected \"from:to\".\n";
+      return true;
+    }
+    unsigned From, To;
+    if (KV[0].getAsInteger(10, From) || From >= SPIRV::SPIRAS_Count) {
+      errs() << "Error: --spirv-addrspace-map: \"" << KV[0]
+             << "\" is not a valid SPIRAddressSpace index (0-"
+             << (SPIRV::SPIRAS_Count - 1) << ").\n";
+      return true;
+    }
+    if (KV[1].getAsInteger(10, To)) {
+      errs() << "Error: --spirv-addrspace-map: \"" << KV[1]
+             << "\" is not a valid unsigned address space number.\n";
+      return true;
+    }
+    ParsedMap[From] = To;
+  }
+  Opts.setAddrSpaceMap(ParsedMap);
+  return false;
+}
+
 static void parseAllowUnknownIntrinsicsOpt(SPIRV::TranslatorOpts &Opts) {
   SPIRV::TranslatorOpts::ArgList PrefixList;
   for (const auto &Prefix : SPIRVAllowUnknownIntrinsics) {
@@ -911,6 +962,24 @@ int main(int Ac, char **Av) {
 
   if (SPIRVEmitFunctionPtrAddrSpace.getNumOccurrences() != 0)
     Opts.setEmitFunctionPtrAddrSpace(true);
+
+  if (SPIRVAddrSpaceMap.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-addrspace-map option ignored as it only "
+                "affects translation from SPIR-V to LLVM IR";
+    } else if (parseAddrSpaceMapOpt(Opts)) {
+      return -1;
+    }
+  }
+
+  if (SPIRVFunctionProgramAddrSpace.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-function-program-addrspace option ignored as it "
+                "only affects translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setFunctionProgramAddrSpace(SPIRVFunctionProgramAddrSpace);
+    }
+  }
 
   Opts.setFnVarSpecEnable(FnVarSpecEnable);
 

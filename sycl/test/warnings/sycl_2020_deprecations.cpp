@@ -31,6 +31,7 @@ int main() {
   // expected-error@+1 {{no member named 'get' in 'sycl::event'}}
   (void)Evt.get();
 
+  // expected-warning@+2 {{'image<>' is deprecated: The SYCL 1.2.1 image class has been removed in SYCL 2020}}
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::image<1>'}}
   sycl::image<1> Img{Mem, Ctx};
   (void)Img;

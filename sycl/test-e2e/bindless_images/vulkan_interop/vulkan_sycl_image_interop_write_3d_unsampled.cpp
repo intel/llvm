@@ -30,6 +30,7 @@
     ./vsw_3d_test.bin --semaphores --linear --channels 2 128x128x16
  */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 
