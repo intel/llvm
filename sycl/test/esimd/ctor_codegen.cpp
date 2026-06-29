@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -S %s -o - | FileCheck %s
 
+// UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22392
+
 // Check efficiency of LLVM IR generated for various simd constructors.
 
 #include <sycl/ext/intel/esimd.hpp>

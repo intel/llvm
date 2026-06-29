@@ -17,6 +17,7 @@
 #include <iostream>
 
 #include "esimd_test_utils.hpp"
+#include <sycl/group_barrier.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -55,7 +56,7 @@ template <typename T, int VL, int Align = 16> bool test(queue Q) {
        simd<T, VL> ValuesToSLM = IntValues;
        slm_block_store(Align + LID * VL * sizeof(T), ValuesToSLM, AlignTag);
 
-       Item.barrier();
+       group_barrier(Item.get_group());
 
        if (LID == 0) {
          for (int LID = 0; LID < LocalRange; LID++) {

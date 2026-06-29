@@ -11357,7 +11357,7 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == pEventDesc->hDevice`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pEventDesc`
 ///         + `NULL == phEvent`
@@ -11372,6 +11372,8 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
@@ -11380,7 +11382,7 @@ ur_result_t UR_APICALL urEventCreateExp(
   if (nullptr == pfnCreateExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnCreateExp(hContext, pEventDesc, phEvent);
+  return pfnCreateExp(hContext, hDevice, pEventDesc, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
