@@ -328,8 +328,7 @@ private:
     return Desc;
   }
 
-  bool checkImageDesc(const ur_image_desc_t &Desc, context_impl *Context,
-                      void *UserPtr);
+  bool checkImageDesc(const ur_image_desc_t &Desc, context_impl *Context);
 
   ur_image_format_t getImageFormat() {
     ur_image_format_t Format = {};

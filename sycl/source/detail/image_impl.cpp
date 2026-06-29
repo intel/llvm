@@ -326,8 +326,7 @@ void *image_impl::allocateMem(context_impl *Context, bool InitFromUserData,
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
   ur_image_desc_t Desc = getImageDesc(HostPtr != nullptr);
-  assert(checkImageDesc(Desc, Context, HostPtr) &&
-         "The check an image desc failed.");
+  assert(checkImageDesc(Desc, Context) && "The check an image desc failed.");
 
   ur_image_format_t Format = getImageFormat();
   assert(checkImageFormat(Format, Context) &&
@@ -340,7 +339,7 @@ void *image_impl::allocateMem(context_impl *Context, bool InitFromUserData,
 }
 
 bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
-                                context_impl *Context, void *UserPtr) {
+                                context_impl *Context) {
   devices_range Devices = Context ? Context->getDevices() : devices_range{};
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D_ARRAY,
                UR_MEM_TYPE_IMAGE2D_ARRAY, UR_MEM_TYPE_IMAGE2D) &&

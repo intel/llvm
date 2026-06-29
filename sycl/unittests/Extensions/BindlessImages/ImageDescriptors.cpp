@@ -90,7 +90,7 @@ TEST(BindlessImagesExtensionTests, ImageDescriptorPropagatesLayout) {
 
   int fd = 123;
   syclexp::external_mem_descriptor<int> ExtMemDesc{
-      fd, syclexp::external_mem_handle_type::opaque_fd};
+      fd, syclexp::external_mem_handle_type::opaque_fd, 0};
 
   // This calls our local dirty specialization
   auto MemHandle = syclexp::import_external_memory(ExtMemDesc, Q.get_device(),
@@ -128,7 +128,7 @@ TEST(BindlessImagesExtensionTests, ImageDescriptorPropagatesSlicePitch) {
 
   int fd = 456;
   syclexp::external_mem_descriptor<int> ExtMemDesc{
-      fd, syclexp::external_mem_handle_type::opaque_fd};
+      fd, syclexp::external_mem_handle_type::opaque_fd, 0};
 
   auto MemHandle = syclexp::import_external_memory(ExtMemDesc, Q.get_device(),
                                                    Q.get_context());
