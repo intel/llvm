@@ -33,13 +33,9 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_STRINGIFY
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// OV team requires sycl headers to be iostream-free, SYCL is
-// not a iostream "provider", however we used to include iostream in some of our
-// transitive headers. Customers relied on that inclusion, so we need to keep it
-// for now. This is a temporary solution, and we should remove this block once
-// breaking changes are allowed. OV team accesses SYCL functionality through the
-// split-header khr, so they are not pulling sycl.hpp. So this is a temporary
-// solution for the past customers that relied on iostream.
+// <sycl/sycl.hpp> is not a iostream "provider", however iostream was included
+// in some of SYCL transitive headers. Customers relied on that inclusion, so it
+// should be kept for now and be removed once breaking changes are allowed.
 #include <iostream>
 #endif
 
