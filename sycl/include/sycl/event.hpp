@@ -76,7 +76,6 @@ public:
   friend bool operator==(const event &lhs, const event &rhs);
 
   friend bool operator!=(const event &lhs, const event &rhs);
-
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Return the list of events that this event waits for.

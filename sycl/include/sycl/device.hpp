@@ -109,6 +109,7 @@ public:
   friend bool operator==(const device &lhs, const device &rhs) {
     return rhs.impl == lhs.impl;
   }
+
   friend bool operator!=(const device &lhs, const device &rhs) {
     return !(lhs == rhs);
   }

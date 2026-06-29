@@ -39,6 +39,7 @@ bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 bool operator==(const event &lhs, const event &rhs) {
   return rhs.impl == lhs.impl;
 }
+
 bool operator!=(const event &lhs, const event &rhs) { return !(lhs == rhs); }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
