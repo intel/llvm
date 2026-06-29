@@ -1579,7 +1579,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ArrayDesc.Format = format;
 
     CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC mipmapDesc = {};
-    mipmapDesc.numLevels = pImageDesc->numMipLevel ? pImageDesc->numMipLevel : 1;
+    mipmapDesc.numLevels =
+        pImageDesc->numMipLevel ? pImageDesc->numMipLevel : 1;
     mipmapDesc.arrayDesc = ArrayDesc;
 
     // External memory is mapped to a CUmipmappedArray
