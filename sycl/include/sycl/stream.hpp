@@ -535,25 +535,20 @@ floatingPointToHexStr(T AbsVal, char *Digits) {
   if (mantissa != 0) {
     Digits[Offset++] = '.';
 
-    // Convert mantissa to hex, output significant digits only
+    // Convert mantissa to hex digits. Leading zeros after the radix point are
+    // significant and must be preserved.
     int nibbles = (MantissaBits + 3) / 4;
     int shift = MantissaBits - 4;
-    bool started = false;
 
     for (int i = 0; i < nibbles && shift >= 0; ++i, shift -= 4) {
       unsigned nibble = static_cast<unsigned>((mantissa >> shift) & 0xf);
-      if (nibble != 0 || started) {
-        started = true;
-        Digits[Offset++] = nibble < 10 ? '0' + nibble : 'a' + (nibble - 10);
-      }
+      Digits[Offset++] = nibble < 10 ? '0' + nibble : 'a' + (nibble - 10);
     }
 
-    // Handle any remaining bits
+    // Handle any remaining bits (e.g. float's 23-bit mantissa)
     if (shift < 0 && shift > -4) {
       unsigned nibble = static_cast<unsigned>((mantissa << (-shift)) & 0xf);
-      if (nibble != 0 || started) {
-        Digits[Offset++] = nibble < 10 ? '0' + nibble : 'a' + (nibble - 10);
-      }
+      Digits[Offset++] = nibble < 10 ? '0' + nibble : 'a' + (nibble - 10);
     }
   }
 

@@ -2,8 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 
-// Test for issue #22057: hexfloat formatting should match host behavior
-
+// Test for issue #22057: `sycl::stream` should print floating-point values in
+// hexadecimal form when `hexfloat` is set (and not fall back to scientific).
 #include <iomanip>
 #include <iostream>
 #include <sycl/detail/core.hpp>
