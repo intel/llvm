@@ -218,6 +218,14 @@ public:
   const PropertyRange &getSpecConstantsDefaultValues() const {
     return SpecConstDefaultValuesMap;
   }
+  // Optional property set, only present in SYCLBIN produced by
+  // ext_oneapi_get_content when a spec constant was user-set. Records the
+  // runtime-effective blob of user-set spec constant values so the reader can
+  // restore the per-descriptor IsSet state on reload. Absent for ordinary
+  // (compiler-produced) images.
+  const PropertyRange &getSpecConstantsSetValues() const {
+    return SpecConstSetValuesMap;
+  }
   const PropertyRange &getDeviceLibMetadata() const {
     return DeviceLibMetadata;
   }
@@ -269,6 +277,7 @@ protected:
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
+  RTDeviceBinaryImage::PropertyRange SpecConstSetValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
