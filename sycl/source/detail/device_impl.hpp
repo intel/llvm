@@ -1391,6 +1391,11 @@ public:
                  UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_register_host_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP>()
+          .value_or(0);
+    }
     CASE(ext_oneapi_external_semaphore_import) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP>()
@@ -2313,10 +2318,20 @@ public:
   void unregisterQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
     auto It = std::find(MQueues.begin(), MQueues.end(), Q);
-    assert(It != MQueues.end() && "Queue not found in device's queue list");
-    // Swap with last element and pop — O(1) removal, order doesn't matter.
-    std::swap(*It, MQueues.back());
-    MQueues.pop_back();
+
+    // device_impl can be destroyed before queue_impl in unittests.
+    // On Windows, unittests involving host tasks race with scheduler
+    // cleanup (invoked by ~UrMock). UrMock constructor destroys the
+    // platform cache, along with device_impl. Now, when two unittests
+    // involving host tasks run one after another, URMock destructor of
+    // first can race with URMock constructor of second, causing device_impl
+    // to not have registered queue.
+    if (It != MQueues.end()) {
+      // Swap with last element and pop — O(1) removal,
+      // order doesn't matter.
+      std::swap(*It, MQueues.back());
+      MQueues.pop_back();
+    }
   }
 
 private:

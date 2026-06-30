@@ -16,6 +16,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21594
 #include <iostream>
 
+#include <algorithm>
 #include <map>
 
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>

@@ -4,6 +4,7 @@
 // Tests platform::get_devices for each device type.
 #include <iostream>
 
+#include <algorithm>
 #include <sycl/detail/core.hpp>
 #include <sycl/platform.hpp>
 #include <unordered_set>

@@ -1,6 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out -I %llvm_main_include_dir
 // RUN: %t.out
 //
+#include <algorithm>
 #include <map>
 
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>

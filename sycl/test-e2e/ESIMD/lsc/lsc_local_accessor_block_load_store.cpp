@@ -14,6 +14,7 @@
 #include <iostream>
 
 #include "../esimd_test_utils.hpp"
+#include <sycl/group_barrier.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -52,7 +53,7 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
          simd<T, VL> ValuesToSLM = IntValues;
          lsc_block_store(LocalAcc, LID * VL * sizeof(T), ValuesToSLM);
 
-         Item.barrier();
+         group_barrier(Item.get_group());
 
          if (LID == 0) {
            for (int LID = 0; LID < LocalRange; LID++) {

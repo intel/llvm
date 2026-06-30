@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "Inputs/private_alloca_test.hpp"
+#include <algorithm>
 
 constexpr sycl::specialization_id<std::size_t> size(10);
 constexpr sycl::specialization_id<int> isize(10);

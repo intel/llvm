@@ -1,6 +1,7 @@
 // RUN: %{build} -Wno-error=incorrect-sub-group-size -o %t.out
 // RUN: %{run} %t.out
 
+#include <algorithm>
 #include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>

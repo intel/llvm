@@ -66,7 +66,6 @@
 // WS_USE_OND: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
 // WS_USE_OND-SAME: "-include-pch" "[[PCHFILE1]]"{{.*}}
 
-// Windows
 // RUN: %clang_cl -fsycl -fsycl-targets=spir64,spir64_gen -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE_TARGETS %s
 // WS_USE_TARGETS: clang-offload-bundler{{.*}} "-type=pch"
 // WS_USE_TARGETS-SAME: "-targets=host-x86_64{{.*}},sycl-spir64{{.*}},sycl-spir64_gen{{.*}}" "-input=[[MAINPCHFILE:.+\.pch]]" "-output=[[PCHFILE3:.+\.pch]]" "-output=[[PCHFILE4:.+\.pch]]" "-output=[[PCHFILE5:.+\.pch]]" "-unbundle"

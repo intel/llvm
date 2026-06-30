@@ -127,12 +127,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   EXPECT_EQ(std::get<1>(ExecutedCommands[2]) /*EventsCount*/, 0u);
 }
 
-#ifdef _WIN32
-// https://github.com/intel/llvm/issues/22412
-TEST_F(SchedulerTest, DISABLED_InOrderQueueCrossDepsShortcutFuncs) {
-#else
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
-#endif
   ExecutedCommands.clear();
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
