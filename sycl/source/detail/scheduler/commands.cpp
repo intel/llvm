@@ -2607,7 +2607,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
 // get_global_linear_id can safely return a value within the maximum range.
 // If NDRDesc.GlobalSize[I] is zero, it is treated as valid and does not exceed
 // the range.
-bool isNDRangeExceedsMaxRange(const NDRDescT &NDRDesc, uint64_t MaxRange) {
+static bool isNDRangeExceedsMaxRange(const NDRDescT &NDRDesc, uint64_t MaxRange) {
   uint64_t TotalGlobalSize = 1;
   for (size_t I = 0; I < NDRDesc.Dims; ++I) {
     uint64_t GlobalOffset = NDRDesc.GlobalOffset[I];
@@ -2882,8 +2882,8 @@ void enqueueImpKernel(
     EventsWaitList = std::move(EventsWithDeviceGlobalInits);
   }
 
-  // If the kernel was invoked with global range/offset greater than or equal to
-  // INT_MAX, we need to check if the kernel was compiled with
+  // If the kernel was invoked with global range/offset exceeding INT_MAX, we
+  // need to check if the kernel was compiled with
   // -fsycl-id-queries-range=[uint32_t|size_t] flag.
   const bool isRangeGreaterThanIntMax = isNDRangeExceedsMaxRange(
       NDRDesc, static_cast<uint64_t>(std::numeric_limits<int>::max()));
