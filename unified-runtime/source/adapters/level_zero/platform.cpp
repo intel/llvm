@@ -305,11 +305,28 @@ ur_result_t ur_platform_handle_t_::initialize() {
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
-  const auto GraphExtension =
+  const auto StableGraphExtension =
       zeDriverExtensionMap.find(ZE_RECORD_REPLAY_GRAPH_EXT_NAME);
+  const bool ZeStableGraphExtensionSupported =
+      StableGraphExtension != zeDriverExtensionMap.end() &&
+      StableGraphExtension->second >= ZE_RECORD_REPLAY_GRAPH_EXT_VERSION_1_0;
+
+  // Fallback for drivers that have not yet adopted the stable record & replay
+  // graph extension and still expose only the experimental variant. The
+  // experimental extension uses different entry-point names (Exp suffix) and a
+  // different parameter order for a few functions; both differences are handled
+  // when the function pointers are populated below.
+  constexpr char ZeRecordReplayGraphExpName[] =
+      "ZE_experimental_record_replay_graph";
+  const auto ExpGraphExtension =
+      zeDriverExtensionMap.find(ZeRecordReplayGraphExpName);
+  const bool ZeExpGraphExtensionSupported =
+      !ZeStableGraphExtensionSupported &&
+      ExpGraphExtension != zeDriverExtensionMap.end() &&
+      ExpGraphExtension->second >= ZE_MAKE_VERSION(1, 0);
+
   const bool ZeGraphExtensionSupported =
-      GraphExtension != zeDriverExtensionMap.end() &&
-      GraphExtension->second >= ZE_RECORD_REPLAY_GRAPH_EXT_VERSION_1_0;
+      ZeStableGraphExtensionSupported || ZeExpGraphExtensionSupported;
 
   ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DRIVER, ZeDriver,
                                         (void **)&ZeDriverHandleExpTranslated));
@@ -568,36 +585,65 @@ ur_result_t ur_platform_handle_t_::initialize() {
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
   if (ZeGraphExtensionSupported) {
-    // Populate Graph Extension structure. Mandatory graph functions.
+    const bool UseExp = ZeExpGraphExtensionSupported;
+    ZeGraphExt.UsesLegacyExperimentalApi = UseExp;
+
+    // Populate Graph Extension structure. Mandatory graph functions whose
+    // signature is identical between the stable and experimental variants;
+    // only the entry-point name (Exp vs Ext suffix) differs.
     std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
-        {"zeGraphCreateExt",
-         reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
-        {"zeCommandListBeginGraphCaptureExt",
+        {UseExp ? "zeCommandListBeginGraphCaptureExp"
+                : "zeCommandListBeginGraphCaptureExt",
          reinterpret_cast<void **>(
              &ZeGraphExt.zeCommandListBeginGraphCaptureExp)},
-        {"zeCommandListBeginCaptureIntoGraphExt",
+        {UseExp ? "zeCommandListBeginCaptureIntoGraphExp"
+                : "zeCommandListBeginCaptureIntoGraphExt",
          reinterpret_cast<void **>(
              &ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp)},
-        {"zeCommandListEndGraphCaptureExt",
-         reinterpret_cast<void **>(
-             &ZeGraphExt.zeCommandListEndGraphCaptureExp)},
-        {"zeGraphInstantiateExt",
-         reinterpret_cast<void **>(
-             &ZeGraphExt.zeCommandListInstantiateGraphExp)},
-        {"zeCommandListAppendGraphExt",
+        {UseExp ? "zeCommandListAppendGraphExp" : "zeCommandListAppendGraphExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeCommandListAppendGraphExp)},
-        {"zeGraphDestroyExt",
+        {UseExp ? "zeGraphDestroyExp" : "zeGraphDestroyExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeGraphDestroyExp)},
-        {"zeExecutableGraphDestroyExt",
+        {UseExp ? "zeExecutableGraphDestroyExp" : "zeExecutableGraphDestroyExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeExecutableGraphDestroyExp)},
-        {"zeCommandListIsGraphCaptureEnabledExt",
+        {UseExp ? "zeCommandListIsGraphCaptureEnabledExp"
+                : "zeCommandListIsGraphCaptureEnabledExt",
          reinterpret_cast<void **>(
              &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
-        {"zeGraphIsEmptyExt",
+        {UseExp ? "zeGraphIsEmptyExp" : "zeGraphIsEmptyExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
-        {"zeGraphDumpContentsExt",
+        {UseExp ? "zeGraphDumpContentsExp" : "zeGraphDumpContentsExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeGraphDumpContentsExp)},
     };
+
+    // Mandatory functions whose parameter order differs between the variants.
+    // They are loaded into variant-specific fields and dispatched through the
+    // wrapper helpers on ZeGraphExtension.
+    if (UseExp) {
+      ZeGraphFuncNameToAddrMap.emplace(
+          "zeGraphCreateExp",
+          reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExpLegacy));
+      ZeGraphFuncNameToAddrMap.emplace(
+          "zeCommandListEndGraphCaptureExp",
+          reinterpret_cast<void **>(
+              &ZeGraphExt.zeCommandListEndGraphCaptureExpLegacy));
+      ZeGraphFuncNameToAddrMap.emplace(
+          "zeCommandListInstantiateGraphExp",
+          reinterpret_cast<void **>(
+              &ZeGraphExt.zeCommandListInstantiateGraphExpLegacy));
+    } else {
+      ZeGraphFuncNameToAddrMap.emplace(
+          "zeGraphCreateExt",
+          reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp));
+      ZeGraphFuncNameToAddrMap.emplace(
+          "zeCommandListEndGraphCaptureExt",
+          reinterpret_cast<void **>(
+              &ZeGraphExt.zeCommandListEndGraphCaptureExp));
+      ZeGraphFuncNameToAddrMap.emplace(
+          "zeGraphInstantiateExt",
+          reinterpret_cast<void **>(
+              &ZeGraphExt.zeCommandListInstantiateGraphExp));
+    }
 
     ZeGraphExt.Supported = true;
     for (auto &[funcName, funcAddr] : ZeGraphFuncNameToAddrMap) {
@@ -611,9 +657,10 @@ ur_result_t ur_platform_handle_t_::initialize() {
     // code in affected function.
     std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap =
         {
-            {"zeCommandListGetGraphExt",
+            {UseExp ? "zeCommandListGetGraphExp" : "zeCommandListGetGraphExt",
              reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
-            {"zeGraphSetDestructionCallbackExt",
+            {UseExp ? "zeGraphSetDestructionCallbackExp"
+                    : "zeGraphSetDestructionCallbackExt",
              reinterpret_cast<void **>(
                  &ZeGraphExt.zeGraphSetDestructionCallbackExp)},
         };

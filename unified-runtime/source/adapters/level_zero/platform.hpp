@@ -176,6 +176,13 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
 
   struct ZeGraphExtension {
     bool Supported = false;
+    // Older Level Zero drivers only expose the experimental
+    // (ZE_experimental_record_replay_graph) variant of the record & replay
+    // graph extension instead of the stable one. The two variants differ both
+    // in the entry-point names (Exp vs Ext suffix) and in the parameter order
+    // of a few functions. When this flag is set, the *Legacy function pointers
+    // below are populated and used instead of the stable ones.
+    bool UsesLegacyExperimentalApi = false;
     ze_result_t (*zeGraphCreateExp)(ze_context_handle_t hContext, void *pNext,
                                     ze_graph_handle_t *phGraph);
     ze_result_t (*zeCommandListBeginGraphCaptureExp)(
@@ -209,6 +216,44 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
     ze_result_t (*zeGraphSetDestructionCallbackExp)(
         ze_graph_handle_t hGraph, zex_mem_graph_free_callback_fn_t pfnCallback,
         void *pUserData, void *pNext);
+
+    // Legacy experimental-API entry points for the functions whose parameter
+    // order differs from the stable API (the output handle and pNext are
+    // swapped). These are only populated when UsesLegacyExperimentalApi is set.
+    ze_result_t (*zeGraphCreateExpLegacy)(ze_context_handle_t hContext,
+                                          ze_graph_handle_t *phGraph,
+                                          void *pNext) = nullptr;
+    ze_result_t (*zeCommandListEndGraphCaptureExpLegacy)(
+        ze_command_list_handle_t hCommandList, ze_graph_handle_t *phGraph,
+        void *pNext) = nullptr;
+    ze_result_t (*zeCommandListInstantiateGraphExpLegacy)(
+        ze_graph_handle_t hGraph,
+        ze_executable_graph_handle_t *phExecutableGraph, void *pNext) = nullptr;
+
+    // Dispatch helpers presenting the stable parameter order to all callers,
+    // routing to either the stable or the legacy experimental entry point.
+    ze_result_t graphCreate(ze_context_handle_t hContext, void *pNext,
+                            ze_graph_handle_t *phGraph) const {
+      return UsesLegacyExperimentalApi
+                 ? zeGraphCreateExpLegacy(hContext, phGraph, pNext)
+                 : zeGraphCreateExp(hContext, pNext, phGraph);
+    }
+    ze_result_t endGraphCapture(ze_command_list_handle_t hCommandList,
+                                void *pNext, ze_graph_handle_t *phGraph) const {
+      return UsesLegacyExperimentalApi
+                 ? zeCommandListEndGraphCaptureExpLegacy(hCommandList, phGraph,
+                                                         pNext)
+                 : zeCommandListEndGraphCaptureExp(hCommandList, pNext,
+                                                   phGraph);
+    }
+    ze_result_t
+    instantiateGraph(ze_graph_handle_t hGraph, void *pNext,
+                     ze_executable_graph_handle_t *phExecutableGraph) const {
+      return UsesLegacyExperimentalApi ? zeCommandListInstantiateGraphExpLegacy(
+                                             hGraph, phExecutableGraph, pNext)
+                                       : zeCommandListInstantiateGraphExp(
+                                             hGraph, pNext, phExecutableGraph);
+    }
   } ZeGraphExt;
 
   struct ZeHostTaskExtension {

@@ -18,7 +18,7 @@
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext)
     : hContext(hContext) {
-  ZE2UR_CALL_THROWS(hContext->getPlatform()->ZeGraphExt.zeGraphCreateExp,
+  ZE2UR_CALL_THROWS(hContext->getPlatform()->ZeGraphExt.graphCreate,
                     (hContext->getZeHandle(), nullptr, &zeGraph));
 }
 
@@ -39,9 +39,8 @@ ur_exp_graph_handle_t_::~ur_exp_graph_handle_t_() {
 ur_exp_executable_graph_handle_t_::ur_exp_executable_graph_handle_t_(
     ur_context_handle_t hContext, ur_exp_graph_handle_t hGraph)
     : hContext(hContext) {
-  ZE2UR_CALL_THROWS(
-      hContext->getPlatform()->ZeGraphExt.zeCommandListInstantiateGraphExp,
-      (hGraph->getZeHandle(), nullptr, &zeExGraph));
+  ZE2UR_CALL_THROWS(hContext->getPlatform()->ZeGraphExt.instantiateGraph,
+                    (hGraph->getZeHandle(), nullptr, &zeExGraph));
 }
 
 ur_exp_executable_graph_handle_t_::~ur_exp_executable_graph_handle_t_() {

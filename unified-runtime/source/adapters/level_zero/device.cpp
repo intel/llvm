@@ -1589,9 +1589,18 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(false);
     }
 
+    // The experimental variant of the extension reports its capabilities
+    // through a structure with a different type value; an older driver would
+    // not recognize the stable one and would leave graphFlags unset. The
+    // structure layout (stype, pNext, graphFlags) is identical between the two
+    // variants, so the stable type can be reused with the experimental value.
+    constexpr ze_structure_type_t ZeStructTypeRecordReplayGraphExpProperties =
+        static_cast<ze_structure_type_t>(0x00030029);
     ze_record_replay_graph_ext_properties_t GraphProperties{};
     GraphProperties.stype =
-        ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
+        Device->Platform->ZeGraphExt.UsesLegacyExperimentalApi
+            ? ZeStructTypeRecordReplayGraphExpProperties
+            : ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
     GraphProperties.pNext = nullptr;
     ZeStruct<ze_device_properties_t> DeviceProperties;
     DeviceProperties.pNext = &GraphProperties;
