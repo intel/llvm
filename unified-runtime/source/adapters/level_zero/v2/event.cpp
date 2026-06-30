@@ -435,17 +435,14 @@ ur_result_t urEventCreateExp(ur_context_handle_t hContext,
                              ur_device_handle_t hDevice,
                              const ur_exp_event_desc_t *pEventDesc,
                              ur_event_handle_t *phEvent) try {
-  if (!hContext || !hDevice)
-    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  if (!pEventDesc || !phEvent)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (pEventDesc->flags & UR_EXP_EVENT_FLAGS_MASK)
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pEventDesc && phEvent, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(!(pEventDesc->flags & UR_EXP_EVENT_FLAGS_MASK),
+            UR_RESULT_ERROR_INVALID_ENUMERATION);
 
   if (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP) {
-    if (pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING)
-      return UR_RESULT_ERROR_INVALID_VALUE;
+    UR_ASSERT(!(pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING),
+              UR_RESULT_ERROR_INVALID_VALUE);
 
     ze_event_handle_t hZeEvent = nullptr;
     UR_CALL(v2::createIpcCounterBasedEvent(hContext, hDevice, &hZeEvent));

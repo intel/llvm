@@ -54,6 +54,13 @@ add_l0_loader_devices_test(multi_queue multi_device_event_cache_tests.cpp)
 add_conformance_devices_test(ipc ipc.cpp)
 target_link_libraries(ipc-test PRIVATE ur_umf)
 
+# The IPC event tests signal the producer event via the native Level Zero API.
+add_conformance_devices_test(ipc_event
+    urIPCEventExp.cpp
+    urIPCEventExpNegative.cpp)
+target_link_libraries(ipc_event-test PRIVATE
+    LevelZeroLoader LevelZeroLoader-Headers)
+
 add_conformance_devices_test(mem_buffer_map urEnqueueMemBufferMapHostPtr.cpp)
 add_conformance_devices_test(device_select_binary urDeviceSelectBinary.cpp)
 
