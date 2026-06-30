@@ -53,7 +53,7 @@ jobs:
             build_args: ""
           # To test toolchain build with gcc 7.5.0
           - name: Build SLE15 SP4 Docker image
-            file: sle15sp4_build.Dockerfile
+            file: sle15sp4_build
             tag: latest
             build_args: ""
     steps:
