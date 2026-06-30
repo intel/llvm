@@ -15,6 +15,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi::experimental;

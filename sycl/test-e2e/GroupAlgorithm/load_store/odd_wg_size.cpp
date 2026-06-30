@@ -4,6 +4,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 
+#include <algorithm>
 #include <numeric>
 
 using namespace sycl;

@@ -14,6 +14,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/builtins.hpp>
 #include <sycl/usm.hpp>
 
 constexpr size_t NElemsPerSplit = 1000;

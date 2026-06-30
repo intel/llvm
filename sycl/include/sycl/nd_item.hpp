@@ -196,6 +196,7 @@ public:
                                 get_offset());
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
@@ -230,6 +231,7 @@ public:
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
 #endif
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Asynchronously copies a number of elements specified by \p numElements
   /// from the source pointed by \p src to destination pointed by \p dest
