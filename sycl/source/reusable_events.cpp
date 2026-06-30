@@ -23,7 +23,6 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
                                      bool enable_profiling) {
   const auto &ContextDevices = ctxt.get_devices();
   detail::context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(ctxt);
-  sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
 
   // TODO reusable events - check platform support for per-event profiling
 
@@ -33,34 +32,18 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   }
 
   // TODO reusable events
+  // Emulate reusable events
   if (!ContextImpl.supportsReusableEvents()) {
     throw sycl::exception(sycl::make_error_code(errc::runtime),
                           "Not implemented yet.");
   }
 
-  ur_event_handle_t EventHandle = nullptr;
-  ur_exp_event_desc_t Desc = {};
-  Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
-  if (enable_profiling) {
-    Desc.flags = UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
-  }
+  sycl::event RetEvent{};
+  detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(RetEvent);
+  EventImpl.setContextImpl(ContextImpl);
+  EventImpl.setProfilingEnabled(enable_profiling);
 
-  ur_device_handle_t FirstDevInCtx =
-      detail::getSyclObjImpl(ContextDevices[0])->getHandleRef();
-
-  ur_result_t Result =
-      Adapter.call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
-          ContextImpl.getHandleRef(), FirstDevInCtx, &Desc, &EventHandle);
-  if (Result != UR_RESULT_SUCCESS) {
-    throw sycl::exception(sycl::make_error_code(errc::runtime),
-                          "Failed to create an event.");
-  }
-
-  auto ResEvent = detail::event_impl::create_from_handle(EventHandle, ctxt);
-  ResEvent->setStateIncomplete();
-  ResEvent->setProfilingEnabled(enable_profiling);
-
-  return detail::createSyclObjFromImpl<sycl::event>(std::move(ResEvent));
+  return RetEvent;
 }
 
 } // namespace detail
@@ -83,6 +66,13 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
 
 __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+  detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
+
+  if (EventImpl.isInterop()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::runtime),
+        "Enqueueing an interop event for signaling is not supported.");
+  }
 
   if (QueueImpl.hasCommandGraph()) {
     throw sycl::exception(sycl::make_error_code(errc::runtime),
@@ -90,26 +80,33 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
                           "on a queue which is recording a graph.");
   }
 
-  detail::context_impl &ContextImpl =
+  detail::context_impl &QueueContextImpl =
       *sycl::detail::getSyclObjImpl(q.get_context());
 
   // TODO reusable events
-  if (!ContextImpl.supportsReusableEvents()) {
+  // Emulate reusable events
+  if (!QueueContextImpl.supportsReusableEvents()) {
     throw sycl::exception(sycl::make_error_code(errc::runtime),
                           "Not implemented yet.");
   }
 
-  detail::context_impl &EventContextImpl =
-      sycl::detail::getSyclObjImpl(evt)->getContextImpl();
+  detail::context_impl &EventContextImpl = EventImpl.getContextImpl();
 
-  if (&ContextImpl != &EventContextImpl) {
+  if (&QueueContextImpl != &EventContextImpl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Event context must match the queue context.");
   }
 
+  // If the event was constructed (through make_event or a default constructor),
+  // but not enqueued for signaling yet, change the event state from default
+  // constructed to device event.
+  if (EventImpl.isDefaultConstructed()) {
+    EventImpl.toDeviceEvent(QueueImpl);
+  }
+
   QueueImpl.submit_barrier_direct_without_event(
       {}, detail::CGType::Barrier, detail::code_location::current(),
-      detail::getSyclObjImpl(evt));
+      sycl::detail::getSyclObjImpl(evt));
 }
 
 } // namespace ext::oneapi::experimental

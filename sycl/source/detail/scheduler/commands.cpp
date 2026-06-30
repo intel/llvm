@@ -544,8 +544,12 @@ Command::Command(
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
-  if (Queue)
+  if (Queue) {
     MEvent->setSubmittedQueue(Queue);
+    if (EventForReuse) {
+      MEvent->setQueue(*Queue);
+    }
+  }
   MEvent->setCommand(this);
   if (MQueue)
     MEvent->setContextImpl(MQueue->getContextImpl());

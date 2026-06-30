@@ -511,6 +511,9 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     ResEvent->setSubmissionTime();
     ResEvent->setEnqueued();
     ResEvent->setStateIncomplete();
+    if (EventForReuse) {
+      ResEvent->setQueue(*this);
+    }
   }
 
   // We can skip the barrier UR call only if both the barrier wait list
@@ -603,6 +606,12 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
                                               BarrierType, CallerNeedsEvent,
                                               EventForReuse),
               /*SchedulerBypass*/ true};
+    }
+
+    if (EventForReuse) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "An event cannot be enqueued for signaling behind "
+                            "a command which is not enqueued in the backend.");
     }
 
     std::unique_ptr<detail::CG> CommandGroup;

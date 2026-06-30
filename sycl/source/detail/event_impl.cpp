@@ -182,11 +182,37 @@ event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
 
 void event_impl::setQueue(queue_impl &Queue) {
   MQueue = Queue.weak_from_this();
-  MIsProfilingEnabled = Queue.MIsProfilingEnabled;
+  if (!MIsProfilingEnabled) {
+    MIsProfilingEnabled = Queue.MIsProfilingEnabled;
+  }
+}
 
-  // TODO After setting the queue, the event is no longer default
-  // constructed. Consider a design change which would allow
-  // for such a change regardless of the construction method.
+void event_impl::toDeviceEvent(queue_impl &Queue) {
+  assert(MIsDefaultConstructed);
+
+  initContextIfNeeded();
+
+  sycl::detail::adapter_impl &Adapter = MContext->getAdapter();
+
+  ur_event_handle_t EventHandle = nullptr;
+  ur_exp_event_desc_t Desc = {};
+  Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
+  if (MIsProfilingEnabled) {
+    Desc.flags = UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
+  }
+
+  ur_result_t Result =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
+          MContext->getHandleRef(), Queue.getDeviceImpl().getHandleRef(), &Desc,
+          &EventHandle);
+  if (Result != UR_RESULT_SUCCESS) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to create an event.");
+  }
+
+  setHandle(EventHandle);
+  setQueue(Queue);
+  MQueue = Queue.weak_from_this();
   MIsDefaultConstructed = false;
 }
 

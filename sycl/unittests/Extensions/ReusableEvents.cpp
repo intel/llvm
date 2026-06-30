@@ -26,7 +26,9 @@ const auto DummyContextHandle = reinterpret_cast<ur_context_handle_t>(2u);
 const auto DummyDeviceHandle = reinterpret_cast<ur_device_handle_t>(3u);
 
 int urEventCreateExp_counter = 0;
-int urEventReleaseExp_counter = 0;
+int urEventRelease_counter = 0;
+int redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter = 0;
+int redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter = 0;
 
 ur_result_t redefinedUrEventCreateExp(void *pParams) {
   auto params = *static_cast<ur_event_create_exp_params_t *>(pParams);
@@ -38,11 +40,15 @@ ur_result_t redefinedUrEventCreateExp(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+bool checkUrEventReleaseHandle = true;
+
 ur_result_t redefinedUrEventRelease(void *pParams) {
   auto params = *static_cast<ur_event_release_params_t *>(pParams);
-  EXPECT_EQ(*params.phEvent, DummyEventHandle);
+  if (checkUrEventReleaseHandle) {
+    EXPECT_EQ(*params.phEvent, DummyEventHandle);
+  }
 
-  urEventReleaseExp_counter++;
+  urEventRelease_counter++;
 
   return UR_RESULT_SUCCESS;
 }
@@ -68,6 +74,9 @@ ur_result_t redefinedUrEnqueueEventsWaitWithBarrierExt_wait(void *pParams) {
   for (uint32_t i = 0; i != *params.pnumEventsInWaitList; ++i) {
     EXPECT_EQ((*params.pphEventWaitList)[i], DummyEventHandle);
   }
+
+  redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter++;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -76,6 +85,9 @@ ur_result_t redefinedUrEnqueueEventsWaitWithBarrierExt_signal(void *pParams) {
       *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
   EXPECT_EQ(DummyEventHandle, **params.pphEvent);
   EXPECT_EQ(*params.pnumEventsInWaitList, 0u);
+
+  redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter++;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -152,9 +164,12 @@ protected:
   void SetUp() override {
 
     urEventCreateExp_counter = 0;
-    urEventReleaseExp_counter = 0;
+    urEventRelease_counter = 0;
+    redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter = 0;
+    redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter = 0;
     ExpectedNumEventsInWaitList = 0;
     ExpectedNumEventsInWaitListKernelLaunch = 0;
+    checkUrEventReleaseHandle = true;
 
     mock::getCallbacks().set_replace_callback("urEventCreateExp",
                                               &redefinedUrEventCreateExp);
@@ -189,8 +204,10 @@ TEST_F(ReusableEventsTest, MakeEventDefault) {
     auto status = event.get_info<sycl::info::event::command_execution_status>();
     EXPECT_EQ(status, sycl::info::event_command_status::complete);
   }
-  EXPECT_EQ(urEventCreateExp_counter, 1);
-  EXPECT_EQ(urEventReleaseExp_counter, 1);
+
+  // make_event should not call UR.
+  EXPECT_EQ(urEventCreateExp_counter, 0);
+  EXPECT_EQ(urEventRelease_counter, 0);
 }
 
 // enqueue_wait_event
@@ -200,12 +217,20 @@ TEST_F(ReusableEventsTest, EnqueueWaitEvent) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
-  auto event = syclex::make_event(Ctx);
+  {
+    auto event = syclex::make_event(Ctx);
 
-  ExpectedNumEventsInWaitList = 1;
+    // Should not throw
+    EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
+  }
 
-  // Should not throw
-  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
+  // Waiting for an event which was not enqueued for signaling should complete
+  // immediately.
+  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+  EXPECT_EQ(urEventCreateExp_counter, 0);
+  EXPECT_EQ(urEventRelease_counter, 0);
+
+  Queue.wait();
 }
 
 // enqueue_wait_events with vector
@@ -215,14 +240,20 @@ TEST_F(ReusableEventsTest, EnqueueWaitEvents) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
-  auto event1 = syclex::make_event(Ctx);
-  auto event2 = syclex::make_event(Ctx);
-  std::vector<sycl::event> events{event1, event2};
+  {
+    auto event1 = syclex::make_event(Ctx);
+    auto event2 = syclex::make_event(Ctx);
+    std::vector<sycl::event> events{event1, event2};
 
-  ExpectedNumEventsInWaitList = 2;
+    // Should not throw
+    EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, events); });
+  }
 
-  // Should not throw
-  EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, events); });
+  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+  EXPECT_EQ(urEventCreateExp_counter, 0);
+  EXPECT_EQ(urEventRelease_counter, 0);
+
+  Queue.wait();
 }
 
 // enqueue_signal_event
@@ -235,23 +266,33 @@ TEST_F(ReusableEventsTest, EnqueueSignalEvent) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
 
-  auto event = syclex::make_event(Ctx);
+  {
+    auto event = syclex::make_event(Ctx);
 
-  // Should not throw
-  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+    // Should not throw
+    EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+  }
+
+  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+  EXPECT_EQ(urEventCreateExp_counter, 1);
+  EXPECT_EQ(urEventRelease_counter, 1);
+
+  Queue.wait();
 }
 
-// TODO reusable events
 // Default event constructor
-/*
 TEST_F(ReusableEventsTest, DefaultConstructor) {
-  // Default constructor is equivalent to make_event() per spec
-  sycl::event event;
+  {
+    // Default constructor is equivalent to make_event() per spec
+    sycl::event event;
 
-  auto status = event.get_info<sycl::info::event::command_execution_status>();
-  EXPECT_EQ(status, sycl::info::event_command_status::complete);
+    auto status = event.get_info<sycl::info::event::command_execution_status>();
+    EXPECT_EQ(status, sycl::info::event_command_status::complete);
+  }
+
+  EXPECT_EQ(urEventCreateExp_counter, 0);
+  EXPECT_EQ(urEventRelease_counter, 0);
 }
-*/
 
 // Queue-returned event can be used with extension functions
 TEST_F(ReusableEventsTest, QueueReturnedEvent) {
@@ -272,6 +313,10 @@ TEST_F(ReusableEventsTest, QueueReturnedEvent) {
   // Queue-returned events are associated with the queue's context per spec;
   // verify the event is usable with extension wait functions
   EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
+
+  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
+
+  Queue.wait();
 }
 
 // TODO reusable events
@@ -325,6 +370,8 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
   auto event = syclex::make_event(Ctx);
   syclex::enqueue_signal_event(Queue, event);
 
+  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+
   ExpectedNumEventsInWaitListKernelLaunch = 1;
 
   EXPECT_NO_THROW({
@@ -333,6 +380,8 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
       cgh.single_task<TestKernel>([]() {});
     });
   });
+
+  Queue.wait();
 }
 
 // Cross-context events with wait
@@ -365,6 +414,8 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
 
   syclex::enqueue_signal_event(Queue1, event);
 
+  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+
   ExpectedNumEventsInWaitList = 1;
   mock::getCallbacks().set_replace_callback(
       "urEnqueueEventsWaitWithBarrierExt",
@@ -372,6 +423,11 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
 
   // Event from different context should still work with enqueue_wait_event
   EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue2, event); });
+
+  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
+
+  Queue1.wait();
+  Queue2.wait();
 }
 
 // Cross-context make_event and signal event - not allowed
@@ -408,6 +464,8 @@ TEST_F(ReusableEventsTest, CrossContextMakeEventSignalEvent) {
   }
 
   EXPECT_TRUE(exception);
+
+  Queue1.wait();
 }
 
 // Empty event vector wait
@@ -422,7 +480,60 @@ TEST_F(ReusableEventsTest, EmptyEventVectorWait) {
   // Waiting on empty vector should not throw
   EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, empty_events); });
 
-  // TODO reusable events - check if backend has not been called?
+  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+
+  Queue.wait();
+}
+
+TEST_F(ReusableEventsTest, SignalEventHostTask) {
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+
+  // Host task submission generates additional event
+  // for a helper barrier, so skip the handle checks related
+  // to event release.
+  checkUrEventReleaseHandle = false;
+
+  {
+    auto event = syclex::make_event(Ctx);
+
+    bool exception = false;
+    std::mutex CvMutex;
+    std::condition_variable Cv;
+    bool ready = false;
+
+    Queue.submit([&](sycl::handler &CGH) {
+      CGH.host_task([&] {
+        std::unique_lock<std::mutex> lk(CvMutex);
+        Cv.wait(lk, [&ready] { return ready; });
+      });
+    });
+
+    try {
+      syclex::enqueue_signal_event(Queue, event);
+    } catch (sycl::exception const &e) {
+      exception = true;
+      EXPECT_EQ(e.code(), sycl::errc::invalid);
+      EXPECT_STREQ(e.what(), "An event cannot be enqueued for signaling behind "
+                             "a command which is not enqueued in the backend.");
+    }
+
+    {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      ready = true;
+    }
+    Cv.notify_one();
+
+    EXPECT_TRUE(exception);
+  }
+
+  Queue.wait();
 }
 
 // TODO reusable events - support for queue with profiling enabled
