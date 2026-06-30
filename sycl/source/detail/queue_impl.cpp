@@ -633,7 +633,7 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
                               std::move(CGData), BarrierType, CodeLoc));
 
     return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
-                                                   *this, true, EventForReuse),
+                                                   *this, true),
             /*SchedulerBypass*/ false};
   };
 

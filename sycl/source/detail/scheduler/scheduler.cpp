@@ -104,8 +104,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 
 EventImplPtr Scheduler::addCG(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl &Queue,
-    bool EventNeeded, const EventImplPtr &EventForReuse,
-    ur_exp_command_buffer_handle_t CommandBuffer,
+    bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
   const CGType Type = CommandGroup->getType();
@@ -130,17 +129,17 @@ EventImplPtr Scheduler::addCG(
     }
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), &Queue,
-                                   AuxiliaryCmds, EventNeeded, EventForReuse,
-                                   CommandBuffer, std::move(Dependencies));
+                                   AuxiliaryCmds, EventNeeded, CommandBuffer,
+                                   std::move(Dependencies));
     }
-    NewEvent = EventForReuse ? EventForReuse : NewCmd->getEvent();
+    NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();
 
     // This is the last moment we can mark the event as discarded.
     // Doing this during command execution would lead to incorrect
     // event handling (as event would change it's state from non-discarded
     // to discarded).
-    if (!EventNeeded && !EventForReuse) {
+    if (!EventNeeded) {
       NewEvent->setStateDiscarded();
     }
   }
@@ -150,7 +149,7 @@ EventImplPtr Scheduler::addCG(
   if (!AuxiliaryResources.empty())
     registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
 
-  return EventForReuse ? nullptr : NewEvent;
+  return NewEvent;
 }
 
 void Scheduler::enqueueCommandForCG(event_impl &Event,
