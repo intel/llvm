@@ -1997,6 +1997,8 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   }
 
   std::vector<module_split::SplitModule> OutputModules;
+  // TODO: parallelization of the loop above would lead to big performance
+  // improvement.
   for (StringRef Module : Modules) {
     // Note: sycl-post-link can produce more modules than incoming due to module
     // split.

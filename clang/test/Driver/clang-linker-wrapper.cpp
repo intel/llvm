@@ -387,5 +387,3 @@
 // CHECK-NO-RDC: llvm-spirv{{.*}} -o [[FIRST_SPIRV_OUTPUT:.*]].spv
 // CHECK-NO-RDC: llvm-spirv{{.*}} -o [[SECOND_SPIRV_OUTPUT:.*]].spv
 // CHECK-NO-RDC: offload-wrapper:{{.*}} input: [[FIRST_SPIRV_OUTPUT]].spv, {{.*}} input: [[SECOND_SPIRV_OUTPUT]].spv
-
-
