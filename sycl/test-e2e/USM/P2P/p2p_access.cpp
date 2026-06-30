@@ -3,10 +3,12 @@
 // RUN:  %{run} %t.out
 #include <iostream>
 
+#include <algorithm>
 #include <cassert>
 #include <sycl/detail/core.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 

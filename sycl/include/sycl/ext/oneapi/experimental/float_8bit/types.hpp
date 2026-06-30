@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/access/access.hpp>
+#include <sycl/builtins.hpp> // for device-side __assert_fail (SYCL_EXTERNAL)
 #include <sycl/multi_ptr.hpp>
 
 #include <sycl/ext/oneapi/bfloat16.hpp>

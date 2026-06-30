@@ -2426,7 +2426,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
 
     auto AppendImageToWrapperOutput = [&WrappedOutput,
                                        &ImageMtx](StringRef ImagePath) {
-      std::scoped_lock Guard(ImageMtx);
+      std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
       WrappedOutput.push_back(ImagePath);
     };
 
