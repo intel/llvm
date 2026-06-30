@@ -17,7 +17,6 @@
 #include <sycl/marray.hpp>
 
 #include <cassert>
-#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -27,11 +26,13 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 namespace sycl {
+inline namespace _V1 {
 namespace detail {
 using float16_vec2 = _Float16 __attribute__((ext_vector_type(2)));
 using uint8_vec2 = uint8_t __attribute__((ext_vector_type(2)));
 using bfloat16_vec2 = __bf16 __attribute__((ext_vector_type(2)));
 } // namespace detail
+} // namespace _V1
 } // namespace sycl
 // FP8 builtins
 
@@ -866,7 +867,7 @@ static inline ToT ConvertFromE8M0_CPU(uint8_t code, rounding R) noexcept {
 
 } // namespace detail
 
-template <size_t N> class fp8_e4m3_x {
+template <size_t N> class alignas(N == 2 ? 2 : 1) fp8_e4m3_x {
   static constexpr size_t NExpBits = 4;
   static constexpr size_t NFracBits = 3;
 
@@ -1299,11 +1300,11 @@ public:
   }
 
   // Intentionally public to allow access to the raw values.
-  alignas(N == 2 ? 2 : alignof(uint8_t)) uint8_t vals[N];
+  uint8_t vals[N];
 #undef CONVERT_TO_FP8
 };
 
-template <size_t N> class fp8_e5m2_x {
+template <size_t N> class alignas(N == 2 ? 2 : 1) fp8_e5m2_x {
   static constexpr size_t NExpBits = 5;
   static constexpr size_t NFracBits = 2;
 
@@ -1883,7 +1884,7 @@ public:
   }
 
   // Intentionally public to allow access to the raw values.
-  alignas(N == 2 ? 2 : alignof(uint8_t)) uint8_t vals[N];
+  uint8_t vals[N];
 #undef CONVERT_TO_FP8
 };
 
