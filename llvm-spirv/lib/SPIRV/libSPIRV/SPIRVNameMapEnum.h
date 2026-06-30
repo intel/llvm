@@ -729,6 +729,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityInt16AtomicsINTEL, "Int16AtomicsINTEL");
   add(internal::CapabilityAtomicBFloat16LoadStoreINTEL,
       "AtomicBFloat16LoadStoreINTEL");
+  add(internal::CapabilitySubgroupScaledMatrixMultiplyAccumulateINTEL,
+      "SubgroupScaledMatrixMultiplyAccumulateINTEL");
   add(CapabilityRoundedDivideSqrtINTEL, "RoundedDivideSqrtINTEL");
   add(CapabilityFloatControls2, "FloatControls2");
 }

@@ -4564,16 +4564,19 @@ public:
   }
 
 protected:
+  virtual unsigned getOperandsLiteralIndex() const { return 4; }
+
   void validate() const override {
     SPIRVInstTemplateBase::validate();
 
     // Check if FP4 or FP8 matrix operands are used
-    // Operands parameter is the last operand (index 4)
+    // Operands parameter is the last operand.
     auto *NonConstThis =
         const_cast<SPIRVSubgroupMatrixMultiplyAccumulateINTELInst *>(this);
-    if (NonConstThis->getOperands().size() > 4) {
-      const SPIRVConstant *OperandsConst =
-          static_cast<const SPIRVConstant *>(NonConstThis->getOperand(4));
+    const unsigned OperandsIdx = getOperandsLiteralIndex();
+    if (NonConstThis->getOperands().size() > OperandsIdx) {
+      const SPIRVConstant *OperandsConst = static_cast<const SPIRVConstant *>(
+          NonConstThis->getOperand(OperandsIdx));
       uint64_t OperandsMask = OperandsConst->getZExtIntValue();
 
       // FP4 operand bits
@@ -4594,15 +4597,16 @@ protected:
           spv::internal::
               IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat8E5M2INTELMask;
 
+      std::string InstName = OpCodeNameMap::map(getOpCode());
+
       if ((OperandsMask & FP4Mask) != 0) {
         getModule()->getErrorLog().checkError(
             getModule()->isAllowedToUseExtension(
                 ExtensionID::
                     SPV_INTEL_subgroup_matrix_multiply_accumulate_float4),
             SPIRVEC_RequiresExtension,
-            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float4\n"
-            "SubgroupMatrixMultiplyAccumulateINTEL with FP4 operand flags "
-            "requires this extension");
+            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float4\n" +
+                InstName + " with FP4 operand flags requires this extension");
         getModule()->addExtension(
             ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate_float4);
       }
@@ -4613,9 +4617,8 @@ protected:
                 ExtensionID::
                     SPV_INTEL_subgroup_matrix_multiply_accumulate_float8),
             SPIRVEC_RequiresExtension,
-            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float8\n"
-            "SubgroupMatrixMultiplyAccumulateINTEL with FP8 operand flags "
-            "requires this extension");
+            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float8\n" +
+                InstName + " with FP8 operand flags requires this extension");
         getModule()->addExtension(
             ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate_float8);
       }
@@ -4632,6 +4635,47 @@ protected:
                             Op##x##INTEL, __VA_ARGS__>                         \
       SPIRV##x##INTEL;
 _SPIRV_OP(SubgroupMatrixMultiplyAccumulate, true, 7, true, 4)
+#undef _SPIRV_OP
+
+class SPIRVSubgroupScaledMatrixMultiplyAccumulateINTELInst
+    : public SPIRVSubgroupMatrixMultiplyAccumulateINTELInst {
+public:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroup_scaled_matrix_multiply_accumulate;
+  }
+
+protected:
+  unsigned getOperandsLiteralIndex() const override { return 6; }
+
+  void validate() const override {
+    SPIRVSubgroupMatrixMultiplyAccumulateINTELInst::validate();
+
+    // The Matrix Multiply Accumulate Operands literal is defined by the parent
+    // extension, so its extension and capability must be present too.
+    getModule()->getErrorLog().checkError(
+        getModule()->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate),
+        SPIRVEC_RequiresExtension,
+        "SPV_INTEL_subgroup_matrix_multiply_accumulate\n"
+        "SubgroupScaledMatrixMultiplyAccumulateINTEL depends on this "
+        "extension");
+    getModule()->addExtension(
+        ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate);
+    getModule()->addCapability(CapabilitySubgroupMatrixMultiplyAccumulateINTEL);
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(
+        internal::CapabilitySubgroupScaledMatrixMultiplyAccumulateINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<                                                   \
+      SPIRVSubgroupScaledMatrixMultiplyAccumulateINTELInst,                    \
+      internal::Op##x##INTEL, __VA_ARGS__>                                     \
+      SPIRV##x##INTEL;
+_SPIRV_OP(SubgroupScaledMatrixMultiplyAccumulate, true, 9, true, 6)
 #undef _SPIRV_OP
 
 class SPIRVTernaryBitwiseFunctionINTELInst : public SPIRVInstTemplateBase {
