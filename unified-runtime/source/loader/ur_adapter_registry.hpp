@@ -413,6 +413,10 @@ public:
 
   void enableMock() {
     adaptersLoadPaths.clear();
+
+    // Set it to prevent context_t::init() from loading static adapters
+    // (guarded by !adaptersForceLoaded()): the mock adapter must not coexist
+    // with other platforms.
     forceLoaded = true;
 
     std::vector<fs::path> loadPaths;
