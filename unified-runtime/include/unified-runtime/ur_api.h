@@ -521,6 +521,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP = 320,
   /// Enumerator for ::urGraphExecutableGraphGetNativeHandleExp
   UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP = 321,
+  /// Enumerator for ::urGraphGetIdExp
+  UR_FUNCTION_GRAPH_GET_ID_EXP = 326,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -13888,6 +13890,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
     bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Returns a process-unique identifier that increases monotonically per
+///        graph.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGraphId`
+UR_APIEXPORT ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function invoked when a graph is destroyed.
 typedef void (*ur_exp_graph_destruction_callback_t)(
     /// [in] pointer to user data to be passed to the callback
@@ -16516,6 +16537,15 @@ typedef struct ur_graph_is_empty_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
   bool **ppResult;
 } ur_graph_is_empty_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphGetIdExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_get_id_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  uint64_t **ppGraphId;
+} ur_graph_get_id_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urGraphSetDestructionCallbackExp
