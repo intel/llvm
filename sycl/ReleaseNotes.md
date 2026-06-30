@@ -51,39 +51,6 @@ in the next ABI-breaking release:
 
 - ...
 
-# Release notes ???'26
-Release notes for commit range 
-[b23d69e2c3](https://github.com/intel/llvm/commit/b23d69e2c3fda1d69351137991897c96bf6a586d)
-...
-[???]()
-
-## New Features
-
-
-
-## Misc
-
-## API/ABI breakages
-
-### Changes that are effective immediately
-
-### Deprecations
-
-Those APIs are still present and tested, but they will be removed in future
-releases:
-
-### Upcoming API/ABI breakages
-
-This changes are available for preview under `-fpreview-breaking-changes` flag.
-They will be enabled by default (with no option to switch to the old behavior)
-in the next ABI-breaking release:
-
-- Removed support for `info::device::atomic64` in favor of `aspects::atomic64` as per SYCL2020 specifications
-
-## Known Issues
-
-- ...
-
 # Release notes Mar'25
 
 Release notes for commit range
