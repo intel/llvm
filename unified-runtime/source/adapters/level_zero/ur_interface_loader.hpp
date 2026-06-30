@@ -891,6 +891,7 @@ ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
 ur_result_t urQueueGetGraphExp(ur_queue_handle_t hQueue,
                                ur_exp_graph_handle_t *phGraph);
 ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pResult);
+ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t hGraph, uint64_t *pGraphId);
 ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_handle_t hGraph,
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData);
