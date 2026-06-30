@@ -1,4 +1,8 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: linux
+// REQUIRES-INTEL-DRIVER: lin: 38146
+
+// TODO: Update the windows driver once available with the get_graph tests.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

@@ -52,12 +52,15 @@ int main() {
     Graph.end_recording(Q);
   }
 
-  // Test 3: Distinct graphs have distinct IDs.
+  // Test 3: Graph IDs are not reused after destruction
   {
-    exp_ext::command_graph GraphA{Ctx, Dev, GraphProps};
+    size_t GraphAId;
+    {
+      exp_ext::command_graph GraphA{Ctx, Dev, GraphProps};
+      GraphAId = GraphA.get_id();
+    }
     exp_ext::command_graph GraphB{Ctx, Dev, GraphProps};
-    assert(GraphA.get_id() != GraphB.get_id() &&
-           "Distinct graphs must have distinct IDs");
+    assert(GraphAId < GraphB.get_id() && "Graph IDs must not be reused");
   }
 
   // Test 4: On fork/join, both queues see the same ID.
