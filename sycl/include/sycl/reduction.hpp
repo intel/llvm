@@ -27,6 +27,7 @@
 #include <sycl/exception_list.hpp>                  // for queue_impl
 #include <sycl/group.hpp>                           // for workGroup...
 #include <sycl/group_algorithm.hpp>                 // for reduce_ov...
+#include <sycl/group_barrier.hpp>
 #include <sycl/handler.hpp>                         // for handler
 #include <sycl/id.hpp>                              // for getDeline...
 #include <sycl/kernel.hpp>                          // for auto_name
@@ -1644,7 +1645,7 @@ struct NDRangeReduction<
 
           // Ensure item 0 is finished with LocalReds before next iteration
           if (E != NElements - 1) {
-            NDIt.barrier();
+            group_barrier(NDIt.get_group());
           }
         }
 
@@ -1884,7 +1885,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
           // Ensure item 0 is finished with LocalReds before next iteration
           if (E != NElements - 1) {
-            NDIt.barrier();
+            group_barrier(NDIt.get_group());
           }
         }
       });
@@ -1988,7 +1989,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
               // Ensure item 0 is finished with LocalReds before next iteration
               if (E != NElements - 1) {
-                NDIt.barrier();
+                group_barrier(NDIt.get_group());
               }
             }
           });
@@ -2240,7 +2241,7 @@ void reduCGFuncImplArrayHelper(nd_item<Dims> NDIt, LocalAccT LocalReds,
 
     // Ensure item 0 is finished with LocalReds before next iteration
     if (E != NElements - 1) {
-      NDIt.barrier();
+      group_barrier(NDIt.get_group());
     }
   }
 }
@@ -2437,7 +2438,7 @@ void reduAuxCGFuncImplArrayHelper(nd_item<Dims> NDIt, size_t LID, size_t GID,
 
     // Ensure item 0 is finished with LocalReds before next iteration
     if (E != NElements - 1) {
-      NDIt.barrier();
+      group_barrier(NDIt.get_group());
     }
   }
 }

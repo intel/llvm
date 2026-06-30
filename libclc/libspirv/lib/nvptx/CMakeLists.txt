@@ -63,9 +63,6 @@ libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   math/tan.cl
   math/tanh.cl
   math/tgamma.cl
-  relational/isfinite.cl
-  relational/isinf.cl
-  relational/isnan.cl
   synchronization/barrier.cl
   synchronization/aw_barrier.cl
   async/async_work_group_strided_copy.cl
