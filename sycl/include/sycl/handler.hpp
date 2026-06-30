@@ -419,7 +419,7 @@ private:
   template <typename T, int Dimensions, typename AllocatorT>
   void addReduction(
       const std::shared_ptr<buffer<T, Dimensions, AllocatorT>> &ReduBuf) {
-    detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
+    detail::markBufferAsInternal(detail::getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
 
