@@ -2607,7 +2607,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
 // get_global_linear_id can safely return a value within the maximum range.
 // If NDRDesc.GlobalSize[I] is zero, it is treated as valid and does not exceed
 // the range.
-static bool isNDRangeExceedsMaxRange(const NDRDescT &NDRDesc, uint64_t MaxRange) {
+static bool isNDRangeExceedsMaxRange(const NDRDescT &NDRDesc,
+                                     uint64_t MaxRange) {
   uint64_t TotalGlobalSize = 1;
   for (size_t I = 0; I < NDRDesc.Dims; ++I) {
     uint64_t GlobalOffset = NDRDesc.GlobalOffset[I];
