@@ -43,13 +43,13 @@ int main(int argc, char *argv[]) {
 
   throws_kernel_not_supported("nd_range<2>", [] {
     constexpr uint32_t N = std::numeric_limits<uint32_t>::max();
-    q.parallel_for<class K1>(nd_range<2>({N, N}, {N, N}),
+    q.parallel_for<class K1>(nd_range<2>({N, 1}, {N, 1}),
                              [=](auto) [[sycl::reqd_work_group_size(N, 1)]] {});
   });
 
   throws_kernel_not_supported("nd_range<3>", [] {
     constexpr uint32_t N = std::numeric_limits<uint32_t>::max();
-    q.parallel_for<class K2>(nd_range<3>({N, N, N}, {N, N, N}),
+    q.parallel_for<class K2>(nd_range<3>({N, 1, 1}, {N, 1, 1}),
                              [=](auto)
                                  [[sycl::reqd_work_group_size(N, 1, 1)]] {});
   });
