@@ -306,10 +306,10 @@ ur_result_t ur_platform_handle_t_::initialize() {
   }
 
   const auto GraphExtension =
-      zeDriverExtensionMap.find(ZE_RECORD_REPLAY_GRAPH_EXP_NAME);
+      zeDriverExtensionMap.find(ZE_RECORD_REPLAY_GRAPH_EXT_NAME);
   const bool ZeGraphExtensionSupported =
       GraphExtension != zeDriverExtensionMap.end() &&
-      GraphExtension->second >= ZE_RECORD_REPLAY_GRAPH_EXP_VERSION_1_0;
+      GraphExtension->second >= ZE_RECORD_REPLAY_GRAPH_EXT_VERSION_1_0;
 
   ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DRIVER, ZeDriver,
                                         (void **)&ZeDriverHandleExpTranslated));

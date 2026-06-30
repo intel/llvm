@@ -9,11 +9,12 @@
 #pragma once
 
 #include "common.hpp"
-#include "external/driver_experimental/zex_graph.h"
+// #include "external/driver_experimental/zex_graph.h"
 #include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
 #include "zes_api.h"
+#include <level_zero/ze_api.h>
 
 struct ur_device_handle_t_;
 

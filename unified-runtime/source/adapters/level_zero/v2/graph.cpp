@@ -8,10 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "graph.hpp"
-#include "../external/driver_experimental/zex_graph.h"
+// #include "../external/driver_experimental/zex_graph.h"
 #include "../ur_interface_loader.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include <level_zero/ze_api.h>
 
 #include <memory>
 
@@ -64,7 +65,7 @@ struct DestructionCallbackContext {
   void *userData;
 };
 
-void ZE_CALLBACK destructionCallbackWrapper(void *pUserData) {
+void ZE_CALLBACK_CONV destructionCallbackWrapper(void *pUserData) {
   auto *CbData = static_cast<DestructionCallbackContext *>(pUserData);
   CbData->callback(CbData->userData);
   delete CbData;
