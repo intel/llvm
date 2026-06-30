@@ -56,7 +56,7 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
 // Windows), and while we could issue a diagnostic for the Windows case here,
 // we don't in order to maintain parity with Linux behavior, which happens
 // to work if the kernels are identical.
-#ifdef (_WIN32)
+#ifdef _WIN32
   assert(std::string_view{Info.Name} == std::string_view{this->Name};
 #else
   assert(Info == *this);
