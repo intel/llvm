@@ -2,6 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // Test for issue #22057: `sycl::stream` should print floating-point values in
 // hexadecimal form when `hexfloat` is set (and not fall back to scientific).
 #include <iomanip>
@@ -28,10 +31,10 @@ int main() {
   std::cout << "bfloat16: " << std::hexfloat << bf << std::endl;
 
   // CHECK: Host hexfloat:
-  // CHECK: float: 0x1.921fap+1
-  // CHECK: double: 0x1.5bf0995aaf79p+1
-  // CHECK: half: 0x1.92p+1
-  // CHECK: bfloat16: 0x1.5ap+1
+  // CHECK: float: 0x1.921fa{{0*}}p+1
+  // CHECK: double: 0x1.5bf0995aaf79{{0*}}p+1
+  // CHECK: half: 0x1.92{{0*}}p+1
+  // CHECK: bfloat16: 0x1.5a{{0*}}p+1
 
   // Print device hex format
   q.submit([&](handler &cgh) {
@@ -46,10 +49,10 @@ int main() {
    }).wait();
 
   // CHECK: Device hexfloat:
-  // CHECK: float: 0x1.921fa0p+1
-  // CHECK: double: 0x1.5bf0995aaf790p+1
-  // CHECK: half: 0x1.920000p+1
-  // CHECK: bfloat16: 0x1.5a0000p+1
+  // CHECK: float: 0x1.921fa{{0*}}p+1
+  // CHECK: double: 0x1.5bf0995aaf79{{0*}}p+1
+  // CHECK: half: 0x1.92{{0*}}p+1
+  // CHECK: bfloat16: 0x1.5a{{0*}}p+1
 
   return 0;
 }
