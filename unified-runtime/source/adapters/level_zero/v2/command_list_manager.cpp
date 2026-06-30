@@ -1367,7 +1367,7 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   ze_graph_handle_t zeGraph = nullptr;
   ZE2UR_CALL(
       hContext.get()->getPlatform()->ZeGraphExt.zeCommandListEndGraphCaptureExp,
-      (getZeCommandList(), &zeGraph, nullptr));
+      (getZeCommandList(), nullptr, &zeGraph));
   auto graph = graphCapture.getGraph();
   graphCapture.disableCapture();
 

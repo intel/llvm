@@ -570,32 +570,32 @@ ur_result_t ur_platform_handle_t_::initialize() {
   if (ZeGraphExtensionSupported) {
     // Populate Graph Extension structure. Mandatory graph functions.
     std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
-        {"zeGraphCreateExp",
+        {"zeGraphCreateExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
-        {"zeCommandListBeginGraphCaptureExp",
+        {"zeCommandListBeginGraphCaptureExt",
          reinterpret_cast<void **>(
              &ZeGraphExt.zeCommandListBeginGraphCaptureExp)},
-        {"zeCommandListBeginCaptureIntoGraphExp",
+        {"zeCommandListBeginCaptureIntoGraphExt",
          reinterpret_cast<void **>(
              &ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp)},
-        {"zeCommandListEndGraphCaptureExp",
+        {"zeCommandListEndGraphCaptureExt",
          reinterpret_cast<void **>(
              &ZeGraphExt.zeCommandListEndGraphCaptureExp)},
-        {"zeCommandListInstantiateGraphExp",
+        {"zeGraphInstantiateExt",
          reinterpret_cast<void **>(
              &ZeGraphExt.zeCommandListInstantiateGraphExp)},
-        {"zeCommandListAppendGraphExp",
+        {"zeCommandListAppendGraphExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeCommandListAppendGraphExp)},
-        {"zeGraphDestroyExp",
+        {"zeGraphDestroyExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeGraphDestroyExp)},
-        {"zeExecutableGraphDestroyExp",
+        {"zeExecutableGraphDestroyExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeExecutableGraphDestroyExp)},
-        {"zeCommandListIsGraphCaptureEnabledExp",
+        {"zeCommandListIsGraphCaptureEnabledExt",
          reinterpret_cast<void **>(
              &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
-        {"zeGraphIsEmptyExp",
+        {"zeGraphIsEmptyExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
-        {"zeGraphDumpContentsExp",
+        {"zeGraphDumpContentsExt",
          reinterpret_cast<void **>(&ZeGraphExt.zeGraphDumpContentsExp)},
     };
 
@@ -611,9 +611,9 @@ ur_result_t ur_platform_handle_t_::initialize() {
     // code in affected function.
     std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap =
         {
-            {"zeCommandListGetGraphExp",
+            {"zeCommandListGetGraphExt",
              reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
-            {"zeGraphSetDestructionCallbackExp",
+            {"zeGraphSetDestructionCallbackExt",
              reinterpret_cast<void **>(
                  &ZeGraphExt.zeGraphSetDestructionCallbackExp)},
         };
