@@ -310,8 +310,12 @@ static void fill_copy_args(
     impl->MDstImageDesc.depth = DestExtent[2];
   }
 
-  impl->MSrcImageDesc.rowPitch = SrcPitch;
-  impl->MDstImageDesc.rowPitch = DestPitch;
+  // Explicit pitch arg wins when non-zero; otherwise keep the descriptor's
+  // row_pitch already set by fill_image_desc().
+  if (SrcPitch != 0)
+    impl->MSrcImageDesc.rowPitch = SrcPitch;
+  if (DestPitch != 0)
+    impl->MDstImageDesc.rowPitch = DestPitch;
 }
 
 static void
