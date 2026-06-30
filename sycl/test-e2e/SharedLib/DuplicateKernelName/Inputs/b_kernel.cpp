@@ -1,4 +1,4 @@
-#include "a.hpp"
+#include "b.hpp"
 
 void submitKernelDirectB(sycl::queue &Q, int *Ptr) {
   Q.submit([&](sycl::handler &CGH) {
