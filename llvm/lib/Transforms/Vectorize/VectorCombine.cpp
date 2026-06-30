@@ -1522,6 +1522,9 @@ bool VectorCombine::foldExtractedCmps(Instruction &I) {
   if (!VecTy)
     return false;
 
+  if (Index0 >= VecTy->getNumElements() || Index1 >= VecTy->getNumElements())
+    return false;
+
   InstructionCost Ext0Cost =
       TTI.getVectorInstrCost(*Ext0, VecTy, CostKind, Index0);
   InstructionCost Ext1Cost =
