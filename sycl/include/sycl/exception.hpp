@@ -27,6 +27,7 @@ inline namespace _V1 {
 
 // Forward declaration
 class context;
+class exception;
 
 enum class errc : unsigned int {
   success = 0,
