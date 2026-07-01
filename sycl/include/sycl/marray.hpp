@@ -457,13 +457,14 @@ public:
       return !Lhs;
 
     marray Ret;
-    if constexpr (use_ext_vector_type && !std::is_same_v<DataT, bool>) {
+    if constexpr (use_ext_vector_type) {
       ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
       ext_vector_t ResVec = ~LhsVec;
       storeVecResult(Ret.MData, ResVec);
     } else {
-      for (size_t I = 0; I < NumElements; ++I)
+      for (size_t I = 0; I < NumElements; ++I) {
         Ret[I] = ~Lhs[I];
+      }
     }
     return Ret;
   }
