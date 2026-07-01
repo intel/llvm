@@ -161,7 +161,7 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
 
     # Pattern: "Category Tests (N):"
     category_pattern = re.compile(
-        r"^(Passed|Unsupported|Failed|Expectedly Failed|Unresolved|Timed Out|Unexpectedly Passed) Tests \((\d+)\):"
+        r"^(Passed|Unsupported|Skipped|Failed|Expectedly Failed|Unresolved|Timed Out|Unexpectedly Passed) Tests \((\d+)\):"
     )
 
     for line in lines:
@@ -214,21 +214,44 @@ def parse_gtest_list(all_tests_file: str) -> List[str]:
     tests = []
     current_suite = None
 
+    # Patterns to ignore (errors, warnings, GoogleTest verification messages)
+    ignore_patterns = [
+        "Error:",
+        "Warning:",
+        "Actual:",
+        "Expected:",
+        "Value of:",
+        "Failure",
+        "UninstantiatedParameterizedTestSuite",
+        "/__w/",  # File paths from error messages
+        "No platforms",
+    ]
+
     with open(all_tests_file, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
             line = line.rstrip()
             if not line:
                 continue
 
+            # Skip error messages and warnings
+            if any(pattern in line for pattern in ignore_patterns):
+                continue
+
+            # Skip GoogleTestVerification suite (contains only warnings, not real tests)
+            if line == "GoogleTestVerification.":
+                current_suite = None
+                continue
+
             # Suite line ends with '.'
             if line.endswith(".") and not line.startswith(" "):
                 current_suite = line
-            # Test name (indented)
+            # Test name (indented with exactly 2 spaces)
             elif line.startswith("  ") and current_suite:
                 # Remove leading whitespace and comments
                 test_name = line.strip().split(" #")[0].strip()
-                full_name = f"{current_suite}{test_name}"
-                tests.append(full_name)
+                if test_name:
+                    full_name = f"{current_suite}{test_name}"
+                    tests.append(full_name)
 
     return tests
 
