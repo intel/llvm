@@ -7575,6 +7575,8 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
       !LangOpts.OffloadFP32PrecSqrt) {
     llvm::Function *Func =
         CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    if (Func->getFunctionType()->getNumParams() != IRArgs.size())
+      return nullptr;
     return CreateBuiltinCallWithAttr(Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
   }
