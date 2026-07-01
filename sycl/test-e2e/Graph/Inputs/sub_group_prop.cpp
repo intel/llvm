@@ -4,6 +4,8 @@
 #include "../graph_common.hpp"
 #include <sycl/sub_group.hpp>
 
+#include <algorithm>
+
 enum class Variant { Function, Functor, FunctorAndProperty };
 
 template <Variant KernelVariant, size_t SGSize> class SubGroupKernel;

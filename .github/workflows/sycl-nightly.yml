@@ -433,6 +433,17 @@ jobs:
       toolchain_artifact: sycl_linux_default
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
 
+  build_and_test_pytorch_linux:
+    name: Build and Test PyTorch on Linux
+    needs: ubuntu2204_build
+    if: |
+      !cancelled()
+      && needs.ubuntu2204_build.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-pytorch-build-and-test.yml
+    with:
+      toolchain_artifact: sycl_linux_default
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+
   # Verification example:
   # cosign-windows-amd64.exe verify-blob sycl_linux.tar.gz \
   # --bundle sycl_linux.tar.gz.sigstore.json \

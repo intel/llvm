@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 #include <iostream>
 
+#include <algorithm>
 #include <numeric>
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>

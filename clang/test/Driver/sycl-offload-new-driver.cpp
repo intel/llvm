@@ -280,3 +280,20 @@
 // RUN:          -fsycl-link %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_SYCL_DEVICE_LINKING %s
 // CHECK_SYCL_DEVICE_LINKING: clang-linker-wrapper{{.*}} "--sycl-device-link"
+
+/// Check that SYCL device uses its own toolchain triple when combined with
+/// OpenMP offloading. Regression test: TCAndArchs must be cleared per offload
+/// kind to prevent OpenMP's TC leaking into SYCL's device phases.
+// RUN: %clang -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:        --no-offloadlib -fopenmp -fopenmp-targets=spir64 \
+// RUN:        --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-OPENMP-SYCL-PHASES %s
+// CHK-OPENMP-SYCL-PHASES: [[#OMP_DEV:]]: input, "{{.*}}", c++, (device-openmp)
+// CHK-OPENMP-SYCL-PHASES: [[#OMP_DEV+1]]: preprocessor, {[[#OMP_DEV]]}, c++-cpp-output, (device-openmp)
+// CHK-OPENMP-SYCL-PHASES: [[#OMP_DEV+2]]: compiler, {[[#OMP_DEV+1]]}, ir, (device-openmp)
+// CHK-OPENMP-SYCL-PHASES: offload, {{.*}} "device-openmp (spir64)" {[[#OMP_DEV+2]]}, ir
+// CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV:]]: input, "{{.*}}", c++, (device-sycl)
+// CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV+1]]: preprocessor, {[[#SYCL_DEV]]}, c++-cpp-output, (device-sycl)
+// CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV+2]]: compiler, {[[#SYCL_DEV+1]]}, ir, (device-sycl)
+// CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV+3]]: backend, {[[#SYCL_DEV+2]]}, ir, (device-sycl)
+// CHK-OPENMP-SYCL-PHASES: offload, "device-sycl (spir64-unknown-unknown)" {[[#SYCL_DEV+3]]}, ir
