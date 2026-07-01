@@ -453,24 +453,17 @@ public:
   template <typename T = DataT>
   friend std::enable_if_t<std::is_integral_v<T>, marray>
   operator~(const marray &Lhs) {
+    if constexpr (std::is_same_v<DataT, bool>)
+      return !Lhs;
+
     marray Ret;
-    if constexpr (use_ext_vector_type) {
+    if constexpr (use_ext_vector_type && !std::is_same_v<DataT, bool>) {
       ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
-      if constexpr (std::is_same_v<DataT, bool>) {
-        for (size_t I = 0; I < NumElements; ++I)
-          Ret[I] = !LhsVec[I];
-      } else {
-        ext_vector_t ResVec = ~LhsVec;
-        storeVecResult(Ret.MData, ResVec);
-      }
+      ext_vector_t ResVec = ~LhsVec;
+      storeVecResult(Ret.MData, ResVec);
     } else {
-      if constexpr (std::is_same_v<DataT, bool>) {
-        for (size_t I = 0; I < NumElements; ++I)
-          Ret[I] = !Lhs[I];
-      } else {
-        for (size_t I = 0; I < NumElements; ++I)
-          Ret[I] = ~Lhs[I];
-      }
+      for (size_t I = 0; I < NumElements; ++I)
+        Ret[I] = ~Lhs[I];
     }
     return Ret;
   }
