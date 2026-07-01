@@ -6,6 +6,9 @@
 // UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: CMPLRLLVM-73525
 
+// UNSUPPORTED: target-nvidia
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 /*

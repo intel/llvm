@@ -2,6 +2,9 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
+// UNSUPPORTED: target-nvidia
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 /*
