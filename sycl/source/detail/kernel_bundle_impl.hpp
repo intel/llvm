@@ -523,10 +523,16 @@ public:
       }();
 
       // If there AOT binaries, the link should allow unresolved symbols.
+      // Only invoke the JIT link (urProgramLinkExp) when there is at least one
+      // JIT image; an AOT-only link (e.g. cross-library link of native AOT
+      // object SYCLBINs) has no SPIR-V to link and passing an empty program
+      // list to urProgramLinkExp is invalid. The AOT images are handled by the
+      // dynamicLink path below.
       std::vector<device_image_plain> LinkedResults =
-          detail::ProgramManager::getInstance().link(
-              JITImgs, GraphDevs, PropList,
-              /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
+          JITImgs.empty() ? std::vector<device_image_plain>{}
+                          : detail::ProgramManager::getInstance().link(
+                                JITImgs, GraphDevs, PropList,
+                                /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
 
       if (!AOTImgs.empty()) {
         // urProgramLinkExp's ze_module_program_exp_desc_t carries a single
@@ -782,10 +788,17 @@ public:
           KernelIDs->push_back(*MaybeID);
       std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
 
+      // The image's intrinsic classification may be "ahead" of the state the
+      // SYCLBIN was loaded in: an export-only native AOT library classifies as
+      // executable but is surfaced here for an object-state load so it can act
+      // as the provider side of a cross-library link. Clamp the created image
+      // to the requested state (the SYCLBIN's declared state, already
+      // validated above) so it is not mistaken for an already-linked image.
+      const bundle_state ImgState =
+          std::min(ProgramManager::getBinImageState(Image), State);
       MDeviceImages.emplace_back(device_image_impl::create(
-          Image, Context, Devs, ProgramManager::getBinImageState(Image),
-          std::move(KernelIDs), Managed<ur_program_handle_t>{},
-          ImageOriginSYCLBIN));
+          Image, Context, Devs, ImgState, std::move(KernelIDs),
+          Managed<ur_program_handle_t>{}, ImageOriginSYCLBIN));
     }
     ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
                                                                State);
