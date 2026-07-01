@@ -36,7 +36,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 // <sycl/sycl.hpp> is not a iostream "provider", however iostream was included
 // in some of SYCL transitive headers. Customers relied on that inclusion, so it
 // should be kept for now and be removed once breaking changes are allowed.
-#include <iostream>
+#include <sycl/detail/iostream_proxy.hpp>
 #endif
 
 // All SYCL macro are provided through this header
