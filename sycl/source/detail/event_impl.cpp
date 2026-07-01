@@ -192,8 +192,6 @@ void event_impl::toDeviceEvent(queue_impl &Queue) {
 
   initContextIfNeeded();
 
-  sycl::detail::adapter_impl &Adapter = MContext->getAdapter();
-
   ur_event_handle_t EventHandle = nullptr;
   ur_exp_event_desc_t Desc = {};
   Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
@@ -202,7 +200,7 @@ void event_impl::toDeviceEvent(queue_impl &Queue) {
   }
 
   ur_result_t Result =
-      Adapter.call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
+      getAdapter().call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
           MContext->getHandleRef(), Queue.getDeviceImpl().getHandleRef(), &Desc,
           &EventHandle);
   if (Result != UR_RESULT_SUCCESS) {
@@ -214,6 +212,39 @@ void event_impl::toDeviceEvent(queue_impl &Queue) {
   setQueue(Queue);
   MQueue = Queue.weak_from_this();
   MIsDefaultConstructed = false;
+}
+
+ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
+  initContextIfNeeded();
+
+  if (MContext->supportsReusableEvents()) {
+    if (MIsDefaultConstructed) {
+      // If the event was constructed (through make_event or a default
+      // constructor), but not enqueued for signaling yet, change the event
+      // state from default constructed to device event.
+      toDeviceEvent(Queue);
+    }
+  } else {
+    // If the context does not support reusable events, then release the
+    // previous event and set the handle to nullptr, so UR can create a new
+    // event during command submission.
+    ur_event_handle_t CurrentHandle = getHandle();
+    if (CurrentHandle != nullptr) {
+      getAdapter().call<UrApiKind::urEventRelease>(CurrentHandle);
+      setHandle(nullptr);
+    }
+  }
+
+  return getHandle();
+}
+
+void event_impl::setHandleReusable(ur_event_handle_t Handle) {
+  // If reusable events are supported do nothing, as the UR handle is already
+  // set. If reusable events are not supported, set the handle of the new UR
+  // event.
+  if (!MContext->supportsReusableEvents()) {
+    setHandle(Handle);
+  }
 }
 
 void event_impl::initHostProfilingInfo() {

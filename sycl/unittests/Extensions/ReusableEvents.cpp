@@ -91,6 +91,18 @@ ur_result_t redefinedUrEnqueueEventsWaitWithBarrierExt_signal(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t
+redefinedUrEnqueueEventsWaitWithBarrierExt_signal_create_event(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
+  **params.pphEvent = DummyEventHandle;
+  EXPECT_EQ(*params.pnumEventsInWaitList, 0u);
+
+  redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter++;
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t redefinedUrEventGetProfilingInfo(void *pParams) {
   auto params = *static_cast<ur_event_get_profiling_info_params_t *>(pParams);
   if (*params.ppPropValue) {
@@ -100,6 +112,8 @@ ur_result_t redefinedUrEventGetProfilingInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+bool ReusableEventsSupported = true;
+
 ur_result_t after_urDeviceGetInfo(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
   switch (*params.ppropName) {
@@ -107,7 +121,8 @@ ur_result_t after_urDeviceGetInfo(void *pParams) {
     if (*params.ppPropSizeRet)
       **params.ppPropSizeRet = sizeof(ur_bool_t);
     if (*params.ppPropValue)
-      *static_cast<ur_bool_t *>(*params.ppPropValue) = ur_bool_t{true};
+      *static_cast<ur_bool_t *>(*params.ppPropValue) =
+          ur_bool_t{ReusableEventsSupported};
     return UR_RESULT_SUCCESS;
   default:
     return UR_RESULT_SUCCESS;
@@ -170,6 +185,7 @@ protected:
     ExpectedNumEventsInWaitList = 0;
     ExpectedNumEventsInWaitListKernelLaunch = 0;
     checkUrEventReleaseHandle = true;
+    ReusableEventsSupported = true;
 
     mock::getCallbacks().set_replace_callback("urEventCreateExp",
                                               &redefinedUrEventCreateExp);
@@ -220,7 +236,6 @@ TEST_F(ReusableEventsTest, EnqueueWaitEvent) {
   {
     auto event = syclex::make_event(Ctx);
 
-    // Should not throw
     EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
   }
 
@@ -245,7 +260,6 @@ TEST_F(ReusableEventsTest, EnqueueWaitEvents) {
     auto event2 = syclex::make_event(Ctx);
     std::vector<sycl::event> events{event1, event2};
 
-    // Should not throw
     EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, events); });
   }
 
@@ -269,13 +283,53 @@ TEST_F(ReusableEventsTest, EnqueueSignalEvent) {
   {
     auto event = syclex::make_event(Ctx);
 
-    // Should not throw
     EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+    EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+    EXPECT_EQ(urEventCreateExp_counter, 1);
+    EXPECT_EQ(urEventRelease_counter, 0);
+
+    EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+    EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
+    EXPECT_EQ(urEventCreateExp_counter, 1);
+    EXPECT_EQ(urEventRelease_counter, 0);
   }
 
-  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
   EXPECT_EQ(urEventCreateExp_counter, 1);
   EXPECT_EQ(urEventRelease_counter, 1);
+
+  Queue.wait();
+}
+
+// enqueue_signal_event
+TEST_F(ReusableEventsTest, EnqueueSignalEventReusableEventsNotSupported) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal_create_event);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  ReusableEventsSupported = false;
+
+  {
+    auto event = syclex::make_event(Ctx);
+
+    EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+    EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+    EXPECT_EQ(urEventRelease_counter, 0);
+
+    EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+    EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
+    EXPECT_EQ(urEventRelease_counter, 1);
+  }
+
+  EXPECT_EQ(urEventCreateExp_counter, 0);
+  EXPECT_EQ(urEventRelease_counter, 2);
 
   Queue.wait();
 }
@@ -477,7 +531,6 @@ TEST_F(ReusableEventsTest, EmptyEventVectorWait) {
 
   std::vector<sycl::event> empty_events;
 
-  // Waiting on empty vector should not throw
   EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, empty_events); });
 
   EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);

@@ -106,6 +106,9 @@ public:
   /// \param Queue is a queue to be associated with the event
   void toDeviceEvent(queue_impl &Queue);
 
+  ur_event_handle_t getHandleReusable(queue_impl &Queue);
+  void setHandleReusable(ur_event_handle_t Handle);
+
   /// Waits for the event.
   ///
   /// \param Success is an optional parameter that, when set to a non-null

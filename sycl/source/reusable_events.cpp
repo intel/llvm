@@ -31,13 +31,6 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
                           "Context needs to have at least one device.");
   }
 
-  // TODO reusable events
-  // Emulate reusable events
-  if (!ContextImpl.supportsReusableEvents()) {
-    throw sycl::exception(sycl::make_error_code(errc::runtime),
-                          "Not implemented yet.");
-  }
-
   sycl::event RetEvent{};
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(RetEvent);
   EventImpl.setContextImpl(ContextImpl);
@@ -83,25 +76,11 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   detail::context_impl &QueueContextImpl =
       *sycl::detail::getSyclObjImpl(q.get_context());
 
-  // TODO reusable events
-  // Emulate reusable events
-  if (!QueueContextImpl.supportsReusableEvents()) {
-    throw sycl::exception(sycl::make_error_code(errc::runtime),
-                          "Not implemented yet.");
-  }
-
   detail::context_impl &EventContextImpl = EventImpl.getContextImpl();
 
   if (&QueueContextImpl != &EventContextImpl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Event context must match the queue context.");
-  }
-
-  // If the event was constructed (through make_event or a default constructor),
-  // but not enqueued for signaling yet, change the event state from default
-  // constructed to device event.
-  if (EventImpl.isDefaultConstructed()) {
-    EventImpl.toDeviceEvent(QueueImpl);
   }
 
   QueueImpl.submit_barrier_direct_without_event(

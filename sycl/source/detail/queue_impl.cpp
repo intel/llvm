@@ -487,7 +487,7 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   // (enqueue_signal_event function)
 
   ur_event_handle_t UREvent =
-      EventForReuse ? EventForReuse->getHandle() : nullptr;
+      EventForReuse ? EventForReuse->getHandleReusable(*this) : nullptr;
   std::vector<ur_event_handle_t> RawBarrierDepEvents;
   std::vector<ur_event_handle_t> RawDepEvents;
 
@@ -548,8 +548,12 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
         DiscardEvent ? nullptr : &UREvent);
   }
 
-  if (!DiscardEvent && !EventForReuse) {
-    ResEvent->setHandle(UREvent);
+  if (EventForReuse) {
+    ResEvent->setHandleReusable(UREvent);
+  } else {
+    if (!DiscardEvent) {
+      ResEvent->setHandle(UREvent);
+    }
   }
 
   // connect returned event with dependent events
