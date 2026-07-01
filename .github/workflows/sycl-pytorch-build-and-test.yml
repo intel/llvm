@@ -34,7 +34,7 @@ jobs:
       CMAKE_POLICY_VERSION_MINIMUM: '3.5'
     steps:
       - name: Checkout devops scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           sparse-checkout: |
             devops/
@@ -65,7 +65,7 @@ jobs:
           ln -sf "$SYCL_INSTALL_DIR/bin/clang++" "$SYCL_INSTALL_DIR/bin/dpclang++"
 
       - name: Checkout PyTorch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: pytorch/pytorch
           ref: ${{ inputs.pytorch_ref }}
@@ -105,7 +105,7 @@ jobs:
       options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
     steps:
       - name: Checkout devops scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           sparse-checkout: |
             devops/
@@ -135,7 +135,7 @@ jobs:
           path: dist
 
       - name: Checkout PyTorch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: pytorch/pytorch
           ref: ${{ inputs.pytorch_ref }}
