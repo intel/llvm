@@ -8008,6 +8008,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
   for (Action::OffloadKind Kind : OffloadKinds) {
     SmallVector<const ToolChain *, 2> ToolChains;
     ActionList DeviceActions;
+    TCAndArchs.clear();
 
     auto TCRange = C.getOffloadToolChains(Kind);
     for (auto TI = TCRange.first, TE = TCRange.second; TI != TE; ++TI)
