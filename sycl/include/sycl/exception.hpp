@@ -111,7 +111,7 @@ __SYCL2020_DEPRECATED("The version of an exception constructor which takes "
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const char *what() const noexcept final;
 #else
-  const char *what() const;
+  const char *what() const noexcept;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   bool has_context() const noexcept;
