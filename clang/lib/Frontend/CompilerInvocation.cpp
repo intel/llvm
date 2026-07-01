@@ -4321,6 +4321,11 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 #include "clang/Options/Options.inc"
 #undef LANG_OPTION_WITH_MARSHALLING
 
+  // "Modules semantics" (e.g. cross-translation-unit declaration merging) are
+  // needed for both Clang (header) modules and C++20 modules, so enable them
+  // for either.
+  Opts.Modules = Opts.ClangModules || Opts.CPlusPlusModules;
+
   ParseFpAccuracyArgs(Opts, Args, Diags);
 
   if (const Arg *A = Args.getLastArg(OPT_fcf_protection_EQ)) {
