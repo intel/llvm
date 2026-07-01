@@ -71,8 +71,8 @@ exception set_ur_error(exception &&e, int32_t ur_err);
 class __SYCL_EXPORT exception : public virtual std::exception {
 public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL2020_DEPRECATED("The version of an exception constructor which takes "
-  "no arguments is deprecated.")
+  __SYCL2020_DEPRECATED("The version of an exception constructor which takes "
+                        "no arguments is deprecated.")
   exception() = default;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
   virtual ~exception();
