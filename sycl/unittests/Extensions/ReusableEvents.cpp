@@ -25,30 +25,30 @@ const auto DummyEventHandle = reinterpret_cast<ur_event_handle_t>(1u);
 const auto DummyContextHandle = reinterpret_cast<ur_context_handle_t>(2u);
 const auto DummyDeviceHandle = reinterpret_cast<ur_device_handle_t>(3u);
 
-int urEventCreateExp_counter = 0;
-int urEventRelease_counter = 0;
-int redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter = 0;
-int redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter = 0;
+int UrEventCreateExp_counter = 0;
+int UrEventRelease_counter = 0;
+int RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter = 0;
+int RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter = 0;
 
 ur_result_t redefinedUrEventCreateExp(void *pParams) {
   auto params = *static_cast<ur_event_create_exp_params_t *>(pParams);
   **params.pphEvent = DummyEventHandle;
   EXPECT_EQ(*params.phContext, DummyContextHandle);
 
-  urEventCreateExp_counter++;
+  UrEventCreateExp_counter++;
 
   return UR_RESULT_SUCCESS;
 }
 
-bool checkUrEventReleaseHandle = true;
+bool CheckUrEventReleaseHandle = true;
 
 ur_result_t redefinedUrEventRelease(void *pParams) {
   auto params = *static_cast<ur_event_release_params_t *>(pParams);
-  if (checkUrEventReleaseHandle) {
+  if (CheckUrEventReleaseHandle) {
     EXPECT_EQ(*params.phEvent, DummyEventHandle);
   }
 
-  urEventRelease_counter++;
+  UrEventRelease_counter++;
 
   return UR_RESULT_SUCCESS;
 }
@@ -75,7 +75,7 @@ ur_result_t redefinedUrEnqueueEventsWaitWithBarrierExt_wait(void *pParams) {
     EXPECT_EQ((*params.pphEventWaitList)[i], DummyEventHandle);
   }
 
-  redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter++;
+  RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter++;
 
   return UR_RESULT_SUCCESS;
 }
@@ -86,7 +86,7 @@ ur_result_t redefinedUrEnqueueEventsWaitWithBarrierExt_signal(void *pParams) {
   EXPECT_EQ(DummyEventHandle, **params.pphEvent);
   EXPECT_EQ(*params.pnumEventsInWaitList, 0u);
 
-  redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter++;
+  RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter++;
 
   return UR_RESULT_SUCCESS;
 }
@@ -98,7 +98,7 @@ redefinedUrEnqueueEventsWaitWithBarrierExt_signal_create_event(void *pParams) {
   **params.pphEvent = DummyEventHandle;
   EXPECT_EQ(*params.pnumEventsInWaitList, 0u);
 
-  redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter++;
+  RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter++;
 
   return UR_RESULT_SUCCESS;
 }
@@ -178,13 +178,13 @@ class ReusableEventsTest : public ::testing::Test {
 protected:
   void SetUp() override {
 
-    urEventCreateExp_counter = 0;
-    urEventRelease_counter = 0;
-    redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter = 0;
-    redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter = 0;
+    UrEventCreateExp_counter = 0;
+    UrEventRelease_counter = 0;
+    RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter = 0;
+    RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter = 0;
     ExpectedNumEventsInWaitList = 0;
     ExpectedNumEventsInWaitListKernelLaunch = 0;
-    checkUrEventReleaseHandle = true;
+    CheckUrEventReleaseHandle = true;
     ReusableEventsSupported = true;
 
     mock::getCallbacks().set_replace_callback("urEventCreateExp",
@@ -222,8 +222,8 @@ TEST_F(ReusableEventsTest, MakeEventDefault) {
   }
 
   // make_event should not call UR.
-  EXPECT_EQ(urEventCreateExp_counter, 0);
-  EXPECT_EQ(urEventRelease_counter, 0);
+  EXPECT_EQ(UrEventCreateExp_counter, 0);
+  EXPECT_EQ(UrEventRelease_counter, 0);
 }
 
 // enqueue_wait_event
@@ -241,9 +241,9 @@ TEST_F(ReusableEventsTest, EnqueueWaitEvent) {
 
   // Waiting for an event which was not enqueued for signaling should complete
   // immediately.
-  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
-  EXPECT_EQ(urEventCreateExp_counter, 0);
-  EXPECT_EQ(urEventRelease_counter, 0);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+  EXPECT_EQ(UrEventCreateExp_counter, 0);
+  EXPECT_EQ(UrEventRelease_counter, 0);
 
   Queue.wait();
 }
@@ -263,9 +263,9 @@ TEST_F(ReusableEventsTest, EnqueueWaitEvents) {
     EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, events); });
   }
 
-  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
-  EXPECT_EQ(urEventCreateExp_counter, 0);
-  EXPECT_EQ(urEventRelease_counter, 0);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+  EXPECT_EQ(UrEventCreateExp_counter, 0);
+  EXPECT_EQ(UrEventRelease_counter, 0);
 
   Queue.wait();
 }
@@ -285,19 +285,19 @@ TEST_F(ReusableEventsTest, EnqueueSignalEvent) {
 
     EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
 
-    EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
-    EXPECT_EQ(urEventCreateExp_counter, 1);
-    EXPECT_EQ(urEventRelease_counter, 0);
+    EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+    EXPECT_EQ(UrEventCreateExp_counter, 1);
+    EXPECT_EQ(UrEventRelease_counter, 0);
 
     EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
 
-    EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
-    EXPECT_EQ(urEventCreateExp_counter, 1);
-    EXPECT_EQ(urEventRelease_counter, 0);
+    EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
+    EXPECT_EQ(UrEventCreateExp_counter, 1);
+    EXPECT_EQ(UrEventRelease_counter, 0);
   }
 
-  EXPECT_EQ(urEventCreateExp_counter, 1);
-  EXPECT_EQ(urEventRelease_counter, 1);
+  EXPECT_EQ(UrEventCreateExp_counter, 1);
+  EXPECT_EQ(UrEventRelease_counter, 1);
 
   Queue.wait();
 }
@@ -319,17 +319,17 @@ TEST_F(ReusableEventsTest, EnqueueSignalEventReusableEventsNotSupported) {
 
     EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
 
-    EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
-    EXPECT_EQ(urEventRelease_counter, 0);
+    EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+    EXPECT_EQ(UrEventRelease_counter, 0);
 
     EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
 
-    EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
-    EXPECT_EQ(urEventRelease_counter, 1);
+    EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
+    EXPECT_EQ(UrEventRelease_counter, 1);
   }
 
-  EXPECT_EQ(urEventCreateExp_counter, 0);
-  EXPECT_EQ(urEventRelease_counter, 2);
+  EXPECT_EQ(UrEventCreateExp_counter, 0);
+  EXPECT_EQ(UrEventRelease_counter, 2);
 
   Queue.wait();
 }
@@ -344,8 +344,8 @@ TEST_F(ReusableEventsTest, DefaultConstructor) {
     EXPECT_EQ(status, sycl::info::event_command_status::complete);
   }
 
-  EXPECT_EQ(urEventCreateExp_counter, 0);
-  EXPECT_EQ(urEventRelease_counter, 0);
+  EXPECT_EQ(UrEventCreateExp_counter, 0);
+  EXPECT_EQ(UrEventRelease_counter, 0);
 }
 
 // Queue-returned event can be used with extension functions
@@ -368,7 +368,7 @@ TEST_F(ReusableEventsTest, QueueReturnedEvent) {
   // verify the event is usable with extension wait functions
   EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
 
-  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
 
   Queue.wait();
 }
@@ -424,7 +424,7 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
   auto event = syclex::make_event(Ctx);
   syclex::enqueue_signal_event(Queue, event);
 
-  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
 
   ExpectedNumEventsInWaitListKernelLaunch = 1;
 
@@ -468,7 +468,7 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
 
   syclex::enqueue_signal_event(Queue1, event);
 
-  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
 
   ExpectedNumEventsInWaitList = 1;
   mock::getCallbacks().set_replace_callback(
@@ -478,7 +478,7 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
   // Event from different context should still work with enqueue_wait_event
   EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue2, event); });
 
-  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
 
   Queue1.wait();
   Queue2.wait();
@@ -533,7 +533,7 @@ TEST_F(ReusableEventsTest, EmptyEventVectorWait) {
 
   EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, empty_events); });
 
-  EXPECT_EQ(redefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
 
   Queue.wait();
 }
@@ -551,7 +551,7 @@ TEST_F(ReusableEventsTest, SignalEventHostTask) {
   // Host task submission generates additional event
   // for a helper barrier, so skip the handle checks related
   // to event release.
-  checkUrEventReleaseHandle = false;
+  CheckUrEventReleaseHandle = false;
 
   {
     auto event = syclex::make_event(Ctx);

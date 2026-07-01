@@ -106,7 +106,16 @@ public:
   /// \param Queue is a queue to be associated with the event
   void toDeviceEvent(queue_impl &Queue);
 
+  /// Returns an event UR handle and applies additional logic
+  /// related to reusable events.
+  ///
+  /// \param Queue is a queue to be associated with the event
   ur_event_handle_t getHandleReusable(queue_impl &Queue);
+
+  /// Sets the event UR handle and applies additional logic
+  /// related to reusable events.
+  ///
+  /// \param Handle is a UR handle to be set
   void setHandleReusable(ur_event_handle_t Handle);
 
   /// Waits for the event.
