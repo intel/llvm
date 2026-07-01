@@ -111,7 +111,7 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const char *what() const noexcept final;
 #else
-  const char *what() const noexcept;
+  const char *what() const noexcept override;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   bool has_context() const noexcept;
