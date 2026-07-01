@@ -160,8 +160,9 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
     current_tests = []
 
     # Pattern: "Category Tests (N):"
+    # Match any word followed by "Tests (N):" to catch unknown categories
     category_pattern = re.compile(
-        r"^(Passed|Unsupported|Skipped|Failed|Expectedly Failed|Unresolved|Timed Out|Unexpectedly Passed) Tests \((\d+)\):"
+        r"^([A-Za-z ]+) Tests \((\d+)\):"
     )
 
     for line in lines:
