@@ -3089,8 +3089,6 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
       Fn->setMetadata("kernel_arg_accessor_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
     } else {
-      Fn->setMetadata("kernel_arg_buffer_location",
-                      llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
       // Generate this metadata only if at least one kernel argument is an
       // accessor.
       if (isKernelArgAnAccessor) {

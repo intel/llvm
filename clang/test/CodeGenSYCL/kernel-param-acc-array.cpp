@@ -25,7 +25,7 @@ int main() {
       });
 }
 // CHECK-LABEL: define weak_odr spir_kernel void @_ZTSZ4mainE8kernel_A(
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[_ARG_ACC:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC1:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC2:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_ACC3:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_ACC4:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC6:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC7:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_ACC8:%.*]]) #[[ATTR0:[0-9]+]] comdat !srcloc [[META12:![0-9]+]] !kernel_arg_buffer_location [[META13:![0-9]+]] !kernel_arg_runtime_aligned [[META14:![0-9]+]] !kernel_arg_exclusive_ptr [[META14]] {
+// CHECK-SAME: ptr addrspace(1) noundef align 4 [[_ARG_ACC:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC1:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC2:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_ACC3:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_ACC4:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC6:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC7:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_ACC8:%.*]]) #[[ATTR0:[0-9]+]] comdat !srcloc [[META12:![0-9]+]] !kernel_arg_runtime_aligned [[META13:![0-9]+]] !kernel_arg_exclusive_ptr [[META13]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[_ARG_ACC_ADDR:%.*]] = alloca ptr addrspace(1), align 8
 // CHECK-NEXT:    [[_ARG_ACC_ADDR5:%.*]] = alloca ptr addrspace(1), align 8
@@ -66,7 +66,7 @@ int main() {
 // CHECK-NEXT:    [[AGG_TMP_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[AGG_TMP_ASCAST]] to ptr
 // CHECK-NEXT:    [[AGG_TMP10_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[AGG_TMP10_ASCAST]] to ptr
 // CHECK-NEXT:    [[AGG_TMP11_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[AGG_TMP11_ASCAST]] to ptr
-// CHECK-NEXT:    call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable_or_null(12) [[ARRAYIDX]], ptr addrspace(1) noundef [[TMP0]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP10_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[AGG_TMP11_ASCAST_ASCAST]]) #[[ATTR4]]
+// CHECK-NEXT:    call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE(ptr addrspace(4) noundef align 4 dereferenceable_or_null(12) [[ARRAYIDX]], ptr addrspace(1) noundef [[TMP0]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP10_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[AGG_TMP11_ASCAST_ASCAST]]) #[[ATTR4]]
 // CHECK-NEXT:    [[ACC12:%.*]] = getelementptr inbounds nuw [[CLASS_ANON]], ptr addrspace(4) [[__SYCLKERNEL_ASCAST]], i32 0, i32 0
 // CHECK-NEXT:    [[ARRAYIDX13:%.*]] = getelementptr inbounds nuw [2 x %"class.sycl::_V1::accessor"], ptr addrspace(4) [[ACC12]], i64 0, i64 1
 // CHECK-NEXT:    [[TMP1:%.*]] = load ptr addrspace(1), ptr addrspace(4) [[_ARG_ACC_ADDR5_ASCAST]], align 8
@@ -76,6 +76,6 @@ int main() {
 // CHECK-NEXT:    [[AGG_TMP14_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[AGG_TMP14_ASCAST]] to ptr
 // CHECK-NEXT:    [[AGG_TMP15_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[AGG_TMP15_ASCAST]] to ptr
 // CHECK-NEXT:    [[AGG_TMP16_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[AGG_TMP16_ASCAST]] to ptr
-// CHECK-NEXT:    call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable_or_null(12) [[ARRAYIDX13]], ptr addrspace(1) noundef [[TMP1]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP14_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP15_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[AGG_TMP16_ASCAST_ASCAST]]) #[[ATTR4]]
+// CHECK-NEXT:    call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE(ptr addrspace(4) noundef align 4 dereferenceable_or_null(12) [[ARRAYIDX13]], ptr addrspace(1) noundef [[TMP1]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP14_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP15_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[AGG_TMP16_ASCAST_ASCAST]]) #[[ATTR4]]
 // CHECK-NEXT:    call spir_func void @_ZZ4mainENKUlvE_clEv(ptr addrspace(4) noundef align 4 dereferenceable_or_null(24) [[__SYCLKERNEL_ASCAST]]) #[[ATTR4]]
 // CHECK-NEXT:    ret void
