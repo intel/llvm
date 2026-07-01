@@ -103,9 +103,9 @@ uint64_t *event_profiling_data_t::eventEndTimestampAddr() {
 
 ur_event_handle_t_::ur_event_handle_t_(
     ur_context_handle_t hContext, ur_event_handle_t_::event_variant hZeEvent,
-    v2::event_flags_t flags, v2::event_pool *pool)
+    v2::event_flags_t flags, v2::event_pool *pool, bool ownZeEvent)
     : hContext(hContext), event_pool(pool), hZeEvent(std::move(hZeEvent)),
-      flags(flags), profilingData(getZeEvent()) {}
+      ownZeEvent(ownZeEvent), flags(flags), profilingData(getZeEvent()) {}
 
 void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   this->hQueue = hQueue;
@@ -120,6 +120,12 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
 
   profilingData.reset();
 }
+
+ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
+                                       v2::raii::ze_event_handle_t hZeEvent,
+                                       v2::event_flags_t flags)
+    : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr,
+                         /*ownZeEvent=*/true) {}
 
 void ur_event_handle_t_::setBatch(ur_event_generation_t batch_generation) {
   this->batchGeneration = batch_generation;
@@ -183,7 +189,8 @@ ur_result_t ur_event_handle_t_::release() {
   if (event_pool) {
     event_pool->free(this);
   } else {
-    std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
+    if (!ownZeEvent)
+      std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
     delete this;
   }
   return UR_RESULT_SUCCESS;
@@ -426,30 +433,13 @@ ur_result_t urEventCreateExp(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
   const v2::event_flags_t flags =
-      v2::EVENT_FLAGS_COUNTER | v2::EVENT_FLAGS_REUSABLE |
+      v2::EVENT_FLAGS_COUNTER |
       (pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING
            ? v2::EVENT_FLAGS_PROFILING_ENABLED
            : 0);
 
-  auto &events = hContext->getReusableEventPools();
-  std::lock_guard<ur_mutex> lock(events.mutex);
-  const v2::event_pool_key id{hDevice, flags};
-  auto &poolMap = events.pools;
-
-  if (!poolMap.count(id)) {
-    auto const queueType = v2::QUEUE_IMMEDIATE;
-    auto const platform = hDevice->Platform;
-
-    auto provider =
-        createProvider(platform, hContext, queueType, hDevice, flags);
-
-    // Using try_emplace because the event_pool class has a deleted move
-    // constructor.
-    poolMap.try_emplace(id, hContext, std::move(provider));
-  }
-
-  v2::event_pool *const pool = &poolMap.at(id);
-  *phEvent = pool->allocate();
+  auto &reusableEventFactory = hContext->getReusableEventFactory();
+  *phEvent = reusableEventFactory.create(hContext, hDevice, flags);
 
   return UR_RESULT_SUCCESS;
 } catch (...) {

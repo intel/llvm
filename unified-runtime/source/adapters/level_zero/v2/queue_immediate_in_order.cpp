@@ -173,9 +173,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
       wait_list_view(phEventWaitList, numEventsInWaitList);
 
   ur_event_handle_t event{};
-  if (phEvent && *phEvent && (*phEvent)->isReusable()) {
+  if (phEvent && *phEvent) {
+    if (!(*phEvent)->isCounter())
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+
     event = *phEvent;
-    event->reset();
     event->setQueue(this);
   }
 

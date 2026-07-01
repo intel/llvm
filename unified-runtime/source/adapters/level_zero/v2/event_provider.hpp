@@ -23,10 +23,9 @@ namespace v2 {
 using event_flags_t = uint32_t;
 enum event_flag_t {
   EVENT_FLAGS_COUNTER = UR_BIT(0),
-  EVENT_FLAGS_PROFILING_ENABLED = UR_BIT(1),
-  EVENT_FLAGS_REUSABLE = UR_BIT(2)
+  EVENT_FLAGS_PROFILING_ENABLED = UR_BIT(1)
 };
-static constexpr size_t EVENT_FLAGS_USED_BITS = 3;
+static constexpr size_t EVENT_FLAGS_USED_BITS = 2;
 
 enum queue_type {
   QUEUE_REGULAR,

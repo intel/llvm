@@ -585,6 +585,10 @@ ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrier(
 ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrierExt(
     const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  if (phEvent && *phEvent && !(*phEvent)->isCounter())
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
+
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
@@ -592,9 +596,8 @@ ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrierExt(
   markIssuedCommandInBatch(lockedBatch);
 
   ur_event_handle_t event{};
-  if (phEvent && *phEvent && (*phEvent)->isReusable()) {
+  if (phEvent && *phEvent) {
     event = *phEvent;
-    event->reset();
     event->setQueue(this);
     if (!lockedBatch->isGraphCaptureActive())
       event->setBatch(lockedBatch->getCurrentGeneration());

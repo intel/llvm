@@ -69,6 +69,10 @@ public:
                      ur_native_handle_t hNativeEvent,
                      const ur_event_native_properties_t *pProperties);
 
+  ur_event_handle_t_(ur_context_handle_t hContext,
+                     v2::raii::ze_event_handle_t hZeEvent,
+                     v2::event_flags_t flags);
+
   // Set the queue and command that this event is associated with
   void setQueue(ur_queue_t_ *hQueue);
   void setCommandType(ur_command_t commandType);
@@ -127,11 +131,12 @@ public:
 
   ur::RefCount RefCount;
 
-  bool isReusable() const { return flags & v2::EVENT_FLAGS_REUSABLE; }
+  bool isCounter() const { return flags & v2::EVENT_FLAGS_COUNTER; }
 
 private:
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,
-                     v2::event_flags_t flags, v2::event_pool *pool);
+                     v2::event_flags_t flags, v2::event_pool *pool,
+                     bool ownZeEvent = false);
 
 protected:
   ur_context_handle_t hContext;
@@ -139,6 +144,10 @@ protected:
   // Pool is used if and only if this is a pooled event
   v2::event_pool *event_pool = nullptr;
   event_variant hZeEvent;
+  // True only for standalone events that own their ze_event and must destroy it
+  // on release. Native events keep this false to preserve the legacy
+  // detach-without-destroy behavior.
+  bool ownZeEvent = false;
 
   // queue and commandType that this event is associated with, set by enqueue
   // commands

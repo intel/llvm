@@ -100,18 +100,4 @@ static inline ur_event_handle_t createEventAndRetain(event_pool *eventPool,
   return event;
 }
 
-struct event_pool_key {
-  ur_device_handle_t device;
-  v2::event_flags_t flags;
-  bool operator==(const event_pool_key &other) const {
-    return device == other.device && flags == other.flags;
-  }
-};
-
-struct event_pool_key_hash {
-  std::size_t operator()(const event_pool_key &key) const {
-    constexpr std::size_t hashSeed = 0x9e3779b1; // golden ratio
-    return combine_hashes(hashSeed, key.device, key.flags);
-  }
-};
 } // namespace v2

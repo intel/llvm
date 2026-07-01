@@ -199,6 +199,9 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt(
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt");
 
+  if (phEvent && *phEvent && !(*phEvent)->isCounter())
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
+
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList);
 
@@ -226,9 +229,8 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt(
 
   if (phEvent) {
     ur_event_handle_t event{};
-    if (*phEvent && (*phEvent)->isReusable()) {
+    if (*phEvent) {
       event = *phEvent;
-      event->reset();
       event->setQueue(this);
     }
 
