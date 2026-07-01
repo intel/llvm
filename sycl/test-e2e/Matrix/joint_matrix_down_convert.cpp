@@ -8,8 +8,6 @@
 // REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22281
 
 // XFAIL: windows && intel_gpu_lnl_m && O0
 // XFAIL-TRACKER: CMPLRLLVM-72111
