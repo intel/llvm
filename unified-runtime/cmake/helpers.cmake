@@ -116,6 +116,11 @@ function(add_ur_target_compile_options name)
             $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+            # icx emits calls to _intel_fast_memcpy/_intel_fast_memset; link
+            # libirc directly so those symbols resolve.
+            target_link_libraries(${name} PRIVATE irc)
+        endif()
         if (UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE -Werror -Wextra)
         endif()
@@ -123,9 +128,12 @@ function(add_ur_target_compile_options name)
             target_compile_options(${name} PRIVATE -fvisibility=hidden)
         endif()
     elseif(MSVC)
+        # Select the dynamic CRT (/MD, /MDd) via the canonical property rather
+        # than a hardcoded flag, so it can be overridden per target.
+        set_target_properties(${name} PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
         target_compile_options(${name} PRIVATE
             $<$<CXX_COMPILER_ID:MSVC>:/MP>  # clang-cl.exe does not support /MP
-            /MD$<$<CONFIG:Debug>:d>
 
             /W3
             /GS     # Enable: Buffer security check

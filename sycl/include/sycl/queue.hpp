@@ -3907,7 +3907,8 @@ auto submit_kernel_direct(const queue &Queue,
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
   using KernelType = std::decay_t<KernelTypeUniversalRef>;
-
+  detail::KernelRegistrar<KernelName,
+                          detail::KernelInfo<KernelName>>::registerKernelName();
   detail::KernelWrapper<WrapAs, KernelName, KernelType, LambdaArgType,
                         PropertiesT>::wrap(KernelFunc);
 

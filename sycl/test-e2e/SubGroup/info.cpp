@@ -14,6 +14,7 @@
 #include <iostream>
 
 #include "helper.hpp"
+#include <algorithm>
 class kernel_sg;
 using namespace sycl;
 

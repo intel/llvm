@@ -20,6 +20,7 @@
 #include <fstream>
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
