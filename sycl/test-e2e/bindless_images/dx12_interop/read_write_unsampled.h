@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <iostream>
@@ -102,3 +101,4 @@ private:
   syclexp::image_mem_handle m_syclImageMemHandle;
   syclexp::unsampled_image_handle m_syclImageHandle;
 };
+

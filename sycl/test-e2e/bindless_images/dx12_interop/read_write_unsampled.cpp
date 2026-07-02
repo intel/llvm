@@ -6,11 +6,12 @@
 //                       when importing memory
 
 //-DTEST_SEMAPHORE_IMPORT -DTEST_SMALL_IMAGE_SIZE -DVERBOSE_PRINT
-// SYCL_DX12_ONLY_2D_UINT32_1=1 EXTRA_SMALL_SIZE=1 SYCL_DX12_IMPORT_PROBE_ONLY=1  
-
+// SYCL_DX12_ONLY_2D_UINT32_1=1 EXTRA_SMALL_SIZE=1 SYCL_DX12_IMPORT_PROBE_ONLY=1
 
 // RUN: %{build} %link-directx  -DSYCL_BINDLESS_IMAGES_DEBUG_FETCH -o %t.out
-// %{run-unfiltered-devices} env SYCL_BINDLESS_IMAGES_DEBUG=1 SYCL_BINDLESS_IMAGES_DEBUG_L0_COPY=1 NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+// %{run-unfiltered-devices} env SYCL_BINDLESS_IMAGES_DEBUG=1
+// SYCL_BINDLESS_IMAGES_DEBUG_L0_COPY=1 NEOReadDebugKeys=1 UseBindlessMode=1
+// UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
 
@@ -61,8 +62,8 @@ static void traceLinearValues(const char *Stage, const T *Data, size_t Count) {
     std::cout << " (set SYCL_DX12_TRACE_ALL_VALUES=1 for full dump)";
   std::cout << "\n";
   for (size_t I = 0; I < Limit; ++I)
-    std::cout << "[dx12-trace]   [" << I
-              << "]=" << printableValue(Data[I]) << "\n";
+    std::cout << "[dx12-trace]   [" << I << "]=" << printableValue(Data[I])
+              << "\n";
 }
 
 template <typename T>
@@ -121,8 +122,8 @@ static void tracePitchedValues(const char *Stage, const T *Data, int Width,
     const size_t InPlane = I % Plane;
     const size_t Y = InPlane / ValuesPerRow;
     const size_t XChannel = InPlane % ValuesPerRow;
-    const T *Row = reinterpret_cast<const T *>(Bytes + Z * SlicePitch +
-                                               Y * RowPitch);
+    const T *Row =
+        reinterpret_cast<const T *>(Bytes + Z * SlicePitch + Y * RowPitch);
     std::cout << "[dx12-trace]   linear=" << I << " z=" << Z << " y=" << Y
               << " xChannel=" << XChannel
               << " value=" << printableValue(Row[XChannel]) << "\n";
@@ -133,14 +134,14 @@ static void traceFootprint(const char *Stage,
                            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT &Footprint,
                            UINT NumRows, UINT64 RowSizeBytes,
                            UINT64 TotalBytes) {
-  std::cout << "[dx12-trace] " << Stage << " footprint: offset="
-            << Footprint.Offset << " width=" << Footprint.Footprint.Width
+  std::cout << "[dx12-trace] " << Stage
+            << " footprint: offset=" << Footprint.Offset
+            << " width=" << Footprint.Footprint.Width
             << " height=" << Footprint.Footprint.Height
             << " depth=" << Footprint.Footprint.Depth
             << " rowPitch=" << Footprint.Footprint.RowPitch
             << " format=" << Footprint.Footprint.Format
-            << " numRows=" << NumRows
-            << " rowSizeBytes=" << RowSizeBytes
+            << " numRows=" << NumRows << " rowSizeBytes=" << RowSizeBytes
             << " totalBytes=" << TotalBytes << "\n";
 }
 
@@ -151,7 +152,7 @@ static size_t traceKernelStreamSize(size_t Count) {
 #endif
 
 DX12SYCLDevice::DX12SYCLDevice()
-  : m_syclQueue{{sycl::property::queue::in_order{}}},
+    : m_syclQueue{{sycl::property::queue::in_order{}}},
       m_syclDevice{m_syclQueue.get_device()} {
   initDX12Device();
   initDX12CommandList();
@@ -375,10 +376,9 @@ void DX12InteropTest<NDims, DType, NChannels>::importDX12SharedMemoryHandle(
     UINT64 snapshotRowSizeBytes = 0;
     UINT64 snapshotBufferSize = 0;
     auto *dx12Device = m_device.getDx12Device();
-    dx12Device->GetCopyableFootprints(&m_dx12Texture->GetDesc(), 0, 1, 0,
-                                      &snapshotFootprint, &snapshotNumRows,
-                                      &snapshotRowSizeBytes,
-                                      &snapshotBufferSize);
+    dx12Device->GetCopyableFootprints(
+        &m_dx12Texture->GetDesc(), 0, 1, 0, &snapshotFootprint,
+        &snapshotNumRows, &snapshotRowSizeBytes, &snapshotBufferSize);
 
     traceFootprint("DX12 post-semaphore pre-map snapshot", snapshotFootprint,
                    snapshotNumRows, snapshotRowSizeBytes, snapshotBufferSize);
@@ -434,10 +434,9 @@ void DX12InteropTest<NDims, DType, NChannels>::importDX12SharedMemoryHandle(
     std::cout << "[dx12-trace] CopyTextureRegion DX12 post-semaphore "
               << "pre-map snapshot: srcTexture=" << m_dx12Texture.Get()
               << " dstBuffer=" << snapshotBuffer.Get()
-              << " rowPitch=" << snapshotFootprint.Footprint.RowPitch
-              << "\n";
-    snapshotCommandList->CopyTextureRegion(&snapshotDest, 0, 0, 0,
-                                           &snapshotSrc, nullptr);
+              << " rowPitch=" << snapshotFootprint.Footprint.RowPitch << "\n";
+    snapshotCommandList->CopyTextureRegion(&snapshotDest, 0, 0, 0, &snapshotSrc,
+                                           nullptr);
     snapshotBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
     snapshotBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
     snapshotCommandList->ResourceBarrier(1, &snapshotBarrier);
@@ -488,8 +487,7 @@ void DX12InteropTest<NDims, DType,
 
 #ifdef VERBOSE_PRINT
   std::cout << "[dx12-trace] import_external_semaphore: handle="
-            << m_sharedSemaphoreHandle
-            << " handleType=win32_nt_dx12_fence\n";
+            << m_sharedSemaphoreHandle << " handleType=win32_nt_dx12_fence\n";
 #endif
 }
 
@@ -511,8 +509,7 @@ void DX12InteropTest<NDims, DType, NChannels>::callSYCLKernel() {
 #endif
 
 #ifdef VERBOSE_PRINT
-  std::cout << "[dx12-trace] submit SYCL kernel: NDims=" << NDims
-            << " global=";
+  std::cout << "[dx12-trace] submit SYCL kernel: NDims=" << NDims << " global=";
   for (int I = 0; I < NDims; ++I)
     std::cout << (I ? "x" : "") << m_globalSize[I];
   std::cout << " local=";
@@ -549,10 +546,9 @@ void DX12InteropTest<NDims, DType, NChannels>::callSYCLKernel() {
               size_t dim0 = it.get_global_id(0);
               size_t dim1 = it.get_global_id(1);
               size_t dim2 = it.get_global_id(2);
-              size_t linear =
-                  (dim2 * KernelWidth * KernelHeight + dim1 * KernelWidth +
-                   dim0) *
-                  NChannels;
+              size_t linear = (dim2 * KernelWidth * KernelHeight +
+                               dim1 * KernelWidth + dim0) *
+                              NChannels;
               auto px = syclexp::fetch_image<
                   std::conditional_t<NChannels == 1, DType, VecType>>(
                   imgHandle, sycl::int3(dim0, dim1, dim2));
@@ -560,16 +556,16 @@ void DX12InteropTest<NDims, DType, NChannels>::callSYCLKernel() {
               if (linear < TraceKernelValueLimit) {
                 if constexpr (NChannels == 1) {
                   KernelTrace << "[dx12-trace] sycl fetch linear=" << linear
-                              << " z=" << dim2 << " y=" << dim1
-                              << " x=" << dim0 << " c=0 value="
-                              << static_cast<float>(px) << "\n";
+                              << " z=" << dim2 << " y=" << dim1 << " x=" << dim0
+                              << " c=0 value=" << static_cast<float>(px)
+                              << "\n";
                 } else {
                   for (int channel = 0; channel < NChannels; ++channel)
-                    KernelTrace << "[dx12-trace] sycl fetch linear="
-                                << (linear + channel) << " z=" << dim2
-                                << " y=" << dim1 << " x=" << dim0
-                                << " c=" << channel << " value="
-                                << static_cast<float>(px[channel]) << "\n";
+                    KernelTrace
+                        << "[dx12-trace] sycl fetch linear="
+                        << (linear + channel) << " z=" << dim2 << " y=" << dim1
+                        << " x=" << dim0 << " c=" << channel
+                        << " value=" << static_cast<float>(px[channel]) << "\n";
                 }
               }
 #endif
@@ -578,16 +574,16 @@ void DX12InteropTest<NDims, DType, NChannels>::callSYCLKernel() {
               if (linear < TraceKernelValueLimit) {
                 if constexpr (NChannels == 1) {
                   KernelTrace << "[dx12-trace] sycl write linear=" << linear
-                              << " z=" << dim2 << " y=" << dim1
-                              << " x=" << dim0 << " c=0 value="
-                              << static_cast<float>(px) << "\n";
+                              << " z=" << dim2 << " y=" << dim1 << " x=" << dim0
+                              << " c=0 value=" << static_cast<float>(px)
+                              << "\n";
                 } else {
                   for (int channel = 0; channel < NChannels; ++channel)
-                    KernelTrace << "[dx12-trace] sycl write linear="
-                                << (linear + channel) << " z=" << dim2
-                                << " y=" << dim1 << " x=" << dim0
-                                << " c=" << channel << " value="
-                                << static_cast<float>(px[channel]) << "\n";
+                    KernelTrace
+                        << "[dx12-trace] sycl write linear="
+                        << (linear + channel) << " z=" << dim2 << " y=" << dim1
+                        << " x=" << dim0 << " c=" << channel
+                        << " value=" << static_cast<float>(px[channel]) << "\n";
                 }
               }
 #endif
@@ -645,14 +641,16 @@ void DX12InteropTest<NDims, DType, NChannels>::callSYCLKernel() {
               if (linear < TraceKernelValueLimit) {
                 if constexpr (NChannels == 1) {
                   KernelTrace << "[dx12-trace] sycl fetch linear=" << linear
-                              << " x=" << dim0 << " c=0 value="
-                              << static_cast<float>(px) << "\n";
+                              << " x=" << dim0
+                              << " c=0 value=" << static_cast<float>(px)
+                              << "\n";
                 } else {
                   for (int channel = 0; channel < NChannels; ++channel)
                     KernelTrace << "[dx12-trace] sycl fetch linear="
                                 << (linear + channel) << " x=" << dim0
-                                << " c=" << channel << " value="
-                                << static_cast<float>(px[channel]) << "\n";
+                                << " c=" << channel
+                                << " value=" << static_cast<float>(px[channel])
+                                << "\n";
                 }
               }
 #endif
@@ -661,14 +659,16 @@ void DX12InteropTest<NDims, DType, NChannels>::callSYCLKernel() {
               if (linear < TraceKernelValueLimit) {
                 if constexpr (NChannels == 1) {
                   KernelTrace << "[dx12-trace] sycl write linear=" << linear
-                              << " x=" << dim0 << " c=0 value="
-                              << static_cast<float>(px) << "\n";
+                              << " x=" << dim0
+                              << " c=0 value=" << static_cast<float>(px)
+                              << "\n";
                 } else {
                   for (int channel = 0; channel < NChannels; ++channel)
                     KernelTrace << "[dx12-trace] sycl write linear="
                                 << (linear + channel) << " x=" << dim0
-                                << " c=" << channel << " value="
-                                << static_cast<float>(px[channel]) << "\n";
+                                << " c=" << channel
+                                << " value=" << static_cast<float>(px[channel])
+                                << "\n";
                 }
               }
 #endif
@@ -744,8 +744,8 @@ void DX12InteropTest<NDims, DType, NChannels>::populateDX12Texture() {
                                     &uploadRowSizeBytes, &stagingBufferSize);
 
 #ifdef VERBOSE_PRINT
-  traceFootprint("upload", uploadFootprint, uploadNumRows,
-                 uploadRowSizeBytes, stagingBufferSize);
+  traceFootprint("upload", uploadFootprint, uploadNumRows, uploadRowSizeBytes,
+                 stagingBufferSize);
 #endif
 
   // Define upload heap properties.
@@ -801,8 +801,8 @@ void DX12InteropTest<NDims, DType, NChannels>::populateDX12Texture() {
 
 #ifdef VERBOSE_PRINT
   tracePitchedValues("staging upload buffer after host memcpy",
-                     pStagingBufferData, m_width, m_height, m_depth,
-                     NChannels, uploadRowPitch, uploadNumRows);
+                     pStagingBufferData, m_width, m_height, m_depth, NChannels,
+                     uploadRowPitch, uploadNumRows);
 #endif
 
   // Unmap the staging buffer.
@@ -948,8 +948,8 @@ void DX12InteropTest<NDims, DType, NChannels>::populateDX12Texture() {
               << "srcTexture=" << m_dx12Texture.Get()
               << " dstBuffer=" << snapshotBuffer.Get()
               << " rowPitch=" << uploadRowPitch << "\n";
-    snapshotCommandList->CopyTextureRegion(&snapshotDest, 0, 0, 0,
-                                           &snapshotSrc, nullptr);
+    snapshotCommandList->CopyTextureRegion(&snapshotDest, 0, 0, 0, &snapshotSrc,
+                                           nullptr);
     snapshotBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
     snapshotBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
     snapshotCommandList->ResourceBarrier(1, &snapshotBarrier);
@@ -1123,8 +1123,7 @@ bool DX12InteropTest<NDims, DType, NChannels>::validateOutput() {
   tracePitchedComparison("host input -> host readback after SYCL processing",
                          m_inputData.data(), pReadbackBufferData, m_width,
                          m_height, m_depth, NChannels,
-                         readbackFootprint.Footprint.RowPitch,
-                         readbackNumRows);
+                         readbackFootprint.Footprint.RowPitch, readbackNumRows);
 #endif
 
   // Additional wait for the GPU. Sometimes the Mapped memory isn't immediately
@@ -1176,7 +1175,7 @@ bool DX12InteropTest<NDims, DType, NChannels>::validateOutput() {
       }
     }
   }
-  done_validation:;
+done_validation:;
 
   // Unmap the readback buffer.
   D3D12_RANGE emptyRange{0, 0};
@@ -1296,18 +1295,17 @@ int main() {
   sycl::range<1> localSize1{OneDLocalSize};
 
   if (!Only2DUInt32Case) {
-  validated &= runTest<1, uint32_t, 1>(
-    device, sycl::image_channel_type::unsigned_int32, globalSize1,
-    localSize1);
-  validated &= runTest<1, uint8_t, 4>(
-    device, sycl::image_channel_type::unorm_int8, globalSize1,
-    localSize1);
-  validated &= runTest<1, float, 1>(device, sycl::image_channel_type::fp32,
-                    globalSize1, localSize1);
-  validated &= runTest<1, sycl::half, 2>(
-    device, sycl::image_channel_type::fp16, globalSize1, localSize1);
-  validated &= runTest<1, sycl::half, 4>(
-    device, sycl::image_channel_type::fp16, globalSize1, localSize1);
+    validated &= runTest<1, uint32_t, 1>(
+        device, sycl::image_channel_type::unsigned_int32, globalSize1,
+        localSize1);
+    validated &= runTest<1, uint8_t, 4>(
+        device, sycl::image_channel_type::unorm_int8, globalSize1, localSize1);
+    validated &= runTest<1, float, 1>(device, sycl::image_channel_type::fp32,
+                                      globalSize1, localSize1);
+    validated &= runTest<1, sycl::half, 2>(
+        device, sycl::image_channel_type::fp16, globalSize1, localSize1);
+    validated &= runTest<1, sycl::half, 4>(
+        device, sycl::image_channel_type::fp16, globalSize1, localSize1);
   }
 
 #ifdef TEST_SMALL_IMAGE_SIZE
@@ -1315,40 +1313,41 @@ int main() {
   const size_t SmallLocalSize = UseExtraSmallSize ? 4 : 16;
   const size_t SmallLocalSizeY = UseExtraSmallSize ? 4 : 8;
 
-  sycl::range<2> globalSize2[] = {
-      {SmallImageSize, SmallImageSize}, {SmallImageSize, SmallImageSize},
-      {SmallImageSize, SmallImageSize}, {SmallImageSize, SmallImageSize},
-      {SmallImageSize, SmallImageSize}};
+  sycl::range<2> globalSize2[] = {{SmallImageSize, SmallImageSize},
+                                  {SmallImageSize, SmallImageSize},
+                                  {SmallImageSize, SmallImageSize},
+                                  {SmallImageSize, SmallImageSize},
+                                  {SmallImageSize, SmallImageSize}};
 #else
   const size_t SmallLocalSize = 16;
   const size_t SmallLocalSizeY = 8;
   sycl::range<2> globalSize2[] = {
       {1024, 1024}, {1920, 1080}, {1920, 1080}, {2048, 2048}, {2048, 2048}};
 #endif
-    validated &= runTest<2, uint32_t, 1>(
-      device, sycl::image_channel_type::unsigned_int32, globalSize2[0],
-      {SmallLocalSize, SmallLocalSize});
-    if (!Only2DUInt32Case) {
+  validated &=
+      runTest<2, uint32_t, 1>(device, sycl::image_channel_type::unsigned_int32,
+                              globalSize2[0], {SmallLocalSize, SmallLocalSize});
+  if (!Only2DUInt32Case) {
     validated &= runTest<2, uint8_t, 4>(
-      device, sycl::image_channel_type::unorm_int8, globalSize2[1],
-      {SmallLocalSize, SmallLocalSizeY});
-    validated &= runTest<2, float, 1>(device, sycl::image_channel_type::fp32,
-                      globalSize2[2],
-                      {SmallLocalSize, SmallLocalSizeY});
+        device, sycl::image_channel_type::unorm_int8, globalSize2[1],
+        {SmallLocalSize, SmallLocalSizeY});
+    validated &=
+        runTest<2, float, 1>(device, sycl::image_channel_type::fp32,
+                             globalSize2[2], {SmallLocalSize, SmallLocalSizeY});
     validated &= runTest<2, sycl::half, 2>(
-      device, sycl::image_channel_type::fp16, globalSize2[3],
-      {SmallLocalSize, SmallLocalSize});
+        device, sycl::image_channel_type::fp16, globalSize2[3],
+        {SmallLocalSize, SmallLocalSize});
     validated &= runTest<2, sycl::half, 4>(
-      device, sycl::image_channel_type::fp16, globalSize2[4],
-      {SmallLocalSize, SmallLocalSize});
-    }
+        device, sycl::image_channel_type::fp16, globalSize2[4],
+        {SmallLocalSize, SmallLocalSize});
+  }
 
 #ifdef TEST_SMALL_IMAGE_SIZE
-  sycl::range<3> globalSize3[] = {
-      {SmallImageSize, 16, 4}, {SmallImageSize, 16, 4},
-      {SmallImageSize, SmallImageSize, 4},
-      {SmallImageSize, SmallImageSize, 4},
-      {SmallImageSize, SmallImageSize, 4}};
+  sycl::range<3> globalSize3[] = {{SmallImageSize, 16, 4},
+                                  {SmallImageSize, 16, 4},
+                                  {SmallImageSize, SmallImageSize, 4},
+                                  {SmallImageSize, SmallImageSize, 4},
+                                  {SmallImageSize, SmallImageSize, 4}};
 #else
   sycl::range<3> globalSize3[] = {{1024, 1024, 16},
                                   {1920, 1080, 8},
@@ -1356,23 +1355,23 @@ int main() {
                                   {2048, 2048, 4},
                                   {2048, 2048, 4}};
 #endif
-    if (!Only2DUInt32Case) {
+  if (!Only2DUInt32Case) {
     validated &= runTest<3, uint32_t, 1>(
-      device, sycl::image_channel_type::unsigned_int32, globalSize3[0],
-      {SmallLocalSize, 16, 1});
+        device, sycl::image_channel_type::unsigned_int32, globalSize3[0],
+        {SmallLocalSize, 16, 1});
     validated &= runTest<3, uint8_t, 4>(
-      device, sycl::image_channel_type::unorm_int8, globalSize3[1],
-      {SmallLocalSize, SmallLocalSizeY, 2});
-    validated &= runTest<3, float, 1>(
-      device, sycl::image_channel_type::fp32, globalSize3[2],
-      {SmallLocalSize, SmallLocalSizeY, 1});
+        device, sycl::image_channel_type::unorm_int8, globalSize3[1],
+        {SmallLocalSize, SmallLocalSizeY, 2});
+    validated &= runTest<3, float, 1>(device, sycl::image_channel_type::fp32,
+                                      globalSize3[2],
+                                      {SmallLocalSize, SmallLocalSizeY, 1});
     validated &= runTest<3, sycl::half, 2>(
-      device, sycl::image_channel_type::fp16, globalSize3[3],
-      {SmallLocalSize, SmallLocalSize, 1});
+        device, sycl::image_channel_type::fp16, globalSize3[3],
+        {SmallLocalSize, SmallLocalSize, 1});
     validated &= runTest<3, sycl::half, 4>(
-      device, sycl::image_channel_type::fp16, globalSize3[4],
-      {SmallLocalSize, SmallLocalSize, 1});
-    }
+        device, sycl::image_channel_type::fp16, globalSize3[4],
+        {SmallLocalSize, SmallLocalSize, 1});
+  }
 
   if (validated) {
     std::cout << "Test passed!" << std::endl;
