@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 61
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 31
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -80,36 +80,6 @@
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
 // CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_abc.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_ops.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_ops_half.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_ops_int8.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_ops_int8_packed.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_sizes.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SG32/get_coordinate_ops.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_all_sizes.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_apply_bf16.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_apply_two_matrices.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_SLM.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_init.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll_init.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_ss_int8.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_su_int8.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_transposeC.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_us_int8.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_uu_int8.cpp
-// CHECK-NEXT: Matrix/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
-// CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
 // CHECK-NEXT: Tracing/code_location_queue_copy.cpp
