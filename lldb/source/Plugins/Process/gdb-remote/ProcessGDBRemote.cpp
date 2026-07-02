@@ -65,7 +65,6 @@
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Target/ProcessIOHandler.h"
-#include "lldb/Target/RegisterFlags.h"
 #include "lldb/Target/SystemRuntime.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/TargetList.h"
@@ -75,6 +74,7 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/FileSpecList.h"
 #include "lldb/Utility/LLDBLog.h"
+#include "lldb/Utility/RegisterFlags.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timer.h"
@@ -2689,10 +2689,13 @@ void ProcessGDBRemote::RefreshStateAfterStop() {
     m_initial_tid = LLDB_INVALID_THREAD_ID;
   } else if (m_last_stop_primary_tid != LLDB_INVALID_THREAD_ID &&
              StateIsRunningState(m_last_broadcast_state)) {
-    if (ThreadSP primary_thread_sp =
-            m_thread_list.FindThreadByProtocolID(m_last_stop_primary_tid,
-                                                 /*can_update=*/false))
-      m_thread_list.SetSelectedThreadByID(primary_thread_sp->GetID());
+    if (ThreadSP primary_thread_sp = m_thread_list.FindThreadByProtocolID(
+            m_last_stop_primary_tid, /*can_update=*/false)) {
+      ThreadSP selected_thread_sp = m_thread_list.GetSelectedThread();
+      if (!selected_thread_sp ||
+          selected_thread_sp->GetID() != primary_thread_sp->GetID())
+        m_thread_list.SetSelectedThreadByID(primary_thread_sp->GetID());
+    }
   }
   m_last_stop_primary_tid = LLDB_INVALID_THREAD_ID;
 
