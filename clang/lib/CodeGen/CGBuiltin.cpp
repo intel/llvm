@@ -7573,8 +7573,14 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
   if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
       !LangOpts.FPAccuracyVal.empty() || !LangOpts.OffloadFP32PrecDiv ||
       !LangOpts.OffloadFP32PrecSqrt) {
-    llvm::Function *Func =
-        CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    llvm::Function *Func = nullptr;
+    if (FPAccuracyIntrinsicID == Intrinsic::fpbuiltin_sincos) {
+      Func = CGM.getIntrinsic(
+          FPAccuracyIntrinsicID,
+          {IRArgs[0]->getType(), IRArgs[1]->getType(), IRArgs[2]->getType()});
+    } else {
+      Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    }
     return CreateBuiltinCallWithAttr(Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
   }
