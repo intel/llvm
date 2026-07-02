@@ -645,6 +645,8 @@ private:
 
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
+  // Starts from 1 to align with the convention used by native graph backends
+  // for get_id() calls.
   inline static std::atomic<unsigned long long> NextAvailableID = 1;
 
   /// Backend graph ID, queried from urGraphGetIdExp when native recording is

@@ -1536,44 +1536,6 @@ _Returns:_ `true` if the graph contains no nodes, otherwise `false`.
 
 [source,c++]
 ----
-size_t get_id() const noexcept;
-----
-
-_Constraints:_ This member function is only available when the `command_graph`
-state is `graph_state::modifiable`.
-
-_Returns:_ A process-unique ID associated with this graph object. The ID is stable across
-`begin_recording`/`end_recording` cycles on the same graph object. That is, multiple
-recording sessions on the same graph return the same ID. IDs increase
-monotonically as graph objects are created.
-
-When the graph was created with the `property::graph::enable_native_recording`
-property (or under `SYCL_GRAPH_FORCE_NATIVE_RECORDING=1`), the returned ID is
-obtained from the backend's native graph object if supported. IDs are guaranteed
-unique among graphs that use native recording, and separately unique among
-graphs that do not use native recording. Within each of these two groups the IDs
-increase monotonically. There is *no* guarantee of uniqueness or relative
-ordering between a native-recording graph and a non-native-recording graph; an
-application that mixes both must not assume IDs from the two groups are
-distinct.
-
-[NOTE]
-====
-Example: querying the graph ID during recording to select a memory pool:
-
-[source,c++]
-----
-sycl::ext::oneapi::experimental::command_graph graph{ctx, dev};
-graph.begin_recording(queue);
-size_t id = graph.get_id();
-// id uniquely identifies this graph object within the process; use it
-// to look up or create a user-managed per-graph memory pool.
-auto& pool = memory_pools[id];
-----
-====
-
-[source,c++]
-----
 template <typename Func, typename... ArgTs>
 void set_destruction_callback(Func&& Callback, ArgTs&&... CbArgs);
 ----
@@ -1606,6 +1568,45 @@ The following restrictions apply to the callback and callback arguments:
 
 _Constraints:_ This member function is only available when the `command_graph`
 state is `graph_state::modifiable`.
+
+[source,c++]
+----
+size_t get_id() const noexcept;
+----
+
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
+
+_Returns:_ A process-unique ID associated with this graph object. The ID is stable across
+`begin_recording`/`end_recording` cycles on the same graph object. That is, multiple
+recording sessions on the same graph return the same ID. IDs increase
+monotonically as graph objects are created. The amount an ID increases from one
+graph to the next is implementation-defined and need not be constant.
+
+When the graph was created with the `property::graph::enable_native_recording`
+property (or under `SYCL_GRAPH_FORCE_NATIVE_RECORDING=1`), the returned ID is
+obtained from the backend's native graph object if supported. IDs are guaranteed
+unique among graphs that use native recording, and separately unique among
+graphs that do not use native recording. Within each of these two groups the IDs
+increase monotonically. There is *no* guarantee of uniqueness or relative
+ordering between a native-recording graph and a non-native-recording graph; an
+application that mixes both must not assume IDs from the two groups are
+distinct.
+
+[NOTE]
+====
+Example: querying the graph ID during recording to select a memory pool:
+
+[source,c++]
+----
+sycl::ext::oneapi::experimental::command_graph graph{ctx, dev};
+graph.begin_recording(queue);
+size_t id = graph.get_id();
+// id uniquely identifies this graph object within the process; use it
+// to look up or create a user-managed per-graph memory pool.
+auto& pool = memory_pools[id];
+----
+====
 
 [source,c++]
 ----
