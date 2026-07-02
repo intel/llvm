@@ -143,11 +143,13 @@ const async_handler &context_impl::get_async_handler() const {
   return MAsyncHandler;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
   return get_context_info<info::context::reference_count>(this->getHandleRef(),
                                                           this->getAdapter());
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }

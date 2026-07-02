@@ -32,9 +32,13 @@ struct context : queue_traits<UR_QUEUE_INFO_CONTEXT> {
 struct device : queue_traits<UR_QUEUE_INFO_DEVICE> {
   using return_type = sycl::device;
 };
-struct reference_count : queue_traits<UR_QUEUE_INFO_REFERENCE_COUNT> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+struct __SYCL_DEPRECATED("info::queue::reference_count is not part of "
+                         "SYCL 2020") reference_count
+    : queue_traits<UR_QUEUE_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 } // namespace queue
 } // namespace info
 

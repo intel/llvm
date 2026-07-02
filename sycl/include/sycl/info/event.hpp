@@ -36,9 +36,13 @@ struct command_execution_status
     : event_traits<UR_EVENT_INFO_COMMAND_EXECUTION_STATUS> {
   using return_type = info::event_command_status;
 };
-struct reference_count : event_traits<UR_EVENT_INFO_REFERENCE_COUNT> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+struct __SYCL_DEPRECATED("info::event::reference_count is not part of "
+                         "SYCL 2020") reference_count
+    : event_traits<UR_EVENT_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 } // namespace event
 namespace event_profiling {
 template <ur_profiling_info_t UrCode>
