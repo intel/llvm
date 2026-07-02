@@ -321,9 +321,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
     ur_adapter_is_static(${adapter} adapter_is_static)
-    if(adapter_is_static)
-      # No DLL for statically linked adapter
-    else()
+    if(NOT adapter_is_static)
       install(
         FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
         DESTINATION "bin" COMPONENT ur_adapter_${adapter})
