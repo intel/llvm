@@ -49,6 +49,19 @@ jobs:
       # prefer widespread gzip compression.
       toolchain_artifact_filename: sycl_linux.tar.gz
 
+  # To validate compatibility with gcc 7.5.0
+  sle15sp4_build:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: sle15sp4
+      build_image: ghcr.io/intel/llvm/sle15sp4_build:latest
+
+      toolchain_artifact: sycl_linux_sle15sp4
+      toolchain_artifact_filename: sycl_linux_sle15sp4.tar.gz
+
   # Build used for performance testing only: not intended for testing
   linux_shared_build:
     if: github.repository == 'intel/llvm'
