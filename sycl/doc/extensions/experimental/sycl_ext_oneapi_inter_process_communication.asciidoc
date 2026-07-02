@@ -144,7 +144,9 @@ released by the relevant IPC API or by the destruction of the original object.
 
 _Returns:_ The handle data associated with the IPC handle object. This data can
 be transferred to other processes, but cannot be used to recreate a `handle`
-object.
+object. For a given platform, the size of the handle data is the same for all
+handles associated with a particular SYCL object type (e.g., all physical_mem
+handles have the same data size).
 
 !====
 a!
@@ -512,7 +514,8 @@ handle and the USM device memory associated with this handle has not been freed.
 
 _Returns:_ The handle data associated with the IPC handle object. This data can
 be transferred to other processes, but cannot be used to recreate a `handle`
-object.
+object. For a given platform, the size of the handle data is the same for all
+handles associated with USM memory allocations.
 
 !====
 a!
