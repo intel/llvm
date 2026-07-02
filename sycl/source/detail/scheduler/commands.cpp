@@ -3448,38 +3448,45 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
 
-    const auto &SubmitHostTaskToThreadPool = [&]() {
-      // Host task is executed asynchronously so we should record where it was
-      // submitted to report exception origin properly.
-      copySubmissionCodeLocation();
-      queue_impl::getThreadPool().submit<DispatchHostTask>(
-          DispatchHostTask(this, std::move(ReqToMem), std::move(ReqUrMem)));
-      MShouldCompleteEventIfPossible = false;
-    };
+    // Host task is executed asynchronously so we should record where it was
+    // submitted to report exception origin properly.
+    copySubmissionCodeLocation();
 
-    if (HostTask->MHostTask->isCreatedFromEnqueueFunction()) {
-      auto &Queue = HostTask->MQueue;
-      bool NativeHostTaskSupport = false;
-      Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
-          detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
-          UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
-          sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
+    queue_impl::getThreadPool().submit<DispatchHostTask>(
+        DispatchHostTask(this, std::move(ReqToMem), std::move(ReqUrMem)));
 
-      if (NativeHostTaskSupport) {
-        auto NativeHostTaskData = std::make_unique<EnqueueHostTaskData>(
-            std::move(HostTask->MHostTask->MHostTask));
-        Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
-            Queue->getHandleRef(), NativeHostTask, NativeHostTaskData.get(),
-            nullptr, 0, nullptr, Event);
-        (void)NativeHostTaskData.release();
-        SetEventHandleOrDiscard();
-      } else {
-        SubmitHostTaskToThreadPool();
+    MShouldCompleteEventIfPossible = false;
+
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::NativeHostTask: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+
+    for (ArgDesc &Arg : HostTask->MArgs) {
+      switch (Arg.MType) {
+      case kernel_param_kind_t::kind_accessor: {
+        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+        if (AllocaCmd)
+          Req->MData = AllocaCmd->getMemAllocation();
+        break;
       }
-    } else {
-      SubmitHostTaskToThreadPool();
+      default:
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Unsupported arg type " +
+                                  codeToString(UR_RESULT_ERROR_INVALID_VALUE));
+      }
     }
 
+    auto &Queue = HostTask->MQueue;
+    auto NativeHostTaskData = std::make_unique<EnqueueHostTaskData>(
+        std::move(HostTask->MHostTask->MHostTask));
+    Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), NativeHostTask, NativeHostTaskData.get(),
+        nullptr, 0, nullptr, Event);
+    (void)NativeHostTaskData.release();
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::EnqueueNativeCommand: {

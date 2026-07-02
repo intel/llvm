@@ -638,7 +638,8 @@ detail::EventImplPtr handler::finalize() {
         std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::EnqueueNativeCommand:
-  case detail::CGType::CodeplayHostTask: {
+  case detail::CGType::CodeplayHostTask:
+  case detail::CGType::NativeHostTask: {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(
@@ -1688,6 +1689,22 @@ void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
   impl->MHostTask.reset(
       new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
                            true));
+
+  detail::queue_impl *Queue = impl->get_queue_or_null();
+  if (Queue) {
+    detail::adapter_impl &Adapter = getContextImpl().getAdapter();
+    bool NativeHostTaskSupport = false;
+
+    Adapter.call<UrApiKind::urDeviceGetInfo>(
+        detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+        UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
+        sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
+    if (NativeHostTaskSupport) {
+      setType(detail::CGType::NativeHostTask);
+      return;
+    }
+  }
+
   setType(detail::CGType::CodeplayHostTask);
 }
 

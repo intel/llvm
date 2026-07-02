@@ -311,6 +311,7 @@ public:
       return createCGCopy<sycl::detail::CGAsyncAlloc>();
     case sycl::detail::CGType::AsyncFree:
       return createCGCopy<sycl::detail::CGAsyncFree>();
+    case sycl::detail::CGType::NativeHostTask:
     case sycl::detail::CGType::None:
       return nullptr;
     }
