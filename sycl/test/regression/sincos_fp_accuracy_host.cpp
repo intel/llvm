@@ -9,7 +9,7 @@
 #include <sycl/builtins.hpp>
 
 // CHECK-NOT: call {{.*}}@llvm.fpbuiltin.sincos
-// CHECK: call {{.*}}float {{.*}}sycl{{.*}}sincos_impl{{.*}}(float {{.*}}, ptr {{.*}})
+// CHECK: call {{.*}}float {{.*}}sincos_impl{{.*}}(float {{.*}}, ptr {{.*}})
 float host_sincos_sycl(float x, float *c) {
   float s = sycl::sincos(x, c);
   return s;
