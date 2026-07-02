@@ -87,11 +87,29 @@ else()
   # Setup the paths where libclc runtimes should be stored. By default, in an
   # in-tree build we place the libraries in clang's resource driectory.
   include(GetClangResourceDir)
-  get_clang_resource_dir( LIBCLC_INSTALL_DIR )
-  cmake_path( APPEND LIBCLC_INSTALL_DIR "lib" )
+  # The trailing library component must match what the driver appends when it
+  # searches for libspirv: CLANG_INSTALL_LIBDIR_BASENAME (i.e.
+  # lib${LLVM_LIBDIR_SUFFIX}, e.g. lib64). CLANG_INSTALL_LIBDIR_BASENAME itself
+  # is defined in clang/CMakeLists.txt and is not in scope in this (runtimes)
+  # sub-build, so spell out its expansion, which is also what
+  # get_clang_resource_dir() uses for the leading library component.
+  set( LIBCLC_LIBDIR_BASENAME "lib${LLVM_LIBDIR_SUFFIX}" )
 
-  cmake_path( GET LLVM_LIBRARY_OUTPUT_INTDIR PARENT_PATH LIBCLC_OUTPUT_LIBRARY_DIR )
-  cmake_path( APPEND LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_INSTALL_DIR} )
+  # Install into the clang resource directory that the *installed* driver
+  # searches. With no PREFIX, get_clang_resource_dir() applies the versioned
+  # dpclang layout (lib/dpcpp-N/lib/clang/N) used by the install tree.
+  get_clang_resource_dir( LIBCLC_INSTALL_DIR )
+  cmake_path( APPEND LIBCLC_INSTALL_DIR ${LIBCLC_LIBDIR_BASENAME} )
+
+  # For the in-tree build output, mirror the *build-tree* driver's resource
+  # directory instead. That driver resolves its resource dir relative to its
+  # own location as <build>/lib/clang/N with no dpcpp-N versioning, so use the
+  # PREFIX form, which is never version-prefixed. Reusing LIBCLC_INSTALL_DIR
+  # here would emit the libraries into a versioned directory the build-tree
+  # driver does not search (breaking in-tree check-sycl/libclc tests).
+  cmake_path( GET LLVM_LIBRARY_OUTPUT_INTDIR PARENT_PATH _libclc_build_prefix )
+  get_clang_resource_dir( LIBCLC_OUTPUT_LIBRARY_DIR PREFIX ${_libclc_build_prefix} )
+  cmake_path( APPEND LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_LIBDIR_BASENAME} )
 endif()
 
 if( NOT LIBCLC_USE_SPIRV_BACKEND )
