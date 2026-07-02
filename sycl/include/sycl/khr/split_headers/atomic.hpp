@@ -11,6 +11,7 @@
 
 #include "version.hpp"
 
+#include <sycl/atomic.hpp>
 #include <sycl/atomic_fence.hpp>
 #include <sycl/atomic_ref.hpp>
 

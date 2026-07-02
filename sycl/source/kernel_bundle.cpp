@@ -163,6 +163,10 @@ size_t kernel_bundle_plain::ext_oneapi_get_device_global_size(
       std::string(std::string_view(name)));
 }
 
+std::vector<char> kernel_bundle_plain::ext_oneapi_get_content() const {
+  return impl->ext_oneapi_get_content();
+}
+
 //////////////////////////////////
 ///// sycl::detail free functions
 //////////////////////////////////

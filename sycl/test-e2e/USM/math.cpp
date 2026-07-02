@@ -8,6 +8,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <sycl/builtins.hpp>
 
 namespace s = sycl;
 

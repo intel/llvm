@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>

@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 #include "Inputs/split-per-source.h"
+#include <algorithm>
 
 int main() {
   sycl::queue Q;
