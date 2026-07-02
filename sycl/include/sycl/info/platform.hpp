@@ -32,8 +32,8 @@ struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use device::get_info() "
   using return_type = std::vector<std::string>;
 };
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-struct __SYCL_DEPRECATED("info::platform::profile is not part of SYCL 2020") profile
-    : platform_traits<UR_PLATFORM_INFO_PROFILE> {
+struct __SYCL_DEPRECATED("info::platform::profile is not part of SYCL 2020")
+    profile : platform_traits<UR_PLATFORM_INFO_PROFILE> {
   using return_type = std::string;
 };
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
