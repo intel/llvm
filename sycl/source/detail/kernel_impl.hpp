@@ -79,7 +79,7 @@ public:
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                           &nativeHandle);
-    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
+    retainOpenCLKernel(nativeHandle);
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
@@ -216,7 +216,7 @@ public:
     Adapter.call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     if (MContext->getBackend() == backend::opencl)
-      __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
+      retainOpenCLKernel(NativeKernel);
 
     return NativeKernel;
   }

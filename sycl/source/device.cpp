@@ -58,7 +58,7 @@ device::device(cl_device_id DeviceId) {
       nullptr, &Device);
   impl = &detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
               .getOrMakeDeviceImpl(Device);
-  __SYCL_OCL_CALL(clRetainDevice, DeviceId);
+  detail::retainOpenCLDevice(detail::ur::cast<ur_native_handle_t>(DeviceId));
 }
 
 device::device(const device_selector &deviceSelector) {

@@ -232,7 +232,7 @@ ur_native_handle_t context_impl::getNative() const {
   ur_native_handle_t Handle;
   Adapter.call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainContext, ur::cast<cl_context>(Handle));
+    retainOpenCLContext(Handle);
   }
   return Handle;
 }
