@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
 #include <sycl/detail/info_desc_traits.hpp>
 #include <sycl/range.hpp>
 #include <unified-runtime/ur_api.h>
@@ -35,15 +36,23 @@ struct num_args : kernel_traits<UR_KERNEL_INFO_NUM_ARGS> {
 struct attributes : kernel_traits<UR_KERNEL_INFO_ATTRIBUTES> {
   using return_type = std::string;
 };
-struct function_name : kernel_traits<UR_KERNEL_INFO_FUNCTION_NAME> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+struct __SYCL_DEPRECATED(
+    "info::kernel::function_name is not part of SYCL 2020")
+    function_name : kernel_traits<UR_KERNEL_INFO_FUNCTION_NAME> {
   using return_type = std::string;
 };
-struct reference_count : kernel_traits<UR_KERNEL_INFO_REFERENCE_COUNT> {
+struct __SYCL_DEPRECATED(
+    "info::kernel::reference_count is not part of SYCL 2020")
+    reference_count : kernel_traits<UR_KERNEL_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
-struct context : kernel_traits<UR_KERNEL_INFO_CONTEXT> {
+struct __SYCL_DEPRECATED(
+    "info::kernel::context is not part of SYCL 2020")
+    context : kernel_traits<UR_KERNEL_INFO_CONTEXT> {
   using return_type = sycl::context;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 } // namespace kernel
 
 namespace kernel_device_specific {
