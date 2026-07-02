@@ -229,6 +229,11 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - `__is_trivially_equality_comparable` no longer returns false for all enum types. (#GH132672)
 - `auto` parameters are now available in all C++ language modes as an extension.
 
+#### C++2d Feature Support
+
+- Clang now supports [P3733R1](https://wg21.link/p3733r1>) More named universal character escapes.
+  The change is applied as a DR to all C++ language modes. (#GH203944)
+
 #### C++2c Feature Support
 
 - Clang now propagates `constinit` and `constexpr` in structured bindings with tuple-like initializers.
@@ -789,6 +794,11 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Clang incorrectly instantiated variable specializations outside of the immediate context. (#GH54439)
 - Fixed a crash when pack expansions are used as arguments for non-pack parameters of built-in templates. (#GH180307)
 - Fixed crash instantiating class member specializations.
+- Fixed a crash during class template instantiation when a member variable
+  template's type substitution fails (e.g. `typename T::type` with `T=int`),
+  which left the `VarTemplateDecl` unregistered and caused a subsequent
+  assertion failure when instantiating a partial specialization of that member.
+  (#GH198890)
 - Fix a problem where a substitution failure when evaluating a type requirement
   could directly make the program ill-formed.
 - Typo correction now corrects the name qualifier for invalid template names.
@@ -825,6 +835,7 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Fixed a crash when parsing invalid friend declaration with storage-class specifier. (#GH186569)
 - Fixed a missing vtable for `dynamic_cast<FinalClass *>(this)` in a function template. (#GH198511)
 - Fixed an assertion failure during init-list checking of an array whose element type is an incomplete class. (#GH140685)
+- Fixed a crash when using a pack indexing type (e.g. ``Ts...[0]``) imported from another module. (#GH204479)
 
 #### Bug Fixes to AST Handling
 
@@ -896,6 +907,20 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 #### X86 Support
 
 - `march=znver6` is now supported.
+- Support ISA of `AVX512BMM`.
+  - Support intrinsic of `_mm512_bmacor16x16x16`.
+  - Support intrinsic of `_mm512_bmacxor16x16x16`.
+  - Support intrinsic of `_mm512_mask_bitrev_epi8`.
+  - Support intrinsic of `_mm512_maskz_bitrev_epi8`.
+  - Support intrinsic of `_mm512_bitrev_epi8`.
+  - Support intrinsic of `_mm256_bmacor16x16x16`.
+  - Support intrinsic of `_mm256_bmacxor16x16x16`.
+  - Support intrinsic of `_mm_mask_bitrev_epi8`.
+  - Support intrinsic of `_mm256_mask_bitrev_epi8`.
+  - Support intrinsic of `_mm_maskz_bitrev_epi8`.
+  - Support intrinsic of `_mm256_maskz_bitrev_epi8`.
+  - Support intrinsic of `_mm_bitrev_epi8`.
+  - Support intrinsic of `_mm256_bitrev_epi8`.
 
 #### Arm and AArch64 Support
 
@@ -1045,6 +1070,10 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Fixed a crash when code completion is triggered inside an ill-formed lambda's trailing requires-clause. (#GH201632)  
 
 ### Static Analyzer
+
+- The `-analyzer-constraints` option `z3` was renamed to `unsupported-z3`
+  because the Z3-based (constraint) solver was known for crashing for years now.
+  Didn't receive support, so it was marked unsupported.
 
 #### Crash and bug fixes
 
