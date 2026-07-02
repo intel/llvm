@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: GSD-10700
 
 // REQUIRES: target-spir
 
