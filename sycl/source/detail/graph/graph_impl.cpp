@@ -21,6 +21,7 @@
 #include <detail/queue_impl.hpp>                      // for queue_impl
 #include <detail/sycl_mem_obj_t.hpp>                  // for SYCLMemObjT
 #include <detail/ur.hpp>                              // for UR APIs
+#include <algorithm>                                  // for count_if
 #include <stack>                                      // for stack
 #include <sycl/detail/common.hpp>      // for tls_code_loc_t etc..
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
@@ -106,9 +107,21 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
         continue;
       }
 
+      // When bounded to a partition we only traverse edges internal to the
+      // partition as predecessor nodes to an earlier partition are not part
+      // of the current partition's schedule.
+      size_t RequiredEdges =
+          PartitionBounded
+              ? static_cast<size_t>(std::count_if(
+                    Succ.MPredecessors.begin(), Succ.MPredecessors.end(),
+                    [&Succ](node_impl *Pred) {
+                      return Pred->MPartitionNum == Succ.MPartitionNum;
+                    }))
+              : Succ.MPredecessors.size();
+
       auto &TotalVisitedEdges = Succ.MTotalVisitedEdges;
       ++TotalVisitedEdges;
-      if (TotalVisitedEdges == Succ.MPredecessors.size()) {
+      if (TotalVisitedEdges == RequiredEdges) {
         Source.push(&Succ);
       }
     }
