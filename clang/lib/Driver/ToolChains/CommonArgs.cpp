@@ -83,6 +83,16 @@ llvm::SmallString<128> clang::driver::findSYCLInstallRoot(const Driver &D) {
     ParentName = llvm::sys::path::filename(ParentDir);
   }
 
+  // The dpclang install layout keeps the real tools in lib/dpcpp-<major>/bin
+  // (the public dpclang* drivers in bin/ are just symlinks into it, and the
+  // driver resolves them, so D.Dir points at the versioned directory). Step
+  // out of that versioned subdirectory too. This mirrors AMDGPU.cpp matching
+  // "aomp*" enclosing directories by name.
+  if (ParentName.starts_with("dpcpp-")) {
+    ParentDir = llvm::sys::path::parent_path(ParentDir);
+    ParentName = llvm::sys::path::filename(ParentDir);
+  }
+
   // Some layouts nest the compiler under lib/llvm/bin, so back up out of the
   // lib directory as well. Honor a custom libdir name (e.g. lib64).
   if (ParentName == CLANG_INSTALL_LIBDIR_BASENAME)

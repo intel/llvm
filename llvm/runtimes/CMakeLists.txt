@@ -4,6 +4,17 @@
 # the two files.
 
 set(COMMON_CMAKE_ARGS "-DHAVE_LLVM_LIT=ON;-DCLANG_RESOURCE_DIR=${CLANG_RESOURCE_DIR}")
+# Forward the versioned DPC++ binary directory into the runtimes sub-builds.
+# It is defined in the top-level llvm/CMakeLists.txt but the runtimes are
+# configured as a separate CMake invocation that does not inherit it. libclc
+# relies on it in get_clang_resource_dir() to install libspirv into the same
+# versioned resource directory (lib/dpcpp-N/lib/clang/N) the driver searches;
+# without it libclc would fall back to the non-versioned lib/clang/N and the
+# driver would fail to find libspirv.*.bc.
+if(DEFINED DPCPP_INSTALL_INTERNAL_BINDIR)
+  list(APPEND COMMON_CMAKE_ARGS
+    "-DDPCPP_INSTALL_INTERNAL_BINDIR=${DPCPP_INSTALL_INTERNAL_BINDIR}")
+endif()
 if(APPLE AND CMAKE_OSX_SYSROOT AND (LLVM_TARGET_TRIPLE STREQUAL LLVM_HOST_TRIPLE))
   # Only propagate the host sysroot for native runtimes builds.
   list(APPEND RUNTIMES_CMAKE_ARGS "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}")
