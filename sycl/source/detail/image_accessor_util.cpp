@@ -28,9 +28,9 @@ int4 getPixelCoordNearestFiltMode(float4 Coorduvw,
     float4 Tempuvw(0);
     Tempuvw = 2.0f * sycl::rint(0.5f * Coorduvw);
     Tempuvw = sycl::fabs(Coorduvw - Tempuvw);
-    Tempuvw = Tempuvw * (Rangewhd.convert<cl_float>());
+    Tempuvw = Tempuvw * (Rangewhd.convert<opencl::cl_float>());
     Tempuvw = (sycl::floor(Tempuvw));
-    Coordijk = Tempuvw.convert<cl_int>();
+    Coordijk = Tempuvw.convert<opencl::cl_int>();
     Coordijk = sycl::min(Coordijk, (Rangewhd - 1));
     // Eg:
     // u,v,w = {2.3,1.7,0.5} // normalized coordinates.
@@ -50,8 +50,9 @@ int4 getPixelCoordNearestFiltMode(float4 Coorduvw,
   case addressing_mode::repeat: {
 
     float4 Tempuvw(0);
-    Tempuvw = (Coorduvw - sycl::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
-    Coordijk = (sycl::floor(Tempuvw)).convert<cl_int>();
+    Tempuvw = (Coorduvw - sycl::floor(Coorduvw)) *
+              Rangewhd.convert<opencl::cl_float>();
+    Coordijk = (sycl::floor(Tempuvw)).convert<opencl::cl_int>();
     int4 GreaterThanEqual = (Coordijk >= Rangewhd);
     Coordijk = sycl::select(Coordijk, (Coordijk - Rangewhd), GreaterThanEqual);
     // Eg:
@@ -71,15 +72,15 @@ int4 getPixelCoordNearestFiltMode(float4 Coorduvw,
     // i = 2; j = 4; k = 4;
   } break;
   case addressing_mode::clamp_to_edge:
-    Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
+    Coordijk = (sycl::floor(Coorduvw)).convert<opencl::cl_int>();
     Coordijk = sycl::clamp(Coordijk, int4(0), (Rangewhd - 1));
     break;
   case addressing_mode::clamp:
-    Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
+    Coordijk = (sycl::floor(Coorduvw)).convert<opencl::cl_int>();
     Coordijk = sycl::clamp(Coordijk, int4(-1), Rangewhd);
     break;
   case addressing_mode::none:
-    Coordijk = (sycl::floor(Coorduvw)).convert<cl_int>();
+    Coordijk = (sycl::floor(Coorduvw)).convert<opencl::cl_int>();
     break;
   }
   return Coordijk;
@@ -97,15 +98,15 @@ int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
   int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   int4 Ci0j0k0(0);
   int4 Ci1j1k1(0);
-  int4 Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+  int4 Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<opencl::cl_int>();
 
   switch (SmplAddrMode) {
   case addressing_mode::mirrored_repeat: {
     float4 Temp;
     Temp = (sycl::rint(Coorduvw * 0.5f)) * 2.0f;
     Temp = sycl::fabs(Coorduvw - Temp);
-    Coorduvw = Temp * Rangewhd.convert<cl_float>();
-    Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+    Coorduvw = Temp * Rangewhd.convert<opencl::cl_float>();
+    Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<opencl::cl_int>();
 
     Ci0j0k0 = Int_uvwsubhalf;
     Ci1j1k1 = Ci0j0k0 + 1;
@@ -115,9 +116,9 @@ int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
   } break;
   case addressing_mode::repeat: {
 
-    Coorduvw =
-        (Coorduvw - sycl::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
-    Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+    Coorduvw = (Coorduvw - sycl::floor(Coorduvw)) *
+               Rangewhd.convert<opencl::cl_float>();
+    Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<opencl::cl_int>();
 
     Ci0j0k0 = Int_uvwsubhalf;
     Ci1j1k1 = Ci0j0k0 + 1;
@@ -142,7 +143,7 @@ int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
     break;
   }
   }
-  Retabc = (Coorduvw - 0.5f) - (Int_uvwsubhalf.convert<cl_float>());
+  Retabc = (Coorduvw - 0.5f) - (Int_uvwsubhalf.convert<opencl::cl_float>());
   Retabc.w() = 0.0f;
   return int8(Ci0j0k0, Ci1j1k1);
 }
@@ -159,7 +160,7 @@ bool isOutOfRange(const int4 PixelCoord, const addressing_mode SmplAddrMode,
       SmplAddrMode != addressing_mode::none)
     return false;
 
-  auto CheckOutOfRange = [](cl_int Coord, cl_int Range) {
+  auto CheckOutOfRange = [](opencl::cl_int Coord, opencl::cl_int Range) {
     return ((Coord < 0) || (Coord >= Range));
   };
 

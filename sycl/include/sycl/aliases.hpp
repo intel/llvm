@@ -38,17 +38,28 @@ class half;
 
 // There are no 'cl_*' vec aliases in SYCL 2020
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                         \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_char, sycl::cl_char, N, "")      \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_uchar, sycl::cl_uchar, N, "")    \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_short, sycl::cl_short, N, "")    \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_ushort, sycl::cl_ushort, N, "")  \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_int, sycl::cl_int, N, "")        \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_uint, sycl::cl_uint, N, "")      \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_long, sycl::cl_long, N, "")      \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_ulong, sycl::cl_ulong, N, "")    \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_float, sycl::cl_float, N, "")    \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_double, sycl::cl_double, N, "")  \
-  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_half, sycl::cl_half, N, "")
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_char, sycl::opencl::cl_char, N,  \
+                                           "")                                 \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_uchar, sycl::opencl::cl_uchar,   \
+                                           N, "")                              \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_short, sycl::opencl::cl_short,   \
+                                           N, "")                              \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_ushort, sycl::opencl::cl_ushort, \
+                                           N, "")                              \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_int, sycl::opencl::cl_int, N,    \
+                                           "")                                 \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_uint, sycl::opencl::cl_uint, N,  \
+                                           "")                                 \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_long, sycl::opencl::cl_long, N,  \
+                                           "")                                 \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_ulong, sycl::opencl::cl_ulong,   \
+                                           N, "")                              \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_float, sycl::opencl::cl_float,   \
+                                           N, "")                              \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_double, sycl::opencl::cl_double, \
+                                           N, "")                              \
+  __SYCL_2020_MAKE_DEPRECATED_VECTOR_ALIAS(cl_half, sycl::opencl::cl_half, N,  \
+                                           "")
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \
   __SYCL_MAKE_VECTOR_ALIAS(schar, signed char, N)                              \
@@ -99,6 +110,7 @@ using longlong __SYCL2020_DEPRECATED("") = long long;
 using ulonglong __SYCL2020_DEPRECATED("") = unsigned long long;
 using half = sycl::detail::half_impl::half;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 using cl_bool __SYCL2020_DEPRECATED("use sycl::opencl::cl_bool instead") = bool;
 using cl_char
     __SYCL2020_DEPRECATED("use sycl::opencl::cl_char instead") = std::int8_t;
@@ -121,6 +133,7 @@ using cl_float
     __SYCL2020_DEPRECATED("use sycl::opencl::cl_float instead") = float;
 using cl_double
     __SYCL2020_DEPRECATED("use sycl::opencl::cl_double instead") = double;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 namespace opencl {
 // Strictly speaking, cl_* aliases should not be defined in opencl namespace in
