@@ -2,6 +2,10 @@
 // RUN: %{run} %t.out
 
 // Test bitwise NOT operator (~) on marray<bool>
+//
+// Per the SYCL spec, marray operators mirror the equivalent std::valarray
+// operator. For bool, ~ promotes to int, so ~v is always non-zero and casting
+// back to bool yields true for every element (matches ~std::valarray<bool>).
 
 #include <sycl/detail/core.hpp>
 #include <sycl/marray.hpp>
@@ -48,7 +52,7 @@ int main() {
   // Test case 1: Size 2
   {
     marray<bool, 2> input{true, false};
-    marray<bool, 2> expected{false, true};
+    marray<bool, 2> expected{true, true};
     assert(test_bitwise_not_bool(q, input, expected) &&
            "Test failed for size 2");
   }
@@ -56,7 +60,7 @@ int main() {
   // Test case 2: Size 4
   {
     marray<bool, 4> input{true, false, true, false};
-    marray<bool, 4> expected{false, true, false, true};
+    marray<bool, 4> expected{true, true, true, true};
     assert(test_bitwise_not_bool(q, input, expected) &&
            "Test failed for size 4");
   }
@@ -64,7 +68,7 @@ int main() {
   // Test case 3: Size 3 (no padding, different code path)
   {
     marray<bool, 3> input{false, true, false};
-    marray<bool, 3> expected{true, false, true};
+    marray<bool, 3> expected{true, true, true};
     assert(test_bitwise_not_bool(q, input, expected) &&
            "Test failed for size 3");
   }
@@ -72,8 +76,7 @@ int main() {
   // Test case 4: Size 8
   {
     marray<bool, 8> input{true, true, false, false, true, false, true, false};
-    marray<bool, 8> expected{false, false, true,  true,
-                             false, true,  false, true};
+    marray<bool, 8> expected{true, true, true, true, true, true, true, true};
     assert(test_bitwise_not_bool(q, input, expected) &&
            "Test failed for size 8");
   }
@@ -81,7 +84,7 @@ int main() {
   // Test case 5: All true
   {
     marray<bool, 4> input{true, true, true, true};
-    marray<bool, 4> expected{false, false, false, false};
+    marray<bool, 4> expected{true, true, true, true};
     assert(test_bitwise_not_bool(q, input, expected) &&
            "Test failed for all true");
   }

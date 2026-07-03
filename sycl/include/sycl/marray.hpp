@@ -453,9 +453,6 @@ public:
   template <typename T = DataT>
   friend std::enable_if_t<std::is_integral_v<T>, marray>
   operator~(const marray &Lhs) {
-    if constexpr (std::is_same_v<DataT, bool>)
-      return !Lhs;
-
     marray Ret;
     if constexpr (use_ext_vector_type) {
       ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
