@@ -117,9 +117,9 @@ function(add_ur_target_compile_options name)
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
         if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
-            # icx emits calls to _intel_fast_memcpy/_intel_fast_memset; link
-            # libirc directly so those symbols resolve.
-            target_link_libraries(${name} PRIVATE irc)
+            # icx by default emits calls to _intel_fast_memcpy/_intel_fast_memset.
+            # Use plain memcpy/memset so that no libirc dependency is introduced.
+            target_compile_options(${name} PRIVATE -no-intel-lib=libirc)
         endif()
         if (UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE -Werror -Wextra)
