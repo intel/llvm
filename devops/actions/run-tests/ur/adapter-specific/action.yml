@@ -15,7 +15,7 @@ runs:
     env:
       BUILD_DIR: ${{ inputs.build_dir }}
       ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-      LIT_OPTS: "--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50"
+      LIT_OPTS: "--show-unsupported --show-pass --show-xfail --no-progress-bar --timeout 120 -j 50"
       LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
     run: |
       if [[ "$BUILD_DIR" =~ [^a-zA-Z0-9/_-] ]] || [[ "$BUILD_DIR" =~ \.\. ]]; then

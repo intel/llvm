@@ -118,25 +118,26 @@ def extract_skipped_from_gtest(lines: List[str]) -> List[str]:
 
 def extract_unsupported_from_lit_inline(lines: List[str]) -> List[str]:
     """
-    Extract unsupported test names from LIT inline output.
+    Extract unsupported/skipped test names from LIT inline output.
 
     During test execution, LIT prints:
     UNSUPPORTED: TestName (reason)
+    SKIP: TestName
 
     This is used for GoogleTest format where LIT doesn't generate
     "Unsupported Tests (N):" summary list, but shows "Skipped" in statistics.
 
-    Returns list of unsupported test names (deduplicated).
+    Returns list of unsupported/skipped test names (deduplicated).
     """
     unsupported = []
     seen = set()
-    # Pattern: "UNSUPPORTED: test_name" or "UNSUPPORTED: test_name (reason)"
-    unsupported_pattern = re.compile(r"^UNSUPPORTED:\s+(.+?)(?:\s+\(|$)")
+    # Pattern: "UNSUPPORTED: test_name" or "SKIP: test_name" 
+    unsupported_pattern = re.compile(r"^(UNSUPPORTED|SKIP):\s+(.+?)(?:\s+\(|$)")
 
     for line in lines:
         match = unsupported_pattern.match(line)
         if match:
-            test_name = match.group(1).strip()
+            test_name = match.group(2).strip()
             if test_name not in seen:
                 seen.add(test_name)
                 unsupported.append(test_name)
