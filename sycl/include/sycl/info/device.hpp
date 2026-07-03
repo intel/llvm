@@ -323,7 +323,7 @@ struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
     is_linker_available : device_traits<UR_DEVICE_INFO_LINKER_AVAILABLE> {
   using return_type = bool;
 };
-struct execution_capabilities
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") execution_capabilities
     : device_traits<UR_DEVICE_INFO_EXECUTION_CAPABILITIES> {
   using return_type = std::vector<info::execution_capability>;
 };
@@ -404,6 +404,7 @@ struct parent_device : device_traits<UR_DEVICE_INFO_PARENT_DEVICE> {
 struct aspects : device_traits<UR_DEVICE_INFO_FORCE_UINT32> {
   using return_type = std::vector<sycl::aspect>;
 };
+
 struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
                              "device::has(aspect::ext_intel_legacy_image) to "
                              "query for SYCL 1.2.1 image support") image_support
@@ -416,7 +417,6 @@ struct __SYCL_DEPRECATED("use sycl::aspect::atomic64 instead") atomic64
     : device_traits<UR_DEVICE_INFO_ATOMIC_64> {
   using return_type = bool;
 };
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct __SYCL_DEPRECATED("info::device::reference_count is not part of "
@@ -426,22 +426,28 @@ struct __SYCL_DEPRECATED("info::device::reference_count is not part of "
 };
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // To be dropped (has alternatives/not needed)
-struct usm_device_allocations
-    : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+struct __SYCL_DEPRECATED("use sycl::aspect::usm_device_allocations instead")
+    usm_device_allocations : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
   using return_type = bool;
 };
-struct usm_host_allocations : device_traits<UR_DEVICE_INFO_USM_HOST_SUPPORT> {
+struct __SYCL_DEPRECATED("use sycl::aspect::usm_host_allocations instead")
+    usm_host_allocations : device_traits<UR_DEVICE_INFO_USM_HOST_SUPPORT> {
   using return_type = bool;
 };
-struct usm_shared_allocations
+struct __SYCL_DEPRECATED("use sycl::aspect::usm_shared_allocations instead")
+    usm_shared_allocations
     : device_traits<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT> {
   using return_type = bool;
 };
-struct usm_restricted_shared_allocations
+struct __SYCL_DEPRECATED(
+    "use sycl::aspect::usm_restricted_shared_allocations instead")
+    usm_restricted_shared_allocations
     : device_traits<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT> {
   using return_type = bool;
 };
-struct usm_system_allocations
+struct __SYCL_DEPRECATED("use sycl::aspect::usm_system_allocations instead")
+    usm_system_allocations
     : device_traits<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT> {
   using return_type = bool;
 };
@@ -455,6 +461,7 @@ struct __SYCL_DEPRECATED("use device::get_info instead") opencl_c_version
     : device_runtime_traits {
   using return_type = std::string;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // Extensions
 struct sub_group_independent_forward_progress
     : device_traits<UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS> {
@@ -465,7 +472,7 @@ struct ext_oneapi_srgb : device_traits<UR_DEVICE_INFO_IMAGE_SRGB> {
 };
 
 // Deprecated oneapi/intel extension
-// TODO: Remove when possible
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct __SYCL_DEPRECATED("use ext::intel::info::device::pci_address instead")
     ext_intel_pci_address : device_traits<UR_DEVICE_INFO_PCI_ADDRESS> {
   using return_type = std::string;
@@ -529,6 +536,8 @@ struct __SYCL_DEPRECATED(
     : device_traits<UR_DEVICE_INFO_MAX_WORK_GROUPS_3D> {
   using return_type = id<3>;
 };
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 struct ext_oneapi_max_global_work_groups : device_runtime_traits {
   using return_type = size_t;
 };

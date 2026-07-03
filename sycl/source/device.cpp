@@ -281,8 +281,6 @@ __SYCL_DEVICE_INFO_INST(partition_type_affinity_domain,
                         info::partition_affinity_domain)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(atomic64, bool)
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(reference_count, uint32_t)
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(usm_device_allocations, bool)
@@ -292,8 +290,10 @@ __SYCL_DEVICE_INFO_INST(usm_restricted_shared_allocations, bool)
 __SYCL_DEVICE_INFO_INST(usm_system_allocations, bool)
 __SYCL_DEVICE_INFO_INST(image_max_array_size, size_t)
 __SYCL_DEVICE_INFO_INST(opencl_c_version, std::string)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(sub_group_independent_forward_progress, bool)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_srgb, bool)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_intel_pci_address, std::string)
 __SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_count, uint32_t)
 __SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_simd_width, uint32_t)
@@ -306,6 +306,7 @@ __SYCL_DEVICE_INFO_INST(ext_intel_max_mem_bandwidth, uint64_t)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_1d, id<1>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_2d, id<2>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_3d, id<3>)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_global_work_groups, size_t)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_cuda_cluster_group, bool)
 #undef __SYCL_DEVICE_INFO_INST
