@@ -3,7 +3,7 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Returning non-FP values from sampling fails on HIP.
 
-// UNSUPPORTED: target-nvidia
+// UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21807
 
 // RUN: %{build} -o %t.out
