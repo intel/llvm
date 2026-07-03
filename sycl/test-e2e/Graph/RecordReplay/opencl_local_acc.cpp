@@ -8,3 +8,4 @@
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/opencl_local_acc.cpp"
+#include <sycl/vector.hpp>

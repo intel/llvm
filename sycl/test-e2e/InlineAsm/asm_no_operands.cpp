@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "include/asmhelper.h"
+#include <algorithm>
 #include <sycl/detail/core.hpp>
 class no_operands_kernel;
 

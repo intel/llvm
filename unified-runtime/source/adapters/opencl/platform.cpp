@@ -73,6 +73,8 @@ static bool isBannedOpenCLDevice(cl_device_id device) {
   return isBanned;
 }
 
+namespace ur::opencl {
+
 UR_DLLEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
@@ -90,7 +92,8 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_VERSION:
   case UR_PLATFORM_INFO_EXTENSIONS:
   case UR_PLATFORM_INFO_PROFILE: {
-    cl_platform_id Plat = hPlatform->CLPlatform;
+    auto Platform = cast(hPlatform);
+    cl_platform_id Plat = Platform->CLPlatform;
 
     CL_RETURN_ON_FAILURE(
         clGetPlatformInfo(Plat, CLPropName, propSize, pPropValue, pSizeRet));
@@ -113,15 +116,16 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
   static std::mutex adapterPopulationMutex{};
-  ur_adapter_handle_t Adapter = nullptr;
-  UR_RETURN_ON_FAILURE(urAdapterGet(1, &Adapter, nullptr));
-  if (!Adapter) {
+  ur_adapter_handle_t AdapterHandle = nullptr;
+  UR_RETURN_ON_FAILURE(ur::opencl::urAdapterGet(1, &AdapterHandle, nullptr));
+  if (!AdapterHandle) {
     // The only operation urAdapterGet really performs is allocating the adapter
     // handle via new, so no adapter handle here almost certainly means memory
     // problems.
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
+  auto Adapter = cast(AdapterHandle);
   if (Adapter->NumPlatforms == 0) {
     std::lock_guard guard{adapterPopulationMutex};
 
@@ -178,7 +182,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   }
   if (NumEntries && phPlatforms) {
     for (uint32_t i = 0; i < NumEntries; i++) {
-      phPlatforms[i] = Adapter->URPlatforms[i].get();
+      phPlatforms[i] = cast(Adapter->URPlatforms[i].get());
     }
   }
 
@@ -187,8 +191,9 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
+  auto Platform = cast(hPlatform);
   *phNativePlatform =
-      reinterpret_cast<ur_native_handle_t>(hPlatform->CLPlatform);
+      reinterpret_cast<ur_native_handle_t>(Platform->CLPlatform);
   return UR_RESULT_SUCCESS;
 }
 
@@ -199,14 +204,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
       reinterpret_cast<cl_platform_id>(hNativePlatform);
 
   uint32_t NumPlatforms = 0;
-  UR_RETURN_ON_FAILURE(urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
-  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
   UR_RETURN_ON_FAILURE(
-      urPlatformGet(nullptr, NumPlatforms, Platforms.data(), nullptr));
+      ur::opencl::urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
+  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
+  UR_RETURN_ON_FAILURE(ur::opencl::urPlatformGet(nullptr, NumPlatforms,
+                                                 Platforms.data(), nullptr));
 
   for (uint32_t i = 0; i < NumPlatforms; i++) {
-    if (Platforms[i]->CLPlatform == NativeHandle) {
-      *phPlatform = Platforms[i];
+    auto Platform = cast(Platforms[i]);
+    if (Platform->CLPlatform == NativeHandle) {
+      *phPlatform = cast(Platform);
       return UR_RESULT_SUCCESS;
     }
   }
@@ -295,3 +302,5 @@ ur_result_t ur_platform_handle_t_::InitDevices() {
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

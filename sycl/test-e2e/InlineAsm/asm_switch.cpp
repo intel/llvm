@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
+#include <algorithm>
 #include <sycl/detail/core.hpp>
 
 using DataType = sycl::opencl::cl_int;

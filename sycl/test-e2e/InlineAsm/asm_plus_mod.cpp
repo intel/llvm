@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
+#include <algorithm>
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <vector>

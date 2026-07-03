@@ -148,6 +148,18 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t hGraph, uint64_t *pGraphId) {
+  ur_context_handle_t hContext = hGraph->getContext();
+  auto ZeGetId = hContext->getPlatform()->ZeGraphExt.zeGraphGetIdExt;
+  if (!checkGraphExtensionSupport(hContext) || !ZeGetId) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(ZeGetId, (hGraph->getZeHandle(), pGraphId));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_handle_t hGraph,
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData) {

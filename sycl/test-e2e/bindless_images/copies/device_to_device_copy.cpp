@@ -9,7 +9,9 @@
 #include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/vector.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
