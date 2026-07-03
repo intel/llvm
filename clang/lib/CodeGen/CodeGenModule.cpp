@@ -2947,9 +2947,6 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
   // MDNode for the kernel argument names.
   SmallVector<llvm::Metadata *, 8> argNames;
 
-  // MDNode for the intel_buffer_location attribute.
-  SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
-
   // MDNode for listing SYCL kernel pointer arguments originating from
   // accessors.
   SmallVector<llvm::Metadata *, 8> argSYCLAccessorPtrs;
@@ -3052,14 +3049,6 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
           typeQuals = "pipe";
       }
       argTypeQuals.push_back(llvm::MDString::get(VMContext, typeQuals));
-
-      auto *SYCLBufferLocationAttr =
-          parm->getAttr<SYCLIntelBufferLocationAttr>();
-      argSYCLBufferLocationAttr.push_back(
-          (SYCLBufferLocationAttr)
-              ? llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
-                    SYCLBufferLocationAttr->getLocationID()))
-              : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
 
       // If a kernel pointer argument comes from an accessor, we generate
       // the following metadata :
