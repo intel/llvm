@@ -27,7 +27,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_JIT__)
 // Don't include the OpenCL headers when compiling for SYCL device, as they only
 // define the host-side API. Instead, define the necessary types as opaque
 // pointers to not break the SYCL headers that include this header.
