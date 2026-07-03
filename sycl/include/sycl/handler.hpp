@@ -505,7 +505,7 @@ private:
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
 
-    if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
+    if (!std::is_same<OpenCLMemT, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
     } else if (ext::oneapi::experimental::detail::is_struct_with_special_type<
@@ -1147,9 +1147,9 @@ public:
             && std::is_standard_layout<std::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
-        || (!is_same_type<cl_mem, T>::value &&
+        || (!is_same_type<OpenCLMemT, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<OpenCLMemT, T>::value      // Interop
         || is_same_type<stream, T>::value          // Stream
         || sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
   };

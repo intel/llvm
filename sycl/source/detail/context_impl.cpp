@@ -105,13 +105,13 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   }
 }
 
-cl_context context_impl::get() const {
+OpenCLContextT context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
   getAdapter().call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
   getAdapter().call<UrApiKind::urContextGetNativeHandle>(MContext,
                                                          &nativeHandle);
-  return ur::cast<cl_context>(nativeHandle);
+  return ur::cast<OpenCLContextT>(nativeHandle);
 }
 
 context_impl::~context_impl() {

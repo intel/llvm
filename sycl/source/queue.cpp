@@ -60,16 +60,16 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(),
             PropList) {}
 
-queue::queue(cl_command_queue clQueue, const context &SyclContext,
+queue::queue(OpenCLCommandQueueT clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
   impl = detail::queue_impl::create(
-      // TODO(pi2ur): Don't cast straight from cl_command_queue
+      // TODO(pi2ur): Don't cast straight from OpenCLCommandQueueT
       reinterpret_cast<ur_queue_handle_t>(clQueue),
       *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
-cl_command_queue queue::get() const { return impl->get(); }
+OpenCLCommandQueueT queue::get() const { return impl->get(); }
 
 context queue::get_context() const { return impl->get_context(); }
 

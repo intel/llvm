@@ -161,16 +161,16 @@ public:
                    async_handler AsyncHandler,
                    const property_list &PropList = {});
 
-  /// Constructs a SYCL context instance from OpenCL cl_context.
+  /// Constructs a SYCL context instance from OpenCL OpenCLContextT.
   ///
   /// ClContext is retained on SYCL context instantiation.
   /// The constructed SYCL context will use the AsyncHandler parameter to handle
   /// exceptions.
   ///
-  /// \param ClContext is an instance of OpenCL cl_context.
+  /// \param ClContext is an instance of OpenCL OpenCLContextT.
   /// \param AsyncHandler is an instance of async_handler.
 #ifdef __SYCL_INTERNAL_API
-  context(cl_context ClContext, async_handler AsyncHandler = {});
+  context(OpenCLContextT ClContext, async_handler AsyncHandler = {});
 #endif
 
   /// Queries this SYCL context for information.
@@ -217,11 +217,11 @@ public:
 
   /// Gets OpenCL interoperability context.
   ///
-  /// The OpenCL cl_context handle is retained on return.
+  /// The OpenCL OpenCLContextT handle is retained on return.
   ///
-  /// \return a valid instance of OpenCL cl_context.
+  /// \return a valid instance of OpenCL OpenCLContextT.
 #ifdef __SYCL_INTERNAL_API
-  cl_context get() const;
+  OpenCLContextT get() const;
 #endif
 
   /// Returns the backend associated with this context.

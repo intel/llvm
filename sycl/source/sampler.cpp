@@ -20,7 +20,7 @@ sampler::sampler(coordinate_normalization_mode normalizationMode,
     : impl(std::make_shared<detail::sampler_impl>(
           normalizationMode, addressingMode, filteringMode, propList)) {}
 
-sampler::sampler(cl_sampler clSampler, const context &syclContext)
+sampler::sampler(OpenCLSamplerT clSampler, const context &syclContext)
     : impl(std::make_shared<detail::sampler_impl>(
           clSampler, *detail::getSyclObjImpl(syclContext))) {}
 

@@ -58,7 +58,7 @@ public:
                                     ur_event_handle_t &OutEvent);
 
   // Allocates buffer in specified context taking into account situations such
-  // as host ptr or cl_mem provided by user. TargetContext should be device
+  // as host ptr or OpenCLMemT provided by user. TargetContext should be device
   // one(not host).
   static void *allocateMemBuffer(context_impl *TargetContext,
                                  SYCLMemObjI *MemObj, void *UserPtr,
@@ -69,7 +69,7 @@ public:
                                  ur_event_handle_t &OutEventToWait);
 
   // Allocates images in specified context taking into account situations such
-  // as host ptr or cl_mem provided by user. TargetContext should be device
+  // as host ptr or OpenCLMemT provided by user. TargetContext should be device
   // one(not host).
   static void *allocateMemImage(
       context_impl *TargetContext, SYCLMemObjI *MemObj, void *UserPtr,

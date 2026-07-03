@@ -210,8 +210,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
   context_impl *InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
   if (InteropCtxPtr) {
     // The memory object has been constructed using interoperability constructor
-    // which means that there is already an allocation(cl_mem) in some context.
-    // Registering this allocation in the SYCL graph.
+    // which means that there is already an allocation(OpenCLMemT) in some
+    // context. Registering this allocation in the SYCL graph.
 
     devices_range Devices = InteropCtxPtr->getDevices();
     assert(!Devices.empty());

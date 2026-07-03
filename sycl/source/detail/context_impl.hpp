@@ -94,8 +94,8 @@ public:
 
   /// Gets OpenCL interoperability context handle.
   ///
-  /// \return an instance of OpenCL cl_context.
-  cl_context get() const;
+  /// \return an instance of OpenCL OpenCLContextT.
+  OpenCLContextT get() const;
 
   /// Gets asynchronous exception handler.
   ///

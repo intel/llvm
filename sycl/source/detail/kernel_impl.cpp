@@ -40,7 +40,7 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
   if (Context.getHandleRef() != UrContext)
     throw sycl::exception(
         make_error_code(errc::invalid),
-        "Input context must be the same as the context of cl_kernel");
+        "Input context must be the same as the context of OpenCLKernelT");
 
   // Enable USM indirect access for interoperability kernels.
   enableUSMIndirectAccess();
@@ -97,7 +97,7 @@ bool kernel_impl::isCreatedFromSource() const {
   // program Program(Context);
   // Program.build_with_kernel_type<class A>();
   // kernel FirstKernel= Program.get_kernel<class A>();
-  // cl_kernel ClKernel = FirstKernel.get();
+  // OpenCLKernelT ClKernel = FirstKernel.get();
   // kernel SecondKernel = kernel(ClKernel, Context);
   // clReleaseKernel(ClKernel);
   // FirstKernel.isCreatedFromSource() != FirstKernel.isCreatedFromSource();

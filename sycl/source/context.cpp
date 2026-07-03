@@ -70,7 +70,7 @@ context::context(const std::vector<device> &DeviceList,
   else
     impl = detail::context_impl::create(DeviceList, AsyncHandler, PropList);
 }
-context::context(cl_context ClContext, async_handler AsyncHandler) {
+context::context(OpenCLContextT ClContext, async_handler AsyncHandler) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
 
@@ -111,7 +111,7 @@ context::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
 
-cl_context context::get() const { return impl->get(); }
+OpenCLContextT context::get() const { return impl->get(); }
 
 backend context::get_backend() const noexcept { return impl->getBackend(); }
 
