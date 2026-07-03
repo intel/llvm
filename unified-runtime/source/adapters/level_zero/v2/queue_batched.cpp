@@ -566,20 +566,11 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferCopyRect(
 ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrier(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  wait_list_view waitListView =
-      wait_list_view(phEventWaitList, numEventsInWaitList, this);
-  auto lockedBatch = currentCmdLists.lock();
-  markIssuedCommandInBatch(lockedBatch);
-
-  if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
-    UR_CALL(lockedBatch->getListManager().appendEventsWaitWithBarrier(
-        waitListView, getEvent(lockedBatch, phEvent)));
-  } else {
-    UR_CALL(lockedBatch->getListManager().appendEventsWait(
-        waitListView, getEvent(lockedBatch, phEvent)));
-  }
-
-  return renewBatchUnlocked(lockedBatch);
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueEventsWaitWithBarrier");
+  if (phEvent)
+    *phEvent = nullptr;
+  return enqueueEventsWaitWithBarrierExt(nullptr, numEventsInWaitList,
+                                         phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrierExt(

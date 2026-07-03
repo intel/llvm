@@ -161,6 +161,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_manager.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_descriptor.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool_cache.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_counter.hpp
@@ -175,7 +176,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_batched.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/v2/standalone_event_factory.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/standalone_event_pool.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.cpp
@@ -195,7 +196,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/v2/standalone_event_factory.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/standalone_event_pool.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm_p2p.cpp
     )

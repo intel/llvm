@@ -1,5 +1,4 @@
-//===--------- standalone_event_factory.cpp - Level Zero Adapter
-//-----------------------------===//
+//===--------- standalone_event_pool.cpp - Level Zero Adapter ------------===//
 //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM
@@ -8,13 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "standalone_event_factory.hpp"
+#include "standalone_event_pool.hpp"
 
 namespace v2 {
-ur_event_handle_t standalone_event_factory::create(ur_context_handle_t hContext,
-                                                   ur_device_handle_t hDevice,
-                                                   event_flags_t flags) {
-  const v2::event_pool_cache::event_descriptor id{hDevice->Id.value(), flags};
+ur_event_handle_t standalone_event_pool::allocate(ur_context_handle_t hContext,
+                                                  ur_device_handle_t hDevice,
+                                                  event_flags_t flags) {
+  const v2::event_descriptor id{hDevice->Id.value(), flags};
   std::lock_guard<ur_mutex> lock(mutex);
 
   if (!providers.count(id)) {

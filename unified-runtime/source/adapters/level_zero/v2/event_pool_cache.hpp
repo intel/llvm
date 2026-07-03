@@ -19,6 +19,7 @@
 #include <ze_api.h>
 
 #include "../device.hpp"
+#include "event_descriptor.hpp"
 #include "event_pool.hpp"
 #include "event_provider.hpp"
 
@@ -39,19 +40,6 @@ public:
 
   raii::cache_borrowed_event_pool borrow(DeviceId, event_flags_t flags);
 
-  struct event_descriptor {
-    DeviceId device;
-    event_flags_t flags;
-
-    uint64_t index() const {
-      return uint64_t(flags) | (uint64_t(device) << EVENT_FLAGS_USED_BITS);
-    }
-
-    bool operator==(const event_descriptor &other) const {
-      return device == other.device && flags == other.flags;
-    }
-  };
-
 private:
   ur_context_handle_t hContext;
   ur_mutex mutex;
@@ -59,11 +47,5 @@ private:
 
   // Indexed by event_descriptor::index()
   std::vector<std::vector<std::unique_ptr<event_pool>>> pools;
-};
-
-struct event_descriptor_hash {
-  std::size_t operator()(const event_pool_cache::event_descriptor &key) const {
-    return key.index();
-  }
 };
 } // namespace v2

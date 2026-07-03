@@ -16,7 +16,7 @@
 #include "common/ur_ref_count.hpp"
 #include "event_pool_cache.hpp"
 #include "logger/ur_logger.hpp"
-#include "standalone_event_factory.hpp"
+#include "standalone_event_pool.hpp"
 #include "usm.hpp"
 
 enum class PoolCacheType { Immediate, Regular };
@@ -85,8 +85,8 @@ struct ur_context_handle_t_ : ur_object {
 
   ur_shared_mutex GraphMapMutex;
 
-  v2::standalone_event_factory &getReusableEventFactory() {
-    return reusableEventFactory;
+  v2::standalone_event_pool &getReusableEventPool() {
+    return reusableEventPool;
   }
 
 private:
@@ -103,7 +103,7 @@ private:
   // (uses non-counter based events to allow for signaling from host)
   v2::event_pool nativeEventsPool;
 
-  v2::standalone_event_factory reusableEventFactory;
+  v2::standalone_event_pool reusableEventPool;
 
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;

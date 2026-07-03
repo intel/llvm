@@ -145,22 +145,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier");
-  // For in-order queue we don't need a real barrier, just wait for
-  // requested events in potentially different queues and add a "barrier"
-  // event signal because it is already guaranteed that previous commands
-  // in this queue are completed when the signal is started. However, we do
-  // need to use barrier if profiling is enabled: see
-  // zeCommandListAppendWaitOnEvents
-  wait_list_view waitListView =
-      wait_list_view(phEventWaitList, numEventsInWaitList);
-
-  if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
-    return commandListManager.lock()->appendEventsWaitWithBarrier(
-        waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
-  } else {
-    return commandListManager.lock()->appendEventsWait(
-        waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
-  }
+  if (phEvent)
+    *phEvent = nullptr;
+  return enqueueEventsWaitWithBarrierExt(nullptr, numEventsInWaitList,
+                                         phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
@@ -172,17 +160,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList);
 
-  ur_event_handle_t event{};
-  if (phEvent && *phEvent) {
-    if (!(*phEvent)->isCounter())
-      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+  if (phEvent && *phEvent && !(*phEvent)->isCounter())
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
 
-    event = *phEvent;
-    event->setQueue(this);
-  }
-
-  if (!event)
-    event = createEventIfRequested(eventPool.get(), phEvent, this);
+  ur_event_handle_t event =
+      createEventOrReuseIfRequested(eventPool.get(), phEvent, this);
 
   auto &&cmdListMan = commandListManager.lock();
 
