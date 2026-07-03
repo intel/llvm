@@ -1,5 +1,8 @@
 # Builds in-tree UR
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../unified-runtime/cmake")
+include(helpers)
+
 # TODO: taken from sycl/plugins/CMakeLists.txt - maybe we should handle this
 # within UR (although it is an obscure warning that the build system here
 # seems to specifically enable)
@@ -181,24 +184,6 @@ endif()
 if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(offload)
 endif()
-
-# Determine whether the given adapter is statically linked into the loader by
-# querying the corresponding UR_STATIC_ADAPTER_* variable (if it exists).
-# Sets OUT_VAR in the caller's scope to TRUE if the adapter is static,
-# FALSE otherwise.
-function(ur_adapter_is_static adapter out_var)
-  set(static_var "UR_STATIC_ADAPTER_${adapter}")
-  string(TOUPPER "${static_var}" static_var)
-  # Special case: level_zero uses UR_STATIC_ADAPTER_L0
-  if(adapter STREQUAL "level_zero")
-    set(static_var "UR_STATIC_ADAPTER_L0")
-  endif()
-  if(DEFINED ${static_var} AND ${static_var})
-    set(${out_var} TRUE PARENT_SCOPE)
-  else()
-    set(${out_var} FALSE PARENT_SCOPE)
-  endif()
-endfunction()
 
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   # On Windows, also build/install debug libraries with the d suffix that are

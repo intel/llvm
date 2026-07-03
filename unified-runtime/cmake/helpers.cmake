@@ -294,3 +294,22 @@ function(configure_linker_file input output)
     # Write stripped output to file for use by the linker
     file(GENERATE OUTPUT ${output} CONTENT "${stripped}")
 endfunction()
+
+# Determine whether the given adapter is statically linked into the loader by
+# querying the corresponding UR_STATIC_ADAPTER_* variable (if it exists).
+# Sets OUT_VAR in the caller's scope to TRUE if the adapter is static,
+# FALSE otherwise.
+function(ur_adapter_is_static adapter out_var)
+  set(static_var "UR_STATIC_ADAPTER_${adapter}")
+  string(TOUPPER "${static_var}" static_var)
+  string(TOUPPER "${adapter}" adapter)
+  # Special case: LEVEL_ZERO uses UR_STATIC_ADAPTER_L0
+  if(adapter STREQUAL "LEVEL_ZERO")
+    set(static_var "UR_STATIC_ADAPTER_L0")
+  endif()
+  if(DEFINED ${static_var} AND ${static_var})
+    set(${out_var} TRUE PARENT_SCOPE)
+  else()
+    set(${out_var} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
