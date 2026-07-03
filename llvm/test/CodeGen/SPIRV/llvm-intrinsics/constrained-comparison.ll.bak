@@ -19,7 +19,7 @@
 ; CHECK: OpUnordered
 
 ; Function Attrs: norecurse nounwind strictfp
-define dso_local spir_kernel void @test(float %a) local_unnamed_addr #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !7 !kernel_arg_type_qual !8 !kernel_arg_buffer_location !9 {
+define dso_local spir_kernel void @test(float %a) local_unnamed_addr #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !7 !kernel_arg_type_qual !8 {
 entry:
   %cmp = tail call i1 @llvm.experimental.constrained.fcmps.f32(float %a, float %a, metadata !"oeq", metadata !"fpexcept.strict") #2
   %cmp1 = tail call i1 @llvm.experimental.constrained.fcmps.f32(float %a, float %a, metadata !"ogt", metadata !"fpexcept.strict") #2
@@ -63,4 +63,3 @@ attributes #2 = { strictfp }
 !6 = !{!"none"}
 !7 = !{!"float"}
 !8 = !{!""}
-!9 = !{i32 -1}

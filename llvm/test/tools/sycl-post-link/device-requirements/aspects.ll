@@ -40,7 +40,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_ = comdat any
 $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE0_ = comdat any
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_() #0 comdat !kernel_arg_buffer_location !43 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_() #0 comdat {
 entry:
   %__SYCLKernel = alloca %class.anon, align 1
   %__SYCLKernel.ascast = addrspacecast %class.anon* %__SYCLKernel to %class.anon addrspace(4)*
@@ -66,7 +66,7 @@ entry:
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE0_() #0 comdat !kernel_arg_buffer_location !43 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE0_() #0 comdat {
 entry:
   %__SYCLKernel = alloca %class.anon, align 1
   %__SYCLKernel.ascast = addrspacecast %class.anon* %__SYCLKernel to %class.anon addrspace(4)*
@@ -145,6 +145,5 @@ attributes #3 = { convergent }
 !40 = !{!"clang version 16.0.0"}
 !41 = !{i32 1, !"wchar_size", i32 4}
 !42 = !{i32 7, !"frame-pointer", i32 2}
-!43 = !{}
 !44 = !{i32 6, i32 1}
 !45 = !{i32 12, i32 0, i32 9}
