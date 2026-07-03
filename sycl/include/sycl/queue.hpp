@@ -377,10 +377,19 @@ public:
 
   queue &operator=(queue &&RHS) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const queue &RHS) const { return impl == RHS.impl; }
 
   bool operator!=(const queue &RHS) const { return !(*this == RHS); }
+#else
+  friend bool operator==(const queue &LHS, const queue &RHS) {
+    return LHS.impl == RHS.impl;
+  }
 
+  friend bool operator!=(const queue &LHS, const queue &RHS) {
+    return !(LHS == RHS);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   /// \return a valid instance of OpenCL queue, which is retained before being
   /// returned.
 #ifdef __SYCL_INTERNAL_API

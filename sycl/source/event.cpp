@@ -31,9 +31,11 @@ event::event(cl_event ClEvent, const context &SyclContext)
   __SYCL_OCL_CALL(clRetainEvent, ClEvent);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 void event::wait() { impl->wait(); }
 
