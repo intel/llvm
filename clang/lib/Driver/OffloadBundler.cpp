@@ -693,7 +693,7 @@ class ObjectFileHandler final : public FileHandler {
 
           bool UpdateBuf = false;
           if (!Mod->getModuleInlineAsm().empty()) {
-            Mod->setModuleInlineAsm("");
+            Mod->removeModuleInlineAsm();
             UpdateBuf = true;
           }
           for (auto I = Mod->global_begin(), E = Mod->global_end(); I != E;) {
