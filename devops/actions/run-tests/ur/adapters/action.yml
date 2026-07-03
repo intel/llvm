@@ -23,19 +23,23 @@ runs:
       fi
       
       echo "::group::Show Full Test Adapters Logs"
-      # Save full log first - ignore SIGPIPE if GitHub Actions closes stdout due to size
-      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log || true
+      # Write directly to file to avoid SIGPIPE from GitHub Actions closing stdout
+      # (output is too large without --succinct, causing GitHub to close pipe)
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance > conformance_tests.log 2>&1
       EXIT_CODE=$?
       
-      # Filter out duplicate summary section for display (keep full log in file)
+      # Show filtered version (without duplicate summary) for display
       sed '/^\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*/,$d' conformance_tests.log || true
       echo "::endgroup::"
       
-      # Check if cmake command actually failed (not just SIGPIPE from tee)
+      # Only fail if cmake actually failed, not if test failed (continue-on-error handles that)
+      # Check that log was created successfully
       if [ ! -f conformance_tests.log ] || [ ! -s conformance_tests.log ]; then
         echo "::error::Test execution failed - no log generated"
         exit 1
       fi
+      
+      exit $EXIT_CODE
   
   - name: Report conformance failures
     if: steps.run_tests.outcome != 'success'
