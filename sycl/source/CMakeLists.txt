@@ -68,6 +68,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       __SYCL_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
       $<$<BOOL:${UR_STATIC_LOADER}>:SYCL_UR_STATIC_LOADER>
+      $<$<BOOL:${UR_STATIC_ADAPTER_OPENCL}>:SYCL_UR_STATIC_ADAPTER_OPENCL>
   )
 
   target_include_directories(
