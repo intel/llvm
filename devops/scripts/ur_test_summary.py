@@ -161,9 +161,7 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
 
     # Pattern: "Category Tests (N):"
     # Match any word followed by "Tests (N):" to catch unknown categories
-    category_pattern = re.compile(
-        r"^([A-Za-z ]+) Tests \((\d+)\):"
-    )
+    category_pattern = re.compile(r"^([A-Za-z ]+) Tests \((\d+)\):")
 
     for line in lines:
         # Check for category header

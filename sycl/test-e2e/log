@@ -1,0 +1,614 @@
+Prepare all required actions
+Run ./devops/actions/run-tests/ur/adapters
+Run if [[ "$BUILD_DIR" =~ [^a-zA-Z0-9/_-] ]] || [[ "$BUILD_DIR" =~ \.\. ]]; then
+Show Full Test Adapters Logs
+Run > all_conformance_tests.txt
+Listing all conformance tests...
+Processing binary 1: virtual_memory-test
+  Running: build/test/conformance/virtual_memory/virtual_memory-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urPhysicalMemCreateWithSizeParamTest>
+  UninstantiatedParameterizedTestSuite<urPhysicalMemCreateWithFlagsParamTest>
+  UninstantiatedParameterizedTestSuite<urPhysicalMemCreateTest>
+  UninstantiatedParameterizedTestSuite<urPhysicalMemReleaseTest>
+  UninstantiatedParameterizedTestSuite<urPhysicalMemRetainTest>
+  UninstantiatedParameterizedTestSuite<urPhysicalMemGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemFreeTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemGranularityGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemMapWithFlagsTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemMapTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemReserveTestWithParam>
+  UninstantiatedParameterizedTestSuite<urVirtualMemReserveTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemSetAccessWithFlagsTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemSetAccessTest>
+  UninstantiatedParameterizedTestSuite<urVirtualMemUnmapTest>
+  UninstantiatedParameterizedTestSuite<urIPCGetPhysMemHandleExpTest>
+  UninstantiatedParameterizedTestSuite<urIPCGetPhysMemHandleExpNoIpcTest>
+  UninstantiatedParameterizedTestSuite<urIPCPutPhysMemHandleExpTest>
+  UninstantiatedParameterizedTestSuite<urIPCOpenPhysMemHandleExpTest>
+  UninstantiatedParameterizedTestSuite<urIPCClosePhysMemHandleExpTest>
+  Added 27 lines (total test lines: 27)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 2: program-test
+  Running: build/test/conformance/program/program-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urProgramBuildTest>
+  UninstantiatedParameterizedTestSuite<urProgramCompileWithParamTest>
+  UninstantiatedParameterizedTestSuite<urProgramCompileTest>
+  UninstantiatedParameterizedTestSuite<urProgramCreateWithBinaryTest>
+  UninstantiatedParameterizedTestSuite<urMultiDeviceProgramCreateWithBinaryTest>
+  UninstantiatedParameterizedTestSuite<urMultiDeviceCommandBufferExpTest>
+  UninstantiatedParameterizedTestSuite<urMultiDeviceProgramTest>
+  UninstantiatedParameterizedTestSuite<urProgramCreateWithILTest>
+  UninstantiatedParameterizedTestSuite<urProgramCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urProgramGetBuildInfoTest>
+  UninstantiatedParameterizedTestSuite<urProgramGetFunctionPointerTest>
+  UninstantiatedParameterizedTestSuite<urProgramGetGlobalVariablePointerTest>
+  UninstantiatedParameterizedTestSuite<urProgramGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urProgramGetNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urProgramLinkTest>
+  UninstantiatedParameterizedTestSuite<urProgramLinkErrorTest>
+  UninstantiatedParameterizedTestSuite<urProgramReleaseTest>
+  UninstantiatedParameterizedTestSuite<urProgramRetainTest>
+  UninstantiatedParameterizedTestSuite<urProgramSetSpecializationConstantsTest>
+  UninstantiatedParameterizedTestSuite<urProgramSetSpecializationConstantsNegativeTest>
+  UninstantiatedParameterizedTestSuite<urProgramSetMultipleSpecializationConstantsTest>
+  Added 27 lines (total test lines: 54)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 3: sampler-test
+  Running: build/test/conformance/sampler/sampler-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urSamplerCreateTestWithParam>
+  UninstantiatedParameterizedTestSuite<urSamplerCreateTest>
+  UninstantiatedParameterizedTestSuite<urSamplerCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urSamplerGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urSamplerGetNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urSamplerReleaseTest>
+  UninstantiatedParameterizedTestSuite<urSamplerRetainTest>
+  Added 13 lines (total test lines: 67)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 4: context-test
+  Running: build/test/conformance/context/context-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urContextCreateTest>
+  UninstantiatedParameterizedTestSuite<urContextCreateMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urContextCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urContextGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urContextGetNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urContextReleaseTest>
+  UninstantiatedParameterizedTestSuite<urContextRetainTest>
+  UninstantiatedParameterizedTestSuite<urContextSetExtendedDeleterTest>
+  Added 14 lines (total test lines: 81)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 5: enqueue-test
+  Running: build/test/conformance/enqueue/enqueue-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urEnqueueDeviceGetGlobalVariableReadWithParamTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueDeviceGetGlobalVariableReadTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueDeviceGetGlobalVariableWriteWithParamTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueDeviceGetGlobalVariableWriteTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueEventsWaitTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueEventsWaitMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueEventsWaitMultiDeviceMTTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueEventsWaitWithBarrierTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueEventsWaitWithBarrierOrderingTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchNoArgs3DTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchKernelWgSizeTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchKernelSubGroupTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchKernelStandardTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchWithUSM>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchWithVirtualMemory>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchUSMLinkedList>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchIncrementTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchIncrementMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferCopyRectTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferCopyRectTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferCopyRectMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferCopyTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferCopyMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferFillTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferFillNegativeTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferFillMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferMapTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferMapTestWithWriteFlagParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferMapMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferReadTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferReadMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferReadRectTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferReadRectTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferReadRectMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferWriteTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferWriteRectTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemBufferWriteRectTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemImageCopyTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemImageCopyMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemImageReadTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemImageReadMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemImageWriteTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueMemUnmapTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMFillTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMFillNegativeTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMFill2DTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMFill2DNegativeTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMAdviseWithParamTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMAdviseTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMMemcpyTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMMemcpyMultiDeviceTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMMemcpy2DTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMMemcpy2DNegativeTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMPrefetchWithParamTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueUSMPrefetchTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueReadHostPipeTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueWriteHostPipeTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueTimestampRecordingExpTest>
+  Added 68 lines (total test lines: 149)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 6: exp_usm_p2p-test
+  Running: build/test/conformance/exp_usm_p2p/exp_usm_p2p-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urP2PTest>
+  Added 7 lines (total test lines: 156)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 7: queue-test
+  Running: build/test/conformance/queue/queue-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urQueueCreateTest>
+  UninstantiatedParameterizedTestSuite<urQueueCreateWithParamTest>
+  UninstantiatedParameterizedTestSuite<urQueueCreateTestMultipleDevices>
+  UninstantiatedParameterizedTestSuite<urQueueCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urQueueFinishTest>
+  UninstantiatedParameterizedTestSuite<urQueueFlushTest>
+  UninstantiatedParameterizedTestSuite<urQueueGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urQueueGetInfoDeviceQueueTestWithInfoParam>
+  UninstantiatedParameterizedTestSuite<urQueueGetNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urQueueRetainTest>
+  UninstantiatedParameterizedTestSuite<urQueueReleaseTest>
+  Added 17 lines (total test lines: 173)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 8: memory-test
+  Running: build/test/conformance/memory/memory-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urMemBufferCreateWithFlagsTest>
+  UninstantiatedParameterizedTestSuite<urMemBufferCreateTest>
+  UninstantiatedParameterizedTestSuite<urMemBufferCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urMemBufferMultiQueueMemBufferTest>
+  UninstantiatedParameterizedTestSuite<urMemBufferPartitionWithFlagsTest>
+  UninstantiatedParameterizedTestSuite<urMemBufferPartitionTest>
+  UninstantiatedParameterizedTestSuite<urMemGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urMemGetInfoImageTest>
+  UninstantiatedParameterizedTestSuite<urMemGetNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urMemImageCreateTest>
+  UninstantiatedParameterizedTestSuite<urMemImageCreateTestWith1DMemoryTypeParam>
+  UninstantiatedParameterizedTestSuite<urMemImageCreateTestWith2DMemoryTypeParam>
+  UninstantiatedParameterizedTestSuite<urMemImageCreateWithHostPtrFlagsTest>
+  UninstantiatedParameterizedTestSuite<urMemImageCreateTestWithImageFormatParam>
+  UninstantiatedParameterizedTestSuite<urMemImageCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urMemImageGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urMemReleaseTest>
+  UninstantiatedParameterizedTestSuite<urMemRetainTest>
+  Added 24 lines (total test lines: 197)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 9: exp_reusable_events-test
+  Running: build/test/conformance/exp_reusable_events/exp_reusable_events-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urEventCreateExpTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueEventsWaitWithBarrierReusableEventTest>
+  Added 8 lines (total test lines: 205)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 10: exp_graph-test
+  Running: build/test/conformance/exp_graph/exp_graph-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urEnqueueGraphExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphCreateExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphDestroyExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphDumpContentsExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphExecutableGraphGetNativeHandleExpInvalidTest>
+  UninstantiatedParameterizedTestSuite<urGraphExecutableGraphGetNativeHandleExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphGetIdExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphGetNativeHandleExpInvalidTest>
+  UninstantiatedParameterizedTestSuite<urGraphGetNativeHandleExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphInstantiateGraphExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphInstantiatePopulatedGraphExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphNonEmptyExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphEmptyExpTest>
+  UninstantiatedParameterizedTestSuite<urGraphSetDestructionCallbackExpTest>
+  UninstantiatedParameterizedTestSuite<urQueueBeginCaptureIntoGraphExpTest>
+  UninstantiatedParameterizedTestSuite<urQueueBeginCaptureIntoPopulatedGraphExpTest>
+  UninstantiatedParameterizedTestSuite<urQueueBeginGraphCaptureExpTest>
+  UninstantiatedParameterizedTestSuite<urQueueEndGraphCaptureExpTest>
+  UninstantiatedParameterizedTestSuite<urQueueIsGraphCaptureEnabledExpTest>
+  UninstantiatedParameterizedTestSuite<urQueueIsGraphCaptureEnabledExpMultiQueueTest>
+  UninstantiatedParameterizedTestSuite<urQueueGetGraphExpTest>
+  UninstantiatedParameterizedTestSuite<urQueueGetGraphExpMultiQueueTest>
+  Added 28 lines (total test lines: 233)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 11: adapter-test
+  Running: build/test/conformance/adapter/adapter-test --gtest_list_tests
+urAdapterGetTest.
+  Success
+  InvalidNumEntries
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urAdapterGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urAdapterGetLastErrorTest>
+  UninstantiatedParameterizedTestSuite<urAdapterRetainTest>
+  UninstantiatedParameterizedTestSuite<urAdapterReleaseTest>
+  Added 8 lines (total test lines: 241)
+  Sample output (first 3 lines):
+    urAdapterGetTest.
+      Success
+      InvalidNumEntries
+Processing binary 12: exp_command_buffer-test
+  Running: build/test/conformance/exp_command_buffer/exp_command_buffer-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urCommandBufferReleaseExpTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferRetainExpTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferCommandsTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferAppendKernelLaunchExpTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferFillCommandsTest>
+  UninstantiatedParameterizedTestSuite<CommandEventSyncTest>
+  UninstantiatedParameterizedTestSuite<KernelCommandEventSyncTest>
+  UninstantiatedParameterizedTestSuite<InvalidCreationTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferMemcpyCommandsTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferReadCommandsTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferWriteCommandsTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferAppendMemBufferReadRectTestWithParam>
+  UninstantiatedParameterizedTestSuite<urCommandBufferAppendMemBufferWriteRectTestWithParam>
+  UninstantiatedParameterizedTestSuite<urEnqueueCommandBufferExpTest>
+  UninstantiatedParameterizedTestSuite<urInOrderUSMCommandBufferExpTest>
+  UninstantiatedParameterizedTestSuite<urInOrderBufferCommandBufferExpTest>
+  UninstantiatedParameterizedTestSuite<BufferFillCommandTest>
+  UninstantiatedParameterizedTestSuite<InvalidUpdateTest>
+  UninstantiatedParameterizedTestSuite<InvalidUpdateCommandBufferExpExecutionTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferKernelHandleUpdateTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferValidUpdateParametersTest>
+  UninstantiatedParameterizedTestSuite<USMFillCommandTest>
+  UninstantiatedParameterizedTestSuite<USMMultipleFillCommandTest>
+  UninstantiatedParameterizedTestSuite<BufferSaxpyKernelTest>
+  UninstantiatedParameterizedTestSuite<NDRangeUpdateTest>
+  UninstantiatedParameterizedTestSuite<USMSaxpyKernelTest>
+  UninstantiatedParameterizedTestSuite<USMMultiSaxpyKernelTest>
+  UninstantiatedParameterizedTestSuite<CommandEventSyncUpdateTest>
+  UninstantiatedParameterizedTestSuite<KernelCommandEventSyncUpdateTest>
+  UninstantiatedParameterizedTestSuite<LocalMemoryUpdateTest>
+  UninstantiatedParameterizedTestSuite<LocalMemoryMultiUpdateTest>
+  UninstantiatedParameterizedTestSuite<urUpdatableEnqueueCommandBufferExpTest>
+  UninstantiatedParameterizedTestSuite<urCommandBufferUSMCopyInOrderTest>
+  Added 39 lines (total test lines: 280)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 13: exp_usm_context_memcpy-test
+  Running: build/test/conformance/exp_usm_context_memcpy/exp_usm_context_memcpy-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urUSMContextMemcpyExpTestDevice>
+  UninstantiatedParameterizedTestSuite<urUSMContextMemcpyExpTestHost>
+  UninstantiatedParameterizedTestSuite<urUSMContextMemcpyExpTestShared>
+  Added 9 lines (total test lines: 289)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 14: device-test
+  Running: build/test/conformance/device/device-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urDeviceCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urDeviceGetTest>
+  UninstantiatedParameterizedTestSuite<urDeviceGetTestWithDeviceTypeParam>
+  UninstantiatedParameterizedTestSuite<urDeviceGetGlobalTimestampTest>
+  UninstantiatedParameterizedTestSuite<urDeviceGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urDeviceGetInfoComponentDevicesTest>
+  UninstantiatedParameterizedTestSuite<urDeviceGetNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urDeviceGetSelectedTest>
+  UninstantiatedParameterizedTestSuite<urDevicePartitionTest>
+  UninstantiatedParameterizedTestSuite<urDevicePartitionAffinityDomainTest>
+  UninstantiatedParameterizedTestSuite<urDevicePartitionByCountsTestWithParam>
+  UninstantiatedParameterizedTestSuite<urDeviceReleaseTest>
+  UninstantiatedParameterizedTestSuite<urDeviceRetainTest>
+  UninstantiatedParameterizedTestSuite<urDeviceSelectBinaryTest>
+  Added 20 lines (total test lines: 309)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 15: exp_host_task-test
+  Running: build/test/conformance/exp_host_task/exp_host_task-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urEnqueueHostTaskTest>
+  Added 7 lines (total test lines: 316)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 16: usm-test
+  Running: build/test/conformance/usm/usm-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urUSMDeviceAllocTest>
+  UninstantiatedParameterizedTestSuite<urUSMDeviceAllocAlignmentTest>
+  UninstantiatedParameterizedTestSuite<urUSMFreeTest>
+  UninstantiatedParameterizedTestSuite<urUSMFreeDuringExecutionTest>
+  UninstantiatedParameterizedTestSuite<urUSMGetMemAllocInfoPoolTest>
+  UninstantiatedParameterizedTestSuite<urUSMGetMemAllocInfoTest>
+  UninstantiatedParameterizedTestSuite<urUSMHostAllocTest>
+  UninstantiatedParameterizedTestSuite<urUSMHostAllocAlignmentTest>
+  UninstantiatedParameterizedTestSuite<urUSMPoolCreateTest>
+  UninstantiatedParameterizedTestSuite<urUSMPoolGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urUSMPoolReleaseTest>
+  UninstantiatedParameterizedTestSuite<urUSMPoolRetainTest>
+  UninstantiatedParameterizedTestSuite<urUSMSharedAllocTest>
+  UninstantiatedParameterizedTestSuite<urUSMSharedAllocAlignmentTest>
+  Added 20 lines (total test lines: 336)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 17: exp_usm_host_mem_register-test
+  Running: build/test/conformance/exp_usm_host_mem_register/exp_usm_host_mem_register-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urUSMHostMemRegisterTest>
+  Added 7 lines (total test lines: 343)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 18: exp_kernel_launch_with_args-test
+  Running: build/test/conformance/exp_enqueue_kernel_launch_with_args/exp_kernel_launch_with_args-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchWithArgsTest>
+  UninstantiatedParameterizedTestSuite<urEnqueueKernelLaunchWithArgsMemObjTest>
+  Added 8 lines (total test lines: 351)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 19: kernel-test
+  Running: build/test/conformance/kernel/kernel-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urKernelCreateTest>
+  UninstantiatedParameterizedTestSuite<urMultiDeviceKernelCreateTest>
+  UninstantiatedParameterizedTestSuite<urKernelCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urKernelGetGroupInfoFixedWorkGroupSizeTest>
+  UninstantiatedParameterizedTestSuite<urKernelGetGroupInfoMaxWorkGroupSizeTest>
+  UninstantiatedParameterizedTestSuite<urKernelGetGroupInfoTest>
+  UninstantiatedParameterizedTestSuite<urKernelGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urKernelGetNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urKernelGetSubGroupInfoFixedSubGroupSizeTest>
+  UninstantiatedParameterizedTestSuite<urKernelGetSubGroupInfoTest>
+  UninstantiatedParameterizedTestSuite<urKernelReleaseTest>
+  UninstantiatedParameterizedTestSuite<urKernelRetainTest>
+  UninstantiatedParameterizedTestSuite<urKernelSetExecInfoTest>
+  UninstantiatedParameterizedTestSuite<urKernelSetExecInfoUSMPointersTest>
+  UninstantiatedParameterizedTestSuite<urKernelSetExecInfoCacheConfigTest>
+  UninstantiatedParameterizedTestSuite<urKernelSetSpecializationConstantsTest>
+  UninstantiatedParameterizedTestSuite<urKernelSetSpecializationConstantsNegativeTest>
+  UninstantiatedParameterizedTestSuite<urKernelSuggestMaxCooperativeGroupCountTest>
+  UninstantiatedParameterizedTestSuite<urKernelGetSuggestedLocalWorkSizeTest>
+  Added 25 lines (total test lines: 376)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 20: memory-migrate-test
+  Running: build/test/conformance/memory-migrate/memory-migrate-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urMultiDeviceContextMemBufferTest>
+  Added 7 lines (total test lines: 383)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 21: integration-test
+  Running: build/test/conformance/integration/integration-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<QueueEmptyStatusTest>
+  UninstantiatedParameterizedTestSuite<QueueUSMTest>
+  UninstantiatedParameterizedTestSuite<QueueBufferTest>
+  Added 9 lines (total test lines: 392)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 22: platform-test
+  Running: build/test/conformance/platform/platform-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urPlatformCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urPlatformGetTest>
+  UninstantiatedParameterizedTestSuite<urPlatformGetApiVersionTest>
+  UninstantiatedParameterizedTestSuite<urPlatformGetBackendOptionTest>
+  UninstantiatedParameterizedTestSuite<urPlatformGetBackendOptionNegativeTest>
+  UninstantiatedParameterizedTestSuite<urPlatformGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urPlatformGetNativeHandleTest>
+  Added 13 lines (total test lines: 405)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Processing binary 23: event-test
+  Running: build/test/conformance/event/event-test --gtest_list_tests
+/__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+Value of: platforms.empty()
+  Actual: true
+Expected: false
+No platforms are available on any adapters
+GoogleTestVerification.
+  UninstantiatedParameterizedTestSuite<urEventGetInfoTest>
+  UninstantiatedParameterizedTestSuite<urEventGetProfilingInfoTest>
+  UninstantiatedParameterizedTestSuite<urEventGetProfilingInfoForWaitWithBarrier>
+  UninstantiatedParameterizedTestSuite<urEventGetProfilingInfoInvalidQueue>
+  UninstantiatedParameterizedTestSuite<urEventWaitTest>
+  UninstantiatedParameterizedTestSuite<urEventWaitNegativeTest>
+  UninstantiatedParameterizedTestSuite<urEventRetainTest>
+  UninstantiatedParameterizedTestSuite<urEventReleaseTest>
+  UninstantiatedParameterizedTestSuite<urEventGetNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urEventCreateWithNativeHandleTest>
+  UninstantiatedParameterizedTestSuite<urEventSetCallbackTest>
+  UninstantiatedParameterizedTestSuite<urEventSetCallbackNegativeTest>
+  Added 18 lines (total test lines: 423)
+  Sample output (first 3 lines):
+    /__w/llvm/llvm/unified-runtime/test/conformance/source/environment.cpp:94: Failure
+    Value of: platforms.empty()
+      Actual: true
+Summary: Processed 23 binaries, collected 423 test definition lines
+Run if [ ! -f conformance_tests.log ]; then
+=== Test Statistics ===
+Total Discovered Tests: 11653
+  Skipped: 3886 (33.35%)
+  Passed : 7767 (66.65%)
+
+Skipped Tests (3886)
+  Warning: Could not extract individual skipped test names.
+  Statistics show 3886 skipped tests, but they are not available in the output.
+  
+  Debug info:
+    - Inline UNSUPPORTED found: 0
+    - GoogleTest SKIPPED found: 0
+    - all_tests_file provided: all_conformance_tests.txt
+    - Tests parsed from file: 2
+    - Known tests (from LIT output): 7767
+    - Computed skipped: 0
+Passed Tests (7767)
+
+Warning: Test count mismatch: Total Discovered = 11653, but sum of all categories = 7767
+Warning: 3886 tests are unaccounted for.
+This may indicate tests in unexpected categories or parsing issues.
+Categories found: Passed

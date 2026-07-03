@@ -55,10 +55,20 @@ runs:
         
         # Run with debug to see what happens
         echo "  Running: $binary --gtest_list_tests"
-        "$binary" --gtest_list_tests 2>&1 | tee -a /dev/stderr | grep -v "^$" >> all_conformance_tests.txt || {
+        
+        # Capture output to temp file to avoid SIGPIPE with tee/grep pipe
+        temp_output=$(mktemp)
+        "$binary" --gtest_list_tests > "$temp_output" 2>&1 || {
           exit_code=$?
           echo "  Warning: $binary_name failed with --gtest_list_tests (exit code $exit_code)"
         }
+        
+        # Show errors/warnings to stderr for debugging
+        cat "$temp_output" >&2
+        
+        # Filter empty lines and append to all_conformance_tests.txt
+        grep -v "^$" "$temp_output" >> all_conformance_tests.txt
+        rm -f "$temp_output"
         
         after=$(wc -l < all_conformance_tests.txt 2>/dev/null || echo 0)
         added=$((after - before))
