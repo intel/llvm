@@ -13,23 +13,25 @@
 #include "device.hpp"
 #include "platform.hpp"
 
-struct ur_device_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_device_handle_t_ : handle_base {
   using native_type = cl_device_id;
   native_type CLDevice;
-  ur_platform_handle_t Platform;
+  ur_platform_handle_t_ *Platform;
   cl_device_type Type = 0;
-  ur_device_handle_t ParentDevice = nullptr;
+  ur_device_handle_t_ *ParentDevice = nullptr;
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
 
   ur_device_handle_t_(const ur_device_handle_t_ &) = delete;
   ur_device_handle_t_ &operator=(const ur_device_handle_t_ &) = delete;
 
-  ur_device_handle_t_(native_type Dev, ur_platform_handle_t Plat,
-                      ur_device_handle_t Parent)
+  ur_device_handle_t_(native_type Dev, ur_platform_handle_t_ *Plat,
+                      ur_device_handle_t_ *Parent)
       : handle_base(), CLDevice(Dev), Platform(Plat), ParentDevice(Parent) {
-    if (Parent) {
-      Type = Parent->Type;
+    if (ParentDevice) {
+      Type = ParentDevice->Type;
       [[maybe_unused]] auto Res = clRetainDevice(CLDevice);
       assert(Res == CL_SUCCESS);
     } else {
@@ -111,3 +113,5 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
     return UR_RESULT_SUCCESS;
   }
 };
+
+} // namespace ur::opencl
