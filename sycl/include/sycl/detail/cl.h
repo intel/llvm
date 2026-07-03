@@ -20,11 +20,7 @@
 #define CL_ENABLE_BETA_EXTENSIONS
 #endif
 
-// Don't include the OpenCL headers when compiling for the SYCL device with the
-// internal API, as they only define the host-side API. The opaque type aliases
-// defined below stand in so the SYCL headers that include this file still
-// parse.
-#if !defined(__SYCL_DEVICE_ONLY__) || !defined(__SYCL_INTERNAL_API)
+#if !defined(__SYCL_DEVICE_ONLY__) || !defined(__SYCL_JIT__)
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #endif
