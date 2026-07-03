@@ -23,8 +23,12 @@ runs:
       fi
       
       echo "::group::Show Full Test Adapters Logs"
-      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log | sed '/^\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*/,$d'
+      # Save full log first to avoid SIGPIPE from sed closing pipe early
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log
       EXIT_CODE=${PIPESTATUS[0]}
+      
+      # Filter out duplicate summary section for display (keep full log in file)
+      sed '/^\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*/,$d' conformance_tests.log
       echo "::endgroup::"
       exit $EXIT_CODE
   

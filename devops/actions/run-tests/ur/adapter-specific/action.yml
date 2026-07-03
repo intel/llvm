@@ -24,8 +24,12 @@ runs:
       fi
       
       echo "::group::Show Full Test Adapter Specific Logs"
-      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log | sed '/^\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*/,$d'
+      # Save full log first to avoid SIGPIPE from sed closing pipe early
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log
       EXIT_CODE=${PIPESTATUS[0]}
+      
+      # Filter out duplicate summary section for display (keep full log in file)
+      sed '/^\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*/,$d' adapter_tests.log
       echo "::endgroup::"
       exit $EXIT_CODE
   
