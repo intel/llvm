@@ -12,7 +12,8 @@ RUN zypper --non-interactive refresh && \
       autoconf \
       automake \
       libtool \
-      awk && \
+      awk \
+      git && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
     zypper clean --all
 
