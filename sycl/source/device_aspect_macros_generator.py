@@ -10,16 +10,19 @@ def process_aspects(file_path, is_deprecated=False):
 
     output = ""
     for line in lines:
+        stripped_line = line.strip()
+        if not stripped_line or stripped_line.startswith("#") or stripped_line.startswith("//"):
+            continue
         if is_deprecated:
             aspect_macro = (
-                line.strip().replace("__SYCL_ASPECT_DEPRECATED(", "").replace(")", "")
+                stripped_line.replace("__SYCL_ASPECT_DEPRECATED(", "").replace(")", "")
             )
             aspect_name, aspect_number, _ = aspect_macro.split(
                 ", ", 2
             )  # ignore the third parameter (message)
             output += f"// __SYCL_ASPECT_DEPRECATED({aspect_name}, {aspect_number})\n"
         else:
-            aspect_macro = line.strip().replace("__SYCL_ASPECT(", "").replace(")", "")
+            aspect_macro = stripped_line.replace("__SYCL_ASPECT(", "").replace(")", "")
             aspect_name, aspect_number = aspect_macro.split(", ")
             output += f"// __SYCL_ASPECT({aspect_name}, {aspect_number})\n"
 
