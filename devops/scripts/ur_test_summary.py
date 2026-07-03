@@ -131,7 +131,7 @@ def extract_unsupported_from_lit_inline(lines: List[str]) -> List[str]:
     """
     unsupported = []
     seen = set()
-    # Pattern: "UNSUPPORTED: test_name" or "SKIP: test_name" 
+    # Pattern: "UNSUPPORTED: test_name" or "SKIP: test_name"
     unsupported_pattern = re.compile(r"^(UNSUPPORTED|SKIP):\s+(.+?)(?:\s+\(|$)")
 
     for line in lines:
