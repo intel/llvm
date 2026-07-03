@@ -24,18 +24,6 @@ namespace ext::oneapi::experimental {
 void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
                          ur_image_format_t &urFormat, size_t pitch = 0) {
 
-  // check for sRGB
-  if (desc.color_space == image_color_space::srgb) {
-    if (desc.num_channels != 4) {
-      throw sycl::exception(sycl::errc::invalid,
-                            "sRGB color space requires num_channels == 4");
-    }
-    if (desc.channel_type != image_channel_type::unorm_int8) {
-      throw sycl::exception(
-          sycl::errc::invalid,
-          "sRGB color space requires unorm_int8 channel type");
-    }
-  }
   urDesc = {};
   urDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   urDesc.width = desc.width;
@@ -63,13 +51,16 @@ void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
 
   urFormat = {};
   urFormat.channelType = sycl::detail::convertChannelType(desc.channel_type);
-  if (desc.color_space == image_color_space::srgb) {
-    urFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_SRGBA;
-  } else {
-    urFormat.channelOrder = sycl::detail::convertChannelOrder(
-        sycl::ext::oneapi::experimental::detail::
-            get_image_default_channel_order(desc.num_channels));
-  }
+  const auto channelOrder = sycl::detail::convertChannelOrder(
+      sycl::ext::oneapi::experimental::detail::get_image_default_channel_order(
+          desc.num_channels));
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  urFormat.channelOrder = (desc.color_space == image_color_space::srgb)
+                              ? UR_IMAGE_CHANNEL_ORDER_SRGBA
+                              : channelOrder;
+#else
+  urFormat.channelOrder = channelOrder;
+#endif
 }
 
 detail::image_mem_impl::image_mem_impl(const image_descriptor &desc,
