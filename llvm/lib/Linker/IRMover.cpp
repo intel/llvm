@@ -1568,11 +1568,8 @@ Error IRLinker::run() {
 
   if (!IsPerformingImport && !SrcM->getModuleInlineAsm().empty()) {
     // Append the module inline asm string.
-    for (const Module::GlobalAsmFragment &Frag : SrcM->getModuleInlineAsm()) {
-      Module::GlobalAsmFragment NewFrag(Frag);
-      NewFrag.Asm = adjustInlineAsm(NewFrag.Asm, SrcTriple);
-      DstM.appendModuleInlineAsm(std::move(NewFrag));
-    }
+    DstM.appendModuleInlineAsm(adjustInlineAsm(SrcM->getModuleInlineAsm(),
+                                               SrcTriple));
   } else if (IsPerformingImport) {
     // Import any symver directives for symbols in DstM.
     ModuleSymbolTable::CollectAsmSymvers(*SrcM,
@@ -1582,7 +1579,7 @@ Error IRLinker::run() {
         S += Name;
         S += ", ";
         S += Alias;
-        DstM.appendModuleInlineAsm(std::string(S));
+        DstM.appendModuleInlineAsm(S);
       }
     });
   }
