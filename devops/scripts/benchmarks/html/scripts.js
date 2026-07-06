@@ -1048,7 +1048,7 @@ function getLayerTags(metadata) {
     const layerTags = new Set();
     if (metadata?.tags) {
         metadata.tags.forEach(tag => {
-            if (tag.startsWith('SYCL') || tag.startsWith('UR') || tag === 'L0') {
+            if (tag.startsWith('SYCL') || tag.startsWith('UR') || tag === 'L0' || tag === 'OL') {
                 layerTags.add(tag);
             }
         });

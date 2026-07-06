@@ -10,6 +10,7 @@ class RUNTIMES(Enum):
     SYCL = "sycl"
     LEVEL_ZERO = "l0"
     UR = "ur"
+    OL = "ol"
 
 
 class PROFILERS(Enum):
@@ -29,4 +30,5 @@ def runtime_to_tag_name(runtime: RUNTIMES) -> str:
         RUNTIMES.SYCL: "SYCL",
         RUNTIMES.LEVEL_ZERO: "L0",
         RUNTIMES.UR: "UR",
+        RUNTIMES.OL: "OL",
     }[runtime]
