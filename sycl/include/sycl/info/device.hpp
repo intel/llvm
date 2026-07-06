@@ -431,11 +431,10 @@ struct __SYCL_DEPRECATED("use sycl::aspect::usm_device_allocations instead")
     usm_device_allocations : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
   using return_type = bool;
 };
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-struct usm_host_allocations : device_traits<UR_DEVICE_INFO_USM_HOST_SUPPORT> {
+struct __SYCL_DEPRECATED("use sycl::aspect::usm_host_allocations instead")
+    usm_host_allocations : device_traits<UR_DEVICE_INFO_USM_HOST_SUPPORT> {
   using return_type = bool;
 };
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct __SYCL_DEPRECATED("use sycl::aspect::usm_shared_allocations instead")
     usm_shared_allocations
     : device_traits<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT> {
@@ -538,10 +537,13 @@ struct __SYCL_DEPRECATED(
   using return_type = id<3>;
 };
 
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-struct ext_oneapi_max_global_work_groups : device_runtime_traits {
+struct __SYCL_DEPRECATED(
+    "use sycl::ext::oneapi::experimental::info::max_global_work_groups "
+    "instead") ext_oneapi_max_global_work_groups : device_runtime_traits {
   using return_type = size_t;
 };
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 struct ext_oneapi_cuda_cluster_group : device_runtime_traits {
   using return_type = bool;
 };

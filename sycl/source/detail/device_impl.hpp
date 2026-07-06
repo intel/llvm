@@ -828,13 +828,11 @@ public:
           get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
           UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(info::device::usm_host_allocations) {
       return static_cast<bool>(
           get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
           UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(info::device::usm_shared_allocations) {
       return static_cast<bool>(
           get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
@@ -869,15 +867,12 @@ public:
       return get_info_impl<UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH>();
     }
 
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
       return get_info<
           ext::oneapi::experimental::info::device::max_global_work_groups,
           DependentFalse>();
     }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(info::device::ext_oneapi_max_work_groups_1d) {
       // Deprecated alias.
       return get_info<
@@ -1272,10 +1267,10 @@ public:
     CASE(usm_device_allocations) {
       return get_info<info::device::usm_device_allocations>();
     }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_host_allocations) {
       return get_info<info::device::usm_host_allocations>();
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(ext_oneapi_cuda_cluster_group) {
       return get_info<info::device::ext_oneapi_cuda_cluster_group>();
     }

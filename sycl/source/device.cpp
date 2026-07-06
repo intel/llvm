@@ -284,9 +284,7 @@ __SYCL_DEVICE_INFO_INST(atomic64, bool)
 __SYCL_DEVICE_INFO_INST(reference_count, uint32_t)
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(usm_device_allocations, bool)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(usm_host_allocations, bool)
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(usm_shared_allocations, bool)
 __SYCL_DEVICE_INFO_INST(usm_restricted_shared_allocations, bool)
 __SYCL_DEVICE_INFO_INST(usm_system_allocations, bool)
@@ -308,8 +306,8 @@ __SYCL_DEVICE_INFO_INST(ext_intel_max_mem_bandwidth, uint64_t)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_1d, id<1>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_2d, id<2>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_3d, id<3>)
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_global_work_groups, size_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_oneapi_cuda_cluster_group, bool)
 #undef __SYCL_DEVICE_INFO_INST
 
