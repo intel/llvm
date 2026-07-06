@@ -119,50 +119,50 @@ if(CLANG_BUILD_TOOLS)
     endif()
   endforeach()
 
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    # On Linux, real binaries live in lib/dpcpp-N/bin/ so the public dpclang*
-    # entry-points go into ${CMAKE_INSTALL_BINDIR} as symlinks pointing there.
-    # Ensure ${CMAKE_INSTALL_BINDIR} exists — no real binaries install there.
-    install(DIRECTORY DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT clang)
+  # Both Linux and Windows relocate the real tools into lib/dpcpp-N/bin/ so
+  # they don't collide with a system LLVM. The public dpclang* entry-points go
+  # into ${CMAKE_INSTALL_BINDIR}; no real binaries install there directly, so
+  # make sure the directory exists.
+  install(DIRECTORY DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT clang)
 
-    if(LLVM_USE_SYMLINKS)
-      set(_dpclang_link_or_copy create_symlink)
-    else()
-      set(_dpclang_link_or_copy copy)
-    endif()
+  # ${CMAKE_EXECUTABLE_SUFFIX} is empty on Linux and ".exe" on Windows, so the
+  # same code produces dpclang / dpclang-N / ... on Linux and dpclang.exe /
+  # dpclang-N.exe / ... on Windows.
+  set(_exe "${CMAKE_EXECUTABLE_SUFFIX}")
 
-    # Compute the relative path from $bindir to clang++ inside the tools dir.
-    set(_abs_bindir "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}")
-    set(_abs_toolsdir "${CMAKE_INSTALL_PREFIX}/${DPCPP_INSTALL_INTERNAL_BINDIR}")
-    file(RELATIVE_PATH _dpclang_clangpp "${_abs_bindir}" "${_abs_toolsdir}/clang++")
+  # dpclang-N points at clang++ inside the versioned tools dir; the remaining
+  # names chain to dpclang-N. install_symlink resolves a relative source
+  # against ${CMAKE_INSTALL_BINDIR}, so use a path relative to bin/.
+  set(_abs_bindir "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}")
+  set(_abs_toolsdir "${CMAKE_INSTALL_PREFIX}/${DPCPP_INSTALL_INTERNAL_BINDIR}")
+  file(RELATIVE_PATH _dpclang_primary_target
+        "${_abs_bindir}" "${_abs_toolsdir}/clang++${_exe}")
 
-    # dpclang-MAJOR → clang++ (in lib/dpcpp-N/bin/); dpclang/dpclang++/etc → dpclang-MAJOR
-    install(SCRIPT ${INSTALL_SYMLINK}
-            CODE "install_symlink(\"dpclang-${DPCPP_VERSION_MAJOR}\" \"${_dpclang_clangpp}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
-            COMPONENT clang)
-    install(SCRIPT ${INSTALL_SYMLINK}
-            CODE "install_symlink(\"dpclang\" \"dpclang-${DPCPP_VERSION_MAJOR}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
-            COMPONENT clang)
-    foreach(_link dpclang++ dpclang-cl dpclang-cpp)
-      install(SCRIPT ${INSTALL_SYMLINK}
-              CODE "install_symlink(\"${_link}\" \"dpclang-${DPCPP_VERSION_MAJOR}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
-              COMPONENT clang)
-    endforeach()
+  if(LLVM_USE_SYMLINKS)
+    # Linux default: relative symlinks. Resolving the symlink at startup lands
+    # the driver inside the versioned tools dir where its companion tools live.
+    set(_dpclang_link_or_copy create_symlink)
   else()
-    # On Windows (and other non-Linux), all tools already install into bin/.
-    # Use copy: hardlinks would save space on the build machine but the savings
-    # are lost after zip/tar extraction on the target machine anyway, and
-    # create_hardlink fails if source and destination are on different volumes.
+    # Windows default (LLVM_USE_SYMLINKS defaults to OFF on non-UNIX hosts):
+    # real copies. A copied executable is not a symlink, so the driver can't
+    # discover its companion tools by walking up from its own location; the
+    # base ToolChain constructor seeds lib/dpcpp-N/bin/ into the program
+    # search path (see clang/lib/Driver/ToolChain.cpp) to compensate.
     set(_dpclang_link_or_copy copy)
-    foreach(_link dpclang dpclang++ dpclang-cl dpclang-cpp)
-      install(SCRIPT ${INSTALL_SYMLINK}
-              CODE "install_symlink(\"${_link}\" \"clang\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
-              COMPONENT clang)
-    endforeach()
-    install(SCRIPT ${INSTALL_SYMLINK}
-            CODE "install_symlink(\"dpclang-${DPCPP_VERSION_MAJOR}\" \"clang\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
-            COMPONENT clang)
   endif()
+
+  # dpclang-MAJOR → clang++ (in lib/dpcpp-N/bin/); dpclang/dpclang++/etc → dpclang-MAJOR
+  install(SCRIPT ${INSTALL_SYMLINK}
+          CODE "install_symlink(\"dpclang-${DPCPP_VERSION_MAJOR}${_exe}\" \"${_dpclang_primary_target}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
+          COMPONENT clang)
+  install(SCRIPT ${INSTALL_SYMLINK}
+          CODE "install_symlink(\"dpclang${_exe}\" \"dpclang-${DPCPP_VERSION_MAJOR}${_exe}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
+          COMPONENT clang)
+  foreach(_link dpclang++ dpclang-cl dpclang-cpp)
+    install(SCRIPT ${INSTALL_SYMLINK}
+            CODE "install_symlink(\"${_link}${_exe}\" \"dpclang-${DPCPP_VERSION_MAJOR}${_exe}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
+            COMPONENT clang)
+  endforeach()
 endif()
 
 # Configure plist creation for OS X.

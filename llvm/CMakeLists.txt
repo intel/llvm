@@ -538,11 +538,7 @@ set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
 # they don't conflict with a system LLVM installation.  The public dpclang*
 # entry-points in ${CMAKE_INSTALL_BINDIR} are added by clang/tools/driver.
 # This block must be after project() so that CMAKE_SYSTEM_NAME is defined.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  set(DPCPP_INSTALL_INTERNAL_BINDIR "lib/dpcpp-${DPCPP_VERSION_MAJOR}/bin")
-else()
-  set(DPCPP_INSTALL_INTERNAL_BINDIR "bin")
-endif()
+set(DPCPP_INSTALL_INTERNAL_BINDIR "lib/dpcpp-${DPCPP_VERSION_MAJOR}/bin")
 set(LLVM_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE STRING 
     "Path for binary subdirectory (defaults to '${DPCPP_INSTALL_INTERNAL_BINDIR}')" FORCE)
 set(CLANG_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
