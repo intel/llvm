@@ -108,14 +108,14 @@ int main() {
 
   q.submit([&](sycl::handler &h) {
     h.single_task<class TestActualAlloc>([&]() {
-      // expected-note@Inputs/sycl.hpp:322 {{called by 'kernel_single_task<TestActualAlloc}}
+      // expected-note@Inputs/sycl.hpp:312 {{called by 'kernel_single_task<TestActualAlloc}}
       actual_allocation(); // expected-note {{called by 'operator()'}}
     });
   });
 
   q.submit([&](sycl::handler &h) {
     h.single_task<class TestActualArrayAlloc>([&]() {
-      // expected-note@Inputs/sycl.hpp:322 {{called by 'kernel_single_task<TestActualArrayAlloc}}
+      // expected-note@Inputs/sycl.hpp:312 {{called by 'kernel_single_task<TestActualArrayAlloc}}
       actual_array_allocation(); // expected-note {{called by 'operator()'}}
     });
   });

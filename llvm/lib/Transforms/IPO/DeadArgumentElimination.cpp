@@ -838,7 +838,6 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
         F->setMetadata(MDName, llvm::MDNode::get(F->getContext(), NewMDOps));
       }
     };
-    FixupMetadata("kernel_arg_buffer_location");
     FixupMetadata("kernel_arg_runtime_aligned");
     FixupMetadata("kernel_arg_exclusive_ptr");
     FixupMetadata("kernel_arg_addr_space");
