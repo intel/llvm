@@ -56,11 +56,12 @@
 // Guard 1: no iostream machinery in the dependency graph.
 // RUN: FileCheck %s < %t.d
 //
-// Guard 2: no raw stream #include in any KHR-reachable SYCL header. Extract the
-// SYCL header paths from the -MD list and grep their sources; the leading '!'
-// makes lit fail the test if grep finds a match.
-// RUN: ! grep -oE '[^ ]*/include/sycl/[^ ]*\.hpp' %t.d \
-// RUN:   | xargs grep -HnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*<(iostream|istream|ostream|sstream)>'
+// Guard 2: no raw stream #include in any KHR-reachable SYCL header. A small
+// Python helper extracts the SYCL header paths from the -MD list and greps
+// their sources; it exits nonzero if it finds a match. Done in Python rather
+// than a grep/xargs pipeline so the guard runs on the Windows lit shell too,
+// and so it handles both '/' and '\' dependency-path separators.
+// RUN: %python %sycl_tools_src_dir/check_no_raw_stream_include.py %t.d
 //
 // CHECK-NOT: iostream_proxy.hpp
 // CHECK-NOT: {{/iostream[ \\]}}
