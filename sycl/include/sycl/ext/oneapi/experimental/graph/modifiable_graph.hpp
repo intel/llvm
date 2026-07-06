@@ -162,6 +162,9 @@ public:
   /// Returns true if the graph contains no nodes.
   bool empty() const;
 
+  /// Returns a process-unique ID associated with this graph object.
+  size_t get_id() const noexcept;
+
   /// Common Reference Semantics
   friend bool operator==(const modifiable_command_graph &LHS,
                          const modifiable_command_graph &RHS) {
