@@ -165,7 +165,8 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList);
 
-  auto barrierFn = (flags & UR_QUEUE_FLAG_PROFILING_ENABLE)
+  bool needsRealBarrier = (flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
+  auto barrierFn = needsRealBarrier
                        ? &ur_command_list_manager::appendEventsWaitWithBarrier
                        : &ur_command_list_manager::appendEventsWait;
 

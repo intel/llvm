@@ -103,9 +103,9 @@ uint64_t *event_profiling_data_t::eventEndTimestampAddr() {
 
 ur_event_handle_t_::ur_event_handle_t_(
     ur_context_handle_t hContext, ur_event_handle_t_::event_variant hZeEvent,
-    v2::event_flags_t flags, v2::event_pool *pool, bool ownZeEvent)
+    v2::event_flags_t flags, v2::event_pool *pool)
     : hContext(hContext), event_pool(pool), hZeEvent(std::move(hZeEvent)),
-      ownZeEvent(ownZeEvent), flags(flags), profilingData(getZeEvent()) {}
+      flags(flags), profilingData(getZeEvent()) {}
 
 void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   this->hQueue = hQueue;
@@ -124,8 +124,7 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
 ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
                                        v2::raii::ze_event_handle_t hZeEvent,
                                        v2::event_flags_t flags)
-    : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr,
-                         /*ownZeEvent=*/true) {}
+    : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr) {}
 
 void ur_event_handle_t_::setBatch(ur_event_generation_t batch_generation) {
   this->batchGeneration = batch_generation;
@@ -170,11 +169,7 @@ void ur_event_handle_t_::reset() {
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
-  if (event_pool) {
-    return std::get<v2::raii::cache_borrowed_event>(hZeEvent).get();
-  } else {
-    return std::get<v2::raii::ze_event_handle_t>(hZeEvent).get();
-  }
+  return std::visit([](const auto &handle) { return handle.get(); }, hZeEvent);
 }
 
 ur_result_t ur_event_handle_t_::retain() {
@@ -182,17 +177,22 @@ ur_result_t ur_event_handle_t_::retain() {
   return UR_RESULT_SUCCESS;
 }
 
+struct event_teardown {
+  v2::event_pool *event_pool;
+  ur_event_handle_t_ *event;
+
+  void operator()(const v2::raii::cache_borrowed_event &) {
+    event_pool->free(event);
+  }
+
+  void operator()(const v2::raii::ze_event_handle_t &) { delete event; }
+};
+
 ur_result_t ur_event_handle_t_::release() {
   if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
-  if (event_pool) {
-    event_pool->free(this);
-  } else {
-    if (!ownZeEvent)
-      std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
-    delete this;
-  }
+  std::visit(event_teardown{event_pool, this}, hZeEvent);
   return UR_RESULT_SUCCESS;
 }
 
