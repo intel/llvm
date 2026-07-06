@@ -23,7 +23,7 @@ inline namespace _V1 {
 
 platform::platform() : platform(default_selector_v) {}
 
-platform::platform(cl_platform_id PlatformId) {
+platform::platform(OpenCLPlatformT PlatformId) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
@@ -41,7 +41,7 @@ platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
 }
 
-cl_platform_id platform::get() const { return impl->get(); }
+OpenCLPlatformT platform::get() const { return impl->get(); }
 
 bool platform::has_extension(detail::string_view ExtName) const {
   return impl->has_extension(std::string(std::string_view(ExtName)));
