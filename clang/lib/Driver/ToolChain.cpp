@@ -108,20 +108,36 @@ ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
     addIfExists(getFilePaths(), Path);
 
   // The real compiler tools (clang, clang++, llvm-ar, clang-offload-bundler,
-  // ...) are installed into a versioned DPC++ subdirectory so they don't
-  // conflict with a system LLVM installation. On Linux the public dpclang*
-  // entry-points in bin/ are symlinks into that directory, so D.Dir already
-  // points at it once the symlink is resolved. On Windows those entry-points
-  // are real copies that live in bin/, so D.Dir is bin/ and the companion
-  // tools are one directory removed; seed the versioned directory into the
-  // program search path so the driver can still find them. The existence
-  // check makes this a harmless duplicate on Linux and a no-op for install
-  // layouts that don't use the versioned directory at all.
+  // ...) are installed into a versioned DPC++ subdirectory (lib/dpcpp-N/bin/)
+  // so they don't conflict with a system LLVM installation. On Linux the
+  // public dpclang* entry-points in bin/ are symlinks into that directory, so
+  // D.Dir already points at it once the symlink is resolved. On Windows those
+  // entry-points are real copies that live in bin/, so D.Dir is bin/ and the
+  // companion tools are one directory removed; seed the versioned directory
+  // into the program search path so the driver can still find them.
+  //
+  // This is scoped to only fire for a real dpclang install layout: the
+  // versioned directory must exist, must be distinct from the directory the
+  // driver already runs from (D.Dir), and must actually contain the clang
+  // binary. That keeps it inert for a build tree (where the versioned dir
+  // isn't populated) and for the Linux install (where D.Dir already is the
+  // versioned dir), so libclang / non-driver consumers see no behavior change.
   {
+    std::string DpcppVersionedDir =
+        (llvm::Twine("dpcpp-") + llvm::Twine(DPCPP_VERSION_MAJOR)).str();
     SmallString<128> InternalBin(findSYCLInstallRoot(D));
     llvm::sys::path::append(InternalBin, CLANG_INSTALL_LIBDIR_BASENAME,
-                            "dpcpp-" + llvm::Twine(DPCPP_VERSION_MAJOR), "bin");
-    if (getVFS().exists(InternalBin))
+                            DpcppVersionedDir, "bin");
+    llvm::sys::path::remove_dots(InternalBin, /*remove_dot_dot=*/true);
+    // Normalize D.Dir the same way before comparing so the Linux install
+    // (where the resolved driver already lives in the versioned dir) is
+    // recognized as the same directory and skipped.
+    SmallString<128> DriverDir(D.Dir);
+    llvm::sys::path::remove_dots(DriverDir, /*remove_dot_dot=*/true);
+    SmallString<128> ClangProbe(InternalBin);
+    llvm::sys::path::append(ClangProbe, "clang");
+    if (StringRef(InternalBin) != StringRef(DriverDir) &&
+        getVFS().exists(ClangProbe))
       getProgramPaths().push_back(std::string(InternalBin));
   }
 }
