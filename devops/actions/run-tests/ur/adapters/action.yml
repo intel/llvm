@@ -89,4 +89,4 @@ runs:
         exit 0
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt
+      python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt conformance_results.xml

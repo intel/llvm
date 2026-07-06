@@ -9,6 +9,7 @@ This script processes LIT test output logs to:
 
 import sys
 import re
+import xml.etree.ElementTree as ET
 from typing import List, Dict
 from pathlib import Path
 
@@ -79,6 +80,52 @@ def extract_statistics(lines: List[str]) -> List[str]:
             result.append(line)
 
     return result
+
+
+def extract_skipped_from_xml(xml_path: str) -> List[str]:
+    """
+    Extract skipped test names from LIT xunit XML output.
+
+    LIT generates XML with --xunit-xml-output flag:
+    <testsuites>
+      <testsuite name="..." tests="123" skipped="10">
+        <testcase name="TestName" classname="TestClass">
+          <skipped message="reason"/>
+        </testcase>
+      </testsuite>
+    </testsuites>
+
+    Returns list of skipped test names in format: classname.name
+    """
+    if not xml_path or not Path(xml_path).exists():
+        return []
+
+    skipped = []
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        # Iterate through all testsuites and testcases
+        for testsuite in root.findall(".//testsuite"):
+            for testcase in testsuite.findall("testcase"):
+                # Check if testcase has <skipped> child element
+                if testcase.find("skipped") is not None:
+                    classname = testcase.get("classname", "")
+                    name = testcase.get("name", "")
+
+                    # Format: classname.name (match GoogleTest format)
+                    if classname and name:
+                        full_name = f"{classname}.{name}"
+                        skipped.append(full_name)
+                    elif name:
+                        skipped.append(name)
+
+    except ET.ParseError as e:
+        print(f"Warning: Failed to parse XML file {xml_path}: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
+
+    return skipped
 
 
 def extract_skipped_from_gtest(lines: List[str]) -> List[str]:
@@ -307,9 +354,16 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
     return categories
 
 
-def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> None:
+def show_statistics_and_lists(
+    lines: List[str], all_tests_file: str = None, xml_file: str = None
+) -> None:
     """
     Show test statistics and collapsed test lists for GitHub Actions.
+
+    Args:
+        lines: Log file lines
+        all_tests_file: Optional file with --gtest_list_tests output
+        xml_file: Optional LIT xunit XML output file
 
     Output format:
     - Statistics section (always visible)
@@ -341,13 +395,16 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
 
     # For GoogleTest format: try multiple strategies to get skipped list
     if "Unsupported" not in test_lists:
-        # Strategy 1: Extract from LIT inline output (always works if LIT prints them)
+        # Strategy 1: Extract from LIT xunit XML output (most complete and reliable)
+        skipped_xml = extract_skipped_from_xml(xml_file)
+
+        # Strategy 2: Extract from LIT inline output (works if LIT prints them)
         unsupported_inline = extract_unsupported_from_lit_inline(lines)
 
-        # Strategy 2: Extract from GoogleTest SKIPPED summary (rare, only if test uses GTEST_SKIP())
+        # Strategy 3: Extract from GoogleTest SKIPPED summary (rare, only if test uses GTEST_SKIP())
         skipped_gtest = extract_skipped_from_gtest(lines)
 
-        # Strategy 3: Compute from all_tests_file if provided
+        # Strategy 4: Compute from all_tests_file if provided
         skipped_computed = []
         if all_tests_file:
             all_tests = parse_gtest_list(all_tests_file)
@@ -387,8 +444,11 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
                 skipped_computed = [t for t in all_tests if t not in known_tests]
 
         # Use the most complete list available
-        # Prefer inline (most accurate) > computed > gtest summary
-        if unsupported_inline:
+        # Prefer XML (most complete) > inline > computed > gtest summary
+        if skipped_xml:
+            skipped_list = skipped_xml
+            source = "LIT xunit XML"
+        elif unsupported_inline:
             skipped_list = unsupported_inline
             source = "inline UNSUPPORTED"
         elif skipped_computed:
@@ -477,7 +537,7 @@ def main():
     """Main CLI interface."""
     if len(sys.argv) < 2:
         print(
-            "Usage: ur_test_summary.py <command> <log_file> [all_tests_file]",
+            "Usage: ur_test_summary.py <command> <log_file> [all_tests_file] [xml_file]",
             file=sys.stderr,
         )
         print("\nCommands:", file=sys.stderr)
@@ -486,7 +546,23 @@ def main():
             file=sys.stderr,
         )
         print(
-            "  show-summary <log> [all_tests]  - Show statistics and collapsed test lists",
+            "  show-summary <log> [all_tests] [xml]  - Show statistics and collapsed test lists",
+            file=sys.stderr,
+        )
+        print(
+            "\nArguments:",
+            file=sys.stderr,
+        )
+        print(
+            "  log          - LIT test output log file",
+            file=sys.stderr,
+        )
+        print(
+            "  all_tests    - Optional: output from --gtest_list_tests (for computed skipped)",
+            file=sys.stderr,
+        )
+        print(
+            "  xml          - Optional: LIT xunit XML output (--xunit-xml-output)",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -525,6 +601,9 @@ def main():
     elif command == "show-summary":
         # Optional: all tests file for GoogleTest format
         all_tests_file = sys.argv[3] if len(sys.argv) > 3 else None
+        # Empty string means not provided (from bash "")
+        if all_tests_file == "":
+            all_tests_file = None
         if all_tests_file and (
             ".." in all_tests_file or all_tests_file.startswith("/")
         ):
@@ -533,7 +612,20 @@ def main():
                 file=sys.stderr,
             )
             sys.exit(1)
-        show_statistics_and_lists(lines, all_tests_file)
+
+        # Optional: XML file from LIT xunit output
+        xml_file = sys.argv[4] if len(sys.argv) > 4 else None
+        # Empty string means not provided (from bash "")
+        if xml_file == "":
+            xml_file = None
+        if xml_file and (".." in xml_file or xml_file.startswith("/")):
+            print(
+                f"Error: Invalid XML file path: {xml_file}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        show_statistics_and_lists(lines, all_tests_file, xml_file)
 
     else:
         print(f"Error: Unknown command: {command}", file=sys.stderr)
