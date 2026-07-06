@@ -417,6 +417,7 @@ struct __SYCL_DEPRECATED("use sycl::aspect::atomic64 instead") atomic64
     : device_traits<UR_DEVICE_INFO_ATOMIC_64> {
   using return_type = bool;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct __SYCL_DEPRECATED("info::device::reference_count is not part of "
@@ -426,22 +427,21 @@ struct __SYCL_DEPRECATED("info::device::reference_count is not part of "
 };
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // To be dropped (has alternatives/not needed)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct __SYCL_DEPRECATED("use sycl::aspect::usm_device_allocations instead")
     usm_device_allocations : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
   using return_type = bool;
 };
-struct __SYCL_DEPRECATED("use sycl::aspect::usm_host_allocations instead")
-    usm_host_allocations : device_traits<UR_DEVICE_INFO_USM_HOST_SUPPORT> {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+struct usm_host_allocations : device_traits<UR_DEVICE_INFO_USM_HOST_SUPPORT> {
   using return_type = bool;
 };
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct __SYCL_DEPRECATED("use sycl::aspect::usm_shared_allocations instead")
     usm_shared_allocations
     : device_traits<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT> {
   using return_type = bool;
 };
-struct __SYCL_DEPRECATED(
-    "use sycl::aspect::usm_restricted_shared_allocations instead")
+struct __SYCL_DEPRECATED("deprecated descriptor")
     usm_restricted_shared_allocations
     : device_traits<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT> {
   using return_type = bool;
@@ -463,7 +463,8 @@ struct __SYCL_DEPRECATED("use device::get_info instead") opencl_c_version
 };
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // Extensions
-struct sub_group_independent_forward_progress
+struct __SYCL_DEPRECATED("extension is deprecated")
+    sub_group_independent_forward_progress
     : device_traits<UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS> {
   using return_type = bool;
 };
@@ -471,8 +472,8 @@ struct ext_oneapi_srgb : device_traits<UR_DEVICE_INFO_IMAGE_SRGB> {
   using return_type = bool;
 };
 
-// Deprecated oneapi/intel extension
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Deprecated oneapi/intel extension
 struct __SYCL_DEPRECATED("use ext::intel::info::device::pci_address instead")
     ext_intel_pci_address : device_traits<UR_DEVICE_INFO_PCI_ADDRESS> {
   using return_type = std::string;

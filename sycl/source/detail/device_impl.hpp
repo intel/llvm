@@ -821,14 +821,45 @@ public:
       // No devices currently support SYCL 2020 images.
       return false;
     }
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    CASE(info::device::usm_device_allocations) {
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
+    }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+    CASE(info::device::usm_host_allocations) {
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
+    }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    CASE(info::device::usm_shared_allocations) {
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
+    }
+    CASE(info::device::usm_restricted_shared_allocations) {
+      ur_device_usm_access_capability_flags_t cap_flags =
+          get_info_impl<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
+      // Check that we don't support any cross device sharing
+      return !(cap_flags &
+               (UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
+                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
+    }
+    CASE(info::device::usm_system_allocations) {
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
+    }
+
     CASE(info::device::opencl_c_version) {
       throw sycl::exception(errc::feature_not_supported,
                             "Deprecated interface that hasn't been working for "
                             "some time already");
       return std::string{}; // for return type deduction.
     }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     CASE(ext::intel::info::device::max_mem_bandwidth) {
       if (!has(aspect::ext_intel_max_mem_bandwidth))
@@ -837,6 +868,8 @@ public:
             "The device does not have the ext_intel_max_mem_bandwidth aspect");
       return get_info_impl<UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH>();
     }
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
@@ -1235,15 +1268,13 @@ public:
       return get_info<info::device::is_linker_available>();
     }
     CASE(queue_profiling) { return get_info<info::device::queue_profiling>(); }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_device_allocations) {
-      return static_cast<bool>(
-          get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
-          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
+      return get_info<info::device::usm_device_allocations>();
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_host_allocations) {
-      return static_cast<bool>(
-          get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
-          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
+      return get_info<info::device::usm_host_allocations>();
     }
     CASE(ext_oneapi_cuda_cluster_group) {
       return get_info<info::device::ext_oneapi_cuda_cluster_group>();
@@ -1252,33 +1283,28 @@ public:
       return (get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_shared_allocations) {
-      return static_cast<bool>(
-          get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
-          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
+      return get_info<info::device::usm_shared_allocations>();
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_atomic_shared_allocations) {
       return (get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
     }
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_restricted_shared_allocations) {
-      ur_device_usm_access_capability_flags_t cap_flags =
-          get_info_impl<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
-      // Check that we don't support any cross device sharing
-      return !(cap_flags &
-               (UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
-                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
+      return get_info<info::device::usm_restricted_shared_allocations>();
     }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_system_allocations) {
-      return static_cast<bool>(
-          get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
-          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
+      return get_info<info::device::usm_system_allocations>();
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(ext_intel_device_id) {
       return has_info_desc(UR_DEVICE_INFO_DEVICE_ID);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(ext_intel_pci_address) {
       return has_info_desc(UR_DEVICE_INFO_PCI_ADDRESS);
     }
@@ -1300,6 +1326,7 @@ public:
     CASE(ext_intel_gpu_hw_threads_per_eu) {
       return has_info_desc(UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU);
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(ext_intel_free_memory) {
       return has_info_desc(UR_DEVICE_INFO_GLOBAL_MEM_FREE);
     }
@@ -1318,10 +1345,12 @@ public:
     CASE(ext_intel_device_info_node_mask) {
       return has_info_desc(UR_DEVICE_INFO_NODE_MASK);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(ext_intel_max_mem_bandwidth) {
       // currently not supported
       return false;
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(ext_intel_current_clock_throttle_reasons) {
       return has_info_desc(UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS);
     }
