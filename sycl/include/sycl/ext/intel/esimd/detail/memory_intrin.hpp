@@ -716,6 +716,132 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals)
     __ESIMD_INTRIN_END;
 
+// gather4 from a typed 1/2/3D surface (image) addressed by pixel coordinates.
+// Reads up to 4 32-bit channels (selected by Mask) per pixel from the surface
+// bound to `surf_ind` at the per-lane pixel coordinates (u, v, r).
+//
+// Template (compile-time constant) parameters:
+// @tparam Ty - channel element type (must be 4 bytes in size)
+// @tparam N  - the number of pixels (SIMD width), must be 8, 16 or 32
+// @tparam Mask - the RGBA channel mask selecting the accessed channels
+// @tparam SurfIndAliasTy - "surface index alias" type taken from the image
+//   accessor
+//
+// Formal parameters:
+// @param pred - per-pixel predicates; pixels with zero corresponding predicate
+//   are not accessed
+// @param surf_ind - the surface index, taken from the SYCL image memory object
+// @param u - per-pixel X coordinates in pixels
+// @param v - per-pixel Y coordinates in pixels (0 for 1D surfaces)
+// @param r - per-pixel Z coordinates in pixels (0 for 1D/2D surfaces)
+// @return - channel-major data read from the surface (all channel-0 values,
+//   then all channel-1 values, etc.); undefined for the disabled pixels
+template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN
+    __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
+    __esimd_gather4_typed(
+        __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> u,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> v,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> r) __ESIMD_INTRIN_END;
+
+// scatter4 to a typed 1/2/3D surface (image) addressed by pixel coordinates.
+// Writes up to 4 32-bit channels (selected by Mask) per pixel to the surface
+// bound to `surf_ind` at the per-lane pixel coordinates (u, v, r).
+//
+// Template (compile-time constant) parameters:
+// @tparam Ty - channel element type (must be 4 bytes in size)
+// @tparam N  - the number of pixels (SIMD width), must be 8, 16 or 32
+// @tparam Mask - the RGBA channel mask selecting the accessed channels
+// @tparam SurfIndAliasTy - "surface index alias" type taken from the image
+//   accessor
+//
+// Formal parameters:
+// @param pred - per-pixel predicates; pixels with zero corresponding predicate
+//   are not written
+// @param surf_ind - the surface index, taken from the SYCL image memory object
+// @param u - per-pixel X coordinates in pixels
+// @param v - per-pixel Y coordinates in pixels (0 for 1D surfaces)
+// @param r - per-pixel Z coordinates in pixels (0 for 1D/2D surfaces)
+// @param vals - channel-major data to write to the surface
+template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN void __esimd_scatter4_typed(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> u,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> v,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> r,
+    __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals)
+    __ESIMD_INTRIN_END;
+
+// LSC typed-surface (image) "quad" gather of up to 4 channels per pixel.
+// Xe2 and later replacement of __esimd_gather4_typed: it uses the LSC message
+// (`llvm.genx.lsc.load.merge.quad.typed.bti`) and additionally supports cache
+// hints and a per-pixel level-of-detail (LOD) coordinate.
+//
+// Template (compile-time constant) parameters:
+// @tparam Ty - channel element type (must be 4 bytes in size)
+// @tparam N  - the number of pixels (SIMD width), must be 8, 16 or 32
+// @tparam Mask - the RGBA channel mask selecting the accessed channels
+// @tparam L1H - the L1 cache hint
+// @tparam L2H - the L2 cache hint
+// @tparam SurfIndAliasTy - "surface index alias" type taken from the image
+//   accessor
+//
+// Formal parameters:
+// @param pred - per-pixel predicates
+// @param surf_ind - the surface index, taken from the SYCL image memory object
+// @param u - per-pixel X coordinates in pixels
+// @param v - per-pixel Y coordinates in pixels (0 for 1D surfaces)
+// @param r - per-pixel Z coordinates in pixels (0 for 1D/2D surfaces)
+// @param lod - per-pixel level-of-detail (mipmap level; 0 if unused)
+// @return - channel-major data read from the surface; undefined for the
+//   disabled pixels
+template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
+          __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN
+    __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
+    __esimd_lsc_load_quad_typed_bti(
+        __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> u,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> v,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> r,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> lod) __ESIMD_INTRIN_END;
+
+// LSC typed-surface (image) "quad" scatter of up to 4 channels per pixel.
+// Xe2 and later replacement of __esimd_scatter4_typed
+// (`llvm.genx.lsc.store.quad.typed.bti`).
+//
+// See __esimd_lsc_load_quad_typed_bti for the template and formal parameter
+// descriptions.
+template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
+          __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN void __esimd_lsc_store_quad_typed_bti(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> u,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> v,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> r,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> lod,
+    __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals)
+    __ESIMD_INTRIN_END;
+
+// LSC typed-surface (image) "quad" prefetch of up to 4 channels per pixel
+// (`llvm.genx.lsc.prefetch.quad.typed.bti`). Xe2 and later.
+//
+// See __esimd_lsc_load_quad_typed_bti for the template and formal parameter
+// descriptions.
+template <int N, __ESIMD_NS::rgba_channel_mask Mask, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, typename SurfIndAliasTy>
+__ESIMD_INTRIN void __esimd_lsc_prefetch_quad_typed_bti(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> u,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> v,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> r,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> lod) __ESIMD_INTRIN_END;
+
 // Surface-based atomic operations
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_dword_atomic0(
