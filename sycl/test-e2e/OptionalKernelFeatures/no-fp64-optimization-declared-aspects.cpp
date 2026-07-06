@@ -1,6 +1,9 @@
 // UNSUPPORTED: aspect-fp64
+// UNSUPPORTED-INTENDED: Should be launched on a device without fp64 support.
+
 // RUN: %{build} -o %t.out -O3
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

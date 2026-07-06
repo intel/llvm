@@ -8,17 +8,17 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <unified-runtime/ur_api.h>
 
@@ -46,8 +46,6 @@ namespace detail {
 class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
-
-enum class aspect;
 
 namespace ext::oneapi {
 // Forward declaration
@@ -103,10 +101,19 @@ public:
   explicit device(const DeviceSelector &deviceSelector)
       : device(detail::select_device(deviceSelector)) {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const device &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const device &lhs, const device &rhs) {
+    return rhs.impl == lhs.impl;
+  }
 
+  friend bool operator!=(const device &lhs, const device &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   device(const device &rhs);
 
   device(device &&rhs);

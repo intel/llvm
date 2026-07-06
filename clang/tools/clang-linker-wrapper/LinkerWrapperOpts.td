@@ -49,6 +49,9 @@ def print_wrapped_module : Flag<["--"], "print-wrapped-module">,
   HelpText<"Print the wrapped module's IR for testing">;
 def save_temps : Flag<["--"], "save-temps">,
   Flags<[WrapperOnlyOption]>, HelpText<"Save intermediate results">;
+def no_lto : Flag<["--"], "no-lto">,
+             Flags<[WrapperOnlyOption]>,
+             HelpText<"Use the non-LTO device compilation pipeline">;
 def compress : Flag<["--"], "compress">,
   Flags<[WrapperOnlyOption]>, HelpText<"Compress bundled files">;
 def compression_level_eq : Joined<["--"], "compression-level=">,
@@ -209,6 +212,10 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
 
 def sycl_embed_ir : Flag<["--", "-"], "sycl-embed-ir">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">;
+
+def no_sycl_rdc : Flag<["--", "-"], "no-sycl-rdc">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Disable RDC mode (Relocatable device code) for SYCL linking">;
 
 def sycl_device_link
     : Flag<["--", "-"], "sycl-device-link">,

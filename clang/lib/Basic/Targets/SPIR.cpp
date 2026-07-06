@@ -14,7 +14,7 @@
 #include "AMDGPU.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
-#include "llvm/TargetParser/TargetParser.h"
+#include "llvm/TargetParser/AMDGPUTargetParser.h"
 
 using namespace clang;
 using namespace clang::targets;
@@ -84,11 +84,24 @@ void SPIR64TargetInfo::getTargetDefines(const LangOptions &Opts,
   DefineStd(Builder, "SPIR64", Opts);
 }
 
+bool WindowsX86_64_SPIR64TargetInfo::initFeatureMap(
+    llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
+    const std::vector<std::string> &FeaturesVec) const {
+  // Mirror X86TargetInfo's "x86_64 always has SSE2" baseline: the matching
+  // _M_X64 macro makes MSVC STL headers take the x86 intrinsics path, whose
+  // _mm_* intrinsics require sse/sse2 in the target feature set.
+  Features["sse"] = true;
+  Features["sse2"] = true;
+  return SPIR64TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
+}
+
 void BaseSPIRVTargetInfo::getTargetDefines(const LangOptions &Opts,
                                            MacroBuilder &Builder) const {
   DefineStd(Builder, "SPIRV", Opts);
   if (Opts.HLSL)
     DefineStd(Builder, "spirv", Opts);
+  if (getTriple().isVulkanOS())
+    Builder.defineMacro("__VULKAN__");
 }
 
 void SPIRVTargetInfo::getTargetDefines(const LangOptions &Opts,

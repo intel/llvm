@@ -11,8 +11,8 @@
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_event_info_desc, is_...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/info/event.hpp>                // for is_event_info_desc, is_...
 #include <unified-runtime/ur_api.h>           // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
@@ -68,9 +68,19 @@ public:
 
   event &operator=(event &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const event &rhs) const;
 
   bool operator!=(const event &rhs) const;
+#else
+  friend bool operator==(const event &lhs, const event &rhs) {
+    return rhs.impl == lhs.impl;
+  }
+
+  friend bool operator!=(const event &lhs, const event &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Return the list of events that this event waits for.
   ///

@@ -3,9 +3,9 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.o
-// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver -o %t_aot_gpu.o
-// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver -o %t_aot_cpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code  -o %t_aot_cpu.o
 // RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.o
 // RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
 // RUN: %clang %s -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t_native_cpu.o
@@ -105,7 +105,7 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver -o %t1.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t1.o
 //
 // Generate .bc file as SYCL device library file.
 //
@@ -136,7 +136,7 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver -o %t2.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t2.o
 //
 // Generate .bc file as SYCL device library file.
 //
@@ -251,7 +251,7 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t5.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t5.o
 //
 // RUN: clang-linker-wrapper -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t5.o --bitcode-library=spir64-unknown-unknown=%S/Inputs/SYCL/lib/libsycl-crt.bc -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEVICE-LIB-DIR %s
 // CHK-CMDS-DEVICE-LIB-DIR: spirv-to-ir-wrapper{{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
@@ -353,4 +353,37 @@
 // RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t1.devicelib.bc \
 // RUN:                      %t.without_triple.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-NO-TRIPLE
 
-// CHECK-ERROR-WITH-NO-TRIPLE: linking is not supported
+// CHECK-ERROR-WITH-NO-TRIPLE: can't compile a SYCL device code. target is unknown
+
+// Check that unsupported triple in image causes an error.
+// RUN: llvm-offload-binary -o %t.wrong_triple.fat "--image=file=%t.o,triple=x86_64,arch=pvc,kind=sycl"
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.wrong_triple.o -fembed-offload-object=%t.wrong_triple.fat
+// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t1.devicelib.bc \
+// RUN:                      %t.wrong_triple.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-WRONG-TRIPLE
+
+// CHECK-ERROR-WITH-WRONG-TRIPLE: SYCL compilation for x86_64 is not supported
+
+// Check that unsupported spirv subarch in image causes an error.
+// RUN: llvm-offload-binary -o %t.wrong_spirv_subarch.fat "--image=file=%t.o,triple=spirv64v1.0,kind=sycl"
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.wrong_spirv_subarch.o -fembed-offload-object=%t.wrong_spirv_subarch.fat
+// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t1.devicelib.bc \
+// RUN:                      %t.wrong_spirv_subarch.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH
+
+// CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH: SYCL device compilation is not supported for the target: spirv64v1.0
+
+// Check -no-sycl-rdc
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t1.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t2.o
+//
+// RUN: clang-linker-wrapper "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" "-o" "a.out"  %t1.o t2.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-RDC %s
+// CHECK-RDC: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHECK-RDC-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[LLVMLINKOUT:.*]].bc
+// CHECK-RDC-NEXT: sycl-post-link{{.*}} -o [[SYCLPOSTLINKOUT:.*]].table [[LLVMLINKOUT]].bc
+
+// RUN: clang-linker-wrapper -no-sycl-rdc "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" "-o" "a.out"  %t1.o %t2.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-NO-RDC %s
+// CHECK-NO-RDC-NOT: llvm-link
+// CHECK-NO-RDC: llvm-spirv{{.*}} -o [[FIRST_SPIRV_OUTPUT:.*]].spv
+// CHECK-NO-RDC: llvm-spirv{{.*}} -o [[SECOND_SPIRV_OUTPUT:.*]].spv
+// CHECK-NO-RDC: offload-wrapper:{{.*}} input: [[FIRST_SPIRV_OUTPUT]].spv, {{.*}} input: [[SECOND_SPIRV_OUTPUT]].spv

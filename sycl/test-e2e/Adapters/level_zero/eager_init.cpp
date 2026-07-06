@@ -10,6 +10,9 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22151
+
 // RUN: %{build} -Wno-error=deprecated-declarations %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 SYCL_EAGER_INIT=1 %{run} %t.out 2>&1 | FileCheck %s
 //
@@ -55,8 +58,8 @@ void simple_vadd(sycl::queue &Queue, const std::array<T, N> &VA,
 
 int main() {
   const size_t array_size = 4;
-  std::array<sycl::cl_int, array_size> A = {{1, 2, 3, 4}}, B = {{1, 2, 3, 4}},
-                                       C;
+  std::array<sycl::opencl::cl_int, array_size> A = {{1, 2, 3, 4}},
+                                               B = {{1, 2, 3, 4}}, C;
   sycl::queue Q;
 
   // simple_vadd(Q, A, B, C);

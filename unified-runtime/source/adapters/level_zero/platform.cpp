@@ -613,11 +613,26 @@ ur_result_t ur_platform_handle_t_::initialize() {
         {
             {"zeCommandListGetGraphExp",
              reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
+            {"zeGraphSetDestructionCallbackExp",
+             reinterpret_cast<void **>(
+                 &ZeGraphExt.zeGraphSetDestructionCallbackExp)},
         };
 
     for (auto &[funcName, funcAddr] : ZeGraphOptionalFuncNameToAddrMap) {
       ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
                       (ZeDriver, funcName.c_str(), funcAddr));
+    }
+
+    // zeGraphGetIdExt must be special-cased: querying its address on drivers
+    // that predate its support leads to memory corruption errors in
+    // sycl/test-e2e/Adapters/level_zero/ tests, so manually check the driver
+    // version until the issue is resolved.
+    if (this->isDriverVersionNewerOrSimilar(1, 15, 38921)) {
+      ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                      (ZeDriver, "zeGraphGetIdExt",
+                       reinterpret_cast<void **>(&ZeGraphExt.zeGraphGetIdExt)));
+    } else {
+      ZeGraphExt.zeGraphGetIdExt = nullptr;
     }
   }
 

@@ -14,6 +14,8 @@
 #include <set>
 #include <unordered_map>
 
+namespace ur::opencl {
+
 ur_result_t
 ur_context_handle_t_::makeWithNative(native_type Ctx, uint32_t DevCount,
                                      const ur_device_handle_t *phDevices,
@@ -26,16 +28,16 @@ ur_context_handle_t_::makeWithNative(native_type Ctx, uint32_t DevCount,
     std::vector<cl_device_id> CLDevices(CLDeviceCount);
     CL_RETURN_ON_FAILURE(clGetContextInfo(
         Ctx, CL_CONTEXT_DEVICES, sizeof(CLDevices), CLDevices.data(), nullptr));
-    std::vector<ur_device_handle_t> URDevices;
+    std::vector<ur::opencl::ur_device_handle_t_ *> URDevices;
     if (DevCount) {
       if (DevCount != CLDeviceCount) {
         return UR_RESULT_ERROR_INVALID_CONTEXT;
       }
       for (uint32_t i = 0; i < DevCount; i++) {
-        if (phDevices[i]->CLDevice != CLDevices[i]) {
+        if (cast(phDevices[i])->CLDevice != CLDevices[i]) {
           return UR_RESULT_ERROR_INVALID_CONTEXT;
         }
-        URDevices.push_back(phDevices[i]);
+        URDevices.push_back(cast(phDevices[i]));
       }
     } else {
       DevCount = CLDeviceCount;
@@ -43,15 +45,15 @@ ur_context_handle_t_::makeWithNative(native_type Ctx, uint32_t DevCount,
         ur_device_handle_t UrDevice = nullptr;
         ur_native_handle_t hNativeHandle =
             reinterpret_cast<ur_native_handle_t>(CLDevices[i]);
-        UR_RETURN_ON_FAILURE(urDeviceCreateWithNativeHandle(
+        UR_RETURN_ON_FAILURE(ur::opencl::urDeviceCreateWithNativeHandle(
             hNativeHandle, nullptr, nullptr, &UrDevice));
-        URDevices.push_back(UrDevice);
+        URDevices.push_back(cast(UrDevice));
       }
     }
 
     auto URContext =
         std::make_unique<ur_context_handle_t_>(Ctx, DevCount, URDevices.data());
-    Context = URContext.release();
+    Context = cast(URContext.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -67,8 +69,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
 
   cl_int Ret;
   std::vector<cl_device_id> CLDevices(DeviceCount);
+  std::vector<ur::opencl::ur_device_handle_t_ *> URDevices(DeviceCount);
   for (size_t i = 0; i < DeviceCount; i++) {
-    CLDevices[i] = phDevices[i]->CLDevice;
+    URDevices[i] = cast(phDevices[i]);
+    CLDevices[i] = URDevices[i]->CLDevice;
   }
 
   try {
@@ -76,9 +80,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
                                      CLDevices.data(), nullptr, nullptr,
                                      static_cast<cl_int *>(&Ret));
     CL_RETURN_ON_FAILURE(Ret);
-    auto URContext =
-        std::make_unique<ur_context_handle_t_>(Ctx, DeviceCount, phDevices);
-    *phContext = URContext.release();
+    auto URContext = std::make_unique<ur_context_handle_t_>(Ctx, DeviceCount,
+                                                            URDevices.data());
+    *phContext = cast(URContext.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -92,6 +96,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
 
+  auto Context = cast(hContext);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (static_cast<uint32_t>(propName)) {
@@ -101,13 +106,13 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
     return ReturnValue(false);
   }
   case UR_CONTEXT_INFO_NUM_DEVICES: {
-    return ReturnValue(hContext->DeviceCount);
+    return ReturnValue(Context->DeviceCount);
   }
   case UR_CONTEXT_INFO_DEVICES: {
-    return ReturnValue(&hContext->Devices[0], hContext->DeviceCount);
+    return ReturnValue(&Context->Devices[0], Context->DeviceCount);
   }
   case UR_CONTEXT_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hContext->RefCount.getCount());
+    return ReturnValue(Context->RefCount.getCount());
   }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -116,8 +121,9 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  if (hContext->RefCount.release()) {
-    delete hContext;
+  auto Context = cast(hContext);
+  if (Context->RefCount.release()) {
+    delete Context;
   }
 
   return UR_RESULT_SUCCESS;
@@ -125,14 +131,16 @@ urContextRelease(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  hContext->RefCount.retain();
+  auto Context = cast(hContext);
+  Context->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
 
-  *phNativeContext = reinterpret_cast<ur_native_handle_t>(hContext->CLContext);
+  auto Context = cast(hContext);
+  *phNativeContext = reinterpret_cast<ur_native_handle_t>(Context->CLContext);
   return UR_RESULT_SUCCESS;
 }
 
@@ -145,7 +153,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   cl_context NativeHandle = reinterpret_cast<cl_context>(hNativeContext);
   UR_RETURN_ON_FAILURE(ur_context_handle_t_::makeWithNative(
       NativeHandle, numDevices, phDevices, *phContext));
-  (*phContext)->IsNativeHandleOwned =
+  cast(*phContext)->IsNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
   return UR_RESULT_SUCCESS;
 }
@@ -153,8 +161,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
     void *pUserData) {
-  if (!ur::cl::getAdapter()->clSetContextDestructorCallback) {
-    UR_LOG_L(ur::cl::getAdapter()->log, WARN,
+  if (!cast(ur::cl::getAdapter())->clSetContextDestructorCallbackFn) {
+    UR_LOG_L(cast(ur::cl::getAdapter())->log, WARN,
              "clSetContextDestructorCallback not found, consider upgrading the "
              "OpenCL-ICD-Loader to the latest version.");
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -203,8 +211,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     auto *C = static_cast<ContextCallback *>(pUserData);
     C->execute();
   };
-  CL_RETURN_ON_FAILURE(ur::cl::getAdapter()->clSetContextDestructorCallback(
-      hContext->CLContext, ClCallback, Callback));
+  CL_RETURN_ON_FAILURE(
+      cast(ur::cl::getAdapter())
+          ->clSetContextDestructorCallbackFn(cast(hContext)->CLContext,
+                                             ClCallback, Callback));
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

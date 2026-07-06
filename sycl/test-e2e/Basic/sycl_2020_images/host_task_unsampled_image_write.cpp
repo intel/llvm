@@ -6,6 +6,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18085
 
 // Tests for direct read of unsampled_image using host accessors.
+#include <iostream>
 
 #include "common.hpp"
 

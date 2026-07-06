@@ -8,27 +8,33 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
+#include <sycl/detail/abi_neutral.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <unified-runtime/ur_api.h>
+#include <sycl/info/device.hpp>
+#include <sycl/info/platform.hpp>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
 #endif
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
+
+// Forward typedef of unified-runtime's `ur_native_handle_t`. Including
+// <unified-runtime/ur_api.h> here pulls a large C API surface; we only need
+// the typedef name for one private member declaration. The typedef target
+// (`uintptr_t`) matches ur_api.h, so a redeclaration in TUs that include both
+// is well-formed.
+typedef std::uintptr_t ur_native_handle_t;
 
 namespace sycl {
 inline namespace _V1 {
@@ -108,9 +114,19 @@ public:
 
   platform &operator=(platform &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const platform &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const platform &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const platform &lhs, const platform &rhs) {
+    return lhs.impl == rhs.impl;
+  }
+
+  friend bool operator!=(const platform &lhs, const platform &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Returns an OpenCL interoperability platform.
   ///

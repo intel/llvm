@@ -356,5 +356,6 @@ kernel make_kernel(const context &TargetContext,
 }
 
 } // namespace detail
+
 } // namespace _V1
 } // namespace sycl

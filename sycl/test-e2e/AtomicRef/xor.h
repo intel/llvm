@@ -13,6 +13,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -40,14 +41,14 @@ void xor_local_test(queue q) {
          int gid = it.get_global_id(0);
          if (gid == 0)
            loc[0] = 0;
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          auto atm = AtomicRef < T,
               (order == memory_order::acquire || order == memory_order::release)
                   ? memory_order::relaxed
                   : order,
               scope, space > (loc[0]);
          out[gid] = atm.fetch_xor(T(1ll << gid), order);
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          if (gid == 0)
            cum[0] = loc[0];
        });

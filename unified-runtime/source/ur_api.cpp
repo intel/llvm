@@ -7523,6 +7523,255 @@ ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process handle for a physical memory object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppIPCPhysMemHandleData`
+///         + `NULL == pIPCPhysMemHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `hPhysMem` was not created with the
+///         `::UR_PHYSICAL_MEM_FLAG_ENABLE_IPC` flag
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process physical memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCPhysMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process physical memory handle to get the
+/// corresponding
+///        physical memory object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPhysMem`
+///         + `NULL == pIPCPhysMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + ipcPhysMemHandleDataSize is not the same as the size of IPC
+///         physical memory handle data
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Closes an inter-process physical memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process event handle for an event object
+///
+/// @details
+///     - The event must have been created by ::urEventCreateExp with the
+///       ::UR_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that
+///       flag, and events opened with ::urIPCOpenEventHandleExp, cannot be
+///       exported.
+///     - On success, `ppIPCEventHandleData` receives an opaque byte buffer
+///       allocated and owned by the implementation, and
+///       `pIPCEventHandleDataSizeRet` receives its size. The contents of this
+///       buffer may be copied and transferred, by the application's own means,
+///       to another process on the same system, which passes those bytes to
+///       ::urIPCOpenEventHandleExp to obtain an event object that shares state
+///       with `hEvent`.
+///     - The returned handle data must be released in the originating process
+///       with ::urIPCPutEventHandleExp once it is no longer needed.
+///     - Events created with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be
+///       exported.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppIPCEventHandleData`
+///         + `NULL == pIPCEventHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///         + `hEvent` was not created with the ::UR_EXP_EVENT_FLAG_IPC_EXP
+///         flag.
+///         + `hEvent` was obtained from ::urIPCOpenEventHandleExp.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + `hEvent` has profiling or timestamping enabled.
+///         + The device associated with `hEvent` does not support event IPC, as
+///         reported by ::UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCGetEventHandleExp(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent,
+    /// [out] a pointer to the IPC event handle data
+    void **ppIPCEventHandleData,
+    /// [out] size of the resulting IPC event handle data
+    size_t *pIPCEventHandleDataSizeRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process event handle
+///
+/// @details
+///     - Releases the resources associated with IPC event handle data returned
+///       by ::urIPCGetEventHandleExp. Must be called in the same process that
+///       obtained the handle data. This does not destroy the source event and
+///       does not affect event objects already opened with
+///       ::urIPCOpenEventHandleExp.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCEventHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCPutEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC event handle data obtained with
+    /// ::urIPCGetEventHandleExp
+    void *pIPCEventHandleData) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process event handle to get the corresponding event
+///        object in the current process
+///
+/// @details
+///     - Returns an event object that shares state with the event that produced
+///       the IPC handle. Either event can be signaled, waited on, or queried,
+///       and a state change made through one event is observable through the
+///       other.
+///     - The returned event is a normal ::ur_event_handle_t with an initial
+///       reference count of 1. It may be passed to entry points that accept an
+///       event, retained with ::urEventRetain, and must be released with
+///       ::urEventRelease. On the final release, the adapter performs the
+///       native cleanup required for an opened IPC event.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///         + `NULL == pIPCEventHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `ipcEventHandleDataSize` is not the same as the size of the IPC
+///         event handle data
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + A device in `hContext` does not support event IPC, as reported by
+///         ::UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCOpenEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] the IPC event handle data
+    const void *pIPCEventHandleData,
+    /// [in] size of the IPC event handle data
+    size_t ipcEventHandleDataSize,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Allocate an exportable memory region and return a pointer to that
 ///        allocation.
 ///
@@ -9549,9 +9798,14 @@ ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
+    /// [in,out][optional][alloc] return an event object that identifies this
     /// particular command instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array. If *phEvent is not NULL on input and points to a reusable event
+    /// created by ::urEventCreateExp, it is signaled by this command instead
+    /// of allocating a new event. A reusable event may only be passed when
+    /// the device associated with hQueue reports
+    /// ::UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
     ur_event_handle_t *phEvent) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
@@ -9602,6 +9856,48 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a reusable event object that can be passed to
+///        ::urEnqueueEventsWaitWithBarrierExt to signal work. The event is not
+///        associated with any enqueued command.
+///
+/// @details
+///     - If ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set in pEventDesc->flags
+///       and the platform does not support per-event profiling, the function
+///       returns ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pEventDesc`
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EVENT_FLAGS_MASK & pEventDesc->flags`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + `pEventDesc->flags & ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING` and the
+///         platform does not support per-event profiling
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to event creation descriptor
+    const ur_exp_event_desc_t *pEventDesc,
+    /// [out] pointer to the handle of the event object created
     ur_event_handle_t *phEvent) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
@@ -9851,6 +10147,53 @@ ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Returns a process-unique identifier that increases monotonically per
+///        graph.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGraphId`
+ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Register a callback to be invoked when the graph is destroyed.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCallback`
+ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Dump the contents of the recorded graph to the provided file path.
 ///
 /// @returns
@@ -9867,6 +10210,60 @@ ur_result_t UR_APICALL urGraphDumpContentsExp(
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
     const char *filePath) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native graph handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeGraph`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native executable graph handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hExecutableGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeExecutableGraph`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

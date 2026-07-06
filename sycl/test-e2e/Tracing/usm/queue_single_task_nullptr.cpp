@@ -1,4 +1,6 @@
-// UNSUPPORTED: windows || target-amd
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
+// UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
 // RUN: not --crash env SYCL_TRACE_TERMINATE_ON_WARNING=1 %{run} sycl-trace --verify %t.out | FileCheck %s
 

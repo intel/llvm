@@ -44,6 +44,7 @@ Functions
    * ${x}GraphExecutableGraphDestroyExp
    * ${x}GraphIsEmptyExp
    * ${x}GraphDumpContentsExp
+   * ${x}GraphGetIdExp
 * Queue
    * ${x}QueueBeginGraphCaptureExp
    * ${x}QueueBeginCaptureIntoGraphExp
@@ -72,6 +73,13 @@ Changelog
 | 1.3       | Add ${x}QueueGetGraphExp to retrieve graph  |
 |           | handle from queue in capture mode.          |
 +-----------+---------------------------------------------+
+| 1.4       | Add ${x}GraphSetDestructionCallbackExp to   |
+|           | register user callbacks invoked on graph    |
+|           | destruction.                                |
++-----------+---------------------------------------------+
+| 1.5       | Add ${x}GraphGetIdExp to retrieve a         |
+|           | process-unique identifier for a graph.      |
++-----------+---------------------------------------------+
 
 Support
 --------------------------------------------------------------------------------
@@ -84,3 +92,4 @@ Contributors
 
 * Krzysztof, Filipek `krzysztof.filipek@intel.com <krzysztof.filipek@intel.com>`_
 * Krzysztof, Swiecicki `krzysztof.swiecicki@intel.com <krzysztof.swiecicki@intel.com>`_
+* Matthew, Michel `matthew.michel@intel.com <matthew.michel@intel.com>`_

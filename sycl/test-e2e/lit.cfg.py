@@ -215,16 +215,13 @@ class test_env:
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
+config.substitutions.append(("%sycl_static_libs_dir", config.sycl_device_libs_dir))
 if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
-    )
     config.substitutions.append(("%obj_ext", ".obj"))
     config.substitutions.append(
         ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
     )
 elif platform.system() == "Linux":
-    config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
     config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
@@ -279,6 +276,18 @@ def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
+
+
+def is_windows_unc_network_path(path):
+    if not path or platform.system() != "Windows":
+        return false
+    return path.startswith("//") or path.startswith(r"\\")
+
+
+def normalize_windows_network_path(path):
+    if is_windows_unc_network_path(path):
+        path = path.replace("/", r"\\")
+    return path
 
 
 def quote_path(path):
@@ -348,6 +357,8 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
+# For Windows, we need to normalize the path before quoting
+level_zero_win_lib = config.level_zero_libs_dir + "/ze_loader.lib"
 config.level_zero_libs_dir = quote_path(
     lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
@@ -369,10 +380,12 @@ level_zero_options = level_zero_options = (
     + config.level_zero_include
 )
 if cl_options:
+    if is_windows_unc_network_path(level_zero_win_lib):
+        level_zero_win_lib = normalize_windows_network_path(level_zero_win_lib)
     level_zero_options = (
         " "
         + (
-            config.level_zero_libs_dir + "/ze_loader.lib "
+            quote_path(level_zero_win_lib)
             if config.level_zero_libs_dir
             else "ze_loader.lib"
         )
@@ -462,6 +475,8 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
+# For Windows, we need to normalize the path before quoting
+cuda_win_lib = config.cuda_libs_dir + "/cuda.lib"
 config.cuda_libs_dir = quote_path(
     lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 )
@@ -479,9 +494,11 @@ cuda_options = (
     + config.cuda_include
 )
 if cl_options:
+    if is_windows_unc_network_path(cuda_win_lib):
+        cuda_win_lib = normalize_windows_network_path(cuda_win_lib)
     cuda_options = (
         " "
-        + (config.cuda_libs_dir + "/cuda.lib " if config.cuda_libs_dir else "cuda.lib")
+        + (quote_path(cuda_win_lib) if config.cuda_libs_dir else "cuda.lib")
         + " /I"
         + config.cuda_include
     )
@@ -515,6 +532,9 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
+
+# For Windows, we need to normalize the path before quoting
+hip_win_lib = config.hip_libs_dir + "/amdhip64.lib"
 config.hip_libs_dir = quote_path(
     lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
 )
@@ -532,13 +552,11 @@ hip_options = (
     + config.hip_include
 )
 if cl_options:
+    if is_windows_unc_network_path(hip_win_lib):
+        hip_win_lib = normalize_windows_network_path(hip_win_lib)
     hip_options = (
         " "
-        + (
-            config.hip_libs_dir + "/amdhip64.lib "
-            if config.hip_libs_dir
-            else "amdhip64.lib"
-        )
+        + (quote_path(hip_win_lib) if config.hip_libs_dir else "amdhip64.lib")
         + " /I"
         + config.hip_include
     )
@@ -560,12 +578,13 @@ llvm_config.with_system_environment("ROCM_PATH")
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
+    opencl_win_lib = config.opencl_libs_dir + "/OpenCL.lib"
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
     config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
-        config.substitutions.append(
-            ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
-        )
+        if is_windows_unc_network_path(opencl_win_lib):
+            opencl_win_lib = normalize_windows_network_path(opencl_win_lib)
+        config.substitutions.append(("%opencl_lib", " " + quote_path(opencl_win_lib)))
     else:
         config.substitutions.append(
             ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
@@ -689,9 +708,11 @@ with test_env():
     # Count physical GPU devices: each physical GPU produces one output line
     # that contains ":gpu]". Add a feature when at least two are present so
     # tests requiring multi-GPU hardware can be skipped on single-GPU machines.
-    gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
-    if len(gpu_device_lines) >= 2:
-        config.available_features.add("two-or-more-gpu-devices")
+    # This is a runtime-only feature since it queries actual hardware.
+    if config.test_mode != "build-only":
+        gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
+        if len(gpu_device_lines) >= 2:
+            config.available_features.add("two-or-more-gpu-devices")
 
     if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         devices = set()
@@ -1037,7 +1058,13 @@ for full_name, sycl_device in zip(
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            if sycl_device.endswith("gpu"):
+            if sycl_device.endswith("cpu"):
+                intel_driver_ver["cpu"] = driver_str
+            else:
+                # Treat any non-CPU selector as a GPU candidate. Arch-pinned
+                # selectors like "level_zero:arch-intel_gpu_mtl_u" don't end
+                # in "gpu" but still need driver-version parsing for
+                # REQUIRES-INTEL-DRIVER to work.
                 lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
                 if lin:
                     intel_driver_ver["lin"] = int(lin.group(1))
@@ -1046,8 +1073,6 @@ for full_name, sycl_device in zip(
                 )
                 if win:
                     intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
-            elif sycl_device.endswith("cpu"):
-                intel_driver_ver["cpu"] = driver_str
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -1243,9 +1268,9 @@ try:
     import psutil
 
     if config.test_mode == "run-only":
-        lit_config.maxIndividualTestTime = 300
+        config.maxIndividualTestTime = 300
     else:
-        lit_config.maxIndividualTestTime = 600
+        config.maxIndividualTestTime = 600
 
 except ImportError:
     pass

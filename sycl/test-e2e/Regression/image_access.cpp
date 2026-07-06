@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -Wno-error=deprecated-declarations
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 //==-------------- image_access.cpp - SYCL image accessors test  -----------==//

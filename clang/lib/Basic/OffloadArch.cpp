@@ -40,16 +40,22 @@ static const OffloadArchToStringMap ArchNames[] = {
     SM(90a),                         // Hopper
     SM(100),                         // Blackwell
     SM(100a),                        // Blackwell
+    SM(100f),                        // Blackwell
     SM(101),                         // Blackwell
     SM(101a),                        // Blackwell
+    SM(101f),                        // Blackwell
     SM(103),                         // Blackwell
     SM(103a),                        // Blackwell
+    SM(103f),                        // Blackwell
     SM(110),                         // Blackwell
     SM(110a),                        // Blackwell
+    SM(110f),                        // Blackwell
     SM(120),                         // Blackwell
     SM(120a),                        // Blackwell
+    SM(120f),                        // Blackwell
     SM(121),                         // Blackwell
     SM(121a),                        // Blackwell
+    SM(121f),                        // Blackwell
     GFX(600),  // gfx600
     GFX(601),  // gfx601
     GFX(602),  // gfx602
@@ -150,6 +156,7 @@ static const OffloadArchToStringMap ArchNames[] = {
     {OffloadArch::ADL_P, "adl_p", ""},
     {OffloadArch::ADL_N, "adl_n", ""},
     {OffloadArch::DG1, "dg1", ""},
+    {OffloadArch::DG2, "dg2", ""},
     {OffloadArch::ACM_G10, "acm_g10", ""},
     {OffloadArch::DG2_G10, "dg2_g10", ""},
     {OffloadArch::ACM_G11, "acm_g11", ""},
@@ -158,13 +165,16 @@ static const OffloadArchToStringMap ArchNames[] = {
     {OffloadArch::DG2_G12, "dg2_g12", ""},
     {OffloadArch::PVC, "pvc", ""},
     {OffloadArch::PVC_VG, "pvc_vg", ""},
+    {OffloadArch::MTL, "mtl", ""},
     {OffloadArch::MTL_U, "mtl_u", ""},
     {OffloadArch::MTL_S, "mtl_s", ""},
     {OffloadArch::ARL_U, "arl_u", ""},
     {OffloadArch::ARL_S, "arl_s", ""},
     {OffloadArch::MTL_H, "mtl_h", ""},
     {OffloadArch::ARL_H, "arl_h", ""},
+    {OffloadArch::BMG, "bmg", ""},
     {OffloadArch::BMG_G21, "bmg_g21", ""},
+    {OffloadArch::PTL, "ptl", ""},
     {OffloadArch::LNL_M, "lnl_m", ""},
     {OffloadArch::Generic, "generic", ""},
     // clang-format on

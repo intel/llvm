@@ -725,14 +725,15 @@ bool SPIRVRegularizeLLVMBase::regularize() {
             BO->setIsExact(false);
         }
 
-        // FIXME: This is not valid handling for freeze instruction
-        if (auto *FI = dyn_cast<FreezeInst>(&II)) {
-          auto *V = FI->getOperand(0);
-          if (isa<UndefValue>(V))
-            V = Constant::getNullValue(V->getType());
-          FI->replaceAllUsesWith(V);
-          FI->dropAllReferences();
-          ToErase.push_back(FI);
+        if (!Opts.isAllowedToUseExtension(ExtensionID::SPV_KHR_poison_freeze)) {
+          if (auto *FI = dyn_cast<FreezeInst>(&II)) {
+            Value *V = FI->getOperand(0);
+            if (isa<UndefValue>(V))
+              V = Constant::getNullValue(V->getType());
+            FI->replaceAllUsesWith(V);
+            FI->dropAllReferences();
+            ToErase.push_back(FI);
+          }
         }
 
         // Remove metadata not supported by SPIRV

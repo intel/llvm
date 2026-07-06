@@ -14,23 +14,25 @@
 
 #include <vector>
 
-struct ur_mem_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_mem_handle_t_ : handle_base {
   using native_type = cl_mem;
   native_type CLMemory;
-  ur_context_handle_t Context;
+  ur_context_handle_t_ *Context;
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
 
   ur_mem_handle_t_(const ur_mem_handle_t_ &) = delete;
   ur_mem_handle_t_ &operator=(const ur_mem_handle_t_ &) = delete;
 
-  ur_mem_handle_t_(native_type Mem, ur_context_handle_t Ctx)
+  ur_mem_handle_t_(native_type Mem, ur_context_handle_t_ *Ctx)
       : handle_base(), CLMemory(Mem), Context(Ctx) {
-    urContextRetain(Context);
+    ur::opencl::urContextRetain(cast(Context));
   }
 
   ~ur_mem_handle_t_() {
-    urContextRelease(Context);
+    ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
       clReleaseMemObject(CLMemory);
     }
@@ -40,3 +42,5 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
                                     ur_context_handle_t Ctx,
                                     ur_mem_handle_t &Mem);
 };
+
+} // namespace ur::opencl

@@ -16,6 +16,7 @@
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
+#include <clang/Config/config.h>
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/CudaInstallationDetector.h>
 #include <clang/Driver/Driver.h>
@@ -51,9 +52,10 @@
 #include <llvm/Support/BinaryStreamReader.h>
 #include <llvm/Support/BinaryStreamWriter.h>
 #include <llvm/Support/Caching.h>
+#include <llvm/Support/FormatVariadic.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
-#include <llvm/TargetParser/TargetParser.h>
+#include <llvm/TargetParser/AMDGPUTargetParser.h>
 
 #include <algorithm>
 #include <array>
@@ -167,6 +169,14 @@ template <> struct std::hash<auto_pch_key> {
 };
 
 namespace {
+std::string getLibPathSuffix() {
+#ifdef _WIN32
+  return llvm::formatv("/{0}/", CLANG_INSTALL_LIBDIR_BASENAME);
+#else
+  return llvm::formatv("/{0}/dpcpp-{1}/sycl/", CLANG_INSTALL_LIBDIR_BASENAME,
+                       DPCPP_VERSION_MAJOR);
+#endif
+}
 class SYCLToolchain {
   static auto &getToolchainFS() {
     // TODO: For some reason, removing `thread_local` results in data races
@@ -236,7 +246,6 @@ class SYCLToolchain {
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 
-      Files->clearStatCache();
       return Success;
     }
   };
@@ -311,7 +320,7 @@ class SYCLToolchain {
       PCHFS->addFile(PCHPath, 0, std::move(PrecompiledPreamble));
       auto OverlayFS =
           llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(VFS);
-      OverlayFS->pushOverlay(PCHFS);
+      OverlayFS->pushOverlay(std::move(PCHFS));
       VFS = std::move(OverlayFS);
     }
 
@@ -835,16 +844,16 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     LibNames.push_back(Libclc);
   }
 
+  std::string TripleName = (Format == BinaryFormat::PTX) ? "nvptx64-nvidia-cuda"
+                                                         : "amdgcn-amd-amdhsa";
+
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
-    std::string TripleName = (Format == BinaryFormat::PTX)
-                                 ? "nvptx64-nvidia-cuda"
-                                 : "amdgcn-amd-amdhsa";
     std::string LibPath =
         (LibName.find("libspirv") != std::string::npos)
             ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + "/lib/" + LibName).str();
+            : (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =
@@ -1126,7 +1135,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath =
-          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
+          (SYCLToolchain::instance().getPrefix() + getLibPathSuffix() + LibName)
+              .str();
       ModuleUPtr LibModule;
       if (auto Error = SYCLToolchain::instance()
                            .loadBitcodeLibrary(LibPath, Ctx)

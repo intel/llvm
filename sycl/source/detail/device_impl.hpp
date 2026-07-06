@@ -14,9 +14,17 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/ur.hpp>
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/device.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
+#include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/platform.hpp>
 
@@ -24,6 +32,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <utility>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -585,7 +594,7 @@ public:
       return MCache.get<Param>();
     }
 #define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
-    // device_traits.def
+    // SYCL 2020 info::device traits (defined in sycl/info/device.hpp).
 
     CASE(info::device::device_type) {
       return detail::ConvertDeviceType(get_info_impl<UR_DEVICE_INFO_TYPE>());
@@ -889,7 +898,7 @@ public:
           SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
-    // ext_oneapi_device_traits.def
+    // ext::oneapi device traits (defined under sycl/ext/oneapi/...).
 
     CASE(ext::oneapi::experimental::info::device::max_global_work_groups) {
       return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
@@ -998,7 +1007,7 @@ public:
           get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>());
     }
 
-    // ext_intel_device_traits.def
+    // ext::intel device traits (defined under sycl/ext/intel/info/device.hpp).
 
     CASE(ext::intel::info::device::device_id) {
       if (!has(aspect::ext_intel_device_id))
@@ -1239,7 +1248,7 @@ public:
     CASE(int64_extended_atomics) {
       return has_extension("cl_khr_int64_extended_atomics");
     }
-    CASE(atomic64) { return get_info<info::device::atomic64>(); }
+    CASE(atomic64) { return get_info_impl<UR_DEVICE_INFO_ATOMIC_64>(); }
     CASE(image) { return get_info<info::device::image_support>(); }
     CASE(online_compiler) {
       return get_info<info::device::is_compiler_available>();
@@ -1380,6 +1389,11 @@ public:
     CASE(ext_oneapi_external_memory_import) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_register_host_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP>()
           .value_or(0);
     }
     CASE(ext_oneapi_external_semaphore_import) {
@@ -1610,6 +1624,11 @@ public:
     }
     CASE(ext_oneapi_device_wait) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_ipc_physical_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
     else {
@@ -2289,14 +2308,30 @@ public:
   // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
   void throwAsynchronous();
 
-  void registerQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its constructor.
+  void registerQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    MQueues.insert(Q);
+    MQueues.push_back(Q);
   }
 
-  void unregisterQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its destructor.
+  void unregisterQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    MQueues.erase(Q);
+    auto It = std::find(MQueues.begin(), MQueues.end(), Q);
+
+    // device_impl can be destroyed before queue_impl in unittests.
+    // On Windows, unittests involving host tasks race with scheduler
+    // cleanup (invoked by ~UrMock). UrMock constructor destroys the
+    // platform cache, along with device_impl. Now, when two unittests
+    // involving host tasks run one after another, URMock destructor of
+    // first can race with URMock constructor of second, causing device_impl
+    // to not have registered queue.
+    if (It != MQueues.end()) {
+      // Swap with last element and pop — O(1) removal,
+      // order doesn't matter.
+      std::swap(*It, MQueues.back());
+      MQueues.pop_back();
+    }
   }
 
 private:
@@ -2309,9 +2344,7 @@ private:
   // Devices track a list of active queues on it, to allow for synchronization
   // with host_task and not-yet-enqueued commands.
   std::mutex MQueuesMutex;
-  std::set<std::weak_ptr<queue_impl>,
-           std::owner_less<std::weak_ptr<queue_impl>>>
-      MQueues;
+  std::vector<queue_impl *> MQueues;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both

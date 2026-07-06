@@ -15,6 +15,7 @@
 // differ, than value, that will be provided to the simd when it will be
 // constructed. It is expected for a new simd instance to store same data as the
 // one passed as the source simd constructor.
+#include <iostream>
 
 #include "ctor_broadcast.hpp"
 

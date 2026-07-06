@@ -1,6 +1,5 @@
 // REQUIRES: spirv-registered-target
 // UNSUPPORTED: system-windows, system-cygwin
-// XFAIL: *
 
 // RUN: %clang -### -target x86_64-linux-gnu --offload=spirv64 \
 // RUN:   --no-offload-new-driver --hip-path=%S/Inputs/hipspv -nohipwrapperinc %s \
@@ -39,6 +38,7 @@
 // NEW-SAME: "--image=file=[[OBJ_DEV]],triple=[[TRIPLE]],arch=generic,kind=hip"
 
 // NEW: {{".*clang-linker-wrapper"}} "--device-compiler=[[TRIPLE]]=--hip-path=[[HIP_PATH]]"
+// NEW-SAME: "--no-lto"
 // NEW-SAME: "--emit-fatbin-only" "-o" "[[BUNDLE:.*hipfb]]"
 
 // CHECK: [[CLANG]] "-cc1" "-triple" {{".*"}} "-aux-triple" "[[TRIPLE]]"

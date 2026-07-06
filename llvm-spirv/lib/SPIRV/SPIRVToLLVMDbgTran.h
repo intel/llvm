@@ -150,6 +150,8 @@ private:
   MDNode *transTypeTemplate(const SPIRVExtInst *DebugInst);
 
   DINode *transTypeFunction(const SPIRVExtInst *DebugInst);
+  DISubroutineType *transSubroutineType(const SPIRVExtInst *DebugInst,
+                                        SPIRVId TypeId);
 
   DINode *transTypePtrToMember(const SPIRVExtInst *DebugInst);
 

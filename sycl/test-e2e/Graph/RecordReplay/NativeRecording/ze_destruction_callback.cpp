@@ -8,6 +8,7 @@
 // lifetime. For libraries directly writing L0, zeCommandListGetGraphExp +
 // zeGraphSetDestructionCallbackExp is the standard way to do it. This test
 // validates that use case with an allocation used during graph execution.
+#include <iostream>
 
 #include "../../graph_common.hpp"
 #include "../../ze_common.hpp"

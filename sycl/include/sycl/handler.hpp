@@ -11,7 +11,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
@@ -21,9 +21,7 @@
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/range_rounding.hpp>
 #include <sycl/detail/reduction_forward.hpp>
-#include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -31,11 +29,9 @@
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
-#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
-#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/group.hpp>
@@ -48,6 +44,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 #include <assert.h>
 #include <functional>
@@ -55,7 +52,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -137,12 +133,11 @@ inline namespace _V1 {
 
 template <bundle_state State> class kernel_bundle;
 class handler;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
+class memory_pool;
 struct image_descriptor;
 enum class prefetch_type;
 
@@ -421,11 +416,10 @@ private:
   /// only after the command group finishes the work on device/host.
   ///
   /// @param ReduBuf is a pointer to buffer that must be stored.
-  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-  void
-  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
-                   &ReduBuf) {
-    detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
+  template <typename T, int Dimensions, typename AllocatorT>
+  void addReduction(
+      const std::shared_ptr<buffer<T, Dimensions, AllocatorT>> &ReduBuf) {
+    detail::markBufferAsInternal(detail::getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
 
@@ -805,7 +799,8 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
-
+    detail::KernelRegistrar<NameT,
+                            detail::KernelInfo<NameT>>::registerKernelName();
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     throwOnKernelParameterMisuse(Info);
@@ -967,6 +962,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+    detail::KernelRegistrar<NameT,
+                            detail::KernelInfo<NameT>>::registerKernelName();
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
 
