@@ -350,6 +350,15 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
     assert(MNativeGraphHandle != nullptr &&
            "Native UR graph handle should not be null if graph creation "
            "succeeded");
+
+    uint64_t NativeId = 0;
+    Result = Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphGetIdExp>(
+        MNativeGraphHandle, &NativeId);
+    if (Result == UR_RESULT_SUCCESS) {
+      MNativeID = NativeId;
+    }
+    // On failure (e.g. backend lacks urGraphGetIdExp), MNativeID stays unset
+    // and getID() falls back to the SYCL atomic counter MID.
   }
 
   if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
@@ -2359,6 +2368,10 @@ std::vector<node> modifiable_command_graph::get_root_nodes() const {
 bool modifiable_command_graph::empty() const {
   graph_impl::ReadLock Lock(impl->MMutex);
   return impl->empty();
+}
+
+size_t modifiable_command_graph::get_id() const noexcept {
+  return impl->getID();
 }
 
 void modifiable_command_graph::checkNodePropertiesAndThrow(
