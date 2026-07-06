@@ -29,14 +29,17 @@ runs:
       cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter > adapter_tests.log 2>&1
       EXIT_CODE=$?
       
-      # Show only summary (first 50 and last 50 lines) to avoid SIGPIPE from large output
-      echo "=== Test execution log (first 50 lines) ===" || true
-      head -50 adapter_tests.log 2>/dev/null || true
-      echo "" || true
-      echo "=== ... (full log saved to adapter_tests.log) ===" || true
-      echo "" || true
-      echo "=== Test execution log (last 50 lines) ===" || true
-      tail -50 adapter_tests.log 2>/dev/null || true
+      # Optionally show full LIT output including test lists from summary
+      # Set SHOW_FULL_TEST_LISTS=0 to filter out duplicate test lists (default: show all for debugging)
+      if [ "${SHOW_FULL_TEST_LISTS:-1}" = "1" ]; then
+        echo "=== Full test execution log (including LIT summary lists) ===" || true
+        cat adapter_tests.log || true
+      else
+        # Filtered: Show only summary without duplicate test lists
+        # (LIT summary with asterisks is filtered out to avoid duplication with collapsed lists below)
+        echo "=== Test execution log (filtered - lists shown in collapsed sections below) ===" || true
+        sed '/^\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*/,$d' adapter_tests.log || true
+      fi
       echo "::endgroup::"
       
       # Only fail if cmake actually failed, not if test failed (continue-on-error handles that)
