@@ -63,45 +63,22 @@ runs:
       > all_conformance_tests.txt
       echo "Listing all conformance tests..."
       binary_count=0
-      test_line_count=0
       
       # Use process substitution to avoid subshell issues with pipe
       while IFS= read -r binary; do
         binary_count=$((binary_count + 1))
-        binary_name=$(basename $binary)
-        echo "Processing binary $binary_count: $binary_name"
-        before=$(wc -l < all_conformance_tests.txt 2>/dev/null || echo 0)
         
-        # Run with debug to see what happens
-        echo "  Running: $binary --gtest_list_tests"
-        
-        # Capture output to temp file to avoid SIGPIPE with tee/grep pipe
+        # Capture output to temp file to avoid SIGPIPE
         temp_output=$(mktemp)
-        "$binary" --gtest_list_tests > "$temp_output" 2>&1 || {
-          exit_code=$?
-          echo "  Warning: $binary_name failed with --gtest_list_tests (exit code $exit_code)"
-        }
+        "$binary" --gtest_list_tests > "$temp_output" 2>&1 || true
         
-        # Show errors/warnings to stderr for debugging
-        cat "$temp_output" >&2
-        
-        # Filter empty lines and append to all_conformance_tests.txt
-        grep -v "^$" "$temp_output" >> all_conformance_tests.txt
+        # Filter and append to all_conformance_tests.txt
+        grep -v "^$" "$temp_output" >> all_conformance_tests.txt 2>/dev/null || true
         rm -f "$temp_output"
-        
-        after=$(wc -l < all_conformance_tests.txt 2>/dev/null || echo 0)
-        added=$((after - before))
-        test_line_count=$((test_line_count + added))
-        echo "  Added $added lines (total test lines: $after)"
-        
-        # Show sample of what was added (first 5 lines of new content)
-        if [ $added -gt 0 ]; then
-          echo "  Sample output (first 3 lines):"
-          tail -n $added all_conformance_tests.txt | head -3 | sed 's/^/    /'
-        fi
       done < <(find "$BUILD_DIR/test/conformance" -name "*-test" -type f -executable 2>/dev/null)
       
-      echo "Summary: Processed $binary_count binaries, collected $test_line_count test definition lines"
+      test_count=$(wc -l < all_conformance_tests.txt 2>/dev/null || echo 0)
+      echo "Summary: Processed $binary_count binaries, collected $test_count test definition lines"
   
   - name: Show conformance test statistics and lists
     if: ${{ always() }}
