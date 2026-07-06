@@ -69,10 +69,10 @@ public:
   /// Constructs a SYCL device instance using the default device.
   device();
 
-  /// Constructs a SYCL device instance from an OpenCL OpenCLDeviceIdT
+  /// Constructs a SYCL device instance from an OpenCL cl_device_id
   /// in accordance with the requirements described in 4.3.1.
   ///
-  /// \param DeviceId is OpenCL device represented with OpenCLDeviceIdT
+  /// \param DeviceId is OpenCL device represented with cl_device_id
 #ifdef __SYCL_INTERNAL_API
   explicit device(OpenCLDeviceIdT DeviceId);
 #endif
@@ -131,8 +131,8 @@ public:
 
   /// Get instance of device
   ///
-  /// \return a valid OpenCLDeviceIdT instance in accordance with the
-  /// requirements described in 4.3.1.
+  /// \return a valid cl_device_id instance in accordance with the requirements
+  /// described in 4.3.1.
 #ifdef __SYCL_INTERNAL_API
   OpenCLDeviceIdT get() const;
 #endif
@@ -156,7 +156,7 @@ public:
   ///
   /// If this SYCL device is an OpenCL device then the SYCL platform
   /// must encapsulate the OpenCL cl_plaform_id associated with the
-  /// underlying OpenCL OpenCLDeviceIdT of this SYCL device.
+  /// underlying OpenCL cl_device_id of this SYCL device.
   /// The value returned must be equal to that returned by
   /// get_info<info::device::platform>().
   ///

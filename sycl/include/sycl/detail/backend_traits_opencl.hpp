@@ -17,7 +17,7 @@
 
 #include <sycl/backend_types.hpp>         // for backend
 #include <sycl/detail/backend_traits.hpp> // for BackendInput, BackendReturn
-#include <sycl/detail/cl.h> // for _cl_event, OpenCLEventT, cl_de...
+#include <sycl/detail/cl.h>               // for _cl_event, cl_event, cl_de...
 #include <sycl/detail/fwd/buffer.hpp>     // for buffer (fwd)
 #include <sycl/detail/ur.hpp>             // for assertion and ur handles
 #include <sycl/device.hpp>                // for device
@@ -154,8 +154,8 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
 };
 
 namespace ur {
-// Cast for std::vector<OpenCLEventT>, according to the spec, make_event
-// should create one(?) event from a vector of OpenCLEventT
+// Cast for std::vector<cl_event>, according to the spec, make_event
+// should create one(?) event from a vector of cl_event
 template <class To> inline To cast(std::vector<OpenCLEventT> value) {
   assert(value.size() == 1 &&
          "Temporary workaround requires that the "

@@ -50,11 +50,11 @@ public:
   /// If the constructed SYCL event is waited on it will complete immediately.
   event();
 
-  /// Constructs a SYCL event instance from an OpenCL OpenCLEventT.
+  /// Constructs a SYCL event instance from an OpenCL cl_event.
   ///
   /// The SyclContext must match the OpenCL context associated with the ClEvent.
   ///
-  /// \param ClEvent is a valid instance of OpenCL OpenCLEventT.
+  /// \param ClEvent is a valid instance of OpenCL cl_event.
   /// \param SyclContext is an instance of SYCL context.
 #ifdef __SYCL_INTERNAL_API
   event(OpenCLEventT ClEvent, const context &SyclContext);

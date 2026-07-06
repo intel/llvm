@@ -75,12 +75,12 @@ public:
   /// Constructs a SYCL platform using the default device.
   platform();
 
-  /// Constructs a SYCL platform instance from an OpenCL OpenCLPlatformT.
+  /// Constructs a SYCL platform instance from an OpenCL cl_platform_id.
   ///
   /// The provided OpenCL platform handle is retained on SYCL platform
   /// construction.
   ///
-  /// \param PlatformId is an OpenCL OpenCLPlatformT instance.
+  /// \param PlatformId is an OpenCL cl_platform_id instance.
 #ifdef __SYCL_INTERNAL_API
   explicit platform(OpenCLPlatformT PlatformId);
 #endif
@@ -130,7 +130,7 @@ public:
 
   /// Returns an OpenCL interoperability platform.
   ///
-  /// \return an instance of OpenCL OpenCLPlatformT.
+  /// \return an instance of OpenCL cl_platform_id.
 #ifdef __SYCL_INTERNAL_API
   OpenCLPlatformT get() const;
 #endif

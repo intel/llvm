@@ -54,7 +54,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
         make_error_code(errc::invalid),
-        "Input context must be the same as the context of OpenCLMemT");
+        "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl) {
     retainOpenCLMemObject(MemObject);
@@ -110,7 +110,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
         make_error_code(errc::invalid),
-        "Input context must be the same as the context of OpenCLMemT");
+        "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl) {
     retainOpenCLMemObject(MemObject);

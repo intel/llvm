@@ -42,7 +42,7 @@ public:
   // first allocation of memory for the memory object.
   // Non null HostPtr requires allocation to be made with USE_HOST_PTR property.
   // Method returns a pointer to host allocation if Context is host one and
-  // OpenCLMemT obect if not.
+  // cl_mem obect if not.
   virtual void *allocateMem(context_impl *Context, bool InitFromUserData,
                             void *HostPtr, ur_event_handle_t &InteropEvent) = 0;
 

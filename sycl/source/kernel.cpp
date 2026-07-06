@@ -17,7 +17,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-// TODO(pi2ur): Don't cast straight from OpenCLKernelT below
+// TODO(pi2ur): Don't cast straight from cl_kernel below
 kernel::kernel(OpenCLKernelT ClKernel, const context &SyclContext) {
   using namespace sycl::detail;
   adapter_impl &Adapter = ur::getAdapter<backend::opencl>();

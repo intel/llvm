@@ -70,12 +70,12 @@ class __SYCL_EXPORT kernel : public detail::OwnerLessBase<kernel> {
   friend sycl::detail::ImplUtils;
 
 public:
-  /// Constructs a SYCL kernel instance from an OpenCL OpenCLKernelT
+  /// Constructs a SYCL kernel instance from an OpenCL cl_kernel
   ///
   /// The requirements for this constructor are described in section 4.3.1
   /// of the SYCL specification.
   ///
-  /// \param ClKernel is a valid OpenCL OpenCLKernelT instance
+  /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
 #ifdef __SYCL_INTERNAL_API
   kernel(OpenCLKernelT ClKernel, const context &SyclContext);
@@ -110,9 +110,9 @@ public:
   /// Get a valid OpenCL kernel handle
   ///
   /// If this kernel encapsulates an instance of OpenCL kernel, a valid
-  /// OpenCLKernelT will be returned.
+  /// cl_kernel will be returned.
   ///
-  /// \return a valid OpenCL kernel handle
+  /// \return a valid cl_kernel instance
 #ifdef __SYCL_INTERNAL_API
   OpenCLKernelT get() const;
 #endif

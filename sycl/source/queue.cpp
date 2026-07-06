@@ -64,7 +64,7 @@ queue::queue(OpenCLCommandQueueT clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
   impl = detail::queue_impl::create(
-      // TODO(pi2ur): Don't cast straight from OpenCLCommandQueueT
+      // TODO(pi2ur): Don't cast straight from cl_command_queue
       reinterpret_cast<ur_queue_handle_t>(clQueue),
       *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }

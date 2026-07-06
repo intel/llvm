@@ -71,10 +71,10 @@ public:
   /// Gets a valid OpenCL kernel handle
   ///
   /// If this kernel encapsulates an instance of OpenCL kernel, a valid
-  /// OpenCLKernelT will be returned. If this kernel is a host kernel,
+  /// cl_kernel will be returned. If this kernel is a host kernel,
   /// an exception with errc::invalid error code will be thrown.
   ///
-  /// \return a valid OpenCLKernelT instance
+  /// \return a valid cl_kernel instance
   OpenCLKernelT get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,

@@ -444,7 +444,7 @@ public:
 
   /// Get instance of OpenCL device
   ///
-  /// \return a valid OpenCLDeviceIdT instance in accordance with the
+  /// \return a valid cl_device_id instance in accordance with the
   /// requirements described in 4.3.1.
   OpenCLDeviceIdT get() const;
 
@@ -488,7 +488,7 @@ public:
   ///
   /// If this SYCL device is an OpenCL device then the SYCL platform
   /// must encapsulate the OpenCL cl_plaform_id associated with the
-  /// underlying OpenCL OpenCLDeviceIdT of this SYCL device. If this SYCL device
+  /// underlying OpenCL cl_device_id of this SYCL device. If this SYCL device
   /// is a host device then the SYCL platform must be a host platform.
   /// The value returned must be equal to that returned
   /// by get_info<info::device::platform>().

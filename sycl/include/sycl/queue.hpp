@@ -357,9 +357,9 @@ public:
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
-  /// OpenCLCommandQueueT.
+  /// cl_command_queue.
   ///
-  /// The instance of OpenCLCommandQueueT is retained on construction.
+  /// The instance of cl_command_queue is retained on construction.
   ///
   /// \param ClQueue is a valid instance of OpenCL queue.
   /// \param SyclContext is a valid SYCL context.

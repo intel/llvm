@@ -310,7 +310,8 @@ void *MemoryManager::allocateInteropMemObject(
     const sycl::property_list &, ur_event_handle_t &OutEventToWait) {
   (void)TargetContext;
   (void)InteropContext;
-  // If memory object is created with interop c'tor return OpenCLMemT as is.
+  // If memory object is created with interop c'tor return the native
+  // handle as is.
   assert(TargetContext == InteropContext && "Expected matching contexts");
 
   OutEventToWait = InteropEvent->getHandle();

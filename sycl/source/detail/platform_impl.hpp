@@ -102,7 +102,7 @@ public:
     Adapter.checkUrResult(Err);
   }
 
-  /// \return an instance of OpenCL OpenCLPlatformT.
+  /// \return an instance of OpenCL cl_platform_id.
   OpenCLPlatformT get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
