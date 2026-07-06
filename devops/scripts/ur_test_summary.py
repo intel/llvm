@@ -437,27 +437,6 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
             print(
                 f"Statistics show {stats_skipped_count} skipped tests, but they are not available in the output."
             )
-            print()
-            print("Debug info:")
-            print(
-                f"  - Inline UNSUPPORTED found: {len(unsupported_inline) if 'unsupported_inline' in locals() else 'N/A'}"
-            )
-            print(
-                f"  - GoogleTest SKIPPED found: {len(skipped_gtest) if 'skipped_gtest' in locals() else 'N/A'}"
-            )
-            if all_tests_file:
-                print(f"  - all_tests_file provided: {all_tests_file}")
-                print(
-                    f"  - Tests parsed from file: {len(all_tests) if 'all_tests' in locals() else 0}"
-                )
-                print(
-                    f"  - Known tests (from LIT output): {len(known_tests) if 'known_tests' in locals() else 0}"
-                )
-                print(
-                    f"  - Computed skipped: {len(skipped_computed) if 'skipped_computed' in locals() else 0}"
-                )
-            else:
-                print("  - all_tests_file not provided")
             print("::endgroup::")
 
     # Show remaining test categories from LIT format
