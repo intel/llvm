@@ -4,6 +4,18 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#   "matplotlib==3.9.2",
+#   "mpld3==0.5.10",
+#   "dataclasses-json==0.6.7",
+#   "PyYAML==6.0.1",
+#   "Mako==1.3.12",
+#   "psutil>=7.0.0",
+# ]
+# ///
+
 import argparse
 import re
 import statistics
@@ -524,6 +536,34 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "--benchmarks-source-dir",
+        type=str,
+        help="Use this compute-benchmarks source dir instead of cloning the repository. "
+        "If the dir is not a git repository, benchmarks are always rebuilt.",
+        default=options.benchmarks_source_dir,
+    )
+    parser.add_argument(
+        "--offload-install-dir",
+        type=str,
+        help="Directory containing libLLVMOffload (-> OFFLOAD_INSTALL_DIR). "
+        "Set together with --offload-include-dir to enable the OL SubmitKernel benchmark.",
+        default=options.offload_install_dir,
+    )
+    parser.add_argument(
+        "--offload-include-dir",
+        type=str,
+        help="Directory containing OffloadAPI.h (-> OFFLOAD_INCLUDE_DIR). "
+        "Set together with --offload-install-dir to enable the OL SubmitKernel benchmark.",
+        default=options.offload_include_dir,
+    )
+    parser.add_argument(
+        "--force-offload-plugin",
+        type=str,
+        help="Backend name (level_zero/cuda/amdgpu/host) exported as FORCE_OFFLOAD_PLUGIN "
+        "for the benchmark executable process.",
+        default=options.force_offload_plugin,
+    )
+    parser.add_argument(
         "--env",
         type=str,
         help="Use env variable for a benchmark run.",
@@ -784,6 +824,10 @@ if __name__ == "__main__":
     options.workdir = args.benchmark_directory
     options.offline = args.offline
     options.redownload = args.redownload
+    options.benchmarks_source_dir = args.benchmarks_source_dir
+    options.offload_install_dir = args.offload_install_dir
+    options.offload_include_dir = args.offload_include_dir
+    options.force_offload_plugin = args.force_offload_plugin
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
@@ -826,6 +870,23 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
+    if args.benchmarks_source_dir is not None:
+        if not os.path.isdir(args.benchmarks_source_dir):
+            parser.error("Specified --benchmarks-source-dir is not a valid path")
+        options.benchmarks_source_dir = os.path.abspath(args.benchmarks_source_dir)
+    if args.offload_install_dir is not None or args.offload_include_dir is not None:
+        if args.offload_install_dir is None or args.offload_include_dir is None:
+            parser.error(
+                "--offload-install-dir and --offload-include-dir must both be defined together"
+            )
+        if not os.path.isdir(args.offload_install_dir):
+            parser.error("Specified --offload-install-dir is not a valid path")
+        if not os.path.isdir(args.offload_include_dir):
+            parser.error("Specified --offload-include-dir is not a valid path")
+        options.offload_install_dir = os.path.abspath(args.offload_install_dir)
+        options.offload_include_dir = os.path.abspath(args.offload_include_dir)
+    if options.force_offload_plugin:
+        options.extra_env_vars["FORCE_OFFLOAD_PLUGIN"] = options.force_offload_plugin
 
     # Initialize GitHub summary tracking
     execution_stats = {

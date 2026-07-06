@@ -24,6 +24,7 @@ def runtime_to_name(runtime: RUNTIMES) -> str:
         RUNTIMES.SYCL: "SYCL",
         RUNTIMES.LEVEL_ZERO: "Level Zero",
         RUNTIMES.UR: "Unified Runtime",
+        RUNTIMES.OL: "Offload",
     }[runtime]
 
 
@@ -47,12 +48,18 @@ class ComputeBench(Suite):
             return
 
         if self._project is None:
+            src_override = (
+                Path(options.benchmarks_source_dir)
+                if options.benchmarks_source_dir
+                else None
+            )
             self._project = GitProject(
                 self.git_url(),
                 self.git_hash(),
                 Path(options.workdir),
                 "compute-benchmarks",
                 use_installdir=False,
+                src_dir_override=src_override,
             )
 
         if not self._project.needs_rebuild():
@@ -81,6 +88,13 @@ class ComputeBench(Suite):
                 "-DBUILD_SYCL_WITH_CUDA=ON",
                 "-DBUILD_L0=OFF",
                 "-DBUILD_OCL=OFF",
+            ]
+
+        if options.offload_install_dir and options.offload_include_dir:
+            extra_args += [
+                "-DBUILD_OL=ON",
+                f"-DOFFLOAD_INSTALL_DIR={options.offload_install_dir}",
+                f"-DOFFLOAD_INCLUDE_DIR={options.offload_include_dir}",
             ]
 
         self._project.configure(extra_args, add_sycl=True)
@@ -845,7 +859,12 @@ class SubmitKernel(ComputeBenchmark):
         return (0.0, None)
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
-        return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
+        runtimes = super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
+        # OL (liboffload) SubmitKernel is only available when built via
+        # --offload-install-dir / --offload-include-dir.
+        if options.offload_install_dir and options.offload_include_dir:
+            runtimes.append(RUNTIMES.OL)
+        return runtimes
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
