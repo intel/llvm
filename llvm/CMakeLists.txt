@@ -539,9 +539,14 @@ set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
 # entry-points in ${CMAKE_INSTALL_BINDIR} are added by clang/tools/driver.
 # This block must be after project() so that CMAKE_SYSTEM_NAME is defined.
 set(DPCPP_INSTALL_INTERNAL_BINDIR "lib/dpcpp-${DPCPP_VERSION_MAJOR}/bin")
-set(LLVM_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE STRING 
+set(LLVM_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE STRING
     "Path for binary subdirectory (defaults to '${DPCPP_INSTALL_INTERNAL_BINDIR}')" FORCE)
 set(CLANG_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
+# lld resolves its own install dir via LLD_TOOLS_INSTALL_DIR (used for its
+# ld.lld/ld64.lld/lld-link/wasm-ld symlinks); redirect it too so the linkers
+# don't collide with a system LLVM. The real lld binary destination is patched
+# separately in lld/cmake/modules/AddLLD.cmake, mirroring add_clang_tool.
+set(LLD_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
 
 # The default resource-dir formula is: dirname(binary)/../lib/clang/VERSION.
 # For binaries installed in lib/dpcpp-N/bin/ this resolves inside lib/dpcpp-N/
