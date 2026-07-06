@@ -194,10 +194,19 @@ public:
 
   context &operator=(context &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const context &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const context &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const context &lhs, const context &rhs) {
+    return rhs.impl == lhs.impl;
+  }
 
+  friend bool operator!=(const context &lhs, const context &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   /// Checks if this context has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.

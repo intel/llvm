@@ -279,7 +279,9 @@ __SYCL_DEVICE_INFO_INST(partition_affinity_domains,
 __SYCL_DEVICE_INFO_INST(partition_type_property, info::partition_property)
 __SYCL_DEVICE_INFO_INST(partition_type_affinity_domain,
                         info::partition_affinity_domain)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(atomic64, bool)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(reference_count, uint32_t)
 __SYCL_DEVICE_INFO_INST(usm_device_allocations, bool)
 __SYCL_DEVICE_INFO_INST(usm_host_allocations, bool)

@@ -71,7 +71,9 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 #define __SYCL_PLATFORM_INFO_INST(NAME, RETURN_T)                              \
   template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
   platform::get_info_impl<info::platform::NAME>() const;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_PLATFORM_INFO_INST(profile, std::string)
+#endif
 __SYCL_PLATFORM_INFO_INST(version, std::string)
 __SYCL_PLATFORM_INFO_INST(name, std::string)
 __SYCL_PLATFORM_INFO_INST(vendor, std::string)

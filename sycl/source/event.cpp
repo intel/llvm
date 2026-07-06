@@ -31,9 +31,11 @@ event::event(OpenCLEventT ClEvent, const context &SyclContext)
   detail::retainOpenCLEvent(detail::ur::cast<ur_native_handle_t>(ClEvent));
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 void event::wait() { impl->wait(); }
 
