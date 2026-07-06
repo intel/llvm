@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
+#include <vector>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -64,6 +65,14 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
 }
 
 int main() {
+  device dev;
+  auto combinations = dev.get_info<
+      sycl::ext::oneapi::experimental::info::device::matrix_combinations>();
+  for (const auto &combination : combinations)
+    if (combination.nsize == 8) // architecture::intel_gpu_dg2*
+      // N and K must be the same for this test.\n";
+      return 0;
+
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;

@@ -101,10 +101,19 @@ public:
   explicit device(const DeviceSelector &deviceSelector)
       : device(detail::select_device(deviceSelector)) {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const device &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const device &lhs, const device &rhs) {
+    return rhs.impl == lhs.impl;
+  }
 
+  friend bool operator!=(const device &lhs, const device &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   device(const device &rhs);
 
   device(device &&rhs);

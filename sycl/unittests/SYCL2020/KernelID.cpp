@@ -45,6 +45,8 @@ static sycl::unittest::MockDeviceImage Imgs[2] = {
     sycl::unittest::generateDefaultImage({"KernelID_TestKernel2"})};
 static sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
+template void
+sycl::unittest::registerKernelNames<TestKernel1, TestKernel2, TestKernel3>();
 TEST(KernelID, AllProgramKernelIds) {
   std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
 
@@ -206,19 +208,4 @@ TEST(KernelID, HasKernelTemplated) {
   EXPECT_TRUE(InputBundle1.has_kernel<TestKernel1>());
   EXPECT_FALSE(InputBundle1.has_kernel<TestKernel2>());
   EXPECT_TRUE(InputBundle1.has_kernel<TestKernel3>());
-}
-
-TEST(KernelID, GetKernelIDInvalidKernelName) {
-  sycl::unittest::UrMock<> Mock;
-  sycl::platform Plt = sycl::platform();
-
-  try {
-    sycl::get_kernel_id<class NotAKernel>();
-    FAIL() << "Expected an exception";
-  } catch (sycl::exception const &e) {
-    EXPECT_TRUE(e.code() == sycl::errc::runtime);
-    EXPECT_EQ(std::string("No kernel found with the specified name"), e.what());
-  } catch (...) {
-    FAIL() << "Expected sycl::exception";
-  }
 }

@@ -299,7 +299,7 @@ event submit_kernel_direct_with_event_impl(
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
+  return detail::getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
 }
@@ -311,7 +311,7 @@ void submit_kernel_direct_without_event_impl(
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
+  detail::getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
 }
@@ -322,8 +322,8 @@ event submit_graph_direct_with_event_impl(
         ext::oneapi::experimental::graph_state::executable> &G,
     sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return getSyclObjImpl(Queue)->submit_graph_direct_with_event(
-      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+  return detail::getSyclObjImpl(Queue)->submit_graph_direct_with_event(
+      detail::getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
       TlsCodeLocCapture.isToplevel());
 }
 
@@ -333,8 +333,8 @@ void submit_graph_direct_without_event_impl(
         ext::oneapi::experimental::graph_state::executable> &G,
     sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  getSyclObjImpl(Queue)->submit_graph_direct_without_event(
-      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+  detail::getSyclObjImpl(Queue)->submit_graph_direct_without_event(
+      detail::getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
       TlsCodeLocCapture.isToplevel());
 }
 
