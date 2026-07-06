@@ -37,6 +37,11 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class kernel_impl;
 
+template <int Dimensions, typename LaunchProperties>
+size_t queryMaxNumWorkGroupsWithProps(
+    kernel_impl &impl, const device &Dev, sycl::range<Dimensions> Range,
+    LaunchProperties Props, size_t Bytes);
+
 /// This class is the default KernelName template parameter type for kernel
 /// invocation APIs such as single_task.
 class auto_name {};
@@ -253,6 +258,75 @@ public:
   typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
   ext_oneapi_get_info(queue Queue, const range<1> &WG) const;
 
+  /// Query the maximum number of work-groups that are allowed when the kernel
+  /// uses root-group synchronization, assuming the kernel is launched with a
+  /// work-group size of r, kernel launch properties props, and bytes bytes of
+  /// dynamic work-group local memory. If the kernel can be submitted to the
+  /// device without an error, the minimum value returned by this query is 1,
+  /// otherwise it is 0. Param must be equal to max_num_work_groups_sync.
+  /// \param Dev is a valid SYCL device
+  /// \param Range is the execution range of the kernel
+  /// \param Props are the launch properties of the kernel
+  /// \param Bytes is the amount of dynamic work group local memory allocated by
+  /// the kernel
+  template <
+      typename Param,
+      typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
+      typename = std::enable_if_t<
+          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+  typename Param::return_type
+  ext_oneapi_get_info(const device &Dev, sycl::range<1> Range,
+                      LaunchProperties Props = {}, size_t Bytes = 0) const {
+    return queryMaxNumWorkGroups<1>(Dev, Range, Bytes,
+                                    ProcessLaunchProperties(Props));
+  }
+
+  /// Query the maximum number of work-groups that are allowed when the kernel
+  /// uses root-group synchronization, assuming the kernel is launched with a
+  /// work-group size of r, kernel launch properties props, and bytes bytes of
+  /// dynamic work-group local memory. If the kernel can be submitted to the
+  /// device without an error, the minimum value returned by this query is 1,
+  /// otherwise it is 0. Param must be equal to max_num_work_groups_sync.
+  /// \param Dev is a valid SYCL device
+  /// \param Range is the execution range of the kernel
+  /// \param Props are the launch properties of the kernel
+  /// \param Bytes is the amount of dynamic work group local memory allocated by
+  /// the kernel
+  template <
+      typename Param,
+      typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
+      typename = std::enable_if_t<
+          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+  typename Param::return_type
+  ext_oneapi_get_info(const device &Dev, sycl::range<2> Range,
+                      LaunchProperties Props = {}, size_t Bytes = 0) const {
+    return queryMaxNumWorkGroups<2>(Dev, Range, Bytes,
+                                    ProcessLaunchProperties(Props));
+  }
+
+  /// Query the maximum number of work-groups that are allowed when the kernel
+  /// uses root-group synchronization, assuming the kernel is launched with a
+  /// work-group size of r, kernel launch properties props, and bytes bytes of
+  /// dynamic work-group local memory. If the kernel can be submitted to the
+  /// device without an error, the minimum value returned by this query is 1,
+  /// otherwise it is 0. Param must be equal to max_num_work_groups_sync.
+  /// \param Dev is a valid SYCL device
+  /// \param Range is the execution range of the kernel
+  /// \param Props are the launch properties of the kernel
+  /// \param Bytes is the amount of dynamic work group local memory allocated by
+  /// the kernel
+  template <
+      typename Param,
+      typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
+      typename = std::enable_if_t<
+          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+  typename Param::return_type
+  ext_oneapi_get_info(const device &Dev, sycl::range<3> Range,
+                      LaunchProperties Props = {}, size_t Bytes = 0) const {
+    return queryMaxNumWorkGroups<3>(Dev, Range, Bytes,
+                                    ProcessLaunchProperties(Props));
+  }
+
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
@@ -268,6 +342,49 @@ private:
   typename detail::ABINeutralT_t<
       typename detail::is_kernel_info_desc<Param>::return_type>
   get_info_impl() const;
+
+  // The type below bundles together some execution information for the kernel
+  // such as the amount of dynamic work group memory requested represented by
+  // size_t and the cache config setting represented by
+  // ur_kernel_cache_config_t.
+  struct KernelExecInfoTy {
+    size_t DynamicWorkGroupMem;
+    ur_kernel_cache_config_t CacheConfig;
+  };
+
+  template <int Dimensions>
+  size_t queryMaxNumWorkGroups(const device &Dev, sycl::range<Dimensions> Range,
+                               size_t Bytes, KernelExecInfoTy ExecInfo) const;
+
+  template <typename LaunchProperties>
+  KernelExecInfoTy ProcessLaunchProperties(LaunchProperties Props) const {
+    ur_kernel_cache_config_t CacheConfig =
+        ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_DEFAULT;
+    size_t DynamicLocalMem = 0;
+    if constexpr (LaunchProperties::template has_property<
+                      ext::intel::experimental::cache_config_key>()) {
+      auto prop = LaunchProperties::template get_property<
+          ext::intel::experimental::cache_config_key>();
+      if (prop->value == ext::intel::experimental::cache_config_enum::large_slm)
+        CacheConfig =
+            ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+      else if (prop->value ==
+               ext::intel::experimental::cache_config_enum::large_data) {
+        CacheConfig =
+            ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+      } else {
+        throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                              "Unknown cache property type encountered!");
+      }
+    }
+    if constexpr (LaunchProperties::template has_property<
+                      ext::oneapi::experimental::work_group_scratch_size>()) {
+      auto prop = LaunchProperties::template get_property<
+          ext::oneapi::experimental::work_group_scratch_size>();
+      DynamicLocalMem = prop->size;
+    }
+    return {DynamicLocalMem, CacheConfig};
+  }
 };
 } // namespace _V1
 } // namespace sycl
