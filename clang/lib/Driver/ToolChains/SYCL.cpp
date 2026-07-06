@@ -312,8 +312,11 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   for (auto &Arg : InputCommand->getArguments())
     ForeachArgs.push_back(Arg);
 
-  SmallString<128> ForeachPath(C.getDriver().Dir);
-  llvm::sys::path::append(ForeachPath, "llvm-foreach");
+  // Resolve llvm-foreach via the program search path so it is found in the
+  // versioned tools directory (lib/dpcpp-N/bin/) rather than assuming it sits
+  // right next to the driver, which is not the case for a Windows driver copy
+  // invoked from bin/.
+  std::string ForeachPath = T->getToolChain().GetProgramPath("llvm-foreach");
   const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
 
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
@@ -968,9 +971,12 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       Objs.push_back(
           C.getArgs().MakeArgString(getToolChain().getInputFilename(II)));
 
-  // Get llvm-link path.
-  SmallString<128> ExecPath(C.getDriver().Dir);
-  llvm::sys::path::append(ExecPath, "llvm-link");
+  // Get llvm-link path. Use GetProgramPath rather than assuming the tool sits
+  // next to the driver: with the dpclang layout the real companion tools live
+  // in lib/dpcpp-N/bin/ while a Windows driver copy is invoked from bin/, so
+  // the program search path (seeded in ToolChain's constructor) is what points
+  // at the versioned tools directory.
+  std::string ExecPath = getToolChain().GetProgramPath("llvm-link");
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
 
   auto AddLinkCommand = [this, &C, &JA, Exec](const char *Output,

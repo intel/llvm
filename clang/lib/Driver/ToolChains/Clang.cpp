@@ -10641,8 +10641,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         ClangArgs.push_back(
             TCArgs.MakeArgString(Twine("-mcmodel=") + A->getValue()));
 
-      SmallString<128> ClangPath(C.getDriver().Dir);
-      llvm::sys::path::append(ClangPath, "clang");
+      // Resolve clang via the program search path: with the dpclang layout the
+      // real clang binary lives in lib/dpcpp-N/bin/, which the driver's own
+      // path may not point at directly (a Windows driver copy runs from bin/).
+      std::string ClangPath = getToolChain().GetProgramPath("clang");
       const char *Clang = C.getArgs().MakeArgString(ClangPath);
       auto PostWrapCompileCmd =
           std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
@@ -11209,8 +11211,11 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &Arg : Cmd->getArguments())
       ForeachArgs.push_back(Arg);
 
-    SmallString<128> ForeachPath(C.getDriver().Dir);
-    llvm::sys::path::append(ForeachPath, "llvm-foreach");
+    // Resolve llvm-foreach via the program search path so it is found in the
+    // versioned tools directory (lib/dpcpp-N/bin/) rather than assuming it sits
+    // right next to the driver, which is not the case for a Windows driver copy
+    // invoked from bin/.
+    std::string ForeachPath = getToolChain().GetProgramPath("llvm-foreach");
     const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
     C.addCommand(std::make_unique<Command>(
         JA, *this, ResponseFileSupport::None(), Foreach, ForeachArgs,

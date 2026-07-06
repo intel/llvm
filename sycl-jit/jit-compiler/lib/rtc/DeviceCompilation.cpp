@@ -185,7 +185,7 @@ std::string getLibPathSuffix() {
 // derives the same (versioned) resource directory the bundled resource headers
 // and libraries are installed into.
 std::string getInternalBinSubPath() {
-  return llvm::formatv("/{0}/dpcpp-{1}/bin/clang++", 
+  return llvm::formatv("/{0}/dpcpp-{1}/bin/clang++",
                        CLANG_INSTALL_LIBDIR_BASENAME, DPCPP_VERSION_MAJOR);
 }
 class SYCLToolchain {
