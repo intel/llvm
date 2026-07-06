@@ -28,8 +28,14 @@ runs:
       cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance > conformance_tests.log 2>&1
       EXIT_CODE=$?
       
-      # Show filtered version (without duplicate summary) for display
-      sed '/^\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*/,$d' conformance_tests.log || true
+      # Show only summary (first 50 and last 50 lines) to avoid SIGPIPE from large output
+      echo "=== Test execution log (first 50 lines) ===" || true
+      head -50 conformance_tests.log 2>/dev/null || true
+      echo "" || true
+      echo "=== ... (full log saved to conformance_tests.log) ===" || true
+      echo "" || true
+      echo "=== Test execution log (last 50 lines) ===" || true
+      tail -50 conformance_tests.log 2>/dev/null || true
       echo "::endgroup::"
       
       # Only fail if cmake actually failed, not if test failed (continue-on-error handles that)
