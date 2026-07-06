@@ -109,14 +109,14 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
 
       // When bounded to a partition we only traverse edges internal to the
       // partition as predecessor nodes to an earlier partition are not part
-      // of the current partition's schedule.
+      // of the current partition's schedule. The same-partition in-degree is
+      // precomputed in makePartitions so this stays O(1) per edge; the
+      // unbounded caller (checkForCycles) has no partitions and counts all
+      // predecessors.
+      assert(!PartitionBounded || Succ.MSamePartitionPredecessors >= 0);
       size_t RequiredEdges =
           PartitionBounded
-              ? static_cast<size_t>(std::count_if(
-                    Succ.MPredecessors.begin(), Succ.MPredecessors.end(),
-                    [&Succ](node_impl *Pred) {
-                      return Pred->MPartitionNum == Succ.MPartitionNum;
-                    }))
+              ? static_cast<size_t>(Succ.MSamePartitionPredecessors)
               : Succ.MPredecessors.size();
 
       auto &TotalVisitedEdges = Succ.MTotalVisitedEdges;
@@ -171,17 +171,16 @@ void propagatePartitionDown(node_impl &Node, int PartitionNum,
   }
 }
 
-/// Tests if the node is a root of its partition (i.e. no predecessors that
-/// belong to the same partition)
+/// Counts the predecessors of `Node` that belong to the same partition.
+/// A node is a root of its partition iff this count is zero.
 /// @param Node node to test
-/// @return True is `Node` is a root of its partition
-bool isPartitionRoot(node_impl &Node) {
-  for (node_impl &Predecessor : Node.predecessors()) {
-    if (Predecessor.MPartitionNum == Node.MPartitionNum) {
-      return false;
-    }
-  }
-  return true;
+/// @return Number of predecessors of `Node` in the same partition.
+size_t countPredecessorsInPartition(node_impl &Node) {
+  return static_cast<size_t>(
+      std::count_if(Node.predecessors().begin(), Node.predecessors().end(),
+                    [&Node](node_impl &Predecessor) {
+                      return Predecessor.MPartitionNum == Node.MPartitionNum;
+                    }));
 }
 } // anonymous namespace
 
@@ -268,7 +267,8 @@ void exec_graph_impl::makePartitions() {
     for (node_impl &Node : nodes()) {
       if (Node.MPartitionNum == i) {
         MPartitionNodes[&Node] = PartitionFinalNum;
-        if (isPartitionRoot(Node)) {
+        Node.MSamePartitionPredecessors = countPredecessorsInPartition(Node);
+        if (Node.MSamePartitionPredecessors == 0) {
           Partition->MRoots.insert(&Node);
           if (Node.MCGType == CGType::CodeplayHostTask) {
             Partition->MIsHostTask = true;
@@ -311,6 +311,7 @@ void exec_graph_impl::makePartitions() {
   // Reset node groups (if node have to be re-processed - e.g. subgraph)
   for (node_impl &Node : nodes()) {
     Node.MPartitionNum = -1;
+    Node.MSamePartitionPredecessors = -1;
   }
 }
 
