@@ -185,6 +185,7 @@ sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
 sycl/source/detail/bindless* @intel/bindless-images-reviewers
 sycl/test/check_device_code/extensions/bindless_images.cpp @intel/bindless-images-reviewers
 sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
+sycl/unittests/Extensions/BindlessImages/ @intel/bindless-images-reviewers
 
 # Miscellaneous sycl e2e tests
 sycl/test-e2e/BFloat16/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime

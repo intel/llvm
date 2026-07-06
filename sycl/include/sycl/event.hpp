@@ -68,9 +68,19 @@ public:
 
   event &operator=(event &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const event &rhs) const;
 
   bool operator!=(const event &rhs) const;
+#else
+  friend bool operator==(const event &lhs, const event &rhs) {
+    return rhs.impl == lhs.impl;
+  }
+
+  friend bool operator!=(const event &lhs, const event &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Return the list of events that this event waits for.
   ///
