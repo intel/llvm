@@ -357,7 +357,7 @@ private:
                                size_t Bytes, KernelExecInfoTy ExecInfo) const;
 
   template <typename LaunchProperties>
-  KernelExecInfoTy ProcessLaunchProperties(LaunchProperties Props) const {
+  KernelExecInfoTy ProcessLaunchProperties([[maybe_unused]] LaunchProperties Props) const {
     ur_kernel_cache_config_t CacheConfig =
         ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_DEFAULT;
     size_t DynamicLocalMem = 0;
