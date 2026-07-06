@@ -777,8 +777,7 @@ protected:
   /// \code{.cpp}
   ///   void event_completion_callback(void *data) {
   ///     // Change status of event to complete.
-  ///     clSetEventStatus((OpenCLEventT *)data, CL_COMPLETE); // Scope of
-  ///     Context2
+  ///     clSetEventStatus((cl_event *)data, CL_COMPLETE); // Scope of Context2
   ///   }
   ///
   ///  // Enqueue TASK1
