@@ -16,7 +16,6 @@
 #include "common/ur_ref_count.hpp"
 #include "event_pool_cache.hpp"
 #include "logger/ur_logger.hpp"
-#include "standalone_event_pool.hpp"
 #include "usm.hpp"
 
 enum class PoolCacheType { Immediate, Regular };
@@ -64,6 +63,10 @@ struct ur_context_handle_t_ : ur_object {
     }
     UR_FFAILURE("Requested invalid event pool cache type");
   }
+
+  v2::event_pool_cache &getReusableEventPoolCache() {
+    return reusableEventPoolCache;
+  }
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
@@ -85,10 +88,6 @@ struct ur_context_handle_t_ : ur_object {
 
   ur_shared_mutex GraphMapMutex;
 
-  v2::standalone_event_pool &getReusableEventPool() {
-    return reusableEventPool;
-  }
-
 private:
   const v2::raii::ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t>
@@ -98,12 +97,11 @@ private:
   v2::command_list_cache_t commandListCache;
   v2::event_pool_cache eventPoolCacheImmediate;
   v2::event_pool_cache eventPoolCacheRegular;
+  v2::event_pool_cache reusableEventPoolCache;
 
   // pool used for urEventCreateWithNativeHandle when native handle is NULL
   // (uses non-counter based events to allow for signaling from host)
   v2::event_pool nativeEventsPool;
-
-  v2::standalone_event_pool reusableEventPool;
 
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;

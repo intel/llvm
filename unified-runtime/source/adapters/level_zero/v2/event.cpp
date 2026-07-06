@@ -438,8 +438,9 @@ ur_result_t urEventCreateExp(ur_context_handle_t hContext,
            ? v2::EVENT_FLAGS_PROFILING_ENABLED
            : 0);
 
-  auto &reusableEventPool = hContext->getReusableEventPool();
-  *phEvent = reusableEventPool.allocate(hContext, hDevice, flags);
+  auto eventPool =
+      hContext->getReusableEventPoolCache().borrow(hDevice->Id.value(), flags);
+  *phEvent = eventPool->allocate();
 
   return UR_RESULT_SUCCESS;
 } catch (...) {

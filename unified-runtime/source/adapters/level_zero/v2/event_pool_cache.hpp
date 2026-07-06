@@ -19,7 +19,6 @@
 #include <ze_api.h>
 
 #include "../device.hpp"
-#include "event_descriptor.hpp"
 #include "event_pool.hpp"
 #include "event_provider.hpp"
 
@@ -41,6 +40,15 @@ public:
   raii::cache_borrowed_event_pool borrow(DeviceId, event_flags_t flags);
 
 private:
+  struct event_descriptor {
+    DeviceId device;
+    event_flags_t flags;
+
+    uint64_t index() const {
+      return uint64_t(flags) | (uint64_t(device) << EVENT_FLAGS_USED_BITS);
+    }
+  };
+
   ur_context_handle_t hContext;
   ur_mutex mutex;
   ProviderCreateFunc providerCreate;
