@@ -176,25 +176,12 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
-  std::string LinuxDirSuffix =
-      llvm::formatv("/{0}/dpcpp-{1}/sycl", CLANG_INSTALL_LIBDIR_BASENAME,
-                    DPCPP_VERSION_MAJOR);
+  // The device library bitcode files are installed directly into the libdir
+  // (e.g. lib/) on all platforms.
   for (const auto &IC : InstallationCandidates) {
-    if (!HostTriple.isWindowsMSVCEnvironment() &&
-        !HostTriple.isWindowsItaniumEnvironment()) {
-      SmallString<128> InstallPath(IC);
-      llvm::sys::path::append(InstallPath, LinuxDirSuffix);
-      DeviceLibPaths.emplace_back(InstallPath);
-    }
     SmallString<128> InstallPath(IC);
     llvm::sys::path::append(InstallPath, CLANG_INSTALL_LIBDIR_BASENAME);
     DeviceLibPaths.emplace_back(InstallPath);
-  }
-  if (!HostTriple.isWindowsMSVCEnvironment() &&
-      !HostTriple.isWindowsItaniumEnvironment()) {
-    SmallString<128> Path(D.SysRoot);
-    llvm::sys::path::append(Path, LinuxDirSuffix);
-    DeviceLibPaths.emplace_back(Path.str());
   }
   SmallString<128> Path(D.SysRoot);
   llvm::sys::path::append(Path, CLANG_INSTALL_LIBDIR_BASENAME);
@@ -209,11 +196,13 @@ void SYCLInstallationDetector::addSYCLIncludeArgs(
   // Add the SYCL header search locations in the specified order.
   //   <install-root>/include/sycl/stl_wrappers
   //   <install-root>/include
+  //   <install-root>/lib/dpcpp-N/include
   // Use the install root from InstallationCandidates (which already accounts
   // for versioned binary subdirectories like lib/dpcpp-N/bin/).
-  SmallString<128> IncludePath(InstallationCandidates.empty()
+  SmallString<128> InstallRoot(InstallationCandidates.empty()
                                    ? StringRef(D.Dir + "/..")
                                    : StringRef(InstallationCandidates[0]));
+  SmallString<128> IncludePath(InstallRoot);
   llvm::sys::path::append(IncludePath, "include");
   // This is used to provide our wrappers around STL headers that provide
   // additional functions/template specializations when the user includes those
@@ -225,6 +214,18 @@ void SYCLInstallationDetector::addSYCLIncludeArgs(
   CC1Args.push_back(DriverArgs.MakeArgString(STLWrappersPath));
   CC1Args.push_back("-internal-isystem");
   CC1Args.push_back(DriverArgs.MakeArgString(IncludePath));
+  // The <std/...> wrapper headers (e.g. <std/experimental/simd.hpp>) are
+  // installed into the versioned DPC++ include directory
+  // (lib/dpcpp-N/include) so they don't pollute the top-level include/.  Add
+  // that directory too so those relative includes resolve.  In the build tree
+  // the headers still live under <root>/include, which is already on the
+  // search path above; a nonexistent path here is harmless.
+  SmallString<128> VersionedIncludePath(InstallRoot);
+  llvm::sys::path::append(VersionedIncludePath, CLANG_INSTALL_LIBDIR_BASENAME,
+                          "dpcpp-" + llvm::Twine(DPCPP_VERSION_MAJOR),
+                          "include");
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(VersionedIncludePath));
 }
 
 void SYCLInstallationDetector::print(llvm::raw_ostream &OS) const {

@@ -57,13 +57,6 @@ jobs:
           tar -xf $TOOLCHAIN_ARTIFACT_FILENAME -C install
           rm $TOOLCHAIN_ARTIFACT_FILENAME
 
-      - name: Create dpclang Symlinks
-        shell: bash
-        run: |
-          # Symlink to the expected compiler names until we provide them.
-          ln -sf "$SYCL_INSTALL_DIR/bin/clang" "$SYCL_INSTALL_DIR/bin/dpclang"
-          ln -sf "$SYCL_INSTALL_DIR/bin/clang++" "$SYCL_INSTALL_DIR/bin/dpclang++"
-
       - name: Checkout PyTorch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

@@ -3700,8 +3700,8 @@ static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
   // directory the driver runs from: on Windows the driver is a copy in bin/
   // and the bundler lives in the versioned dir, so a search restricted to
   // C.getDriver().Dir would not find it.
-  std::string BundlerBinary =
-      C.getDriver().GetProgramPath("clang-offload-bundler", C.getDefaultToolChain());
+  std::string BundlerBinary = C.getDriver().GetProgramPath(
+      "clang-offload-bundler", C.getDefaultToolChain());
   SmallVector<StringRef, 6> BundlerArgs;
   BundlerArgs.push_back(BundlerBinary.c_str());
   BundlerArgs.append(InputArgs);
@@ -3737,8 +3737,8 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
   // the bare tool name when it can't be located, so this never dereferences an
   // errored value (previously an unchecked ErrorOr::get() crashed here when
   // the bundler was not next to the driver).
-  std::string BundlerBinary =
-      C.getDriver().GetProgramPath("clang-offload-bundler", C.getDefaultToolChain());
+  std::string BundlerBinary = C.getDriver().GetProgramPath(
+      "clang-offload-bundler", C.getDefaultToolChain());
   const char *Input = C.getArgs().MakeArgString(Twine("-input=") + File.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
