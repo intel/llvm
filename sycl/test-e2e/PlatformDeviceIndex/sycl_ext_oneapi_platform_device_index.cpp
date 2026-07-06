@@ -3,6 +3,7 @@
 // RUN: %{build} %level_zero_options %opencl_lib -o %t.out
 // RUN: %{run} %t.out
 
+#include <CL/cl.h>
 #include "../helpers.hpp"
 
 #include <level_zero/ze_api.h>
