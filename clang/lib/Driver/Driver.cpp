@@ -3702,6 +3702,11 @@ static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
   // C.getDriver().Dir would not find it.
   std::string BundlerBinary = C.getDriver().GetProgramPath(
       "clang-offload-bundler", C.getDefaultToolChain());
+  // GetProgramPath falls back to the bare tool name when it can't locate the
+  // tool. Bail out if it isn't a runnable path rather than trying to execute an
+  // unresolved name (which could otherwise pick up an unrelated tool on PATH).
+  if (!llvm::sys::fs::can_execute(BundlerBinary))
+    return false;
   SmallVector<StringRef, 6> BundlerArgs;
   BundlerArgs.push_back(BundlerBinary.c_str());
   BundlerArgs.append(InputArgs);
@@ -3739,6 +3744,10 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
   // the bundler was not next to the driver).
   std::string BundlerBinary = C.getDriver().GetProgramPath(
       "clang-offload-bundler", C.getDefaultToolChain());
+  // Bail out if the tool couldn't be resolved to a runnable path rather than
+  // trying to execute an unresolved bare name.
+  if (!llvm::sys::fs::can_execute(BundlerBinary))
+    return {};
   const char *Input = C.getArgs().MakeArgString(Twine("-input=") + File.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.

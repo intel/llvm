@@ -25,6 +25,7 @@
 #include "Solaris.h"
 #include "ToolChains/Cuda.h"
 #include "clang/Basic/CodeGenOptions.h"
+#include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
@@ -86,9 +87,10 @@ llvm::SmallString<128> clang::driver::findSYCLInstallRoot(const Driver &D) {
   // The dpclang install layout keeps the real tools in lib/dpcpp-<major>/bin
   // (the public dpclang* drivers in bin/ are just symlinks into it, and the
   // driver resolves them, so D.Dir points at the versioned directory). Step
-  // out of that versioned subdirectory too. This mirrors AMDGPU.cpp matching
-  // "aomp*" enclosing directories by name.
-  if (ParentName.starts_with("dpcpp-")) {
+  // out of that versioned subdirectory too. Match the exact expected directory
+  // name for this compiler's version rather than any "dpcpp-*" so an unrelated
+  // sibling directory can't be mistaken for it.
+  if (ParentName == "dpcpp-" + llvm::Twine(DPCPP_VERSION_MAJOR).str()) {
     ParentDir = llvm::sys::path::parent_path(ParentDir);
     ParentName = llvm::sys::path::filename(ParentDir);
   }
