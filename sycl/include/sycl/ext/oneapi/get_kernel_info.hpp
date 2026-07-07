@@ -78,7 +78,7 @@ get_kernel_info(const context &ctxt, const device &dev, sycl::range<1> r,
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be info::kernel::max_num_work_groups_sync.
@@ -92,7 +92,7 @@ get_kernel_info(const context &ctxt, const device &dev, sycl::range<2> r,
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be info::kernel::max_num_work_groups_sync.
@@ -106,7 +106,7 @@ get_kernel_info(const context &ctxt, const device &dev, sycl::range<3> r,
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be info::kernel::max_num_work_groups_sync.
@@ -124,7 +124,7 @@ get_kernel_info(const queue &q, sycl::range<1> r,
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be info::kernel::max_num_work_groups_sync.
@@ -141,7 +141,7 @@ get_kernel_info(const queue &q, sycl::range<2> r, LaunchProperties props = {},
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be info::kernel::max_num_work_groups_sync.
@@ -158,7 +158,7 @@ get_kernel_info(const queue &q, sycl::range<3> r, LaunchProperties props = {},
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // For free functions.
@@ -214,7 +214,7 @@ get_kernel_info(const context &ctxt, const device &dev, sycl::range<1> r,
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -230,7 +230,7 @@ get_kernel_info(const context &ctxt, const device &dev, sycl::range<2> r,
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -246,7 +246,7 @@ get_kernel_info(const context &ctxt, const device &dev, sycl::range<3> r,
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -263,7 +263,7 @@ get_kernel_info(const queue &q, sycl::range<1> r, LaunchProperties props = {},
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -280,7 +280,7 @@ get_kernel_info(const queue &q, sycl::range<2> r, LaunchProperties props = {},
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -297,7 +297,7 @@ get_kernel_info(const queue &q, sycl::range<3> r, LaunchProperties props = {},
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 } // namespace experimental

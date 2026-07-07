@@ -3,6 +3,7 @@
 
 // REQUIRES: aspect-usm_device_allocations
 
+#include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
@@ -35,7 +36,6 @@ int main() {
   syclex::properties props{syclex::use_root_sync};
   auto maxWGs = syclex::get_kernel_info<
       mykernel, sycl::info::kernel::max_num_work_groups_sync>(q, 32, props, 0);
-
   // Construct an nd-range which launches the maximum number of work-groups.
   auto ndr = sycl::nd_range<1>{maxWGs * 32, 32};
 
