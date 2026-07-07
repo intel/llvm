@@ -13,9 +13,12 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/util.hpp>
-#include <sycl/info/kernel.hpp>         // for is_kernel_device_specif...
-#include <sycl/kernel_bundle_enums.hpp> // for bundle_state
-#include <unified-runtime/ur_api.h>     // for ur_native_handle_t
+#include <sycl/ext/intel/experimental/kernel_execution_properties.hpp> // for cache_config
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp> // for work_group_scratch_size
+#include <sycl/ext/oneapi/properties.hpp> // for empty_properties_t
+#include <sycl/info/kernel.hpp>           // for is_kernel_device_specif...
+#include <sycl/kernel_bundle_enums.hpp>   // for bundle_state
+#include <unified-runtime/ur_api.h>       // for ur_native_handle_t
 
 #include <cstddef> // for size_t
 #include <memory>  // for shared_ptr, hash, opera...
@@ -368,9 +371,6 @@ private:
                ext::intel::experimental::cache_config_enum::large_data) {
         CacheConfig =
             ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
-      } else {
-        throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                              "Unknown cache property type encountered!");
       }
     }
     if constexpr (LaunchProperties::template has_property<
