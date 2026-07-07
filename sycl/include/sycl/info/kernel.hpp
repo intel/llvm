@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/info_desc_traits.hpp>
 #include <sycl/range.hpp>
 #include <unified-runtime/ur_api.h>

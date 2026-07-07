@@ -1,7 +1,8 @@
 // UNSUPPORTED: preview-mode
+// UNSUPPORTED-INTENDED: reference_count is unavailable in preview mode.
 // RUN: %{build} -o %t.out
 
-//==---------- reference_count.cpp - Deprecated info descriptors test --------==//
+//==---------- reference_count.cpp - Deprecated info test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,7 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/context.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/queue.hpp>
 
 #include <cstdint>
 #include <type_traits>
