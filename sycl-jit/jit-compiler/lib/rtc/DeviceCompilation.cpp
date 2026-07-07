@@ -170,9 +170,12 @@ template <> struct std::hash<auto_pch_key> {
 
 namespace {
 std::string getLibPathSuffix() {
-  // The device library bitcode files are installed directly into the libdir
-  // (e.g. lib/) on all platforms.
+#ifdef _WIN32
   return llvm::formatv("/{0}/", CLANG_INSTALL_LIBDIR_BASENAME);
+#else
+  return llvm::formatv("/{0}/dpcpp-{1}/sycl/", CLANG_INSTALL_LIBDIR_BASENAME,
+                       DPCPP_VERSION_MAJOR);
+#endif
 }
 
 // Location of the internal `clang++` binary relative to the toolchain root.

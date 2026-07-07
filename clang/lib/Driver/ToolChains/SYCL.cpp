@@ -176,12 +176,25 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
-  // The device library bitcode files are installed directly into the libdir
-  // (e.g. lib/) on all platforms.
+  std::string LinuxDirSuffix =
+      llvm::formatv("/{0}/dpcpp-{1}/sycl", CLANG_INSTALL_LIBDIR_BASENAME,
+                    DPCPP_VERSION_MAJOR);
   for (const auto &IC : InstallationCandidates) {
+    if (!HostTriple.isWindowsMSVCEnvironment() &&
+        !HostTriple.isWindowsItaniumEnvironment()) {
+      SmallString<128> InstallPath(IC);
+      llvm::sys::path::append(InstallPath, LinuxDirSuffix);
+      DeviceLibPaths.emplace_back(InstallPath);
+    }
     SmallString<128> InstallPath(IC);
     llvm::sys::path::append(InstallPath, CLANG_INSTALL_LIBDIR_BASENAME);
     DeviceLibPaths.emplace_back(InstallPath);
+  }
+  if (!HostTriple.isWindowsMSVCEnvironment() &&
+      !HostTriple.isWindowsItaniumEnvironment()) {
+    SmallString<128> Path(D.SysRoot);
+    llvm::sys::path::append(Path, LinuxDirSuffix);
+    DeviceLibPaths.emplace_back(Path.str());
   }
   SmallString<128> Path(D.SysRoot);
   llvm::sys::path::append(Path, CLANG_INSTALL_LIBDIR_BASENAME);

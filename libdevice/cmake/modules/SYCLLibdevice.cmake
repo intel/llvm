@@ -10,9 +10,16 @@ endif()
 set(bc-suffix bc)
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
 
-# Install the device library bitcode files into lib/ on all platforms.
-set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
-set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+if(WIN32)
+  # On Windows, install to lib/
+  set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
+  set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+else()
+  # On other platforms, install to lib/dpcpp-<major_ver>/sycl
+  set(bc_dir "lib${LLVM_LIBDIR_SUFFIX}/dpcpp-${DPCPP_VERSION_MAJOR}/sycl")
+  set(install_dest_bc ${bc_dir})
+  set(bc_binary_dir "${CMAKE_BINARY_DIR}/${bc_dir}")
+endif()
 
 string(CONCAT sycl_pvc_target_opt
   "-fsycl-targets="
