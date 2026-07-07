@@ -62,6 +62,8 @@
 // RUN: ! grep -oE '[^ ]*/include/sycl/[^ ]*\.hpp' %t.d \
 // RUN:   | xargs grep -HnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*<(iostream|istream|ostream|sstream)>'
 //
+// REQUIRES: linux
+//
 // CHECK-NOT: iostream_proxy.hpp
 // CHECK-NOT: {{/iostream[ \\]}}
 // CHECK-NOT: {{/iostream\.h}}
