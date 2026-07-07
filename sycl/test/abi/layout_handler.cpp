@@ -14,7 +14,7 @@ void foo() {
 // The order of field declarations and their types are important.
 // CHECK:        0 | class sycl::handler
 // CHECK-NEXT:   0 |   class std::unique_ptr<class sycl::detail::handler_impl> implOwner
-// CHECK-NEXT:   0 |       class std::__uniq_ptr_impl<class sycl::detail::handler_impl, struct std::default_delete<class sycl::detail::handler_impl> >
+// CHECK:        0 |       class std::__uniq_ptr_impl<class sycl::detail::handler_impl, struct std::default_delete<class sycl::detail::handler_impl> >
 // CHECK-NEXT:   0 |         class std::tuple<class sycl::detail::handler_impl *, struct std::default_delete<class sycl::detail::handler_impl> >
 // CHECK-NEXT:   0 |           struct std::_Tuple_impl<0, class sycl::detail::handler_impl *, struct std::default_delete<class sycl::detail::handler_impl> > (base)
 // CHECK-NEXT:   0 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::handler_impl> > (base) (empty)
