@@ -26,6 +26,9 @@
 
 #include <cassert>
 #include <cstdio>
+#include <fstream>
+#include <limits>
+#include <string>
 #include <vector>
 
 #include <sys/mman.h>
@@ -40,9 +43,24 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-// Default huge page size on x86-64 Linux. Used to size and align the explicit
-// MAP_HUGETLB mapping.
-static constexpr size_t HugePageSize = 2 * 1024 * 1024; // 2 MiB
+// Returns the kernel's default HugeTLB page size in bytes, read from
+// /proc/meminfo. Falls back to 2 MiB (the common x86-64 default) if the entry
+// is missing.
+static size_t getHugePageSize() {
+  std::ifstream Meminfo("/proc/meminfo");
+  std::string Key;
+  while (Meminfo >> Key) {
+    if (Key == "Hugepagesize:") {
+      size_t KiB = 0;
+      Meminfo >> KiB;
+      if (KiB != 0)
+        return KiB * 1024;
+      break;
+    }
+    Meminfo.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+  }
+  return 2 * 1024 * 1024;
+}
 
 // Runs device + copy exercises over a registered range and verifies results.
 // Reused by both huge-page paths.
@@ -73,10 +91,12 @@ static void exerciseRegisteredRange(sycl::queue &Q, sycl::context &Ctxt,
 }
 
 // Path 1: explicit huge pages via MAP_HUGETLB. The "hugepages" REQUIRES feature
-// guarantees free HugeTLB pages exist, so the mapping is expected to succeed.
+// guarantees free HugeTLB pages exist, so the mapping is expected to succeed
+// when the mapping length matches the kernel's default HugeTLB page size.
 static void testExplicitHugePages(sycl::queue &Q, sycl::context &Ctxt) {
-  // One whole huge page worth of memory.
-  const size_t NumBytes = HugePageSize;
+  // One whole huge page worth of memory, sized to the kernel's default HugeTLB
+  // page size so MAP_HUGETLB accepts the length regardless of platform.
+  const size_t NumBytes = getHugePageSize();
   const size_t NumElems = NumBytes / sizeof(int);
 
   void *Map = mmap(nullptr, NumBytes, PROT_READ | PROT_WRITE,
@@ -95,9 +115,12 @@ static void testExplicitHugePages(sycl::queue &Q, sycl::context &Ctxt) {
 // backs it with a transparent huge page.
 static void testTransparentHugePages(sycl::queue &Q, sycl::context &Ctxt) {
   const size_t PageSize = getHostPageSize();
-  // Request a 2 MiB region, aligned to the huge page size so the kernel can
-  // promote it to a transparent huge page.
-  const size_t NumBytes = HugePageSize;
+  // Request a region whose length is a multiple of the kernel's HugeTLB page
+  // size, giving the kernel a chance to promote it to a transparent huge page.
+  // Note: mmap(nullptr, ...) only guarantees base-page alignment for the
+  // returned address, not huge-page alignment — this is a best-effort THP hint
+  // (size-only), so the promotion is not guaranteed.
+  const size_t NumBytes = getHugePageSize();
   const size_t NumElems = NumBytes / sizeof(int);
 
   void *Map = mmap(nullptr, NumBytes, PROT_READ | PROT_WRITE,

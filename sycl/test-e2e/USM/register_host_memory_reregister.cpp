@@ -30,12 +30,14 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-// Registers Data as host memory, has the device write Base + I into element I,
-// verifies the result, then unregisters. All registrations are writable.
+// Registers NumBytes of Data as host memory (must be a multiple of the host
+// page size), has the device write Base + I into element I over the first
+// NumElems ints, verifies the result, then unregisters. All registrations are
+// writable.
 static void registerWriteVerifyUnregister(sycl::queue &Q, sycl::context &Ctxt,
-                                          int *Data, size_t NumElems,
-                                          int Base) {
-  syclexp::register_host_memory(Data, NumElems * sizeof(int), Ctxt);
+                                          int *Data, size_t NumBytes,
+                                          size_t NumElems, int Base) {
+  syclexp::register_host_memory(Data, NumBytes, Ctxt);
 
   // While registered, the pointer behaves like a USM host allocation.
   assert(sycl::get_pointer_type(Data, Ctxt) == sycl::usm::alloc::host);
@@ -63,11 +65,12 @@ int main() {
   int *Data = static_cast<int *>(Map);
 
   // First registration cycle over the range.
-  registerWriteVerifyUnregister(Q, Ctxt, Data, NumElems, /*Base=*/1);
+  registerWriteVerifyUnregister(Q, Ctxt, Data, NumBytes, NumElems, /*Base=*/1);
 
   // Second registration cycle reusing the same virtual address. The device
   // write here must land in the range after the first cycle was unregistered.
-  registerWriteVerifyUnregister(Q, Ctxt, Data, NumElems, /*Base=*/100);
+  registerWriteVerifyUnregister(Q, Ctxt, Data, NumBytes, NumElems,
+                                /*Base=*/100);
 
   assert(munmap(Map, NumBytes) == 0 && "munmap failed");
 

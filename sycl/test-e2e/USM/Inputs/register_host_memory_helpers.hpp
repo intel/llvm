@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 
 #if defined(_WIN32)
@@ -25,5 +26,7 @@ inline size_t getHostPageSize() {
 // Rounds NumBytes up to a whole number of host pages, as the extension requires
 // the registered size to be a multiple of the host page size.
 inline size_t roundUpToPage(size_t NumBytes, size_t PageSize) {
+  assert(PageSize != 0 && (PageSize & (PageSize - 1)) == 0 &&
+         "PageSize must be a power of two");
   return (NumBytes + PageSize - 1) & ~(PageSize - 1);
 }
