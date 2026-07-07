@@ -26,6 +26,8 @@
 // Filesystem transitively pulls in iostream, so we intentionally exclude
 // sycl.hpp from this test.
 //
+// UNSUPPORTED: linux && !glibcxx-ge-11
+//
 // RUN: %clangxx -fsycl -fsycl-device-only -include %S/Inputs/khr_all.hpp \
 // RUN:   -c %s -o %t.o -MD -MF - | FileCheck %s
 //
