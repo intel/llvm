@@ -172,7 +172,7 @@ void propagatePartitionDown(node_impl &Node, int PartitionNum,
 /// A node is a root of its partition iff this count is zero.
 /// @param Node node to test
 /// @return Number of predecessors of `Node` in the same partition.
-size_t countPredecessorsInPartition(node_impl &Node) {
+size_t countPredecessorsInPartition(const node_impl &Node) {
   return static_cast<size_t>(
       std::count_if(Node.predecessors().begin(), Node.predecessors().end(),
                     [&Node](node_impl &Predecessor) {
