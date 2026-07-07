@@ -10442,6 +10442,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     } else {
       llvm::Triple EffTriple(CurTC->ComputeEffectiveClangTriple(
           TCArgs, CurDep->getOffloadingArch()));
+      // SYCL old-model bundler uses 3-component triples to match the triple
+      // format used during unbundling.
       if (CurKind == Action::OFK_SYCL)
         Triples += EffTriple.normalize();
       else
