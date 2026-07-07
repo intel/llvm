@@ -107,9 +107,9 @@ else()
   # PREFIX form, which is never version-prefixed. Reusing LIBCLC_INSTALL_DIR
   # here would emit the libraries into a versioned directory the build-tree
   # driver does not search (breaking in-tree check-sycl/libclc tests).
-  cmake_path( GET LLVM_LIBRARY_OUTPUT_INTDIR PARENT_PATH _libclc_build_prefix )
+  cmake_path( GET LLVM_LIBRARY_OUTPUT_INTDIR PARENT_PATH LIBCLC_OUTPUT_LIBRARY_DIR )
   get_clang_resource_dir( LIBCLC_OUTPUT_LIBRARY_DIR PREFIX ${_libclc_build_prefix} )
-  cmake_path( APPEND LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_LIBDIR_BASENAME} )
+  cmake_path( APPEND LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_OUTPUT_LIBRARY_DIR} )
 endif()
 
 if( NOT LIBCLC_USE_SPIRV_BACKEND )
