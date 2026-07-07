@@ -439,10 +439,14 @@ public:
     if (CompCount == 8 || CompCount == 16)
       V.push_back(CapabilityVector16);
 
-    if (Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
-      if (CompCount == 1 || (CompCount > 4 && CompCount < 8) ||
-          (CompCount > 8 && CompCount < 16) || CompCount > 16)
+    if (CompCount == 1 || (CompCount > 4 && CompCount < 8) ||
+        (CompCount > 8 && CompCount < 16) || CompCount > 16) {
+      if (Module->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector))
+        V.push_back(CapabilityLongVectorEXT);
+      else if (Module->isAllowedToUseExtension(
+                   ExtensionID::SPV_INTEL_vector_compute))
         V.push_back(CapabilityVectorAnyINTEL);
+    }
     return V;
   }
 
@@ -456,7 +460,8 @@ protected:
     SPIRVEntry::validate();
     CompType->validate();
 #ifndef NDEBUG
-    if (!(Module->isAllowedToUseExtension(
+    if (!Module->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector) &&
+        !(Module->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_vector_compute))) {
       assert(CompCount == 2 || CompCount == 3 || CompCount == 4 ||
              CompCount == 8 || CompCount == 16);

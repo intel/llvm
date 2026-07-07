@@ -646,6 +646,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityAtomicFloat16VectorNV, "AtomicFloat16VectorNV");
+  add(CapabilityLongVectorEXT, "LongVectorEXT");
   add(internal::CapabilityAtomicBFloat16AddINTEL, "AtomicBFloat16AddINTEL");
   add(internal::CapabilityAtomicBFloat16MinMaxINTEL,
       "AtomicBFloat16MinMaxINTEL");

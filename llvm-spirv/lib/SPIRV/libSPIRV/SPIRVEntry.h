@@ -957,6 +957,8 @@ public:
       return ExtensionID::SPV_KHR_float_controls2;
     case CapabilityInt64ImageEXT:
       return ExtensionID::SPV_EXT_shader_image_int64;
+    case CapabilityLongVectorEXT:
+      return ExtensionID::SPV_EXT_long_vector;
     default:
       return {};
     }
