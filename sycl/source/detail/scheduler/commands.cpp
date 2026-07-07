@@ -3484,7 +3484,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         std::move(HostTask->MHostTask->MHostTask));
     Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
         Queue->getHandleRef(), NativeHostTask, NativeHostTaskData.get(),
-        nullptr, 0, nullptr, Event);
+        nullptr, RawEvents.size(), RawEvents.data(), Event);
     (void)NativeHostTaskData.release();
     SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
