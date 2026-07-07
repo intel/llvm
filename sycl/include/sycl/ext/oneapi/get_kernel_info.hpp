@@ -56,7 +56,6 @@ get_kernel_info(const context &Ctx, const device &Dev) {
   return sycl::detail::get_kernel_info_impl<Param>(CtxImpl, DevImpl, DKI);
 }
 
-
 // Queue variant - delegates to context+device
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type

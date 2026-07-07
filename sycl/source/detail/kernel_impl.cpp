@@ -15,6 +15,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
 static CompileTimeKernelInfoTy
 createCompileTimeKernelInfo(std::string_view KernelName = {}) {
   return CompileTimeKernelInfoTy{KernelName};
