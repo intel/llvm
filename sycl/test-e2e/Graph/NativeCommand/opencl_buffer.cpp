@@ -3,6 +3,7 @@
 // REQUIRES: opencl, opencl_icd
 
 #include <CL/cl.h>
+#include <CL/cl_ext.h>
 #include <sycl/backend.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
