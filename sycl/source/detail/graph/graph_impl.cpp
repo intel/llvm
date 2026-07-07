@@ -11,6 +11,7 @@
 #include "graph_impl.hpp"
 #include "dynamic_impl.hpp" // for dynamic classes
 #include "node_impl.hpp"    // for node_impl
+#include <algorithm>        // for count_if
 #include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
 #include <detail/config.hpp>                          // for SYCLConfig
 #include <detail/event_impl.hpp>                      // for event_impl
@@ -21,7 +22,6 @@
 #include <detail/queue_impl.hpp>                      // for queue_impl
 #include <detail/sycl_mem_obj_t.hpp>                  // for SYCLMemObjT
 #include <detail/ur.hpp>                              // for UR APIs
-#include <algorithm>                                  // for count_if
 #include <stack>                                      // for stack
 #include <sycl/detail/common.hpp>      // for tls_code_loc_t etc..
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
