@@ -10,9 +10,11 @@ def process_aspects(file_path, is_deprecated=False):
 
     output = ""
     for line in lines:
+# __INTEL_PREVIEW_BREAKING_CHANGES
         stripped_line = line.strip()
         if not stripped_line or stripped_line.startswith("#") or stripped_line.startswith("//"):
             continue
+# end __INTEL_PREVIEW_BREAKING_CHANGES
         if is_deprecated:
             aspect_macro = (
                 stripped_line.replace("__SYCL_ASPECT_DEPRECATED(", "").replace(")", "")

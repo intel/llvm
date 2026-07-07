@@ -2373,14 +2373,14 @@ private:
       EagerCache<InfoInitializer>,               //
       CallOnceCache<InfoInitializer,
                     ext::oneapi::experimental::info::device::architecture>, //
-    #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       AspectCache<EagerCache, aspect::fp16, aspect::fp64,
                   aspect::int64_base_atomics, aspect::int64_extended_atomics,
                   aspect::ext_oneapi_atomic16>,
-    #else
+#else
       AspectCache<EagerCache, aspect::fp16, aspect::fp64,
-          aspect::ext_oneapi_atomic16>,
-    #endif // __INTEL_PREVIEW_BREAKING_CHANGES
+                  aspect::ext_oneapi_atomic16>,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       AspectCache<
           CallOnceCache,
           // Slow, >100ns (for baseline cached ~30..40ns):
