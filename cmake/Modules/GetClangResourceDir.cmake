@@ -19,11 +19,10 @@ function(get_clang_resource_dir out_var)
     set(ret_dir lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION_MAJOR})
     # When the compiler tools are relocated into a versioned DPC++ libdir
     # (e.g. lib/dpcpp-N/bin), the driver resolves its resource dir relative to
-    # the executable as <dpcpp-dir>/lib/clang/N (see GetResourcesPath() in
-    # clang/lib/Options/OptionUtils.cpp). For install destinations (callers
-    # that pass no PREFIX) mirror that layout so the resource headers and
-    # libraries are installed where the driver actually looks, instead of the
-    # top-level lib/clang which would otherwise require a bridging symlink.
+    # the executable as <dpcpp-dir>/lib/clang/N. For install destinations 
+    # (callers that pass no PREFIX) mirror that layout so the resource headers
+    # and libraries are installed where the driver actually looks, instead of
+    # the top-level lib/clang which would otherwise require a bridging symlink.
     if(NOT ARG_PREFIX AND DEFINED DPCPP_INSTALL_INTERNAL_BINDIR)
       cmake_path(GET DPCPP_INSTALL_INTERNAL_BINDIR PARENT_PATH _dpcpp_parent)
       if(_dpcpp_parent)

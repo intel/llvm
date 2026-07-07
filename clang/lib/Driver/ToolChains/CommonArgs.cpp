@@ -87,7 +87,7 @@ llvm::SmallString<128> clang::driver::findSYCLInstallRoot(const Driver &D) {
   // The dpclang install layout keeps the real tools in lib/dpcpp-<major>/bin
   // (the public dpclang* drivers in bin/ are just symlinks into it, and the
   // driver resolves them, so D.Dir points at the versioned directory). Step
-  // out of that versioned subdirectory too. Match the exact expected directory
+  // out of that versioned subdirectory to match the exact expected directory
   // name for this compiler's version rather than any "dpcpp-*" so an unrelated
   // sibling directory can't be mistaken for it.
   if (ParentName == "dpcpp-" + llvm::Twine(DPCPP_VERSION_MAJOR).str()) {
