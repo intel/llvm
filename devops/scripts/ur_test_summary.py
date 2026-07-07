@@ -99,7 +99,7 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
     """
     if not xml_path:
         return []
-    
+
     if not Path(xml_path).exists():
         print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
         return []
