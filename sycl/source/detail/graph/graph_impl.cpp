@@ -111,7 +111,7 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
       // as predecessor nodes to an earlier partition are not part of the
       // current schedule.
       assert(!PartitionBounded || Succ.MSamePartitionPredecessors >= 0);
-      size_t RequiredEdges =
+      const size_t RequiredEdges =
           PartitionBounded
               ? static_cast<size_t>(Succ.MSamePartitionPredecessors)
               : Succ.MPredecessors.size();
