@@ -18,7 +18,6 @@
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/kernel.hpp>
 
 #include <vector>
 
