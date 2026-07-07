@@ -4,7 +4,7 @@
 // REQUIRES: hugepages
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out | FileCheck %s
+// RUN: %{run} %t.out
 
 // End-to-end test for sycl_ext_oneapi_register_host_memory with huge-page
 // backed host memory. Two huge-page acquisition paths are exercised:
@@ -20,16 +20,10 @@
 
 #include "Inputs/register_host_memory_helpers.hpp"
 
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
-#include <sycl/usm.hpp>
-
 #include <cassert>
-#include <cstdio>
 #include <fstream>
 #include <limits>
 #include <string>
-#include <vector>
 
 #include <sys/mman.h>
 #include <unistd.h>
@@ -40,8 +34,6 @@
 #ifndef MAP_HUGETLB
 #define MAP_HUGETLB 0x40000
 #endif
-
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 // Returns the kernel's default HugeTLB page size in bytes, read from
 // /proc/meminfo. Falls back to 2 MiB (the common x86-64 default) if the entry
@@ -62,34 +54,6 @@ static size_t getHugePageSize() {
   return 2 * 1024 * 1024;
 }
 
-// Runs device + copy exercises over a registered range and verifies results.
-// Reused by both huge-page paths.
-static void exerciseRegisteredRange(sycl::queue &Q, sycl::context &Ctxt,
-                                    int *Data, size_t NumElems) {
-  syclexp::register_host_memory(Data, NumElems * sizeof(int), Ctxt);
-
-  // The pointer behaves like a USM host allocation while registered.
-  assert(sycl::get_pointer_type(Data, Ctxt) == sycl::usm::alloc::host);
-  // Interior pointers are reported as host allocations too.
-  assert(sycl::get_pointer_type(Data + NumElems / 2, Ctxt) ==
-         sycl::usm::alloc::host);
-
-  // Use the registered pointer directly from device code.
-  Q.parallel_for(NumElems, [=](sycl::id<1> I) {
-     Data[I] = static_cast<int>(I.get(0)) + 11;
-   }).wait();
-  for (size_t I = 0; I < NumElems; ++I)
-    assert(Data[I] == static_cast<int>(I) + 11);
-
-  // Explicit copy out of the registered range.
-  std::vector<int> HostDst(NumElems, 0);
-  Q.memcpy(HostDst.data(), Data, NumElems * sizeof(int)).wait();
-  for (size_t I = 0; I < NumElems; ++I)
-    assert(HostDst[I] == static_cast<int>(I) + 11);
-
-  syclexp::unregister_host_memory(Data, Ctxt);
-}
-
 // Path 1: explicit huge pages via MAP_HUGETLB. The "hugepages" REQUIRES feature
 // guarantees free HugeTLB pages exist, so the mapping is expected to succeed
 // when the mapping length matches the kernel's default HugeTLB page size.
@@ -104,7 +68,7 @@ static void testExplicitHugePages(sycl::queue &Q, sycl::context &Ctxt) {
   assert(Map != MAP_FAILED && "explicit MAP_HUGETLB mmap failed");
   int *Data = static_cast<int *>(Map);
 
-  exerciseRegisteredRange(Q, Ctxt, Data, NumElems);
+  registerWriteVerifyUnregister(Q, Ctxt, Data, NumBytes, NumElems);
 
   assert(munmap(Map, NumBytes) == 0 && "munmap failed");
 }
@@ -134,7 +98,7 @@ static void testTransparentHugePages(sycl::queue &Q, sycl::context &Ctxt) {
   (void)madvise(Map, NumBytes, MADV_HUGEPAGE);
 
   int *Data = static_cast<int *>(Map);
-  exerciseRegisteredRange(Q, Ctxt, Data, NumElems);
+  registerWriteVerifyUnregister(Q, Ctxt, Data, NumBytes, NumElems);
 
   assert(munmap(Map, NumBytes) == 0 && "munmap failed");
 }
@@ -146,7 +110,5 @@ int main() {
   testExplicitHugePages(Q, Ctxt);
   testTransparentHugePages(Q, Ctxt);
 
-  // CHECK: Done (explicit and transparent huge pages tested).
-  printf("Done (explicit and transparent huge pages tested).\n");
   return 0;
 }

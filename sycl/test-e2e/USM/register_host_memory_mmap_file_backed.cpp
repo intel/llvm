@@ -14,19 +14,12 @@
 
 #include "Inputs/register_host_memory_helpers.hpp"
 
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
-#include <sycl/usm.hpp>
-
 #include <cassert>
 #include <string>
-#include <vector>
 
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
-
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 int main(int argc, char **argv) {
   // A path prefix inside the test's output directory is passed as the first
@@ -53,19 +46,8 @@ int main(int argc, char **argv) {
   assert(Map != MAP_FAILED && "file-backed mmap failed");
   int *Data = static_cast<int *>(Map);
 
-  syclexp::register_host_memory(Data, NumBytes, Ctxt);
-  assert(sycl::get_pointer_type(Data, Ctxt) == sycl::usm::alloc::host);
+  registerWriteVerifyUnregister(Q, Ctxt, Data, NumBytes, NumElems);
 
-  std::vector<int> HostSrc(NumElems);
-  for (size_t I = 0; I < NumElems; ++I)
-    HostSrc[I] = static_cast<int>(I) - 5;
-  Q.memcpy(Data, HostSrc.data(), NumElems * sizeof(int)).wait();
-
-  Q.parallel_for(NumElems, [=](sycl::id<1> I) { Data[I] *= 2; }).wait();
-  for (size_t I = 0; I < NumElems; ++I)
-    assert(Data[I] == (static_cast<int>(I) - 5) * 2);
-
-  syclexp::unregister_host_memory(Data, Ctxt);
   assert(munmap(Map, NumBytes) == 0 && "munmap failed");
   close(Fd);
 

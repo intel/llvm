@@ -14,17 +14,10 @@
 
 #include "Inputs/register_host_memory_helpers.hpp"
 
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
-#include <sycl/usm.hpp>
-
 #include <cassert>
-#include <vector>
 
 #include <sys/mman.h>
 #include <unistd.h>
-
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 int main() {
   sycl::queue Q;
@@ -39,21 +32,8 @@ int main() {
   assert(Map != MAP_FAILED && "anonymous mmap failed");
   int *Data = static_cast<int *>(Map);
 
-  syclexp::register_host_memory(Data, NumBytes, Ctxt);
+  registerWriteVerifyUnregister(Q, Ctxt, Data, NumBytes, NumElems);
 
-  // The pointer behaves like a USM host allocation while registered.
-  assert(sycl::get_pointer_type(Data, Ctxt) == sycl::usm::alloc::host);
-
-  Q.parallel_for(NumElems, [=](sycl::id<1> I) {
-     Data[I] = static_cast<int>(I.get(0)) + 1;
-   }).wait();
-
-  std::vector<int> HostDst(NumElems, 0);
-  Q.memcpy(HostDst.data(), Data, NumElems * sizeof(int)).wait();
-  for (size_t I = 0; I < NumElems; ++I)
-    assert(HostDst[I] == static_cast<int>(I) + 1);
-
-  syclexp::unregister_host_memory(Data, Ctxt);
   assert(munmap(Map, NumBytes) == 0 && "munmap failed");
 
   return 0;

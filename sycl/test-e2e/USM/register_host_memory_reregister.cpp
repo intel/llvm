@@ -18,38 +18,10 @@
 
 #include "Inputs/register_host_memory_helpers.hpp"
 
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
-#include <sycl/usm.hpp>
-
 #include <cassert>
-#include <vector>
 
 #include <sys/mman.h>
 #include <unistd.h>
-
-namespace syclexp = sycl::ext::oneapi::experimental;
-
-// Registers NumBytes of Data as host memory (must be a multiple of the host
-// page size), has the device write Base + I into element I over the first
-// NumElems ints, verifies the result, then unregisters. All registrations are
-// writable.
-static void registerWriteVerifyUnregister(sycl::queue &Q, sycl::context &Ctxt,
-                                          int *Data, size_t NumBytes,
-                                          size_t NumElems, int Base) {
-  syclexp::register_host_memory(Data, NumBytes, Ctxt);
-
-  // While registered, the pointer behaves like a USM host allocation.
-  assert(sycl::get_pointer_type(Data, Ctxt) == sycl::usm::alloc::host);
-
-  Q.parallel_for(NumElems, [=](sycl::id<1> I) {
-     Data[I] = static_cast<int>(I.get(0)) + Base;
-   }).wait();
-  for (size_t I = 0; I < NumElems; ++I)
-    assert(Data[I] == static_cast<int>(I) + Base);
-
-  syclexp::unregister_host_memory(Data, Ctxt);
-}
 
 int main() {
   sycl::queue Q;
