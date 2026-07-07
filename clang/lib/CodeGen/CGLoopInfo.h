@@ -118,12 +118,6 @@ struct LoopAttributes {
   llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
       SYCLIntelFPGAVariantCount;
 
-  /// Flag for llvm.loop.coalesce metadata.
-  bool SYCLLoopCoalesceEnable;
-
-  /// Value for llvm.loop.coalesce.count metadata.
-  unsigned SYCLLoopCoalesceNLevels;
-
   /// Flag for llvm.loop.intel.pipelining.enable, i32 0 metadata.
   bool SYCLLoopPipeliningDisable;
 
@@ -156,9 +150,6 @@ struct LoopAttributes {
 
   /// Value for llvm.loop.pipeline.iicount metadata.
   unsigned PipelineInitiationInterval;
-
-  /// Flag for llvm.loop.fusion.disable metatdata.
-  bool SYCLNofusionEnable;
 
   /// Value for 'llvm.loop.align' metadata.
   unsigned CodeAlign;
@@ -382,16 +373,6 @@ public:
     StagedAttrs.SYCLMaxConcurrencyNThreads = C;
   }
 
-  /// Set flag of loop_coalesce for the next loop pushed.
-  void setSYCLLoopCoalesceEnable() {
-    StagedAttrs.SYCLLoopCoalesceEnable = true;
-  }
-
-  /// Set value of coalesced levels for the next loop pushed.
-  void setSYCLLoopCoalesceNLevels(unsigned C) {
-    StagedAttrs.SYCLLoopCoalesceNLevels = C;
-  }
-
   /// Set flag of disable_loop_pipelining for the next loop pushed.
   void setSYCLLoopPipeliningDisable() {
     StagedAttrs.SYCLLoopPipeliningDisable = true;
@@ -425,9 +406,6 @@ public:
   void setPipelineInitiationInterval(unsigned C) {
     StagedAttrs.PipelineInitiationInterval = C;
   }
-
-  /// Set flag of nofusion for the next loop pushed.
-  void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
 
   /// Set value of code align for the next loop pushed.
   void setCodeAlign(unsigned C) { StagedAttrs.CodeAlign = C; }
