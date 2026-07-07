@@ -128,6 +128,11 @@ public:
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
 
+  Command(
+      CommandType Type, queue_impl *Queue, EventImplPtr Event,
+      ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
+
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return an optional connection cmd to enqueue
@@ -665,6 +670,8 @@ private:
   ur_result_t enqueueImpQueue();
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
+
+  EventImplPtr makeEvent(const detail::CG &CG, queue_impl *Queue);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

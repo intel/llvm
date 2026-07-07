@@ -122,7 +122,8 @@ EventImplPtr Scheduler::addCG(
       NewCmd =
           MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       break;
-    case CGType::CodeplayHostTask: {
+    case CGType::CodeplayHostTask:
+    case CGType::NativeHostTask: {
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
                                    AuxiliaryCmds, EventNeeded);
       break;
@@ -199,6 +200,8 @@ void Scheduler::enqueueCommandForCG(event_impl &Event,
               sycl::exception(
                   sycl::make_error_code(errc::runtime),
                   std::string("Enqueue process failed.\n") +
+                      // TODO native host tasks - getWorkerContext() will return
+                      // nullptr for native host task
                       __SYCL_UR_ERROR_REPORT(
                           NewCmd->getWorkerContext()->getBackend()) +
                       sycl::detail::codeToString(Res.MErrCode)),

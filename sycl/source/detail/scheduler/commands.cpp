@@ -518,6 +518,27 @@ Command::Command(
 #endif
 }
 
+Command::Command(
+    CommandType Type, queue_impl *Queue, EventImplPtr Event,
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
+    : MQueue(Queue ? Queue->shared_from_this() : nullptr),
+      MEvent(std::move(Event)),
+      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
+  MWorkerQueue = MQueue;
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Obtain the stream ID so all commands can emit traces to that stream;
+  // copying it to the member variable to avoid ABI breakage
+  MStreamID = getActiveXPTIStreamID();
+#endif
+}
+
 void Command::emitInstrumentationDataProxy() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentationData();
@@ -1921,7 +1942,8 @@ ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
-    : Command(CommandType::RUN_CG, Queue, CommandBuffer, Dependencies),
+    : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
+              CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
     queue_impl *SubmitQueue =
@@ -1938,6 +1960,31 @@ ExecCGCommand::ExecCGCommand(
     MEvent->markAsProfilingTagEvent();
 
   emitInstrumentationDataProxy();
+}
+
+EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
+  EventImplPtr ResEvent;
+
+  if (CG.getType() == CGType::NativeHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_device_event(*HT.MQueue);
+    ResEvent->setWorkerQueue(HT.MQueue);
+    ResEvent->setSubmittedQueue(HT.MQueue.get());
+    ResEvent->setContextImpl(HT.MQueue->getContextImpl());
+  } else {
+    ResEvent = Queue ? event_impl::create_device_event(*Queue)
+                     : event_impl::create_incomplete_host_event();
+    if (Queue) {
+      ResEvent->setWorkerQueue(Queue->shared_from_this());
+      ResEvent->setSubmittedQueue(Queue);
+      ResEvent->setContextImpl(Queue->getContextImpl());
+    }
+  }
+
+  ResEvent->setStateIncomplete();
+  ResEvent->setCommand(this);
+
+  return ResEvent;
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
