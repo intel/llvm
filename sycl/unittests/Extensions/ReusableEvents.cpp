@@ -113,6 +113,7 @@ ur_result_t redefinedUrEventGetProfilingInfo(void *pParams) {
 }
 
 bool ReusableEventsSupported = true;
+bool EventProfilingSupported = true;
 
 ur_result_t after_urDeviceGetInfo(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
@@ -123,6 +124,14 @@ ur_result_t after_urDeviceGetInfo(void *pParams) {
     if (*params.ppPropValue)
       *static_cast<ur_bool_t *>(*params.ppPropValue) =
           ur_bool_t{ReusableEventsSupported};
+    return UR_RESULT_SUCCESS;
+  case (ur_device_info_t)0: // TODO reusable events
+                            // UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_bool_t);
+    if (*params.ppPropValue)
+      *static_cast<ur_bool_t *>(*params.ppPropValue) =
+          ur_bool_t{EventProfilingSupported};
     return UR_RESULT_SUCCESS;
   default:
     return UR_RESULT_SUCCESS;
@@ -373,18 +382,10 @@ TEST_F(ReusableEventsTest, QueueReturnedEvent) {
   Queue.wait();
 }
 
-// TODO reusable events
-/*
 // Event with profiling can query profiling info
 TEST_F(ReusableEventsTest, ProfilingInfoQuery) {
   sycl::device Dev;
   sycl::platform Plt = Dev.get_platform();
-
-  bool supports_profiling =
-Plt.get_info<syclex::info::platform::event_profiling>(); if
-(!supports_profiling) { GTEST_SKIP() << "Platform does not support event
-profiling";
-  }
 
   sycl::context Ctx{Dev};
   auto event = syclex::make_event(Ctx, syclex::enable_profiling{true});
@@ -396,16 +397,16 @@ profiling";
   // Should be able to query profiling info
   EXPECT_NO_THROW({
     auto submit_time =
-event.get_profiling_info<sycl::info::event_profiling::command_submit>(); auto
-start_time =
-event.get_profiling_info<sycl::info::event_profiling::command_start>(); auto
-end_time = event.get_profiling_info<sycl::info::event_profiling::command_end>();
+        event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+    auto start_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_start>();
+    auto end_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_end>();
     (void)submit_time;
     (void)start_time;
     (void)end_time;
   });
 }
-*/
 
 // Event can be used in depends_on
 TEST_F(ReusableEventsTest, EventInDependsOn) {
@@ -589,9 +590,7 @@ TEST_F(ReusableEventsTest, SignalEventHostTask) {
   Queue.wait();
 }
 
-// TODO reusable events - support for queue with profiling enabled
 // Queue with enable_profiling property
-/*
 TEST_F(ReusableEventsTest, QueueWithProfilingProperty) {
   sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
@@ -607,8 +606,7 @@ TEST_F(ReusableEventsTest, QueueWithProfilingProperty) {
   // Event should capture profiling info because queue has profiling enabled
   EXPECT_NO_THROW({
     auto end_time =
-event.get_profiling_info<sycl::info::event_profiling::command_end>();
+        event.get_profiling_info<sycl::info::event_profiling::command_end>();
     (void)end_time;
   });
 }
-*/

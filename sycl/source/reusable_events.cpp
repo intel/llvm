@@ -21,14 +21,11 @@ namespace detail {
 
 __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
                                      bool enable_profiling) {
-  const auto &ContextDevices = ctxt.get_devices();
   detail::context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(ctxt);
 
-  // TODO reusable events - check platform support for per-event profiling
-
-  if (ContextDevices.size() == 0) {
-    throw sycl::exception(sycl::make_error_code(errc::runtime),
-                          "Context needs to have at least one device.");
+  if (enable_profiling && !ContextImpl.supportsEventProfiling()) {
+    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                          "Context does not support per-event profiling.");
   }
 
   sycl::event RetEvent{};

@@ -1,7 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_reusable_events_profiling
 
-// TODO reusable events
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -21,15 +19,6 @@ int main() {
   sycl::queue q;
   sycl::device dev = q.get_device();
   sycl::platform plat = dev.get_platform();
-
-  // Check if platform supports event profiling
-  bool supports_profiling =
-      plat.get_info<syclex::info::platform::event_profiling>();
-
-  if (!supports_profiling) {
-    // Skip test if profiling not supported
-    return 0;
-  }
 
   std::vector<int> data(N, 1);
   sycl::buffer<int> buf(data.data(), sycl::range<1>(N));
