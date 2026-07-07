@@ -57,10 +57,11 @@
 // RUN: FileCheck %s < %t.d
 //
 // Guard 2: no raw stream #include in any KHR-reachable SYCL header. Extract the
-// SYCL header paths from the -MD list and grep their sources; the leading '!'
-// makes lit fail the test if grep finds a match.
-// RUN: ! grep -oE '[^ ]*/include/sycl/[^ ]*\.hpp' %t.d \
-// RUN:   | xargs grep -HnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*<(iostream|istream|ostream|sstream)>'
+// SYCL header paths from the -MD list and grep their sources. `not` wraps the
+// inner grep so the pipeline fails iff a stream include is found; `xargs -r`
+// avoids running grep on an empty header list.
+// RUN: grep -oE '[^ ]*/include/sycl/[^ ]*\.hpp' %t.d \
+// RUN:   | xargs -r not grep -HnE '^[[:space:]]*#[[:space:]]*include[[:space:]]*<(iostream|istream|ostream|sstream)>'
 //
 // REQUIRES: linux
 //
