@@ -97,7 +97,11 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
 
     Returns list of skipped test names in format: classname.name
     """
-    if not xml_path or not Path(xml_path).exists():
+    if not xml_path:
+        return []
+    
+    if not Path(xml_path).exists():
+        print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
         return []
 
     skipped = []
@@ -124,6 +128,9 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
         print(f"Warning: Failed to parse XML file {xml_path}: {e}", file=sys.stderr)
     except Exception as e:
         print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
+
+    if xml_path and Path(xml_path).exists():
+        print(f"Note: Found {len(skipped)} skipped tests in XML file", file=sys.stderr)
 
     return skipped
 
