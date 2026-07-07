@@ -70,7 +70,7 @@ def extract_statistics(lines: List[str]) -> List[str]:
     """
     stats_pattern = re.compile(
         r"^\s*(Total Discovered|Expected Passes|Expectedly Failed|"
-        r"Unsupported|Skipped|Passed|Failed|Timed Out|"
+        r"Excluded|Unsupported|Skipped|Passed|Failed|Timed Out|"
         r"Unexpectedly Passed|Unresolved)(\s+Tests)?\s*:"
     )
 
