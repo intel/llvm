@@ -343,8 +343,8 @@ private:
 
   // The type below bundles together some execution information for the kernel
   // such as the amount of dynamic work group memory requested represented by
-  // size_t and the cache config setting represented by
-  // ur_kernel_cache_config_t.
+  // DynamicWorkGroupMem and the cache config setting represented by
+  // CacheConfig.
   struct KernelExecInfoTy {
     size_t DynamicWorkGroupMem;
     ur_kernel_cache_config_t CacheConfig;
