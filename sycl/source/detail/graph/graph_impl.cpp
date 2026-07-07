@@ -107,12 +107,9 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
         continue;
       }
 
-      // When bounded to a partition we only traverse edges internal to the
-      // partition as predecessor nodes to an earlier partition are not part
-      // of the current partition's schedule. The same-partition in-degree is
-      // precomputed in makePartitions so this stays O(1) per edge; the
-      // unbounded caller (checkForCycles) has no partitions and counts all
-      // predecessors.
+      // When PartitionBounded we only traverse edges internal to the partition
+      // as predecessor nodes to an earlier partition are not part of the
+      // current schedule.
       assert(!PartitionBounded || Succ.MSamePartitionPredecessors >= 0);
       size_t RequiredEdges =
           PartitionBounded

@@ -112,7 +112,8 @@ public:
 
   /// Number of predecessors of this node that belong to the same partition.
   /// Note : This number is only used during the partitioning process and
-  /// cannot be used to find out the partion of a node outside of this process.
+  /// cannot be used to find out the number of partition predecessors outside of
+  /// this process.
   int MSamePartitionPredecessors = -1;
 
   // Out-of-class as need "complete" `nodes_range`:
