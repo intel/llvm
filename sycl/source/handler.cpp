@@ -1686,9 +1686,7 @@ void handler::SetHostTask(std::function<void()> Func) {
 void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
   range<1> r(1);
   setNDRangeDescriptor(detail::nd_range_view(r));
-  impl->MHostTask.reset(
-      new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
-                           true));
+  impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
 
   detail::queue_impl *Queue = impl->get_queue_or_null();
   if (Queue) {
