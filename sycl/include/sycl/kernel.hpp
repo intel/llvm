@@ -37,11 +37,6 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class kernel_impl;
 
-template <int Dimensions, typename LaunchProperties>
-size_t queryMaxNumWorkGroupsWithProps(
-    kernel_impl &impl, const device &Dev, sycl::range<Dimensions> Range,
-    LaunchProperties Props, size_t Bytes);
-
 /// This class is the default KernelName template parameter type for kernel
 /// invocation APIs such as single_task.
 class auto_name {};
@@ -357,7 +352,8 @@ private:
                                size_t Bytes, KernelExecInfoTy ExecInfo) const;
 
   template <typename LaunchProperties>
-  KernelExecInfoTy ProcessLaunchProperties([[maybe_unused]] LaunchProperties Props) const {
+  KernelExecInfoTy
+  ProcessLaunchProperties([[maybe_unused]] LaunchProperties Props) const {
     ur_kernel_cache_config_t CacheConfig =
         ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_DEFAULT;
     size_t DynamicLocalMem = 0;
