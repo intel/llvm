@@ -13,6 +13,7 @@ RUN zypper --non-interactive refresh && \
       automake \
       libtool \
       awk \
+      git \
       gzip && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
     zypper clean --all

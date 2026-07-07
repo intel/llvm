@@ -47,7 +47,7 @@ device::device() : device(default_selector_v) {}
 device::device(const device &rhs) = default;
 device::device(device &&rhs) = default;
 
-device::device(cl_device_id DeviceId) {
+device::device(OpenCLDeviceIdT DeviceId) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
   // The implementation constructor takes ownership of the native handle so we
@@ -58,7 +58,7 @@ device::device(cl_device_id DeviceId) {
       nullptr, &Device);
   impl = &detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
               .getOrMakeDeviceImpl(Device);
-  __SYCL_OCL_CALL(clRetainDevice, DeviceId);
+  detail::retainOpenCLDevice(detail::ur::cast<ur_native_handle_t>(DeviceId));
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -85,7 +85,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   return devices;
 }
 
-cl_device_id device::get() const { return impl->get(); }
+OpenCLDeviceIdT device::get() const { return impl->get(); }
 
 bool device::is_cpu() const { return impl->is_cpu(); }
 

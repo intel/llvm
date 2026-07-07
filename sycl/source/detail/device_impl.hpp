@@ -446,7 +446,7 @@ public:
   ///
   /// \return a valid cl_device_id instance in accordance with the
   /// requirements described in 4.3.1.
-  cl_device_id get() const;
+  OpenCLDeviceIdT get() const;
 
   /// Get reference to UR device
   ///
