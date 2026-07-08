@@ -1816,13 +1816,13 @@ def SYCLType: InheritableAttr {
   let Args = [EnumArgument<"Type", "SYCLType", /*is_string=*/true,
                            ["accessor", "local_accessor", "dynamic_local_accessor",
                            "work_group_memory", "dynamic_work_group_memory",
-                            "specialization_id", "kernel_handler", "buffer_location",
+                            "specialization_id", "kernel_handler",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
                             "stream", "sampler", "host_pipe", "multi_ptr"],
                            ["accessor", "local_accessor", "dynamic_local_accessor",
                            "work_group_memory", "dynamic_work_group_memory",
-                            "specialization_id", "kernel_handler", "buffer_location",
+                            "specialization_id", "kernel_handler",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
                             "stream", "sampler", "host_pipe", "multi_ptr"]>];
@@ -1940,13 +1940,6 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
 }
 
-def SYCLIntelBufferLocation : InheritableAttr {
-  // No spelling, as this attribute can't be created in the source code.
-  let Spellings = [];
-  let Args = [UnsignedArgument<"LocationID">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  let Documentation = [InternalOnly];
-}
 
 def SYCLRequiresDecomposition : InheritableAttr {
   // No spellings, as this is for internal use.

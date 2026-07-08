@@ -159,3 +159,14 @@ target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
 )
+
+# Install ur_umf when any static adapter is enabled, so install(EXPORT ...)
+# can resolve it for static consumers.
+if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_OPENCL)
+    install(TARGETS ur_umf
+        EXPORT ${PROJECT_NAME}-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()

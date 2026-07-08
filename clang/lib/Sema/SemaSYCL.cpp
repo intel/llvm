@@ -103,8 +103,7 @@ static bool isSyclAccessorType(QualType Ty) {
 
 // FIXME: Accessor property lists should be modified to use compile-time
 // properties. Once implemented, this function (and possibly all/most code
-// in SemaSYCL.cpp handling no_alias and buffer_location property) can be
-// removed.
+// in SemaSYCL.cpp handling no_alias property) can be removed.
 static bool isAccessorPropertyType(QualType Ty,
                                    SYCLTypeAttr::SYCLType TypeName) {
   if (const auto *RD = Ty->getAsCXXRecordDecl())
@@ -1989,36 +1988,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
                    Loc,
                    diag::err_sycl_invalid_accessor_property_list_template_param)
                << /*accessor_property_list pack argument*/ 1 << /*type*/ 1;
-      QualType PropTy = Prop->getAsType();
-      if (isAccessorPropertyType(PropTy, SYCLTypeAttr::buffer_location) &&
-          checkBufferLocationType(PropTy, Loc))
-        return true;
     }
-    return false;
-  }
-
-  bool checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
-    const auto *PropDecl =
-        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    if (PropDecl->getTemplateArgs().size() != 1)
-      return SemaSYCLRef.Diag(Loc,
-                              diag::err_sycl_invalid_property_list_param_number)
-             << "buffer_location";
-
-    const auto BufferLoc = PropDecl->getTemplateArgs()[0];
-    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral)
-      return SemaSYCLRef.Diag(
-                 Loc,
-                 diag::err_sycl_invalid_accessor_property_list_template_param)
-             << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
-
-    int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
-    if (LocationID < 0)
-      return SemaSYCLRef.Diag(
-                 Loc,
-                 diag::err_sycl_invalid_accessor_property_list_template_param)
-             << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
-
     return false;
   }
 
@@ -2792,8 +2762,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       QualType PropTy = Prop->getAsType();
       if (isAccessorPropertyType(PropTy, SYCLTypeAttr::no_alias))
         handleNoAliasProperty(Param, PropTy, Loc);
-      if (isAccessorPropertyType(PropTy, SYCLTypeAttr::buffer_location))
-        handleBufferLocationProperty(Param, PropTy, Loc);
     }
   }
 
@@ -2801,26 +2769,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
     Param->addAttr(
         RestrictAttr::CreateImplicit(Ctx, nullptr, ParamIdx(1, Param), Loc));
-  }
-
-  // Obtain an integer value stored in a template parameter of buffer_location
-  // property to pass it to buffer_location kernel attribute
-  void handleBufferLocationProperty(ParmVarDecl *Param, QualType PropTy,
-                                    SourceLocation Loc) {
-    // If we have more than 1 buffer_location properties on a single
-    // accessor - emit an error
-    if (Param->hasAttr<SYCLIntelBufferLocationAttr>()) {
-      SemaSYCLRef.Diag(Loc, diag::err_sycl_compiletime_property_duplication)
-          << "buffer_location";
-      return;
-    }
-    ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    const auto *PropDecl =
-        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    const auto BufferLoc = PropDecl->getTemplateArgs()[0];
-    int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
-    Param->addAttr(
-        SYCLIntelBufferLocationAttr::CreateImplicit(Ctx, LocationID));
   }
 
   // Additional processing is required for accessor type.

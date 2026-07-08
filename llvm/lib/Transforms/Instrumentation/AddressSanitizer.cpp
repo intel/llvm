@@ -1584,8 +1584,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       NewF->setMetadata(MDName, llvm::MDNode::get(NewF->getContext(), NewMD));
     };
 
-    FixupMetadata("kernel_arg_buffer_location",
-                  ConstantAsMetadata::get(Builder.getInt32(-1)));
     FixupMetadata("kernel_arg_runtime_aligned",
                   ConstantAsMetadata::get(Builder.getFalse()));
     FixupMetadata("kernel_arg_exclusive_ptr",
