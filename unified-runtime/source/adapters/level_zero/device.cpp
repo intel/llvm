@@ -1546,7 +1546,7 @@ ur_result_t urDeviceGetInfo(
       const auto &LUID = LuidDesc.luid.id;
       return ReturnValue(LUID, sizeof(LUID));
     } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
   case UR_DEVICE_INFO_NODE_MASK: {
@@ -1568,7 +1568,7 @@ ur_result_t urDeviceGetInfo(
 
       return ReturnValue(LuidDesc.nodeMask);
     } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
   case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
