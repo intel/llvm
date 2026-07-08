@@ -1,0 +1,24 @@
+#
+#
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM
+# Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for querying per-event profiling support"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support per-event profiling."
+name: $x_device_info_t
+etors:
+    - name: PER_EVENT_PROFILING_SUPPORT_EXP
+      value: "0x20A0"
+      desc: "[$x_bool_t] returns true if the device can produce profiling information for individual events without the whole queue being created with $X_QUEUE_FLAG_PROFILING_ENABLE."

@@ -95,6 +95,14 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
             return v2::createProvider(platform, context, v2::QUEUE_REGULAR,
                                       device, flags);
           }),
+      reusableEventPoolCache(
+          this, phDevices[0]->Platform->getNumDevices(),
+          [context = this, platform = phDevices[0]->Platform](
+              DeviceId deviceId, v2::event_flags_t flags) {
+            auto device = platform->getDeviceById(deviceId);
+            return std::make_unique<v2::provider_counter>(
+                platform, context, v2::QUEUE_IMMEDIATE, device, flags);
+          }),
       nativeEventsPool(this, std::make_unique<v2::provider_normal>(
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),

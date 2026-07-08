@@ -1463,8 +1463,8 @@ let IntrProperties = [IntrNoMem, IntrWillReturn] in {
 let IntrProperties = [IntrArgMemOnly, IntrWillReturn] in {
  def int_fpbuiltin_sincos : DefaultAttrsIntrinsic<[],
                                                     [ llvm_anyfloat_ty,
-                                                      llvm_ptr_ty,
-                                                      llvm_ptr_ty ]>;
+                                                      llvm_anyptr_ty,
+                                                      llvm_anyptr_ty ]>;
 }
 
 //===--------------- Constrained Floating Point Intrinsics ----------------===//

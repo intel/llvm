@@ -20,36 +20,28 @@
 #define CL_ENABLE_BETA_EXTENSIONS
 #endif
 
-#if !defined(__SYCL_DEVICE_ONLY__) || !defined(__SYCL_JIT__)
+#ifndef __SYCL_DEVICE_ONLY__
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+#else
+// On the SYCL device pass we don't need to include the OpenCL headers.
+// Just forward declare the opaque handle types used by SYCL headers.
+// We should not do "using cl_command_queue = void*" because that
+// can cause redifinition errors if the user application also
+// includes OpenCL headers.
+typedef struct _cl_command_queue *cl_command_queue;
+typedef struct _cl_context *cl_context;
+typedef struct _cl_device_id *cl_device_id;
+typedef struct _cl_event *cl_event;
+typedef struct _cl_kernel *cl_kernel;
+typedef struct _cl_mem *cl_mem;
+typedef struct _cl_platform_id *cl_platform_id;
+typedef struct _cl_program *cl_program;
+typedef struct _cl_sampler *cl_sampler;
 #endif
 
 namespace sycl {
 inline namespace _V1 {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_JIT__)
-// Don't include the OpenCL headers when compiling for SYCL device, as they only
-// define the host-side API. Instead, define the necessary types as opaque
-// pointers to not break the SYCL headers that include this header.
-using OpenCLCommandQueueT = void *;
-using OpenCLContextT = void *;
-using OpenCLDeviceIdT = void *;
-using OpenCLEventT = void *;
-using OpenCLKernelT = void *;
-using OpenCLMemT = void *;
-using OpenCLPlatformT = void *;
-using OpenCLProgramT = void *;
-using OpenCLSamplerT = void *;
-namespace detail {
-inline void retainOpenCLCommandQueue(ur_native_handle_t) {}
-inline void retainOpenCLContext(ur_native_handle_t) {}
-inline void retainOpenCLDevice(ur_native_handle_t) {}
-inline void retainOpenCLEvent(ur_native_handle_t) {}
-inline void retainOpenCLKernel(ur_native_handle_t) {}
-inline void retainOpenCLMemObject(ur_native_handle_t) {}
-inline void retainOpenCLProgram(ur_native_handle_t) {}
-} // namespace detail
-#else  // !defined(__SYCL_DEVICE_ONLY__)
 using OpenCLCommandQueueT = cl_command_queue;
 using OpenCLContextT = cl_context;
 using OpenCLDeviceIdT = cl_device_id;
@@ -59,7 +51,17 @@ using OpenCLMemT = cl_mem;
 using OpenCLPlatformT = cl_platform_id;
 using OpenCLProgramT = cl_program;
 using OpenCLSamplerT = cl_sampler;
+
 namespace detail {
+#ifdef __SYCL_DEVICE_ONLY__
+inline void retainOpenCLCommandQueue(ur_native_handle_t) {}
+inline void retainOpenCLContext(ur_native_handle_t) {}
+inline void retainOpenCLDevice(ur_native_handle_t) {}
+inline void retainOpenCLEvent(ur_native_handle_t) {}
+inline void retainOpenCLKernel(ur_native_handle_t) {}
+inline void retainOpenCLMemObject(ur_native_handle_t) {}
+inline void retainOpenCLProgram(ur_native_handle_t) {}
+#else  // __SYCL_DEVICE_ONLY__
 inline void retainOpenCLCommandQueue(ur_native_handle_t Queue) {
   __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<OpenCLCommandQueueT>(Queue));
 }
@@ -81,7 +83,7 @@ inline void retainOpenCLMemObject(ur_native_handle_t MemObject) {
 inline void retainOpenCLProgram(ur_native_handle_t Program) {
   __SYCL_OCL_CALL(clRetainProgram, ur::cast<OpenCLProgramT>(Program));
 }
-} // namespace detail
 #endif // defined(__SYCL_DEVICE_ONLY__)
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -7560,12 +7560,23 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
   if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
       !LangOpts.FPAccuracyVal.empty() || !LangOpts.OffloadFP32PrecDiv ||
       !LangOpts.OffloadFP32PrecSqrt) {
+    llvm::SmallVector<llvm::Type *, 4> TypeVec = {IRArgs[0]->getType()};
+    // Among all llvm.fpbuiltin.* intrinsics, sincos is the only case which
+    // has 2 pointer parameters for output, so it should be overloaded according
+    // to all 3 parameters such as llvm.fpbuiltin.sincos.f32.p4.p4.
+    if (FPAccuracyIntrinsicID == Intrinsic::fpbuiltin_sincos) {
+      if (3 != IRArgs.size())
+        return nullptr;
+      TypeVec.emplace_back(IRArgs[1]->getType());
+      TypeVec.emplace_back(IRArgs[2]->getType());
+    }
+    ArrayRef<llvm::Type *> IntrinsicTypes(TypeVec);
     llvm::FunctionType *FPAccuracyIntrinsicFT = llvm::Intrinsic::getType(
-        CGM.getLLVMContext(), FPAccuracyIntrinsicID, {IRArgs[0]->getType()});
+        CGM.getLLVMContext(), FPAccuracyIntrinsicID, IntrinsicTypes);
     if (FPAccuracyIntrinsicFT->getNumParams() != IRArgs.size())
       return nullptr;
-    llvm::Function *Func =
-        CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    llvm::Function *Func;
+    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IntrinsicTypes);
     return CreateBuiltinCallWithAttr(Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
   }
