@@ -7,7 +7,10 @@
 
 #include "../../graph_common.hpp"
 
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>
+
+namespace syclex = sycl::ext::oneapi::experimental;
 
 int main() {
   queue Queue{property::queue::in_order{}};
@@ -32,6 +35,22 @@ int main() {
                   Data[i] = i + 100;
                 }
               });
+            });
+          },
+          "host_task in native recording", sycl::errc::feature_not_supported)) {
+    Graph.end_recording();
+    free(Data, Queue);
+    return 1;
+  }
+
+  // Try to record a native host_task - this should throw an exception
+  if (!expectException(
+          [&]() {
+            syclex::host_task(Queue, [=]() {
+              // This host task should not execute in native recording mode
+              for (size_t i = 0; i < N; i++) {
+                Data[i] = i + 100;
+              }
             });
           },
           "host_task in native recording", sycl::errc::feature_not_supported)) {

@@ -765,7 +765,9 @@ detail::EventImplPtr handler::finalize() {
   assert(Queue);
 
   // Native graph recording limitation
-  if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
+  if ((type == detail::CGType::CodeplayHostTask ||
+       type == detail::CGType::NativeHostTask) &&
+      Queue->isNativeRecording()) {
     throw sycl::exception(
         make_error_code(errc::feature_not_supported),
         "SYCL host_task is not supported in native recording mode. Use "
