@@ -365,6 +365,7 @@ fill_copy_args(detail::handler_impl *impl,
                  DestOffset, DestExtent, CopyExtent);
 }
 
+// TODO: consider movinng this to device_impl so that it can be shared by other components
 static bool checkDeviceSupports(device_impl &DeviceImpl,
                                 ur_device_info_t InfoQuery) {
   ur_bool_t SupportsOp = false;
