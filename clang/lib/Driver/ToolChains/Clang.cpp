@@ -11046,7 +11046,7 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
 
   SmallVector<std::string> Parts{
       "file=" + File.str(),
-      "triple=" + TC->getTripleString().str(),
+      "triple=" + TC->ComputeEffectiveClangTriple(TCArgs, ArchBA),
       "arch=" + (Arch.empty() ? "generic" : Arch.str()),
       "kind=" + Kind.str(),
   };
