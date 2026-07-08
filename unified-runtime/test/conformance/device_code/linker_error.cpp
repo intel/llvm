@@ -3,8 +3,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <iostream>
 #include <sycl/sycl.hpp>
+
 SYCL_EXTERNAL void this_function_does_not_exist();
 
 int main() {

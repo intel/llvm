@@ -123,7 +123,7 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
 }
 
 ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
-                                       v2::raii::ze_event_handle_t hZeEvent,
+                                       event_variant hZeEvent,
                                        v2::event_flags_t flags)
     : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr) {}
 
@@ -187,6 +187,7 @@ struct event_teardown {
   }
 
   void operator()(const v2::raii::ze_event_handle_t &) { delete event; }
+  void operator()(const v2::raii::ipc_event_handle_t &) { delete event; }
 };
 
 ur_result_t ur_event_handle_t_::release() {
@@ -453,24 +454,18 @@ ur_result_t urEventCreateExp(ur_context_handle_t hContext,
            : 0) |
       (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP ? v2::EVENT_FLAGS_IPC : 0);
 
-  if (flags & v2::EVENT_FLAGS_IPC && flags & v2::EVENT_FLAGS_PROFILING_ENABLED)
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  UR_ASSERT(!(flags & v2::EVENT_FLAGS_IPC &&
+              flags & v2::EVENT_FLAGS_PROFILING_ENABLED),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   auto eventPool =
       hContext->getReusableEventPoolCache().borrow(hDevice->Id.value(), flags);
   assert(eventPool);
 
-  if (!(flags & v2::EVENT_FLAGS_IPC)) {
-    *phEvent = eventPool->allocate();
-    return UR_RESULT_SUCCESS;
-  }
-
-  v2::raii::cache_borrowed_event borrowed =
-      eventPool->getProvider()->allocate();
-  v2::raii::ze_event_handle_t ownedEvent(borrowed.release(),
-                                         /*ownZeHandle=*/true);
-  *phEvent = new ur_event_handle_t_(hContext, std::move(ownedEvent), flags);
-
+  // IPC events must not be recycled (their native handle may outlive this
+  // process's reference), so they get a detached, self-owning event.
+  *phEvent = (flags & v2::EVENT_FLAGS_IPC) ? eventPool->allocateDetached()
+                                           : eventPool->allocate();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

@@ -74,8 +74,6 @@ public:
                      ur_native_handle_t hNativeEvent,
                      const ur_event_native_properties_t *pProperties);
 
-  // Wraps a caller-built event_variant with explicit flags. Used by the IPC
-  // producer (urEventCreateExp) and consumer (urIPCOpenEventHandleExp) paths.
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,
                      v2::event_flags_t flags);
 
@@ -109,7 +107,7 @@ public:
   // Tells if this event comes from a pool that has profiling enabled.
   bool isProfilingEnabled() const;
 
-  // True for IPC-shareable events (both producer and consumer side).
+  // True for IPC-shareable events.
   bool isIpcCapable() const;
 
   // True for events opened via urIPCOpenEventHandleExp.

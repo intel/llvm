@@ -61,10 +61,4 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
                                                ur_device_handle_t device,
                                                event_flags_t flags);
 
-// Creates an IPC-shareable counter-based ze_event_handle_t for the producer
-// side of urEventCreateExp.
-ur_result_t createIpcCounterBasedEvent(ur_context_handle_t context,
-                                       ur_device_handle_t device,
-                                       ze_event_handle_t *phEvent);
-
 } // namespace v2
