@@ -1114,6 +1114,9 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
+    return ReturnValue(true);
+  }
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // L0 doesn't support enqueueing native work through the urNativeEnqueueExp
     return ReturnValue(static_cast<ur_bool_t>(false));
