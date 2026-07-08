@@ -6,6 +6,7 @@
 
 // Test that the node mask is read correctly from OpenCL.
 
+#include <CL/cl_ext.h>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
