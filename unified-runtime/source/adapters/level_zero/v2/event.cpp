@@ -251,11 +251,6 @@ ur_event_handle_t_::ur_event_handle_t_(
           ,
           nullptr) {}
 
-ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
-                                       event_variant hZeEvent,
-                                       v2::event_flags_t flags)
-    : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr) {}
-
 namespace ur::level_zero {
 ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
   return hEvent->retain();

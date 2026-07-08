@@ -10,4 +10,6 @@ add_conformance_devices_test(event
     urEventRelease.cpp
     urEventGetNativeHandle.cpp
     urEventCreateWithNativeHandle.cpp
-    urEventSetCallback.cpp)
+    urEventSetCallback.cpp
+    urIPCEventExp.cpp
+    urIPCEventExpNegative.cpp)
