@@ -27,6 +27,15 @@ static bool checkImageValueRange(devices_range Devices, const size_t Value) {
          });
 }
 
+template <typename Aspect>
+static bool checkImageValueRangeWithAspect(devices_range Devices,
+                                           const size_t Value) {
+  return Value >= 1 &&
+         std::all_of(Devices.begin(), Devices.end(), [Value](device_impl &Dev) {
+           return Value <= Dev.has(Aspect{});
+         });
+}
+
 template <typename T, typename... Args> static bool checkAnyImpl(T) {
   return false;
 }
@@ -377,16 +386,6 @@ bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the depth must be a Value >= 1 and <= "
                     "info::device::image2d_max_depth");
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D_ARRAY,
-               UR_MEM_TYPE_IMAGE2D_ARRAY) &&
-      !checkImageValueRange<info::device::image_max_array_size>(Devices,
-                                                                Desc.arraySize))
-    throw exception(make_error_code(errc::invalid),
-                    "For a 1D and 2D image array, the array_size must be a "
-                    "Value >= 1 and <= info::device::image_max_array_size.");
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   if ((nullptr == UserPtr) && (0 != Desc.rowPitch))
     throw exception(make_error_code(errc::invalid),

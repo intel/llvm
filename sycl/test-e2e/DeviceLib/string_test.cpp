@@ -650,7 +650,7 @@ int main() {
   sycl::device dev = deviceQueue.get_device();
   bool shared_usm_enabled = false;
   USM_TEST_RES usm_tres;
-  if (dev.get_info<sycl::info::device::usm_shared_allocations>())
+  if (dev.has(sycl::aspect::usm_shared_allocations))
     shared_usm_enabled = true;
   success = kernel_test_memcpy(deviceQueue);
   if (shared_usm_enabled) {

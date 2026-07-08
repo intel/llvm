@@ -85,7 +85,7 @@ int main() {
   {
     auto dev = Queue.get_device();
     auto ctxt = Queue.get_context();
-    if (dev.get_info<info::device::usm_shared_allocations>()) {
+    if (dev.has(aspect::usm_shared_allocations)) {
       float *data =
           static_cast<float *>(malloc_shared(Count * sizeof(float), dev, ctxt));
 

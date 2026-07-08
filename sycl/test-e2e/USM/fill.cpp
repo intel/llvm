@@ -159,7 +159,7 @@ int main() {
   test_struct_double test_obj_double{4, 42, 424, 4242, 4.242, 4.24242};
   test_struct_minimum test_obj_minimum{4, 42, 424, 4242, 4.242};
 
-  if (dev.get_info<info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     runHostTests<short>(dev, ctxt, q, 4);
     runHostTests<int>(dev, ctxt, q, 42);
     runHostTests<long>(dev, ctxt, q, 424);
@@ -179,7 +179,7 @@ int main() {
       runHostTests<test_struct_minimum>(dev, ctxt, q, test_obj_minimum);
   }
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     runSharedTests<short>(dev, ctxt, q, 4);
     runSharedTests<int>(dev, ctxt, q, 42);
     runSharedTests<long>(dev, ctxt, q, 424);
@@ -199,7 +199,7 @@ int main() {
       runSharedTests<test_struct_minimum>(dev, ctxt, q, test_obj_minimum);
   }
 
-  if (dev.get_info<info::device::usm_device_allocations>()) {
+  if (dev.has(aspect::usm_device_allocations)) {
     runDeviceTests<short>(dev, ctxt, q, 4);
     runDeviceTests<int>(dev, ctxt, q, 42);
     runDeviceTests<long>(dev, ctxt, q, 420);

@@ -18,8 +18,8 @@ int main() {
   queue Q;
   device Dev = Q.get_device();
   context Ctx = Q.get_context();
-  if (!(Dev.get_info<info::device::usm_device_allocations>() &&
-        Dev.get_info<info::device::usm_host_allocations>()))
+  if (!(Dev.has(aspect::usm_device_allocations) &&
+        Dev.has(aspect::usm_host_allocations)))
     return 0;
 
   unsigned char *DevArr = (unsigned char *)malloc_device(Size, Dev, Ctx);

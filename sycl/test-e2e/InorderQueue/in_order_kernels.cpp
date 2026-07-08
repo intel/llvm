@@ -28,7 +28,7 @@ int main() {
   const int N = 8;
   int err_cnt = 0;
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     auto A = (int *)malloc_shared(N * sizeof(int), dev, ctx);
 
     for (int i = 0; i < N; i++) {
