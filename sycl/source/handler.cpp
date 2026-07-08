@@ -781,7 +781,8 @@ detail::EventImplPtr handler::finalize() {
   // Because command graph case is handled right above.
   assert(Queue);
 
-  // Native graph recording limitation
+  // Host tasks in native recording mode are captured directly into the native
+  // graph directly rather than submitted to the scheduler
   if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
     auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
     if (!HT->MHostTask->isCreatedFromEnqueueFunction()) {
