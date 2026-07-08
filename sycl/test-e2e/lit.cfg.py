@@ -151,19 +151,6 @@ if platform.system() == "Linux":
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
-    # Expose a "hugepages" feature when the system has free HugeTLB pages, so
-    # tests that require explicit huge-page mappings (mmap(MAP_HUGETLB)) run
-    # only where they can actually get such pages and are UNSUPPORTED (rather
-    # than silently self-skipping) elsewhere.
-    try:
-        with open("/proc/meminfo") as meminfo:
-            for line in meminfo:
-                if line.startswith("HugePages_Free:") and int(line.split()[1]) > 0:
-                    config.available_features.add("hugepages")
-                    break
-    except OSError:
-        pass
-
 elif platform.system() == "Windows":
     config.available_features.add("windows")
     llvm_config.with_system_environment(
