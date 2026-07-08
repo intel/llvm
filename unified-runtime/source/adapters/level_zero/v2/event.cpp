@@ -436,11 +436,28 @@ ur_result_t urEventCreateExp(ur_context_handle_t hContext,
       v2::EVENT_FLAGS_COUNTER |
       (pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING
            ? v2::EVENT_FLAGS_PROFILING_ENABLED
-           : 0);
+           : 0) |
+      (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP ? v2::EVENT_FLAGS_IPC : 0);
+
+  if (flags & v2::EVENT_FLAGS_IPC && flags & v2::EVENT_FLAGS_PROFILING_ENABLED)
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
   auto eventPool =
       hContext->getReusableEventPoolCache().borrow(hDevice->Id.value(), flags);
-  *phEvent = eventPool->allocate();
+  assert(eventPool);
+
+  if (!(flags & v2::EVENT_FLAGS_IPC)) {
+    *phEvent = eventPool->allocate();
+    return UR_RESULT_SUCCESS;
+  }
+
+  v2::raii::cache_borrowed_event borrowed =
+      eventPool->getProvider()->allocate();
+  v2::raii::ze_event_handle_t ownedEvent(borrowed.release(),
+                                         /*ownZeHandle=*/true);
+  *phEvent = new ur_event_handle_t_(hContext, std::move(ownedEvent), flags);
+
+  // Handle IPC event creation specifics here...
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
