@@ -19,8 +19,6 @@ def process_aspects(file_path, is_deprecated=False):
 
     output = ""
     for line in lines:
-        # __INTEL_PREVIEW_BREAKING_CHANGES
-        stripped_line = line.strip()
         # !__INTEL_PREVIEW_BREAKING_CHANGES
         stripped_line = line.strip()
         if not stripped_line or stripped_line.startswith("#") or stripped_line.startswith("//"):
@@ -70,9 +68,11 @@ header_output = """//==------------------- device_aspect_macros.hpp - SYCL devic
 """
 
 include_sycl_dir = sys.argv[1]
+# !__INTEL_PREVIEW_BREAKING_CHANGES
 header_output += process_aspects(
     os.path.join(include_sycl_dir, "info/aspects_deprecated.def"), is_deprecated=True
 )
+# end !__INTEL_PREVIEW_BREAKING_CHANGES
 header_output += process_aspects(os.path.join(include_sycl_dir, "info/aspects.def"))
 
 build_include_sycl_dir = sys.argv[2]
