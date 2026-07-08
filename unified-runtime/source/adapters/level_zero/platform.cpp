@@ -687,8 +687,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
       ZeGraphExt.zeGraphIsEmptyExp =
           (decltype(ZeGraphExt.zeGraphIsEmptyExp))zeGraphIsEmptyExt;
       ZeGraphExt.zeGraphDumpContentsExp =
-          (decltype(ZeGraphExt.zeGraphDumpContentsExp))
-              zeGraphDumpContentsExt;
+          (decltype(ZeGraphExt.zeGraphDumpContentsExp))zeGraphDumpContentsExt;
       ZeGraphExt.zeGraphDestroyExp =
           (decltype(ZeGraphExt.zeGraphDestroyExp))zeGraphDestroyExt;
       ZeGraphExt.zeGraphSetDestructionCallbackExp =
@@ -724,28 +723,25 @@ ur_result_t ur_platform_handle_t_::initialize() {
                   "zeCommandListIsGraphCaptureEnabledExt");
       ZeGraphExt.zeCommandListGetGraphExp =
           (decltype(ZeGraphExt.zeCommandListGetGraphExp))
-              ur_loader::LibLoader::getFunctionPtr(
-                  GlobalAdapter->processHandle, "zeCommandListGetGraphExt");
-      ZeGraphExt.zeGraphCreateExp =
-          (decltype(ZeGraphExt.zeGraphCreateExp))
-              ur_loader::LibLoader::getFunctionPtr(
-                  GlobalAdapter->processHandle, "zeGraphCreateExt");
+              ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
+                                                   "zeCommandListGetGraphExt");
+      ZeGraphExt.zeGraphCreateExp = (decltype(ZeGraphExt.zeGraphCreateExp))
+          ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
+                                               "zeGraphCreateExt");
       ZeGraphExt.zeCommandListInstantiateGraphExp =
           (decltype(ZeGraphExt.zeCommandListInstantiateGraphExp))
-              ur_loader::LibLoader::getFunctionPtr(
-                  GlobalAdapter->processHandle, "zeGraphInstantiateExt");
-      ZeGraphExt.zeGraphIsEmptyExp =
-          (decltype(ZeGraphExt.zeGraphIsEmptyExp))
-              ur_loader::LibLoader::getFunctionPtr(
-                  GlobalAdapter->processHandle, "zeGraphIsEmptyExt");
+              ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
+                                                   "zeGraphInstantiateExt");
+      ZeGraphExt.zeGraphIsEmptyExp = (decltype(ZeGraphExt.zeGraphIsEmptyExp))
+          ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
+                                               "zeGraphIsEmptyExt");
       ZeGraphExt.zeGraphDumpContentsExp =
           (decltype(ZeGraphExt.zeGraphDumpContentsExp))
-              ur_loader::LibLoader::getFunctionPtr(
-                  GlobalAdapter->processHandle, "zeGraphDumpContentsExt");
-      ZeGraphExt.zeGraphDestroyExp =
-          (decltype(ZeGraphExt.zeGraphDestroyExp))
-              ur_loader::LibLoader::getFunctionPtr(
-                  GlobalAdapter->processHandle, "zeGraphDestroyExt");
+              ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
+                                                   "zeGraphDumpContentsExt");
+      ZeGraphExt.zeGraphDestroyExp = (decltype(ZeGraphExt.zeGraphDestroyExp))
+          ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
+                                               "zeGraphDestroyExt");
       ZeGraphExt.zeGraphSetDestructionCallbackExp =
           (decltype(ZeGraphExt.zeGraphSetDestructionCallbackExp))
               ur_loader::LibLoader::getFunctionPtr(

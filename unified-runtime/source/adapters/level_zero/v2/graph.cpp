@@ -64,6 +64,9 @@ struct DestructionCallbackContext {
   void *userData;
 };
 
+// Must match the calling convention of zeGraphSetDestructionCallbackExt's
+// pfnCallback parameter, declared as zex_mem_graph_free_callback_fn_t in
+// ze_api.h.
 void ZE_CALLBACK_CONV destructionCallbackWrapper(void *pUserData) {
   auto *CbData = static_cast<DestructionCallbackContext *>(pUserData);
   CbData->callback(CbData->userData);
