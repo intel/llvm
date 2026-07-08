@@ -1932,6 +1932,8 @@ static std::string_view cgTypeToString(detail::CGType Type) {
     return "semaphore wait";
   case detail::CGType::SemaphoreSignal:
     return "semaphore signal";
+  case detail::CGType::NativeHostTask:
+    return "native host task";
   default:
     return "unknown";
     break;
@@ -1945,20 +1947,6 @@ ExecCGCommand::ExecCGCommand(
     : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
               CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
-    queue_impl *SubmitQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue.get();
-    assert(SubmitQueue &&
-           "Host task command group must have a valid submit queue");
-
-    MEvent->setSubmittedQueue(SubmitQueue);
-    // Initialize host profiling info if the queue has profiling enabled.
-    if (SubmitQueue->MIsProfilingEnabled)
-      MEvent->initHostProfilingInfo();
-  }
-  if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
-    MEvent->markAsProfilingTagEvent();
-
   emitInstrumentationDataProxy();
 }
 
@@ -1971,6 +1959,16 @@ EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
     ResEvent->setWorkerQueue(HT.MQueue);
     ResEvent->setSubmittedQueue(HT.MQueue.get());
     ResEvent->setContextImpl(HT.MQueue->getContextImpl());
+  } else if (CG.getType() == CGType::CodeplayHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_incomplete_host_event();
+    queue_impl *SubmitQueue = HT.MQueue.get();
+    assert(SubmitQueue &&
+           "Host task command group must have a valid submit queue");
+    ResEvent->setSubmittedQueue(SubmitQueue);
+    // Initialize host profiling info if the queue has profiling enabled.
+    if (SubmitQueue->MIsProfilingEnabled)
+      ResEvent->initHostProfilingInfo();
   } else {
     ResEvent = Queue ? event_impl::create_device_event(*Queue)
                      : event_impl::create_incomplete_host_event();
@@ -1978,6 +1976,10 @@ EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
       ResEvent->setWorkerQueue(Queue->shared_from_this());
       ResEvent->setSubmittedQueue(Queue);
       ResEvent->setContextImpl(Queue->getContextImpl());
+
+      if (CG.getType() == CGType::ProfilingTag) {
+        ResEvent->markAsProfilingTagEvent();
+      }
     }
   }
 
