@@ -200,10 +200,10 @@ void Scheduler::enqueueCommandForCG(event_impl &Event,
               sycl::exception(
                   sycl::make_error_code(errc::runtime),
                   std::string("Enqueue process failed.\n") +
-                      // TODO native host tasks - getWorkerContext() will return
-                      // nullptr for native host task
-                      __SYCL_UR_ERROR_REPORT(
-                          NewCmd->getWorkerContext()->getBackend()) +
+                      (NewCmd->getWorkerContext()
+                           ? __SYCL_UR_ERROR_REPORT(
+                                 NewCmd->getWorkerContext()->getBackend())
+                           : " ") +
                       sycl::detail::codeToString(Res.MErrCode)),
               Res.MErrCode);
         }

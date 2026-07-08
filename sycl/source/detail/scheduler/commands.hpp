@@ -128,6 +128,8 @@ public:
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
 
+  /// This constructor takes a pre-built event and can be used for commands,
+  /// which require custom logic related to how the event is created.
   Command(
       CommandType Type, queue_impl *Queue, EventImplPtr Event,
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
