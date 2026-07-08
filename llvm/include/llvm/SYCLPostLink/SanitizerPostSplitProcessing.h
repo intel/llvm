@@ -25,7 +25,7 @@ namespace sycl_post_link {
 /// the correct image at runtime. Returns true if any module was modified.
 bool handleSanitizers(
     llvm::SmallVectorImpl<std::unique_ptr<module_split::ModuleDesc>> &MDs);
-}
+} // namespace sycl_post_link
 } // namespace llvm
 
 #endif // LLVM_SYCLPOSTLINK_SANITIZERPOSTSPLITPROCESSING_H
