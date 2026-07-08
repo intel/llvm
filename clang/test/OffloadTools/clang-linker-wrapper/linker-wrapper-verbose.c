@@ -66,8 +66,9 @@
 // HIP: clang{{.*}} --no-default-config --target=x86_64-unknown-linux-gnu -c -fPIC -o {{.*}}.hip.image.wrapper{{.*}}.o [[BC]].bc
 
 //
-// For SYCL the device image is linked with 'clang --sycl-link' and wrapped
-// directly with 'llvm-offload-wrapper --kind=sycl'.
+// For SYCL the device image is linked through the SPIR-V pipeline
+// (spirv-to-ir-wrapper, llvm-link, sycl-post-link, llvm-spirv) and wrapped
+// internally, then compiled to a host object with 'clang'.
 //
 // RUN: llvm-offload-binary -o %t.out \
 // RUN:   --image=file=%t.elf.o,kind=sycl,triple=spirv64-unknown-unknown,arch=generic
@@ -76,9 +77,12 @@
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=SYCL
 
 // SYCL: llvm-offload-binary{{.*}} {{.*}}.o --image=kind=sycl,triple=spirv64-unknown-unknown,arch=generic,file={{.*}}.o
-// SYCL: clang{{.*}} --target=spirv64-unknown-unknown {{.*}} --sycl-link {{.*}}-triple=spirv64-unknown-unknown{{.*}}-arch=
-// SYCL: llvm-offload-wrapper{{.*}} --kind=sycl --triple=x86_64-unknown-linux-gnu -o [[BC:.*]].bc {{.*}}.img
-// SYCL: clang{{.*}} --no-default-config --target=x86_64-unknown-linux-gnu -c -fPIC -o {{.*}}.sycl.image.wrapper{{.*}}.o [[BC]].bc
+// SYCL: spirv-to-ir-wrapper{{.*}}-o [[BC:.*]].bc
+// SYCL: llvm-link{{.*}} [[BC]].bc -o [[BC2:.*]].bc
+// SYCL: sycl-post-link{{.*}}-o [[TABLE:.*]].table [[BC2]].bc
+// SYCL: llvm-spirv{{.*}}-o {{.*}}.spv
+// SYCL: offload-wrapper: output: {{.*}}.bc
+// SYCL: clang{{.*}} --target=x86_64-unknown-linux-gnu -c -o {{.*}}.o {{.*}}.sycl.image.wrapper{{.*}}.bc
 
 //
 // Images pulled from a static archive are extracted from the archive path and
