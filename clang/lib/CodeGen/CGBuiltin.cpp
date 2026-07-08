@@ -7575,7 +7575,7 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
       !LangOpts.OffloadFP32PrecSqrt) {
     llvm::SmallVector<llvm::Type *, 4> TypeVec = {IRArgs[0]->getType()};
     // Among all llvm.fpbuiltin.* intrinsics, sincos is the only case which
-    // has 2 pointer paramter for output, so it should be overloaded according
+    // has 2 pointer parameters for output, so it should be overloaded according
     // to all 3 parameters such as llvm.fpbuiltin.sincos.f32.p4.p4.
     if (FPAccuracyIntrinsicID == Intrinsic::fpbuiltin_sincos) {
       if (3 != IRArgs.size())
