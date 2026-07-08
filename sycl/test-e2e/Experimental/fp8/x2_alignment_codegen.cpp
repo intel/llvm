@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -DNDEBUG -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -DNDEBUG -S -Xclang -emit-llvm %s -o - | FileCheck %s
 
 // UNSUPPORTED: target-nvidia, target-amd
 // UNSUPPORTED-INTENDED: relies on SPIR-V FP8 conversion builtins

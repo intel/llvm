@@ -57,12 +57,11 @@ private:
 struct ur_event_handle_t_ : ur_object {
 public:
   // The variant alternative encodes how the L0 event handle is torn down:
-  //  - cache_borrowed_event: returned to the pool.
-  //  - ze_event_handle_t: native event (urEventCreateWithNativeHandle if
-  //    external, urEventCreateExp with IPC flag if adapter-owned); the
-  //    wrapper's ownZeHandle flag controls whether zeEventDestroy runs.
-  //  - ipc_event_handle_t: opened from an IPC handle in another process;
-  //    torn down via zeEventCounterBasedCloseIpcHandle.
+  // - cache_borrowed_event: pooled event; it is returned to the pool.
+  // - ze_event_handle_t: standalone/native event; the wrapper's ownZeHandle
+  //   flag controls whether zeEventDestroy runs on destruction.
+  // - ipc_event_handle_t: opened from an IPC handle in another process;
+  //   torn down via zeEventCounterBasedCloseIpcHandle.
   using event_variant =
       std::variant<v2::raii::cache_borrowed_event, v2::raii::ze_event_handle_t,
                    v2::raii::ipc_event_handle_t>;
@@ -143,6 +142,8 @@ public:
   uint64_t getEventEndTimestamp();
 
   ur::RefCount RefCount;
+
+  bool isCounter() const { return flags & v2::EVENT_FLAGS_COUNTER; }
 
 private:
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,

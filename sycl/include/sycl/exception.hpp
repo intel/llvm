@@ -10,7 +10,9 @@
 
 // 4.9.2 Exception Class Interface
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/string.hpp>
 
@@ -68,9 +70,11 @@ exception set_ur_error(exception &&e, int32_t ur_err);
 /// \ingroup sycl_api
 class __SYCL_EXPORT exception : public virtual std::exception {
 public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("The version of an exception constructor which takes "
                         "no arguments is deprecated.")
   exception() = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   virtual ~exception();
 
   exception(std::error_code Ec, const char *Msg)
@@ -104,7 +108,11 @@ public:
   const std::error_code &code() const noexcept;
   const std::error_category &category() const noexcept;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const char *what() const noexcept final;
+#else
+  const char *what() const noexcept override;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   bool has_context() const noexcept;
 

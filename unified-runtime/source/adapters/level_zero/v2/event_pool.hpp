@@ -72,6 +72,19 @@ createEventIfRequested(event_pool *eventPool, ur_event_handle_t *phEvent,
   return (*phEvent);
 }
 
+static inline ur_event_handle_t
+createEventOrReuseIfRequested(event_pool *eventPool, ur_event_handle_t *phEvent,
+                              ur_queue_t_ *queue) {
+  if (phEvent == nullptr)
+    return nullptr;
+
+  if (*phEvent == nullptr)
+    (*phEvent) = eventPool->allocate();
+
+  (*phEvent)->setQueue(queue);
+  return (*phEvent);
+}
+
 // Always creates an event (used in functions that need to store the event
 // internally).
 static inline ur_event_handle_t createEvent(event_pool *eventPool,

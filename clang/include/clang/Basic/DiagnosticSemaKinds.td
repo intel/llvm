@@ -13788,17 +13788,15 @@ def err_fpga_attribute_incorrect_variable
 def err_fpga_attribute_invalid_decl
     : Error<"%0 attribute only applies to const variables, local variables, "
             "non-static data members and device_global variables">;
-def err_sycl_compiletime_property_duplication : Error<
-  "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
   "%0 must have exactly one template parameter">;
 def err_sycl_invalid_accessor_property_template_param : Error<
   "sixth template parameter of the accessor must be of accessor_property_list "
   "type">;
 def err_sycl_invalid_accessor_property_list_template_param : Error<
-  "%select{accessor_property_list|accessor_property_list pack argument|buffer_location}0 "
+  "%select{accessor_property_list|accessor_property_list pack argument}0 "
   "template parameter must be a "
-  "%select{parameter pack|type|non-negative integer}1">;
+  "%select{parameter pack|type}1">;
 def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
   "%0 attribute must evenly divide the work-group size for the %1 attribute">;
 def err_sycl_invalid_aspect_argument : Error<

@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 #include <iostream>
 
+#include <CL/cl.h>
 #include <sycl/sycl.hpp>
 
 #include <cfloat>
