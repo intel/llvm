@@ -311,7 +311,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     ze_api_version_t ZeApiVersion = hContext->getPlatform()->ZeApiVersion;
     UR_CALL(ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc, ZeSamplerDesc));
     if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
-      ZeSrgbDesc.pNext = reinterpret_cast<ze_base_desc_t *>(&ZeSamplerDesc);
+      ZeSrgbDesc.pNext = reinterpret_cast<void *>(&ZeSamplerDesc);
       BindlessDesc.pNext = &ZeSrgbDesc;
     } else {
       BindlessDesc.pNext = &ZeSamplerDesc;

@@ -13,8 +13,7 @@
 #include <sycl/image.hpp>        // for image_channel_order, image_channel_type
 #include <sycl/range.hpp>        // for range
 
-#include <algorithm> // for max
-#include <optional>
+#include <algorithm>    // for max
 #include <stddef.h>     // for size_t
 #include <system_error> // for error_code
 
@@ -63,13 +62,15 @@ struct image_descriptor {
   size_t depth{0};
   unsigned int num_channels{4};
   image_channel_type channel_type{image_channel_type::fp32};
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  image_color_space color_space{image_color_space::linear};
+#endif
   image_type type{image_type::standard};
   unsigned int num_levels{1};
   unsigned int array_size{1};
 
   image_descriptor() = default;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  image_color_space color_space = image_color_space::linear;
 
   image_descriptor(range<1> dims, unsigned int num_channels,
                    image_channel_type channel_type,
