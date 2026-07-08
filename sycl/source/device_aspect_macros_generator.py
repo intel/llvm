@@ -10,9 +10,9 @@ import sys
 
 # !__INTEL_PREVIEW_BREAKING_CHANGES
 def process_aspects(file_path, is_deprecated=False):
-# else
-# def process_aspects(file_path):
-# end !__INTEL_PREVIEW_BREAKING_CHANGES
+    # else
+    # def process_aspects(file_path):
+    # end !__INTEL_PREVIEW_BREAKING_CHANGES
     with open(file_path, "r") as file:
         content = file.read()
     lines = content.strip().splitlines()
@@ -21,12 +21,16 @@ def process_aspects(file_path, is_deprecated=False):
     for line in lines:
         # !__INTEL_PREVIEW_BREAKING_CHANGES
         stripped_line = line.strip()
-        if not stripped_line or stripped_line.startswith("#") or stripped_line.startswith("//"):
+        if (
+            not stripped_line
+            or stripped_line.startswith("#")
+            or stripped_line.startswith("//")
+        ):
             continue
-        if is_deprecated: 
-            aspect_macro = (
-                stripped_line.replace("__SYCL_ASPECT_DEPRECATED(", "").replace(")", "")
-            )
+        if is_deprecated:
+            aspect_macro = stripped_line.replace(
+                "__SYCL_ASPECT_DEPRECATED(", ""
+            ).replace(")", "")
             aspect_name, aspect_number, _ = aspect_macro.split(
                 ", ", 2
             )  # ignore the third parameter (message)
@@ -35,11 +39,11 @@ def process_aspects(file_path, is_deprecated=False):
             aspect_macro = stripped_line.replace("__SYCL_ASPECT(", "").replace(")", "")
             aspect_name, aspect_number = aspect_macro.split(", ")
             output += f"// __SYCL_ASPECT({aspect_name}, {aspect_number})\n"
-		# else !__INTEL_PREVIEW_BREAKING_CHANGES
-		# aspect_macro = line.strip().replace("__SYCL_ASPECT(", "").replace(")", "")
-		# aspect_name, aspect_number = aspect_macro.split(", ")
-		# output += f"// __SYCL_ASPECT({aspect_name}, {aspect_number})\n"
-		# end !__INTEL_PREVIEW_BREAKING_CHANGES
+        # else !__INTEL_PREVIEW_BREAKING_CHANGES
+        # aspect_macro = line.strip().replace("__SYCL_ASPECT(", "").replace(")", "")
+        # aspect_name, aspect_number = aspect_macro.split(", ")
+        # output += f"// __SYCL_ASPECT({aspect_name}, {aspect_number})\n"
+        # end !__INTEL_PREVIEW_BREAKING_CHANGES
 
         output += f"#ifndef __SYCL_ALL_DEVICES_HAVE_{aspect_name}__\n"
         output += f"#define __SYCL_ALL_DEVICES_HAVE_{aspect_name}__ 0\n"
