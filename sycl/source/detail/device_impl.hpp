@@ -446,7 +446,7 @@ public:
   ///
   /// \return a valid cl_device_id instance in accordance with the
   /// requirements described in 4.3.1.
-  cl_device_id get() const;
+  OpenCLDeviceIdT get() const;
 
   /// Get reference to UR device
   ///
@@ -1248,7 +1248,7 @@ public:
     CASE(int64_extended_atomics) {
       return has_extension("cl_khr_int64_extended_atomics");
     }
-    CASE(atomic64) { return get_info<info::device::atomic64>(); }
+    CASE(atomic64) { return get_info_impl<UR_DEVICE_INFO_ATOMIC_64>(); }
     CASE(image) { return get_info<info::device::image_support>(); }
     CASE(online_compiler) {
       return get_info<info::device::is_compiler_available>();

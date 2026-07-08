@@ -32,6 +32,8 @@ struct KernelInfo<BuildOptsTestKernel> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
+template void sycl::unittest::registerKernelNames<BuildOptsTestKernel>();
+
 static ur_result_t redefinedProgramBuild(void *pParams) {
   auto params = *static_cast<ur_program_build_exp_params_t *>(pParams);
   if (*params.ppOptions)

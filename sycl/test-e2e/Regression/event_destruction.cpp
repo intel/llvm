@@ -8,25 +8,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
-
 #include <sycl/detail/core.hpp>
 
 const size_t ITERS = 100000;
 
-// The test checks that that event destruction does not lead to stack overflow
+// The test checks that event destruction does not cause a stack overflow.
+// The SYCL scheduler builds a chain of dependent event_impl objects; if their
+// destructors recurse into each other the host stack overflows.
 
 int main() {
   sycl::queue Q;
-  sycl::buffer<int, 1> Buf(3000);
+  sycl::buffer<int, 1> Buf(1);
   for (size_t Idx = 0; Idx < ITERS; ++Idx) {
     auto Event = Q.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::write>(cgh);
-      cgh.single_task([=]() {
-        for (size_t I = 0; I < 2000; I++) {
-          Acc[I] = I * I + 2000;
-        }
-      });
+      cgh.single_task([=]() { Acc[0] = 1; });
     });
     Event.wait();
   }
