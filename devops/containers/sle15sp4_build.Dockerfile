@@ -14,7 +14,8 @@ RUN zypper --non-interactive refresh && \
       libtool \
       awk \
       git \
-      gzip && \
+      gzip \
+      ccache && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
     zypper clean --all
 
