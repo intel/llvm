@@ -354,20 +354,20 @@ private:
   size_t queryMaxNumWorkGroups(const device &Dev, sycl::range<Dimensions> Range,
                                size_t Bytes, KernelExecInfoTy ExecInfo) const;
 
-  template <typename LaunchProperties>
-  KernelExecInfoTy
-  ProcessLaunchProperties([[maybe_unused]] LaunchProperties Props) const {
+  template <
+      typename LaunchProperties = ext::oneapi::experimental::empty_properties_t>
+  KernelExecInfoTy ProcessLaunchProperties(LaunchProperties Props) const {
     ur_kernel_cache_config_t CacheConfig =
         ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_DEFAULT;
     size_t DynamicLocalMem = 0;
     if constexpr (LaunchProperties::template has_property<
                       ext::intel::experimental::cache_config_key>()) {
-      auto prop = LaunchProperties::template get_property<
+      auto prop = Props.template get_property<
           ext::intel::experimental::cache_config_key>();
-      if (prop->value == ext::intel::experimental::cache_config_enum::large_slm)
+      if (prop.value == ext::intel::experimental::cache_config_enum::large_slm)
         CacheConfig =
             ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
-      else if (prop->value ==
+      else if (prop.value ==
                ext::intel::experimental::cache_config_enum::large_data) {
         CacheConfig =
             ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
@@ -375,9 +375,9 @@ private:
     }
     if constexpr (LaunchProperties::template has_property<
                       ext::oneapi::experimental::work_group_scratch_size>()) {
-      auto prop = LaunchProperties::template get_property<
+      auto prop = Props.template get_property<
           ext::oneapi::experimental::work_group_scratch_size>();
-      DynamicLocalMem = prop->size;
+      DynamicLocalMem = prop.size;
     }
     return {DynamicLocalMem, CacheConfig};
   }
