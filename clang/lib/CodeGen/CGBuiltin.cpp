@@ -7588,7 +7588,7 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
         CGM.getLLVMContext(), FPAccuracyIntrinsicID, IntrinsicTypes);
     if (FPAccuracyIntrinsicFT->getNumParams() != IRArgs.size())
       return nullptr;
-    llvm::Function *Func = nullptr;
+    llvm::Function *Func;
     Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IntrinsicTypes);
     return CreateBuiltinCallWithAttr(Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
