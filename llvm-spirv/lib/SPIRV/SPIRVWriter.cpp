@@ -6476,11 +6476,28 @@ bool isEmptyLLVMModule(Module *M) {
          M->global_empty(); // No global variables
 }
 
+// A module is VectorCompute when any function or global variable carries
+// VectorCompute metadata.
+static bool hasVectorComputeMetadata(Module *M) {
+  return any_of(*M,
+                [](const Function &F) {
+                  return F.hasFnAttribute(kVCMetadata::VCFunction);
+                }) ||
+         any_of(M->globals(), [](const GlobalVariable &GV) {
+           return GV.hasAttribute(kVCMetadata::VCGlobalVariable);
+         });
+}
+
 bool LLVMToSPIRVBase::translate() {
   BM->setGeneratorVer(KTranslatorVer);
 
   if (isEmptyLLVMModule(M))
     BM->addCapability(CapabilityLinkage);
+
+  // Check before type translation so that SPIRVTypeVector can choose the
+  // matching capability.
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
+    BM->setVectorCompute(hasVectorComputeMetadata(M));
 
   if (!lowerBuiltinCallsToVariables(M))
     return false;

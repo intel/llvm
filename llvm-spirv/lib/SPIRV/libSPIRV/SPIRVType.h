@@ -441,7 +441,10 @@ public:
 
     if (CompCount == 1 || (CompCount > 4 && CompCount < 8) ||
         (CompCount > 8 && CompCount < 16) || CompCount > 16) {
-      if (Module->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector))
+      // A VectorCompute module keeps using CapabilityVectorAnyINTEL;
+      // otherwise use multi-vendor LongVectorEXT
+      if (!Module->isVectorCompute() &&
+          Module->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector))
         V.push_back(CapabilityLongVectorEXT);
       else if (Module->isAllowedToUseExtension(
                    ExtensionID::SPV_INTEL_vector_compute))
