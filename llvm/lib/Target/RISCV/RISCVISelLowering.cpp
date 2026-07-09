@@ -19886,8 +19886,10 @@ static auto m_ReverseEVL = [](auto X, auto EVL) {
 // TODO: A vlse.v is not necessarily faster than a vrgather.vv on all uarchs.
 // Remove once a cost model driven transform is implemented in the loop
 // vectorizer.
-static SDValue performReverseEVLCombine(SDNode *N, SelectionDAG &DAG,
+static SDValue performReverseEVLCombine(SDNode *N,
+                                        TargetLowering::DAGCombinerInfo &DCI,
                                         const RISCVSubtarget &Subtarget) {
+  SelectionDAG &DAG = DCI.DAG;
   // Fold:
   // vp.reverse(vp.load(ADDR, REVMASK, EVL), EVL)
   // -> vp.strided.load(ADDR, -1, MASK, EVL)
@@ -19913,13 +19915,14 @@ static SDValue performReverseEVLCombine(SDNode *N, SelectionDAG &DAG,
       if (VPLoad && VPLoad != VPL)
         return SDValue();
       VPLoad = VPL;
-    } else if (DAG.isSplatValue(X))
+    } else if (DAG.isSplatValue(X)) {
       continue;
-    else if (DAG.getTargetLoweringInfo().isBinOp(X.getOpcode()) &&
-             X->getNumValues() == 1)
+    } else if (DAG.getTargetLoweringInfo().isBinOp(X.getOpcode()) &&
+               X->getNumValues() == 1) {
       append_range(Worklist, X->op_values());
-    else
+    } else {
       return SDValue();
+    }
   }
   if (!VPLoad)
     return SDValue();
@@ -19965,7 +19968,7 @@ static SDValue performReverseEVLCombine(SDNode *N, SelectionDAG &DAG,
       LoadVT, DL, VPLoad->getChain(), Base, Stride, LoadMask,
       VPLoad->getVectorLength(), MMO, VPLoad->isExpandingLoad());
 
-  DAG.ReplaceAllUsesWith(VPLoad, Ret.getNode());
+  DCI.CombineTo(VPLoad, Ret.getValue(0), Ret.getValue(1));
 
   // Remove the top level reverse.
   (void)sd_match(N, m_ReverseEVL(m_Value(Op), m_Value()));
@@ -23234,7 +23237,7 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
   }
   case ISD::VECTOR_SPLICE_RIGHT:
   case ISD::EXPERIMENTAL_VP_REVERSE:
-    return performReverseEVLCombine(N, DAG, Subtarget);
+    return performReverseEVLCombine(N, DCI, Subtarget);
   case ISD::VP_STORE:
     return performVP_STORECombine(N, DAG, Subtarget);
   case ISD::BITCAST: {
