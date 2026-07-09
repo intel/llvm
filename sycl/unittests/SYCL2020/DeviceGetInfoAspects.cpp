@@ -38,6 +38,8 @@ TEST(DeviceGetInfo, SupportedDeviceAspects) {
   EXPECT_TRUE(containsAspect(DeviceAspects, aspect::fp16));
   EXPECT_TRUE(containsAspect(DeviceAspects, aspect::fp64));
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   EXPECT_FALSE(containsAspect(DeviceAspects, aspect::host));
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   EXPECT_FALSE(containsAspect(DeviceAspects, aspect::cpu));
 }
