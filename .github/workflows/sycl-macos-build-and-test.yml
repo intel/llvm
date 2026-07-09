@@ -52,6 +52,7 @@ jobs:
           --ci-defaults --use-zstd $ARGS \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DLLVM_INSTALL_UTILS=ON
+          -DLLVM_INSTALL_UTILS=ON \
+          -DXPTI_ENABLE_WERROR=OFF
     - name: Compile
       run: cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain

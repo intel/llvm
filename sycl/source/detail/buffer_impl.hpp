@@ -11,6 +11,7 @@
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
@@ -116,7 +117,7 @@ public:
   using EnableIfNotConstIterator =
       std::enable_if_t<!iterator_to_const_type_t<T>::value, T>;
 
-  buffer_impl(cl_mem MemObject, const context &SyclContext,
+  buffer_impl(OpenCLMemT MemObject, const context &SyclContext,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
       : buffer_impl(ur::cast<ur_native_handle_t>(MemObject), SyclContext,

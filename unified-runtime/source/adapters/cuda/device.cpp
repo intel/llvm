@@ -959,6 +959,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA supports recording timestamp events.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // CUDA supports enqueueing native work through the urNativeEnqueueExp
     return ReturnValue(static_cast<ur_bool_t>(true));
@@ -1173,6 +1176,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                         hDevice->get()));
     return ReturnValue(static_cast<ur_bool_t>(IPCSupported));
   }
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1189,6 +1194,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(true);

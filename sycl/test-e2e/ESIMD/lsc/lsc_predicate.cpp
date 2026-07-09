@@ -11,6 +11,7 @@
 
 // The test checks functionality of the lsc_block_load, lsc_block_store
 // with newly introduced predicate parameter.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

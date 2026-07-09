@@ -31,6 +31,5 @@ int main() {
 // CHECK-NOT: define {{.*}}spir_func void @{{.*}}device_func{{.*}}({{.*}}byval(%struct.NontriviallyCopyable)
 // CHECK: define {{.*}}spir_func void @_Z11device_func20NontriviallyCopyable(ptr noundef dead_on_return %X)
 // CHECK: %X.indirect_addr = alloca ptr addrspace(4)
-// CHECK: %X.indirect_addr.ascast = addrspacecast ptr %X.indirect_addr to ptr addrspace(4)
 // CHECK: %X.ascast = addrspacecast ptr %X to ptr addrspace(4)
-// CHECK: store ptr addrspace(4) %X.ascast, ptr addrspace(4) %X.indirect_addr.ascast
+// CHECK: store ptr %X, ptr %X.indirect_addr

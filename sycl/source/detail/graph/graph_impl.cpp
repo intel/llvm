@@ -11,6 +11,7 @@
 #include "graph_impl.hpp"
 #include "dynamic_impl.hpp" // for dynamic classes
 #include "node_impl.hpp"    // for node_impl
+#include <algorithm>        // for count_if
 #include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
 #include <detail/config.hpp>                          // for SYCLConfig
 #include <detail/event_impl.hpp>                      // for event_impl
@@ -106,9 +107,18 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
         continue;
       }
 
+      // When PartitionBounded we only traverse edges internal to the partition
+      // as predecessor nodes to an earlier partition are not part of the
+      // current schedule.
+      assert(!PartitionBounded || Succ.MSamePartitionPredecessors >= 0);
+      const size_t RequiredEdges =
+          PartitionBounded
+              ? static_cast<size_t>(Succ.MSamePartitionPredecessors)
+              : Succ.MPredecessors.size();
+
       auto &TotalVisitedEdges = Succ.MTotalVisitedEdges;
       ++TotalVisitedEdges;
-      if (TotalVisitedEdges == Succ.MPredecessors.size()) {
+      if (TotalVisitedEdges == RequiredEdges) {
         Source.push(&Succ);
       }
     }
@@ -158,17 +168,16 @@ void propagatePartitionDown(node_impl &Node, int PartitionNum,
   }
 }
 
-/// Tests if the node is a root of its partition (i.e. no predecessors that
-/// belong to the same partition)
+/// Counts the predecessors of `Node` that belong to the same partition.
+/// A node is a root of its partition iff this count is zero.
 /// @param Node node to test
-/// @return True is `Node` is a root of its partition
-bool isPartitionRoot(node_impl &Node) {
-  for (node_impl &Predecessor : Node.predecessors()) {
-    if (Predecessor.MPartitionNum == Node.MPartitionNum) {
-      return false;
-    }
-  }
-  return true;
+/// @return Number of predecessors of `Node` in the same partition.
+size_t countPredecessorsInPartition(const node_impl &Node) {
+  return static_cast<size_t>(
+      std::count_if(Node.predecessors().begin(), Node.predecessors().end(),
+                    [&Node](node_impl &Predecessor) {
+                      return Predecessor.MPartitionNum == Node.MPartitionNum;
+                    }));
 }
 } // anonymous namespace
 
@@ -255,7 +264,8 @@ void exec_graph_impl::makePartitions() {
     for (node_impl &Node : nodes()) {
       if (Node.MPartitionNum == i) {
         MPartitionNodes[&Node] = PartitionFinalNum;
-        if (isPartitionRoot(Node)) {
+        Node.MSamePartitionPredecessors = countPredecessorsInPartition(Node);
+        if (Node.MSamePartitionPredecessors == 0) {
           Partition->MRoots.insert(&Node);
           if (Node.MCGType == CGType::CodeplayHostTask) {
             Partition->MIsHostTask = true;
@@ -298,6 +308,7 @@ void exec_graph_impl::makePartitions() {
   // Reset node groups (if node have to be re-processed - e.g. subgraph)
   for (node_impl &Node : nodes()) {
     Node.MPartitionNum = -1;
+    Node.MSamePartitionPredecessors = -1;
   }
 }
 
@@ -350,6 +361,15 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
     assert(MNativeGraphHandle != nullptr &&
            "Native UR graph handle should not be null if graph creation "
            "succeeded");
+
+    uint64_t NativeId = 0;
+    Result = Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphGetIdExp>(
+        MNativeGraphHandle, &NativeId);
+    if (Result == UR_RESULT_SUCCESS) {
+      MNativeID = NativeId;
+    }
+    // On failure (e.g. backend lacks urGraphGetIdExp), MNativeID stays unset
+    // and getID() falls back to the SYCL atomic counter MID.
   }
 
   if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
@@ -2359,6 +2379,10 @@ std::vector<node> modifiable_command_graph::get_root_nodes() const {
 bool modifiable_command_graph::empty() const {
   graph_impl::ReadLock Lock(impl->MMutex);
   return impl->empty();
+}
+
+size_t modifiable_command_graph::get_id() const noexcept {
+  return impl->getID();
 }
 
 void modifiable_command_graph::checkNodePropertiesAndThrow(

@@ -35,7 +35,6 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
@@ -900,7 +899,7 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
     if (EventImpl->isHost()) {
       depends_on(EventImpl);
     }
-    impl->MEventsWaitWithBarrier.push_back(EventImpl);
+    impl->MEventsWaitWithBarrier.push_back(std::move(EventImpl));
   }
 }
 

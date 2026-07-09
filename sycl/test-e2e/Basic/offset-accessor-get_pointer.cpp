@@ -10,6 +10,7 @@
 // This is a departure from how get_pointer() was interpreted with offset
 // accessors in the past. Not relevant for images, which do not support offset
 // accessors.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <vector>

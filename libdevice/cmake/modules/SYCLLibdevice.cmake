@@ -16,7 +16,7 @@ if(WIN32)
   set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 else()
   # On other platforms, install to lib/dpcpp-<major_ver>/sycl
-  set(bc_dir "lib/dpcpp-${DPCPP_VERSION_MAJOR}/sycl")
+  set(bc_dir "lib${LLVM_LIBDIR_SUFFIX}/dpcpp-${DPCPP_VERSION_MAJOR}/sycl")
   set(install_dest_bc ${bc_dir})
   set(bc_binary_dir "${CMAKE_BINARY_DIR}/${bc_dir}")
 endif()
@@ -779,4 +779,6 @@ add_custom_target(install-libsycldevice
   COMMAND ${CMAKE_COMMAND} -DCMAKE_INSTALL_COMPONENT=libsycldevice -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   DEPENDS ${libsycldevice_build_targets}
 )
-add_dependencies(deploy-sycl-toolchain install-libsycldevice)
+if (TARGET deploy-sycl-toolchain)
+  add_dependencies(deploy-sycl-toolchain install-libsycldevice)
+endif()

@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

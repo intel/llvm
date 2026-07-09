@@ -620,6 +620,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue("");
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(true));
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(static_cast<ur_bool_t>(true));
+#else
+    return ReturnValue(static_cast<ur_bool_t>(false));
+#endif
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -1108,6 +1114,9 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
+    return ReturnValue(true);
+  }
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // L0 doesn't support enqueueing native work through the urNativeEnqueueExp
     return ReturnValue(static_cast<ur_bool_t>(false));
@@ -1277,6 +1286,16 @@ ur_result_t urDeviceGetInfo(
     // L0 supports importing external memory.
     return ReturnValue(true);
   }
+  case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP: {
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+    // Registering existing host memory as a USM host allocation relies on the
+    // external system memory mapping extension being supported by the driver.
+    return ReturnValue(
+        Device->Platform->ZeExternalMemoryMappingExtensionSupported);
+#else
+    return ReturnValue(false);
+#endif
+  }
   case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
     return ReturnValue(Device->Platform->ZeExternalSemaphoreExt.Supported);
   }
@@ -1366,6 +1385,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
 #else
     return ReturnValue(true);
+#endif
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+    return ReturnValue(true);
+#else
+    return ReturnValue(false);
 #endif
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);

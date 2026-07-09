@@ -13,6 +13,7 @@
 // RUN: %{run} %t.view.out
 // RUN: %{build} -DUSE_DEPRECATED_IPC_MEMORY_NAMESPACE -DUSE_VIEW %{cpp20} -o %t2.view.out
 // RUN: %{run} %t2.view.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>

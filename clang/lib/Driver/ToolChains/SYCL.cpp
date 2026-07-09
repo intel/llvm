@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "clang/Basic/Version.h"
+#include "clang/Config/config.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -32,25 +33,73 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   // directory in SYCLRTLibPath for use by the linker.
   StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
+
+#if 0 // !INTEL_CUSTOMIZATION
+  if (HostTriple.isWindowsMSVCEnvironment() ||
+      HostTriple.isWindowsItaniumEnvironment()) {
+    // Windows: Check for LLVMSYCL.lib
+    // NOTE: Only checks for LLVMSYCL.lib existence (release variant).
+    // Debug vs release library selection happens at link time based on CRT
+    // flags.
+    if (DriverDir.starts_with(SysRoot) &&
+        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+      SmallString<128> LibDir(DriverDir);
+      llvm::sys::path::append(LibDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
+
+      // Verify SYCL runtime library exists
+      SmallString<128> SYCLLibPath(LibDir);
+      llvm::sys::path::append(SYCLLibPath, "LLVMSYCL.lib");
+
+      if (D.getVFS().exists(SYCLLibPath))
+        SYCLRTLibPath = LibDir;
+    }
+  } else {
+    SmallString<128> LibPath(DriverDir);
+    llvm::sys::path::append(LibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME, HostTriple.str(),
+                            "libsycl.so");
+    // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
+    // where the library is installed directly in lib/ with no triple subdir.
+    SmallString<128> FlatLibPath(DriverDir);
+    llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME, "libsycl.so");
+
+    if (DriverDir.starts_with(SysRoot) &&
+        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+      // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
+      if (D.getVFS().exists(LibPath))
+        llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME, HostTriple.str());
+      // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
+      else if (D.getVFS().exists(FlatLibPath))
+        llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
+      else
+        return; // Neither path exists : broken install, leave SYCLRTLibPath
+                // unset
+
+      SYCLRTLibPath = DriverDir;
+    }
+  }
+#else // !INTEL_CUSTOMIZATION
+  // Intel: SYCL RT is libsycl.so; Windows lib path is handled at link stage.
   SmallString<128> LibPath(DriverDir);
-  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
-                          "libsycl.so");
+  llvm::sys::path::append(LibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME,
+                          HostTriple.str(), "libsycl.so");
   // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
   // where the library is installed directly in lib/ with no triple subdir.
   SmallString<128> FlatLibPath(DriverDir);
-  llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+  llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME,
+                          "libsycl.so");
 
   if (DriverDir.starts_with(SysRoot) &&
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
-    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
-    if (D.getVFS().exists(LibPath))
-      llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
-    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
-    else if (D.getVFS().exists(FlatLibPath))
-      llvm::sys::path::append(DriverDir, "..", "lib");
-    if (!DriverDir.equals(D.Dir))
-      SYCLRTLibPath = DriverDir;
+    // We put driver in bin/compiler, so one more ../ than llorg.
+    if (D.getVFS().exists(DriverDir + "/../../lib/libsycl.so"))
+      llvm::sys::path::append(DriverDir, "..", "..",
+                              CLANG_INSTALL_LIBDIR_BASENAME);
+    else
+      llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
+
+    SYCLRTLibPath = DriverDir;
   }
+#endif // !INTEL_CUSTOMIZATION
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
 
@@ -81,8 +130,8 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   const SmallString<64> Basename = getLibSpirvBasename(HostTriple);
   SmallString<256> LibclcPath(D.ResourceDir);
-  llvm::sys::path::append(LibclcPath, "lib", DeviceTriple.getTriple(),
-                          Basename);
+  llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME,
+                          DeviceTriple.getTriple(), Basename);
   if (D.getVFS().exists(LibclcPath))
     return Args.MakeArgString(LibclcPath);
 
@@ -113,7 +162,8 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
   std::string LinuxDirSuffix =
-      llvm::formatv("/lib/dpcpp-{0}/sycl", DPCPP_VERSION_MAJOR);
+      llvm::formatv("/{0}/dpcpp-{1}/sycl", CLANG_INSTALL_LIBDIR_BASENAME,
+                    DPCPP_VERSION_MAJOR);
   for (const auto &IC : InstallationCandidates) {
     if (!HostTriple.isWindowsMSVCEnvironment() &&
         !HostTriple.isWindowsItaniumEnvironment()) {
@@ -122,7 +172,7 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
       DeviceLibPaths.emplace_back(InstallPath);
     }
     SmallString<128> InstallPath(IC);
-    llvm::sys::path::append(InstallPath, "lib");
+    llvm::sys::path::append(InstallPath, CLANG_INSTALL_LIBDIR_BASENAME);
     DeviceLibPaths.emplace_back(InstallPath);
   }
   if (!HostTriple.isWindowsMSVCEnvironment() &&
@@ -132,7 +182,7 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
     DeviceLibPaths.emplace_back(Path.str());
   }
   SmallString<128> Path(D.SysRoot);
-  llvm::sys::path::append(Path, "lib");
+  llvm::sys::path::append(Path, CLANG_INSTALL_LIBDIR_BASENAME);
   DeviceLibPaths.emplace_back(Path.str());
 }
 
@@ -1136,6 +1186,10 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                  "nvl_u")
           .Cases({"intel_gpu_nvl_p", "intel_gpu_35_10_0"}, "nvl_p")
           .Cases({"intel_gpu_cri", "intel_gpu_35_11_0"}, "cri")
+          .Case("intel_gpu_dg2", "dg2")
+          .Case("intel_gpu_mtl", "mtl")
+          .Case("intel_gpu_bmg", "bmg")
+          .Case("intel_gpu_ptl", "ptl")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -1254,17 +1308,21 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
           .Case("adl_p", "INTEL_GPU_ADL_P")
           .Case("adl_n", "INTEL_GPU_ADL_N")
           .Case("dg1", "INTEL_GPU_DG1")
+          .Case("dg2", "INTEL_GPU_DG2")
           .Cases({"acm_g10", "dg2_g10"}, "INTEL_GPU_ACM_G10")
           .Cases({"acm_g11", "dg2_g11"}, "INTEL_GPU_ACM_G11")
           .Cases({"acm_g12", "dg2_g12"}, "INTEL_GPU_ACM_G12")
           .Case("pvc", "INTEL_GPU_PVC")
           .Case("pvc_vg", "INTEL_GPU_PVC_VG")
+          .Case("mtl", "INTEL_GPU_MTL")
           .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s"}, "INTEL_GPU_MTL_U")
           .Case("mtl_h", "INTEL_GPU_MTL_H")
           .Case("arl_h", "INTEL_GPU_ARL_H")
+          .Case("bmg", "INTEL_GPU_BMG")
           .Case("bmg_g21", "INTEL_GPU_BMG_G21")
           .Case("bmg_g31", "INTEL_GPU_BMG_G31")
           .Case("lnl_m", "INTEL_GPU_LNL_M")
+          .Case("ptl", "INTEL_GPU_PTL")
           .Case("ptl_h", "INTEL_GPU_PTL_H")
           .Case("ptl_u", "INTEL_GPU_PTL_U")
           .Case("wcl", "INTEL_GPU_WCL")
@@ -1771,9 +1829,24 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // -ftarget-compile-fast AOT
     if (Args.hasArg(options::OPT_ftarget_compile_fast))
       BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
-    // -ftarget-export-symbols
+    // -ftarget-export-symbols, also implied for -fsyclbin=input/object so
+    // that AOT-compiled native images keep cross-image SYCL_EXTERNAL
+    // symbols externally visible for runtime resolution via
+    // zeModuleDynamicLink. Users who want a fully-linked, internalized
+    // native image should use -fsyclbin=executable instead. The conflict
+    // case (-fsyclbin=input/object with
+    // -fno-sycl-allow-device-image-dependencies) is diagnosed earlier in
+    // the linker-wrapper construction; here we only need to keep the
+    // implication aligned with the device-image-dependencies setting so
+    // that an explicit opt-out for non-SYCLBIN AOT scenarios is honored.
+    bool SYCLBINImpliesExportSymbols = false;
+    if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
+      StringRef State = A->getValue();
+      SYCLBINImpliesExportSymbols = (State == "input" || State == "object");
+    }
     if (Args.hasFlag(options::OPT_ftarget_export_symbols,
-                     options::OPT_fno_target_export_symbols, false))
+                     options::OPT_fno_target_export_symbols,
+                     SYCLBINImpliesExportSymbols))
       BeArgs.push_back("-library-compilation");
     // -foffload-fp32-prec-[sqrt/div]
     if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
@@ -1952,6 +2025,8 @@ SYCLToolChain::getDeviceLibs(
   return BCLibs;
 }
 
-SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
+SanitizerMask SYCLToolChain::getSupportedSanitizers(
+    StringRef /*BoundArch*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
+
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }

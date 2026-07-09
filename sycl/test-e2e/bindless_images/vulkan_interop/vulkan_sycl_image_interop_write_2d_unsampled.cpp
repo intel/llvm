@@ -7,6 +7,9 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12357
 
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22272
+
 /*
     Run all the vulkan formats through a write test. Note this is unsampled
    only, you can't "write" with the image sampler.
@@ -76,6 +79,7 @@
 
 */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 

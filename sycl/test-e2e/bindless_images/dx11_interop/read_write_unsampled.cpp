@@ -4,12 +4,17 @@
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
 
+// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22234
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+#include <iostream>
 
 #include "dx11_interop.h"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/properties/queue_properties.hpp>
 
 #ifdef TEST_SEMAPHORE_IMPORT

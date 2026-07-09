@@ -1,6 +1,7 @@
 // REQUIRES: cuda || hip || level_zero
 // RUN:  %{build} %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_75 %} -o %t.out
 // RUN:  %{run} %t.out
+#include <iostream>
 
 #include <cassert>
 #include <numeric>
@@ -8,6 +9,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <algorithm>
 #include <sycl/atomic_ref.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/usm.hpp>

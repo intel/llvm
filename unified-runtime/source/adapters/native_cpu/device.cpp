@@ -381,6 +381,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     // Currently for Native CPU fences are implemented using OCK
     // builtins, so we have different capabilities than atomic operations
@@ -427,6 +429,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(false);
 
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+    return ReturnValue(false);
+
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
     return ReturnValue(false);
 
@@ -439,6 +444,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
+    return ReturnValue(false);
+
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:

@@ -10,6 +10,7 @@
 
 // This test checks that ESIMD program with big constant initializer list can
 // compile and run correctly.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

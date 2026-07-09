@@ -18,7 +18,6 @@
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/property_list.hpp>
 
@@ -106,13 +105,13 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   }
 }
 
-cl_context context_impl::get() const {
+OpenCLContextT context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
   getAdapter().call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
   getAdapter().call<UrApiKind::urContextGetNativeHandle>(MContext,
                                                          &nativeHandle);
-  return ur::cast<cl_context>(nativeHandle);
+  return ur::cast<OpenCLContextT>(nativeHandle);
 }
 
 context_impl::~context_impl() {
@@ -233,7 +232,7 @@ ur_native_handle_t context_impl::getNative() const {
   ur_native_handle_t Handle;
   Adapter.call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainContext, ur::cast<cl_context>(Handle));
+    retainOpenCLContext(Handle);
   }
   return Handle;
 }

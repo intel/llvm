@@ -13,7 +13,6 @@
 #include <sycl/image.hpp>        // for image_channel_order, image_channel_type
 #include <sycl/range.hpp>        // for range
 
-#include <algorithm>    // for max
 #include <stddef.h>     // for size_t
 #include <system_error> // for error_code
 
@@ -148,12 +147,14 @@ struct image_descriptor {
 
     // Generate a new descriptor which represents the level accordingly
     // Do not allow height/depth values to be clamped to 1 when naturally 0
-    size_t width = std::max<size_t>(this->width >> level, 1);
-    size_t height = this->height == 0
-                        ? this->height
-                        : std::max<size_t>(this->height >> level, 1);
-    size_t depth = this->depth == 0 ? this->depth
-                                    : std::max<size_t>(this->depth >> level, 1);
+    constexpr auto clamp_mip_dim = [](size_t v) constexpr {
+      return v < size_t{1} ? size_t{1} : v;
+    };
+    size_t width = clamp_mip_dim(this->width >> level);
+    size_t height =
+        this->height == 0 ? this->height : clamp_mip_dim(this->height >> level);
+    size_t depth =
+        this->depth == 0 ? this->depth : clamp_mip_dim(this->depth >> level);
 
     // This will generate the new descriptor with image_type standard
     // since individual mip levels are standard images

@@ -8,7 +8,6 @@
 #pragma once
 
 #include <sycl/detail/export.hpp>
-#include <sycl/info/info_desc.hpp>
 
 namespace sycl {
 inline namespace _V1 {

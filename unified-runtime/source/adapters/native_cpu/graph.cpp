@@ -33,6 +33,12 @@ urGraphIsEmptyExp(ur_exp_graph_handle_t /* hGraph */, bool * /* pIsEmpty */) {
   DIE_NO_IMPLEMENTATION;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL
+urGraphGetIdExp(ur_exp_graph_handle_t /* hGraph */, uint64_t * /* pGraphId */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
     ur_exp_graph_handle_t /* hGraph */,
     ur_exp_graph_destruction_callback_t /* pfnCallback */,
@@ -50,6 +56,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphDumpContentsExp(
 UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     ur_exp_graph_handle_t /* hGraph */,
     ur_exp_executable_graph_handle_t * /* phExecutableGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urGraphGetNativeHandleExp(ur_exp_graph_handle_t /* hGraph */,
+                          ur_native_handle_t * /* phNativeGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    ur_exp_executable_graph_handle_t /* hExecutableGraph */,
+    ur_native_handle_t * /* phNativeExecutableGraph */) {
 
   DIE_NO_IMPLEMENTATION;
 }

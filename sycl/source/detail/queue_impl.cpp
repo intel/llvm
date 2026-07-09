@@ -1229,7 +1229,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
                                                        &Handle);
   if (getContextImpl().getBackend() == backend::opencl)
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
+    detail::retainOpenCLCommandQueue(Handle);
 
   return Handle;
 }
@@ -1266,6 +1266,15 @@ bool queue_impl::queue_empty() const {
   getAdapter().call<UrApiKind::urQueueGetInfo>(
       MQueue, UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
   return IsReady;
+}
+
+void queue_impl::queue_flush() const {
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "flush cannot be called for a queue which is "
+                          "recording to a command graph.");
+  }
+  getAdapter().call<UrApiKind::urQueueFlush>(MQueue);
 }
 
 void queue_impl::revisitUnenqueuedCommandsState(

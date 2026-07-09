@@ -26,7 +26,7 @@ $_ZTSZ4mainEUlvE_ = comdat any
 ;CHECK: @[[NewAnnotStr3:.*]] = private unnamed_addr addrspace(1) constant [14 x i8] c"{6149:\22true\22}\00", section "llvm.metadata"
 
 ; Function Attrs: mustprogress norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlvE_() local_unnamed_addr #0 comdat !kernel_arg_buffer_location !7 !sycl_kernel_omit_args !7 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlvE_() local_unnamed_addr #0 comdat !sycl_kernel_omit_args !7 {
 entry:
   %x.i = alloca %struct.foo, align 8
   %x.ascast.i = addrspacecast ptr %x.i to ptr addrspace(4)

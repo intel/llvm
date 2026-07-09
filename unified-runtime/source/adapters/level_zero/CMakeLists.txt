@@ -64,7 +64,7 @@ if(UR_BUILD_ADAPTER_L0)
     target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_LEVEL_ZERO)
     if(UR_STATIC_ADAPTER_L0)
         target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO)
-        set(ADAPTER_L0_TARGETS_TO_INSTALL ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers)
+        set(ADAPTER_L0_TARGETS_TO_INSTALL LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers)
         # 'utils' target from 'level-zero-loader' includes path which is prefixed
         # in the source directory, this breaks the installation of 'utils' target.
         if(TARGET level_zero_utils)
@@ -133,6 +133,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/image_common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/physical_mem.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.hpp
@@ -145,7 +146,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/physical_mem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
@@ -185,6 +186,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_counter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/ipc_event.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp

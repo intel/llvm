@@ -11,9 +11,9 @@
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/util.hpp>
+#include <sycl/info/kernel.hpp>         // for is_kernel_device_specif...
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <unified-runtime/ur_api.h>     // for ur_native_handle_t
 
@@ -78,8 +78,10 @@ public:
   /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
 #ifdef __SYCL_INTERNAL_API
-  kernel(cl_kernel ClKernel, const context &SyclContext);
+  kernel(OpenCLKernelT ClKernel, const context &SyclContext);
 #endif
+
+  kernel() = delete;
 
   kernel(const kernel &RHS) = default;
 
@@ -89,9 +91,21 @@ public:
 
   kernel &operator=(kernel &&RHS) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // SYCL 2020 declares hidden friend opearators, see 4.5.2. Common reference
+  // semantics.
   bool operator==(const kernel &RHS) const { return impl == RHS.impl; }
 
   bool operator!=(const kernel &RHS) const { return !operator==(RHS); }
+#else
+  friend bool operator==(const kernel &lhs, const kernel &rhs) {
+    return lhs.impl == rhs.impl;
+  }
+
+  friend bool operator!=(const kernel &lhs, const kernel &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Get a valid OpenCL kernel handle
   ///
@@ -100,7 +114,7 @@ public:
   ///
   /// \return a valid cl_kernel instance
 #ifdef __SYCL_INTERNAL_API
-  cl_kernel get() const;
+  OpenCLKernelT get() const;
 #endif
 
   /// Get the context that this kernel is defined for.

@@ -8,15 +8,16 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/abi_neutral.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/device_selector.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/device.hpp>
+#include <sycl/info/platform.hpp>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -81,7 +82,7 @@ public:
   ///
   /// \param PlatformId is an OpenCL cl_platform_id instance.
 #ifdef __SYCL_INTERNAL_API
-  explicit platform(cl_platform_id PlatformId);
+  explicit platform(OpenCLPlatformT PlatformId);
 #endif
 
   /// Constructs a SYCL platform instance using a device_selector.
@@ -113,15 +114,25 @@ public:
 
   platform &operator=(platform &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const platform &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const platform &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const platform &lhs, const platform &rhs) {
+    return lhs.impl == rhs.impl;
+  }
+
+  friend bool operator!=(const platform &lhs, const platform &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Returns an OpenCL interoperability platform.
   ///
   /// \return an instance of OpenCL cl_platform_id.
 #ifdef __SYCL_INTERNAL_API
-  cl_platform_id get() const;
+  OpenCLPlatformT get() const;
 #endif
 
   /// Checks if platform supports specified extension.

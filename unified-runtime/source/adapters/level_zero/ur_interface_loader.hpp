@@ -629,6 +629,28 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem);
 ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t hContext, void *pMem);
+ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t hContext,
+                                     ur_physical_mem_handle_t hPhysMem,
+                                     void **ppIPCPhysMemHandleData,
+                                     size_t *pIPCPhysMemHandleDataSizeRet);
+ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t hContext,
+                                     const void *pIPCPhysMemHandleData);
+ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
+                                      ur_device_handle_t hDevice,
+                                      const void *pIPCPhysMemHandleData,
+                                      size_t ipcPhysMemHandleDataSize,
+                                      ur_physical_mem_handle_t *phPhysMem);
+ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t hContext,
+                                       ur_physical_mem_handle_t hPhysMem);
+ur_result_t urIPCGetEventHandleExp(ur_event_handle_t hEvent,
+                                   void **ppIPCEventHandleData,
+                                   size_t *pIPCEventHandleDataSizeRet);
+ur_result_t urIPCPutEventHandleExp(ur_context_handle_t hContext,
+                                   void *pIPCEventHandleData);
+ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t hContext,
+                                    const void *pIPCEventHandleData,
+                                    size_t ipcEventHandleDataSize,
+                                    ur_event_handle_t *phEvent);
 ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);
@@ -842,6 +864,10 @@ ur_result_t urEnqueueNativeCommandExp(
     const ur_exp_enqueue_native_command_properties_t *pProperties,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
+ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             ur_device_handle_t hDevice,
+                             const ur_exp_event_desc_t *pEventDesc,
+                             ur_event_handle_t *phEvent);
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
                              ur_exp_graph_handle_t *phGraph);
 ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue);
@@ -865,11 +891,17 @@ ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
 ur_result_t urQueueGetGraphExp(ur_queue_handle_t hQueue,
                                ur_exp_graph_handle_t *phGraph);
 ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pResult);
+ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t hGraph, uint64_t *pGraphId);
 ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_handle_t hGraph,
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData);
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
                                    const char *filePath);
+ur_result_t urGraphGetNativeHandleExp(ur_exp_graph_handle_t hGraph,
+                                      ur_native_handle_t *phNativeGraph);
+ur_result_t urGraphExecutableGraphGetNativeHandleExp(
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    ur_native_handle_t *phNativeExecutableGraph);
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif

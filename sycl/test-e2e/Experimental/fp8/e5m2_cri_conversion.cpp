@@ -1,0 +1,251 @@
+// REQUIRES: intel_feature_gpu_cri
+// RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
+// RUN: %{run} SYCL_UR_TRACE=1 %t.out
+
+// UNSUPPORTED: target-nvidia, target-amd, spirv-backend
+// UNSUPPORTED-INTENDED: only supported by backends with CRI driver, and the
+// SPIR-V backend does not support the required SPIR-V extensions
+
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22372
+
+#include <iostream>
+
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/usm.hpp>
+
+using namespace sycl::ext::oneapi::experimental;
+
+constexpr float E5M2MaxNormal = 57344.0f;
+
+bool is_positive_infinity(float value) {
+  return std::isinf(value) && !std::signbit(value);
+}
+
+template <typename T, bool UseMarray, saturation Sat>
+int test_stochastic_constructor(sycl::queue &queue) {
+  auto *out = sycl::malloc_shared<float>(1, queue);
+  auto *seed = sycl::malloc_shared<uint32_t>(1, queue);
+  seed[0] = 0x12345678u;
+
+  queue.single_task([=]() {
+    const float input_value = Sat == saturation::finite
+                                  ? -std::numeric_limits<float>::infinity()
+                                  : std::numeric_limits<float>::infinity();
+    const uint32_t initial_seed = seed[0];
+
+    if constexpr (UseMarray) {
+      sycl::marray<T, 1> input(static_cast<T>(input_value));
+      if constexpr (Sat == saturation::finite) {
+        fp8_e5m2 value(input, stochastic_seed(seed));
+        out[0] = static_cast<float>(value);
+      } else {
+        fp8_e5m2 value(input, stochastic_seed(seed), saturation::none);
+        out[0] = static_cast<float>(value);
+      }
+    } else {
+      T input[1] = {static_cast<T>(input_value)};
+      if constexpr (Sat == saturation::finite) {
+        fp8_e5m2 value(input, stochastic_seed(seed));
+        out[0] = static_cast<float>(value);
+      } else {
+        fp8_e5m2 value(input, stochastic_seed(seed), saturation::none);
+        out[0] = static_cast<float>(value);
+      }
+    }
+  });
+  queue.wait_and_throw();
+
+  int ret = 0;
+
+  if constexpr (Sat == saturation::finite) {
+    if (out[0] != -E5M2MaxNormal)
+      ret = 1;
+  } else if (!is_positive_infinity(out[0]))
+    ret = 1;
+
+  sycl::free(out, queue);
+  sycl::free(seed, queue);
+  return ret;
+}
+
+template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
+  auto *data = sycl::malloc_shared<fp8_e5m2>(1, queue);
+  data[0] = fp8_e5m2(static_cast<T>(1.5));
+
+  queue.single_task([=]() {
+    fp8_e5m2 value = data[0];
+    T f = static_cast<T>(value);
+    f += static_cast<T>(1.0f);
+    data[0] = fp8_e5m2(f);
+  });
+  queue.wait_and_throw();
+
+  fp8_e5m2 expected(2.5f);
+  T out = static_cast<T>(data[0]);
+  T expected_out = static_cast<T>(expected);
+
+  sycl::free(data, queue);
+  if (std::fabs(out - expected_out) > 0.0f)
+    return 1;
+
+  return 0;
+}
+
+int test_boolean_conversion(sycl::queue &queue, float test_value,
+                            bool expected) {
+  auto *data = sycl::malloc_shared<fp8_e5m2>(1, queue);
+  auto *res = sycl::malloc_shared<bool>(1, queue);
+  data[0] = fp8_e5m2(test_value);
+  queue.single_task([=]() {
+    fp8_e5m2 value = data[0];
+    res[0] = static_cast<bool>(value);
+  });
+  queue.wait_and_throw();
+  int ret = res[0] == expected ? 0 : 1;
+  sycl::free(data, queue);
+  sycl::free(res, queue);
+  return ret;
+}
+
+template <typename T>
+int test_single_element_carray_constructor(sycl::queue &queue) {
+  T input[1] = {static_cast<T>(1.5f)};
+  auto *data = sycl::malloc_shared<fp8_e5m2>(1, queue);
+  data[0] = fp8_e5m2(input);
+
+  queue.single_task([=]() {
+    fp8_e5m2 value = data[0];
+    T output[1] = {static_cast<T>(value) + static_cast<T>(1.0f)};
+    data[0] = fp8_e5m2(output);
+  });
+  queue.wait_and_throw();
+
+  fp8_e5m2 expected(static_cast<T>(2.5f));
+  T out = static_cast<T>(data[0]);
+  T expected_out = static_cast<T>(expected);
+
+  sycl::free(data, queue);
+  if (std::fabs(static_cast<float>(out) - static_cast<float>(expected_out)) >
+      0.0f)
+    return 1;
+  return 0;
+}
+
+template <typename T> int test_marray_conversion(sycl::queue &queue) {
+  sycl::marray<T, 1> input(static_cast<T>(1.5f));
+  auto *data = sycl::malloc_shared<fp8_e5m2>(1, queue);
+  data[0] = fp8_e5m2(input);
+
+  queue.single_task([=]() {
+    fp8_e5m2 value = data[0];
+    sycl::marray<T, 1> f = static_cast<sycl::marray<T, 1>>(value);
+    f[0] += static_cast<T>(1.0f);
+    data[0] = fp8_e5m2(f);
+  });
+  queue.wait_and_throw();
+
+  return 0;
+}
+
+// The goal of this test is to confirm that bug is not reproduced
+// https://github.com/intel-tools/intel-xpu-backend-for-triton/issues/847
+template <typename T> int test_fp8_precision_conversion(sycl::queue &queue) {
+  auto *data = sycl::malloc_shared<T>(1, queue);
+  data[0] = static_cast<T>(-53249.234375f);
+  auto *out_8bit = sycl::malloc_shared<fp8_e5m2>(1, queue);
+  auto *out_T = sycl::malloc_shared<T>(1, queue);
+  queue.single_task([=]() {
+    fp8_e5m2 expected1(data[0]);
+    out_8bit[0] = expected1;
+    out_T[0] = static_cast<T>(out_8bit[0]);
+  });
+  queue.wait_and_throw();
+  fp8_e5m2 expected_cpu(static_cast<T>(-53249.234375f));
+  assert(expected_cpu.vals[0] =
+             0xFB && "Unexpected fp8 conversion result on CPU");
+  assert(out_8bit[0].vals[0] == 0xFB &&
+         "Unexpected fp8 conversion result on device");
+  assert(out_T[0] == static_cast<T>(-57344.0f) &&
+         "Unexpected fp8 to initial type conversion result on device");
+
+  sycl::free(data, queue);
+  sycl::free(out_8bit, queue);
+  sycl::free(out_T, queue);
+  return 0;
+}
+
+int main() {
+  auto async_handler = [](sycl::exception_list exceptions) {
+    for (const std::exception_ptr &e : exceptions) {
+      try {
+        std::rethrow_exception(e);
+      } catch (const sycl::exception &ex) {
+        std::cerr << "Async SYCL exception: " << ex.what() << '\n';
+        std::terminate();
+      }
+    }
+  };
+
+  sycl::queue queue{async_handler};
+
+  int ret = test_fp8_simple_type_conversion<float>(queue);
+  ret |= test_fp8_simple_type_conversion<sycl::half>(queue);
+  ret |= test_fp8_simple_type_conversion<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_fp8_simple_type_conversion<short>(queue);
+  ret |= test_fp8_simple_type_conversion<unsigned short>(queue);
+  ret |= test_fp8_simple_type_conversion<int>(queue);
+  ret |= test_fp8_simple_type_conversion<unsigned int>(queue);
+  ret |= test_fp8_simple_type_conversion<long>(queue);
+  ret |= test_fp8_simple_type_conversion<unsigned long>(queue);
+  ret |= test_fp8_simple_type_conversion<long long>(queue);
+  ret |= test_fp8_simple_type_conversion<unsigned long long>(queue);
+  ret |= test_fp8_simple_type_conversion<char>(queue);
+  ret |= test_fp8_simple_type_conversion<signed char>(queue);
+  ret |= test_fp8_simple_type_conversion<unsigned char>(queue);
+
+  ret |= test_boolean_conversion(queue, 0.0f, false);
+  ret |= test_boolean_conversion(queue, -0.0f, false);
+  ret |= test_boolean_conversion(queue, 1.0f, true);
+  ret |= test_boolean_conversion(queue, -1.0f, true);
+  ret |= test_boolean_conversion(queue, std::numeric_limits<float>::quiet_NaN(),
+                                 true);
+  ret |= test_boolean_conversion(queue, std::numeric_limits<float>::infinity(),
+                                 true);
+  ret |= test_boolean_conversion(queue, 1.52587890625e-05f, true);
+
+  ret |= test_single_element_carray_constructor<float>(queue);
+  ret |= test_single_element_carray_constructor<sycl::half>(queue);
+  ret |= test_single_element_carray_constructor<sycl::ext::oneapi::bfloat16>(
+      queue);
+
+  ret |= test_marray_conversion<float>(queue);
+  ret |= test_marray_conversion<sycl::half>(queue);
+  ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
+
+  ret |=
+      test_stochastic_constructor<sycl::half, false, saturation::finite>(queue);
+  ret |=
+      test_stochastic_constructor<sycl::half, false, saturation::none>(queue);
+  ret |=
+      test_stochastic_constructor<sycl::half, true, saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::half, true, saturation::none>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                                     saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                                     saturation::none>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                                     saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                                     saturation::none>(queue);
+
+  ret |= test_fp8_precision_conversion<float>(queue);
+  ret |= test_fp8_precision_conversion<int>(queue);
+  ret |= test_fp8_precision_conversion<long>(queue);
+  ret |= test_fp8_precision_conversion<long long>(queue);
+  return ret;
+}

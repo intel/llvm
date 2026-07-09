@@ -2,10 +2,8 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// REQUIRES-INTEL-DRIVER: lin: 38303 win: 101.9999
-
-// UNSUPPORTED: linux && gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21764
+// Linux fix tracked by GSD-12371, landed in driver 38362.
+// REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
@@ -48,6 +46,7 @@
 
 */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 #include <sycl/builtins.hpp>

@@ -368,7 +368,7 @@ Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
   if (!STy)
     STy = StructType::create(M->getContext(), FullName);
 
-  unsigned AddrSpace = getOCLOpaqueTypeAddrSpace(TypeOpcode);
+  unsigned AddrSpace = getOCLOpaqueTypeAddrSpace(TypeOpcode, AddrSpaceMapper);
   return UseRealType ? (Type *)PointerType::get(M->getContext(), AddrSpace)
                      : TypedPointerType::get(STy, AddrSpace);
 }
