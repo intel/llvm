@@ -599,7 +599,7 @@ bool context_impl::supportsEventProfiling() {
   }
 
   MEventProfilingSupport = std::all_of(
-      MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
+      MDevices.cbegin(), MDevices.cend(), [](detail::device_impl *DevImpl) {
         return DevImpl->has(aspect::ext_oneapi_per_event_profiling);
       });
 
