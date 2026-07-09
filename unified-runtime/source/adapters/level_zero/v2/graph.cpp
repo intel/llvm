@@ -140,9 +140,9 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ze_result_t zeResult =
-      ZE_CALL_NOCHECK(hContext->getPlatform()->ZeGraphExt.zeGraphIsEmptyExp,
-                      (hGraph->getZeHandle()));
+  auto &ZeGraphExt = hContext->getPlatform()->ZeGraphExt;
+  ze_result_t zeResult = ZeGraphExt.normalizeGraphQueryResult(
+      ZE_CALL_NOCHECK(ZeGraphExt.zeGraphIsEmptyExp, (hGraph->getZeHandle())));
   if (zeResult == ZE_RESULT_ERROR_INVALID_GRAPH) {
     return UR_RESULT_ERROR_INVALID_GRAPH;
   }

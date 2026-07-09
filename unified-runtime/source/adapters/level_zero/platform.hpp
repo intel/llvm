@@ -8,13 +8,13 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <level_zero/ze_api.h>
+
 #include "common.hpp"
-// #include "external/driver_experimental/zex_graph.h"
 #include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
 #include "zes_api.h"
-#include <level_zero/ze_api.h>
 
 struct ur_device_handle_t_;
 
@@ -253,6 +253,24 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
                                              hGraph, phExecutableGraph, pNext)
                                        : zeCommandListInstantiateGraphExp(
                                              hGraph, pNext, phExecutableGraph);
+    }
+
+    // Legacy experimental query results use different bit patterns than the
+    // stable enumerators of the same name; translate to the stable ones.
+    ze_result_t normalizeGraphQueryResult(ze_result_t ZeResult) const {
+      if (!UsesLegacyExperimentalApi) {
+        return ZeResult;
+      }
+      switch (static_cast<uint32_t>(ZeResult)) {
+      case 0x7fff0000:
+        return ZE_RESULT_QUERY_TRUE;
+      case 0x7fff0001:
+        return ZE_RESULT_QUERY_FALSE;
+      case 0x7fff0002:
+        return ZE_RESULT_ERROR_INVALID_GRAPH;
+      default:
+        return ZeResult;
+      }
     }
   } ZeGraphExt;
 
