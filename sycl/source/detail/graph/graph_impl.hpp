@@ -557,8 +557,8 @@ public:
   /// @param Callback Callable to invoke on graph destruction.
   void setDestructionCallback(std::function<void()> Callback);
 
-  /// Take ownership of callback data for a native-recorded host task and return a
-  /// non-owning pointer for passing to UR.
+  /// Take ownership of callback data for a native-recorded host task and return
+  /// a non-owning pointer for passing to UR.
   detail::EnqueueHostTaskData *
   addNativeHostTaskCallback(std::unique_ptr<detail::EnqueueHostTaskData> Data);
 

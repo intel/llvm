@@ -365,7 +365,8 @@ fill_copy_args(detail::handler_impl *impl,
                  DestOffset, DestExtent, CopyExtent);
 }
 
-// TODO: consider moving this to device_impl so that it can be shared by other components
+// TODO: consider moving this to device_impl so that it can be shared by other
+// components
 static bool checkDeviceSupports(device_impl &DeviceImpl,
                                 ur_device_info_t InfoQuery) {
   ur_bool_t SupportsOp = false;
@@ -782,8 +783,8 @@ detail::EventImplPtr handler::finalize() {
   // Because command graph case is handled right above.
   assert(Queue);
 
-  // Host tasks in native recording mode are captured into the native graph rather
-  // than submitted to the scheduler.
+  // Host tasks in native recording mode are captured into the native graph
+  // rather than submitted to the scheduler.
   if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
     auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
     if (!HT->MHostTask->isCreatedFromEnqueueFunction()) {
