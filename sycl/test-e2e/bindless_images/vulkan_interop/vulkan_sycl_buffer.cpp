@@ -3,9 +3,6 @@
 
 // clang-format off
 
-// On Linux L0, there are problem with semaphores and latest drivers.
-// GSD-12371 GSD-12339
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 // RUN-IF: (windows && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores
