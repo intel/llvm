@@ -1,4 +1,9 @@
 // REQUIRES: aspect-ext_oneapi_per_event_profiling
+
+// XFAIL: *
+// Fix required in UR to set the per-event profiling support
+// flag to true only in v2 adapter.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

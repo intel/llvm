@@ -191,6 +191,7 @@ void event_impl::toDeviceEvent(queue_impl &Queue) {
   assert(MIsDefaultConstructed);
 
   initContextIfNeeded();
+  setQueue(Queue);
 
   ur_event_handle_t EventHandle = nullptr;
   ur_exp_event_desc_t Desc = {};
@@ -209,7 +210,6 @@ void event_impl::toDeviceEvent(queue_impl &Queue) {
   }
 
   setHandle(EventHandle);
-  setQueue(Queue);
   MQueue = Queue.weak_from_this();
   MIsDefaultConstructed = false;
 }
@@ -374,7 +374,8 @@ void event_impl::checkProfilingPreconditions() const {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
         "Profiling information is unavailable as the queue associated with "
-        "the event does not have the 'enable_profiling' property.");
+        "the event does not have the 'enable_profiling' property or the "
+        "event was not created with the 'enable_profiling' property.");
   }
 }
 
