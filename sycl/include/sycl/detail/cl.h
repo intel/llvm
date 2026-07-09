@@ -25,7 +25,7 @@
 // SYCL CTS use -fpreview-breaking-changes and rely on
 // SYCL headers to include OpenCL headers. We need to fix
 // such tests before we can drop OpenCL headers.
-#ifndef __SYCL_EXCLUDE_OCL_HDR__
+#ifndef __SYCL_IGC_COMPILER__
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #else
