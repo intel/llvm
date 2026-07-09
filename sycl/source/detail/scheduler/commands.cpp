@@ -2831,7 +2831,7 @@ void enqueueImpKernel(
   uint32_t IdQueryRangeProp = 0;
 
   if (nullptr != MSyclKernel) {
-    assert(MSyclKernel->get_info<info::kernel::context>() ==
+    assert(createSyclObjFromImpl<context>(MSyclKernel->getContextImpl()) ==
            Queue.get_context());
     Kernel = MSyclKernel->getHandleRef();
     Program = MSyclKernel->getProgramRef();

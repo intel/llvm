@@ -39,7 +39,7 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
 cl_kernel kernel::get() const { return impl->get(); }
 
 context kernel::get_context() const {
-  return impl->get_info<info::kernel::context>();
+  return detail::createSyclObjFromImpl<context>(impl->getContextImpl());
 }
 
 backend kernel::get_backend() const noexcept { return getImplBackend(impl); }

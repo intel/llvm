@@ -39,18 +39,16 @@ struct attributes : kernel_traits<UR_KERNEL_INFO_ATTRIBUTES> {
   using return_type = std::string;
 };
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-struct __SYCL_DEPRECATED(
-    "info::kernel::function_name is not part of SYCL 2020")
+struct __SYCL_DEPRECATED("info::kernel::function_name is not part of SYCL 2020")
     function_name : kernel_traits<UR_KERNEL_INFO_FUNCTION_NAME> {
   using return_type = std::string;
 };
 struct __SYCL_DEPRECATED(
-    "info::kernel::reference_count is not part of SYCL 2020")
-    reference_count : kernel_traits<UR_KERNEL_INFO_REFERENCE_COUNT> {
+    "info::kernel::reference_count is not part of SYCL 2020") reference_count
+    : kernel_traits<UR_KERNEL_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
-struct __SYCL_DEPRECATED(
-    "info::kernel::context is not part of SYCL 2020")
+struct __SYCL_DEPRECATED("info::kernel::context is not part of SYCL 2020")
     context : kernel_traits<UR_KERNEL_INFO_CONTEXT> {
   using return_type = sycl::context;
 };
