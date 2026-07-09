@@ -26,6 +26,7 @@
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/half_type.hpp>
+#include <sycl/vector.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

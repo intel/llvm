@@ -82,7 +82,7 @@ public:
   ///
   /// \param PlatformId is an OpenCL cl_platform_id instance.
 #ifdef __SYCL_INTERNAL_API
-  explicit platform(cl_platform_id PlatformId);
+  explicit platform(OpenCLPlatformT PlatformId);
 #endif
 
   /// Constructs a SYCL platform instance using a device_selector.
@@ -132,7 +132,7 @@ public:
   ///
   /// \return an instance of OpenCL cl_platform_id.
 #ifdef __SYCL_INTERNAL_API
-  cl_platform_id get() const;
+  OpenCLPlatformT get() const;
 #endif
 
   /// Checks if platform supports specified extension.

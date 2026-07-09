@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "common.hpp"
+#include <sycl/half_type.hpp>
 
 queue q;
 context ctx = q.get_context();

@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <std/experimental/simd.hpp>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

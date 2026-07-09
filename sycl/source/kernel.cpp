@@ -18,7 +18,7 @@ namespace sycl {
 inline namespace _V1 {
 
 // TODO(pi2ur): Don't cast straight from cl_kernel below
-kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
+kernel::kernel(OpenCLKernelT ClKernel, const context &SyclContext) {
   using namespace sycl::detail;
   adapter_impl &Adapter = ur::getAdapter<backend::opencl>();
   Managed<ur_kernel_handle_t> hKernel{Adapter};
@@ -32,11 +32,11 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainKernel, ClKernel);
+    retainOpenCLKernel(nativeHandle);
   }
 }
 
-cl_kernel kernel::get() const { return impl->get(); }
+OpenCLKernelT kernel::get() const { return impl->get(); }
 
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();
@@ -133,7 +133,7 @@ kernel::ext_oneapi_get_info(queue Queue, const range<1> &WorkGroupSize,
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<3> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>
@@ -147,13 +147,13 @@ kernel::ext_oneapi_get_info(queue Queue, const range<2> &WorkGroupSize,
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<2> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<1> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>

@@ -55,6 +55,10 @@ struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
+template void
+sycl::unittest::registerKernelNames<EAMTestKernel1, EAMTestKernel2,
+                                    EAMTestKernel3>();
+
 template <typename T>
 static sycl::unittest::MockDeviceImage
 generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {

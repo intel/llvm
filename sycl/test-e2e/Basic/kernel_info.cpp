@@ -9,6 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/cl.h>
 #include <cassert>
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

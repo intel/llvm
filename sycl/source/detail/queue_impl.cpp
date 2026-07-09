@@ -1260,7 +1260,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
                                                        &Handle);
   if (getContextImpl().getBackend() == backend::opencl)
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
+    detail::retainOpenCLCommandQueue(Handle);
 
   return Handle;
 }
