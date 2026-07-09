@@ -144,10 +144,10 @@
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_LINK %s
 // WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-link-opt"
 
-/// Test option passing behavior for clang-offload-wrapper options for AOT.
+/// Test option passing behavior for clang-linker-wrapper options for AOT.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:          -fsycl-targets=spir64_gen,spir64_x86_64 \
-// RUN:          -Xsycl-target-backend=spir64_gen -backend-gen-opt \
+// RUN:          -fsycl-targets=intel_gpu_pvc,spir64_x86_64 \
+// RUN:          -Xsycl-target-backend=intel_gpu_pvc -backend-gen-opt \
 // RUN:          -Xsycl-target-backend=spir64_x86_64 -backend-cpu-opt \
 // RUN:          -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND_AOT %s
@@ -175,71 +175,21 @@
 // RUN:  | FileCheck -check-prefix CHECK_EMBED_IR %s
 // CHECK_EMBED_IR: clang-linker-wrapper{{.*}} "-sycl-embed-ir"
 
-/// Verify the filename being passed to the packager does not contain commas
-/// that are used in -device settings.
-// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix COMMA_FILE %s
-// COMMA_FILE: llvm-offload-binary{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,arch=bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc,compile-opts=bdw"
-
-/// Verify the arch value for the packager is populated with different
-/// scenarios for spir64_gen
-// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:   -Xsycl-target-backend=spir64_gen "-device bdw" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
-// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:   -Xsycl-target-backend "-device bdw" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+/// Verify the arch value for the packager is populated correctly via intel_gpu_*.
 // RUN: %clangxx -fsycl -### -fsycl-targets=intel_gpu_bdw \
 // RUN: --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
-// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
-// RUN: %clang_cl -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL \
-// RUN:   -Xsycl-target-backend=spir64_gen "-device bdw" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
-// RUN: %clang_cl -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL \
-// RUN:   -Xsycl-target-backend "-device bdw" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix ARCH_CHECK %s
 // RUN: %clang_cl -fsycl -### -fsycl-targets=intel_gpu_bdw \
 // RUN: --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:   | FileCheck -check-prefix ARCH_CHECK %s
 // ARCH_CHECK: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl{{.*}}"
 
-// Verify when a comma-separated list of architectures is provided in -device, they are
-// passed to llvm-offload-binary correctly.
-// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:   -Xsycl-target-backend "-device pvc,bdw" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix MULTI_ARCH %s
-// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix MULTI_ARCH %s
-// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:   -Xs "-device pvc,bdw" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix MULTI_ARCH %s
-// MULTI_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,arch=bdw,kind=sycl
-// MULTI_ARCH-SAME: compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc,compile-opts=bdw"
-
-// Verify for multiple targets with -Xsycl-target-backend= with commas in the values
-// are passed correctly to llvm-offload-binary.
-// RUN: %clangxx -fsycl -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-libspirv \
-// RUN:  -fsycl-targets=nvptx64-nvidia-cuda,amdgcn-amd-amdhsa,spir64_gen \
-// RUN:  -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908,gfx1010 \
-// RUN:  -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_86,sm_87,sm_89 \
-// RUN:  -Xsycl-target-backend=spir64_gen "-device pvc,bdw" \
-// RUN:  -Xsycl-target-linker=spir64_gen "-DFOO,BAR" \
-// RUN:  -nogpulib %s 2>&1 | FileCheck -check-prefix=MULTI_ARCH2 %s
-// MULTI_ARCH2: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx1010,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
-// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx908,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
-// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_86,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
-// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_87,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
-// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_89,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
-// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,arch=bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc,compile-opts=bdw,link-opts=-DFOO,link-opts=BAR"
-
 // Verify that the driver correctly handles link-opt and compile-opt values with commas
-// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:   -Xsycl-target-backend "-device bdw -FOO a,b" \
+// RUN: %clangxx -fsycl -### -fsycl-targets=intel_gpu_bdw --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:   -Xsycl-target-backend "-FOO a,b" \
 // RUN:   -Xsycl-target-linker "-BAR x,y" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix COMMA_OPTS %s
-// COMMA_OPTS: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl,compile-opts=-device bdw -FOO a,compile-opts=b,link-opts=-BAR x,link-opts=y"
+// COMMA_OPTS: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl,compile-opts=-FOO a,compile-opts=b,link-opts=-BAR x,link-opts=y"
 
 /// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv \

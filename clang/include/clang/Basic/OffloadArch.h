@@ -244,6 +244,25 @@ OffloadArch StringToOffloadArch(llvm::StringRef S);
 llvm::Triple OffloadArchToTriple(const llvm::Triple &DefaultToolchainTriple,
                                  OffloadArch ID);
 
+// Resolve a SYCL -fsycl-targets device name (e.g. "intel_gpu_pvc",
+// "intel_gpu_12_60_7", "nvidia_gpu_sm_90", "amd_gpu_gfx906") to the
+// backend-facing device string accepted by OCLOC / NVPTX / AMDGPU
+// (e.g. "pvc", "sm_90", "gfx906").  Returns an empty string if the
+// input is not recognised.
+llvm::StringRef SYCLTargetToOffloadArchName(llvm::StringRef SYCLTarget);
+
+// Map a user-facing --offload-arch alias for an Intel GPU
+// (e.g. "tgl", "dg2_g10") to the canonical OCLOC -device name
+// (e.g. "tgllp", "acm_g10").  Returns the input unchanged if no
+// mapping exists.
+llvm::StringRef NormalizeIntelGPUOffloadArch(llvm::StringRef ArchName);
+
+// Return the predefined macro suffix for the given backend device name
+// (e.g. "pvc" -> "INTEL_GPU_PVC", "sm_90" -> "NVIDIA_GPU_SM_90").
+// The full macro is "__SYCL_TARGET_<result>__".
+// Returns an empty string if the device is not recognised.
+llvm::StringRef GetOffloadArchMacroSuffix(llvm::StringRef DeviceName);
+
 } // namespace clang
 
 #endif // LLVM_CLANG_BASIC_OFFLOADARCH_H
