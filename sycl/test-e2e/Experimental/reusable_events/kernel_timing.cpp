@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_per_event_profiling
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

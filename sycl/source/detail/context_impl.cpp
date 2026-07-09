@@ -600,13 +600,7 @@ bool context_impl::supportsEventProfiling() {
 
   MEventProfilingSupport = std::all_of(
       MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
-        bool EventProfilingSupport = false;
-        ur_result_t Result =
-            getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-                DevImpl->getHandleRef(),
-                UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
-                sizeof(EventProfilingSupport), &EventProfilingSupport, nullptr);
-        return (Result == UR_RESULT_SUCCESS) && EventProfilingSupport;
+        return DevImpl->has(aspect::ext_oneapi_per_event_profiling);
       });
 
   return *MEventProfilingSupport;
