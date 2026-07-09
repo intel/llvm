@@ -63,6 +63,10 @@ struct ur_context_handle_t_ : ur_object {
     }
     UR_FFAILURE("Requested invalid event pool cache type");
   }
+
+  v2::event_pool_cache &getReusableEventPoolCache() {
+    return reusableEventPoolCache;
+  }
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
@@ -93,6 +97,7 @@ private:
   v2::command_list_cache_t commandListCache;
   v2::event_pool_cache eventPoolCacheImmediate;
   v2::event_pool_cache eventPoolCacheRegular;
+  v2::event_pool_cache reusableEventPoolCache;
 
   // pool used for urEventCreateWithNativeHandle when native handle is NULL
   // (uses non-counter based events to allow for signaling from host)

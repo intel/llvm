@@ -56,8 +56,10 @@ private:
 
 struct ur_event_handle_t_ : ur_object {
 public:
-  // cache_borrowed_event is used for pooled events, whilst ze_event_handle_t is
-  // used for native events
+  // The variant alternative encodes how the L0 event handle is torn down:
+  // - cache_borrowed_event: pooled event; it is returned to the pool.
+  // - ze_event_handle_t: standalone/native event; the wrapper's ownZeHandle
+  //   flag controls whether zeEventDestroy runs on destruction.
   using event_variant =
       std::variant<v2::raii::cache_borrowed_event, v2::raii::ze_event_handle_t>;
 
@@ -68,6 +70,10 @@ public:
   ur_event_handle_t_(ur_context_handle_t hContext,
                      ur_native_handle_t hNativeEvent,
                      const ur_event_native_properties_t *pProperties);
+
+  ur_event_handle_t_(ur_context_handle_t hContext,
+                     v2::raii::ze_event_handle_t hZeEvent,
+                     v2::event_flags_t flags);
 
   // Set the queue and command that this event is associated with
   void setQueue(ur_queue_t_ *hQueue);
@@ -126,6 +132,8 @@ public:
   uint64_t getEventEndTimestamp();
 
   ur::RefCount RefCount;
+
+  bool isCounter() const { return flags & v2::EVENT_FLAGS_COUNTER; }
 
 private:
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,

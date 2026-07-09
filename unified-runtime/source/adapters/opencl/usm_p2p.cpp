@@ -9,6 +9,8 @@
 
 #include "common.hpp"
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urUsmP2PEnablePeerAccessExp([[maybe_unused]] ur_device_handle_t commandDevice,
                             [[maybe_unused]] ur_device_handle_t peerDevice) {
@@ -35,3 +37,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   die("Experimental P2P feature is not implemented for OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

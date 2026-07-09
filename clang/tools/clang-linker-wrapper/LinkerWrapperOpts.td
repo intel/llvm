@@ -213,6 +213,10 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
 def sycl_embed_ir : Flag<["--", "-"], "sycl-embed-ir">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">;
 
+def no_sycl_rdc : Flag<["--", "-"], "no-sycl-rdc">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Disable RDC mode (Relocatable device code) for SYCL linking">;
+
 def sycl_device_link
     : Flag<["--", "-"], "sycl-device-link">,
       Flags<[WrapperOnlyOption]>,

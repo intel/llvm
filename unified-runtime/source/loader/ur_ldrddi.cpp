@@ -6404,6 +6404,24 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetIdExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnGetIdExp = dditable->GraphExp.pfnGetIdExp;
+  if (nullptr == pfnGetIdExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetIdExp(hGraph, pGraphId);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphSetDestructionCallbackExp
 __urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
     /// [in] Handle of the graph to register the callback for.
@@ -7107,6 +7125,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
       pDdiTable->pfnExecutableGraphDestroyExp =
           ur_loader::urGraphExecutableGraphDestroyExp;
       pDdiTable->pfnIsEmptyExp = ur_loader::urGraphIsEmptyExp;
+      pDdiTable->pfnGetIdExp = ur_loader::urGraphGetIdExp;
       pDdiTable->pfnSetDestructionCallbackExp =
           ur_loader::urGraphSetDestructionCallbackExp;
       pDdiTable->pfnDumpContentsExp = ur_loader::urGraphDumpContentsExp;

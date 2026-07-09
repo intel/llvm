@@ -10,6 +10,8 @@
 #include "common/logger/ur_logger.hpp"
 #include "unified-runtime/ur_api.h"
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
     size_t /*aligment*/, size_t /*size*/,
@@ -32,3 +34,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
   UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl
