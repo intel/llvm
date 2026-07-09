@@ -3127,8 +3127,8 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
-  auto AsanDeviceGlobalMetadataName =
-      "__AsanDeviceGlobalMetadata_" + computeMetadataUniqueId(M);
+  std::string AsanDeviceGlobalMetadataName =
+      ("__AsanDeviceGlobalMetadata_" + computeMetadataUniqueId(M)).str();
   GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
       M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
       MetadataInitializer, AsanDeviceGlobalMetadataName, nullptr,
