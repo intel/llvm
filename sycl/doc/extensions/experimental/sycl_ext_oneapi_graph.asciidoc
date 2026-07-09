@@ -2704,8 +2704,12 @@ will throw an exception if attempted:
 | Implies update support which is unavailable for native recording.
 | `feature_not_supported`
 
-| Calling `begin_recording` with a vector of queues, or calling it more than once per graph
-| Only a single call to `begin_recording` with a single queue is supported per graph.
+| Calling `begin_recording` with a vector containing more than one queue.
+| The recorded graph must contain only one root node from a single queue submission.
+| `feature_not_supported`
+
+| Calling `begin_recording` and `end_recording` more than once on the same `command_graph` (pause and resume).
+| Ending recording seals the graph capture leaving it unable to accept more nodes.
 | `feature_not_supported`
 
 | Events from submissions within a graph used outside that graph
