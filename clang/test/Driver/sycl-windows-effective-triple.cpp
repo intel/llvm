@@ -2,12 +2,11 @@
 // a Windows offload-binary agree on the exact host triple, including the
 // MSVC toolset version suffix (e.g. msvc19.29.30159) computed by
 // ComputeEffectiveClangTriple(). A mismatch here means llvm-offload-binary's
-// exact-triple match fails silently, producing an empty extracted file (as
-// happened with PCH extraction).
+// exact-triple match fails silently, producing an empty extracted file.
 //
-// The extraction path is exercised here by feeding a packaged offload-binary
-// preprocessed (.ii) file back into the driver, mirroring how PCH extraction
-// invokes OffloadPackagerExtract::ConstructJob.
+// The extraction path (OffloadPackagerExtract::ConstructJob) is exercised
+// here by feeding a packaged offload-binary preprocessed (.ii) file back
+// into the driver.
 
 // RUN: %clang --target=x86_64-pc-windows-msvc -fms-compatibility-version=19.29.30159 \
 // RUN:   --offload-new-driver -fsycl -E -o %t.ii %s -### 2>&1 \
