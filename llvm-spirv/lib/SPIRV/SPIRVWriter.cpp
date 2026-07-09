@@ -2029,8 +2029,10 @@ SPIRVValue *LLVMToSPIRVBase::transAtomicStore(StoreInst *ST,
                                               SPIRVBasicBlock *BB) {
   spv::Scope S = toSPIRVScope(ST->getContext(), ST->getSyncScopeID());
 
-  std::vector<Value *> Ops{ST->getPointerOperand(), getUInt32(M, S),
-                           getUInt32(M, transAtomicOrdering(ST->getOrdering())),
+  Value *Ptr = ST->getPointerOperand();
+  auto MemSem = transAtomicOrdering(ST->getOrdering()) |
+                getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
+  std::vector<Value *> Ops{Ptr, getUInt32(M, S), getUInt32(M, MemSem),
                            ST->getValueOperand()};
   std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
 
@@ -2042,9 +2044,10 @@ SPIRVValue *LLVMToSPIRVBase::transAtomicLoad(LoadInst *LD,
                                              SPIRVBasicBlock *BB) {
   spv::Scope S = toSPIRVScope(LD->getContext(), LD->getSyncScopeID());
 
-  std::vector<Value *> Ops{
-      LD->getPointerOperand(), getUInt32(M, S),
-      getUInt32(M, transAtomicOrdering(LD->getOrdering()))};
+  Value *Ptr = LD->getPointerOperand();
+  auto MemSem = transAtomicOrdering(LD->getOrdering()) |
+                getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
+  std::vector<Value *> Ops{Ptr, getUInt32(M, S), getUInt32(M, MemSem)};
   std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
 
   return mapValue(LD, BM->addInstTemplate(OpAtomicLoad, BM->getIds(SPIRVOps),
@@ -2811,9 +2814,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       return nullptr;
 
     AtomicOrderingCABI Ordering = llvm::toCABI(ARMW->getOrdering());
-    auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering));
+    Value *Ptr = ARMW->getPointerOperand();
+    auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering)) |
+                  getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
     std::vector<Value *> Operands(4);
-    Operands[0] = ARMW->getPointerOperand();
+    Operands[0] = Ptr;
     spv::Scope S = toSPIRVScope(ARMW->getContext(), ARMW->getSyncScopeID());
     Operands[1] = getUInt32(M, S);
     Operands[2] = getUInt32(M, MemSem);
