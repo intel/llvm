@@ -7,12 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "graph.hpp"
-// #include "../external/driver_experimental/zex_graph.h"
+#include <level_zero/ze_api.h>
+
 #include "../ur_interface_loader.hpp"
 #include "common.hpp"
 #include "context.hpp"
-#include <level_zero/ze_api.h>
+#include "graph.hpp"
 
 #include <memory>
 
