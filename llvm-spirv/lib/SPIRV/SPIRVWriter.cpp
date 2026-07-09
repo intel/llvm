@@ -3288,7 +3288,7 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
     auto Opcode = BVF->getOpcode();
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
-        Opcode == Instruction::FRem ||
+        Opcode == Instruction::FRem || BV->getOpCode() == OpFmaKHR ||
         ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
           BV->isExtInst()) &&
          BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
