@@ -88,7 +88,7 @@ function(add_ur_lit_testsuite suite)
   if(UR_STANDALONE_BUILD)
     add_custom_target(${TARGET}
       COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}"
-        --show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50
+        --show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50 --time-tests --show-flakypass --show-skipped
       USES_TERMINAL
     )
   else()
