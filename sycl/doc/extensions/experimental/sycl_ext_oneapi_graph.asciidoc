@@ -2664,8 +2664,14 @@ sycl::free(data, queue);
 
 === Limitations of Native Recording [[native-recording-limitations]]
 
-The following features cannot be used with native recording and will throw an
-exception if attempted:
+Native recording strongly interoperates with native command submission, so
+capturable commands may be submitted through native API calls. However, graph
+creation, destruction, finalization, and begin / end capture must be performed
+through SYCL graph functions. Attempting to perform any of these operations
+through native APIs is undefined behavior.
+
+Furthermore, the following features cannot be used with native recording and
+will throw an exception if attempted:
 
 [cols="1,3,1"]
 |===
