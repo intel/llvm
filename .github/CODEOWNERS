@@ -101,6 +101,7 @@ llvm/test/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
 # Clang offload tools
 clang/**/OffloadBundler.h @intel/dpcpp-tools-reviewers
 clang/**/OffloadBundler.cpp @intel/dpcpp-tools-reviewers
+clang/test/OffloadTools/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-linker-wrapper/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-sycl-linker/ @intel/dpcpp-tools-reviewers
