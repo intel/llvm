@@ -15,6 +15,7 @@
 #include <detail/config.hpp>                          // for SYCLConfig
 #include <detail/event_impl.hpp>                      // for event_impl
 #include <detail/handler_impl.hpp>                    // for handler_impl
+#include <detail/host_task.hpp>                       // for EnqueueHostTaskData
 #include <detail/kernel_arg_mask.hpp>                 // for KernelArgMask
 #include <detail/kernel_impl.hpp>                     // for kernel_impl
 #include <detail/program_manager/program_manager.hpp> // ProgramManager
@@ -656,6 +657,13 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
 bool graph_impl::isQueueRecording(sycl::detail::queue_impl &Queue) {
 
   return MRecordingQueues.count(Queue.weak_from_this()) > 0;
+}
+
+sycl::detail::EnqueueHostTaskData *graph_impl::addNativeHostTaskCallback(
+    std::unique_ptr<sycl::detail::EnqueueHostTaskData> Data) {
+  graph_impl::WriteLock Lock(MMutex);
+  MNativeHostTaskCallbacks.push_back(std::move(Data));
+  return MNativeHostTaskCallbacks.back().get();
 }
 
 void graph_impl::clearQueues(bool NeedsLock) {
