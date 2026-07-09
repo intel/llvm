@@ -172,13 +172,14 @@ struct image_descriptor {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     if (color_space == image_color_space::srgb) {
       if (num_channels != 4) {
-        throw sycl::exception(sycl::errc::invalid,
-                              "sRGB color space requires num_channels == 4");
+        throw sycl::exception(
+            sycl::errc::invalid,
+            "sRGB color space requires num_channels to be 4.");
       }
       if (channel_type != image_channel_type::unorm_int8) {
         throw sycl::exception(
             sycl::errc::invalid,
-            "sRGB color space requires unorm_int8 channel type");
+            "sRGB color space requires channel_type to be unorm_int8.");
       }
     }
 #endif

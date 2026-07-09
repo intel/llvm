@@ -311,7 +311,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     ze_api_version_t ZeApiVersion = hContext->getPlatform()->ZeApiVersion;
     UR_CALL(ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc, ZeSamplerDesc));
     if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
-      ZeSrgbDesc.pNext = reinterpret_cast<void *>(&ZeSamplerDesc);
+      ZeSrgbDesc.pNext = static_cast<void *>(&ZeSamplerDesc);
       BindlessDesc.pNext = &ZeSrgbDesc;
     } else {
       BindlessDesc.pNext = &ZeSamplerDesc;
@@ -544,6 +544,16 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       getImageFormatTypeAndSize(ImageFormat);
 
   if (ZeImageFormatTypeSize == 0) {
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
+
+  // The Level Zero sRGB decode extension is only defined for 8-bit unorm,
+  // 4-channel images.
+  if (ImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA &&
+      (ZeImageFormatType != ZE_IMAGE_FORMAT_TYPE_UNORM ||
+       ZeImageFormatTypeSize != 8)) {
+    UR_LOG(ERR, "ur2zeImageDesc: SRGBA channel order requires an 8-bit unorm "
+                "channel type");
     return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
   }
 
