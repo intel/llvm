@@ -660,6 +660,7 @@ public:
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     return std::vector<SPIRVEntry *>(1, get<SPIRVType>(SampledType));
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC9(Id, SampledType, Desc.Dim, Desc.Depth, Desc.Arrayed,
@@ -805,6 +806,8 @@ public:
     MemberTypeIdVec.resize(WordCount - FixedWC);
   }
 
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
+
   // TODO: Should we attach operands of continued instructions as well?
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     std::vector<SPIRVEntry *> Operands(MemberTypeIdVec.size());
@@ -877,6 +880,7 @@ public:
       Operands.push_back(getEntry(I));
     return Operands;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeIdVec)
