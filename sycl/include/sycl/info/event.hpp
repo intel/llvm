@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/info_desc_traits.hpp>
 #include <unified-runtime/ur_api.h>
 
@@ -38,6 +37,7 @@ struct command_execution_status
   using return_type = info::event_command_status;
 };
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/defines_elementary.hpp>
 struct __SYCL_DEPRECATED("info::event::reference_count is not part of "
                          "SYCL 2020") reference_count
     : event_traits<UR_EVENT_INFO_REFERENCE_COUNT> {

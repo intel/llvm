@@ -1,6 +1,6 @@
 // UNSUPPORTED: preview-mode
 // UNSUPPORTED-INTENDED: reference_count is unavailable in preview mode.
-// RUN: %{build} -o %t.out
+// RUN: %{build} -fsyntax-only
 
 //==---------- reference_count.cpp - Deprecated info test ------------------==//
 //

@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/info_desc_traits.hpp>
 #include <sycl/range.hpp>
 #include <unified-runtime/ur_api.h>
@@ -40,6 +39,7 @@ struct function_name : kernel_traits<UR_KERNEL_INFO_FUNCTION_NAME> {
   using return_type = std::string;
 };
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/defines_elementary.hpp>
 struct __SYCL_DEPRECATED("info::kernel::reference_count is not part of "
                          "SYCL 2020") reference_count
     : kernel_traits<UR_KERNEL_INFO_REFERENCE_COUNT> {
