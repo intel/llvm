@@ -30,9 +30,11 @@ struct urIPCEventTest : uur::urQueueTest {
     ur_result_t queryResult =
         urDeviceGetInfo(device, UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP,
                         sizeof(ipcEventSupport), &ipcEventSupport, nullptr);
-    // Adapters that don't know the enum report it as unsupported; either way
-    // the feature is unavailable and the test is skipped rather than failed.
-    if (queryResult == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+    // Adapters that don't implement the query report it as an unsupported
+    // enumeration or feature; either way the feature is unavailable and the
+    // test is skipped rather than failed.
+    if (queryResult == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION ||
+        queryResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       GTEST_SKIP() << "IPC event feature is not supported on this device.";
     }
     ASSERT_SUCCESS(queryResult);
