@@ -20,12 +20,16 @@
 #define CL_ENABLE_BETA_EXTENSIONS
 #endif
 
-#ifndef __SYCL_DEVICE_ONLY__
+// FIXME: Drop OpenCL headers from both host and device.
+// Can not do that under preview breaking changes, because
+// SYCL CTS use -fpreview-breaking-changes and rely on
+// SYCL headers to include OpenCL headers. We need to fix
+// such tests before we can drop OpenCL headers.
+#ifndef __SYCL_EXCLUDE_OCL_HDR__
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #else
-// On the SYCL device pass we don't need to include the OpenCL headers.
-// Just forward declare the opaque handle types used by SYCL headers.
+// Forward declare the opaque handle types used by SYCL headers.
 // We should not do "using cl_command_queue = void*" because that
 // can cause redifinition errors if the user application also
 // includes OpenCL headers.
