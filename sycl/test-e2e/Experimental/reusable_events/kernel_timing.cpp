@@ -1,5 +1,3 @@
-// REQUIRES: aspect-ext_oneapi_reusable_events_profiling
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -19,12 +17,14 @@ int main() {
   sycl::queue q;
   sycl::device dev = q.get_device();
   sycl::platform plat = dev.get_platform();
+  sycl::context ctx = q.get_context();
 
   std::vector<int> data(N, 1);
   sycl::buffer<int> buf(data.data(), sycl::range<1>(N));
 
-  auto start_event = syclex::make_event(syclex::enable_profiling{true});
-  auto end_event = syclex::make_event(syclex::enable_profiling{true});
+  syclex::properties PropList{syclex::enable_profiling};
+  auto start_event = syclex::make_event(ctx, PropList);
+  auto end_event = syclex::make_event(ctx, PropList);
 
   syclex::enqueue_signal_event(q, start_event);
 
