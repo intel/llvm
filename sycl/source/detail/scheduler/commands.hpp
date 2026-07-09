@@ -673,7 +673,7 @@ private:
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
-  EventImplPtr makeEvent(const detail::CG &CG, queue_impl *Queue);
+  static EventImplPtr makeEvent(const detail::CG &CG, queue_impl *Queue);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

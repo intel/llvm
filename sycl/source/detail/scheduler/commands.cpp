@@ -530,6 +530,8 @@ Command::Command(
   MWorkerQueue = MQueue;
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
+  MEvent->setCommand(this);
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
@@ -1984,7 +1986,6 @@ EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
   }
 
   ResEvent->setStateIncomplete();
-  ResEvent->setCommand(this);
 
   return ResEvent;
 }

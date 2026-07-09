@@ -257,7 +257,8 @@ public:
     case sycl::detail::CGType::Memset2DUSM:
       return createCGCopy<sycl::detail::CGMemset2DUSM>();
     case sycl::detail::CGType::EnqueueNativeCommand:
-    case sycl::detail::CGType::CodeplayHostTask: {
+    case sycl::detail::CGType::CodeplayHostTask:
+    case sycl::detail::CGType::NativeHostTask: {
       // The unique_ptr to the `sycl::detail::HostTask`, which is also used for
       // a EnqueueNativeCommand command, in the HostTask CG prevents from
       // copying the CG. We overcome this restriction by creating a new CG with
@@ -311,7 +312,6 @@ public:
       return createCGCopy<sycl::detail::CGAsyncAlloc>();
     case sycl::detail::CGType::AsyncFree:
       return createCGCopy<sycl::detail::CGAsyncFree>();
-    case sycl::detail::CGType::NativeHostTask:
     case sycl::detail::CGType::None:
       return nullptr;
     }
