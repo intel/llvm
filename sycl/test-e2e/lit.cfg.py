@@ -160,10 +160,7 @@ if platform.system() == "Linux":
         try:
             with open("/proc/meminfo") as meminfo:
                 for line in meminfo:
-                    if (
-                        line.startswith("HugePages_Free:")
-                        and int(line.split()[1]) > 0
-                    ):
+                    if line.startswith("HugePages_Free:") and int(line.split()[1]) > 0:
                         config.available_features.add("hugepages")
                         break
         except OSError:
