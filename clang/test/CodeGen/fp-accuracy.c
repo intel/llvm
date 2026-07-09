@@ -370,7 +370,7 @@ double rsqrt(double);
 // CHECK-SPIR: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_SYCL4]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.rsqrt.f64(double {{.*}}) #[[ATTR_SYCL8]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_SYCL1]]
-// CHECK-SPIR: call void @llvm.fpbuiltin.sincos.f32.p0.p0(float {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_SYCL1]]
+// CHECK-SPIR: call void @llvm.fpbuiltin.sincos.f32.p4.p4(float {{.*}}, ptr addrspace(4) {{.*}}, ptr addrspace(4) {{.*}}) #[[ATTR_SYCL1]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.sinh.f64(double {{.*}}) #[[ATTR_SYCL1]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_SYCL6]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_SYCL2]]
@@ -515,7 +515,7 @@ void f1(float a, float b) {
 // CHECK-SPIR: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_SYCL1]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_SYCL2]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_SYCL5]]
-// CHECK-SPIR: call void @llvm.fpbuiltin.sincos.f32.p0.p0(float {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_SYCL1]]
+// CHECK-SPIR: call void @llvm.fpbuiltin.sincos.f32.p4.p4(float {{.*}}, ptr addrspace(4) {{.*}}, ptr addrspace(4) {{.*}}) #[[ATTR_SYCL1]]
 // CHECK-SPIR: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_SYCL2]]
 
 // CHECK-LABEL: define dso_local void @f3

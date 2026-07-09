@@ -1232,8 +1232,9 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[RETVAL:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__DIM_ADDR:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i32 [[__DIM]], ptr [[__DIM_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[__DIM_ADDR]], align 4
+// SPIRV-NEXT:    [[__DIM_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__DIM_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i32 [[__DIM]], ptr addrspace(4) [[__DIM_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(4) [[__DIM_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    switch i32 [[TMP0]], label %[[SW_DEFAULT:.*]] [
 // SPIRV-NEXT:      i32 0, label %[[SW_BB:.*]]
 // SPIRV-NEXT:      i32 1, label %[[SW_BB1:.*]]
@@ -1288,8 +1289,9 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[RETVAL:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__DIM_ADDR:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i32 [[__DIM]], ptr [[__DIM_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[__DIM_ADDR]], align 4
+// SPIRV-NEXT:    [[__DIM_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__DIM_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i32 [[__DIM]], ptr addrspace(4) [[__DIM_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(4) [[__DIM_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    switch i32 [[TMP0]], label %[[SW_DEFAULT:.*]] [
 // SPIRV-NEXT:      i32 0, label %[[SW_BB:.*]]
 // SPIRV-NEXT:      i32 1, label %[[SW_BB1:.*]]
@@ -1344,8 +1346,9 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[RETVAL:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__DIM_ADDR:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i32 [[__DIM]], ptr [[__DIM_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[__DIM_ADDR]], align 4
+// SPIRV-NEXT:    [[__DIM_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__DIM_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i32 [[__DIM]], ptr addrspace(4) [[__DIM_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(4) [[__DIM_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    switch i32 [[TMP0]], label %[[SW_DEFAULT:.*]] [
 // SPIRV-NEXT:      i32 0, label %[[SW_BB:.*]]
 // SPIRV-NEXT:      i32 1, label %[[SW_BB1:.*]]
@@ -1400,8 +1403,9 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[RETVAL:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__DIM_ADDR:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i32 [[__DIM]], ptr [[__DIM_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[__DIM_ADDR]], align 4
+// SPIRV-NEXT:    [[__DIM_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__DIM_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i32 [[__DIM]], ptr addrspace(4) [[__DIM_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(4) [[__DIM_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    switch i32 [[TMP0]], label %[[SW_DEFAULT:.*]] [
 // SPIRV-NEXT:      i32 0, label %[[SW_BB:.*]]
 // SPIRV-NEXT:      i32 1, label %[[SW_BB1:.*]]
@@ -1446,13 +1450,15 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[__MASK:%.*]] = alloca <4 x i32>, align 16
 // SPIRV-NEXT:    [[REF_TMP:%.*]] = alloca <2 x i32>, align 8
+// SPIRV-NEXT:    [[__MASK_ASCAST:%.*]] = addrspacecast ptr [[__MASK]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[REF_TMP_ASCAST:%.*]] = addrspacecast ptr [[REF_TMP]] to ptr addrspace(4)
 // SPIRV-NEXT:    [[TMP0:%.*]] = call <4 x i32> @llvm.spv.subgroup.ballot(i1 true)
-// SPIRV-NEXT:    store <4 x i32> [[TMP0]], ptr [[__MASK]], align 16
-// SPIRV-NEXT:    [[TMP1:%.*]] = load <4 x i32>, ptr [[__MASK]], align 16
-// SPIRV-NEXT:    [[TMP2:%.*]] = load <4 x i32>, ptr [[__MASK]], align 16
+// SPIRV-NEXT:    store <4 x i32> [[TMP0]], ptr addrspace(4) [[__MASK_ASCAST]], align 16
+// SPIRV-NEXT:    [[TMP1:%.*]] = load <4 x i32>, ptr addrspace(4) [[__MASK_ASCAST]], align 16
+// SPIRV-NEXT:    [[TMP2:%.*]] = load <4 x i32>, ptr addrspace(4) [[__MASK_ASCAST]], align 16
 // SPIRV-NEXT:    [[SHUFFLE:%.*]] = shufflevector <4 x i32> [[TMP1]], <4 x i32> [[TMP2]], <2 x i32> <i32 0, i32 1>
-// SPIRV-NEXT:    store <2 x i32> [[SHUFFLE]], ptr [[REF_TMP]], align 8
-// SPIRV-NEXT:    [[TMP3:%.*]] = load i64, ptr [[REF_TMP]], align 8
+// SPIRV-NEXT:    store <2 x i32> [[SHUFFLE]], ptr addrspace(4) [[REF_TMP_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP3:%.*]] = load i64, ptr addrspace(4) [[REF_TMP_ASCAST]], align 8
 // SPIRV-NEXT:    ret i64 [[TMP3]]
 //
 //
@@ -1461,9 +1467,11 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[__LANE_MASK_ADDR:%.*]] = alloca i64, align 8
 // SPIRV-NEXT:    [[__X_ADDR:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[__X]], ptr [[__X_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[__X_ADDR]], align 4
+// SPIRV-NEXT:    [[__LANE_MASK_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__LANE_MASK_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__X_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__X_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[__X]], ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    [[CALL:%.*]] = call spir_func i64 @__gpu_lane_mask()
 // SPIRV-NEXT:    [[TMP1:%.*]] = call i64 @llvm.cttz.i64(i64 [[CALL]], i1 true)
 // SPIRV-NEXT:    [[CAST:%.*]] = trunc i64 [[TMP1]] to i32
@@ -1478,23 +1486,27 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:    [[__X_ADDR:%.*]] = alloca i64, align 8
 // SPIRV-NEXT:    [[__HI:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__LO:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    store i64 [[__X]], ptr [[__X_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i64, ptr [[__X_ADDR]], align 8
+// SPIRV-NEXT:    [[__LANE_MASK_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__LANE_MASK_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__X_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__X_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__HI_ASCAST:%.*]] = addrspacecast ptr [[__HI]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__LO_ASCAST:%.*]] = addrspacecast ptr [[__LO]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i64 [[__X]], ptr addrspace(4) [[__X_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[__X_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    [[SHR:%.*]] = lshr i64 [[TMP0]], 32
 // SPIRV-NEXT:    [[CONV:%.*]] = trunc i64 [[SHR]] to i32
-// SPIRV-NEXT:    store i32 [[CONV]], ptr [[__HI]], align 4
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i64, ptr [[__X_ADDR]], align 8
+// SPIRV-NEXT:    store i32 [[CONV]], ptr addrspace(4) [[__HI_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i64, ptr addrspace(4) [[__X_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    [[AND:%.*]] = and i64 [[TMP1]], 4294967295
 // SPIRV-NEXT:    [[CONV1:%.*]] = trunc i64 [[AND]] to i32
-// SPIRV-NEXT:    store i32 [[CONV1]], ptr [[__LO]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i64, ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[__HI]], align 4
+// SPIRV-NEXT:    store i32 [[CONV1]], ptr addrspace(4) [[__LO_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i64, ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[__HI_ASCAST]], align 4
 // SPIRV-NEXT:    [[CALL:%.*]] = call spir_func i32 @__gpu_read_first_lane_u32(i64 noundef [[TMP2]], i32 noundef [[TMP3]])
 // SPIRV-NEXT:    [[CONV2:%.*]] = zext i32 [[CALL]] to i64
 // SPIRV-NEXT:    [[SHL:%.*]] = shl i64 [[CONV2]], 32
-// SPIRV-NEXT:    [[TMP4:%.*]] = load i64, ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP5:%.*]] = load i32, ptr [[__LO]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load i64, ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[__LO_ASCAST]], align 4
 // SPIRV-NEXT:    [[CALL3:%.*]] = call spir_func i32 @__gpu_read_first_lane_u32(i64 noundef [[TMP4]], i32 noundef [[TMP5]])
 // SPIRV-NEXT:    [[CONV4:%.*]] = zext i32 [[CALL3]] to i64
 // SPIRV-NEXT:    [[AND5:%.*]] = and i64 [[CONV4]], 4294967295
@@ -1509,19 +1521,23 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:    [[__X_ADDR:%.*]] = alloca i8, align 1
 // SPIRV-NEXT:    [[__MASK:%.*]] = alloca <4 x i32>, align 16
 // SPIRV-NEXT:    [[REF_TMP:%.*]] = alloca <2 x i32>, align 8
-// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr [[__LANE_MASK_ADDR]], align 8
+// SPIRV-NEXT:    [[__LANE_MASK_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__LANE_MASK_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__X_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__X_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__MASK_ASCAST:%.*]] = addrspacecast ptr [[__MASK]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[REF_TMP_ASCAST:%.*]] = addrspacecast ptr [[REF_TMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[__X]] to i8
-// SPIRV-NEXT:    store i8 [[STOREDV]], ptr [[__X_ADDR]], align 1
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i8, ptr [[__X_ADDR]], align 1
+// SPIRV-NEXT:    store i8 [[STOREDV]], ptr addrspace(4) [[__X_ADDR_ASCAST]], align 1
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i8, ptr addrspace(4) [[__X_ADDR_ASCAST]], align 1
 // SPIRV-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP0]], 0
 // SPIRV-NEXT:    [[TMP1:%.*]] = call <4 x i32> @llvm.spv.subgroup.ballot(i1 [[LOADEDV]])
-// SPIRV-NEXT:    store <4 x i32> [[TMP1]], ptr [[__MASK]], align 16
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i64, ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP3:%.*]] = load <4 x i32>, ptr [[__MASK]], align 16
-// SPIRV-NEXT:    [[TMP4:%.*]] = load <4 x i32>, ptr [[__MASK]], align 16
+// SPIRV-NEXT:    store <4 x i32> [[TMP1]], ptr addrspace(4) [[__MASK_ASCAST]], align 16
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i64, ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP3:%.*]] = load <4 x i32>, ptr addrspace(4) [[__MASK_ASCAST]], align 16
+// SPIRV-NEXT:    [[TMP4:%.*]] = load <4 x i32>, ptr addrspace(4) [[__MASK_ASCAST]], align 16
 // SPIRV-NEXT:    [[SHUFFLE:%.*]] = shufflevector <4 x i32> [[TMP3]], <4 x i32> [[TMP4]], <2 x i32> <i32 0, i32 1>
-// SPIRV-NEXT:    store <2 x i32> [[SHUFFLE]], ptr [[REF_TMP]], align 8
-// SPIRV-NEXT:    [[TMP5:%.*]] = load i64, ptr [[REF_TMP]], align 8
+// SPIRV-NEXT:    store <2 x i32> [[SHUFFLE]], ptr addrspace(4) [[REF_TMP_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP5:%.*]] = load i64, ptr addrspace(4) [[REF_TMP_ASCAST]], align 8
 // SPIRV-NEXT:    [[AND:%.*]] = and i64 [[TMP2]], [[TMP5]]
 // SPIRV-NEXT:    ret i64 [[AND]]
 //
@@ -1537,7 +1553,8 @@ __gpu_kernel void foo() {
 // SPIRV-SAME: i64 noundef [[__LANE_MASK:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[__LANE_MASK_ADDR:%.*]] = alloca i64, align 8
-// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr [[__LANE_MASK_ADDR]], align 8
+// SPIRV-NEXT:    [[__LANE_MASK_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__LANE_MASK_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    ret void
 //
 //
@@ -1549,20 +1566,25 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:    [[__X_ADDR:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__WIDTH_ADDR:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__LANE:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[__IDX]], ptr [[__IDX_ADDR]], align 4
-// SPIRV-NEXT:    store i32 [[__X]], ptr [[__X_ADDR]], align 4
-// SPIRV-NEXT:    store i32 [[__WIDTH]], ptr [[__WIDTH_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[__IDX_ADDR]], align 4
+// SPIRV-NEXT:    [[__LANE_MASK_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__LANE_MASK_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__IDX_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__IDX_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__X_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__X_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__WIDTH_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__WIDTH_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__LANE_ASCAST:%.*]] = addrspacecast ptr [[__LANE]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[__IDX]], ptr addrspace(4) [[__IDX_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 [[__X]], ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 [[__WIDTH]], ptr addrspace(4) [[__WIDTH_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(4) [[__IDX_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    [[CALL:%.*]] = call spir_func i32 @__gpu_lane_id()
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[__WIDTH_ADDR]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[__WIDTH_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    [[SUB:%.*]] = sub i32 [[TMP1]], 1
 // SPIRV-NEXT:    [[NOT:%.*]] = xor i32 [[SUB]], -1
 // SPIRV-NEXT:    [[AND:%.*]] = and i32 [[CALL]], [[NOT]]
 // SPIRV-NEXT:    [[ADD:%.*]] = add i32 [[TMP0]], [[AND]]
-// SPIRV-NEXT:    store i32 [[ADD]], ptr [[__LANE]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[__X_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[__LANE]], align 4
+// SPIRV-NEXT:    store i32 [[ADD]], ptr addrspace(4) [[__LANE_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[__LANE_ASCAST]], align 4
 // SPIRV-NEXT:    [[SPV_SHUFFLE:%.*]] = call i32 @llvm.spv.wave.readlane.i32(i32 [[TMP2]], i32 [[TMP3]])
 // SPIRV-NEXT:    ret i32 [[SPV_SHUFFLE]]
 //
@@ -1571,8 +1593,9 @@ __gpu_kernel void foo() {
 // SPIRV-SAME: i64 noundef [[__LANE_MASK:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[__LANE_MASK_ADDR:%.*]] = alloca i64, align 8
-// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i64, ptr [[__LANE_MASK_ADDR]], align 8
+// SPIRV-NEXT:    [[__LANE_MASK_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__LANE_MASK_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    [[TMP1:%.*]] = call i64 @llvm.cttz.i64(i64 [[TMP0]], i1 true)
 // SPIRV-NEXT:    [[TMP2:%.*]] = add i64 [[TMP1]], 1
 // SPIRV-NEXT:    [[ISZERO:%.*]] = icmp eq i64 [[TMP0]], 0
@@ -1587,10 +1610,11 @@ __gpu_kernel void foo() {
 // SPIRV-SAME: i64 noundef [[__LANE_MASK:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[__LANE_MASK_ADDR:%.*]] = alloca i64, align 8
-// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr [[__LANE_MASK_ADDR]], align 8
+// SPIRV-NEXT:    [[__LANE_MASK_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__LANE_MASK_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    [[CALL:%.*]] = call spir_func i32 @__gpu_lane_id()
 // SPIRV-NEXT:    [[CONV:%.*]] = zext i32 [[CALL]] to i64
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i64, ptr [[__LANE_MASK_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    [[CALL1:%.*]] = call spir_func i64 @__gpu_first_lane_id(i64 noundef [[TMP0]])
 // SPIRV-NEXT:    [[CMP:%.*]] = icmp eq i64 [[CONV]], [[CALL1]]
 // SPIRV-NEXT:    ret i1 [[CMP]]
@@ -1606,58 +1630,65 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:    [[__SRC:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__RESULT:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[__I:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[__X]], ptr [[__X_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i64, ptr [[__LANE_MASK_ADDR]], align 8
+// SPIRV-NEXT:    [[__LANE_MASK_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__LANE_MASK_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__X_ADDR_ASCAST:%.*]] = addrspacecast ptr [[__X_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__BELOW_ASCAST:%.*]] = addrspacecast ptr [[__BELOW]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__STEP_ASCAST:%.*]] = addrspacecast ptr [[__STEP]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__SRC_ASCAST:%.*]] = addrspacecast ptr [[__SRC]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__RESULT_ASCAST:%.*]] = addrspacecast ptr [[__RESULT]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[__I_ASCAST:%.*]] = addrspacecast ptr [[__I]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i64 [[__LANE_MASK]], ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[__X]], ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    [[CALL:%.*]] = call spir_func i32 @__gpu_lane_id()
 // SPIRV-NEXT:    [[SH_PROM:%.*]] = zext i32 [[CALL]] to i64
 // SPIRV-NEXT:    [[SHL:%.*]] = shl i64 1, [[SH_PROM]]
 // SPIRV-NEXT:    [[SUB:%.*]] = sub i64 [[SHL]], 1
 // SPIRV-NEXT:    [[AND:%.*]] = and i64 [[TMP0]], [[SUB]]
-// SPIRV-NEXT:    store i64 [[AND]], ptr [[__BELOW]], align 8
-// SPIRV-NEXT:    store i32 1, ptr [[__STEP]], align 4
+// SPIRV-NEXT:    store i64 [[AND]], ptr addrspace(4) [[__BELOW_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 1, ptr addrspace(4) [[__STEP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[FOR_COND:.*]]
 // SPIRV:       [[FOR_COND]]:
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[__STEP]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[__STEP_ASCAST]], align 4
 // SPIRV-NEXT:    [[CALL1:%.*]] = call spir_func i32 @__gpu_num_lanes()
 // SPIRV-NEXT:    [[CMP:%.*]] = icmp ult i32 [[TMP1]], [[CALL1]]
 // SPIRV-NEXT:    br i1 [[CMP]], label %[[FOR_BODY:.*]], label %[[FOR_END16:.*]]
 // SPIRV:       [[FOR_BODY]]:
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i64, ptr [[__BELOW]], align 8
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i64, ptr addrspace(4) [[__BELOW_ASCAST]], align 8
 // SPIRV-NEXT:    [[TMP3:%.*]] = call i64 @llvm.ctlz.i64(i64 [[TMP2]], i1 true)
 // SPIRV-NEXT:    [[CAST:%.*]] = trunc i64 [[TMP3]] to i32
 // SPIRV-NEXT:    [[ISZERO:%.*]] = icmp eq i64 [[TMP2]], 0
 // SPIRV-NEXT:    [[CLZG:%.*]] = select i1 [[ISZERO]], i32 64, i32 [[CAST]]
 // SPIRV-NEXT:    [[SUB2:%.*]] = sub nsw i32 63, [[CLZG]]
-// SPIRV-NEXT:    store i32 [[SUB2]], ptr [[__SRC]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load i64, ptr [[__LANE_MASK_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP5:%.*]] = load i32, ptr [[__SRC]], align 4
-// SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[__X_ADDR]], align 4
+// SPIRV-NEXT:    store i32 [[SUB2]], ptr addrspace(4) [[__SRC_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load i64, ptr addrspace(4) [[__LANE_MASK_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[__SRC_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    [[CALL3:%.*]] = call spir_func i32 @__gpu_num_lanes()
 // SPIRV-NEXT:    [[CALL4:%.*]] = call spir_func i32 @__gpu_shuffle_idx_u32(i64 noundef [[TMP4]], i32 noundef [[TMP5]], i32 noundef [[TMP6]], i32 noundef [[CALL3]])
-// SPIRV-NEXT:    store i32 [[CALL4]], ptr [[__RESULT]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = load i32, ptr [[__X_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP8:%.*]] = load i64, ptr [[__BELOW]], align 8
+// SPIRV-NEXT:    store i32 [[CALL4]], ptr addrspace(4) [[__RESULT_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = load i32, ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP8:%.*]] = load i64, ptr addrspace(4) [[__BELOW_ASCAST]], align 8
 // SPIRV-NEXT:    [[TOBOOL:%.*]] = icmp ne i64 [[TMP8]], 0
 // SPIRV-NEXT:    br i1 [[TOBOOL]], label %[[COND_TRUE:.*]], label %[[COND_FALSE:.*]]
 // SPIRV:       [[COND_TRUE]]:
-// SPIRV-NEXT:    [[TMP9:%.*]] = load i32, ptr [[__RESULT]], align 4
+// SPIRV-NEXT:    [[TMP9:%.*]] = load i32, ptr addrspace(4) [[__RESULT_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[COND_END:.*]]
 // SPIRV:       [[COND_FALSE]]:
 // SPIRV-NEXT:    br label %[[COND_END]]
 // SPIRV:       [[COND_END]]:
 // SPIRV-NEXT:    [[COND:%.*]] = phi i32 [ [[TMP9]], %[[COND_TRUE]] ], [ 0, %[[COND_FALSE]] ]
 // SPIRV-NEXT:    [[ADD:%.*]] = add i32 [[TMP7]], [[COND]]
-// SPIRV-NEXT:    store i32 [[ADD]], ptr [[__X_ADDR]], align 4
-// SPIRV-NEXT:    store i32 0, ptr [[__I]], align 4
+// SPIRV-NEXT:    store i32 [[ADD]], ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[__I_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[FOR_COND5:.*]]
 // SPIRV:       [[FOR_COND5]]:
-// SPIRV-NEXT:    [[TMP10:%.*]] = load i32, ptr [[__I]], align 4
-// SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[__STEP]], align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load i32, ptr addrspace(4) [[__I_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr addrspace(4) [[__STEP_ASCAST]], align 4
 // SPIRV-NEXT:    [[CMP6:%.*]] = icmp ult i32 [[TMP10]], [[TMP11]]
 // SPIRV-NEXT:    br i1 [[CMP6]], label %[[FOR_BODY7:.*]], label %[[FOR_END:.*]]
 // SPIRV:       [[FOR_BODY7]]:
-// SPIRV-NEXT:    [[TMP12:%.*]] = load i64, ptr [[__BELOW]], align 8
+// SPIRV-NEXT:    [[TMP12:%.*]] = load i64, ptr addrspace(4) [[__BELOW_ASCAST]], align 8
 // SPIRV-NEXT:    [[TMP13:%.*]] = call i64 @llvm.ctlz.i64(i64 [[TMP12]], i1 true)
 // SPIRV-NEXT:    [[CAST8:%.*]] = trunc i64 [[TMP13]] to i32
 // SPIRV-NEXT:    [[ISZERO9:%.*]] = icmp eq i64 [[TMP12]], 0
@@ -1665,26 +1696,26 @@ __gpu_kernel void foo() {
 // SPIRV-NEXT:    [[SUB11:%.*]] = sub nsw i32 63, [[CLZG10]]
 // SPIRV-NEXT:    [[SH_PROM12:%.*]] = zext i32 [[SUB11]] to i64
 // SPIRV-NEXT:    [[SHL13:%.*]] = shl i64 1, [[SH_PROM12]]
-// SPIRV-NEXT:    [[TMP14:%.*]] = load i64, ptr [[__BELOW]], align 8
+// SPIRV-NEXT:    [[TMP14:%.*]] = load i64, ptr addrspace(4) [[__BELOW_ASCAST]], align 8
 // SPIRV-NEXT:    [[AND14:%.*]] = and i64 [[SHL13]], [[TMP14]]
-// SPIRV-NEXT:    [[TMP15:%.*]] = load i64, ptr [[__BELOW]], align 8
+// SPIRV-NEXT:    [[TMP15:%.*]] = load i64, ptr addrspace(4) [[__BELOW_ASCAST]], align 8
 // SPIRV-NEXT:    [[XOR:%.*]] = xor i64 [[TMP15]], [[AND14]]
-// SPIRV-NEXT:    store i64 [[XOR]], ptr [[__BELOW]], align 8
+// SPIRV-NEXT:    store i64 [[XOR]], ptr addrspace(4) [[__BELOW_ASCAST]], align 8
 // SPIRV-NEXT:    br label %[[FOR_INC:.*]]
 // SPIRV:       [[FOR_INC]]:
-// SPIRV-NEXT:    [[TMP16:%.*]] = load i32, ptr [[__I]], align 4
+// SPIRV-NEXT:    [[TMP16:%.*]] = load i32, ptr addrspace(4) [[__I_ASCAST]], align 4
 // SPIRV-NEXT:    [[INC:%.*]] = add i32 [[TMP16]], 1
-// SPIRV-NEXT:    store i32 [[INC]], ptr [[__I]], align 4
+// SPIRV-NEXT:    store i32 [[INC]], ptr addrspace(4) [[__I_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[FOR_COND5]], !llvm.loop [[LOOP1:![0-9]+]]
 // SPIRV:       [[FOR_END]]:
 // SPIRV-NEXT:    br label %[[FOR_INC15:.*]]
 // SPIRV:       [[FOR_INC15]]:
-// SPIRV-NEXT:    [[TMP17:%.*]] = load i32, ptr [[__STEP]], align 4
+// SPIRV-NEXT:    [[TMP17:%.*]] = load i32, ptr addrspace(4) [[__STEP_ASCAST]], align 4
 // SPIRV-NEXT:    [[MUL:%.*]] = mul i32 [[TMP17]], 2
-// SPIRV-NEXT:    store i32 [[MUL]], ptr [[__STEP]], align 4
+// SPIRV-NEXT:    store i32 [[MUL]], ptr addrspace(4) [[__STEP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[FOR_COND]], !llvm.loop [[LOOP3:![0-9]+]]
 // SPIRV:       [[FOR_END16]]:
-// SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr [[__X_ADDR]], align 4
+// SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr addrspace(4) [[__X_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP18]]
 //
 //
