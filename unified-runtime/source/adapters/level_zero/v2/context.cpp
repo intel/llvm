@@ -201,7 +201,8 @@ ur_context_handle_t_::getDevicesWhoseAllocationsCanBeAccessedFrom(
                    "there is no device:"
                        << candidateId << " in peers table, number of devices:"
                        << peers.size());
-        return peers[candidateId] == ur_device_handle_t_::PeerStatus::ENABLED;
+        return peers[candidateId] !=
+               ur_device_handle_t_::PeerStatus::NO_CONNECTION;
       });
 
   return retVal;
