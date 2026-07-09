@@ -4,6 +4,10 @@ inputs:
   build_dir:
     required: false
     default: 'build'
+  artifact_name:
+    description: 'Name for uploaded test artifacts (logs, XML)'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -79,3 +83,14 @@ runs:
       fi
       
       python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log
+
+  - name: Upload adapter specific test artifacts
+    if: ${{ always() && inputs.artifact_name != '' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: ${{ inputs.artifact_name }}-adapter-logs
+      path: |
+        adapter_tests.log
+        ${{ inputs.build_dir }}/test/adapter_results.xml
+      retention-days: 7
+      if-no-files-found: warn

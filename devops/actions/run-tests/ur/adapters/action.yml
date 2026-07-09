@@ -4,6 +4,10 @@ inputs:
   build_dir:
     required: false
     default: 'build'
+  artifact_name:
+    description: 'Name for uploaded test artifacts (logs, XML)'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -99,3 +103,15 @@ runs:
       fi
       
       python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt "$XML_FILE"
+
+  - name: Upload conformance test artifacts
+    if: ${{ always() && inputs.artifact_name != '' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: ${{ inputs.artifact_name }}-conformance-logs
+      path: |
+        conformance_tests.log
+        all_conformance_tests.txt
+        ${{ inputs.build_dir }}/test/conformance/conformance_results.xml
+      retention-days: 7
+      if-no-files-found: warn
