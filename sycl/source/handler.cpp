@@ -1693,13 +1693,13 @@ void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
   detail::queue_impl *Queue = impl->get_queue_or_null();
   if (Queue) {
     detail::adapter_impl &Adapter = getContextImpl().getAdapter();
-    bool NativeHostTaskSupport = false;
+    ur_bool_t NativeHostTaskSupport = false;
 
-    Adapter.call<UrApiKind::urDeviceGetInfo>(
+    const ur_result_t Res = Adapter.call_nocheck<UrApiKind::urDeviceGetInfo>(
         detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
         UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
         sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
-    if (NativeHostTaskSupport) {
+    if (Res == UR_RESULT_SUCCESS && NativeHostTaskSupport) {
       setType(detail::CGType::NativeHostTask);
       return;
     }
