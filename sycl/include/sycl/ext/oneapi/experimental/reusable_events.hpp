@@ -32,15 +32,15 @@ struct enable_profiling_key
 inline constexpr enable_profiling_key::value_t enable_profiling;
 
 template <typename PropertyListT = empty_properties_t>
-__SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
-                                     PropertyListT props = {}) {
+inline sycl::event make_event(const sycl::context &ctxt,
+                              PropertyListT props = {}) {
   bool EnableProfiling = props.template has_property<enable_profiling_key>();
 
   return detail::make_event(ctxt, EnableProfiling);
 }
 
 template <typename PropertyListT = empty_properties_t>
-__SYCL_EXPORT sycl::event make_event(PropertyListT props = {}) {
+inline sycl::event make_event(PropertyListT props = {}) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return make_event(Ctx, props);
