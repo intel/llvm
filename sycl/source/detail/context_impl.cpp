@@ -604,8 +604,7 @@ bool context_impl::supportsEventProfiling() {
         ur_result_t Result =
             getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
                 DevImpl->getHandleRef(),
-                (ur_device_info_t)0, // TODO reusable events
-                                     // UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
+                UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
                 sizeof(EventProfilingSupport), &EventProfilingSupport, nullptr);
         return (Result == UR_RESULT_SUCCESS) && EventProfilingSupport;
       });

@@ -125,8 +125,7 @@ ur_result_t after_urDeviceGetInfo(void *pParams) {
       *static_cast<ur_bool_t *>(*params.ppPropValue) =
           ur_bool_t{ReusableEventsSupported};
     return UR_RESULT_SUCCESS;
-  case (ur_device_info_t)0: // TODO reusable events
-                            // UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
     if (*params.ppPropSizeRet)
       **params.ppPropSizeRet = sizeof(ur_bool_t);
     if (*params.ppPropValue)
@@ -388,8 +387,9 @@ TEST_F(ReusableEventsTest, ProfilingInfoQuery) {
   sycl::platform Plt = Dev.get_platform();
 
   sycl::context Ctx{Dev};
-  auto event = syclex::make_event(Ctx, syclex::enable_profiling{true});
-  sycl::queue Queue{sycl::property::queue::in_order{}};
+  syclex::properties PropList{syclex::enable_profiling};
+  auto event = syclex::make_event(Ctx, PropList);
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
 
   syclex::enqueue_signal_event(Queue, event);
   event.wait();
@@ -595,10 +595,9 @@ TEST_F(ReusableEventsTest, QueueWithProfilingProperty) {
   sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  sycl::queue Queue{Ctx, Dev,
-                    sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::enable_profiling{}};
 
-  auto event = syclex::make_event(Ctx, syclex::enable_profiling{false});
+  auto event = syclex::make_event(Ctx);
 
   syclex::enqueue_signal_event(Queue, event);
   event.wait();
