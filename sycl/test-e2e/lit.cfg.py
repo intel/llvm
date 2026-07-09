@@ -154,15 +154,20 @@ if platform.system() == "Linux":
     # Expose a "hugepages" feature when the system has free HugeTLB pages, so
     # tests that require explicit huge-page mappings (mmap(MAP_HUGETLB)) run
     # only where they can actually get such pages and are UNSUPPORTED (rather
-    # than silently self-skipping) elsewhere.
-    try:
-        with open("/proc/meminfo") as meminfo:
-            for line in meminfo:
-                if line.startswith("HugePages_Free:") and int(line.split()[1]) > 0:
-                    config.available_features.add("hugepages")
-                    break
-    except OSError:
-        pass
+    # than silently self-skipping) elsewhere. This is a runtime-only feature,
+    # so it must not be evaluated in build-only mode.
+    if config.test_mode != "build-only":
+        try:
+            with open("/proc/meminfo") as meminfo:
+                for line in meminfo:
+                    if (
+                        line.startswith("HugePages_Free:")
+                        and int(line.split()[1]) > 0
+                    ):
+                        config.available_features.add("hugepages")
+                        break
+        except OSError:
+            pass
 
 elif platform.system() == "Windows":
     config.available_features.add("windows")
