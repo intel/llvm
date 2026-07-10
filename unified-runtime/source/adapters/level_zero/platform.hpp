@@ -257,10 +257,9 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
 
     // Legacy experimental query results use different bit patterns than the
     // stable enumerators of the same name; translate to the stable ones.
+    // Applied unconditionally: a known NEO bug makes the stable *Ext query
+    // entry points return the legacy bit patterns too (tracked with NEO team).
     ze_result_t normalizeGraphQueryResult(ze_result_t ZeResult) const {
-      if (!UsesLegacyExperimentalApi) {
-        return ZeResult;
-      }
       switch (static_cast<uint32_t>(ZeResult)) {
       case 0x7fff0000:
         return ZE_RESULT_QUERY_TRUE;
