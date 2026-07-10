@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/cl.h>
 #include <cassert>
 #include <sycl/context.hpp>
 #include <sycl/detail/core.hpp>

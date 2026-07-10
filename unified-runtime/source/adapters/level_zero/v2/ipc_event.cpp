@@ -67,6 +67,7 @@ ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t hContext,
                                     const void *pIPCEventHandleData,
                                     size_t ipcEventHandleDataSize,
                                     ur_event_handle_t *phEvent) try {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pIPCEventHandleData && phEvent,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(ipcEventHandleDataSize == kIpcEventHandleDataSize,

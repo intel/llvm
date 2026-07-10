@@ -221,6 +221,16 @@ if(UR_ENABLE_SANITIZER)
         target_sources(ur_loader
             PRIVATE ${symbolizer_sources}
         )
+        # Symbolizer dependencies may emit calls to
+        # _intel_fast_memcpy/_intel_fast_memset. Those are normally provided
+        # by libirc, but libsycl / ur doesn't link them. Use stubs forwarding to
+        # plain memcpy/memset. The stub is compiled with -no-intel-lib, which
+        # add_ur_target_compile_options() already applies to the whole target.
+        if(CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM")
+            target_sources(ur_loader PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/intel_fast_mem_stub.c
+            )
+        endif()
         target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
         target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
         target_compile_definitions(ur_loader PRIVATE UR_HAVE_SYMBOLIZER)

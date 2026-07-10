@@ -42,7 +42,7 @@
 #include <sycl/khr/split_headers/half.hpp>
 #include <sycl/khr/split_headers/handler.hpp>
 #include <sycl/khr/split_headers/hierarchical_parallelism.hpp>
-#include <sycl/khr/split_headers/images.hpp>
+#include <sycl/khr/split_headers/image.hpp>
 #include <sycl/khr/split_headers/index_space.hpp>
 #include <sycl/khr/split_headers/interop_handle.hpp>
 #include <sycl/khr/split_headers/kernel_bundle.hpp>

@@ -480,9 +480,14 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
 
 EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     std::vector<detail::EventImplPtr> &BarrierDepEvents,
-    std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType) {
+    std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
+    bool EventNeeded, const EventImplPtr &EventForReuse) {
 
-  ur_event_handle_t UREvent = nullptr;
+  // EventForReuse can only be set for BarrierType equal to CGType::Barrier
+  // (enqueue_signal_event function)
+
+  ur_event_handle_t UREvent =
+      EventForReuse ? EventForReuse->getHandleReusable(*this) : nullptr;
   std::vector<ur_event_handle_t> RawBarrierDepEvents;
   std::vector<ur_event_handle_t> RawDepEvents;
 
@@ -495,11 +500,21 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     RawDepEvents = detail::Command::getUrEvents(DepEvents, this, false);
   }
 
-  auto ResEvent = detail::event_impl::create_device_event(*this);
-  ResEvent->setWorkerQueue(weak_from_this());
-  ResEvent->setSubmissionTime();
-  ResEvent->setEnqueued();
-  ResEvent->setStateIncomplete();
+  bool DiscardEvent = !EventNeeded && isInOrder();
+
+  EventImplPtr ResEvent = nullptr;
+
+  if (!DiscardEvent || EventForReuse) {
+    ResEvent = EventForReuse ? EventForReuse
+                             : detail::event_impl::create_device_event(*this);
+    ResEvent->setWorkerQueue(weak_from_this());
+    ResEvent->setSubmissionTime();
+    ResEvent->setEnqueued();
+    ResEvent->setStateIncomplete();
+    if (EventForReuse) {
+      ResEvent->setQueue(*this);
+    }
+  }
 
   // We can skip the barrier UR call only if both the barrier wait list
   // and the list of barrier command dependencies are empty (after filtering
@@ -508,7 +523,9 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   // list.
   if (BarrierType == CGType::BarrierWaitlist && RawBarrierDepEvents.empty() &&
       RawDepEvents.empty()) {
-    ResEvent->setComplete();
+    if (!DiscardEvent) {
+      ResEvent->setComplete();
+    }
     return ResEvent;
   }
 
@@ -519,7 +536,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     }
 
     getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
-        getHandleRef(), nullptr, 0, nullptr, &UREvent);
+        getHandleRef(), nullptr, 0, nullptr,
+        (DiscardEvent && !EventForReuse) ? nullptr : &UREvent);
   } else {
 
     RawDepEvents.insert(RawDepEvents.end(), RawBarrierDepEvents.begin(),
@@ -527,13 +545,19 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
 
     getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
         getHandleRef(), nullptr, RawDepEvents.size(), RawDepEvents.data(),
-        &UREvent);
+        DiscardEvent ? nullptr : &UREvent);
   }
 
-  ResEvent->setHandle(UREvent);
+  if (EventForReuse) {
+    ResEvent->setHandleReusable(UREvent);
+  } else {
+    if (!DiscardEvent) {
+      ResEvent->setHandle(UREvent);
+    }
+  }
 
   // connect returned event with dependent events
-  if (!isInOrder()) {
+  if (!DiscardEvent && !isInOrder()) {
 
     if (BarrierType == CGType::BarrierWaitlist) {
       DepEvents.insert(DepEvents.end(), BarrierDepEvents.begin(),
@@ -546,13 +570,13 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     ResEvent->cleanDepEventsThroughOneLevelUnlocked();
   }
 
-  return ResEvent;
+  return (DiscardEvent || EventForReuse) ? nullptr : ResEvent;
 }
 
-EventImplPtr
-queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
-                                       detail::CGType BarrierType,
-                                       const detail::code_location &CodeLoc) {
+EventImplPtr queue_impl::submit_barrier_direct_impl(
+    sycl::span<const event> DepEvents, detail::CGType BarrierType,
+    const detail::code_location &CodeLoc, bool CallerNeedsEvent,
+    const EventImplPtr &EventForReuse) {
   auto SubmitBarrierFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     std::vector<detail::EventImplPtr> DepEventImpls;
@@ -583,8 +607,15 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
 
     if (SchedulerBypass) {
       return {submit_barrier_scheduler_bypass(DepEventImpls, CGData.MEvents,
-                                              BarrierType),
+                                              BarrierType, CallerNeedsEvent,
+                                              EventForReuse),
               /*SchedulerBypass*/ true};
+    }
+
+    if (EventForReuse) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "An event cannot be enqueued for signaling behind "
+                            "a command which is not enqueued in the backend.");
     }
 
     std::unique_ptr<detail::CG> CommandGroup;
@@ -610,7 +641,7 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
             /*SchedulerBypass*/ false};
   };
 
-  return submit_direct(true, {}, SubmitBarrierFunc, BarrierType,
+  return submit_direct(CallerNeedsEvent, {}, SubmitBarrierFunc, BarrierType,
                        /*InsertBarrierForInOrderCommand*/ false);
 }
 
@@ -1229,7 +1260,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
                                                        &Handle);
   if (getContextImpl().getBackend() == backend::opencl)
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
+    detail::retainOpenCLCommandQueue(Handle);
 
   return Handle;
 }

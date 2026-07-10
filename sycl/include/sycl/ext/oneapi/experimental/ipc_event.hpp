@@ -15,6 +15,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp> // make_event, enable_ipc
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/platform.hpp>
 
@@ -35,40 +36,12 @@ namespace detail {
 __SYCL_EXPORT sycl::event openIPCEventHandle(const std::byte *HandleData,
                                              size_t HandleDataSize,
                                              const sycl::context &Ctx);
-
-// Producer-side IPC event creation.
-__SYCL_EXPORT sycl::event makeIPCEvent(const sycl::context &Ctx);
 } // namespace detail
 
-namespace ext::oneapi::experimental {
-
-// enable_ipc_key is defined in detail/ipc_common.hpp and shared with
-// physical_mem; tag it as valid on sycl::event too.
-template <>
-struct is_property_key_of<enable_ipc_key, sycl::event> : std::true_type {};
-
-// Minimum-viable make_event overload that handles only the enable_ipc
-// property. The full reusable-events make_event lands with PR #22186; this
-// overload will fold into it when that PR is merged.
-template <typename PropertyListT = empty_properties_t>
-inline sycl::event make_event(const sycl::context &Ctx,
-                              PropertyListT Props = empty_properties_t{}) {
-  static_assert(is_property_list_v<PropertyListT>,
-                "Props must be a sycl::ext::oneapi::experimental::properties");
-  (void)Props;
-
-  if constexpr (PropertyListT::template has_property<enable_ipc_key>()) {
-    return sycl::detail::makeIPCEvent(Ctx);
-  } else {
-    static_assert(
-        sizeof(PropertyListT) == 0,
-        "make_event without the enable_ipc property is not yet supported. "
-        "The full reusable-events make_event lands with PR #22186.");
-    return sycl::event{};
-  }
-}
-
-} // namespace ext::oneapi::experimental
+// The enable_ipc property, its is_property_key_of<enable_ipc_key, event>
+// specialisation, and the make_event factory (which routes the enable_ipc
+// property into a producer IPC event) all live in reusable_events.hpp,
+// included above.
 
 namespace ext::oneapi::experimental::ipc::event {
 

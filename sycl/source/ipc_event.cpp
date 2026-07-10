@@ -36,6 +36,8 @@ static void requireIPCEventAspect(const sycl::context &Ctx) {
 __SYCL_EXPORT sycl::event openIPCEventHandle(const std::byte *HandleData,
                                              size_t HandleDataSize,
                                              const sycl::context &Ctx) {
+  // open() is the consumer entry point; make_event's aspect check never ran in
+  // this process, so validate the aspect here.
   requireIPCEventAspect(Ctx);
 
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
@@ -65,37 +67,6 @@ __SYCL_EXPORT sycl::event openIPCEventHandle(const std::byte *HandleData,
   }
 }
 
-__SYCL_EXPORT sycl::event makeIPCEvent(const sycl::context &Ctx) {
-  requireIPCEventAspect(Ctx);
-
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
-  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
-
-  // UR's urEventCreateExp takes a device parameter; pick the first device
-  // in the context. All devices in the context have the IPC event aspect
-  // (validated above), so any choice is valid.
-  const std::vector<sycl::device> Devs = Ctx.get_devices();
-  assert(!Devs.empty() && "context has no devices");
-
-  ur_exp_event_desc_t Desc{UR_STRUCTURE_TYPE_EXP_EVENT_DESC, nullptr,
-                           UR_EXP_EVENT_FLAG_IPC_EXP};
-
-  ur_event_handle_t UrEvent = nullptr;
-  Adapter.call<sycl::detail::UrApiKind::urEventCreateExp>(
-      CtxImpl->getHandleRef(), getSyclObjImpl(Devs.front())->getHandleRef(),
-      &Desc, &UrEvent);
-  assert(UrEvent && "urEventCreateExp returned success with null event");
-
-  try {
-    auto EventImpl =
-        sycl::detail::event_impl::create_ipc_producer_event(UrEvent, Ctx);
-    return sycl::detail::createSyclObjFromImpl<sycl::event>(EventImpl);
-  } catch (...) {
-    Adapter.call_nocheck<sycl::detail::UrApiKind::urEventRelease>(UrEvent);
-    throw;
-  }
-}
-
 } // namespace detail
 
 namespace ext::oneapi::experimental::ipc::event {
@@ -107,6 +78,13 @@ __SYCL_EXPORT handle get(const sycl::event &Evt) {
         "Event was not created with the enable_ipc property.");
 
   auto EvtImpl = sycl::detail::getSyclObjImpl(Evt);
+
+  // A producer IPC event from make_event(enable_ipc) creates its backend UR
+  // event lazily. If get() is called before the event has been signaled, the
+  // handle does not exist yet -- materialize it now so a handle can be
+  // produced. No-op if a prior get() or signal already created it.
+  EvtImpl->materializeIPCEvent();
+
   sycl::detail::context_impl &CtxImpl = EvtImpl->getContextImpl();
   sycl::detail::adapter_impl &Adapter = CtxImpl.getAdapter();
 

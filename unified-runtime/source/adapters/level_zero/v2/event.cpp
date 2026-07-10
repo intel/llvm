@@ -13,7 +13,6 @@
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool.hpp"
-#include "event_provider.hpp"
 #include "event_provider_counter.hpp"
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
@@ -123,6 +122,11 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   profilingData.reset();
 }
 
+ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
+                                       event_variant hZeEvent,
+                                       v2::event_flags_t flags)
+    : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr) {}
+
 void ur_event_handle_t_::setBatch(ur_event_generation_t batch_generation) {
   this->batchGeneration = batch_generation;
 }
@@ -166,7 +170,7 @@ void ur_event_handle_t_::reset() {
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
-  return std::visit([](const auto &h) { return h.get(); }, hZeEvent);
+  return std::visit([](const auto &handle) { return handle.get(); }, hZeEvent);
 }
 
 ur_result_t ur_event_handle_t_::retain() {
@@ -174,20 +178,23 @@ ur_result_t ur_event_handle_t_::retain() {
   return UR_RESULT_SUCCESS;
 }
 
+struct event_teardown {
+  v2::event_pool *event_pool;
+  ur_event_handle_t_ *event;
+
+  void operator()(const v2::raii::cache_borrowed_event &) {
+    event_pool->free(event);
+  }
+
+  void operator()(const v2::raii::ze_event_handle_t &) { delete event; }
+  void operator()(const v2::raii::ipc_event_handle_t &) { delete event; }
+};
+
 ur_result_t ur_event_handle_t_::release() {
   if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
-  if (event_pool) {
-    event_pool->free(this);
-    return UR_RESULT_SUCCESS;
-  }
-
-  // The variant destructor runs the correct teardown:
-  //  - ze_event_handle_t honors ownZeHandle (zeEventDestroy if owned, no-op
-  //    for externally-imported events).
-  //  - ipc_event_handle_t runs zeEventCounterBasedCloseIpcHandle.
-  delete this;
+  std::visit(event_teardown{event_pool, this}, hZeEvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -243,11 +250,6 @@ ur_event_handle_t_::ur_event_handle_t_(
                                                zeEventGetPool */
           ,
           nullptr) {}
-
-ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
-                                       event_variant hZeEvent,
-                                       v2::event_flags_t flags)
-    : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr) {}
 
 namespace ur::level_zero {
 ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
@@ -440,21 +442,26 @@ ur_result_t urEventCreateExp(ur_context_handle_t hContext,
   UR_ASSERT(!(pEventDesc->flags & UR_EXP_EVENT_FLAGS_MASK),
             UR_RESULT_ERROR_INVALID_ENUMERATION);
 
-  if (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP) {
-    UR_ASSERT(!(pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING),
-              UR_RESULT_ERROR_INVALID_VALUE);
+  const v2::event_flags_t flags =
+      v2::EVENT_FLAGS_COUNTER |
+      (pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING
+           ? v2::EVENT_FLAGS_PROFILING_ENABLED
+           : 0) |
+      (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP ? v2::EVENT_FLAGS_IPC : 0);
 
-    ze_event_handle_t hZeEvent = nullptr;
-    UR_CALL(v2::createIpcCounterBasedEvent(hContext, hDevice, &hZeEvent));
+  UR_ASSERT(!(flags & v2::EVENT_FLAGS_IPC &&
+              flags & v2::EVENT_FLAGS_PROFILING_ENABLED),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
-    *phEvent = new ur_event_handle_t_(
-        hContext, v2::raii::ze_event_handle_t{hZeEvent, /*ownZeHandle=*/true},
-        v2::EVENT_FLAGS_COUNTER | v2::EVENT_FLAGS_IPC);
-    return UR_RESULT_SUCCESS;
-  }
+  auto eventPool =
+      hContext->getReusableEventPoolCache().borrow(hDevice->Id.value(), flags);
+  assert(eventPool);
 
-  UR_LOG(ERR, "{}: non-IPC reusable events not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // IPC events must not be recycled (their native handle may outlive this
+  // process's reference), so they get a detached, self-owning event.
+  *phEvent = (flags & v2::EVENT_FLAGS_IPC) ? eventPool->allocateDetached()
+                                           : eventPool->allocate();
+  return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

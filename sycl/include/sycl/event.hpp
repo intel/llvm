@@ -57,7 +57,7 @@ public:
   /// \param ClEvent is a valid instance of OpenCL cl_event.
   /// \param SyclContext is an instance of SYCL context.
 #ifdef __SYCL_INTERNAL_API
-  event(cl_event ClEvent, const context &SyclContext);
+  event(OpenCLEventT ClEvent, const context &SyclContext);
 #endif
 
   event(const event &rhs) = default;

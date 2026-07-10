@@ -105,13 +105,13 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   }
 }
 
-cl_context context_impl::get() const {
+OpenCLContextT context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
   getAdapter().call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
   getAdapter().call<UrApiKind::urContextGetNativeHandle>(MContext,
                                                          &nativeHandle);
-  return ur::cast<cl_context>(nativeHandle);
+  return ur::cast<OpenCLContextT>(nativeHandle);
 }
 
 context_impl::~context_impl() {
@@ -232,7 +232,7 @@ ur_native_handle_t context_impl::getNative() const {
   ur_native_handle_t Handle;
   Adapter.call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainContext, ur::cast<cl_context>(Handle));
+    retainOpenCLContext(Handle);
   }
   return Handle;
 }
@@ -572,6 +572,45 @@ context_impl::get_default_memory_pool(const context &Context,
   MMemPoolImplPtrs.push_back(std::pair(Device, MemPoolImplPtr));
 
   return MemPoolImplPtr;
+}
+
+bool context_impl::supportsReusableEvents() {
+  if (MReusableEventsSupport) {
+    return *MReusableEventsSupport;
+  }
+
+  MReusableEventsSupport = std::all_of(
+      MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
+        bool ReusableEventsSupport = false;
+        ur_result_t Result =
+            getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+                DevImpl->getHandleRef(),
+                UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
+                sizeof(ReusableEventsSupport), &ReusableEventsSupport, nullptr);
+        return (Result == UR_RESULT_SUCCESS) && ReusableEventsSupport;
+      });
+
+  return *MReusableEventsSupport;
+}
+
+bool context_impl::supportsEventProfiling() {
+  if (MEventProfilingSupport) {
+    return *MEventProfilingSupport;
+  }
+
+  MEventProfilingSupport = std::all_of(
+      MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
+        bool EventProfilingSupport = false;
+        ur_result_t Result =
+            getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+                DevImpl->getHandleRef(),
+                (ur_device_info_t)0, // TODO reusable events
+                                     // UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
+                sizeof(EventProfilingSupport), &EventProfilingSupport, nullptr);
+        return (Result == UR_RESULT_SUCCESS) && EventProfilingSupport;
+      });
+
+  return *MEventProfilingSupport;
 }
 
 } // namespace detail

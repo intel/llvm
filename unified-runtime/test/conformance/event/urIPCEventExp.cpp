@@ -3,9 +3,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// REQUIRES: v2
-// RUN: %with-v2 ./ipc_event-test
-
 #include "ipc_event_fixtures.h"
 
 using urIPCEventExpTest = uur::event::urIPCEventTest;

@@ -69,17 +69,6 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   event_impl(ur_event_handle_t Event, const context &SyclContext, private_tag);
 
-  /// IPC role of an event constructed from a UR handle.
-  enum class IPCRole {
-    /// Producer-side event created with enable_ipc.
-    Producer,
-    /// Consumer-side event imported via ipc::event::open().
-    Imported,
-  };
-
-  event_impl(ur_event_handle_t Event, const context &SyclContext, IPCRole Role,
-             private_tag);
-
   event_impl(queue_impl &Queue, private_tag);
   event_impl(HostEventState State, private_tag);
 
@@ -107,32 +96,46 @@ public:
                                         private_tag{});
   }
 
-  /// Producer-side IPC event factory: adopts a UR handle that backs
-  /// make_event(..., enable_ipc). Reports ext_oneapi_ipc_enabled() == true.
-  static std::shared_ptr<event_impl>
-  create_ipc_producer_event(ur_event_handle_t Event,
-                            const context &SyclContext) {
-    return std::make_shared<event_impl>(Event, SyclContext, IPCRole::Producer,
-                                        private_tag{});
-  }
-
   /// Consumer-side IPC event factory: adopts a UR handle returned by
   /// ipc::event::open(). Imported events cannot be re-exported, so they
   /// report ext_oneapi_ipc_enabled() == false.
   static std::shared_ptr<event_impl>
   create_ipc_imported_event(ur_event_handle_t Event,
                             const context &SyclContext) {
-    return std::make_shared<event_impl>(Event, SyclContext, IPCRole::Imported,
-                                        private_tag{});
+    auto EventImpl =
+        std::make_shared<event_impl>(Event, SyclContext, private_tag{});
+    EventImpl->MOpenedFromIpc = true;
+    return EventImpl;
   }
 
-  /// Sets a queue associated with the event
-  ///
-  /// Please note that this function changes the event state
-  /// as it was constructed with the queue based constructor.
+  /// Sets a queue associated with the event.
   ///
   /// \param Queue is a queue to be associated with the event
   void setQueue(queue_impl &Queue);
+
+  /// Converts the event from default constructed to device event.
+  ///
+  /// \param Queue is a queue to be associated with the event
+  void toDeviceEvent(queue_impl &Queue);
+
+  /// Lazily materializes the backend UR event for a producer IPC event
+  /// (created via make_event(enable_ipc)) that has not been signaled yet, so
+  /// that ipc::event::get() can produce a handle before the first signal. The
+  /// event is created on the first device of its context. No-op if the backend
+  /// handle already exists. Requires MIPCEnabled and a bound context.
+  void materializeIPCEvent();
+
+  /// Returns an event UR handle and applies additional logic
+  /// related to reusable events.
+  ///
+  /// \param Queue is a queue to be associated with the event
+  ur_event_handle_t getHandleReusable(queue_impl &Queue);
+
+  /// Sets the event UR handle and applies additional logic
+  /// related to reusable events.
+  ///
+  /// \param Handle is a UR handle to be set
+  void setHandleReusable(ur_event_handle_t Handle);
 
   /// Waits for the event.
   ///
@@ -390,7 +393,12 @@ public:
   bool isInterop() const noexcept {
     // As an indication of interoperability event, we use the absence of the
     // queue and command, as well as the fact that it is not in enqueued state.
-    return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
+    // IPC events (a producer event created via make_event(enable_ipc) whose UR
+    // handle was materialized by get(), or an event imported via
+    // ipc::event::open) also own a UR handle without a queue/command, but they
+    // are not interop events and must remain usable with enqueue_signal_event.
+    return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand &&
+           !MIPCEnabled && !MOpenedFromIpc;
   }
 
   // Initializes the host profiling info for the event.
@@ -437,15 +445,16 @@ protected:
   // storage.
   std::vector<std::weak_ptr<event_impl>> MWeakPostCompleteEvents;
 
-  /// Both IPC flags are written exactly once, by the constructor that
-  /// the create_ipc_*_event factories invoke. After the
-  /// shared_ptr<event_impl> is returned to the caller these fields are
-  /// observed only read-only, so concurrent reads from any number of
-  /// threads are safe without synchronisation: the construction-then-
-  /// publish ordering is established by std::make_shared's release on
-  /// the produced shared_ptr.
+  /// Both IPC flags are set once, before the owning shared_ptr<event_impl> is
+  /// handed to user code: MIPCEnabled by make_event(enable_ipc) (via
+  /// setIPCEnabled, before the event is returned) and MOpenedFromIpc by the
+  /// create_ipc_imported_event factory. After that they are read-only, so
+  /// concurrent reads from any number of threads are safe without
+  /// synchronisation.
 
-  /// Backs event::ext_oneapi_ipc_enabled().
+  /// Backs event::ext_oneapi_ipc_enabled(): true for a producer event created
+  /// with make_event(enable_ipc). Also selects UR_EXP_EVENT_FLAG_IPC_EXP when
+  /// the backend event is lazily materialized.
   bool MIPCEnabled = false;
 
   /// True only for events imported via ipc::event::open().
@@ -454,6 +463,7 @@ protected:
 public:
   bool isIPCEnabled() const noexcept { return MIPCEnabled; }
   bool isOpenedFromIpc() const noexcept { return MOpenedFromIpc; }
+  void setIPCEnabled(bool Value) { MIPCEnabled = Value; }
 
 protected:
   /// Indicates that the task associated with this event has been submitted by
@@ -493,6 +503,12 @@ protected:
   // Events constructed without a context will lazily use the default context
   // when needed.
   void initContextIfNeeded();
+
+  // Creates a backend UR event on \p Device with the profiling/IPC flags
+  // recorded on this event (see MIsProfilingEnabled / MIPCEnabled). The
+  // context must already be bound. Used by toDeviceEvent and
+  // materializeIPCEvent. Throws errc::runtime on failure.
+  ur_event_handle_t createDeviceUrEvent(device_impl &Device);
   // Event class represents 3 different kinds of operations:
   // | type  | has UR event | MContext | MIsHostTask | MIsDefaultConstructed |
   // | dev   | true         | !nullptr | false       | false                 |

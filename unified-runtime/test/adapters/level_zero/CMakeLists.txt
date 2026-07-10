@@ -54,16 +54,6 @@ add_l0_loader_devices_test(multi_queue multi_device_event_cache_tests.cpp)
 add_conformance_devices_test(ipc ipc.cpp)
 target_link_libraries(ipc-test PRIVATE ur_umf)
 
-# IPC event conformance tests. Split into two binaries so each .cpp
-# scanned by lit maps to exactly one test binary.
-add_conformance_devices_test(ipc_event urIPCEventExp.cpp)
-target_link_libraries(ipc_event-test PRIVATE
-    LevelZeroLoader LevelZeroLoader-Headers)
-
-add_conformance_devices_test(ipc_event_negative urIPCEventExpNegative.cpp)
-target_link_libraries(ipc_event_negative-test PRIVATE
-    LevelZeroLoader LevelZeroLoader-Headers)
-
 add_conformance_devices_test(mem_buffer_map urEnqueueMemBufferMapHostPtr.cpp)
 add_conformance_devices_test(device_select_binary urDeviceSelectBinary.cpp)
 

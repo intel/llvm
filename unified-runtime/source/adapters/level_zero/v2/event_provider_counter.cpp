@@ -49,6 +49,10 @@ static zex_counter_based_event_exp_flags_t createZeFlags(queue_type queueType,
     zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_KERNEL_TIMESTAMP;
   }
 
+  if (flags & EVENT_FLAGS_IPC) {
+    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IPC;
+  }
+
   if (queueType == QUEUE_IMMEDIATE) {
     zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IMMEDIATE;
   }
@@ -111,22 +115,6 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
 
   // Counter-based events not requested, use normal events
   return std::make_unique<provider_normal>(context, queueType, flags);
-}
-
-ur_result_t createIpcCounterBasedEvent(ur_context_handle_t context,
-                                       ur_device_handle_t device,
-                                       ze_event_handle_t *phEvent) {
-  ze_event_counter_based_desc_t desc = {};
-  desc.stype = ZE_STRUCTURE_TYPE_EVENT_COUNTER_BASED_DESC;
-  desc.flags = ZE_EVENT_COUNTER_BASED_FLAG_HOST_VISIBLE |
-               ZE_EVENT_COUNTER_BASED_FLAG_IMMEDIATE |
-               ZE_EVENT_COUNTER_BASED_FLAG_NON_IMMEDIATE |
-               ZE_EVENT_COUNTER_BASED_FLAG_IPC;
-  desc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-
-  ZE2UR_CALL(zeEventCounterBasedCreate,
-             (context->getZeHandle(), device->ZeDevice, &desc, phEvent));
-  return UR_RESULT_SUCCESS;
 }
 
 } // namespace v2

@@ -29,9 +29,10 @@ enum event_flag_t {
   // Event opened from an IPC handle.
   EVENT_FLAGS_IPC_IMPORTED = UR_BIT(3),
 };
-// Bits used to index pooled events in event_pool_cache. IPC events are never
-// pool-allocated, so EVENT_FLAGS_IPC* are excluded from this count.
-static constexpr size_t EVENT_FLAGS_USED_BITS = 2;
+// Number of flag bits that index into event_pool_cache.
+// EVENT_FLAGS_IPC_IMPORTED is excluded because imported events are created
+// directly.
+static constexpr size_t EVENT_FLAGS_USED_BITS = 3;
 
 enum queue_type {
   QUEUE_REGULAR,
