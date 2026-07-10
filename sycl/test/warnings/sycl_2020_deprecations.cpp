@@ -136,6 +136,12 @@ int main() {
   using IMAS = sycl::info::device::image_max_array_size;
   // expected-warning@+1{{'opencl_c_version' is deprecated: use device::get_info instead}}
   using OCV = sycl::info::device::opencl_c_version;
+  // expected-warning@+1{{'h_item<1>' is deprecated: Deprecated in SYCL 2020}}
+  using HITEM1 = sycl::h_item<1>;
+  // expected-warning@+1{{'h_item<2>' is deprecated: Deprecated in SYCL 2020}}
+  using HITEM2 = sycl::h_item<2>;
+  // expected-warning@+1{{'h_item<3>' is deprecated: Deprecated in SYCL 2020}}
+  using HITEM3 = sycl::h_item<3>;
 
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;

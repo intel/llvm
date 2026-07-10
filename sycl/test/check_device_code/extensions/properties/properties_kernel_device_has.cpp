@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm -Xclang -disable-llvm-passes %s -o - | FileCheck %s --check-prefix CHECK-IR
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
-// expected-no-diagnostics
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify-ignore-unexpected=note %s
 
 #include <sycl/sycl.hpp>
 
@@ -57,6 +56,7 @@ struct TestKernelHasDevice_nd_item1_2 {
 
 struct TestKernelHasDevice_work_group {
   void operator()(group<1> G) const {
+    // expected-warning@+1{{'h_item<1>' is deprecated: Deprecated in SYCL 2020}}
     G.parallel_for_work_item([&](h_item<1>) {});
   }
   auto get(properties_tag) const { return properties{device_has_all}; }
