@@ -24,10 +24,11 @@ namespace offloading {
 
 // SYCL binary image formats supported.
 enum class SYCLBinaryImageFormat {
-  BIF_None,   // Undetermined Image kind
-  BIF_Native, // Native Image kind
-  BIF_SPIRV,  // SPIR-V
-  BIF_LLVMBC  // LLVM bitcode
+  BIF_None,          // Undetermined Image kind
+  BIF_Native,        // Native Image kind
+  BIF_SPIRV,         // SPIR-V
+  BIF_LLVMBC,        // LLVM bitcode
+  BIF_CompressedNone // zstd-compressed image; format-of-original unknown
 };
 
 struct SYCLImage {

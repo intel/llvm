@@ -44,6 +44,7 @@
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/SYCLPostLink/SYCLPostLink.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Compression.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -1176,6 +1177,53 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
         IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
     Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
                         ImageTarget, SI.CompileOptions, SI.LinkOptions);
+  }
+
+  // SYCL device image compression: zstd-compress each image and flip its
+  // Format to BIF_CompressedNone. The SYCL runtime decompresses lazily via
+  // CompressedRTDeviceBinaryImage.
+  if (Args.hasArg(OPT_offload_compress)) {
+    if (!compression::zstd::isAvailable())
+      return createStringError(
+          "'--offload-compress' is specified but zstd is not available");
+
+    int Level = 10;      // default zstd level, matches clang-offload-wrapper
+    int Threshold = 512; // skip compression below this many bytes
+    if (auto *A = Args.getLastArg(OPT_offload_compression_level_eq)) {
+      if (StringRef(A->getValue()).getAsInteger(10, Level))
+        return createStringError(
+            "invalid value for --offload-compression-level=: '%s'",
+            A->getValue());
+    }
+    if (auto *A = Args.getLastArg(OPT_offload_compression_threshold_eq)) {
+      if (StringRef(A->getValue()).getAsInteger(10, Threshold) || Threshold < 0)
+        return createStringError(
+            "invalid value for --offload-compression-threshold=: '%s'",
+            A->getValue());
+    }
+
+    for (auto &Image : Images) {
+      if (static_cast<int>(Image.Image->getBufferSize()) < Threshold)
+        continue;
+
+      SmallVector<uint8_t, 0> CompressedBytes;
+      const size_t OriginalSize = Image.Image->getBufferSize();
+      compression::zstd::compress(
+          ArrayRef<uint8_t>(
+              reinterpret_cast<const uint8_t *>(Image.Image->getBufferStart()),
+              OriginalSize),
+          CompressedBytes, Level);
+      if (Verbose)
+        errs() << "[Compression] Original image size: " << OriginalSize << "\n"
+               << "[Compression] Compressed image size: "
+               << CompressedBytes.size() << "\n"
+               << "[Compression] Compression level used: " << Level << "\n";
+      Image.Image = MemoryBuffer::getMemBufferCopy(
+          StringRef(reinterpret_cast<const char *>(CompressedBytes.data()),
+                    CompressedBytes.size()),
+          Image.Image->getBufferIdentifier());
+      Image.Format = offloading::SYCLBinaryImageFormat::BIF_CompressedNone;
+    }
   }
 
   LLVMContext C;
