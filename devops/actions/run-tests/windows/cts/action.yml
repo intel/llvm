@@ -60,7 +60,7 @@ runs:
       -DSYCL_IMPLEMENTATION=DPCPP \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
-      -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+      -DDPCPP_INSTALL_DIR="$(dirname $(which dpclang++))/.." \
       -DCMAKE_CXX_COMPILER=cl \
       -DCMAKE_BUILD_TYPE=Release \
       $CMAKE_EXTRA_ARGS

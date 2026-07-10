@@ -134,9 +134,9 @@ runs:
       else
         echo "INFO: SYCL directory '$SYCL_DIR' does not exist or is missing libsycl.so"
         echo "Checking if SYCL is installed in the system..."
-        which sycl-ls
-        sycl-ls
-        export CMPLR_ROOT="$(dirname $(dirname $(which sycl-ls)))"
+        which dpsycl-ls
+        dpsycl-ls
+        export CMPLR_ROOT="$(dirname $(dirname $(which dpsycl-ls)))"
         echo "Using SYCL from: $CMPLR_ROOT !"
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
       fi
@@ -261,11 +261,11 @@ runs:
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
 
       echo "::endgroup::"
-  - name: Run sycl-ls
+  - name: Run dpsycl-ls
     shell: bash
     run: |
-      # Run sycl-ls
-      sycl-ls --verbose
+      # Run dpsycl-ls
+      dpsycl-ls --verbose
   - name: Build and run benchmarks
     shell: bash
     env:

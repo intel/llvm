@@ -58,6 +58,11 @@ intel/llvm#20018 intel/llvm#20490 intel/llvm#20095 intel/llvm#20804
 
 ### Compiler
 
+- Added symbolic links for the compiler binaries: `dpclang`, `dpclang++`,
+`dpclang-cl`, `dpclang-cpp`, `dpsycl-ls`, `dpsyclbin-dump`, `dpsycl-prof`,
+`dpsycl-sanitize`, `dpsycl-trace`. They point to the corresponding binaries
+without the `dp` prefix. For example, `dpclang++` points to `clang++`. Users are
+encouraged to use these wrappers instead of the underlying binaries. intel/llvm#21598
 - Enabled passing `-Xarch_<arch> <option>` to SYCL offload compilation. intel/llvm#21001
 
 ## Improvements and bugfixes
