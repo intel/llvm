@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
                               /*Redirects=*/{}, /*SecondsToWait=*/0,
                               /*MemoryLimit=*/0, &ErrMsg);
   if (!ErrMsg.empty())
-    Exit(createStringError("failed to execute '" + BinaryPath +
-                           "': " + ErrMsg));
+    Exit(
+        createStringError("failed to execute '" + BinaryPath + "': " + ErrMsg));
   return Result;
 }
