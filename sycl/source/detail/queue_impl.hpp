@@ -664,6 +664,10 @@ public:
 
   bool isNativeRecording() const;
 
+  void beginNativeRecording(ur_exp_graph_handle_t Graph);
+
+  ur_exp_graph_handle_t endNativeRecording();
+
   ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>

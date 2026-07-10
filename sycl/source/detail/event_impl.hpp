@@ -360,6 +360,14 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
 
+  bool isPotentiallyNativeRecorded() const {
+    return MPotentiallyNativeRecorded;
+  }
+
+  void setPotentiallyNativeRecorded(bool Value) {
+    MPotentiallyNativeRecorded = Value;
+  }
+
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 
   // Sets a command-buffer command when this event represents an enqueue to a
@@ -471,6 +479,12 @@ protected:
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
   /// Indicates that the event results from a command graph submission.
   bool MEventFromSubmittedExecCommandBuffer = false;
+
+  /// Set from the context of the worker queue when the event was signaled,
+  /// marking it as potentially captured if a native graph recording was active.
+  /// Used to preserve in-order dependencies that cross the native-recording
+  /// capture boundary.
+  bool MPotentiallyNativeRecorded = false;
 
   // If this event represents a submission to a
   // ur_exp_command_buffer_sync_point_t the sync point for that submission is

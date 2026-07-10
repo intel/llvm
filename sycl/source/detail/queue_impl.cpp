@@ -464,6 +464,8 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     EnqueueKernel();
   } else {
     ResultEvent->setWorkerQueue(weak_from_this());
+    ResultEvent->setPotentiallyNativeRecorded(
+        getContextImpl().isNativeRecordingActive());
     ResultEvent->setStateIncomplete();
     ResultEvent->setSubmissionTime();
 
@@ -514,6 +516,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
       ResEvent->setQueue(*this);
     }
     ResEvent->setWorkerQueue(weak_from_this());
+    ResEvent->setPotentiallyNativeRecorded(
+        getContextImpl().isNativeRecordingActive());
     ResEvent->setSubmissionTime();
     ResEvent->setEnqueued();
     ResEvent->setStateIncomplete();
@@ -658,6 +662,34 @@ bool queue_impl::isNativeRecording() const {
       getAdapter().call_nocheck<UrApiKind::urQueueIsGraphCaptureEnabledExp>(
           MQueue, &IsGraphCaptureEnabled);
   return Result == UR_RESULT_SUCCESS && IsGraphCaptureEnabled;
+}
+
+void queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph) {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  ur_result_t Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueBeginCaptureIntoGraphExp>(
+          MQueue, Graph);
+  if (Result != UR_RESULT_SUCCESS) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to begin native UR graph capture");
+  }
+  getContextImpl().nativeRecordingBegan();
+}
+
+ur_exp_graph_handle_t queue_impl::endNativeRecording() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  ur_exp_graph_handle_t CapturedGraph = nullptr;
+  ur_result_t Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueEndGraphCaptureExp>(
+          MQueue, &CapturedGraph);
+  if (Result == UR_RESULT_SUCCESS || !isNativeRecording()) {
+    getContextImpl().nativeRecordingEnded();
+  }
+  if (Result != UR_RESULT_SUCCESS) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to end native graph capture");
+  }
+  return CapturedGraph;
 }
 
 ext::oneapi::experimental::queue_state

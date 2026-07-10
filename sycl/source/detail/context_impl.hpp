@@ -273,6 +273,24 @@ public:
   bool supportsEventProfiling();
   bool supportsIPCEvents();
 
+  /// @return True if any native graph recording is active on a queue
+  /// in this context.
+  bool isNativeRecordingActive() const {
+    return MNativeRecordingCount.load(std::memory_order_acquire) > 0;
+  }
+
+  /// Register that a native graph recording has begun on a queue in this
+  /// context.
+  void nativeRecordingBegan() {
+    MNativeRecordingCount.fetch_add(1, std::memory_order_release);
+  }
+
+  /// Register that a native graph recording has ended on a queue in this
+  /// context.
+  void nativeRecordingEnded() {
+    MNativeRecordingCount.fetch_sub(1, std::memory_order_release);
+  }
+
 private:
   // Returns whether every device in the context reports \p Info as true,
   // caching the result in \p Cache.
@@ -372,6 +390,12 @@ private:
       std::weak_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>>
       MNativeGraphRegistry;
   mutable std::mutex MNativeGraphRegistryMutex;
+
+  // Count of active native graph recordings in this context. Incremented when
+  // a native capture begins on a queue and decremented when it ends. Used to
+  // preserve in-order dependencies that cross the native-recording capture
+  // boundary.
+  std::atomic<int64_t> MNativeRecordingCount{0};
 
   void verifyProps(const property_list &Props) const;
 };
