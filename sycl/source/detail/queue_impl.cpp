@@ -485,6 +485,7 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
 
   // EventForReuse can only be set for BarrierType equal to CGType::Barrier
   // (enqueue_signal_event function)
+  assert(!EventForReuse || (EventForReuse && BarrierType == CGType::Barrier));
 
   ur_event_handle_t UREvent =
       EventForReuse ? EventForReuse->getHandleReusable(*this) : nullptr;
@@ -507,13 +508,13 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   if (!DiscardEvent || EventForReuse) {
     ResEvent = EventForReuse ? EventForReuse
                              : detail::event_impl::create_device_event(*this);
+    if (EventForReuse) {
+      ResEvent->setQueue(*this);
+    }
     ResEvent->setWorkerQueue(weak_from_this());
     ResEvent->setSubmissionTime();
     ResEvent->setEnqueued();
     ResEvent->setStateIncomplete();
-    if (EventForReuse) {
-      ResEvent->setQueue(*this);
-    }
   }
 
   // We can skip the barrier UR call only if both the barrier wait list

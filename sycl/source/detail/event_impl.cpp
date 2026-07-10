@@ -210,7 +210,6 @@ void event_impl::toDeviceEvent(queue_impl &Queue) {
   }
 
   setHandle(EventHandle);
-  MQueue = Queue.weak_from_this();
   MIsDefaultConstructed = false;
 }
 

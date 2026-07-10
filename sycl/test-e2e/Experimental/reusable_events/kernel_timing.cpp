@@ -65,8 +65,7 @@ int main() {
       end_event
           .get_profiling_info<sycl::info::event_profiling::command_start>();
 
-  uint64_t elapsed = end_time - start_time;
-  assert(elapsed >= 0);
+  assert(end_time >= start_time);
 
   return 0;
 }

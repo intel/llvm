@@ -19,11 +19,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-namespace detail {
-__SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
-                                     bool enable_profiling);
-}
-
 struct enable_profiling_key
     : detail::compile_time_property_key<detail::PropKind::EnableProfiling> {
   using value_t = property_value<enable_profiling_key>;
@@ -31,12 +26,28 @@ struct enable_profiling_key
 
 inline constexpr enable_profiling_key::value_t enable_profiling;
 
+namespace detail {
+
+enum make_event_flags : uint32_t { make_event_flag_enable_profiling = 1u };
+
+__SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt, uint32_t Flags);
+
+template <typename PropertyListT> uint32_t getMakeEventFlags() {
+  uint32_t Flags = 0;
+  if constexpr (PropertyListT::template has_property<enable_profiling_key>())
+    Flags |= make_event_flag_enable_profiling;
+  return Flags;
+}
+} // namespace detail
+
 template <typename PropertyListT = empty_properties_t>
 inline sycl::event make_event(const sycl::context &ctxt,
                               PropertyListT props = {}) {
-  bool EnableProfiling = props.template has_property<enable_profiling_key>();
+  static_assert(is_property_list_v<PropertyListT>,
+                "Props must be a sycl::ext::oneapi::experimental::properties");
+  (void)props;
 
-  return detail::make_event(ctxt, EnableProfiling);
+  return detail::make_event(ctxt, detail::getMakeEventFlags<PropertyListT>());
 }
 
 template <typename PropertyListT = empty_properties_t>

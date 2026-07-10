@@ -9,7 +9,6 @@
 #include "detail/context_impl.hpp"
 #include "detail/event_impl.hpp"
 #include "detail/queue_impl.hpp"
-#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
@@ -20,10 +19,11 @@ namespace ext::oneapi::experimental {
 namespace detail {
 
 __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
-                                     bool enable_profiling) {
+                                     uint32_t Flags) {
   detail::context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(ctxt);
+  bool EnableProfiling = (Flags & make_event_flag_enable_profiling);
 
-  if (enable_profiling && !ContextImpl.supportsEventProfiling()) {
+  if (EnableProfiling && !ContextImpl.supportsEventProfiling()) {
     throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
                           "Context does not support per-event profiling.");
   }
@@ -31,7 +31,7 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   sycl::event RetEvent{};
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(RetEvent);
   EventImpl.setContextImpl(ContextImpl);
-  EventImpl.setProfilingEnabled(enable_profiling);
+  EventImpl.setProfilingEnabled(EnableProfiling);
 
   return RetEvent;
 }

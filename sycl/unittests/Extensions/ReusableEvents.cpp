@@ -14,6 +14,10 @@
 
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
+#include <condition_variable>
+#include <mutex>
+#include <vector>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 class TestKernel;

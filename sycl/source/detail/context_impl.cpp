@@ -581,7 +581,7 @@ bool context_impl::supportsReusableEvents() {
 
   MReusableEventsSupport = std::all_of(
       MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
-        bool ReusableEventsSupport = false;
+        ur_bool_t ReusableEventsSupport = false;
         ur_result_t Result =
             getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
                 DevImpl->getHandleRef(),
