@@ -71,6 +71,12 @@ function(add_xpti_library LIB_NAME)
     $<BUILD_INTERFACE:${XPTIFW_PARALLEL_HASHMAP_HEADERS}>
   )
 
+  # Suppress deprecation warnings from parallel-hashmap on macOS
+  # parallel-hashmap uses std::allocator::pointer which is deprecated in C++17+
+  if(APPLE)
+    target_compile_options(${LIB_NAME} PRIVATE -Wno-deprecated-declarations)
+  endif()
+
   add_dependencies(${LIB_NAME} xpti)
 
   target_link_libraries(${LIB_NAME} PUBLIC $<BUILD_INTERFACE:emhash::emhash>)
