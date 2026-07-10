@@ -5065,6 +5065,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return nullptr;
     }
     uint64_t NumElements = static_cast<ConstantInt *>(Len)->getZExtValue();
+    // A zero-sized memset is a no-op. Emitting OpCopyMemorySized with a Size
+    // operand of 0 is invalid SPIR-V, so drop the intrinsic entirely.
+    if (NumElements == 0)
+      return nullptr;
     auto *AT = ArrayType::get(Val->getType(), NumElements);
     SPIRVTypeArray *CompositeTy = static_cast<SPIRVTypeArray *>(transType(AT));
     SPIRVValue *Init;
@@ -5096,6 +5100,11 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                       MemAccess, BB);
   } break;
   case Intrinsic::memcpy:
+    // A zero-sized memcpy is a no-op. Emitting OpCopyMemorySized with a Size
+    // operand of 0 is invalid SPIR-V, so drop the intrinsic entirely.
+    if (auto *CI = dyn_cast<ConstantInt>(II->getOperand(2)))
+      if (CI->isZero())
+        return nullptr;
     return BM->addCopyMemorySizedInst(
         transValue(II->getOperand(0), BB), transValue(II->getOperand(1), BB),
         transValue(II->getOperand(2), BB),
