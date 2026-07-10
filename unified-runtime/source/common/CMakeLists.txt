@@ -78,14 +78,9 @@ if(umf_FOUND)
   # Add an alias matching the FetchContent case
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
-  set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
-
-  # commit 5a986843a2469d3e04771c1f27314ba6cc3c62f6
-  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Wed May 13 15:04:31 2026 +0200
-  # Merge pull request #1573 from ldorau/L0_Fix_incorrect_log_messages_in_provider_level_zero.c
-  # [L0] Fix incorrect log messages in provider_level_zero.c
-  set(UMF_TAG v1.2.0-dev1)
+  # use the provider's GetCachelineSize() to calculate bucket sizes in DP
+  set(UMF_REPO "https://github.com/bratpiorka/unified-memory-framework.git")
+  set(UMF_TAG 63b099154e1d99d146264a5f8c244cec33e62a28)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
