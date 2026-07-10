@@ -1,0 +1,90 @@
+//==------- reusable_events.cpp --- SYCL reusable events -------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "detail/context_impl.hpp"
+#include "detail/event_impl.hpp"
+#include "detail/queue_impl.hpp"
+#include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/ur.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+
+namespace detail {
+
+__SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
+                                     bool enable_profiling) {
+  detail::context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(ctxt);
+
+  if (enable_profiling && !ContextImpl.supportsEventProfiling()) {
+    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                          "Context does not support per-event profiling.");
+  }
+
+  sycl::event RetEvent{};
+  detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(RetEvent);
+  EventImpl.setContextImpl(ContextImpl);
+  EventImpl.setProfilingEnabled(enable_profiling);
+
+  return RetEvent;
+}
+
+} // namespace detail
+
+__SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
+  detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+
+  QueueImpl.submit_barrier_direct_without_event(
+      sycl::span<const event>(&evt, 1), detail::CGType::BarrierWaitlist,
+      detail::code_location::current());
+}
+
+__SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
+                                       const std::vector<event> &evts) {
+  detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+
+  QueueImpl.submit_barrier_direct_without_event(
+      evts, detail::CGType::BarrierWaitlist, detail::code_location::current());
+}
+
+__SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
+  detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+  detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
+
+  if (EventImpl.isInterop()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::runtime),
+        "Enqueueing an interop event for signaling is not supported.");
+  }
+
+  if (QueueImpl.hasCommandGraph()) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Enqueueing an event for signaling is not supported "
+                          "on a queue which is recording a graph.");
+  }
+
+  detail::context_impl &QueueContextImpl =
+      *sycl::detail::getSyclObjImpl(q.get_context());
+
+  detail::context_impl &EventContextImpl = EventImpl.getContextImpl();
+
+  if (&QueueContextImpl != &EventContextImpl) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Event context must match the queue context.");
+  }
+
+  QueueImpl.submit_barrier_direct_without_event(
+      {}, detail::CGType::Barrier, detail::code_location::current(),
+      sycl::detail::getSyclObjImpl(evt));
+}
+
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl
