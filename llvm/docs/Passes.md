@@ -745,6 +745,11 @@ Read
 {doc}`this <MergeFunctions>`
 article for more details.
 
+### `mergereturn`: Unify function exit nodes
+
+Ensure that functions have at most one `ret` instruction in them.
+Additionally, it keeps track of which node is the new exit node of the CFG.
+
 ### `partial-inliner`: Partial Inliner
 
 This pass performs partial inlining, typically by inlining an `if` statement
