@@ -772,6 +772,19 @@ public:
         SYCLBIN->getBestCompatibleImages(Devs, State);
     MDeviceImages.reserve(BestImages.size());
     auto &PM = ProgramManager::getInstance();
+    // Reconcile an image's intrinsic classification with the state the SYCLBIN
+    // was loaded in. An export-only native AOT library classifies as
+    // executable but is surfaced for an object-state load so it can act as the
+    // provider side of a cross-library link; such an image must not be
+    // presented as already-linked. Only downgrade executable -> object for an
+    // object-state load; leave every other combination at the intrinsic state.
+    auto ReconcileState = [](bundle_state ImageState,
+                             bundle_state RequestedState) {
+      if (ImageState == bundle_state::executable &&
+          RequestedState == bundle_state::object)
+        return bundle_state::object;
+      return ImageState;
+    };
     for (const detail::RTDeviceBinaryImage *Image : BestImages) {
       // Build per-image kernel-id list from the [SYCL/kernel names] property
       // set so that the C++ kernel_id-based APIs (has_kernel<K>(),
@@ -788,14 +801,8 @@ public:
           KernelIDs->push_back(*MaybeID);
       std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
 
-      // The image's intrinsic classification may be "ahead" of the state the
-      // SYCLBIN was loaded in: an export-only native AOT library classifies as
-      // executable but is surfaced here for an object-state load so it can act
-      // as the provider side of a cross-library link. Clamp the created image
-      // to the requested state (the SYCLBIN's declared state, already
-      // validated above) so it is not mistaken for an already-linked image.
       const bundle_state ImgState =
-          std::min(ProgramManager::getBinImageState(Image), State);
+          ReconcileState(ProgramManager::getBinImageState(Image), State);
       MDeviceImages.emplace_back(device_image_impl::create(
           Image, Context, Devs, ImgState, std::move(KernelIDs),
           Managed<ur_program_handle_t>{}, ImageOriginSYCLBIN));
