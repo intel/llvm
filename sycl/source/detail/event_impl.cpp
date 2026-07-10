@@ -188,9 +188,6 @@ void event_impl::setQueue(queue_impl &Queue) {
 }
 
 ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
-  // Context must already be bound. The event flags are derived from the
-  // properties recorded at make_event time; make_event guarantees profiling
-  // and IPC are never enabled together.
   assert(MContext && "createDeviceUrEvent requires a bound context");
 
   ur_event_handle_t EventHandle = nullptr;
@@ -217,9 +214,7 @@ void event_impl::toDeviceEvent(queue_impl &Queue) {
 
   initContextIfNeeded();
 
-  // For a producer IPC event, get() may have already materialized the backend
-  // event before the first signal; reuse that handle instead of creating (and
-  // leaking) a second one.
+  // get() may have already materialized the handle for an IPC event; reuse it.
   if (getHandle() == nullptr)
     setHandle(createDeviceUrEvent(Queue.getDeviceImpl()));
 
@@ -230,20 +225,16 @@ void event_impl::toDeviceEvent(queue_impl &Queue) {
 void event_impl::materializeIPCEvent() {
   assert(MIPCEnabled && "materializeIPCEvent is only valid for IPC events");
 
-  // Already materialized (by a prior get() or a prior signal).
   if (getHandle() != nullptr)
     return;
 
   initContextIfNeeded();
 
-  // urEventCreateExp needs a device; make_event(enable_ipc) validated that all
-  // devices in the context have aspect::ext_oneapi_ipc_event, so the first one
-  // is a valid choice.
+  // Any device in the context works; all support the IPC aspect.
   device_impl &Device = MContext->getDevices().front();
   setHandle(createDeviceUrEvent(Device));
-  // Intentionally leaves MIsDefaultConstructed set: the event still has no
-  // associated queue/command. A later enqueue_signal_event goes through
-  // getHandleReusable, which reuses this handle on a reusable-events backend.
+  // Leaves MIsDefaultConstructed set so a later signal still runs through
+  // getHandleReusable.
 }
 
 ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
@@ -257,9 +248,7 @@ ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
       toDeviceEvent(Queue);
     }
   } else {
-    // An IPC event's backend handle is shared across processes and must not be
-    // recreated per submission; IPC support implies reusable-event support, so
-    // this branch should never be reached for one.
+    // IPC support implies reusable-event support.
     assert(!MIPCEnabled &&
            "IPC event on a context without reusable-events support");
     // If the context does not support reusable events, then release the

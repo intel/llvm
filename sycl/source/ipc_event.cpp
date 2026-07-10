@@ -21,26 +21,17 @@ inline namespace _V1 {
 
 namespace detail {
 
-// All devices in the context must support the aspect; spec:
-// "_Throws:_ ... `errc::feature_not_supported` ... if not all devices that
-// are part of `ctx` have `aspect::ext_oneapi_ipc_event`."
-static void requireIPCEventAspect(const sycl::context &Ctx) {
-  for (const sycl::device &Dev : Ctx.get_devices()) {
-    if (!Dev.has(aspect::ext_oneapi_ipc_event))
-      throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
-                            "Not all devices in the context support "
-                            "aspect::ext_oneapi_ipc_event.");
-  }
-}
-
 __SYCL_EXPORT sycl::event openIPCEventHandle(const std::byte *HandleData,
                                              size_t HandleDataSize,
                                              const sycl::context &Ctx) {
-  // open() is the consumer entry point; make_event's aspect check never ran in
-  // this process, so validate the aspect here.
-  requireIPCEventAspect(Ctx);
-
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+
+  // Consumer side: make_event's aspect check never ran in this process.
+  if (!CtxImpl->supportsIPCEvents())
+    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                          "Not all devices in the context support "
+                          "aspect::ext_oneapi_ipc_event.");
+
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
   ur_event_handle_t UrEvent = nullptr;
@@ -79,10 +70,8 @@ __SYCL_EXPORT handle get(const sycl::event &Evt) {
 
   auto EvtImpl = sycl::detail::getSyclObjImpl(Evt);
 
-  // A producer IPC event from make_event(enable_ipc) creates its backend UR
-  // event lazily. If get() is called before the event has been signaled, the
-  // handle does not exist yet -- materialize it now so a handle can be
-  // produced. No-op if a prior get() or signal already created it.
+  // The backend event is created lazily; materialize it if get() is called
+  // before the first signal.
   EvtImpl->materializeIPCEvent();
 
   sycl::detail::context_impl &CtxImpl = EvtImpl->getContextImpl();

@@ -16,9 +16,7 @@ inline namespace _V1 {
 
 namespace ext::oneapi::experimental {
 
-// Shared by the inter-process-communication extensions (physical_mem and
-// event); each target adds an is_property_key_of specialisation in its own
-// header.
+// Shared by the inter-process-communication extensions.
 struct enable_ipc_key
     : detail::compile_time_property_key<detail::PropKind::EnableIPC> {
   using value_t = property_value<enable_ipc_key>;

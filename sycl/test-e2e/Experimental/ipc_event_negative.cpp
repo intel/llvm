@@ -1,7 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_ipc_event
 // REQUIRES: level_zero_v2_adapter
 
-// RUN: %{build} -lze_loader %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Negative path coverage of the SYCL IPC events surface:
@@ -11,9 +11,9 @@
 //   * ipc::event::open with a buffer of the wrong size throws
 //     errc::invalid.
 
-#include "Inputs/ipc_event_l0_signal.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
 namespace exp = sycl::ext::oneapi::experimental;
 namespace ipc = sycl::ext::oneapi::experimental::ipc;
@@ -24,7 +24,6 @@ static int expectInvalid(const sycl::exception &E) {
 
 int main() {
   sycl::queue Q;
-  sycl::device Dev = Q.get_device();
   sycl::context Ctx = Q.get_context();
 
   // 1. get on a non-IPC event -> errc::invalid.
@@ -44,7 +43,8 @@ int main() {
   {
     sycl::event Producer =
         exp::make_event(Ctx, exp::properties{exp::enable_ipc});
-    ipc_event_test::signalEventViaLevelZero(Producer, Ctx, Dev);
+    exp::enqueue_signal_event(Q, Producer);
+    Producer.wait();
     ipc::handle H = ipc::event::get(Producer);
     sycl::event Imported = ipc::event::open(H.data(), Ctx);
     try {

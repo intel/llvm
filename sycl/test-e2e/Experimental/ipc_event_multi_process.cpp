@@ -5,15 +5,15 @@
 // UNSUPPORTED-INTENDED: This test relies on POSIX
 //   semantics (std::system + binary self-exec).
 
-// RUN: %{build} -lze_loader %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Cross-process IPC event round trip: producer spawns a consumer with
 // std::system() and transports the IPC handle bytes through a file.
 
-#include "Inputs/ipc_event_l0_signal.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
 #include <cassert>
 #include <cstdio>
@@ -37,7 +37,6 @@ constexpr const char *CommsFile = "ipc_event_comms.bin";
 int spawner(int argc, char *argv[]) {
   assert(argc == 1);
   sycl::queue Q;
-  sycl::device Dev = Q.get_device();
   sycl::context Ctx = Q.get_context();
 
 #if defined(__linux__)
@@ -51,7 +50,8 @@ int spawner(int argc, char *argv[]) {
 
   sycl::event ProducerEvt =
       exp::make_event(Ctx, exp::properties{exp::enable_ipc});
-  ipc_event_test::signalEventViaLevelZero(ProducerEvt, Ctx, Dev);
+  exp::enqueue_signal_event(Q, ProducerEvt);
+  ProducerEvt.wait();
 
   ipc::handle Handle = ipc::event::get(ProducerEvt);
   ipc::handle_data_t Bytes = Handle.data();

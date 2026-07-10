@@ -271,8 +271,13 @@ public:
 
   bool supportsReusableEvents();
   bool supportsEventProfiling();
+  bool supportsIPCEvents();
 
 private:
+  // Returns whether every device in the context reports \p Info as true,
+  // caching the result in \p Cache.
+  bool allDevicesSupport(ur_device_info_t Info, std::optional<bool> &Cache);
+
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
   std::vector<device_impl *> MDevices;
@@ -283,6 +288,7 @@ private:
   mutable PropertySupport MSupportBufferLocationByDevices;
   std::optional<bool> MReusableEventsSupport;
   std::optional<bool> MEventProfilingSupport;
+  std::optional<bool> MIPCEventSupport;
 
   // Device pools.
   // Weak_ptr preventing circular dependency between memory_pool_impl and

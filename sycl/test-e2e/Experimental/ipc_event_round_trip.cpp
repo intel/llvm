@@ -3,13 +3,15 @@
 
 // DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
 
-// RUN: %{build} %level_zero_options -lze_loader -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} %level_zero_options -lze_loader -DUSE_VIEW %{cpp20} -o %t.view.out
+// RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
 // RUN: %{run} %t.view.out
 
 // Full same-process Get / Open / Wait / Put round trip on an IPC event,
-// signalled via the Level Zero interop helper. Covers:
+// signalled via the reusable-events API (enqueue_signal_event) -- the intended
+// path once reusable-events and IPC-events are combined, needing no Level Zero
+// interop. Covers:
 //   * the std::vector<std::byte> handle_data_t overload of open() and
 //     (with -DUSE_VIEW) the C++20 std::span handle_data_view_t overload,
 //   * default-context overloads of put() and open(),
@@ -18,22 +20,22 @@
 //     be re-exported),
 //   * imported event waits successfully because producer was signalled.
 
-#include "Inputs/ipc_event_l0_signal.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
 namespace exp = sycl::ext::oneapi::experimental;
 namespace ipc = sycl::ext::oneapi::experimental::ipc;
 
 int main() {
   sycl::queue Q;
-  sycl::device Dev = Q.get_device();
   sycl::context Ctx = Q.get_context();
 
-  // 1. Create + signal the producer event.
+  // 1. Create + signal the producer event via the reusable-events API.
   sycl::event ProducerEvt =
       exp::make_event(Ctx, exp::properties{exp::enable_ipc});
-  ipc_event_test::signalEventViaLevelZero(ProducerEvt, Ctx, Dev);
+  exp::enqueue_signal_event(Q, ProducerEvt);
+  ProducerEvt.wait();
 
   // 2. Get the IPC handle.
   ipc::handle Handle = ipc::event::get(ProducerEvt);

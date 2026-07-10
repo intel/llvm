@@ -15,7 +15,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
-#include <sycl/ext/oneapi/experimental/reusable_events.hpp> // make_event, enable_ipc
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/platform.hpp>
 
@@ -31,17 +31,10 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
-// Bridge from the user-facing ipc::event::open overloads to a single
-// __SYCL_EXPORT'd implementation.
 __SYCL_EXPORT sycl::event openIPCEventHandle(const std::byte *HandleData,
                                              size_t HandleDataSize,
                                              const sycl::context &Ctx);
 } // namespace detail
-
-// The enable_ipc property, its is_property_key_of<enable_ipc_key, event>
-// specialisation, and the make_event factory (which routes the enable_ipc
-// property into a producer IPC event) all live in reusable_events.hpp,
-// included above.
 
 namespace ext::oneapi::experimental::ipc::event {
 

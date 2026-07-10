@@ -24,10 +24,7 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   const bool EnableProfiling = Flags & make_event_flag_enable_profiling;
   const bool EnableIPC = Flags & make_event_flag_enable_ipc;
 
-  // sycl_ext_oneapi_inter_process_communication: make_event throws
-  // errc::invalid if both enable_profiling and enable_ipc are set. This mirrors
-  // the Level Zero constraint that a counter-based event cannot be both an IPC
-  // event and a profiling event.
+  // enable_profiling and enable_ipc are mutually exclusive.
   if (EnableProfiling && EnableIPC) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
@@ -42,17 +39,11 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
                           "Context does not support per-event profiling.");
   }
 
-  // sycl_ext_oneapi_inter_process_communication: make_event throws
-  // feature_not_supported if enable_ipc is set and not all devices of the
-  // context have aspect::ext_oneapi_ipc_event.
-  if (EnableIPC) {
-    for (device_impl &Dev : ContextImpl.getDevices()) {
-      if (!Dev.has(aspect::ext_oneapi_ipc_event))
-        throw sycl::exception(
-            sycl::make_error_code(errc::feature_not_supported),
-            "Not all devices in the context support "
-            "aspect::ext_oneapi_ipc_event.");
-    }
+  // enable_ipc requires every device in the context to support IPC events.
+  if (EnableIPC && !ContextImpl.supportsIPCEvents()) {
+    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                          "Not all devices in the context support "
+                          "aspect::ext_oneapi_ipc_event.");
   }
 
   sycl::event RetEvent{};
@@ -61,11 +52,8 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   EventImpl.setProfilingEnabled(EnableProfiling);
   EventImpl.setIPCEnabled(EnableIPC);
 
-  // Note: the backend UR event is created lazily -- on the first
-  // enqueue_signal_event (via getHandleReusable/toDeviceEvent) or, for an IPC
-  // event, on the first ipc::event::get (via materializeIPCEvent). This keeps
-  // make_event cheap and defers the device choice to the point of use.
-
+  // The backend UR event is created lazily on first signal or first
+  // ipc::event::get.
   return RetEvent;
 }
 
@@ -113,10 +101,7 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
                           "Event context must match the queue context.");
   }
 
-  // sycl_ext_oneapi_inter_process_communication: enqueue_signal_event throws
-  // errc::invalid if the event has inter-process sharing enabled and the queue
-  // has profiling enabled -- an IPC event cannot also capture profiling
-  // timestamps.
+  // An IPC event cannot be signaled on a profiling-enabled queue.
   if (EventImpl.isIPCEnabled() && QueueImpl.MIsProfilingEnabled) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),

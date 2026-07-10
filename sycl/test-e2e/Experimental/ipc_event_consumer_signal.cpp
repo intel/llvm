@@ -5,19 +5,20 @@
 // UNSUPPORTED: windows
 // UNSUPPORTED-INTENDED: Cross-process IPC test relies on POSIX semantics.
 
-// RUN: %{build} -lze_loader %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // The consumer signals an IPC event and the producer waits on it, with the
 // result verified through a shared buffer.
 //
 // The producer owns the event and an IPC-shared USM buffer. The consumer opens
-// both, enqueues a kernel that writes a sentinel into the buffer, and signals
-// the event ordered after that kernel without waiting for it. The producer
-// waits on the event and reads the buffer back. The event is the only thing
-// ordering the write before the read: the "signal submitted" file does not
-// imply completion. The buffer is poisoned first, so a wait that returns
-// before the work completes reads the wrong value instead of hanging.
+// both, enqueues a kernel that writes a sentinel into the buffer on an in-order
+// queue, and then signals the event (ordered after that kernel by the in-order
+// queue) without waiting for it. The producer waits on the event and reads the
+// buffer back. The event is the only thing ordering the write before the read:
+// the "signal submitted" file does not imply completion. The buffer is poisoned
+// first, so a wait that returns before the work completes reads the wrong value
+// instead of hanging.
 //
 // clang-format off
 // Sentinel protocol:
@@ -27,11 +28,12 @@
 //   sigdata_consumer_done    consumer -> producer  consumer exited cleanly
 // clang-format on
 
-#include "Inputs/ipc_event_l0_signal.hpp"
 #include "Inputs/ipc_event_sentinel.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
+#include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 
 #include <cstdlib>
@@ -54,7 +56,6 @@ static constexpr int Poison = 0x0BADCAFE;
 
 static int producer(const std::string &Exe) {
   sycl::queue Q;
-  sycl::device Dev = Q.get_device();
   sycl::context Ctx = Q.get_context();
 
 #if defined(__linux__)
@@ -113,7 +114,9 @@ static int producer(const std::string &Exe) {
 }
 
 static int consumer() {
-  sycl::queue Q;
+  // In-order queue so the signal is ordered after the write kernel without an
+  // explicit dependency.
+  sycl::queue Q{sycl::property::queue::in_order{}};
   sycl::device Dev = Q.get_device();
   sycl::context Ctx = Q.get_context();
 
@@ -127,22 +130,17 @@ static int consumer() {
 
   // Enqueue the sentinel write but DO NOT host-synchronize it: the signal must
   // be the only thing that orders this write before the producer's read.
-  sycl::event WriteEvt = Q.parallel_for(
-      sycl::range<1>(NumElems), [=](sycl::id<1> I) { Buf[I] = Sentinel; });
+  Q.parallel_for(sycl::range<1>(NumElems),
+                 [=](sycl::id<1> I) { Buf[I] = Sentinel; });
 
-  // Submit a signal on the imported event that depends on the write kernel,
-  // without waiting for it to complete.
-  ze_command_list_handle_t SignalList =
-      ipc_event_test::submitSignalDependentOnEvent(Imported, WriteEvt, Ctx,
-                                                   Dev);
+  // Signal the imported event; on the in-order queue this is ordered after the
+  // write kernel. Do not wait for completion.
+  exp::enqueue_signal_event(Q, Imported);
   ipc_event_test::touchFile("sigdata_signal_done");
 
   // Stay alive while the producer's wait runs.
   ipc_event_test::waitForFile("sigdata_producer_synced");
 
-  // The producer's wait has completed, so the signal (and thus the write) has
-  // completed; it is now safe to tear down the command list.
-  zeCommandListDestroy(SignalList);
   ipc::memory::close(Shared, Ctx);
   ipc_event_test::touchFile("sigdata_consumer_done");
   return 0;

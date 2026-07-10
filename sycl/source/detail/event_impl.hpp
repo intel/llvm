@@ -96,9 +96,6 @@ public:
                                         private_tag{});
   }
 
-  /// Consumer-side IPC event factory: adopts a UR handle returned by
-  /// ipc::event::open(). Imported events cannot be re-exported, so they
-  /// report ext_oneapi_ipc_enabled() == false.
   static std::shared_ptr<event_impl>
   create_ipc_imported_event(ur_event_handle_t Event,
                             const context &SyclContext) {
@@ -118,11 +115,9 @@ public:
   /// \param Queue is a queue to be associated with the event
   void toDeviceEvent(queue_impl &Queue);
 
-  /// Lazily materializes the backend UR event for a producer IPC event
-  /// (created via make_event(enable_ipc)) that has not been signaled yet, so
-  /// that ipc::event::get() can produce a handle before the first signal. The
-  /// event is created on the first device of its context. No-op if the backend
-  /// handle already exists. Requires MIPCEnabled and a bound context.
+  /// Lazily creates the backend UR event for a producer IPC event so that
+  /// ipc::event::get() works before the first signal. No-op if it already
+  /// exists.
   void materializeIPCEvent();
 
   /// Returns an event UR handle and applies additional logic
@@ -445,16 +440,9 @@ protected:
   // storage.
   std::vector<std::weak_ptr<event_impl>> MWeakPostCompleteEvents;
 
-  /// Both IPC flags are set once, before the owning shared_ptr<event_impl> is
-  /// handed to user code: MIPCEnabled by make_event(enable_ipc) (via
-  /// setIPCEnabled, before the event is returned) and MOpenedFromIpc by the
-  /// create_ipc_imported_event factory. After that they are read-only, so
-  /// concurrent reads from any number of threads are safe without
-  /// synchronisation.
+  // Both flags are set at construction and read-only afterwards.
 
-  /// Backs event::ext_oneapi_ipc_enabled(): true for a producer event created
-  /// with make_event(enable_ipc). Also selects UR_EXP_EVENT_FLAG_IPC_EXP when
-  /// the backend event is lazily materialized.
+  /// True for a producer event created with make_event(enable_ipc).
   bool MIPCEnabled = false;
 
   /// True only for events imported via ipc::event::open().
@@ -504,10 +492,8 @@ protected:
   // when needed.
   void initContextIfNeeded();
 
-  // Creates a backend UR event on \p Device with the profiling/IPC flags
-  // recorded on this event (see MIsProfilingEnabled / MIPCEnabled). The
-  // context must already be bound. Used by toDeviceEvent and
-  // materializeIPCEvent. Throws errc::runtime on failure.
+  // Creates a backend UR event on \p Device with this event's profiling/IPC
+  // flags. The context must already be bound.
   ur_event_handle_t createDeviceUrEvent(device_impl &Device);
   // Event class represents 3 different kinds of operations:
   // | type  | has UR event | MContext | MIsHostTask | MIsDefaultConstructed |

@@ -574,43 +574,38 @@ context_impl::get_default_memory_pool(const context &Context,
   return MemPoolImplPtr;
 }
 
+bool context_impl::allDevicesSupport(ur_device_info_t Info,
+                                     std::optional<bool> &Cache) {
+  if (Cache)
+    return *Cache;
+
+  Cache =
+      std::all_of(MDevices.cbegin(), MDevices.cend(),
+                  [this, Info](detail::device_impl *DevImpl) {
+                    ur_bool_t Supported = false;
+                    ur_result_t Result =
+                        getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+                            DevImpl->getHandleRef(), Info, sizeof(Supported),
+                            &Supported, nullptr);
+                    return (Result == UR_RESULT_SUCCESS) && Supported;
+                  });
+  return *Cache;
+}
+
 bool context_impl::supportsReusableEvents() {
-  if (MReusableEventsSupport) {
-    return *MReusableEventsSupport;
-  }
-
-  MReusableEventsSupport = std::all_of(
-      MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
-        bool ReusableEventsSupport = false;
-        ur_result_t Result =
-            getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-                DevImpl->getHandleRef(),
-                UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
-                sizeof(ReusableEventsSupport), &ReusableEventsSupport, nullptr);
-        return (Result == UR_RESULT_SUCCESS) && ReusableEventsSupport;
-      });
-
-  return *MReusableEventsSupport;
+  return allDevicesSupport(UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
+                           MReusableEventsSupport);
 }
 
 bool context_impl::supportsEventProfiling() {
-  if (MEventProfilingSupport) {
-    return *MEventProfilingSupport;
-  }
+  // TODO: use UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP once it exists.
+  return allDevicesSupport(static_cast<ur_device_info_t>(0),
+                           MEventProfilingSupport);
+}
 
-  MEventProfilingSupport = std::all_of(
-      MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
-        bool EventProfilingSupport = false;
-        ur_result_t Result =
-            getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-                DevImpl->getHandleRef(),
-                (ur_device_info_t)0, // TODO reusable events
-                                     // UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
-                sizeof(EventProfilingSupport), &EventProfilingSupport, nullptr);
-        return (Result == UR_RESULT_SUCCESS) && EventProfilingSupport;
-      });
-
-  return *MEventProfilingSupport;
+bool context_impl::supportsIPCEvents() {
+  return allDevicesSupport(UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP,
+                           MIPCEventSupport);
 }
 
 } // namespace detail

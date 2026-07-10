@@ -5,7 +5,7 @@
 // UNSUPPORTED: windows
 // UNSUPPORTED-INTENDED: Cross-process IPC test relies on POSIX semantics.
 
-// RUN: %{build} -lze_loader %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // A handle is opened once and waited on across two separate producer signals
@@ -36,11 +36,12 @@
 // producer; it reports a failed data check by creating repeat_consumer_failed
 // before signaling repeat_consumed2, which the producer checks for.
 
-#include "Inputs/ipc_event_l0_signal.hpp"
 #include "Inputs/ipc_event_sentinel.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
+#include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 
 #include <cstdlib>
@@ -61,8 +62,8 @@ static constexpr int Value2 = 0x22222222;
 static constexpr int Poison = 0x0BADCAFE;
 
 static int producer(const std::string &Exe) {
-  sycl::queue Q;
-  sycl::device Dev = Q.get_device();
+  // In-order queue so each signal is ordered after its write kernel.
+  sycl::queue Q{sycl::property::queue::in_order{}};
   sycl::context Ctx = Q.get_context();
 
 #if defined(__linux__)
@@ -89,21 +90,20 @@ static int producer(const std::string &Exe) {
 
   std::system((Exe + " consumer &").c_str());
 
-  // Round 1: write Value1, signal #1 depends on that write.
-  sycl::event Write1 = Q.parallel_for(sycl::range<1>(NumElems),
-                                      [=](sycl::id<1> I) { Buf[I] = Value1; });
-  ze_command_list_handle_t SignalList1 =
-      ipc_event_test::submitSignalDependentOnEvent(Evt, Write1, Ctx, Dev);
+  // Round 1: write Value1, then signal the event (ordered after the write by
+  // the in-order queue) without waiting.
+  Q.parallel_for(sycl::range<1>(NumElems),
+                 [=](sycl::id<1> I) { Buf[I] = Value1; });
+  exp::enqueue_signal_event(Q, Evt);
   ipc_event_test::touchFile("repeat_signal1_ready");
 
   // Wait until the consumer has read Value1 before overwriting the buffer.
   ipc_event_test::waitForFile("repeat_consumed1");
 
-  // Round 2: write Value2, signal #2 depends on that write.
-  sycl::event Write2 = Q.parallel_for(sycl::range<1>(NumElems),
-                                      [=](sycl::id<1> I) { Buf[I] = Value2; });
-  ze_command_list_handle_t SignalList2 =
-      ipc_event_test::submitSignalDependentOnEvent(Evt, Write2, Ctx, Dev);
+  // Round 2: reuse the same event for a second write.
+  Q.parallel_for(sycl::range<1>(NumElems),
+                 [=](sycl::id<1> I) { Buf[I] = Value2; });
+  exp::enqueue_signal_event(Q, Evt);
   ipc_event_test::touchFile("repeat_signal2_ready");
 
   ipc_event_test::waitForFile("repeat_consumed2");
@@ -111,11 +111,6 @@ static int producer(const std::string &Exe) {
   // The consumer signals a failed data check out-of-band, since its exit code
   // is not observable (it runs in the background).
   bool ConsumerFailed = std::ifstream{"repeat_consumer_failed"}.good();
-
-  // Both signals have completed (the consumer read both values), so the
-  // command lists are safe to destroy.
-  zeCommandListDestroy(SignalList1);
-  zeCommandListDestroy(SignalList2);
 
   // Let the consumer close its imported handles before we release the backing
   // event and allocation, otherwise its close races with our free.
