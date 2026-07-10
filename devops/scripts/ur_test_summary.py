@@ -9,9 +9,21 @@ This script processes LIT test output logs to:
 
 import sys
 import re
-import xml.etree.ElementTree as ET
 from typing import List, Dict
 from pathlib import Path
+
+# Use defusedxml for secure XML parsing to prevent XML attacks
+try:
+    import defusedxml.ElementTree as ET
+except ImportError:
+    # Fallback to standard library if defusedxml not available
+    # This is safe for LIT-generated XML but triggers security warnings
+    import xml.etree.ElementTree as ET
+    print(
+        "Warning: defusedxml not available, using standard XML parser. "
+        "Install defusedxml for enhanced security.",
+        file=sys.stderr,
+    )
 
 
 def read_log_file(log_path: str) -> List[str]:
@@ -401,7 +413,8 @@ def show_statistics_and_lists(
     stats_skipped_count = None
 
     # For GoogleTest format: try multiple strategies to get skipped list
-    if "Unsupported" not in test_lists:
+    # BUT: only if they're not already in test_lists (avoid duplicates)
+    if "Unsupported" not in test_lists and "Skipped" not in test_lists:
         # Strategy 1: Extract from LIT xunit XML output (most complete and reliable)
         skipped_xml = extract_skipped_from_xml(xml_file)
 
@@ -518,8 +531,13 @@ def show_statistics_and_lists(
     # Validate that total discovered matches sum of all categories
     if total_discovered:
         # Sum from test_lists + any skipped we displayed separately
+        # BUT: Don't double-count if "Skipped" is already in test_lists
         sum_categories = sum(len(tests) for tests in test_lists.values())
-        sum_categories += displayed_skipped_count
+        
+        # Only add displayed_skipped_count if we displayed them separately
+        # (i.e., they're NOT already in test_lists as "Skipped")
+        if displayed_skipped_count > 0 and "Skipped" not in test_lists:
+            sum_categories += displayed_skipped_count
 
         if total_discovered != sum_categories:
             print()

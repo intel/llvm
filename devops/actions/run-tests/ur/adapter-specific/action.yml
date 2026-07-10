@@ -82,7 +82,7 @@ runs:
         exit 0
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log
+      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$BUILD_DIR/test/adapter_results.xml"
 
   - name: Upload adapter specific test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}
