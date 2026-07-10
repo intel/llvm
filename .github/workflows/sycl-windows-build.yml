@@ -270,7 +270,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
-        extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True
+        extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True --param intel_gpu_aot_targets="intel_gpu_pvc,intel_gpu_bmg_g21,intel_gpu_dg2,intel_gpu_tgllp"
         cxx: ${{ inputs.cxx }}
 
     - name:  Detect hung tests
