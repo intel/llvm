@@ -35,11 +35,13 @@ int main(int argc, char *argv[]) {
 
   ExitOnError Exit((Alias + ": ").str());
 
-  // Strip the "dp" prefix off the full filename to get the real tool's name.
-  // Keep any extension: on Windows the entry-points are "dpclang++.exe" copies
-  // of this tool and the real binary is "clang++.exe", so the extension must
-  // be preserved for the sibling lookup (and for ExecuteAndWait) to succeed.
-  StringRef RealName = Alias;
+  // Derive the real tool's base name by dropping any executable extension and
+  // stripping the "dp" prefix (e.g. "dpclang++" / "dpclang++.exe" -> "clang++").
+  // The extension is intentionally not carried over: how it appears in argv[0]
+  // is inconsistent across platforms (a Windows invocation may or may not
+  // include ".exe"), so it is left to findProgramByName below to append the
+  // right suffix when locating the real binary.
+  StringRef RealName = path::stem(Alias);
   if (!RealName.consume_front("dp"))
     Exit(createStringError("binary '" + Alias + "' not prefixed by 'dp'."));
 
@@ -54,11 +56,15 @@ int main(int argc, char *argv[]) {
 
   StringRef BinaryDir = path::parent_path(DpllvmPath);
 
-  SmallString<256> BinaryPath(BinaryDir);
-  path::append(BinaryPath, RealName);
-
-  if (!fs::exists(BinaryPath))
-    Exit(createStringError("binary '" + BinaryPath + "' does not exist."));
+  // findProgramByName searches the given directory and appends the platform
+  // executable suffix (".exe" on Windows), so this resolves the sibling real
+  // binary whether or not the invoking name carried an extension.
+  ErrorOr<std::string> BinaryPathOrErr =
+      findProgramByName(RealName, {BinaryDir});
+  if (!BinaryPathOrErr)
+    Exit(createStringError("binary '" + RealName + "' not found next to '" +
+                           DpllvmPath + "'."));
+  StringRef BinaryPath = *BinaryPathOrErr;
 
   SmallVector<StringRef, 128> Args = {BinaryPath};
   Args.append(argv + 1, argv + argc);
