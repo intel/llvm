@@ -145,6 +145,7 @@ jobs:
       uses: ./devops/actions/run-tests/ur/adapter-specific
       with:
         build_dir: build
+        artifact_name: 'ur-${{matrix.adapter.name}}-adapter-specific'
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
@@ -152,6 +153,7 @@ jobs:
       uses: ./devops/actions/run-tests/ur/adapters
       with:
         build_dir: build
+        artifact_name: 'ur-${{matrix.adapter.name}}-conformance'
 
     - name: Debug CI platform information
       if: ${{ always() }}
