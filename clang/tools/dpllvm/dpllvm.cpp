@@ -33,13 +33,14 @@ int main(int argc, char *argv[]) {
   StringRef Executable = argv[0];
   StringRef Alias = path::filename(Executable);
 
-  // On Windows the entry-points are ".exe" copies of this tool; drop the
-  // extension so the "dp" prefix check and the real-tool name are correct.
-  StringRef Stem = path::stem(Alias);
-
   ExitOnError Exit((Alias + ": ").str());
 
-  if (!Stem.consume_front("dp"))
+  // Strip the "dp" prefix off the full filename to get the real tool's name.
+  // Keep any extension: on Windows the entry-points are "dpclang++.exe" copies
+  // of this tool and the real binary is "clang++.exe", so the extension must
+  // be preserved for the sibling lookup (and for ExecuteAndWait) to succeed.
+  StringRef RealName = Alias;
+  if (!RealName.consume_front("dp"))
     Exit(createStringError("binary '" + Alias + "' not prefixed by 'dp'."));
 
   // Locate the directory this tool was installed into so we can find the real
@@ -54,7 +55,7 @@ int main(int argc, char *argv[]) {
   StringRef BinaryDir = path::parent_path(DpllvmPath);
 
   SmallString<256> BinaryPath(BinaryDir);
-  path::append(BinaryPath, Stem);
+  path::append(BinaryPath, RealName);
 
   if (!fs::exists(BinaryPath))
     Exit(createStringError("binary '" + BinaryPath + "' does not exist."));
