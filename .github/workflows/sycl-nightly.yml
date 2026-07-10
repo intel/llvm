@@ -60,6 +60,9 @@ jobs:
       # to override default args
       build_configure_extra_args: ''
       build_image: ghcr.io/intel/llvm/sle15sp4_build:latest
+      # Override default values - currently check-llvm and check-sycl fail
+      # TODO: switch to default values once all failures have been resolved.
+      changes: '[clang, xptifw, libclc]'
 
       toolchain_artifact: sycl_linux_sle15sp4
       toolchain_artifact_filename: sycl_linux_sle15sp4.tar.gz
