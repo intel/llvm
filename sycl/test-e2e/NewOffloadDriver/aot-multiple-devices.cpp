@@ -14,19 +14,21 @@
 // and modified to test with the New Offloading Model.
 
 // REQUIRES: opencl-aot, ocloc, any-device-is-cpu, any-device-is-gpu, target-spir, opencl-cpu-rt
+// REQUIRES: intel-gpu-aot-targets
 
 // Produce a fat object for all targets (generic SPIR-V, CPU, GPU).
-// It is required to specify the device name when compiling AOT for GPU.
-// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %S/Inputs/aot.cpp -c -o %t.o
+// In the new offload model the GPU target is specified as intel_gpu_<device>
+// via the intel_gpu_aot_targets lit parameter (e.g. intel_gpu_pvc).
+// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_x86_64,%{intel_gpu_aot_targets} %S/Inputs/aot.cpp -c -o %t.o
 
 // Check that all targets compiled in the fat binary are selected during
 // linking.
-// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_cpu_gpu.out 2>&1 | FileCheck %s --check-prefix=CHECK-DEVICE
+// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64_x86_64,%{intel_gpu_aot_targets} -v %t.o -o %t_cpu_gpu.out 2>&1 | FileCheck %s --check-prefix=CHECK-DEVICE
 // RUN: %{run} %t_cpu_gpu.out
 
 // Check that all targets compiled in the fat binary are selected during
 // linking (including CPU even though it is not specified during linking).
-// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_spv_gpu.out 2>&1 | FileCheck %s --check-prefix=CHECK-DEVICE
+// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64,%{intel_gpu_aot_targets} -v %t.o -o %t_spv_gpu.out 2>&1 | FileCheck %s --check-prefix=CHECK-DEVICE
 // Check that execution on AOT-compatible devices is unaffected
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t_spv_gpu.out
 
