@@ -3,10 +3,6 @@
 // RUN: %{build} %device_asan_flags -O0 -g -fPIC -shared -fsycl-allow-device-image-dependencies -DBUILD_LIB -o %t.dir/libdevice_oob.so
 // RUN: %{build} %device_asan_flags -O0 -g -fsycl-allow-device-image-dependencies -o %t.out -L%t.dir -ldevice_oob -Wl,-rpath=%t.dir
 // RUN: %{run} not --crash %t.out 2>&1 | FileCheck %s
-
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
-
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
@@ -36,8 +32,8 @@ int main() {
   sycl::queue Q;
 
   Q.submit([&](sycl::handler &h) {
-    h.single_task<class MainKernel>([=]() { touchLibDeviceGlobal(); });
-  }).wait();
+     h.single_task<class MainKernel>([=]() { touchLibDeviceGlobal(); });
+   }).wait();
 
   return 0;
 }
