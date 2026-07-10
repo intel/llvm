@@ -2075,7 +2075,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       if (SameTripleAsHost ||
           A->getOption().matches(options::OPT_mcode_object_version_EQ) ||
           A->getOption().matches(options::OPT_mlinker_version_EQ) ||
-          (Triple.getArch() == llvm::Triple::amdgcn && !IsSYCL &&
+          (Triple.getArch() == llvm::Triple::amdgpu && !IsSYCL &&
            A->getOption().matches(options::OPT_mcpu_EQ))) {
         DAL->append(A);
         continue;
