@@ -1812,7 +1812,7 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
   switch (Triple.getArch()) {
   case Triple::nvptx:
   case Triple::nvptx64:
-  case Triple::amdgcn:
+  case Triple::amdgpu:
   case Triple::native_cpu:
     return generic::clang({InputFile}, Args,
                           /*ActiveOffloadKindMask*/ OFK_SYCL);

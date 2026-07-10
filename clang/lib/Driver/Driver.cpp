@@ -1074,7 +1074,7 @@ static bool isValidSYCLTriple(llvm::Triple T) {
     return true;
 
   // 'amdgcn-amd-amdhsa' is the valid SYCL triple for AMD GPUs.
-  if (T.getArch() == llvm::Triple::amdgcn &&
+  if (T.getArch() == llvm::Triple::amdgpu &&
       T.getVendor() == llvm::Triple::AMD && T.getOS() == llvm::Triple::AMDHSA &&
       !T.hasEnvironment())
     return true;
@@ -10672,7 +10672,7 @@ const ToolChain &Driver::getOffloadToolChain(
         TC = std::make_unique<toolchains::CudaToolChain>(*this, Target, *HostTC,
                                                          Args, Kind);
       break;
-    case llvm::Triple::amdgcn:
+    case llvm::Triple::amdgpu:
       if (Kind == Action::OFK_SYCL)
         TC = std::make_unique<toolchains::HIPAMDToolChain>(*this, Target,
                                                            *HostTC, Args, Kind);
