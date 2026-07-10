@@ -241,6 +241,30 @@ __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_n
 // clang-format on
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+template <int Dimensions>
+size_t
+kernel::queryMaxNumWorkGroups(const device &Dev, sycl::range<Dimensions> Range,
+                              size_t Bytes, KernelExecInfoTy ExecInfo) const {
+  impl->getAdapter().call_nocheck<sycl::detail::UrApiKind::urKernelSetExecInfo>(
+      impl->getHandleRef(), UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
+      sizeof(ur_kernel_cache_config_t), nullptr, &(ExecInfo.CacheConfig));
+  sycl::queue Queue{Dev};
+  return impl->queryMaxNumWorkGroups<Dimensions>(
+      Queue, Range, Bytes + ExecInfo.DynamicWorkGroupMem);
+}
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<1>(
+    const device &Dev, sycl::range<1> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<2>(
+    const device &Dev, sycl::range<2> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<3>(
+    const device &Dev, sycl::range<3> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
+
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 ur_native_handle_t kernel::getNative() const { return impl->getNative(); }

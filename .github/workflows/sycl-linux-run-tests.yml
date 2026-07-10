@@ -330,6 +330,18 @@ jobs:
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
 
+    # Best-effort reservation of a few HugeTLB pages so the explicit huge-page
+    # path of the register_host_memory E2E test is exercised rather than being
+    # UNSUPPORTED. Failing to set it just means the huge-page test is UNSUPPORTED
+    # there, so never fail the job.
+    - name: Reserve HugeTLB pages
+      if: inputs.tests_selector == 'e2e'
+      continue-on-error: true
+      run: |
+        grep -i Huge /proc/meminfo
+        echo 2 | sudo tee /proc/sys/vm/nr_hugepages || true
+        grep -i Huge /proc/meminfo
+
     - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
       uses: ./devops/actions/run-tests/linux/e2e

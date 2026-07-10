@@ -1115,7 +1115,11 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
     return ReturnValue(true);
+#else
+    return ReturnValue(false);
+#endif
   }
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // L0 doesn't support enqueueing native work through the urNativeEnqueueExp
@@ -1287,7 +1291,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP: {
-#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2)
     // Registering existing host memory as a USM host allocation relies on the
     // external system memory mapping extension being supported by the driver.
     return ReturnValue(
