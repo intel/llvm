@@ -33,12 +33,6 @@
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
 // RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:    -fsycl-targets=intel_gpu_pvc %s 2>&1 \
-// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
-// rUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=12.60.7
-// TODO: double check the above.
-
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=intel_gpu_pvc,intel_gpu_mtl_s -Xs "-device pvc,mtl-s" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
@@ -84,12 +78,6 @@
 
 // RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_bdw %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_PVC %s
-
-// TODO: Test fails on Windows due to improper temporary file creation given
-//       the -device * value.  Re-enable when this is fixed.
-// RUNx: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xs "-device *" \
-// RUNx:          %s 2>&1 \
-// RUNx:   | FileCheck -check-prefix=NO_PVC %s
 
 // rUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_pvc,intel_gpu_mtl_s \
 // rUN:          %s 2>&1 \
