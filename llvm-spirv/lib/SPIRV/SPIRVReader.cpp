@@ -5531,7 +5531,7 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
       FastMathFlags FMF;
       FMF.setNoInfs();
       FMF.setNoNaNs();
-      CallInst *MinMax = IRB.CreateIntrinsic(
+      auto *MinMax = IRB.CreateIntrinsicWithoutFolding(
           IntrinsicID, {Args.front()->getType()}, Args, FMF);
       return MinMax;
     }

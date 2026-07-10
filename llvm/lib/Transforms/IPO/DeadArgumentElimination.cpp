@@ -76,14 +76,12 @@ public:
   bool runOnModule(Module &M) override {
     if (skipModule(M))
       return false;
-    DeadArgumentEliminationPass DAEP(shouldHackArguments(),
-                                     CheckSYCLKernels());
+    DeadArgumentEliminationPass DAEP(CheckSYCLKernels());
     ModuleAnalysisManager DummyMAM;
     PreservedAnalyses PA = DAEP.run(M, DummyMAM);
     return !PA.areAllPreserved();
   }
 
-  virtual bool shouldHackArguments() const { return false; }
   virtual bool CheckSYCLKernels() const { return false; }
 };
 
@@ -92,27 +90,6 @@ public:
 char DAE::ID = 0;
 
 INITIALIZE_PASS(DAE, "deadargelim", "Dead Argument Elimination", false, false)
-
-namespace {
-
-/// The DeadArgumentHacking pass, same as dead argument elimination, but deletes
-/// arguments to functions which are external. This is only for use by bugpoint.
-struct DAH : public DAE {
-  static char ID;
-
-  DAH() : DAE(ID) {}
-
-  bool shouldHackArguments() const override { return true; }
-  bool CheckSYCLKernels() const override { return false; }
-};
-
-} // end anonymous namespace
-
-char DAH::ID = 0;
-
-INITIALIZE_PASS(DAH, "deadarghaX0r",
-                "Dead Argument Hacking (BUGPOINT USE ONLY; DO NOT USE)", false,
-                false)
 
 namespace {
 
@@ -129,7 +106,6 @@ struct DAESYCL : public DAE {
     return "Dead Argument Elimination for SYCL kernels";
   }
 
-  bool shouldHackArguments() const override { return false; }
   bool CheckSYCLKernels() const override { return true; }
 };
 
@@ -143,8 +119,6 @@ INITIALIZE_PASS(DAESYCL, "deadargelim-sycl",
 /// This pass removes arguments from functions which are not used by the body of
 /// the function.
 ModulePass *llvm::createDeadArgEliminationPass() { return new DAE(); }
-
-ModulePass *llvm::createDeadArgHackingPass() { return new DAH(); }
 
 ModulePass *llvm::createDeadArgEliminationSYCLPass() { return new DAESYCL(); }
 
@@ -515,6 +489,12 @@ DeadArgumentEliminationPass::surveyUses(const Value *V,
 /// We consider arguments of non-internal functions to be intrinsically alive as
 /// well as arguments to functions which have their "address taken".
 void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
+  // Can only change function signature for functions with local linkage.
+  if (!F.hasLocalLinkage()) {
+    markFrozen(F);
+    return;
+  }
+
   // Functions with inalloca/preallocated parameters are expecting args in a
   // particular register and memory layout.
   if (F.getAttributes().hasAttrSomewhere(Attribute::InAlloca) ||
@@ -568,7 +548,7 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
       CheckSYCLKernels &&
       (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
   bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclKernel;
-  if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
+  if (FuncIsLive) {
     markFrozen(F);
     return;
   }
@@ -583,6 +563,7 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
     markFrozen(F);
     return;
   }
+
 
   LLVM_DEBUG(
       dbgs() << "DeadArgumentEliminationPass - Inspecting callers for fn: "
