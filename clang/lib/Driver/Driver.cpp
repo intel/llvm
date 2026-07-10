@@ -8130,7 +8130,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
 
         // Propagate device offload info
         auto *TCAndArch = TCAndArchs.begin();
-        A->propagateDeviceOffloadInfo(Kind, TCAndArch->second.data(),
+        A->propagateDeviceOffloadInfo(Kind, TCAndArch->second,
                                       TCAndArch->first);
       }
     }
