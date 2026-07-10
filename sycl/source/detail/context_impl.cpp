@@ -575,6 +575,7 @@ context_impl::get_default_memory_pool(const context &Context,
 }
 
 bool context_impl::supportsReusableEvents() {
+  std::lock_guard<std::mutex> Lock{MReusableEventsSupportMutex};
   if (MReusableEventsSupport) {
     return *MReusableEventsSupport;
   }
@@ -594,6 +595,7 @@ bool context_impl::supportsReusableEvents() {
 }
 
 bool context_impl::supportsEventProfiling() {
+  std::lock_guard<std::mutex> Lock{MEventProfilingSupportMutex};
   if (MEventProfilingSupport) {
     return *MEventProfilingSupport;
   }
