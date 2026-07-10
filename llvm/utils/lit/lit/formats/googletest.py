@@ -16,7 +16,7 @@ kIsWindows = sys.platform in ["win32", "cygwin"]
 class GoogleTest(TestFormat):
     def __init__(self, test_sub_dirs, test_suffix, run_under=[], test_prefix=None):
         self.seen_executables = set()
-        self.test_sub_dirs = str(test_sub_dirs).split(";")
+        self.test_sub_dirs = [d for d in str(test_sub_dirs).split(";") if d] or ["."]
 
         # On Windows, assume tests will also end in '.exe'.
         exe_suffix = str(test_suffix)
@@ -80,12 +80,19 @@ class GoogleTest(TestFormat):
 
                         # Create one lit test for each shard.
                         for idx in range(nshard):
-                            testPath = path_in_suite + (
-                                subdir,
-                                fn,
-                                str(idx),
-                                str(nshard),
-                            )
+                            if subdir == ".":
+                                testPath = path_in_suite + (
+                                    fn,
+                                    str(idx),
+                                    str(nshard),
+                                )
+                            else:
+                                testPath = path_in_suite + (
+                                    subdir,
+                                    fn,
+                                    str(idx),
+                                    str(nshard),
+                                )
                             json_file = (
                                 "-".join(
                                     [
@@ -106,7 +113,10 @@ class GoogleTest(TestFormat):
                                 gtest_json_file=json_file,
                             )
                     else:
-                        testPath = path_in_suite + (subdir, fn)
+                        if subdir == ".":
+                            testPath = path_in_suite + (fn,)
+                        else:
+                            testPath = path_in_suite + (subdir, fn)
                         json_file = (
                             "-".join(
                                 [
