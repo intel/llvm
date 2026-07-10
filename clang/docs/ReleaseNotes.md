@@ -116,8 +116,6 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   as being of type `std::size_t` instead of `int`,
   matching the deduction of array sizes from `int(&)[N]`.
   This is a breaking change for code that depended on the previously deduced type. (#GH195033)
-- Clang now rejects C++ declarations that combine the `auto` type specifier
-  with another type specifier, such as `auto int`.
 - Clang now rejects nested local classes defined in a different
   block scope than their parent class. (#GH193472)
 
@@ -462,6 +460,8 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - The `-cl` `/Brepro` option was modified to match the original CL's option
   and now defines the standard macros `__DATE__`, `__TIME__` and `__TIMESTAMP__` to
   "1". The previous functionality remains unchanged.
+- The `-fms-kernel` flag will now implicitly add `-fno-delete-null-pointer-checks`.
+  Still `-fdelete-null-pointer-checks` can be used to override this behavior.
 
 ### Removed Compiler Flags
 
@@ -838,7 +838,6 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Fixed an alias template CTAD crash.
 - Correctly diagnose uses of `co_await` / `co_yield` in the default argument of nested function declarations. (#GH98923)
 - Fixed a crash when diagnosing an invalid static member function with an explicit object parameter (#GH177741)
-- Fixed clang incorrectly rejecting several cases of out-of-line definitions. (#GH101330)
 - Clang incorrectly instantiated variable specializations outside of the immediate context. (#GH54439)
 - Fixed a crash when pack expansions are used as arguments for non-pack parameters of built-in templates. (#GH180307)
 - Fixed crash instantiating class member specializations.
@@ -980,6 +979,7 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 
   - Arm AGI CPU (armagicpu).
   - Hisilicon hip12 core (hip12).
+  - NVIDIA Rigel core (rigel).
 
 #### Android Support
 
