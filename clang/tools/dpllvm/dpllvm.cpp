@@ -36,11 +36,11 @@ int main(int argc, char *argv[]) {
   ExitOnError Exit((Alias + ": ").str());
 
   // Derive the real tool's base name by dropping any executable extension and
-  // stripping the "dp" prefix (e.g. "dpclang++" / "dpclang++.exe" -> "clang++").
-  // The extension is intentionally not carried over: how it appears in argv[0]
-  // is inconsistent across platforms (a Windows invocation may or may not
-  // include ".exe"), so it is left to findProgramByName below to append the
-  // right suffix when locating the real binary.
+  // stripping the "dp" prefix (e.g. "dpclang++" / "dpclang++.exe" ->
+  // "clang++"). The extension is intentionally not carried over: how it appears
+  // in argv[0] is inconsistent across platforms (a Windows invocation may or
+  // may not include ".exe"), so it is left to findProgramByName below to append
+  // the right suffix when locating the real binary.
   StringRef RealName = path::stem(Alias);
   if (!RealName.consume_front("dp"))
     Exit(createStringError("binary '" + Alias + "' not prefixed by 'dp'."));
