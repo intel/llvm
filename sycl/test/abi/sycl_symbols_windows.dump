@@ -4220,7 +4220,7 @@
 ?make_error_code@_V1@sycl@@YA?AVerror_code@std@@W4errc@12@@Z
 ?make_event@detail@_V1@sycl@@YA?AVevent@23@_KAEBVcontext@23@W4backend@23@@Z
 ?make_event@detail@_V1@sycl@@YA?AVevent@23@_KAEBVcontext@23@_NW4backend@23@@Z
-?make_event@detail@experimental@oneapi@ext@_V1@sycl@@YA?AVevent@56@AEBVcontext@56@_N@Z
+?make_event@detail@experimental@oneapi@ext@_V1@sycl@@YA?AVevent@56@AEBVcontext@56@I@Z
 ?make_kernel@detail@_V1@sycl@@YA?AVkernel@23@AEBVcontext@23@AEBV?$kernel_bundle@$01@23@_K_NW4backend@23@@Z
 ?make_kernel_bundle@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@_KAEBVcontext@23@_NW4bundle_state@23@W4backend@23@@Z
 ?make_kernel_bundle_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$02@56@AEBVcontext@56@W4source_language@23456@AEBV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@V?$vector@U?$pair@Vstring_view@detail@_V1@sycl@@V1234@@std@@V?$allocator@U?$pair@Vstring_view@detail@_V1@sycl@@V1234@@std@@@2@@std@@@Z
