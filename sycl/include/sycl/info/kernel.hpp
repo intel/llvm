@@ -23,8 +23,12 @@ class context;
 
 namespace info {
 
-// A.5 Kernel information desctiptors
+// A.5 Kernel information descriptors
 namespace kernel {
+struct max_num_work_groups_sync {
+  using return_type = size_t;
+};
+
 template <ur_kernel_info_t UrCode>
 using kernel_traits =
     sycl::detail::ur_traits_base<sycl::detail::info_class::kernel, UrCode>;

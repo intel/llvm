@@ -364,6 +364,25 @@ fill_copy_args(detail::handler_impl *impl,
                  DestOffset, DestExtent, CopyExtent);
 }
 
+// TODO: consider moving this to device_impl so that it can be shared by other
+// components
+static bool checkDeviceSupports(device_impl &DeviceImpl,
+                                ur_device_info_t InfoQuery) {
+  ur_bool_t SupportsOp = false;
+  DeviceImpl.getAdapter().call<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl.getHandleRef(), InfoQuery, sizeof(ur_bool_t), &SupportsOp,
+      nullptr);
+  return SupportsOp;
+}
+
+static std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+getNativeGraphImpl(queue_impl &Queue) {
+  ur_exp_graph_handle_t UrGraphHandle = nullptr;
+  Queue.getAdapter().call<UrApiKind::urQueueGetGraphExp>(Queue.getHandleRef(),
+                                                         &UrGraphHandle);
+  return Queue.getContextImpl().getNativeGraph(UrGraphHandle);
+}
+
 } // namespace detail
 
 handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
@@ -763,12 +782,37 @@ detail::EventImplPtr handler::finalize() {
   // Because command graph case is handled right above.
   assert(Queue);
 
-  // Native graph recording limitation
+  // Host tasks in native recording mode are captured into the native graph
+  // rather than submitted to the scheduler.
   if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "SYCL host_task is not supported in native recording mode. Use "
-        "zeCommandListAppendHostFunction as a workaround.");
+    auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
+    if (!HT->MHostTask->isCreatedFromEnqueueFunction()) {
+      throw sycl::exception(make_error_code(errc::feature_not_supported),
+                            "Only restricted host tasks may be captured in "
+                            "native recording mode.");
+    }
+
+    if (!checkDeviceSupports(*detail::getSyclObjImpl(Queue->get_device()),
+                             UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP)) {
+      throw sycl::exception(make_error_code(errc::feature_not_supported),
+                            "Recording host tasks in native recording mode "
+                            "requires backend support "
+                            "not available on this device.");
+    }
+
+    auto GraphImpl = detail::getNativeGraphImpl(*Queue);
+    assert(GraphImpl && "Native graph handle expired while recording");
+
+    // Store callback in the graph to manage its lifetime
+    auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
+        std::make_unique<detail::EnqueueHostTaskData>(
+            detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask)));
+
+    Queue->getAdapter().call<detail::UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), detail::NativeHostTask<false>, CallbackData,
+        nullptr, 0, nullptr, nullptr);
+
+    return detail::event_impl::create_completed_host_event();
   }
   if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
     throw sycl::exception(
