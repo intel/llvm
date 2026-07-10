@@ -13,17 +13,8 @@ from typing import List, Dict
 from pathlib import Path
 
 # Use defusedxml for secure XML parsing to prevent XML attacks
-try:
-    import defusedxml.ElementTree as ET
-except ImportError:
-    # Fallback to standard library if defusedxml not available
-    # This is safe for LIT-generated XML but triggers security warnings
-    import xml.etree.ElementTree as ET
-    print(
-        "Warning: defusedxml not available, using standard XML parser. "
-        "Install defusedxml for enhanced security.",
-        file=sys.stderr,
-    )
+# This is required - install via: pip install defusedxml
+import defusedxml.ElementTree as ET
 
 
 def read_log_file(log_path: str) -> List[str]:
@@ -533,7 +524,7 @@ def show_statistics_and_lists(
         # Sum from test_lists + any skipped we displayed separately
         # BUT: Don't double-count if "Skipped" is already in test_lists
         sum_categories = sum(len(tests) for tests in test_lists.values())
-        
+
         # Only add displayed_skipped_count if we displayed them separately
         # (i.e., they're NOT already in test_lists as "Skipped")
         if displayed_skipped_count > 0 and "Skipped" not in test_lists:
@@ -643,9 +634,10 @@ def main():
         # Empty string means not provided (from bash "")
         if xml_file == "":
             xml_file = None
-        if xml_file and (".." in xml_file or xml_file.startswith("/")):
+        # Validate: reject path traversal but allow absolute paths (BUILD_DIR can be absolute)
+        if xml_file and ".." in xml_file:
             print(
-                f"Error: Invalid XML file path: {xml_file}",
+                f"Error: Invalid XML file path (path traversal): {xml_file}",
                 file=sys.stderr,
             )
             sys.exit(1)
