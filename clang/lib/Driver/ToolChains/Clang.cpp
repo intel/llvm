@@ -10316,10 +10316,12 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     } else {
       llvm::Triple EffTriple(CurTC->ComputeEffectiveClangTriple(
           TCArgs, CurDep->getOffloadingArch()));
-      // SYCL old-model bundler uses 3-component triples for SPIR-V and NVPTX
-      // targets to match the triple format used during unbundling.
+      // SYCL old-model bundler uses 3-component triples for SPIR-V, NVPTX,
+      // and NativeCPU targets to match the triple format used during
+      // unbundling.
       if (CurKind == Action::OFK_SYCL &&
-          (EffTriple.isSPIROrSPIRV() || EffTriple.isNVPTX()))
+          (EffTriple.isSPIROrSPIRV() || EffTriple.isNVPTX() ||
+           EffTriple.isNativeCPU()))
         Triples += EffTriple.normalize();
       else
         Triples += EffTriple.normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
