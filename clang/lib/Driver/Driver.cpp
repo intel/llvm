@@ -3695,20 +3695,13 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
 
 static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
                        Compilation &C) {
-  // Find bundler. Resolve it via the toolchain program paths (which include
-  // the versioned dpclang tools dir, lib/dpcpp-N/bin/) rather than only the
-  // directory the driver runs from: on Windows the driver is a copy in bin/
-  // and the bundler lives in the versioned dir, so a search restricted to
-  // C.getDriver().Dir would not find it.
-  std::string BundlerBinary = C.getDriver().GetProgramPath(
-      "clang-offload-bundler", C.getDefaultToolChain());
-  // GetProgramPath falls back to the bare tool name when it can't locate the
-  // tool. Bail out if it isn't a runnable path rather than trying to execute an
-  // unresolved name (which could otherwise pick up an unrelated tool on PATH).
-  if (!llvm::sys::fs::can_execute(BundlerBinary))
-    return false;
+  // Find bundler.
+  StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
+  llvm::ErrorOr<std::string> BundlerBinary =
+      llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
   SmallVector<StringRef, 6> BundlerArgs;
-  BundlerArgs.push_back(BundlerBinary.c_str());
+  BundlerArgs.push_back(BundlerBinary.getError() ? "clang-offload-bundler"
+                                                 : BundlerBinary.get().c_str());
   BundlerArgs.append(InputArgs);
   // Since this is run in real time and not in the toolchain, output the
   // command line if requested.
@@ -3721,7 +3714,10 @@ static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
         llvm::errs() << A << " ";
     llvm::errs() << '\n';
   }
-  return !llvm::sys::ExecuteAndWait(BundlerBinary, BundlerArgs);
+  if (BundlerBinary.getError())
+    return false;
+
+  return !llvm::sys::ExecuteAndWait(BundlerBinary.get(), BundlerArgs);
 }
 
 static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
@@ -3735,24 +3731,15 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
     return {};
 
   // Use the bundler to grab the list of sections from the given archive
-  // or object. Resolve it via the toolchain program paths (which include the
-  // versioned dpclang tools dir, lib/dpcpp-N/bin/) rather than only the
-  // directory the driver runs from: on Windows the driver is a copy in bin/
-  // and the bundler lives in the versioned dir. GetProgramPath falls back to
-  // the bare tool name when it can't be located, so this never dereferences an
-  // errored value (previously an unchecked ErrorOr::get() crashed here when
-  // the bundler was not next to the driver).
-  std::string BundlerBinary = C.getDriver().GetProgramPath(
-      "clang-offload-bundler", C.getDefaultToolChain());
-  // Bail out if the tool couldn't be resolved to a runnable path rather than
-  // trying to execute an unresolved bare name.
-  if (!llvm::sys::fs::can_execute(BundlerBinary))
-    return {};
+  // or object.
+  StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
+  llvm::ErrorOr<std::string> BundlerBinary =
+      llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
   const char *Input = C.getArgs().MakeArgString(Twine("-input=") + File.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
   SmallVector<StringRef, 6> BundlerArgs = {
-      BundlerBinary, IsArchive ? "-type=ao" : "-type=o", Input, "-list"};
+      BundlerBinary.get(), IsArchive ? "-type=ao" : "-type=o", Input, "-list"};
   // Since this is run in real time and not in the toolchain, output the
   // command line if requested.
   bool OutputOnly = C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
@@ -3764,6 +3751,8 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
         llvm::errs() << A << " ";
     llvm::errs() << '\n';
   }
+  if (BundlerBinary.getError())
+    return {};
   llvm::SmallString<64> OutputFile(
       C.getDriver().GetTemporaryPath("bundle-list", "txt"));
   llvm::FileRemover OutputRemover(OutputFile.c_str());
@@ -3774,7 +3763,7 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
   };
 
   std::string ErrorMessage;
-  if (llvm::sys::ExecuteAndWait(BundlerBinary, BundlerArgs, {}, Redirects,
+  if (llvm::sys::ExecuteAndWait(BundlerBinary.get(), BundlerArgs, {}, Redirects,
                                 /*SecondsToWait*/ 0, /*MemoryLimit*/ 0,
                                 &ErrorMessage)) {
     // Could not get the information, return false

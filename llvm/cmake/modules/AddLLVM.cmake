@@ -2693,26 +2693,7 @@ function(llvm_setup_rpath name)
     set(_install_rpath "${LLVM_LIBRARY_OUTPUT_INTDIR}" "${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
   elseif(UNIX)
     set(_build_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
-    # For executables installed in DPCPP_INSTALL_INTERNAL_BINDIR (Linux only),
-    # compute the relative path from that directory to the lib directory so
-    # the dynamic linker can find the shared libraries at runtime.
-    get_target_property(_target_type ${name} TYPE)
-    if(_target_type STREQUAL "EXECUTABLE" AND
-       CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
-       DEFINED DPCPP_INSTALL_INTERNAL_BINDIR)
-      cmake_path(SET _internal_bin_abs NORMALIZE
-                 "/${DPCPP_INSTALL_INTERNAL_BINDIR}")
-      cmake_path(SET _lib_abs NORMALIZE "/lib${LLVM_LIBDIR_SUFFIX}")
-      cmake_path(RELATIVE_PATH _lib_abs BASE_DIRECTORY "${_internal_bin_abs}"
-                 OUTPUT_VARIABLE _rpath_to_lib)
-      set(_install_rpath "\$ORIGIN/${_rpath_to_lib}")
-      unset(_rpath_to_lib)
-      unset(_internal_bin_abs)
-      unset(_lib_abs)
-    else()
-      set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
-    endif()
-    unset(_target_type)
+    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
     if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
       list(APPEND _build_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}")
       list(APPEND _install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}")

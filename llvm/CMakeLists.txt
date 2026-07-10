@@ -534,27 +534,8 @@ include(GNUInstallPackageDir)
 set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
   "Path for CMake subdirectory for LLVM (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/llvm')")
 
-# Redirect all compiler tools into the versioned DPC++ library directory so
-# they don't conflict with a system LLVM installation.  The public dpclang*
-# entry-points in ${CMAKE_INSTALL_BINDIR} are added by clang/tools/driver.
-# This block must be after project() so that CMAKE_SYSTEM_NAME is defined.
-set(DPCPP_INSTALL_INTERNAL_BINDIR "lib/dpcpp-${DPCPP_VERSION_MAJOR}/bin")
-set(LLVM_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE STRING
-    "Path for binary subdirectory (defaults to '${DPCPP_INSTALL_INTERNAL_BINDIR}')" FORCE)
-set(CLANG_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
-# lld resolves its own install dir via LLD_TOOLS_INSTALL_DIR (used for its
-# ld.lld/ld64.lld/lld-link/wasm-ld symlinks); redirect it too so the linkers
-# don't collide with a system LLVM. The real lld binary destination is patched
-# separately in lld/cmake/modules/AddLLD.cmake, mirroring add_clang_tool.
-set(LLD_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
-
-# The default resource-dir formula is: dirname(binary)/../lib/clang/VERSION.
-# For binaries installed in lib/dpcpp-N/bin/ this resolves inside lib/dpcpp-N/
-# (i.e. lib/dpcpp-N/lib/clang/VERSION) rather than the install root.  The
-# resource files are installed directly there by get_clang_resource_dir()
-# (see cmake/Modules/GetClangResourceDir.cmake), so no bridging symlink from
-# the top-level lib/clang is needed.
-
+set(LLVM_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE STRING
+    "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")
 mark_as_advanced(LLVM_TOOLS_INSTALL_DIR)
 
 set(LLVM_UTILS_INSTALL_DIR "${LLVM_TOOLS_INSTALL_DIR}" CACHE STRING

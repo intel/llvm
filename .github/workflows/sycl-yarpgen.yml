@@ -60,7 +60,7 @@ jobs:
 
     - run: which dpclang++
 
-    - run: sycl-ls
+    - run: dpsycl-ls
 
     - name: Set up yarpgen
       run: |

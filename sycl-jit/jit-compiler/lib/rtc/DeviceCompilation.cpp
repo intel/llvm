@@ -177,17 +177,6 @@ std::string getLibPathSuffix() {
                        DPCPP_VERSION_MAJOR);
 #endif
 }
-
-// Location of the internal `clang++` binary relative to the toolchain root.
-// The real toolchain relocates the driver into a versioned libdir on Linux
-// (mirroring DPCPP_INSTALL_INTERNAL_BINDIR in llvm/CMakeLists.txt); the JIT's
-// virtual toolchain must use the same layout so that clang's GetResourcesPath()
-// derives the same (versioned) resource directory the bundled resource headers
-// and libraries are installed into.
-std::string getInternalBinSubPath() {
-  return llvm::formatv("/{0}/dpcpp-{1}/bin/clang++",
-                       CLANG_INSTALL_LIBDIR_BASENAME, DPCPP_VERSION_MAJOR);
-}
 class SYCLToolchain {
   static auto &getToolchainFS() {
     // TODO: For some reason, removing `thread_local` results in data races
@@ -642,9 +631,8 @@ private:
   clang::IgnoringDiagConsumer IgnoreDiag;
   std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
                           jit_compiler::resource::ToolchainPrefix.Size};
-  std::string ClangXXExe = (Prefix + getInternalBinSubPath()).str();
-  std::string LibclcDir =
-      GetResourcesPath(ClangXXExe) + "/" + CLANG_INSTALL_LIBDIR_BASENAME + "/";
+  std::string ClangXXExe = (Prefix + "/bin/clang++").str();
+  std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/";
 
   PrecompiledPreambles Preambles;
 };

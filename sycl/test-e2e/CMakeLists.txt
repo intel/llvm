@@ -104,26 +104,13 @@ endif()
 
 get_filename_component(DPCPP_ROOT_DIR ${SYCL_CXX_COMPILER} DIRECTORY)
 if(SYCL_TEST_E2E_STANDALONE)
-  # llvm-config is not necessarily next to the compiler driver: with the
-  # dpclang layout the real tools live in lib/dpcpp-<major>/bin/ while the
-  # public driver is in bin/.  Ask the compiler where llvm-config is instead
-  # of assuming it sits alongside the driver.
   execute_process(
-      COMMAND ${SYCL_CXX_COMPILER} -print-prog-name=llvm-config${CMAKE_EXECUTABLE_SUFFIX}
+      COMMAND ${DPCPP_ROOT_DIR}/llvm-config${CMAKE_EXECUTABLE_SUFFIX} --libdir
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      RESULT_VARIABLE CMPLR_CONFIG_RESULT
-      OUTPUT_VARIABLE CMPLR_CONFIG_PATH
+      RESULT_VARIABLE CMPLR_LIBS_RESULT
+      OUTPUT_VARIABLE CMPLR_LIBS_DIR
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-  if(CMPLR_CONFIG_RESULT EQUAL 0 AND EXISTS "${CMPLR_CONFIG_PATH}")
-    execute_process(
-        COMMAND ${CMPLR_CONFIG_PATH} --libdir
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        RESULT_VARIABLE CMPLR_LIBS_RESULT
-        OUTPUT_VARIABLE CMPLR_LIBS_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-      )
-  endif()
   if(NOT CMPLR_LIBS_RESULT EQUAL 0 OR NOT CMPLR_LIBS_DIR)
     message(FATAL_ERROR "Failed to determine SYCL library directory")
   endif()

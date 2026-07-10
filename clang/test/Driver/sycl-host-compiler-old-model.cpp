@@ -6,9 +6,9 @@
 // HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
 // HOST_COMPILER: g++{{.*}} "-c" "-include" "[[INTHEADER]]"
 // HOST_COMPILER-SAME: "-iquote"
-// HOST_COMPILER-SAME: "-isystem" "{{.*[/\\]}}include{{[/\\]+}}sycl"
-// HOST_COMPILER-SAME: "-isystem" "{{.*[/\\]}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
-// HOST_COMPILER-SAME: "-isystem" "{{.*[/\\]}}include"
+// HOST_COMPILER-SAME: "-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// HOST_COMPILER-SAME: "-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// HOST_COMPILER-SAME: "-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // HOST_COMPILER-SAME: "-o" "[[HOSTOBJ:.+\.o]]"
 // HOST_COMPILER: ld{{.*}} "[[HOSTOBJ]]"
 
@@ -17,9 +17,9 @@
 // HOST_COMPILER_CL: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
 // HOST_COMPILER_CL: cl{{.*}} "-c" "-Fo[[HOSTOBJ:.+\.obj]]" "-FI" "[[INTHEADER]]"
 // HOST_COMPILER_CL-SAME: "/external:W0"
-// HOST_COMPILER_CL-SAME: "/external:I" "{{.*[/\\]}}include{{[/\\]+}}sycl"
-// HOST_COMPILER_CL-SAME: "/external:I" "{{.*[/\\]}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
-// HOST_COMPILER_CL-SAME: "/external:I" "{{.*[/\\]}}include"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // HOST_COMPILER_CL: link{{.*}} "[[HOSTOBJ]]"
 
 /// check for additional host options

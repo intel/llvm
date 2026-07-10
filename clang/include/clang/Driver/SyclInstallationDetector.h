@@ -38,12 +38,6 @@ public:
 
   // Return the filesystem path to the detected SYCL runtime library.
   StringRef getSYCLRTLibPath() const { return SYCLRTLibPath; }
-  // Return the install root (the directory containing include/ and lib/).
-  StringRef getInstallRoot() const {
-    return InstallationCandidates.empty()
-               ? StringRef()
-               : StringRef(InstallationCandidates[0]);
-  }
   void print(llvm::raw_ostream &OS) const;
 
 private:

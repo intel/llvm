@@ -16,7 +16,6 @@
 #include "ToolChains/InterfaceStubs.h"
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/Sanitizers.h"
-#include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/CommonArgs.h"
@@ -106,38 +105,6 @@ ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
     getFilePaths().push_back(*Path);
   for (const auto &Path : getArchSpecificLibPaths())
     addIfExists(getFilePaths(), Path);
-
-  // The real compiler tools (clang, clang++, llvm-ar, clang-offload-bundler,
-  // ...) are installed into a versioned DPC++ subdirectory (lib/dpcpp-N/bin/)
-  // so they don't conflict with a system LLVM installation. On Linux the
-  // public dpclang* entry-points in bin/ are symlinks into that directory, so
-  // D.Dir already points at it once the symlink is resolved. On Windows those
-  // entry-points are real copies that live in bin/, so D.Dir is bin/ and the
-  // companion tools are one directory removed; seed the versioned directory
-  // into the program search path so the driver can still find them.
-  //
-  // This is scoped to only fire for a real dpclang install layout: the
-  // versioned directory must exist and must be distinct from the directory the
-  // driver already runs from (D.Dir). That keeps it inert for a build tree
-  // (where the versioned dir isn't populated) and for the Linux install (where
-  // the resolved driver already is the versioned dir), so libclang and other
-  // non-driver consumers see no behavior change.
-  {
-    std::string DpcppVersionedDir =
-        (llvm::Twine("dpcpp-") + llvm::Twine(DPCPP_VERSION_MAJOR)).str();
-    SmallString<128> InternalBin(findSYCLInstallRoot(D));
-    llvm::sys::path::append(InternalBin, CLANG_INSTALL_LIBDIR_BASENAME,
-                            DpcppVersionedDir, "bin");
-    llvm::sys::path::remove_dots(InternalBin, /*remove_dot_dot=*/true);
-    // Normalize D.Dir the same way before comparing so the Linux install
-    // (where the resolved driver already lives in the versioned dir) is
-    // recognized as the same directory and skipped.
-    SmallString<128> DriverDir(D.Dir);
-    llvm::sys::path::remove_dots(DriverDir, /*remove_dot_dot=*/true);
-    if (StringRef(InternalBin) != StringRef(DriverDir) &&
-        getVFS().exists(InternalBin))
-      getProgramPaths().push_back(std::string(InternalBin));
-  }
 }
 
 ToolChain::OrderedMultilibs ToolChain::getOrderedMultilibs() const {

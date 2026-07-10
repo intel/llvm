@@ -230,31 +230,6 @@ std::string clang::GetResourcesPath(StringRef BinaryPath) {
     // path of the embedding binary, which for LLVM binaries will be in bin/.
     // ../lib gets us to lib/ in both cases.
     P = llvm::sys::path::parent_path(Dir);
-
-    // In the dpclang install layout the real tools live in
-    // <root>/lib/dpcpp-N/bin, and the resources are installed alongside them
-    // in <root>/lib/dpcpp-N/lib/clang/N (see get_clang_resource_dir() in
-    // cmake/Modules/GetClangResourceDir.cmake). On Linux the public dpclang*
-    // drivers are symlinks resolved into that versioned bin dir, so the plain
-    // ../lib formula above already lands in <root>/lib/dpcpp-N/lib. On Windows
-    // the drivers are real copies that live in <root>/bin, so ../lib lands in
-    // <root>/lib and misses the versioned subdirectory. Detect that case (the
-    // binary sits directly in a "bin" dir whose sibling versioned lib exists)
-    // and redirect into lib/dpcpp-N/lib so the resource dir matches where the
-    // files were actually installed.
-    // The final append below adds "<libdir>/clang/N", so P must be the
-    // directory that contains the versioned libdir, i.e. <root>/lib/dpcpp-N.
-    if (llvm::sys::path::filename(Dir) == "bin") {
-      SmallString<128> Versioned(P);
-      llvm::sys::path::append(
-          Versioned, CLANG_INSTALL_LIBDIR_BASENAME,
-          ("dpcpp-" + llvm::Twine(DPCPP_VERSION_MAJOR)).str());
-      SmallString<128> VersionedLib(Versioned);
-      llvm::sys::path::append(VersionedLib, CLANG_INSTALL_LIBDIR_BASENAME);
-      if (llvm::sys::fs::is_directory(VersionedLib))
-        P = Versioned;
-    }
-
     // This search path is also created in the COFF driver of lld, so any
     // changes here also needs to happen in lld/COFF/Driver.cpp
     llvm::sys::path::append(P, CLANG_INSTALL_LIBDIR_BASENAME, "clang",

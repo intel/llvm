@@ -52,24 +52,14 @@ macro(add_lld_tool name)
     add_lld_executable(${name} ${ARGN})
 
     if (LLD_BUILD_TOOLS)
-      # Install the real lld binary into the versioned DPC++ tools dir (e.g.
-      # lib/dpcpp-N/bin) so it doesn't conflict with a system LLVM, matching
-      # add_clang_tool. The public ld.lld/ld64.lld/lld-link/wasm-ld entry-points
-      # are symlinks/copies created via LLD_TOOLS_INSTALL_DIR, which is also
-      # redirected there (see llvm/CMakeLists.txt).
-      if(DEFINED DPCPP_INSTALL_INTERNAL_BINDIR)
-        set(_lld_runtime_dest "${DPCPP_INSTALL_INTERNAL_BINDIR}")
-      else()
-        set(_lld_runtime_dest "${CMAKE_INSTALL_BINDIR}")
-      endif()
       get_target_export_arg(${name} LLD export_to_lldtargets)
       install(TARGETS ${name}
         ${export_to_lldtargets}
-        RUNTIME DESTINATION "${_lld_runtime_dest}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
         COMPONENT ${name})
 
       if (LLVM_ENABLE_PDB)
-        install(FILES $<TARGET_PDB_FILE:${name}> DESTINATION "${_lld_runtime_dest}" COMPONENT ${name} OPTIONAL)
+        install(FILES $<TARGET_PDB_FILE:${name}> DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT ${name} OPTIONAL)
       endif()
 
       if(NOT CMAKE_CONFIGURATION_TYPES)

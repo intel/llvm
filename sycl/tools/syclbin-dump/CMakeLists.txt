@@ -22,4 +22,4 @@ endif()
 add_dependencies(sycl-toolchain syclbin-dump)
 
 install(TARGETS syclbin-dump
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT syclbin-dump)
+  RUNTIME DESTINATION "bin" COMPONENT syclbin-dump)

@@ -156,14 +156,6 @@ set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION
 set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
 
-# The <std/...> wrapper headers (e.g. <std/experimental/simd.hpp>) are
-# relocated into the versioned DPC++ include directory so the top-level
-# include/ isn't polluted with a "std" directory that could shadow or conflict
-# with a system toolchain.  The compiler driver adds this directory to the
-# SYCL header search path (see addSYCLIncludeArgs in
-# clang/lib/Driver/ToolChains/SYCL.cpp).
-set(SYCL_STD_INCLUDE_DIR "lib${LLVM_LIBDIR_SUFFIX}/dpcpp-${DPCPP_VERSION_MAJOR}/include")
-
 if(NOT SYCL_HEADERS_ONLY)
   add_llvm_external_project(opencl)
   list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_PROJ_FOUND)
@@ -316,7 +308,7 @@ add_custom_command(
 # Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
-install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_STD_INCLUDE_DIR} COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 
 if (WIN32)
@@ -433,6 +425,7 @@ endif()
 add_custom_target(sycl-compiler
   DEPENDS append-file
           clang
+          dpllvm
           clang-offload-wrapper
           clang-offload-bundler
           clang-offload-deps
@@ -517,6 +510,7 @@ get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONEN
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
      clang
+     dpllvm
      clang-offload-wrapper
      clang-offload-bundler
      clang-offload-deps

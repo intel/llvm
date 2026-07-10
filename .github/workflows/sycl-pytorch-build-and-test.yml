@@ -145,8 +145,8 @@ jobs:
           # Install PyTorch.
           pip3 install ./dist/*.whl
 
-      - name: Run sycl-ls
-        run: sycl-ls --verbose
+      - name: Run dpsycl-ls
+        run: dpsycl-ls --verbose
 
       - name: Run PyTorch XPU Sanity Check
         shell: bash

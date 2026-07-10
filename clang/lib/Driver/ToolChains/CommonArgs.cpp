@@ -25,7 +25,6 @@
 #include "Solaris.h"
 #include "ToolChains/Cuda.h"
 #include "clang/Basic/CodeGenOptions.h"
-#include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
@@ -68,50 +67,6 @@ using namespace clang::driver;
 using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
-
-llvm::SmallString<128> clang::driver::findSYCLInstallRoot(const Driver &D) {
-  // Deduce the install root from the directory the driver was invoked from,
-  // recognizing the directory layouts the compiler may be installed into.
-  // This mirrors RocmInstallationDetector::getInstallationPathCandidates() in
-  // AMDGPU.cpp, which walks up from the clang binary by matching the names of
-  // the enclosing directories rather than guessing a fixed depth.
-  StringRef ParentDir = llvm::sys::path::parent_path(D.Dir);
-  StringRef ParentName = llvm::sys::path::filename(ParentDir);
-
-  // Some layouts install the compiler into lib/<arch>/bin, so go up again.
-  if (ParentName == "bin") {
-    ParentDir = llvm::sys::path::parent_path(ParentDir);
-    ParentName = llvm::sys::path::filename(ParentDir);
-  }
-
-  // The dpclang install layout keeps the real tools in lib/dpcpp-<major>/bin
-  // (the public dpclang* drivers in bin/ are just symlinks into it, and the
-  // driver resolves them, so D.Dir points at the versioned directory). Step
-  // out of that versioned subdirectory to match the exact expected directory
-  // name for this compiler's version rather than any "dpcpp-*" so an unrelated
-  // sibling directory can't be mistaken for it.
-  if (ParentName == "dpcpp-" + llvm::Twine(DPCPP_VERSION_MAJOR).str()) {
-    ParentDir = llvm::sys::path::parent_path(ParentDir);
-    ParentName = llvm::sys::path::filename(ParentDir);
-  }
-
-  // Some layouts nest the compiler under lib/llvm/bin, so back up out of the
-  // lib directory as well. Honor a custom libdir name (e.g. lib64).
-  if (ParentName == CLANG_INSTALL_LIBDIR_BASENAME)
-    ParentDir = llvm::sys::path::parent_path(ParentDir);
-
-  // Validate the deduced root by checking for the SYCL headers it should
-  // contain; if they are not present, fall back to one level up from D.Dir.
-  llvm::SmallString<128> Root(ParentDir);
-  llvm::SmallString<128> Probe(Root);
-  llvm::sys::path::append(Probe, "include", "sycl");
-  if (!D.getVFS().exists(Probe)) {
-    Root = D.Dir;
-    llvm::sys::path::append(Root, "..");
-    llvm::sys::path::remove_dots(Root, /*remove_dot_dot=*/true);
-  }
-  return Root;
-}
 
 static bool useFramePointerForTargetByDefault(const llvm::opt::ArgList &Args,
                                               const llvm::Triple &Triple) {
