@@ -4856,7 +4856,8 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
     DecompositionDecl *ToDecomp;
     if (GetImportedOrCreateDecl(
             ToDecomp, FromDecomp, Importer.getToContext(), DC, ToInnerLocStart,
-            Loc, ToType, ToTypeSourceInfo, D->getStorageClass(), Bindings))
+            Loc, FromDecomp->getRSquareLoc(), ToType, ToTypeSourceInfo,
+            D->getStorageClass(), Bindings))
       return ToDecomp;
     ToVar = ToDecomp;
   } else {
