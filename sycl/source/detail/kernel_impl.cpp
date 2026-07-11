@@ -11,6 +11,7 @@
 #include <detail/kernel_impl.hpp>
 
 #include <memory>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -117,10 +118,20 @@ bool kernel_impl::hasSYCLMetadata() const noexcept {
               sycl::ext::oneapi::experimental::source_language::sycl));
 }
 
-// TODO this is how kernel_impl::get_info<function_name> should behave instead.
 std::string_view kernel_impl::getName() const {
-  std::call_once(MNameInitFlag,
-                 [&]() { MName = get_info<info::kernel::function_name>(); });
+  std::call_once(MNameInitFlag, [&]() {
+    adapter_impl &Adapter = getAdapter();
+    size_t NameSize = 0;
+    Adapter.call<UrApiKind::urKernelGetInfo>(
+        MKernel, UR_KERNEL_INFO_FUNCTION_NAME, 0u, nullptr, &NameSize);
+    if (NameSize > 0) {
+      std::vector<char> NameBuf(NameSize);
+      Adapter.call<UrApiKind::urKernelGetInfo>(
+          MKernel, UR_KERNEL_INFO_FUNCTION_NAME, NameSize, NameBuf.data(),
+          nullptr);
+      MName = std::string(NameBuf.data());
+    }
+  });
 
   return MName;
 }
@@ -139,7 +150,7 @@ bool kernel_impl::isBuiltInKernel(device_impl &Device) const {
   auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernels.empty())
     return false;
-  std::string KernelName = get_info<info::kernel::function_name>();
+  std::string_view KernelName = getName();
   return (std::any_of(
       BuiltInKernels.begin(), BuiltInKernels.end(),
       [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }));

@@ -39,7 +39,7 @@ kernel::kernel(OpenCLKernelT ClKernel, const context &SyclContext) {
 OpenCLKernelT kernel::get() const { return impl->get(); }
 
 context kernel::get_context() const {
-  return impl->get_info<info::kernel::context>();
+  return detail::createSyclObjFromImpl<context>(impl->getContextImpl());
 }
 
 backend kernel::get_backend() const noexcept { return getImplBackend(impl); }
@@ -61,9 +61,11 @@ kernel::get_info_impl() const {
   kernel::get_info_impl<info::kernel::NAME>() const;
 __SYCL_KERNEL_INFO_INST(num_args, uint32_t)
 __SYCL_KERNEL_INFO_INST(attributes, std::string)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_KERNEL_INFO_INST(function_name, std::string)
 __SYCL_KERNEL_INFO_INST(reference_count, uint32_t)
 __SYCL_KERNEL_INFO_INST(context, sycl::context)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #undef __SYCL_KERNEL_INFO_INST
 
 template <typename Param>
