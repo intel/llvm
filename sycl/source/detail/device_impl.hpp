@@ -1290,6 +1290,7 @@ public:
       return (get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_restricted_shared_allocations) {
       ur_device_usm_access_capability_flags_t cap_flags =
           get_info_impl<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
