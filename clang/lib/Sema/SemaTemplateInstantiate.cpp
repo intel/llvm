@@ -3087,7 +3087,7 @@ bool Sema::SubstTypeConstraint(
   const ASTTemplateArgumentListInfo *TemplArgInfo =
       TC->getTemplateArgsAsWritten();
 
-  if (!EvaluateConstraints && !inParameterMappingSubstitution()) {
+  if (!EvaluateConstraints) {
     UnsignedOrNone Index = TC->getArgPackSubstIndex();
     bool ContainsUnexpandedPack =
         TemplArgInfo &&
