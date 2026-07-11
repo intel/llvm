@@ -810,6 +810,7 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   (#GH191829)
 - Fixed a crash in the constant evaluator when an ill-formed array new-expression whose bound could not be determined (e.g. `new int[]()`) was used in a constant expression. (#GH200139)
 - Clang now defines the GCC-compatible predefined macros `__WCHAR_MIN__`, `__WINT_MIN__`, and `__SIG_ATOMIC_MIN__`. (#GH199678)
+- Fix a crash in addUnsizedArray due assert not verifying we have a Base before doing checks on it. (#GH44212)
 
 #### Bug Fixes to Compiler Builtins
 
@@ -1002,6 +1003,11 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Removed support for `AMX-TF32` (`-mamx-tf32`) and `TMMULTF32PS` instruction.
 
 #### Arm and AArch64 Support
+
+- On Apple AArch64 targets, `__GCC_DESTRUCTIVE_SIZE` is now `128` (down from `256`)
+  to match the 128-byte cache line used by Apple cores, avoiding needless
+  over-alignment. This value is implementation-defined and should not be relied upon
+  in an ABI-sensitive way.
 
 - Support has been added for the following processors (-mcpu identifiers in parenthesis):
 
