@@ -62,7 +62,7 @@ int main() {
   verifier.verify(RECORDING, EXECUTING);
 
   // Cross-boundary: wait during recording on the pre-recording event from
-  // Queue1. This is event is not marked as an external wait, and it is expected
+  // Queue1. This event is not marked as an external wait, and it is expected
   // to become an error in the native runtime.
   // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-SAME: .numEventsInWaitList = 1

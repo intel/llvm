@@ -480,10 +480,10 @@ protected:
   /// Indicates that the event results from a command graph submission.
   bool MEventFromSubmittedExecCommandBuffer = false;
 
-  /// Set from the context of the worker queue when the event was signaled,
-  /// marking it as potentially captured if a native graph recording was active.
-  /// Used to preserve in-order dependencies that cross the native-recording
-  /// capture boundary.
+  /// Set from the context of the worker queue when the event is created for a
+  /// command submission, marking it as potentially captured if a native graph
+  /// recording was active. Used to preserve in-order dependencies that cross
+  /// the native-recording capture boundary.
   bool MPotentiallyNativeRecorded = false;
 
   // If this event represents a submission to a
