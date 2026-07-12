@@ -140,6 +140,17 @@ int main() {
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;
 
+  // expected-warning@+1{{'reference_count' is deprecated: info::context::reference_count is not part of SYCL 2020}}
+  using CRC = sycl::info::context::reference_count;
+  // expected-warning@+1{{'reference_count' is deprecated: info::device::reference_count is not part of SYCL 2020}}
+  using DRC = sycl::info::device::reference_count;
+  // expected-warning@+1{{'reference_count' is deprecated: info::event::reference_count is not part of SYCL 2020}}
+  using ERC = sycl::info::event::reference_count;
+  // expected-warning@+1{{'reference_count' is deprecated: info::kernel::reference_count is not part of SYCL 2020}}
+  using KRC = sycl::info::kernel::reference_count;
+  // expected-warning@+1{{'reference_count' is deprecated: info::queue::reference_count is not part of SYCL 2020}}
+  using QRC = sycl::info::queue::reference_count;
+
   // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;

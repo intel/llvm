@@ -402,6 +402,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   return MHostProfilingInfo->getEndTime();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   auto Handle = this->getHandle();
   if (!MIsHostEvent && Handle) {
@@ -410,6 +411,7 @@ template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   }
   return 0;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <>
 info::event_command_status
