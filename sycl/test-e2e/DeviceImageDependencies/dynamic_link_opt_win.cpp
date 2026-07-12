@@ -18,7 +18,7 @@
 // RUN: %clangxx -fsycl -fsycl-allow-device-image-dependencies -O2 %s %t_d.lib -o %t_O2.exe
 // RUN: %{run} %t_O2.exe
 
-// XFAIL: windows
+// XFAIL: windows && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-76054
 
 #include <cassert>
