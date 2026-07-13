@@ -1,5 +1,4 @@
 // REQUIRES: any-device-is-cpu, gpu, opencl-aot, ocloc, target-spir, opencl-cpu-rt
-// REQUIRES: intel-gpu-aot-targets || !new-offload-model
 
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17305
@@ -9,8 +8,8 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -I %S/Inputs/ %S/uneven_kernel_split.cpp -c -o %t.o
-// RUN: %clangxx -fsycl %{gpu_aot_opts} -I %S/Inputs/ %S/Inputs/gpu_kernel1.cpp -c -o %t1.o
-// RUN: %clangxx -fsycl %{gpu_aot_opts} -I %S/Inputs/ %S/Inputs/gpu_kernel2.cpp -c -o %t2.o
+// RUN: %clangxx -fsycl %{intel_gpu_aot_targets} -I %S/Inputs/ %S/Inputs/gpu_kernel1.cpp -c -o %t1.o
+// RUN: %clangxx -fsycl %{intel_gpu_aot_targets} -I %S/Inputs/ %S/Inputs/gpu_kernel2.cpp -c -o %t2.o
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,%{intel_gpu_aot_targets} -Wno-unused-command-line-argument %t.o %t1.o %t2.o -o %t.out
 // RUN: %{run} %t.out
 

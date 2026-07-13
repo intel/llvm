@@ -7,7 +7,6 @@
 //===---------------------------------------------------------------------===//
 
 // REQUIRES: ocloc, gpu, target-spir
-// REQUIRES: intel-gpu-aot-targets || !new-offload-model
 //
-// RUN: %clangxx -fsycl %{gpu_aot_opts} %S/Inputs/aot.cpp -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%{intel_gpu_aot_targets} %S/Inputs/aot.cpp -o %t.out
 // RUN: %{run} %t.out

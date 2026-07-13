@@ -667,13 +667,7 @@ if platform.system() == "Windows":
         directx_libs = ["/clang:" + l for l in directx_libs]
     config.substitutions.append(("%link-directx", " ".join(directx_libs)))
 
-if not config.gpu_aot_target_opts:
-    config.gpu_aot_target_opts = '"-device *"'
-
-config.substitutions.append(("%gpu_aot_target_opts", config.gpu_aot_target_opts))
-
 # Maps intel_gpu_<X> target names to the ocloc short names accepted by -device.
-# Mirrors SYCLTargetToOffloadArchName() in clang/lib/Basic/OffloadArch.cpp.
 _INTEL_GPU_SHORT_NAMES = {
     "intel_gpu_bdw": "bdw", "intel_gpu_skl": "skl", "intel_gpu_kbl": "kbl",
     "intel_gpu_cfl": "cfl", "intel_gpu_apl": "apl", "intel_gpu_bxt": "apl",
@@ -694,6 +688,8 @@ _INTEL_GPU_SHORT_NAMES = {
     "intel_gpu_bmg_g21": "bmg-g21", "intel_gpu_bmg": "bmg",
     "intel_gpu_lnl_m": "lnl-m",
 }
+
+all_intel_gpu_aot_targets = [targer for target in _INEL_GPU_SHORT_NAMES]
 
 # intel_gpu_aot_targets: comma-separated intel_gpu_* targets (e.g.
 # "intel_gpu_pvc,intel_gpu_bmg_g21"). Drives %{gpu_aot_opts} for both
@@ -1056,26 +1052,36 @@ if lit_config.params.get("enable_new_offload_model", "False") != "False":
     config.available_features.add("new-offload-model")
     config.cxx_flags += " --offload-new-driver "
 
-# %{gpu_aot_opts}: unified AOT GPU compilation flags, valid in both offload models.
-# When intel_gpu_aot_targets is set:
-#   new model: -fsycl-targets=intel_gpu_t1,intel_gpu_t2,...
-#   old model: -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device t1,t2,..."
-# Falls back to explicit gpu_aot_target_opts (old model only) when intel_gpu_aot_targets is unset.
-if config.intel_gpu_aot_targets:
-    _targets = [t.strip() for t in config.intel_gpu_aot_targets.split(',') if t.strip()]
-    if "new-offload-model" in config.available_features:
-        _gpu_aot_opts = "-fsycl-targets=" + ",".join(_targets)
-    else:
-        _short = [_INTEL_GPU_SHORT_NAMES.get(t, t) for t in _targets]
-        _gpu_aot_opts = ('-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen '
-                         '"-device ' + ','.join(_short) + '"')
-elif config.gpu_aot_target_opts:
-    # Fallback: explicit gpu_aot_target_opts; only valid for old offload model.
-    _gpu_aot_opts = ("-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
-                     + config.gpu_aot_target_opts)
-else:
-    _gpu_aot_opts = ""
-config.substitutions.append(("%{gpu_aot_opts}", _gpu_aot_opts))
+if not config.gpu_aot_target_opts:
+    config.gpu_aot_target_opts = '"-device *"'
+
+config.substitutions.append(("%gpu_aot_target_opts", config.gpu_aot_target_opts))
+
+intel_gpu_aot_targets = config.intel_gpu_aot_targets if config.intel_gpu_aot_targets else all_intel_gpu_aot_targets
+#TODO: remove config.gpu_aot_targets_opts
+
+## %{gpu_aot_opts}: unified AOT GPU compilation flags, valid in both offload models.
+## When intel_gpu_aot_targets is set:
+##   new model: -fsycl-targets=intel_gpu_t1,intel_gpu_t2,...
+##   old model: -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device t1,t2,..."
+## Falls back to explicit gpu_aot_target_opts (old model only) when intel_gpu_aot_targets is unset.
+
+#if config.intel_gpu_aot_targets:
+#    _targets = [t.strip() for t in config.intel_gpu_aot_targets.split(',') if t.strip()]
+#    if "new-offload-model" in config.available_features:
+#        _gpu_aot_opts = "-fsycl-targets=" + ",".join(_targets)
+#    else:
+#        _short = [_INTEL_GPU_SHORT_NAMES.get(t, t) for t in _targets]
+#        _gpu_aot_opts = ('-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen '
+#                         '"-device ' + ','.join(_short) + '"')
+#elif config.gpu_aot_target_opts:
+#   # Fallback: explicit gpu_aot_target_opts; only valid for old offload model.
+#    _gpu_aot_opts = ("-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
+#                     + config.gpu_aot_target_opts)
+#else:
+#    _gpu_aot_opts = ""
+
+config.substitutions.append(("%{intel_gpu_aot_targets}", intel_gpu_aot_targets))
 
 # Add O0 feature for unoptimized builds
 if re.search(r"(^|\s)(-O0|/Od)(\s|$)", config.cxx_flags):

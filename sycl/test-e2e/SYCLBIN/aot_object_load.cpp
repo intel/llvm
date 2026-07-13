@@ -1,5 +1,4 @@
 // REQUIRES: ocloc
-// REQUIRES: intel-gpu-aot-targets
 
 // UNSUPPORTED: cuda, hip, cpu
 // UNSUPPORTED-INTENDED: CUDA and HIP targets produce only native device
@@ -17,9 +16,7 @@
 // -- is in object state and was previously dropped by
 // -- SYCLBINBinaries::getBestCompatibleImages.
 //
-// -- The test targets Intel GPU via ocloc using %{gpu_aot_opts}, which expands
-// -- to the appropriate target(s) for the current offload model. spir64_x86_64
-// -- is intentionally not exercised here: the Intel OpenCL CPU runtime's
+// -- spir64_x86_64 is intentionally not exercised here: the Intel OpenCL CPU runtime's
 // -- clBuildProgram does not accept unresolved imported symbols (no
 // -- equivalent of IGC's -library-compilation), and the -cmd=compile path
 // -- emits SPIR-V rather than native code, which would not exercise the
@@ -30,7 +27,7 @@
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object \
 // RUN:   -fsycl-allow-device-image-dependencies \
-// RUN:   %{gpu_aot_opts} \
+// RUN:   -fsycl-targets=%{intel_gpu_aot_targets} \
 // RUN:   %S/Inputs/aot_object_with_imports.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.syclbin

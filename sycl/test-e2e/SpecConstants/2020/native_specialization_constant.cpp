@@ -3,12 +3,11 @@
 // (because only SPIR-V supports specialization constants natively)
 
 // REQUIRES: opencl-aot, ocloc, target-spir, build-mode
-// REQUIRES: intel-gpu-aot-targets || !new-offload-model
 
 // RUN: %{build} -DJIT -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %if any-device-is-gpu %{ %{run-aux} %clangxx -fsycl %{gpu_aot_opts} %s -o %t2.out %}
+// RUN: %if any-device-is-gpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=%{intel_gpu_aot_targets} %s -o %t2.out %}
 // RUN: %if gpu %{ %{run} %t2.out %}
 
 // RUN: %if any-device-is-cpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t3.out %}
