@@ -65,6 +65,8 @@ runs:
   - name: Show adapter specific test statistics and lists
     if: ${{ always() }}
     shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
     run: |
       if [ ! -f adapter_tests.log ]; then
         echo "::warning::Adapter specific test log not found - no tests may be available for this adapter"
@@ -84,13 +86,50 @@ runs:
       
       python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$BUILD_DIR/test/adapter_results.xml"
 
+  - name: Prepare adapter specific test artifacts
+    if: ${{ always() && inputs.artifact_name != '' }}
+    shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
+    run: |
+      echo "Preparing artifacts from BUILD_DIR: $BUILD_DIR"
+      mkdir -p adapter_artifacts
+      
+      # Copy log file
+      if [ -f adapter_tests.log ]; then
+        cp adapter_tests.log adapter_artifacts/
+        echo "✓ Copied adapter_tests.log"
+      else
+        echo "⚠ adapter_tests.log not found"
+      fi
+      
+      # Copy XML file
+      XML_PATH="$BUILD_DIR/test/adapter_results.xml"
+      echo "Looking for XML at: $XML_PATH"
+      if [ -f "$XML_PATH" ]; then
+        cp "$XML_PATH" adapter_artifacts/
+        echo "✓ Copied adapter_results.xml"
+      else
+        echo "⚠ XML not found at: $XML_PATH"
+        # Try to find it elsewhere
+        FOUND_XML=$(find "$BUILD_DIR" -name "adapter_results.xml" 2>/dev/null | head -1)
+        if [ -n "$FOUND_XML" ]; then
+          echo "✓ Found XML at alternate location: $FOUND_XML"
+          cp "$FOUND_XML" adapter_artifacts/adapter_results.xml
+          echo "✓ Copied from alternate location"
+        else
+          echo "⚠ No adapter_results.xml found anywhere in $BUILD_DIR"
+        fi
+      fi
+      
+      echo "Artifact contents:"
+      ls -lh adapter_artifacts/ || true
+
   - name: Upload adapter specific test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}
     uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.5.2
     with:
-      name: ${{ inputs.artifact_name }}-adapter-logs
-      path: |
-        adapter_tests.log
-        ${{ inputs.build_dir }}/test/adapter_results.xml
+      name: ${{ inputs.artifact_name }}
+      path: adapter_artifacts/
       retention-days: 7
       if-no-files-found: warn

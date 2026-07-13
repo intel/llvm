@@ -104,14 +104,50 @@ runs:
       
       python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt "$XML_FILE"
 
+  - name: Prepare conformance test artifacts
+    if: ${{ always() && inputs.artifact_name != '' }}
+    shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
+    run: |
+      echo "Preparing artifacts from BUILD_DIR: $BUILD_DIR"
+      mkdir -p conformance_artifacts
+      
+      # Copy log file
+      if [ -f conformance_tests.log ]; then
+        cp conformance_tests.log conformance_artifacts/
+        echo "✓ Copied conformance_tests.log"
+      else
+        echo "⚠ conformance_tests.log not found"
+      fi
+      
+      # Copy XML file
+      XML_PATH="$BUILD_DIR/test/conformance/conformance_results.xml"
+      echo "Looking for XML at: $XML_PATH"
+      if [ -f "$XML_PATH" ]; then
+        cp "$XML_PATH" conformance_artifacts/
+        echo "✓ Copied conformance_results.xml"
+      else
+        echo "⚠ XML not found at: $XML_PATH"
+        # Try to find it elsewhere
+        FOUND_XML=$(find "$BUILD_DIR" -name "conformance_results.xml" 2>/dev/null | head -1)
+        if [ -n "$FOUND_XML" ]; then
+          echo "✓ Found XML at alternate location: $FOUND_XML"
+          cp "$FOUND_XML" conformance_artifacts/conformance_results.xml
+          echo "✓ Copied from alternate location"
+        else
+          echo "⚠ No conformance_results.xml found anywhere in $BUILD_DIR"
+        fi
+      fi
+      
+      echo "Artifact contents:"
+      ls -lh conformance_artifacts/ || true
+
   - name: Upload conformance test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}
     uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.5.2
     with:
-      name: ${{ inputs.artifact_name }}-conformance-logs
-      path: |
-        conformance_tests.log
-        all_conformance_tests.txt
-        ${{ inputs.build_dir }}/test/conformance/conformance_results.xml
+      name: ${{ inputs.artifact_name }}
+      path: conformance_artifacts/
       retention-days: 7
       if-no-files-found: warn
