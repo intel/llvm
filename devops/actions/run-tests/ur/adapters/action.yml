@@ -26,21 +26,10 @@ runs:
         exit 1
       fi
       
-      echo "::group::Show Full Test Adapters Logs"
       # Write directly to file to avoid SIGPIPE from GitHub Actions closing stdout
       # (output is too large without --succinct, causing GitHub to close pipe)
       cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance > conformance_tests.log 2>&1
       EXIT_CODE=$?
-      
-      # Show only summary (first 50 and last 50 lines) to avoid SIGPIPE from large output
-      echo "=== Test execution log (first 50 lines) ===" || true
-      head -50 conformance_tests.log 2>/dev/null || true
-      echo "" || true
-      echo "=== ... (full log saved to conformance_tests.log) ===" || true
-      echo "" || true
-      echo "=== Test execution log (last 50 lines) ===" || true
-      tail -50 conformance_tests.log 2>/dev/null || true
-      echo "::endgroup::"
       
       # Only fail if cmake actually failed, not if test failed (continue-on-error handles that)
       # Check that log was created successfully
@@ -65,7 +54,6 @@ runs:
       BUILD_DIR: ${{ inputs.build_dir }}
     run: |
       > all_conformance_tests.txt
-      echo "Listing all conformance tests..."
       binary_count=0
       
       # Use process substitution to avoid subshell issues with pipe
@@ -82,7 +70,7 @@ runs:
       done < <(find "$BUILD_DIR/test/conformance" -name "*-test" -type f -executable 2>/dev/null)
       
       test_count=$(wc -l < all_conformance_tests.txt 2>/dev/null || echo 0)
-      echo "Summary: Processed $binary_count binaries, collected $test_count test definition lines"
+      echo "Summary: Processed $binary_count binaries, collected $test_count test definition lines" >&2
   
   - name: Show conformance test statistics and lists
     if: ${{ always() }}
@@ -110,38 +98,24 @@ runs:
     env:
       BUILD_DIR: ${{ inputs.build_dir }}
     run: |
-      echo "Preparing artifacts from BUILD_DIR: $BUILD_DIR"
       mkdir -p conformance_artifacts
       
       # Copy log file
       if [ -f conformance_tests.log ]; then
         cp conformance_tests.log conformance_artifacts/
-        echo "✓ Copied conformance_tests.log"
-      else
-        echo "⚠ conformance_tests.log not found"
       fi
       
       # Copy XML file
       XML_PATH="$BUILD_DIR/test/conformance/conformance_results.xml"
-      echo "Looking for XML at: $XML_PATH"
       if [ -f "$XML_PATH" ]; then
         cp "$XML_PATH" conformance_artifacts/
-        echo "✓ Copied conformance_results.xml"
       else
-        echo "⚠ XML not found at: $XML_PATH"
         # Try to find it elsewhere
         FOUND_XML=$(find "$BUILD_DIR" -name "conformance_results.xml" 2>/dev/null | head -1)
         if [ -n "$FOUND_XML" ]; then
-          echo "✓ Found XML at alternate location: $FOUND_XML"
           cp "$FOUND_XML" conformance_artifacts/conformance_results.xml
-          echo "✓ Copied from alternate location"
-        else
-          echo "⚠ No conformance_results.xml found anywhere in $BUILD_DIR"
         fi
       fi
-      
-      echo "Artifact contents:"
-      ls -lh conformance_artifacts/ || true
 
   - name: Upload conformance test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}
