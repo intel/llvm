@@ -24,6 +24,7 @@ int main() {
 
 #undef __SYCL_ASPECT
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   auto testDeprecatedAspects =
       DeviceConfigFile::TargetTable.find("__TestDeprecatedAspectList");
   assert(testDeprecatedAspects != DeviceConfigFile::TargetTable.end());
@@ -36,6 +37,7 @@ int main() {
 #include <sycl/info/aspects_deprecated.def>
 
 #undef __SYCL_ASPECT_DEPRECATED
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }
 
 #undef __SYCL_ASPECT_DEPRECATED_ALIAS

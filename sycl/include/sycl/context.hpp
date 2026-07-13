@@ -170,7 +170,7 @@ public:
   /// \param ClContext is an instance of OpenCL cl_context.
   /// \param AsyncHandler is an instance of async_handler.
 #ifdef __SYCL_INTERNAL_API
-  context(cl_context ClContext, async_handler AsyncHandler = {});
+  context(OpenCLContextT ClContext, async_handler AsyncHandler = {});
 #endif
 
   /// Queries this SYCL context for information.
@@ -230,7 +230,7 @@ public:
   ///
   /// \return a valid instance of OpenCL cl_context.
 #ifdef __SYCL_INTERNAL_API
-  cl_context get() const;
+  OpenCLContextT get() const;
 #endif
 
   /// Returns the backend associated with this context.

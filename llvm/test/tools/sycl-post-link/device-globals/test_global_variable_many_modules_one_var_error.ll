@@ -21,13 +21,13 @@ $dg_int2 = comdat any
 @dg_int2 = linkonce_odr dso_local addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, comdat, align 4 #0
 
 ; Third kernel that uses no device-global variables
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel3RN2cl4sycl5queueEEUlvE_() #4 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel3RN2cl4sycl5queueEEUlvE_() #4 comdat {
 entry:
   ret void
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel4RN2cl4sycl5queueEEUlvE_() #3 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel4RN2cl4sycl5queueEEUlvE_() #3 comdat {
 entry:
   %0 = alloca %"class.cl::sycl::detail::accessor_common", align 1
   %1 = addrspacecast %"class.cl::sycl::detail::accessor_common"* %0 to %"class.cl::sycl::detail::accessor_common" addrspace(4)*
@@ -36,7 +36,7 @@ entry:
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel1RN2cl4sycl5queueEEUlvE_() #2 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel1RN2cl4sycl5queueEEUlvE_() #2 comdat {
 entry:
   %0 = alloca %"class.cl::sycl::detail::accessor_common", align 1
   %1 = addrspacecast %"class.cl::sycl::detail::accessor_common"* %0 to %"class.cl::sycl::detail::accessor_common" addrspace(4)*
@@ -80,7 +80,7 @@ entry:
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel2RN2cl4sycl5queueEEUlvE_() #2 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel2RN2cl4sycl5queueEEUlvE_() #2 comdat {
 entry:
   %0 = alloca %"class.cl::sycl::detail::accessor_common", align 1
   %1 = addrspacecast %"class.cl::sycl::detail::accessor_common"* %0 to %"class.cl::sycl::detail::accessor_common" addrspace(4)*
@@ -133,4 +133,3 @@ attributes #7 = { nobuiltin allocsize(0) "frame-pointer"="none" "no-trapping-mat
 !3 = !{!"clang version 14.0.0"}
 !4 = !{i32 1, !"wchar_size", i32 2}
 !5 = !{i32 7, !"frame-pointer", i32 2}
-!6 = !{}

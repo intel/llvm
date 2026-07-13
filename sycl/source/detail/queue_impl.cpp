@@ -62,6 +62,7 @@ getUrEvents(const std::vector<sycl::event> &DepEvents) {
   return RetUrEvents;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -69,6 +70,7 @@ uint32_t queue_impl::get_info<info::queue::reference_count>() const {
       MQueue, UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result, nullptr);
   return result;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <> context queue_impl::get_info<info::queue::context>() const {
   return get_context();
@@ -1229,7 +1231,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
                                                        &Handle);
   if (getContextImpl().getBackend() == backend::opencl)
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
+    detail::retainOpenCLCommandQueue(Handle);
 
   return Handle;
 }

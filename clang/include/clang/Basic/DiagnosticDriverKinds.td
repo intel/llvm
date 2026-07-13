@@ -36,6 +36,8 @@ def err_drv_invalid_riscv_arch_name : Error<
   "invalid arch name '%0', %1">;
 def err_drv_invalid_riscv_cpu_name_for_target : Error<
   "cpu '%0' does not support rv%select{32|64}1">;
+def err_drv_invalid_riscv_mtune_string : Error<
+  "invalid %select{-mtune|tune feature}0 string '%1': %2">;
 def warn_drv_invalid_arch_name_with_suggestion : Warning<
   "ignoring invalid /arch: argument '%0'; for %select{64|32}1-bit expected one of %2">,
   InGroup<UnusedCommandLineArgument>;
@@ -162,10 +164,9 @@ def warn_drv_unsupported_option_for_offload_arch_req_feature : Warning<
   "ignoring '%0' option for offload arch '%1' as it is not currently supported "
   "there. Use it with an offload arch containing '%2' instead">,
   InGroup<OptionIgnored>;
-def warn_drv_unsupported_option_for_target
-    : Warning<"ignoring '%0' option as it is not currently supported for "
-              "target '%1'%select{|; only supported for host compilation}2">,
-      InGroup<OptionIgnored>;
+def warn_drv_unsupported_option_for_target : Warning<
+  "ignoring '%0' option as it is not currently supported for target '%1'">,
+  InGroup<OptionIgnored>;
 def err_drv_unsupported_option_for_target : Error<
   "'%0' option is not currently supported for target '%1'">;
 def warn_drv_unsupported_option_part_for_target : Warning<
@@ -173,6 +174,10 @@ def warn_drv_unsupported_option_part_for_target : Warning<
   InGroup<OptionIgnored>;
 def err_drv_unsupported_option_part_for_target : Error<
   "'%0' in '%1' option is not currently supported for target '%2'">;
+def warn_drv_unsupported_option_for_target_host_only
+    : Warning<"ignoring '%0' option as it is not currently supported for "
+              "target '%1'; only supported for host compilation">,
+      InGroup<OptionIgnored>;
 def warn_drv_invalid_argument_for_flang : Warning<
   "'%0' is not valid for Fortran">,
   InGroup<OptionIgnored>;
@@ -387,6 +392,8 @@ def err_drv_too_many_actions: Error<
     "only one action option is allowed. Got %0">;
 def err_drv_invalid_value : Error<"invalid value '%1' in '%0'">;
 def err_drv_invalid_int_value : Error<"invalid integral value '%1' in '%0'">;
+def err_drv_invalid_escaped_command_line
+    : Error<"invalid escaped command line: %0">;
 def err_drv_invalid_value_with_suggestion : Error<
     "invalid value '%1' in '%0', expected one of: %2">;
 def err_drv_alignment_not_power_of_two : Error<"alignment is not a power of 2 in '%0'">;
@@ -450,8 +457,6 @@ def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
   "compatible with offloading; e.g., '-fopenmp=libomp' or '-fopenmp=libiomp5'">;
 def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "'%0' must be used in conjunction with '-fsycl' to enable offloading">;
-def err_drv_fsycl_with_c_type : Error<
-  "'%0' must not be used in conjunction with '-fsycl', which expects C++ source">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
@@ -972,6 +977,8 @@ def err_drv_dxc_missing_target_profile : Error<
   "target profile option (-T) is missing">;
 def err_drv_dxc_Fre_requires_Fo_metal
     : Error<"-Fre option requires -Fo option when targeting Metal">;
+def err_drv_dxc_invalid_shader_hash
+    : Error<"cannot specify both /Zss and /Zsb">;
 def err_drv_hlsl_unsupported_target : Error<
   "HLSL code generation is unsupported for target '%0'">;
 def err_drv_hlsl_bad_shader_required_in_target : Error<

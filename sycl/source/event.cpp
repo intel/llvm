@@ -23,12 +23,12 @@ inline namespace _V1 {
 
 event::event() : impl(detail::event_impl::create_default_event()) {}
 
-event::event(cl_event ClEvent, const context &SyclContext)
+event::event(OpenCLEventT ClEvent, const context &SyclContext)
     : impl(detail::event_impl::create_from_handle(
           detail::ur::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  __SYCL_OCL_CALL(clRetainEvent, ClEvent);
+  detail::retainOpenCLEvent(detail::ur::cast<ur_native_handle_t>(ClEvent));
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -96,7 +96,9 @@ event::get_profiling_info() const {
 #define __SYCL_EVENT_INFO_INST(NAME, RETURN_T)                                 \
   template __SYCL_EXPORT RETURN_T event::get_info<info::event::NAME>() const;
 __SYCL_EVENT_INFO_INST(command_execution_status, info::event_command_status)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EVENT_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #undef __SYCL_EVENT_INFO_INST
 
 #define __SYCL_EVENT_PROFILING_INFO_INST(NAME, RETURN_T)                       \

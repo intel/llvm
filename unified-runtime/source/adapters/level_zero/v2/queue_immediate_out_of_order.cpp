@@ -147,12 +147,21 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier");
-  // Since we use L0 in-order command lists, we don't need a real L0 barrier,
-  // just wait for requested events in potentially different queues and add a
-  // "barrier" event signal because it is already guaranteed that previous
-  // commands in this queue are completed when the signal is started. However,
-  // we do need to use barrier if profiling is enabled: see
-  // zeCommandListAppendWaitOnEvents
+  if (phEvent)
+    *phEvent = nullptr;
+  return enqueueEventsWaitWithBarrierExt(nullptr, numEventsInWaitList,
+                                         phEventWaitList, phEvent);
+}
+
+ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt(
+    const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt");
+
+  if (phEvent && *phEvent && !(*phEvent)->isCounter())
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
+
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList);
 
@@ -180,9 +189,11 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
       wait_list_view(barrierEvents.data(), numCommandLists);
 
   if (phEvent) {
-    UR_CALL(std::invoke(
-        barrierFn, commandListManagersLocked[0], barrierEventsWaitList,
-        createEventIfRequested(eventPool.get(), phEvent, this)));
+    ur_event_handle_t event =
+        createEventOrReuseIfRequested(eventPool.get(), phEvent, this);
+
+    UR_CALL(std::invoke(barrierFn, commandListManagersLocked[0],
+                        barrierEventsWaitList, event));
   }
 
   for (size_t id = phEvent ? 1 : 0; id < numCommandLists; id++) {
@@ -192,5 +203,4 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
 
   return UR_RESULT_SUCCESS;
 }
-
 } // namespace v2

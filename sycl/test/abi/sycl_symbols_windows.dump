@@ -245,6 +245,9 @@
 ??$is_image_handle_supported@Usampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
+??$queryMaxNumWorkGroups@$00@kernel@_V1@sycl@@AEBA_KAEBVdevice@12@V?$range@$00@12@_KUKernelExecInfoTy@012@@Z
+??$queryMaxNumWorkGroups@$01@kernel@_V1@sycl@@AEBA_KAEBVdevice@12@V?$range@$01@12@_KUKernelExecInfoTy@012@@Z
+??$queryMaxNumWorkGroups@$02@kernel@_V1@sycl@@AEBA_KAEBVdevice@12@V?$range@$02@12@_KUKernelExecInfoTy@012@@Z
 ??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
 ??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
 ??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z
@@ -4104,6 +4107,7 @@
 ?get_filtering_mode@sampler@_V1@sycl@@QEBA?AW4filtering_mode@23@XZ
 ?get_flags@stream@_V1@sycl@@AEBAIXZ
 ?get_handle@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AUimage_mem_handle@23456@XZ
+?get_id@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?get_image_channel_type@experimental@oneapi@ext@_V1@sycl@@YA?AW4image_channel_type@45@Uimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?get_image_channel_type@experimental@oneapi@ext@_V1@sycl@@YA?AW4image_channel_type@45@Uimage_mem_handle@12345@AEBVqueue@45@@Z
 ?get_image_memory_support@experimental@oneapi@ext@_V1@sycl@@YA?AV?$vector@W4image_memory_handle_type@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4image_memory_handle_type@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z

@@ -365,7 +365,7 @@ public:
   /// \param SyclContext is a valid SYCL context.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
 #ifdef __SYCL_INTERNAL_API
-  queue(cl_command_queue ClQueue, const context &SyclContext,
+  queue(OpenCLCommandQueueT ClQueue, const context &SyclContext,
         const async_handler &AsyncHandler = {});
 #endif
 
@@ -393,7 +393,7 @@ public:
   /// \return a valid instance of OpenCL queue, which is retained before being
   /// returned.
 #ifdef __SYCL_INTERNAL_API
-  cl_command_queue get() const;
+  OpenCLCommandQueueT get() const;
 #endif
 
   /// \return an associated SYCL context.

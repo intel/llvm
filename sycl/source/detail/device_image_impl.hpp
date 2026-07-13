@@ -640,7 +640,7 @@ public:
     ur_native_handle_t NativeProgram = 0;
     Adapter.call<UrApiKind::urProgramGetNativeHandle>(MProgram, &NativeProgram);
     if (ContextImpl.getBackend() == backend::opencl)
-      __SYCL_OCL_CALL(clRetainProgram, ur::cast<cl_program>(NativeProgram));
+      retainOpenCLProgram(NativeProgram);
 
     return NativeProgram;
   }
