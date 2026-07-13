@@ -90,4 +90,3 @@ out/
 # VS clangd
 /.cache
 /compile_commands.json
-.venv/
