@@ -85,6 +85,63 @@ def extract_statistics(lines: List[str]) -> List[str]:
     return result
 
 
+def extract_time_summary(lines: List[str]) -> Dict[str, List[str]]:
+    """
+    Extract test timing information from LIT output.
+
+    LIT with --time-tests flag produces:
+    Slowest Tests:
+    ----------------------------------------------------------------------
+    4.16s: test_name
+    0.10s: test_name2
+    ...
+
+    Tests Times:
+    ----------------------------------------------------------------------
+    [Range] :: [Percentage] :: [Count]
+    ----------------------------------------------------------------------
+    [0.00s, 1.00s) :: [========] :: [10/20]
+    ...
+
+    Returns dictionary with 'slowest' and 'histogram' keys containing line lists.
+    """
+    result = {"slowest": [], "histogram": []}
+    current_section = None
+    skip_next_hr = False
+
+    for line in lines:
+        # Detect section starts
+        if line.strip() == "Slowest Tests:":
+            current_section = "slowest"
+            skip_next_hr = True
+            continue
+        elif line.strip() == "Tests Times:" or line.strip() == "Test Times:":
+            current_section = "histogram"
+            skip_next_hr = True
+            continue
+
+        # Skip horizontal rule after section header
+        if skip_next_hr and line.strip().startswith("---"):
+            skip_next_hr = False
+            continue
+
+        # Collect lines for current section
+        if current_section == "slowest":
+            # Slowest section ends at empty line or next section
+            if not line.strip():
+                current_section = None
+            elif not line.strip().startswith("---"):
+                result["slowest"].append(line.rstrip())
+        elif current_section == "histogram":
+            # Histogram section continues until empty line
+            if not line.strip():
+                current_section = None
+            else:
+                result["histogram"].append(line.rstrip())
+
+    return result
+
+
 def extract_skipped_from_xml(xml_path: str) -> List[str]:
     """
     Extract skipped test names from LIT xunit XML output.
@@ -614,6 +671,26 @@ def show_statistics_and_lists(
             for test in tests:
                 print(test)
             print("::endgroup::")
+
+    # Extract and display test timing information if available
+    time_info = extract_time_summary(lines)
+    if time_info["slowest"] or time_info["histogram"]:
+        print("::group::⏱️ Test Timing Summary")
+        
+        if time_info["slowest"]:
+            print("Slowest Tests:")
+            print("-" * 70)
+            for line in time_info["slowest"]:
+                print(line)
+            print()
+        
+        if time_info["histogram"]:
+            print("Test Times Distribution:")
+            print("-" * 70)
+            for line in time_info["histogram"]:
+                print(line)
+        
+        print("::endgroup::")
 
     # Validate that total discovered matches sum of all categories
     if total_discovered:
