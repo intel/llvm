@@ -621,7 +621,7 @@ TEST_F(CommandLineTest, ConditionalParsingIfNonsenseSyclStdArg) {
 }
 
 TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresentHost) {
-  const char *Args[] = {"-fsycl-is-host"};
+  const char *Args[] = {"-fsycl-is-host", "-x", "c++"};
 
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
@@ -636,7 +636,7 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresentHost) {
 }
 
 TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresentDevice) {
-  const char *Args[] = {"-fsycl-is-device"};
+  const char *Args[] = {"-fsycl-is-device", "-x", "c++"};
 
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
