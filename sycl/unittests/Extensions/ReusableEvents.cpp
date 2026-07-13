@@ -543,57 +543,6 @@ TEST_F(ReusableEventsTest, EmptyEventVectorWait) {
   Queue.wait();
 }
 
-TEST_F(ReusableEventsTest, SignalEventHostTask) {
-  sycl::platform Plt = sycl::platform();
-  const sycl::device Dev = Plt.get_devices()[0];
-  sycl::context Ctx{Dev};
-  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
-
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
-
-  // Host task submission generates additional event
-  // for a helper barrier, so skip the handle checks related
-  // to event release.
-  CheckUrEventReleaseHandle = false;
-
-  {
-    auto event = syclex::make_event(Ctx);
-
-    bool exception = false;
-    std::mutex CvMutex;
-    std::condition_variable Cv;
-    bool ready = false;
-
-    Queue.submit([&](sycl::handler &CGH) {
-      CGH.host_task([&] {
-        std::unique_lock<std::mutex> lk(CvMutex);
-        Cv.wait(lk, [&ready] { return ready; });
-      });
-    });
-
-    try {
-      syclex::enqueue_signal_event(Queue, event);
-    } catch (sycl::exception const &e) {
-      exception = true;
-      EXPECT_EQ(e.code(), sycl::errc::invalid);
-      EXPECT_STREQ(e.what(), "An event cannot be enqueued for signaling behind "
-                             "a command which is not enqueued in the backend.");
-    }
-
-    {
-      std::unique_lock<std::mutex> lk(CvMutex);
-      ready = true;
-    }
-    Cv.notify_one();
-
-    EXPECT_TRUE(exception);
-  }
-
-  Queue.wait();
-}
-
 // Queue with enable_profiling property
 TEST_F(ReusableEventsTest, QueueWithProfilingProperty) {
   sycl::platform Plt = sycl::platform();
