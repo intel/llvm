@@ -9,7 +9,7 @@ on:
       pre_release:
         description: PRE_RELEASE CMake variable value (e.g. 0 or 1)
         required: false
-        default: '1'
+        default: '0'
 
 
 permissions: read-all
