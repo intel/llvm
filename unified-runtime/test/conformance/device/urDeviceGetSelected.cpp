@@ -170,6 +170,7 @@ TEST_P(urDeviceGetSelectedTest,
   }
 }
 
+// 
 TEST_P(urDeviceGetSelectedTest, InvalidNullHandlePlatform) {
   uur::unset_env("ONEAPI_DEVICE_SELECTOR");
   uint32_t count = 0;

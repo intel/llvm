@@ -1,0 +1,43 @@
+name: Test runners
+
+on:
+  push:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  run-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - test1
+          - test2
+          - test3
+          - test4
+          - test5
+          - test6
+          - test7
+          - test8
+          - test9
+          - test10
+          - test11
+          - test12
+          - test13
+          - test14
+          - test15
+          - test16
+    name: ${{ matrix.runner }}
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            test.py
+          sparse-checkout-cone-mode: false
+
+      - name: Run test.py
+        run: python3 test.py
