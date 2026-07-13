@@ -904,7 +904,7 @@ public:
       return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
-      size_t result[3];
+      size_t result[3] = {};
       getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
