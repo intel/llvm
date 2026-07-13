@@ -29,7 +29,7 @@ jobs:
           - test15
           - test16
     name: ${{ matrix.runner }}
-    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    runs-on: ["${{ matrix.runner }}"]
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
