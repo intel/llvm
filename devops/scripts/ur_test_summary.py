@@ -703,14 +703,14 @@ def show_statistics_and_lists(
 
     # Extract and display test timing information if available
     time_info = extract_time_summary(lines)
-    
+
     # Extract Testing Time from logs
     testing_time = None
     for line in lines:
         if line.strip().startswith("Testing Time:"):
             testing_time = line.strip()
             break
-    
+
     if time_info["slowest"] or time_info["histogram"] or testing_time:
         print("::group::Test Timing Summary")
 
