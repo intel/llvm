@@ -24,8 +24,9 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   bool EnableProfiling = (Flags & make_event_flag_enable_profiling);
 
   if (EnableProfiling && !ContextImpl.supportsEventProfiling()) {
-    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
-                          "Context does not support per-event profiling.");
+    throw sycl::exception(
+        sycl::make_error_code(errc::feature_not_supported),
+        "Not all devices in the context support per-event profiling.");
   }
 
   sycl::event RetEvent{};
