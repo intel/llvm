@@ -99,6 +99,7 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
     </testsuites>
 
     Returns list of skipped test names in format: classname.name
+    Excludes tests with "Test not selected" message (those are excluded, not skipped).
     """
     if not xml_path:
         return []
@@ -116,7 +117,13 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
         for testsuite in root.findall(".//testsuite"):
             for testcase in testsuite.findall("testcase"):
                 # Check if testcase has <skipped> child element
-                if testcase.find("skipped") is not None:
+                skipped_elem = testcase.find("skipped")
+                if skipped_elem is not None:
+                    # Exclude tests with "Test not selected" - those are excluded, not skipped
+                    message = skipped_elem.get("message", "")
+                    if "Test not selected" in message:
+                        continue
+
                     classname = testcase.get("classname", "")
                     name = testcase.get("name", "")
 
@@ -136,6 +143,62 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
         print(f"Note: Found {len(skipped)} skipped tests in XML file", file=sys.stderr)
 
     return skipped
+
+
+def extract_excluded_from_xml(xml_path: str) -> List[str]:
+    """
+    Extract excluded test names from LIT xunit XML output.
+
+    LIT marks excluded tests as skipped with specific message:
+    <testsuites>
+      <testsuite name="..." tests="123">
+        <testcase name="TestName" classname="TestClass">
+          <skipped message="Test not selected (--filter, --max-tests)"/>
+        </testcase>
+      </testsuite>
+    </testsuites>
+
+    Returns list of excluded test names in format: classname.name
+    """
+    if not xml_path:
+        return []
+
+    if not Path(xml_path).exists():
+        print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
+        return []
+
+    excluded = []
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        # Iterate through all testsuites and testcases
+        for testsuite in root.findall(".//testsuite"):
+            for testcase in testsuite.findall("testcase"):
+                # Check if testcase has <skipped> child with "Test not selected" message
+                skipped_elem = testcase.find("skipped")
+                if skipped_elem is not None:
+                    message = skipped_elem.get("message", "")
+                    if "Test not selected" in message:
+                        classname = testcase.get("classname", "")
+                        name = testcase.get("name", "")
+
+                        # Format: classname.name (match GoogleTest format)
+                        if classname and name:
+                            full_name = f"{classname}.{name}"
+                            excluded.append(full_name)
+                        elif name:
+                            excluded.append(name)
+
+    except ET.ParseError as e:
+        print(f"Warning: Failed to parse XML file {xml_path}: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
+
+    if xml_path and Path(xml_path).exists():
+        print(f"Note: Found {len(excluded)} excluded tests in XML file", file=sys.stderr)
+
+    return excluded
 
 
 def extract_skipped_from_gtest(lines: List[str]) -> List[str]:
@@ -399,9 +462,11 @@ def show_statistics_and_lists(
     # Extract test lists in collapsed sections (LIT format)
     test_lists = extract_test_lists(lines)
 
-    # Track if we display skipped separately (for validation later)
+    # Track if we display skipped/excluded separately (for validation later)
     displayed_skipped_count = 0
+    displayed_excluded_count = 0
     stats_skipped_count = None
+    stats_excluded_count = None
 
     # For GoogleTest format: try multiple strategies to get skipped list
     # BUT: only if they're not already in test_lists (avoid duplicates)
@@ -510,6 +575,37 @@ def show_statistics_and_lists(
             )
             print("::endgroup::")
 
+    # Handle Excluded tests similarly
+    # BUT: only if they're not already in test_lists (avoid duplicates)
+    if "Excluded" not in test_lists:
+        # Extract from LIT xunit XML output
+        excluded_xml = extract_excluded_from_xml(xml_file)
+
+        # Extract excluded count from statistics
+        for stat in stats:
+            if "Excluded:" in stat:
+                match = re.search(r"(\d+)", stat)
+                if match:
+                    stats_excluded_count = int(match.group(1))
+                    break
+
+        if excluded_xml:
+            count = len(excluded_xml)
+            displayed_excluded_count = count
+
+            print(f"::group::Excluded Tests ({count})")
+            for test in excluded_xml:
+                print(test)
+            print("::endgroup::")
+        elif stats_excluded_count:
+            # Statistics show excluded but we couldn't extract the list
+            print(f"::group::Excluded Tests ({stats_excluded_count})")
+            print(f"Warning: Could not extract individual excluded test names.")
+            print(
+                f"Statistics show {stats_excluded_count} excluded tests, but they are not available in the output."
+            )
+            print("::endgroup::")
+
     # Show remaining test categories from LIT format
     for category, tests in test_lists.items():
         count = len(tests)
@@ -521,14 +617,15 @@ def show_statistics_and_lists(
 
     # Validate that total discovered matches sum of all categories
     if total_discovered:
-        # Sum from test_lists + any skipped we displayed separately
-        # BUT: Don't double-count if "Skipped" is already in test_lists
+        # Sum from test_lists + any skipped/excluded we displayed separately
+        # BUT: Don't double-count if they're already in test_lists
         sum_categories = sum(len(tests) for tests in test_lists.values())
 
-        # Only add displayed_skipped_count if we displayed them separately
-        # (i.e., they're NOT already in test_lists as "Skipped")
+        # Only add displayed counts if we displayed them separately
         if displayed_skipped_count > 0 and "Skipped" not in test_lists:
             sum_categories += displayed_skipped_count
+        if displayed_excluded_count > 0 and "Excluded" not in test_lists:
+            sum_categories += displayed_excluded_count
 
         if total_discovered != sum_categories:
             print()
@@ -545,6 +642,10 @@ def show_statistics_and_lists(
             if displayed_skipped_count > 0:
                 print(
                     f"(Plus {displayed_skipped_count} skipped tests displayed separately)"
+                )
+            if displayed_excluded_count > 0:
+                print(
+                    f"(Plus {displayed_excluded_count} excluded tests displayed separately)"
                 )
             print()
 
