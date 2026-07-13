@@ -84,7 +84,13 @@ runs:
         exit 0
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$BUILD_DIR/test/adapters/*/adapter_results.xml" | tee -a $GITHUB_STEP_SUMMARY
+      # Find actual XML file path (wildcard doesn't work in Python)
+      XML_FILE=$(find "$BUILD_DIR/test/adapters" -name "adapter_results.xml" 2>/dev/null | head -1)
+      if [ -z "$XML_FILE" ]; then
+        XML_FILE=""
+      fi
+      
+      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$XML_FILE" | tee -a $GITHUB_STEP_SUMMARY
 
   - name: Prepare adapter specific test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}
