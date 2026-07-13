@@ -3,8 +3,8 @@
 
 // Test: Default event constructor compatibility
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
-#include <sycl/sycl.hpp>
 
 #include <cassert>
 

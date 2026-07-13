@@ -3,8 +3,9 @@
 
 // Test: Event as dependency via handler::depends_on
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #include <cassert>
 #include <vector>
