@@ -102,6 +102,8 @@ def extract_time_summary(lines: List[str]) -> Dict[str, List[str]]:
     ----------------------------------------------------------------------
     [0.00s, 1.00s) :: [========] :: [10/20]
     ...
+    ----------------------------------------------------------------------
+    ********************
 
     Returns dictionary with 'slowest' and 'histogram' keys containing line lists.
     """
@@ -110,34 +112,46 @@ def extract_time_summary(lines: List[str]) -> Dict[str, List[str]]:
     skip_next_hr = False
 
     for line in lines:
+        stripped = line.strip()
+
         # Detect section starts
-        if line.strip() == "Slowest Tests:":
+        if stripped == "Slowest Tests:":
             current_section = "slowest"
             skip_next_hr = True
             continue
-        elif line.strip() == "Tests Times:" or line.strip() == "Test Times:":
+        elif stripped == "Tests Times:" or stripped == "Test Times:":
             current_section = "histogram"
             skip_next_hr = True
             continue
 
         # Skip horizontal rule after section header
-        if skip_next_hr and line.strip().startswith("---"):
+        if skip_next_hr and stripped.startswith("---"):
             skip_next_hr = False
             continue
 
         # Collect lines for current section
         if current_section == "slowest":
             # Slowest section ends at empty line or next section
-            if not line.strip():
+            if not stripped:
                 current_section = None
-            elif not line.strip().startswith("---"):
+            elif not stripped.startswith("---"):
                 result["slowest"].append(line.rstrip())
         elif current_section == "histogram":
-            # Histogram section continues until empty line
-            if not line.strip():
+            # Histogram section ends at:
+            # - Empty line
+            # - Line with only asterisks (section separator)
+            # - Line not starting with '[' and not only dashes
+            if not stripped:
                 current_section = None
-            else:
+            elif stripped.replace("*", "") == "":
+                # Line contains only asterisks - end of section
+                current_section = None
+            elif stripped.startswith("[") or stripped.replace("-", "") == "":
+                # Valid histogram line (header, data row, or separator)
                 result["histogram"].append(line.rstrip())
+            else:
+                # Something else - end of histogram section
+                current_section = None
 
     return result
 
@@ -674,26 +688,6 @@ def show_statistics_and_lists(
                 print(test)
             print("::endgroup::")
 
-    # Extract and display test timing information if available
-    time_info = extract_time_summary(lines)
-    if time_info["slowest"] or time_info["histogram"]:
-        print("::group::⏱️ Test Timing Summary")
-
-        if time_info["slowest"]:
-            print("Slowest Tests:")
-            print("-" * 70)
-            for line in time_info["slowest"]:
-                print(line)
-            print()
-
-        if time_info["histogram"]:
-            print("Test Times Distribution:")
-            print("-" * 70)
-            for line in time_info["histogram"]:
-                print(line)
-
-        print("::endgroup::")
-
     # Validate that total discovered matches sum of all categories
     if total_discovered:
         # Sum from test_lists + any skipped/excluded we displayed separately
@@ -727,6 +721,26 @@ def show_statistics_and_lists(
                     f"(Plus {displayed_excluded_count} excluded tests displayed separately)"
                 )
             print()
+
+    # Extract and display test timing information if available
+    time_info = extract_time_summary(lines)
+    if time_info["slowest"] or time_info["histogram"]:
+        print("::group::Test Timing Summary")
+
+        if time_info["slowest"]:
+            print("Slowest Tests:")
+            print("-" * 70)
+            for line in time_info["slowest"]:
+                print(line)
+            print()
+
+        if time_info["histogram"]:
+            print("Test Times Distribution:")
+            print("-" * 70)
+            for line in time_info["histogram"]:
+                print(line)
+
+        print("::endgroup::")
 
 
 def main():
