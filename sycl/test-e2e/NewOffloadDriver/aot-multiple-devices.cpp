@@ -14,7 +14,6 @@
 // and modified to test with the New Offloading Model.
 
 // REQUIRES: opencl-aot, ocloc, any-device-is-cpu, any-device-is-gpu, target-spir, opencl-cpu-rt
-// REQUIRES: intel-gpu-aot-targets
 
 // Produce a fat object for all targets (generic SPIR-V, CPU, GPU).
 // In the new offload model the GPU target is specified as intel_gpu_<device>

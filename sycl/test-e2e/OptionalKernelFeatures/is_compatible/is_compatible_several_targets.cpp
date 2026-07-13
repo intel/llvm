@@ -1,5 +1,4 @@
 // REQUIRES: opencl-aot, ocloc, opencl-cpu-rt
-// REQUIRES: intel-gpu-aot-targets || !new-offload-model
 
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64,%{intel_gpu_aot_targets} %S/Inputs/is_compatible_with_env.cpp -o %t.out
 

@@ -3,7 +3,7 @@
 // REQUIRES: ocloc, gpu, target-spir
 // REQUIRES: intel-gpu-aot-targets || !new-offload-model
 
-// DEFINE: %{aot_options} = -fsycl %{gpu_aot_opts} -DUSE_AOT
+// DEFINE: %{aot_options} = -fsycl -fsycl-targets=%{intel_gpu_aot_targets} -DUSE_AOT
 // DEFINE: %{dynamic_lib_options} = %{aot_options} %fPIC %shared_lib -fsycl-allow-device-image-dependencies -ftarget-export-symbols -I %S/Inputs %if windows %{-DMAKE_DLL %}
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 

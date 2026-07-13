@@ -1,19 +1,18 @@
 // REQUIRES: (opencl || level_zero) && gpu && ocloc
-// REQUIRES: intel-gpu-aot-targets || !new-offload-model
 
 // Check the case when -fsycl-add-default-spec-consts-image option is used which
 // results in generation of two types of images: where specialization constants
 // are replaced with defaults and original images.
 
 // clang-format off
-// RUN: %clangxx -fsycl-add-default-spec-consts-image -fsycl %{gpu_aot_opts} %s -o %t1.out
+// RUN: %clangxx -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=%{intel_gpu_aot_targets} %s -o %t1.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t1.out | FileCheck --match-full-lines --check-prefix=CHECK-ENABLED %s
 // clang-format on
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is not
 // used.
 
-// RUN: %clangxx -fsycl %{gpu_aot_opts} %s -o %t2.out
+// RUN: %clangxx -fsycl -fsycl-targets=%{intel_gpu_aot_targets} %s -o %t2.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t2.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT %s
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is used
@@ -29,7 +28,7 @@
 // choose images with inlined values in this case.
 
 // clang-format off
-// RUN: %clangxx -fsycl-add-default-spec-consts-image -fsycl %{gpu_aot_opts} %s -o %t3.out
+// RUN: %clangxx -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=%{intel_gpu_aot_targets} %s -o %t3.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-EXPLICIT-SET %s
 // clang-format on
 
@@ -39,7 +38,7 @@
 // this case.
 
 // clang-format off
-// RUN: %clangxx -fsycl-add-default-spec-consts-image -fsycl %{gpu_aot_opts} %s -o %t3.out
+// RUN: %clangxx -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=%{intel_gpu_aot_targets} %s -o %t3.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
 // clang-format on
 #include <iostream>
