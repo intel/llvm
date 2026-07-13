@@ -56,13 +56,11 @@ int main() {
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::nearest);
 
-    syclexp::image_descriptor srgbDesc(
-        sycl::range<2>{width, height}, 4,
-        sycl::image_channel_type::unorm_int8,
-        syclexp::image_color_space::srgb);
-    syclexp::image_descriptor linearDesc(
-        sycl::range<2>{width, height}, 4,
-        sycl::image_channel_type::unorm_int8);
+    syclexp::image_descriptor srgbDesc(sycl::range<2>{width, height}, 4,
+                                       sycl::image_channel_type::unorm_int8,
+                                       syclexp::image_color_space::srgb);
+    syclexp::image_descriptor linearDesc(sycl::range<2>{width, height}, 4,
+                                         sycl::image_channel_type::unorm_int8);
 
     syclexp::image_mem srgbMem(srgbDesc, dev, ctxt);
     syclexp::image_mem linearMem(linearDesc, dev, ctxt);
@@ -72,13 +70,14 @@ int main() {
     q.wait_and_throw();
 
     auto srgbImg = syclexp::create_image(srgbMem, samp, srgbDesc, dev, ctxt);
-    auto linearImg = syclexp::create_image(linearMem, samp, linearDesc, dev, ctxt);
+    auto linearImg =
+        syclexp::create_image(linearMem, samp, linearDesc, dev, ctxt);
 
     {
       sycl::buffer<sycl::float4, 2> srgbBuf(outputSrgb.data(),
-                                             sycl::range<2>{height, width});
+                                            sycl::range<2>{height, width});
       sycl::buffer<sycl::float4, 2> linearBuf(outputLinear.data(),
-                                               sycl::range<2>{height, width});
+                                              sycl::range<2>{height, width});
 
       sycl::range<2> globalSize{height, width};
       sycl::range<2> localSize{1, 1};

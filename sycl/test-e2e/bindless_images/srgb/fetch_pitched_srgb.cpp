@@ -57,19 +57,18 @@ int main() {
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::nearest);
 
-    syclexp::image_descriptor srgbDesc(
-        sycl::range<2>{width, height}, 4,
-        sycl::image_channel_type::unorm_int8,
-        syclexp::image_color_space::srgb);
-    syclexp::image_descriptor linearDesc(
-        sycl::range<2>{width, height}, 4,
-        sycl::image_channel_type::unorm_int8);
+    syclexp::image_descriptor srgbDesc(sycl::range<2>{width, height}, 4,
+                                       sycl::image_channel_type::unorm_int8,
+                                       syclexp::image_color_space::srgb);
+    syclexp::image_descriptor linearDesc(sycl::range<2>{width, height}, 4,
+                                         sycl::image_channel_type::unorm_int8);
 
     size_t pitchSrgb = 0;
     size_t pitchLinear = 0;
 
     void *srgbUSM = syclexp::pitched_alloc_device(&pitchSrgb, srgbDesc, q);
-    void *linearUSM = syclexp::pitched_alloc_device(&pitchLinear, linearDesc, q);
+    void *linearUSM =
+        syclexp::pitched_alloc_device(&pitchLinear, linearDesc, q);
 
     if (srgbUSM == nullptr || linearUSM == nullptr) {
       std::cerr << "Error allocating pitched USM memory!" << std::endl;
@@ -77,7 +76,8 @@ int main() {
     }
 
     auto srgbImg = syclexp::create_image(srgbUSM, pitchSrgb, samp, srgbDesc, q);
-    auto linearImg = syclexp::create_image(linearUSM, pitchLinear, samp, linearDesc, q);
+    auto linearImg =
+        syclexp::create_image(linearUSM, pitchLinear, samp, linearDesc, q);
 
     q.ext_oneapi_copy(input.data(), srgbUSM, srgbDesc, pitchSrgb);
     q.ext_oneapi_copy(input.data(), linearUSM, linearDesc, pitchLinear);
@@ -85,9 +85,9 @@ int main() {
 
     {
       sycl::buffer<sycl::float4, 2> srgbBuf(outputSrgb.data(),
-                                             sycl::range<2>{height, width});
+                                            sycl::range<2>{height, width});
       sycl::buffer<sycl::float4, 2> linearBuf(outputLinear.data(),
-                                               sycl::range<2>{height, width});
+                                              sycl::range<2>{height, width});
 
       sycl::range<2> globalSize{height, width};
       sycl::range<2> localSize{1, 1};
