@@ -57,7 +57,7 @@ jobs:
       cxx: icx
       # https://github.com/intel/llvm/issues/18458
       env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
-    e2e-win-arc-2:
+  e2e-win-arc-2:
     needs: build-win
     # Continue if build was successful.
     if: |
