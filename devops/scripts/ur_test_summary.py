@@ -253,7 +253,9 @@ def extract_excluded_from_xml(xml_path: str) -> List[str]:
         print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
 
     if xml_path and Path(xml_path).exists():
-        print(f"Note: Found {len(excluded)} excluded tests in XML file", file=sys.stderr)
+        print(
+            f"Note: Found {len(excluded)} excluded tests in XML file", file=sys.stderr
+        )
 
     return excluded
 
@@ -676,20 +678,20 @@ def show_statistics_and_lists(
     time_info = extract_time_summary(lines)
     if time_info["slowest"] or time_info["histogram"]:
         print("::group::⏱️ Test Timing Summary")
-        
+
         if time_info["slowest"]:
             print("Slowest Tests:")
             print("-" * 70)
             for line in time_info["slowest"]:
                 print(line)
             print()
-        
+
         if time_info["histogram"]:
             print("Test Times Distribution:")
             print("-" * 70)
             for line in time_info["histogram"]:
                 print(line)
-        
+
         print("::endgroup::")
 
     # Validate that total discovered matches sum of all categories
