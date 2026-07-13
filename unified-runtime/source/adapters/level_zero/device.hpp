@@ -209,6 +209,11 @@ struct ur_device_handle_t_ : ur_object {
             ZeDeviceIpVersionExt->ipVersion >= 0x030f0000);
   }
 
+  bool isBMGOrNewer() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x05004000);
+  }
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }

@@ -44,6 +44,7 @@ class queue_impl;
 class NDRDescT;
 class ArgDesc;
 class CG;
+struct EnqueueHostTaskData;
 } // namespace detail
 
 namespace ext {
@@ -503,7 +504,7 @@ public:
     return MBarrierDependencyMap[Queue];
   }
 
-  unsigned long long getID() const { return MID; }
+  unsigned long long getID() const { return MNativeID.value_or(MID); }
 
   /// Get the memory pool used for graph-owned allocations.
   graph_mem_pool &getMemPool() { return MGraphMemPool; }
@@ -555,6 +556,11 @@ public:
   /// stores locally for invocation in ~graph_impl().
   /// @param Callback Callable to invoke on graph destruction.
   void setDestructionCallback(std::function<void()> Callback);
+
+  /// Take ownership of callback data for a native-recorded host task and return
+  /// a non-owning pointer for passing to UR.
+  detail::EnqueueHostTaskData *
+  addNativeHostTaskCallback(std::unique_ptr<detail::EnqueueHostTaskData> Data);
 
 private:
   /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
@@ -634,6 +640,10 @@ private:
   /// @note Native recording requires immediate command lists.
   ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
 
+  /// Callback data for host tasks recorded in native recording mode.
+  std::vector<std::unique_ptr<detail::EnqueueHostTaskData>>
+      MNativeHostTaskCallbacks;
+
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
   std::map<std::weak_ptr<sycl::detail::queue_impl>, node_impl *,
@@ -645,7 +655,14 @@ private:
 
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
-  inline static std::atomic<unsigned long long> NextAvailableID = 0;
+  // Starts from 1 to align with the convention used by native graph backends
+  // for get_id() calls.
+  inline static std::atomic<unsigned long long> NextAvailableID = 1;
+
+  /// Backend graph ID, queried from urGraphGetIdExp when native recording is
+  /// enabled. Unset for non-native graphs, or for native graphs whose backend
+  /// does not provide the ID; getID() then falls back to MID.
+  std::optional<unsigned long long> MNativeID;
 
   // The number of live executable graphs that have been created from this
   // modifiable graph

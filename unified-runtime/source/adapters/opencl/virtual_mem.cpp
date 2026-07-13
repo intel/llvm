@@ -11,6 +11,8 @@
 #include "context.hpp"
 #include "physical_mem.hpp"
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_context_handle_t, ur_device_handle_t, size_t,
     ur_virtual_mem_granularity_info_t, size_t, void *, size_t *) {
@@ -51,3 +53,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(ur_context_handle_t,
                                                         size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

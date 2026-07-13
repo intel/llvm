@@ -64,7 +64,7 @@ runs:
   - name: Configure E2E tests
     shell: bash
     run: |
-      cmake -GNinja -B build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++).exe' }}" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py" ${{ steps.cmake_opts.outputs.opts }}
+      cmake -GNinja -B build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which dpclang++).exe' }}" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py" ${{ steps.cmake_opts.outputs.opts }}
 
   - name: Keep track of files after configuring E2E step
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
