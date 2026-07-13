@@ -1,4 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_per_event_profiling
+// REQUIRES: level_zero_v2_adapter
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
