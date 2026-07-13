@@ -182,9 +182,9 @@ event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
 
 void event_impl::setQueue(queue_impl &Queue) {
   MQueue = Queue.weak_from_this();
-  if (!MIsProfilingEnabled) {
-    MIsProfilingEnabled = Queue.MIsProfilingEnabled;
-  }
+  // Inherit profiling from the queue only if not already enabled per-event,
+  // per-event profiling takes precedence over queue-level profiling.
+  MIsProfilingEnabled = MIsProfilingEnabled || Queue.MIsProfilingEnabled;
 }
 
 void event_impl::toDeviceEvent(queue_impl &Queue) {
