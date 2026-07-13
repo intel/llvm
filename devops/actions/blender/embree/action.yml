@@ -38,6 +38,7 @@ runs:
       shell: bash
       run: |
         patch -p1 -d embree-src -i "$GITHUB_WORKSPACE/devops/actions/blender/embree/patches/Fix-build.patch"
+        patch -p1 -d embree-src -i "$GITHUB_WORKSPACE/devops/actions/blender/embree/patches/Fix-dpclang.patch"
 
     - name: Configure Embree
       shell: bash
