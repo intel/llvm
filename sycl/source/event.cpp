@@ -96,7 +96,9 @@ event::get_profiling_info() const {
 #define __SYCL_EVENT_INFO_INST(NAME, RETURN_T)                                 \
   template __SYCL_EXPORT RETURN_T event::get_info<info::event::NAME>() const;
 __SYCL_EVENT_INFO_INST(command_execution_status, info::event_command_status)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EVENT_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #undef __SYCL_EVENT_INFO_INST
 
 #define __SYCL_EVENT_PROFILING_INFO_INST(NAME, RETURN_T)                       \

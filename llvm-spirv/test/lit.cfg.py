@@ -13,6 +13,7 @@ from lit.llvm.subst import FindTool
 config.name = 'LLVM_SPIRV'
 
 # testFormat: The test format to use to interpret tests.
+# force_execute_external for now until migrated
 config.test_format = lit.formats.ShTest(execute_external=not llvm_config.use_lit_shell, force_execute_external=True)
 
 # suffixes: A list of file extensions to treat as test files.

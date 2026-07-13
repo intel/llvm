@@ -1609,17 +1609,26 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(false);
     }
 
-    ze_record_replay_graph_exp_properties_t GraphProperties{};
+    // The experimental variant of the extension reports its capabilities
+    // through a structure with a different type value; an older driver would
+    // not recognize the stable one and would leave graphFlags unset. The
+    // structure layout (stype, pNext, graphFlags) is identical between the two
+    // variants, so the stable type can be reused with the experimental value.
+    constexpr ze_structure_type_t ZeStructTypeRecordReplayGraphExpProperties =
+        static_cast<ze_structure_type_t>(0x00030029);
+    ze_record_replay_graph_ext_properties_t GraphProperties{};
     GraphProperties.stype =
-        ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXP_PROPERTIES;
+        Device->Platform->ZeGraphExt.UsesLegacyExperimentalApi
+            ? ZeStructTypeRecordReplayGraphExpProperties
+            : ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
     GraphProperties.pNext = nullptr;
     ZeStruct<ze_device_properties_t> DeviceProperties;
     DeviceProperties.pNext = &GraphProperties;
     ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProperties));
 
-    constexpr ze_record_replay_graph_exp_flags_t GraphModeMask =
-        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_IMMUTABLE_GRAPH |
-        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_MUTABLE_GRAPH;
+    constexpr ze_record_replay_graph_ext_flags_t GraphModeMask =
+        ZE_RECORD_REPLAY_GRAPH_EXT_FLAG_IMMUTABLE_GRAPH |
+        ZE_RECORD_REPLAY_GRAPH_EXT_FLAG_MUTABLE_GRAPH;
     return ReturnValue(static_cast<ur_bool_t>(
         (GraphProperties.graphFlags & GraphModeMask) != 0));
   }
