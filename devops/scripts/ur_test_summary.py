@@ -9,7 +9,7 @@ This script processes LIT test output logs to:
 
 import sys
 import re
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from pathlib import Path
 
 # Use defusedxml for secure XML parsing to prevent XML attacks
@@ -338,7 +338,9 @@ def extract_unsupported_from_lit_inline(lines: List[str]) -> List[str]:
     return unsupported
 
 
-def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
+def extract_test_lists(
+    lines: List[str],
+) -> Tuple[Dict[str, List[str]], Dict[str, int]]:
     """
     Extract categorized test lists from LIT summary.
 
@@ -347,11 +349,15 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
           test name 1
           test name 2
 
-    Returns dictionary with category names as keys and test lists as values.
+    Returns tuple of:
+    - Dictionary with category names as keys and test lists as values
+    - Dictionary with category names as keys and declared counts from headers
     """
     categories = {}
+    declared_counts = {}
     current_category = None
     current_tests = []
+    current_declared_count = 0
 
     # Pattern: "Category Tests (N):"
     # Match any word followed by "Tests (N):" to catch unknown categories
@@ -364,9 +370,11 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
             # Save previous category
             if current_category:
                 categories[current_category] = current_tests
+                declared_counts[current_category] = current_declared_count
 
             # Start new category
             current_category = match.group(1)
+            current_declared_count = int(match.group(2))
             current_tests = []
             continue
 
@@ -375,8 +383,10 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
             # Empty line ends the category
             if not line.strip():
                 categories[current_category] = current_tests
+                declared_counts[current_category] = current_declared_count
                 current_category = None
                 current_tests = []
+                current_declared_count = 0
             else:
                 # Add test to current category (strip leading whitespace)
                 test_name = line.strip()
@@ -386,8 +396,9 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
     # Save last category
     if current_category:
         categories[current_category] = current_tests
+        declared_counts[current_category] = current_declared_count
 
-    return categories
+    return categories, declared_counts
 
 
 def parse_gtest_list(all_tests_file: str) -> List[str]:
@@ -533,7 +544,7 @@ def show_statistics_and_lists(
                 break
 
     # Extract test lists in collapsed sections (LIT format)
-    test_lists = extract_test_lists(lines)
+    test_lists, declared_counts = extract_test_lists(lines)
 
     # Track if we display skipped/excluded separately (for validation later)
     displayed_skipped_count = 0
@@ -541,108 +552,76 @@ def show_statistics_and_lists(
     stats_skipped_count = None
     stats_excluded_count = None
 
-    # For GoogleTest format: try multiple strategies to get skipped list
-    # BUT: only if they're not already in test_lists (avoid duplicates)
-    if "Unsupported" not in test_lists and "Skipped" not in test_lists:
-        # Strategy 1: Extract from LIT xunit XML output (most complete and reliable)
-        skipped_xml = extract_skipped_from_xml(xml_file)
+    # Extract skipped count from statistics
+    for stat in stats:
+        if "Skipped:" in stat or "Unsupported:" in stat:
+            match = re.search(r"(\d+)", stat)
+            if match:
+                stats_skipped_count = int(match.group(1))
+                break
 
-        # Strategy 2: Extract from LIT inline output (works if LIT prints them)
-        unsupported_inline = extract_unsupported_from_lit_inline(lines)
+    # Handle Skipped/Unsupported tests
+    # Check if LIT already extracted them to logs (with --show-skipped flag)
+    skipped_from_log = test_lists.get("Skipped", test_lists.get("Unsupported", []))
+    declared_skipped_count = declared_counts.get(
+        "Skipped", declared_counts.get("Unsupported", None)
+    )
 
-        # Strategy 3: Extract from GoogleTest SKIPPED summary (rare, only if test uses GTEST_SKIP())
-        skipped_gtest = extract_skipped_from_gtest(lines)
+    if skipped_from_log and declared_skipped_count:
+        # We have skipped tests from log - verify count matches header
+        actual_count = len(skipped_from_log)
 
-        # Strategy 4: Compute from all_tests_file if provided
-        skipped_computed = []
-        if all_tests_file:
-            all_tests = parse_gtest_list(all_tests_file)
-
-            # Extract test names from ALL categories (Passed, Failed, Timed Out, etc.)
-            known_tests = set()
-            for category, tests in test_lists.items():
-                for test in tests:
-                    # Split by ' :: ' first to separate suite name from test path
-                    if " :: " in test:
-                        test = test.split(" :: ", 1)[1]
-
-                    parts = test.split("/")
-
-                    # Find binary name (ends with '-test') to locate TestClass/TestCase
-                    binary_index = -1
-                    for i, part in enumerate(parts):
-                        if part.endswith("-test"):
-                            binary_index = i
-                            break
-
-                    # After binary: TestClass/TestCase[/Params...]
-                    if binary_index >= 0 and binary_index + 2 < len(parts):
-                        test_class = parts[binary_index + 1]
-                        test_case = parts[binary_index + 2]
-                        gtest_name = f"{test_class}.{test_case}"
-
-                        # Add ALL parameters after test case
-                        if binary_index + 3 < len(parts):
-                            params = "/".join(parts[binary_index + 3 :])
-                            gtest_name += f"/{params}"
-
-                        known_tests.add(gtest_name)
-
-            if all_tests:
-                # Find skipped: all_tests - all_known_tests
-                skipped_computed = [t for t in all_tests if t not in known_tests]
-
-        # Use the most complete list available
-        # Prefer XML (most complete) > inline > computed > gtest summary
-        if skipped_xml:
-            skipped_list = skipped_xml
-            source = "LIT xunit XML"
-        elif unsupported_inline:
-            skipped_list = unsupported_inline
-            source = "inline UNSUPPORTED"
-        elif skipped_computed:
-            skipped_list = skipped_computed
-            source = "computed from --gtest_list_tests"
-        elif skipped_gtest:
-            skipped_list = skipped_gtest
-            source = "GoogleTest SKIPPED summary"
-        else:
-            skipped_list = []
-            source = None
-
-        # Extract skipped count from statistics (needed for fallback message)
-        for stat in stats:
-            if "Skipped:" in stat:
-                match = re.search(r"(\d+)", stat)
-                if match:
-                    stats_skipped_count = int(match.group(1))
-                    break
-
-        if skipped_list:
-            count = len(skipped_list)
-            displayed_skipped_count = count
-
-            print(f"::group::Skipped Tests ({count})")
-
-            # If there's a mismatch, note it
-            if stats_skipped_count and abs(stats_skipped_count - count) > 10:
-                diff = stats_skipped_count - count
-                print(
-                    f"Note: Statistics show {stats_skipped_count} skipped, list contains {count} ({source})."
-                )
-                if diff > 0:
-                    print(
-                        f"Missing {diff} tests - possible causes: test discovery limitations, filtering, or device-specific tests."
-                    )
-                print()
-
-            for test in skipped_list:
+        if actual_count == declared_skipped_count:
+            # Count matches declared count in log header - use log data
+            displayed_skipped_count = actual_count
+            print(f"::group::Skipped Tests ({actual_count})")
+            for test in skipped_from_log:
                 print(test)
             print("::endgroup::")
-        elif stats_skipped_count:
-            # Statistics show skipped but we couldn't extract the list
+        else:
+            # Mismatch between header and actual lines - fallback to XML
+            skipped_xml = extract_skipped_from_xml(xml_file)
+            if skipped_xml:
+                count = len(skipped_xml)
+                displayed_skipped_count = count
+                print(f"::group::Skipped Tests ({count})")
+                print(
+                    f"Note: Using XML data (log header claimed {declared_skipped_count}, but found {actual_count} lines)."
+                )
+                print()
+                for test in skipped_xml:
+                    print(test)
+                print("::endgroup::")
+            else:
+                # No XML fallback - use log data anyway with warning
+                displayed_skipped_count = actual_count
+                print(f"::group::Skipped Tests ({actual_count})")
+                print(
+                    f"Warning: Log header claimed {declared_skipped_count} skipped, but found {actual_count} lines."
+                )
+                print()
+                for test in skipped_from_log:
+                    print(test)
+                print("::endgroup::")
+
+        # Remove from test_lists to avoid duplicate display
+        test_lists.pop("Skipped", None)
+        test_lists.pop("Unsupported", None)
+
+    elif stats_skipped_count:
+        # No skipped in log, but statistics show some - try XML
+        skipped_xml = extract_skipped_from_xml(xml_file)
+        if skipped_xml:
+            count = len(skipped_xml)
+            displayed_skipped_count = count
+            print(f"::group::Skipped Tests ({count})")
+            for test in skipped_xml:
+                print(test)
+            print("::endgroup::")
+        else:
+            # No XML data either
             print(f"::group::Skipped Tests ({stats_skipped_count})")
-            print(f"Warning: Could not extract individual skipped test names.")
+            print("Warning: Could not extract individual skipped test names.")
             print(
                 f"Statistics show {stats_skipped_count} skipped tests, but they are not available in the output."
             )
@@ -724,8 +703,20 @@ def show_statistics_and_lists(
 
     # Extract and display test timing information if available
     time_info = extract_time_summary(lines)
-    if time_info["slowest"] or time_info["histogram"]:
+    
+    # Extract Testing Time from logs
+    testing_time = None
+    for line in lines:
+        if line.strip().startswith("Testing Time:"):
+            testing_time = line.strip()
+            break
+    
+    if time_info["slowest"] or time_info["histogram"] or testing_time:
         print("::group::Test Timing Summary")
+
+        if testing_time:
+            print(testing_time)
+            print()
 
         if time_info["slowest"]:
             print("Slowest Tests:")

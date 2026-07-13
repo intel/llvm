@@ -84,7 +84,7 @@ runs:
         exit 0
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$BUILD_DIR/test/adapters/*/adapter_results.xml"
+      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$BUILD_DIR/test/adapters/*/adapter_results.xml" | tee -a $GITHUB_STEP_SUMMARY
 
   - name: Prepare adapter specific test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}

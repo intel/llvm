@@ -102,7 +102,7 @@ runs:
         XML_FILE=""
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt "$XML_FILE"
+      python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt "$XML_FILE" | tee -a $GITHUB_STEP_SUMMARY
 
   - name: Prepare conformance test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}
