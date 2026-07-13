@@ -31,7 +31,7 @@ jobs:
   detect_changes:
     if: ${{ github.event_name == 'pull_request' }}
     uses: ./.github/workflows/sycl-detect-changes.yml
-    
+
   build-win:
     if: |
       success() &&
@@ -42,7 +42,7 @@ jobs:
       build_configure_extra_args: -DCMAKE_C_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_CXX_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_EXE_LINKER_FLAGS=/manifest:no -DCMAKE_MODULE_LINKER_FLAGS=/manifest:no -DCMAKE_SHARED_LINKER_FLAGS=/manifest:no
       build_cache_suffix: icx
 
-  e2e-win-dg2-1:
+  e2e-win-arc-1:
     needs: build-win
     # Continue if build was successful.
     if: |
@@ -51,13 +51,13 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel Arc A-Series Graphics with Level Zero
-      runner: '["Windows","dg2"]'
+      runner: '["Windows","arc"]'
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
       # https://github.com/intel/llvm/issues/18458
       env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
-    e2e-win-dg2-2:
+    e2e-win-arc-2:
     needs: build-win
     # Continue if build was successful.
     if: |
@@ -66,13 +66,13 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel Arc A-Series Graphics with Level Zero
-      runner: '["Windows","dg2"]'
+      runner: '["Windows","arc"]'
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
       # https://github.com/intel/llvm/issues/18458
       env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
-  e2e-win-dg2-3:
+  e2e-win-arc-3:
     needs: build-win
     # Continue if build was successful.
     if: |
@@ -81,13 +81,13 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel Arc A-Series Graphics with Level Zero
-      runner: '["Windows","dg2"]'
+      runner: '["Windows","arc"]'
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
       # https://github.com/intel/llvm/issues/18458
       env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
-  e2e-win-dg2-4:
+  e2e-win-arc-4:
     needs: build-win
     # Continue if build was successful.
     if: |
@@ -96,13 +96,13 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel Arc A-Series Graphics with Level Zero
-      runner: '["Windows","dg2"]'
+      runner: '["Windows","arc"]'
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
       # https://github.com/intel/llvm/issues/18458
       env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
-  e2e-win-dg2-5:
+  e2e-win-arc-5:
     needs: build-win
     # Continue if build was successful.
     if: |
@@ -111,7 +111,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel Arc A-Series Graphics with Level Zero
-      runner: '["Windows","dg2"]'
+      runner: '["Windows","arc"]'
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
