@@ -84,7 +84,7 @@ runs:
         exit 0
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$BUILD_DIR/test/adapter_results.xml"
+      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$BUILD_DIR/test/adapters/*/adapter_results.xml"
 
   - name: Prepare adapter specific test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}
@@ -104,22 +104,15 @@ runs:
       fi
       
       # Copy XML file
-      XML_PATH="$BUILD_DIR/test/adapter_results.xml"
+      XML_PATH="$BUILD_DIR/test/adapters/*/adapter_results.xml"
       echo "Looking for XML at: $XML_PATH"
-      if [ -f "$XML_PATH" ]; then
-        cp "$XML_PATH" adapter_artifacts/
-        echo "✓ Copied adapter_results.xml"
+      # Use find since we have wildcard
+      FOUND_XML=$(find "$BUILD_DIR/test/adapters" -name "adapter_results.xml" 2>/dev/null | head -1)
+      if [ -n "$FOUND_XML" ]; then
+        cp "$FOUND_XML" adapter_artifacts/adapter_results.xml
+        echo "✓ Copied adapter_results.xml from: $FOUND_XML"
       else
-        echo "⚠ XML not found at: $XML_PATH"
-        # Try to find it elsewhere
-        FOUND_XML=$(find "$BUILD_DIR" -name "adapter_results.xml" 2>/dev/null | head -1)
-        if [ -n "$FOUND_XML" ]; then
-          echo "✓ Found XML at alternate location: $FOUND_XML"
-          cp "$FOUND_XML" adapter_artifacts/adapter_results.xml
-          echo "✓ Copied from alternate location"
-        else
-          echo "⚠ No adapter_results.xml found anywhere in $BUILD_DIR"
-        fi
+        echo "⚠ No adapter_results.xml found in $BUILD_DIR/test/adapters"
       fi
       
       echo "Artifact contents:"
