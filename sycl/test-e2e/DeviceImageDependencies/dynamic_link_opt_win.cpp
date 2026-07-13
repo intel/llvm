@@ -18,11 +18,9 @@
 // RUN: %clangxx -fsycl -fsycl-allow-device-image-dependencies -O2 %s %t_d.lib -o %t_O2.exe
 // RUN: %{run} %t_O2.exe
 
-// XFAIL: windows
-// XFAIL-TRACKER: CMPLRLLVM-76054
-
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 // No __declspec(dllimport) — only a device-side dependency on the DLL.
 SYCL_EXTERNAL int levelD(int val);

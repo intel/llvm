@@ -14,11 +14,13 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "clang/Options/Options.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -425,6 +427,76 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   TC.addOffloadRTLibs(C.getActiveOffloadKinds(), Args, CmdArgs);
 
   TC.addProfileRTLibs(Args, CmdArgs);
+
+  // -fsycl-allow-device-image-dependencies: device code may depend on external
+  // device images in linked DLLs. On Windows the MSVC linker drops DLL imports
+  // when no host-side symbol is referenced — the device-only SYCL_EXTERNAL call
+  // is invisible to the host linker. Force-include a symbol from each
+  // user-provided import .lib so the linker pulls in the DLL dependency.
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      Args.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
+                   options::OPT_fno_sycl_allow_device_image_dependencies,
+                   false)) {
+    // Collect system library directories to exclude from force-loading.
+    llvm::SmallVector<std::string, 4> SystemLibDirs;
+    SystemLibDirs.push_back(TC.getDriver().Dir + "/../lib");
+    std::string VCLibDir =
+        TC.getSubDirectoryPath(llvm::SubDirectoryType::Lib);
+    if (!VCLibDir.empty())
+      SystemLibDirs.push_back(VCLibDir);
+    std::string WindowsSdkLibPath;
+    if (TC.getWindowsSDKLibraryPath(Args, WindowsSdkLibPath))
+      SystemLibDirs.push_back(WindowsSdkLibPath);
+    std::string UCRTLibPath;
+    if (TC.getUniversalCRTLibraryPath(Args, UCRTLibPath))
+      SystemLibDirs.push_back(UCRTLibPath);
+
+    auto IsSystemLib = [&](StringRef LibPath) {
+      for (const auto &Dir : SystemLibDirs)
+        if (LibPath.starts_with_insensitive(Dir))
+          return true;
+      return false;
+    };
+
+    // Force-include a symbol from each user .lib input so the linker pulls in
+    // the DLL import even when no host code references it directly.
+    auto ForceIncludeFromLib = [&](StringRef LibPath) {
+      auto BufOrErr = llvm::MemoryBuffer::getFile(LibPath);
+      if (!BufOrErr)
+        return;
+      auto ArchiveOrErr =
+          llvm::object::Archive::create(BufOrErr.get()->getMemBufferRef());
+      if (!ArchiveOrErr) {
+        llvm::consumeError(ArchiveOrErr.takeError());
+        return;
+      }
+      for (const auto &Sym : (*ArchiveOrErr)->symbols()) {
+        StringRef Name = Sym.getName();
+        if (Name.starts_with("__IMPORT_DESCRIPTOR_") ||
+            Name == "__NULL_IMPORT_DESCRIPTOR" ||
+            Name.ends_with("_NULL_THUNK_DATA"))
+          continue;
+        CmdArgs.push_back(Args.MakeArgString(Twine("/INCLUDE:") + Name));
+        return;
+      }
+    };
+
+    for (const auto &Input : Inputs) {
+      if (!Input.isFilename())
+        continue;
+      StringRef Path(Input.getFilename());
+      if (!Path.ends_with_insensitive(".lib"))
+        continue;
+      if (IsSystemLib(Path))
+        continue;
+      // Skip the SYCL runtime library itself (may not be in a system dir
+      // when running from a build tree).
+      StringRef Stem = llvm::sys::path::stem(Path);
+      if (Stem.starts_with_insensitive("sycl"))
+        continue;
+      ForceIncludeFromLib(Path);
+    }
+  }
 
   std::vector<const char *> Environment;
 
