@@ -154,4 +154,3 @@ jobs:
     name: macOS
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-macos-build-and-test.yml
-    
