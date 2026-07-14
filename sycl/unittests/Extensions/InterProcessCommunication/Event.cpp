@@ -42,8 +42,7 @@ ur_context_handle_t MockContextHandle = nullptr;
 
 ur_result_t replace_urIPCGetEventHandleExp(void *pParams) {
   ++urIPCGetEventHandleExp_counter;
-  auto params =
-      *static_cast<ur_ipc_get_event_handle_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_ipc_get_event_handle_exp_params_t *>(pParams);
   if (*params.pppIPCEventHandleData)
     **params.pppIPCEventHandleData = DummyHandleData;
   if (*params.ppIPCEventHandleDataSizeRet)
@@ -53,20 +52,18 @@ ur_result_t replace_urIPCGetEventHandleExp(void *pParams) {
 
 ur_result_t replace_urIPCPutEventHandleExp(void *pParams) {
   ++urIPCPutEventHandleExp_counter;
-  auto params =
-      *static_cast<ur_ipc_put_event_handle_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_ipc_put_event_handle_exp_params_t *>(pParams);
   EXPECT_EQ(*params.ppIPCEventHandleData, (void *)DummyHandleData);
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t replace_urIPCOpenEventHandleExp(void *pParams) {
   ++urIPCOpenEventHandleExp_counter;
-  auto params =
-      *static_cast<ur_ipc_open_event_handle_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_ipc_open_event_handle_exp_params_t *>(pParams);
   EXPECT_EQ(*params.pipcEventHandleDataSize, DummyHandleDataSize);
-  EXPECT_EQ(
-      memcmp(*params.ppIPCEventHandleData, DummyHandleData, DummyHandleDataSize),
-      0);
+  EXPECT_EQ(memcmp(*params.ppIPCEventHandleData, DummyHandleData,
+                   DummyHandleDataSize),
+            0);
   **params.pphEvent = DummyEvent;
   return UR_RESULT_SUCCESS;
 }
@@ -81,9 +78,10 @@ ur_result_t replace_urEventRelease(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-// event_impl(ur_event_handle_t, ctx) calls urEventGetInfo(UR_EVENT_INFO_CONTEXT)
-// to validate the event belongs to the context. Return the mock context handle
-// so the validation passes for imported events.
+// event_impl(ur_event_handle_t, ctx) calls
+// urEventGetInfo(UR_EVENT_INFO_CONTEXT) to validate the event belongs to the
+// context. Return the mock context handle so the validation passes for imported
+// events.
 ur_result_t replace_urEventGetInfo(void *pParams) {
   auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
   if (*params.ppropName == UR_EVENT_INFO_CONTEXT) {
@@ -134,8 +132,7 @@ protected:
     urIPCOpenEventHandleExp_counter = 0;
     urEventRelease_counter = 0;
 
-    MockContextHandle =
-        sycl::detail::getSyclObjImpl(Ctxt)->getHandleRef();
+    MockContextHandle = sycl::detail::getSyclObjImpl(Ctxt)->getHandleRef();
 
     mock::getCallbacks().set_replace_callback("urIPCGetEventHandleExp",
                                               replace_urIPCGetEventHandleExp);
@@ -292,7 +289,8 @@ TEST_F(IPCEventTests, MakeEventIPCAndProfilingThrows) {
   bool caught = false;
   try {
     (void)syclexp::make_event(
-        Ctxt, syclexp::properties{syclexp::enable_ipc, syclexp::enable_profiling});
+        Ctxt,
+        syclexp::properties{syclexp::enable_ipc, syclexp::enable_profiling});
   } catch (const sycl::exception &E) {
     caught = true;
     EXPECT_EQ(E.code(), sycl::make_error_code(sycl::errc::invalid));
