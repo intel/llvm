@@ -1035,7 +1035,8 @@ enum FPEncodingWrap {
   BF16 = FPEncoding::FPEncodingBFloat16KHR,
   E4M3 = FPEncoding::FPEncodingFloat8E4M3EXT,
   E5M2 = FPEncoding::FPEncodingFloat8E5M2EXT,
-  E2M1 = internal::FPEncodingFloat4E2M1INTEL,
+  E2M1 = FPEncoding::FPEncodingFloat4E2M1EXT,
+  E2M1INTEL = internal::FPEncodingFloat4E2M1INTEL,
 };
 
 // Structure describing non-trivial conversions (FP8, FP4 and int4)
@@ -1072,14 +1073,22 @@ typedef SPIRVMap<llvm::StringRef, FPConversionDesc> FPConvertToEncodingMap;
 // clang-format off
 template <> inline void FPConvertToEncodingMap::init() {
   // 4-bit conversions
-  add("ConvertE2M1ToE4M3INTEL",
+  add("ConvertE2M1ToE4M3EXT",
       {FPEncodingWrap::E2M1,      FPEncodingWrap::E4M3,         OpFConvert});
-  add("ConvertE2M1ToE5M2INTEL",
+  add("ConvertE2M1ToE5M2EXT",
       {FPEncodingWrap::E2M1,      FPEncodingWrap::E5M2,         OpFConvert});
-  add("ConvertE2M1ToFP16INTEL",
+  add("ConvertE2M1ToFP16EXT",
       {FPEncodingWrap::E2M1,      FPEncodingWrap::IEEE754,      OpFConvert});
-  add("ConvertE2M1ToBF16INTEL",
+  add("ConvertE2M1ToBF16EXT",
       {FPEncodingWrap::E2M1,      FPEncodingWrap::BF16,         OpFConvert});
+  add("ConvertE2M1ToE4M3INTEL",
+      {FPEncodingWrap::E2M1INTEL, FPEncodingWrap::E4M3,         OpFConvert});
+  add("ConvertE2M1ToE5M2INTEL",
+      {FPEncodingWrap::E2M1INTEL, FPEncodingWrap::E5M2,         OpFConvert});
+  add("ConvertE2M1ToFP16INTEL",
+      {FPEncodingWrap::E2M1INTEL, FPEncodingWrap::IEEE754,      OpFConvert});
+  add("ConvertE2M1ToBF16INTEL",
+      {FPEncodingWrap::E2M1INTEL, FPEncodingWrap::BF16,         OpFConvert});
 
   add("ConvertInt4ToE4M3INTEL",
       {FPEncodingWrap::Integer,      FPEncodingWrap::E4M3,      OpConvertSToF});
@@ -1092,10 +1101,14 @@ template <> inline void FPConvertToEncodingMap::init() {
   add("ConvertInt4ToInt8INTEL",
       {FPEncodingWrap::Integer,      FPEncodingWrap::Integer,   OpSConvert});
 
-  add("ConvertFP16ToE2M1INTEL",
+  add("ConvertFP16ToE2M1EXT",
       {FPEncodingWrap::IEEE754,      FPEncodingWrap::E2M1,      OpFConvert});
-  add("ConvertBF16ToE2M1INTEL",
+  add("ConvertBF16ToE2M1EXT",
       {FPEncodingWrap::BF16,         FPEncodingWrap::E2M1,      OpFConvert});
+  add("ConvertFP16ToE2M1INTEL",
+      {FPEncodingWrap::IEEE754,      FPEncodingWrap::E2M1INTEL, OpFConvert});
+  add("ConvertBF16ToE2M1INTEL",
+      {FPEncodingWrap::BF16,         FPEncodingWrap::E2M1INTEL, OpFConvert});
   add("ConvertFP16ToInt4INTEL",
       {FPEncodingWrap::IEEE754,      FPEncodingWrap::Integer,   OpConvertFToS});
   add("ConvertBF16ToInt4INTEL",
