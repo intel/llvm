@@ -20,6 +20,7 @@ struct LinkingCapturesHolder {
 
   void clear() {
     NumOfUrProgramCreateCalls = 0;
+    NumOfUrProgramCreateWithBinaryCalls = 0;
     NumOfUrProgramLinkCalls = 0;
     ProgramUsedToCreateKernel = 0;
     LinkedPrograms.clear();
