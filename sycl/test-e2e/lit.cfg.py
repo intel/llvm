@@ -725,10 +725,9 @@ with test_env():
     # that contains ":gpu]". Add a feature when at least two are present so
     # tests requiring multi-GPU hardware can be skipped on single-GPU machines.
     # This is a runtime-only feature since it queries actual hardware.
-    if config.test_mode != "build-only":
-        gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
-        if len(gpu_device_lines) >= 2:
-            config.available_features.add("two-or-more-gpu-devices")
+    gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
+    if len(gpu_device_lines) >= 2:
+        config.available_features.add("two-or-more-gpu-devices")
 
     if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         devices = set()
