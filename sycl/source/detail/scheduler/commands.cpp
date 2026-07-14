@@ -3524,9 +3524,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
 
     auto &Queue = HostTask->MQueue;
-    auto NativeHostTaskData =
-        std::make_unique<detail::EnqueueHostTaskData>(
-            HostTask.MHostTask->MHostTask);
+    auto NativeHostTaskData = std::make_unique<detail::EnqueueHostTaskData>(
+        HostTask->MHostTask->MHostTask);
     Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
         Queue->getHandleRef(), detail::NativeHostTask<true>,
         NativeHostTaskData.get(), nullptr, RawEvents.size(),

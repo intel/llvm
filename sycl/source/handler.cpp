@@ -788,6 +788,7 @@ detail::EventImplPtr handler::finalize() {
     auto GraphImpl = detail::getNativeGraphImpl(*Queue);
     assert(GraphImpl && "Native graph handle expired while recording");
 
+    auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
     // Store callback in the graph to manage its lifetime
     auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
         std::make_unique<detail::EnqueueHostTaskData>(
