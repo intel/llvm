@@ -207,9 +207,9 @@ may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
 parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
 or via the ***LIT_OPTS*** environment variable.
 
-***GPU_AOT_TARGET_OPTS*** - defines additional options which are passed to AOT
-compilation command line for GPU device. If not specified "-device *" value is
-used.
+***INTEL_GPU_AOT_TARGET_OPTS*** - defines a comma-separated a list of intel gpu targets
+for AOT compilation in form 'intel_gpu_<device>'. If not specified
+the predefined list of known targets is used.
 
 ***OFFLOAD_BUILD_TARGET*** - when testing the Offload backend, this must be set
 to specify the correct build target type for the available Offload device.
