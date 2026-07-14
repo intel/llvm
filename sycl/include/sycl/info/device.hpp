@@ -418,9 +418,13 @@ struct __SYCL_DEPRECATED("use sycl::aspect::atomic64 instead") atomic64
 };
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-struct reference_count : device_traits<UR_DEVICE_INFO_REFERENCE_COUNT> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+struct __SYCL_DEPRECATED("info::device::reference_count is not part of "
+                         "SYCL 2020") reference_count
+    : device_traits<UR_DEVICE_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // To be dropped (has alternatives/not needed)
 struct usm_device_allocations
     : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {

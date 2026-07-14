@@ -24,8 +24,6 @@ template <ur_platform_info_t UrCode>
 using platform_traits =
     sycl::detail::ur_traits_base<sycl::detail::info_class::platform, UrCode>;
 
-// TODO Despite giving this deprecation warning, we're still yet to implement
-// info::device::aspects.
 struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use device::get_info() "
                              "with info::device::aspects instead") extensions
     : platform_traits<UR_PLATFORM_INFO_EXTENSIONS> {

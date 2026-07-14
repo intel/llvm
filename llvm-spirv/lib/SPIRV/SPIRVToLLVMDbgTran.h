@@ -94,7 +94,7 @@ private:
   DIFile *
   getDIFile(const std::string &FileName,
             std::optional<DIFile::ChecksumInfo<StringRef>> CS = std::nullopt,
-            std::optional<StringRef> Source = std::nullopt);
+            std::optional<std::string> Source = std::nullopt);
   DIFile *getDIFile(const SPIRVEntry *E);
   unsigned getLineNo(const SPIRVEntry *E);
 
@@ -219,8 +219,8 @@ private:
     return nullptr;
   }
   const std::string &getString(const SPIRVId Id);
-  const std::string getStringSourceContinued(const SPIRVId Id,
-                                             SPIRVExtInst *DebugInst);
+  std::optional<std::string> getStringSourceContinued(const SPIRVId Id,
+                                                      SPIRVExtInst *DebugInst);
   SPIRVWord getConstantValueOrLiteral(const std::vector<SPIRVWord> &,
                                       const SPIRVWord,
                                       const SPIRVExtInstSetKind);
