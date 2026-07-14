@@ -682,31 +682,58 @@ if platform.system() == "Windows":
         directx_libs = ["/clang:" + l for l in directx_libs]
     config.substitutions.append(("%link-directx", " ".join(directx_libs)))
 
-# Maps intel_gpu_<X> target names to the ocloc short names accepted by -device.
+# Maps intel_gpu_<X> target names to the short names accepted by ocloc.
+# Some of the targets are outdated and commented here for now.
 INTEL_GPU_SHORT_NAMES = {
-    "intel_gpu_bdw": "bdw", "intel_gpu_skl": "skl", "intel_gpu_kbl": "kbl",
-    "intel_gpu_cfl": "cfl", "intel_gpu_apl": "apl", "intel_gpu_bxt": "apl",
-    "intel_gpu_glk": "glk", "intel_gpu_whl": "whl", "intel_gpu_aml": "aml",
-    "intel_gpu_cml": "cml", "intel_gpu_icllp": "icllp", "intel_gpu_icl": "icllp",
-    "intel_gpu_ehl": "ehl", "intel_gpu_jsl": "ehl",
-    "intel_gpu_tgllp": "tgllp", "intel_gpu_tgl": "tgllp",
-    "intel_gpu_rkl": "rkl", "intel_gpu_adl_s": "adl_s", "intel_gpu_rpl_s": "adl_s",
-    "intel_gpu_adl_p": "adl_p", "intel_gpu_adl_n": "adl_n",
+    #"intel_gpu_bdw": "bdw",
+    #"intel_gpu_skl": "skl",
+    #"intel_gpu_kbl": "kbl",
+    "intel_gpu_cfl": "cfl",
+    "intel_gpu_apl": "apl",
+    "intel_gpu_bxt": "apl",
+    #"intel_gpu_glk": "glk",
+    #"intel_gpu_whl": "whl",
+    "intel_gpu_aml": "aml",
+    "intel_gpu_cml": "cml",
+    #"intel_gpu_icllp": "icllp",
+    "intel_gpu_icl": "icllp",
+    #"intel_gpu_ehl": "ehl",
+    "intel_gpu_jsl": "ehl",
+    "intel_gpu_tgllp": "tgllp",
+    "intel_gpu_tgl": "tgllp",
+    "intel_gpu_rkl": "rkl",
+    "intel_gpu_adl_s": "adl_s",
+    "intel_gpu_rpl_s": "adl_s",
+    "intel_gpu_adl_p": "adl_p",
+    "intel_gpu_adl_n": "adl_n",
     "intel_gpu_dg1": "dg1",
-    "intel_gpu_acm_g10": "acm_g10", "intel_gpu_dg2_g10": "acm_g10",
-    "intel_gpu_acm_g11": "acm_g11", "intel_gpu_dg2_g11": "acm_g11",
-    "intel_gpu_acm_g12": "acm_g12", "intel_gpu_dg2_g12": "acm_g12",
+    "intel_gpu_acm_g10": "acm_g10",
+    "intel_gpu_dg2_g10": "acm_g10",
+    "intel_gpu_acm_g11": "acm_g11",
+    "intel_gpu_dg2_g11": "acm_g11",
+    "intel_gpu_acm_g12": "acm_g12",
+    "intel_gpu_dg2_g12": "acm_g12",
     "intel_gpu_dg2": "dg2",
-    "intel_gpu_pvc": "pvc", "intel_gpu_pvc_vg": "pvc-vg",
-    "intel_gpu_mtl_u": "mtl-u", "intel_gpu_mtl_s": "mtl-s", "intel_gpu_mtl_h": "mtl-h",
-    "intel_gpu_arl_u": "arl-u", "intel_gpu_arl_s": "arl-s", "intel_gpu_arl_h": "arl-h",
-    "intel_gpu_bmg_g21": "bmg-g21", "intel_gpu_bmg": "bmg",
+    "intel_gpu_pvc": "pvc", 
+    "intel_gpu_pvc_vg": "pvc-vg",
+    "intel_gpu_mtl_u": "mtl-u",
+    "intel_gpu_mtl_s": "mtl-s",
+    "intel_gpu_mtl_h": "mtl-h",
+    "intel_gpu_arl_u": "arl-u",
+    "intel_gpu_arl_s": "arl-s",
+    "intel_gpu_arl_h": "arl-h",
+    "intel_gpu_bmg_g21": "bmg-g21",
+    "intel_gpu_bmg": "bmg",
     "intel_gpu_lnl_m": "lnl-m",
 }
 
 all_intel_gpu_aot_targets = ','.join(INTEL_GPU_SHORT_NAMES.keys())
 
-intel_gpu_aot_targets = config.intel_gpu_aot_targets if config.intel_gpu_aot_targets else all_intel_gpu_aot_targets
+intel_gpu_aot_targets = (
+    config.intel_gpu_aot_targets
+    if config.intel_gpu_aot_targets
+    else all_intel_gpu_aot_targets
+)
 config.substitutions.append(("%{intel_gpu_aot_targets}", intel_gpu_aot_targets))
 
 if config.dump_ir_supported:
