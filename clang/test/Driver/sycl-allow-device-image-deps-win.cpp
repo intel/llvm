@@ -91,6 +91,22 @@
 // SYSLIB-NOT: "/INCLUDE:__imp_
 
 /// ---------------------------------------------------------------------------
+/// Negative gating: force-loading only kicks in when *both* -fsycl and
+/// -fsycl-allow-device-image-dependencies are present. Use the resolvable
+/// dep.lib so only the missing flag can suppress the /INCLUDE:.
+/// ---------------------------------------------------------------------------
+
+/// -fsycl-allow-device-image-dependencies without -fsycl.
+// RUN: %clang_cl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          %t.libdir/dep.lib 2>&1 | FileCheck --check-prefix=NONE %s
+
+/// -fsycl without -fsycl-allow-device-image-dependencies.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          /O2 -### %s \
+// RUN:          %t.libdir/dep.lib 2>&1 | FileCheck --check-prefix=NONE %s
+
+/// ---------------------------------------------------------------------------
 /// Negative: a .lib that cannot be resolved emits no /INCLUDE: (and the driver
 /// does not fail). Covers every resolution path — a bare name with no search
 /// dir, a name that misses in an existing /libpath:, a nonexistent full path,

@@ -14,7 +14,8 @@
 // RUN: %clangxx -fsycl -fsycl-allow-device-image-dependencies %O0 %s %t_d.lib -o %t_O0.exe
 // RUN: %{run} %t_O0.exe
 
-// Build app at -O2 — fails due to the bug (DLL import dropped):
+// Build app at -O2 — previously failed (DLL import dropped by the bug), now
+// works with the fix:
 // RUN: %clangxx -fsycl -fsycl-allow-device-image-dependencies -O2 %s %t_d.lib -o %t_O2.exe
 // RUN: %{run} %t_O2.exe
 

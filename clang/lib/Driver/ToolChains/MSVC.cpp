@@ -29,6 +29,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/Host.h"
+#include <algorithm>
 #include <cstdio>
 
 #ifdef _WIN32
@@ -106,6 +107,8 @@ class DeviceImageDepForcer {
   }
 
   bool isSystemLib(StringRef LibPath) const {
+    // Compare against the dir plus a trailing '\' (SystemLibDirs are stored
+    // that way) so "C:\sdk\lib" doesn't spuriously match "C:\sdk\library\...".
     std::string Norm = collapseSeps(LibPath);
     for (const auto &Dir : SystemLibDirs)
       if (StringRef(Norm).starts_with_insensitive(Dir))
@@ -208,9 +211,17 @@ public:
     if (TC.getUniversalCRTLibraryPath(Args, UCRTLibPath))
       SystemLibDirs.push_back(UCRTLibPath);
 
-    // Normalize the system lib dirs so prefix matching survives mixed separators.
-    for (std::string &Dir : SystemLibDirs)
-      Dir = collapseSeps(Dir);
+    // Normalize the system lib dirs so prefix matching survives mixed
+    // separators and un-collapsed dot-dots (e.g. "...\\bin\\..\\lib"), and give
+    // each a trailing '\' so a dir only matches on a path boundary.
+    for (std::string &Dir : SystemLibDirs) {
+      llvm::SmallString<128> Canon(collapseSeps(Dir));
+      llvm::sys::path::remove_dots(Canon, /*remove_dot_dot=*/true,
+                                   llvm::sys::path::Style::windows_backslash);
+      Dir = Canon.str();
+      if (!Dir.empty() && Dir.back() != '\\')
+        Dir += '\\';
+    }
 
     // Replicate the linker's library search path so bare .lib names (resolved
     // via the LIB env var or /libpath:) can be opened, not just absolute paths.
@@ -243,13 +254,12 @@ public:
       const Arg &A = Input.getInputArg();
       if (A.getOption().matches(options::OPT_l)) {
         StringRef Lib = A.getValue();
-        processToken(Lib.ends_with_insensitive(".lib")
-                         ? Lib
-                         : Saver.save(Lib + ".lib"));
+        processToken(
+            Lib.ends_with_insensitive(".lib") ? Lib : Saver.save(Lib + ".lib"));
       }
       // -Wl,/-Xlinker values that MSVC passes straight through to the linker.
       else if (A.getOption().matches(options::OPT_Wl_COMMA) ||
-                 A.getOption().matches(options::OPT_Xlinker)) {
+               A.getOption().matches(options::OPT_Xlinker)) {
         for (StringRef Value : A.getValues())
           processToken(Value);
       }
