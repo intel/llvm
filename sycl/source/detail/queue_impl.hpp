@@ -383,6 +383,14 @@ public:
     return createSyclObjFromImpl<event>(std::move(EventImpl));
   }
 
+  void submit_barrier_direct_without_event(
+      sycl::span<const event> DepEvents, detail::CGType BarrierType,
+      const detail::code_location &CodeLoc,
+      const EventImplPtr &EventForReuse = nullptr) {
+    submit_barrier_direct_impl(DepEvents, BarrierType, CodeLoc, false,
+                               EventForReuse);
+  }
+
   void submit_graph_direct_without_event(
       const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
           &ExecGraph,
@@ -428,7 +436,8 @@ public:
 
   EventImplPtr submit_barrier_scheduler_bypass(
       std::vector<detail::EventImplPtr> &BarrierDepEvents,
-      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType);
+      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
+      bool EventNeeded, const EventImplPtr &EventForReuse);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -969,9 +978,10 @@ protected:
   /// \param CodeLoc is the code location of the submit call
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
-  EventImplPtr submit_barrier_direct_impl(sycl::span<const event> DepEvents,
-                                          detail::CGType BarrierType,
-                                          const detail::code_location &CodeLoc);
+  EventImplPtr submit_barrier_direct_impl(
+      sycl::span<const event> DepEvents, detail::CGType BarrierType,
+      const detail::code_location &CodeLoc, bool CallerNeedsEvent = true,
+      const EventImplPtr &EventForReuse = nullptr);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.

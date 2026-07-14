@@ -96,13 +96,27 @@ public:
                                         private_tag{});
   }
 
-  /// Sets a queue associated with the event
-  ///
-  /// Please note that this function changes the event state
-  /// as it was constructed with the queue based constructor.
+  /// Sets a queue associated with the event.
   ///
   /// \param Queue is a queue to be associated with the event
   void setQueue(queue_impl &Queue);
+
+  /// Converts the event from default constructed to device event.
+  ///
+  /// \param Queue is a queue to be associated with the event
+  void toDeviceEvent(queue_impl &Queue);
+
+  /// Returns an event UR handle and applies additional logic
+  /// related to reusable events.
+  ///
+  /// \param Queue is a queue to be associated with the event
+  ur_event_handle_t getHandleReusable(queue_impl &Queue);
+
+  /// Sets the event UR handle and applies additional logic
+  /// related to reusable events.
+  ///
+  /// \param Handle is a UR handle to be set
+  void setHandleReusable(ur_event_handle_t Handle);
 
   /// Waits for the event.
   ///

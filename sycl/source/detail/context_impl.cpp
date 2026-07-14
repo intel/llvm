@@ -576,6 +576,40 @@ context_impl::get_default_memory_pool(const context &Context,
   return MemPoolImplPtr;
 }
 
+bool context_impl::supportsReusableEvents() {
+  std::lock_guard<std::mutex> Lock{MReusableEventsSupportMutex};
+  if (MReusableEventsSupport) {
+    return *MReusableEventsSupport;
+  }
+
+  MReusableEventsSupport = std::all_of(
+      MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
+        ur_bool_t ReusableEventsSupport = false;
+        ur_result_t Result =
+            getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+                DevImpl->getHandleRef(),
+                UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
+                sizeof(ReusableEventsSupport), &ReusableEventsSupport, nullptr);
+        return (Result == UR_RESULT_SUCCESS) && ReusableEventsSupport;
+      });
+
+  return *MReusableEventsSupport;
+}
+
+bool context_impl::supportsEventProfiling() {
+  std::lock_guard<std::mutex> Lock{MEventProfilingSupportMutex};
+  if (MEventProfilingSupport) {
+    return *MEventProfilingSupport;
+  }
+
+  MEventProfilingSupport = std::all_of(
+      MDevices.cbegin(), MDevices.cend(), [](detail::device_impl *DevImpl) {
+        return DevImpl->has(aspect::ext_oneapi_per_event_profiling);
+      });
+
+  return *MEventProfilingSupport;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
