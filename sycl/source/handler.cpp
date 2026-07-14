@@ -772,19 +772,17 @@ detail::EventImplPtr handler::finalize() {
   // Because command graph case is handled right above.
   assert(Queue);
 
-  if (type == detail::CGType::CodeplayHostTask &&
-      Queue->isNativeRecording()) {
+  if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
     throw sycl::exception(make_error_code(errc::feature_not_supported),
-                            "Only restricted host tasks may be captured in "
-                            "native recording mode. The restricted host tasks "
-                            "API needs to be used and support in the backend "
-                            "required on this device.");
+                          "Only restricted host tasks may be captured in "
+                          "native recording mode. The restricted host tasks "
+                          "API needs to be used and support in the backend "
+                          "required on this device.");
   }
 
   // Host tasks in native recording mode are captured into the native graph
   // rather than submitted to the scheduler.
-  if (type == detail::CGType::NativeHostTask &&
-      Queue->isNativeRecording()) {
+  if (type == detail::CGType::NativeHostTask && Queue->isNativeRecording()) {
     auto GraphImpl = detail::getNativeGraphImpl(*Queue);
     assert(GraphImpl && "Native graph handle expired while recording");
 

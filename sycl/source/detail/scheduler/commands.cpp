@@ -3528,8 +3528,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         HostTask->MHostTask->MHostTask);
     Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
         Queue->getHandleRef(), detail::NativeHostTask<true>,
-        NativeHostTaskData.get(), nullptr, RawEvents.size(),
-        RawEvents.data(), Event);
+        NativeHostTaskData.get(), nullptr, RawEvents.size(), RawEvents.data(),
+        Event);
     (void)NativeHostTaskData.release();
     SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
