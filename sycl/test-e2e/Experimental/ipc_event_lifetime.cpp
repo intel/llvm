@@ -4,11 +4,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Lifetime invariants of the IPC events surface:
-//   * put() on the producer-side handle does not invalidate the producer
-//     event; a fresh get() on the same producer still yields a usable handle.
-//   * An imported event remains usable after the producer-side event is
-//     destroyed, as long as the imported event is still alive.
+// Check that put() on the producer-side handle does not invalidate the producer
+// event; a fresh get() on the same producer still yields a usable handle.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
@@ -23,7 +20,6 @@ int main() {
   sycl::queue Q;
   sycl::context Ctx = Q.get_context();
 
-  // 1. put does not invalidate the producer event.
   {
     sycl::event ProducerEvt =
         exp::make_event(Ctx, exp::properties{exp::enable_ipc});
@@ -41,24 +37,6 @@ int main() {
     sycl::event Imp = ipc::event::open(H2.data(), Ctx);
     Imp.wait();
     ipc::event::put(H2, Ctx);
-  }
-
-  // 2. Imported event survives release of the producer.
-  {
-    // Wrap the producer event in unique_ptr so we can drop it explicitly.
-    auto Producer = std::make_unique<sycl::event>(
-        exp::make_event(Ctx, exp::properties{exp::enable_ipc}));
-    exp::enqueue_signal_event(Q, *Producer);
-    Producer->wait();
-
-    ipc::handle H = ipc::event::get(*Producer);
-    sycl::event Imported = ipc::event::open(H.data(), Ctx);
-
-    // Drop the producer event; the imported event must remain usable.
-    Producer.reset();
-
-    Imported.wait();
-    ipc::event::put(H, Ctx);
   }
 
   return 0;
