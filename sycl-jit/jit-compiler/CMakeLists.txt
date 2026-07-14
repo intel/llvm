@@ -20,17 +20,32 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
-set(libclc_enabled FALSE)
-foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
-  if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
-    set(libclc_enabled TRUE)
-    break()
-  endif()
-endforeach()
+# libclc (libspirv builtins) is only consumed by the NVPTX and AMDGPU backends.
+# Map the selected JIT targets to the libclc runtime triples we need to embed.
+set(SYCL_JIT_LIBCLC_TRIPLES)
+if("NVPTX" IN_LIST SYCL_JIT_TARGETS)
+  list(APPEND SYCL_JIT_LIBCLC_TRIPLES "nvptx64-nvidia-cuda")
+endif()
+if("AMDGPU" IN_LIST SYCL_JIT_TARGETS)
+  list(APPEND SYCL_JIT_LIBCLC_TRIPLES "amdgcn-amd-amdhsa")
+endif()
 
-if (libclc_enabled)
-  # If some targets required `libclc` then we should embed it for the
-  # `sycl-jit`.
+if (SYCL_JIT_LIBCLC_TRIPLES)
+  # If some JIT target requires `libclc` then we should embed it for the
+  # `sycl-jit`. Guard against the runtime not actually being built.
+  set(libclc_enabled FALSE)
+  foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
+    if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
+      set(libclc_enabled TRUE)
+      break()
+    endif()
+  endforeach()
+  if (NOT libclc_enabled)
+    message(FATAL_ERROR
+      "SYCL_JIT_TARGETS requests NVPTX/AMDGPU (${SYCL_JIT_TARGETS}) which need "
+      "libclc, but no runtime target enables the 'libclc' runtime. Add libclc "
+      "to RUNTIMES_<triple>_LLVM_ENABLE_RUNTIMES for the relevant target.")
+  endif()
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
 endif()
 
@@ -49,7 +64,10 @@ foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
   if("${component}" STREQUAL "libspirv-builtins")
     list(APPEND SYCL_JIT_RESOURCE_DEPS libclc)
     foreach(tgt IN LISTS LLVM_RUNTIME_TARGETS)
-      if("libclc" IN_LIST RUNTIMES_${tgt}_LLVM_ENABLE_RUNTIMES)
+      # Only install libclc for the triples requested via SYCL_JIT_TARGETS, so
+      # a package doesn't embed builtins for a backend it doesn't support.
+      if("libclc" IN_LIST RUNTIMES_${tgt}_LLVM_ENABLE_RUNTIMES
+         AND "${tgt}" IN_LIST SYCL_JIT_LIBCLC_TRIPLES)
         sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc")
       endif()
     endforeach()
@@ -217,11 +235,11 @@ target_link_libraries(sycl-jit
 
 add_dependencies(sycl-jit sycl-headers)
 
-if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+if("NVPTX" IN_LIST SYCL_JIT_TARGETS)
   target_compile_definitions(sycl-jit PRIVATE JIT_SUPPORT_PTX)
 endif()
 
-if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+if("AMDGPU" IN_LIST SYCL_JIT_TARGETS)
   target_compile_definitions(sycl-jit PRIVATE JIT_SUPPORT_AMDGCN)
 endif()
 

@@ -26,11 +26,11 @@ if (NOT WIN32 AND NOT CYGWIN)
 
   add_dependencies(SYCLJITPassesPlugin sycl-headers)
 
-  if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  if("NVPTX" IN_LIST SYCL_JIT_TARGETS)
     target_compile_definitions(SYCLJITPassesPlugin PRIVATE JIT_SUPPORT_PTX)
   endif()
 
-  if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  if("AMDGPU" IN_LIST SYCL_JIT_TARGETS)
     target_compile_definitions(SYCLJITPassesPlugin PRIVATE JIT_SUPPORT_AMDGCN)
   endif()
 
@@ -74,10 +74,10 @@ target_include_directories(SYCLJITPasses
 
 add_dependencies(SYCLJITPasses sycl-headers)
 
-if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+if("NVPTX" IN_LIST SYCL_JIT_TARGETS)
   target_compile_definitions(SYCLJITPasses PRIVATE JIT_SUPPORT_PTX)
 endif()
 
-if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+if("AMDGPU" IN_LIST SYCL_JIT_TARGETS)
   target_compile_definitions(SYCLJITPasses PRIVATE JIT_SUPPORT_AMDGCN)
 endif()

@@ -37,6 +37,12 @@ const resource_file ToolchainFiles[] = {"""
             # We only need .bc files from libdevice:
             if re.search(r"[/\\]libsycl-.*\.(o|obj|spv)$", file_path):
                 return
+            # The JIT only ever links bitcode (`.bc`) device libraries via
+            # `loadBitcodeLibrary`; static archives (e.g. libspirv.a) are never
+            # loaded at runtime, so don't embed them. Skipping them avoids tens
+            # of MB of dead weight in `libsycl-jit`.
+            if re.search(r"\.(a|lib)$", file_path):
+                return
             out.write(
                 f"""
 {{

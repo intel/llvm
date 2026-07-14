@@ -22,6 +22,12 @@ on:
         required: false
         default: sycl-toolchain
 
+      report_jit_size:
+        type: boolean
+        required: false
+        default: false
+        description: 'Report sycl-jit.dll on-disk and compressed (download) size in the job summary.'
+
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -163,6 +169,32 @@ jobs:
       run: |
         cmake --build build --target ${{ inputs.build_target }}
     - run: build/bin/clang++ --version
+    - name: Report sycl-jit.dll size
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.report_jit_size }}
+      shell: bash
+      run: |
+        set -eu
+        DLL=$(find build/bin -name 'sycl-jit.dll' -type f | head -1)
+        if [ -z "${DLL:-}" ]; then
+          echo "sycl-jit.dll not found (target may not have been built); skipping."
+          exit 0
+        fi
+        # Windows debug info lives in a separate .pdb, so the DLL ships as-is (no
+        # strip step). Measure zstd as the download-size proxy: it's the
+        # compressor the Windows build already uses (`--use-zstd`) and matches
+        # the conda / newer-installer packaging.
+        RAW=$(stat -c%s "$DLL")
+        ZST=$(zstd -19 -q -c "$DLL" | wc -c)
+        RAW_MB=$(awk -v b="$RAW" 'BEGIN{printf "%.1f", b/1048576}')
+        ZST_MB=$(awk -v b="$ZST" 'BEGIN{printf "%.1f", b/1048576}')
+        echo "sycl-jit.dll  raw=${RAW_MB}MB  zstd=${ZST_MB}MB"
+        {
+          echo "### sycl-jit.dll size (Windows)";
+          echo "";
+          echo "| Binary | On-disk | Download (zstd -19) |";
+          echo "| --- | --- | --- |";
+          echo "| sycl-jit.dll | ${RAW_MB} MB | ${ZST_MB} MB |";
+        } >> "$GITHUB_STEP_SUMMARY"
     - name: check-llvm
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
       shell: bash
@@ -190,20 +222,22 @@ jobs:
       run: |
         cmake --build build --target check-xptifw
     - name: Generate/diff new ABI symbols
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') && !inputs.report_jit_size }}
       shell: bash
       run: |
         LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
         diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
     - name: Upload new ABI symbols
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') && !inputs.report_jit_size }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: sycl_windows_abi_symbols
         path: build/new_sycl_symbols_windows.dump
         retention-days: ${{ inputs.retention-days }}
     - name: Install sycl-toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      # Skipped in JIT-size-probe mode: `deploy-sycl-toolchain` would rebuild the
+      # entire toolchain, defeating the point of a fast size-only build.
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && !inputs.report_jit_size }}
       run: |
         cmake --build build --target deploy-sycl-toolchain
 
@@ -219,18 +253,18 @@ jobs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Install utilities
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && !inputs.report_jit_size }}
       shell: bash
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target install-sycl-test-utilities
 
     - name: Pack toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && !inputs.report_jit_size }}
       shell: bash
       run: |
         tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && !inputs.report_jit_size }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: sycl_windows_default
@@ -238,7 +272,7 @@ jobs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Setup SYCL toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && !inputs.report_jit_size }}
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
