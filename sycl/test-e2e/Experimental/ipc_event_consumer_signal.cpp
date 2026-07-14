@@ -39,6 +39,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #if defined(__linux__)
 #include <linux/prctl.h>

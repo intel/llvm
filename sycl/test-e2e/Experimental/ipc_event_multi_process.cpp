@@ -26,6 +26,7 @@
 #if defined(__linux__)
 #include <linux/prctl.h>
 #include <sys/prctl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif // defined(__linux__)
 

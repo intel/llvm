@@ -31,10 +31,10 @@ std::byte DummyHandleData[DummyHandleDataSize] = {
 int DummyEventData = 0;
 ur_event_handle_t DummyEvent = (ur_event_handle_t)&DummyEventData;
 
-thread_local int urIPCGetEventHandleExp_counter = 0;
-thread_local int urIPCPutEventHandleExp_counter = 0;
-thread_local int urIPCOpenEventHandleExp_counter = 0;
-thread_local int urEventRelease_counter = 0;
+int urIPCGetEventHandleExp_counter = 0;
+int urIPCPutEventHandleExp_counter = 0;
+int urIPCOpenEventHandleExp_counter = 0;
+int urEventRelease_counter = 0;
 // Filled in by SetUp() from the live mock context — needed by the
 // urEventGetInfo(UR_EVENT_INFO_CONTEXT) mock so that event_impl's constructor
 // can validate that the imported event belongs to the right context.

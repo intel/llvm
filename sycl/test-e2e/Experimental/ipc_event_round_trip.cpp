@@ -9,9 +9,7 @@
 // RUN: %{run} %t.view.out
 
 // Full same-process Get / Open / Wait / Put round trip on an IPC event,
-// signalled via the reusable-events API (enqueue_signal_event) -- the intended
-// path once reusable-events and IPC-events are combined, needing no Level Zero
-// interop. Covers:
+// signalled via the reusable-events API (enqueue_signal_event). Covers:
 //   * the std::vector<std::byte> handle_data_t overload of open() and
 //     (with -DUSE_VIEW) the C++20 std::span handle_data_view_t overload,
 //   * default-context overloads of put() and open(),

@@ -577,36 +577,44 @@ context_impl::get_default_memory_pool(const context &Context,
 }
 
 bool context_impl::allDevicesSupport(ur_device_info_t Info,
-                                     std::optional<bool> &Cache) {
-  if (Cache)
-    return *Cache;
+                                     std::optional<bool> &Cache,
+                                     std::mutex &CacheMutex) {
+  {
+    std::lock_guard<std::mutex> Lock(CacheMutex);
+    if (Cache)
+      return *Cache;
+  }
 
-  Cache =
+  bool Result =
       std::all_of(MDevices.cbegin(), MDevices.cend(),
                   [this, Info](detail::device_impl *DevImpl) {
                     ur_bool_t Supported = false;
-                    ur_result_t Result =
+                    ur_result_t Res =
                         getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
                             DevImpl->getHandleRef(), Info, sizeof(Supported),
                             &Supported, nullptr);
-                    return (Result == UR_RESULT_SUCCESS) && Supported;
+                    return (Res == UR_RESULT_SUCCESS) && Supported;
                   });
+
+  std::lock_guard<std::mutex> Lock(CacheMutex);
+  if (!Cache)
+    Cache = Result;
   return *Cache;
 }
 
 bool context_impl::supportsReusableEvents() {
   return allDevicesSupport(UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
-                           MReusableEventsSupport);
+                           MReusableEventsSupport, MReusableEventsSupportMutex);
 }
 
 bool context_impl::supportsEventProfiling() {
   return allDevicesSupport(UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
-                           MEventProfilingSupport);
+                           MEventProfilingSupport, MEventProfilingSupportMutex);
 }
 
 bool context_impl::supportsIPCEvents() {
   return allDevicesSupport(UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP,
-                           MIPCEventSupport);
+                           MIPCEventSupport, MIPCEventSupportMutex);
 }
 
 } // namespace detail

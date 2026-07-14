@@ -276,7 +276,8 @@ public:
 private:
   // Returns whether every device in the context reports \p Info as true,
   // caching the result in \p Cache.
-  bool allDevicesSupport(ur_device_info_t Info, std::optional<bool> &Cache);
+  bool allDevicesSupport(ur_device_info_t Info, std::optional<bool> &Cache,
+                         std::mutex &CacheMutex);
 
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;

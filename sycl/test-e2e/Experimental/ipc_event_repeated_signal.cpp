@@ -45,8 +45,10 @@
 #include <sycl/usm.hpp>
 
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #if defined(__linux__)
 #include <linux/prctl.h>

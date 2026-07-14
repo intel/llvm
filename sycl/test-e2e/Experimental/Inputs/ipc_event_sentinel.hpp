@@ -6,13 +6,14 @@
 
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <fstream>
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <thread>
 
 namespace ipc_event_test {
 
@@ -22,8 +23,7 @@ inline void waitForFile(const std::string &Path, int TimeoutSecs = 30) {
   for (int i = 0; i < TimeoutSecs * 100; ++i) {
     if (std::ifstream{Path}.good())
       return;
-    timespec Ts{0, 10'000'000}; // 10 ms
-    nanosleep(&Ts, nullptr);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   std::fprintf(stderr, "Timeout waiting for %s\n", Path.c_str());
   std::exit(1);
