@@ -8,13 +8,18 @@
 
 // REQUIRES: system-windows
 
-/// Build a minimal import lib "dep.lib" (exporting TestFunc) in its own
-/// directory, so the directory can be handed to the linker search path.
+/// Build a minimal "dep.lib" in its own directory so the directory can be
+/// handed to the linker search path. The driver only scans the archive's
+/// symbol table for a name starting with "__imp_", so a plain object defining
+/// __imp_TestFunc, archived with llvm-ar, is enough — no real import lib
+/// required.
 // RUN: rm -rf %t.libdir && mkdir -p %t.libdir
-// RUN: echo "LIBRARY test.dll" > %t.def
-// RUN: echo "EXPORTS" >> %t.def
-// RUN: echo "TestFunc" >> %t.def
-// RUN: llvm-dlltool -m i386:x86-64 --input-def %t.def --output-lib %t.libdir/dep.lib
+// RUN: echo ".globl __imp_TestFunc" > %t.s
+// RUN: echo ".data" >> %t.s
+// RUN: echo "__imp_TestFunc:" >> %t.s
+// RUN: echo ".quad 0" >> %t.s
+// RUN: llvm-mc -triple=x86_64-windows-msvc -filetype=obj -o %t.o %t.s
+// RUN: llvm-ar crs %t.libdir/dep.lib %t.o
 
 /// ---------------------------------------------------------------------------
 /// clang-cl driver: the library reaches link.exe as a cl-style argument.
