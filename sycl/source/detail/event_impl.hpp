@@ -96,6 +96,15 @@ public:
                                         private_tag{});
   }
 
+  static std::shared_ptr<event_impl>
+  create_ipc_imported_event(ur_event_handle_t Event,
+                            const context &SyclContext) {
+    auto EventImpl =
+        std::make_shared<event_impl>(Event, SyclContext, private_tag{});
+    EventImpl->MOpenedFromIpc = true;
+    return EventImpl;
+  }
+
   /// Sets a queue associated with the event.
   ///
   /// \param Queue is a queue to be associated with the event
@@ -105,6 +114,11 @@ public:
   ///
   /// \param Queue is a queue to be associated with the event
   void toDeviceEvent(queue_impl &Queue);
+
+  /// Lazily creates the backend UR event for a producer IPC event so that
+  /// ipc::event::get() works before the first signal. No-op if it already
+  /// exists.
+  void materializeIPCEvent();
 
   /// Returns an event UR handle and applies additional logic
   /// related to reusable events.
@@ -374,7 +388,12 @@ public:
   bool isInterop() const noexcept {
     // As an indication of interoperability event, we use the absence of the
     // queue and command, as well as the fact that it is not in enqueued state.
-    return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
+    // IPC events (a producer event created via make_event(enable_ipc) whose UR
+    // handle was materialized by get(), or an event imported via
+    // ipc::event::open) also own a UR handle without a queue/command, but they
+    // are not interop events and must remain usable with enqueue_signal_event.
+    return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand &&
+           !MIPCEnabled && !MOpenedFromIpc;
   }
 
   // Initializes the host profiling info for the event.
@@ -421,6 +440,20 @@ protected:
   // storage.
   std::vector<std::weak_ptr<event_impl>> MWeakPostCompleteEvents;
 
+  // Both flags are set at construction and read-only afterwards.
+
+  /// True for a producer event created with make_event(enable_ipc).
+  bool MIPCEnabled = false;
+
+  /// True only for events imported via ipc::event::open().
+  bool MOpenedFromIpc = false;
+
+public:
+  bool isIPCEnabled() const noexcept { return MIPCEnabled; }
+  bool isOpenedFromIpc() const noexcept { return MOpenedFromIpc; }
+  void setIPCEnabled(bool Value) { MIPCEnabled = Value; }
+
+protected:
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.
   std::atomic<bool> MIsFlushed = false;
@@ -458,6 +491,10 @@ protected:
   // Events constructed without a context will lazily use the default context
   // when needed.
   void initContextIfNeeded();
+
+  // Creates a backend UR event on \p Device with this event's profiling/IPC
+  // flags. The context must already be bound.
+  ur_event_handle_t createDeviceUrEvent(device_impl &Device);
   // Event class represents 3 different kinds of operations:
   // | type  | has UR event | MContext | MIsHostTask | MIsDefaultConstructed |
   // | dev   | true         | !nullptr | false       | false                 |

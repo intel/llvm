@@ -1628,6 +1628,10 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_ipc_event) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP>()
+          .value_or(0);
+    }
     CASE(ext_oneapi_device_wait) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
           .value_or(0);
