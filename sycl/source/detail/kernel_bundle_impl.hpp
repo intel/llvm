@@ -503,13 +503,21 @@ public:
           return detail::ProgramManager::isAOTBinaryTarget(
               Bin->getRawData().DeviceTargetSpec);
         };
-        std::stable_partition(GraphImgs.begin(), GraphImgs.end(),
-                              [&IsAOTImage](const device_image_plain &Img) {
-                                return !IsAOTImage(Img);
-                              });
-        auto AOTBegin =
-            std::find_if(GraphImgs.begin(), GraphImgs.end(), IsAOTImage);
-        size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTBegin);
+        // Manually partition (stable) instead of std::stable_partition,
+        // whose libstdc++ implementation can fall back to the deprecated
+        // std::get_temporary_buffer when it cannot allocate scratch space.
+        std::vector<device_image_plain> Reordered;
+        Reordered.reserve(GraphImgs.size());
+        size_t NumJITImgs = 0;
+        for (const device_image_plain &Img : GraphImgs)
+          if (!IsAOTImage(Img)) {
+            Reordered.push_back(Img);
+            ++NumJITImgs;
+          }
+        for (const device_image_plain &Img : GraphImgs)
+          if (IsAOTImage(Img))
+            Reordered.push_back(Img);
+        GraphImgs = std::move(Reordered);
         return {{GraphImgs.begin(), GraphImgs.begin() + NumJITImgs},
                 {GraphImgs.begin() + NumJITImgs, GraphImgs.end()}};
       }();

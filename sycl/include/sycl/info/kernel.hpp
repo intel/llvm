@@ -23,8 +23,12 @@ class context;
 
 namespace info {
 
-// A.5 Kernel information desctiptors
+// A.5 Kernel information descriptors
 namespace kernel {
+struct max_num_work_groups_sync {
+  using return_type = size_t;
+};
+
 template <ur_kernel_info_t UrCode>
 using kernel_traits =
     sycl::detail::ur_traits_base<sycl::detail::info_class::kernel, UrCode>;
@@ -38,9 +42,14 @@ struct attributes : kernel_traits<UR_KERNEL_INFO_ATTRIBUTES> {
 struct function_name : kernel_traits<UR_KERNEL_INFO_FUNCTION_NAME> {
   using return_type = std::string;
 };
-struct reference_count : kernel_traits<UR_KERNEL_INFO_REFERENCE_COUNT> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/defines_elementary.hpp>
+struct __SYCL_DEPRECATED("info::kernel::reference_count is not part of "
+                         "SYCL 2020") reference_count
+    : kernel_traits<UR_KERNEL_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 struct context : kernel_traits<UR_KERNEL_INFO_CONTEXT> {
   using return_type = sycl::context;
 };

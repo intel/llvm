@@ -60,7 +60,7 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(),
             PropList) {}
 
-queue::queue(cl_command_queue clQueue, const context &SyclContext,
+queue::queue(OpenCLCommandQueueT clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
   impl = detail::queue_impl::create(
@@ -69,7 +69,7 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
       *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
-cl_command_queue queue::get() const { return impl->get(); }
+OpenCLCommandQueueT queue::get() const { return impl->get(); }
 
 context queue::get_context() const { return impl->get_context(); }
 
@@ -228,7 +228,9 @@ queue::get_info() const {
   template __SYCL_EXPORT RETURN_T queue::get_info<info::queue::NAME>() const;
 __SYCL_QUEUE_INFO_INST(context, sycl::context)
 __SYCL_QUEUE_INFO_INST(device, sycl::device)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_QUEUE_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #undef __SYCL_QUEUE_INFO_INST
 
 template <typename Param>

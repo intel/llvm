@@ -48,7 +48,7 @@
 typedef unsigned long long uint64_t;
 
 // CHECK-LABEL: define dso_local i64 @test___make_mantissa_base8(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[P]], align 1, !tbaa [[CHAR_TBAA7:![0-9]+]]
 // CHECK-NEXT:    [[CMP_NOT_I1:%.*]] = icmp eq i8 [[TMP0]], 0
@@ -74,7 +74,7 @@ typedef unsigned long long uint64_t;
 // CHECK-NEXT:    ret i64 [[RETVAL_2_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func i64 @test___make_mantissa_base8(
-// AMDGCNSPIRV-SAME: ptr addrspace(4) noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2:[0-9]+]] {
+// AMDGCNSPIRV-SAME: ptr addrspace(4) nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2:[0-9]+]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    br label %[[WHILE_COND_I:.*]]
 // AMDGCNSPIRV:       [[WHILE_COND_I]]:
@@ -103,7 +103,7 @@ extern "C" __device__ uint64_t test___make_mantissa_base8(const char *p) {
 }
 
 // CHECK-LABEL: define dso_local i64 @test___make_mantissa_base10(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[P]], align 1, !tbaa [[CHAR_TBAA7]]
 // CHECK-NEXT:    [[CMP_NOT_I1:%.*]] = icmp eq i8 [[TMP0]], 0
@@ -129,7 +129,7 @@ extern "C" __device__ uint64_t test___make_mantissa_base8(const char *p) {
 // CHECK-NEXT:    ret i64 [[RETVAL_2_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func i64 @test___make_mantissa_base10(
-// AMDGCNSPIRV-SAME: ptr addrspace(4) noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
+// AMDGCNSPIRV-SAME: ptr addrspace(4) nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    br label %[[WHILE_COND_I:.*]]
 // AMDGCNSPIRV:       [[WHILE_COND_I]]:
@@ -158,7 +158,7 @@ extern "C" __device__ uint64_t test___make_mantissa_base10(const char *p) {
 }
 
 // CHECK-LABEL: define dso_local i64 @test___make_mantissa_base16(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[P]], align 1, !tbaa [[CHAR_TBAA7]]
 // CHECK-NEXT:    [[CMP_NOT_I1:%.*]] = icmp eq i8 [[TMP0]], 0
@@ -193,7 +193,7 @@ extern "C" __device__ uint64_t test___make_mantissa_base10(const char *p) {
 // CHECK-NEXT:    ret i64 [[RETVAL_2_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func i64 @test___make_mantissa_base16(
-// AMDGCNSPIRV-SAME: ptr addrspace(4) noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
+// AMDGCNSPIRV-SAME: ptr addrspace(4) nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = load i8, ptr addrspace(4) [[P]], align 1, !tbaa [[CHAR_TBAA8]]
 // AMDGCNSPIRV-NEXT:    [[CMP_NOT_I1:%.*]] = icmp eq i8 [[TMP0]], 0
@@ -232,7 +232,7 @@ extern "C" __device__ uint64_t test___make_mantissa_base16(const char *p) {
 }
 
 // CHECK-LABEL: define dso_local i64 @test___make_mantissa(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[P]], align 1, !tbaa [[CHAR_TBAA7]]
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -315,7 +315,7 @@ extern "C" __device__ uint64_t test___make_mantissa_base16(const char *p) {
 // CHECK-NEXT:    ret i64 [[RETVAL_0_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func i64 @test___make_mantissa(
-// AMDGCNSPIRV-SAME: ptr addrspace(4) noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
+// AMDGCNSPIRV-SAME: ptr addrspace(4) nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = load i8, ptr addrspace(4) [[P]], align 1, !tbaa [[CHAR_TBAA8]]
 // AMDGCNSPIRV-NEXT:    [[CMP_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -685,7 +685,6 @@ extern "C" __device__ float test_asinhf(float x) {
   return asinhf(x);
 }
 
-//
 // DEFAULT-LABEL: define dso_local noundef double @test_asinh(
 // DEFAULT-SAME: double noundef [[X:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
@@ -2421,7 +2420,7 @@ extern "C" __device__ double test_fmod(double x, double y) {
 }
 
 // DEFAULT-LABEL: define dso_local noundef float @test_frexpf(
-// DEFAULT-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
+// DEFAULT-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[TMP0:%.*]] = tail call { float, i32 } @llvm.frexp.f32.i32(float [[X]])
 // DEFAULT-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
@@ -2430,7 +2429,7 @@ extern "C" __device__ double test_fmod(double x, double y) {
 // DEFAULT-NEXT:    ret float [[TMP2]]
 //
 // FINITEONLY-LABEL: define dso_local nofpclass(nan inf) float @test_frexpf(
-// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
+// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[TMP0:%.*]] = tail call { float, i32 } @llvm.frexp.f32.i32(float nofpclass(nan inf) [[X]])
 // FINITEONLY-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
@@ -2439,7 +2438,7 @@ extern "C" __device__ double test_fmod(double x, double y) {
 // FINITEONLY-NEXT:    ret float [[TMP2]]
 //
 // APPROX-LABEL: define dso_local noundef float @test_frexpf(
-// APPROX-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
+// APPROX-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[TMP0:%.*]] = tail call { float, i32 } @llvm.frexp.f32.i32(float [[X]])
 // APPROX-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
@@ -2448,7 +2447,7 @@ extern "C" __device__ double test_fmod(double x, double y) {
 // APPROX-NEXT:    ret float [[TMP2]]
 //
 // NCRDIV-LABEL: define dso_local noundef float @test_frexpf(
-// NCRDIV-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
+// NCRDIV-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[TMP0:%.*]] = tail call { float, i32 } @llvm.frexp.f32.i32(float [[X]])
 // NCRDIV-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
@@ -2457,7 +2456,7 @@ extern "C" __device__ double test_fmod(double x, double y) {
 // NCRDIV-NEXT:    ret float [[TMP2]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func noundef float @test_frexpf(
-// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR7:[0-9]+]] {
+// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR7:[0-9]+]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = tail call addrspace(4) { float, i32 } @llvm.frexp.f32.i32(float [[X]])
 // AMDGCNSPIRV-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
@@ -2470,7 +2469,7 @@ extern "C" __device__ float test_frexpf(float x, int* y) {
 }
 
 // DEFAULT-LABEL: define dso_local noundef double @test_frexp(
-// DEFAULT-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// DEFAULT-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[TMP0:%.*]] = tail call { double, i32 } @llvm.frexp.f64.i32(double [[X]])
 // DEFAULT-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
@@ -2479,7 +2478,7 @@ extern "C" __device__ float test_frexpf(float x, int* y) {
 // DEFAULT-NEXT:    ret double [[TMP2]]
 //
 // FINITEONLY-LABEL: define dso_local nofpclass(nan inf) double @test_frexp(
-// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[TMP0:%.*]] = tail call { double, i32 } @llvm.frexp.f64.i32(double nofpclass(nan inf) [[X]])
 // FINITEONLY-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
@@ -2488,7 +2487,7 @@ extern "C" __device__ float test_frexpf(float x, int* y) {
 // FINITEONLY-NEXT:    ret double [[TMP2]]
 //
 // APPROX-LABEL: define dso_local noundef double @test_frexp(
-// APPROX-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// APPROX-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[TMP0:%.*]] = tail call { double, i32 } @llvm.frexp.f64.i32(double [[X]])
 // APPROX-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
@@ -2497,7 +2496,7 @@ extern "C" __device__ float test_frexpf(float x, int* y) {
 // APPROX-NEXT:    ret double [[TMP2]]
 //
 // NCRDIV-LABEL: define dso_local noundef double @test_frexp(
-// NCRDIV-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// NCRDIV-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[TMP0:%.*]] = tail call { double, i32 } @llvm.frexp.f64.i32(double [[X]])
 // NCRDIV-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
@@ -2506,7 +2505,7 @@ extern "C" __device__ float test_frexpf(float x, int* y) {
 // NCRDIV-NEXT:    ret double [[TMP2]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func noundef double @test_frexp(
-// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR7]] {
+// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR7]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = tail call addrspace(4) { double, i32 } @llvm.frexp.f64.i32(double [[X]])
 // AMDGCNSPIRV-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
@@ -3878,7 +3877,7 @@ extern "C" __device__ double test_log2(double x) {
 // DEFAULT-NEXT:    [[TMP0:%.*]] = tail call { float, i32 } @llvm.frexp.f32.i32(float [[X]])
 // DEFAULT-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
 // DEFAULT-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// DEFAULT-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to float
+// DEFAULT-NEXT:    [[TMP3:%.*]] = sitofp contract i32 [[TMP2]] to float
 // DEFAULT-NEXT:    [[TMP4:%.*]] = tail call contract float @llvm.fabs.f32(float [[X]])
 // DEFAULT-NEXT:    [[TMP5:%.*]] = fcmp contract one float [[TMP4]], +inf
 // DEFAULT-NEXT:    [[TMP6:%.*]] = select contract i1 [[TMP5]], float [[TMP3]], float [[TMP4]]
@@ -3892,7 +3891,7 @@ extern "C" __device__ double test_log2(double x) {
 // FINITEONLY-NEXT:    [[TMP0:%.*]] = tail call { float, i32 } @llvm.frexp.f32.i32(float nofpclass(nan inf) [[X]])
 // FINITEONLY-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
 // FINITEONLY-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// FINITEONLY-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to float
+// FINITEONLY-NEXT:    [[TMP3:%.*]] = sitofp nnan ninf contract i32 [[TMP2]] to float
 // FINITEONLY-NEXT:    ret float [[TMP3]]
 //
 // APPROX-LABEL: define dso_local float @test_logbf(
@@ -3901,7 +3900,7 @@ extern "C" __device__ double test_log2(double x) {
 // APPROX-NEXT:    [[TMP0:%.*]] = tail call { float, i32 } @llvm.frexp.f32.i32(float [[X]])
 // APPROX-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
 // APPROX-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// APPROX-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to float
+// APPROX-NEXT:    [[TMP3:%.*]] = sitofp contract i32 [[TMP2]] to float
 // APPROX-NEXT:    [[TMP4:%.*]] = tail call contract float @llvm.fabs.f32(float [[X]])
 // APPROX-NEXT:    [[TMP5:%.*]] = fcmp contract one float [[TMP4]], +inf
 // APPROX-NEXT:    [[TMP6:%.*]] = select contract i1 [[TMP5]], float [[TMP3]], float [[TMP4]]
@@ -3915,7 +3914,7 @@ extern "C" __device__ double test_log2(double x) {
 // NCRDIV-NEXT:    [[TMP0:%.*]] = tail call { float, i32 } @llvm.frexp.f32.i32(float [[X]])
 // NCRDIV-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
 // NCRDIV-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// NCRDIV-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to float
+// NCRDIV-NEXT:    [[TMP3:%.*]] = sitofp contract i32 [[TMP2]] to float
 // NCRDIV-NEXT:    [[TMP4:%.*]] = tail call contract float @llvm.fabs.f32(float [[X]])
 // NCRDIV-NEXT:    [[TMP5:%.*]] = fcmp contract one float [[TMP4]], +inf
 // NCRDIV-NEXT:    [[TMP6:%.*]] = select contract i1 [[TMP5]], float [[TMP3]], float [[TMP4]]
@@ -3929,7 +3928,7 @@ extern "C" __device__ double test_log2(double x) {
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = tail call addrspace(4) { float, i32 } @llvm.frexp.f32.i32(float [[X]])
 // AMDGCNSPIRV-NEXT:    [[TMP1:%.*]] = extractvalue { float, i32 } [[TMP0]], 1
 // AMDGCNSPIRV-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// AMDGCNSPIRV-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to float
+// AMDGCNSPIRV-NEXT:    [[TMP3:%.*]] = sitofp contract i32 [[TMP2]] to float
 // AMDGCNSPIRV-NEXT:    [[TMP4:%.*]] = tail call contract addrspace(4) float @llvm.fabs.f32(float [[X]])
 // AMDGCNSPIRV-NEXT:    [[TMP5:%.*]] = fcmp contract one float [[TMP4]], +inf
 // AMDGCNSPIRV-NEXT:    [[TMP6:%.*]] = select contract i1 [[TMP5]], float [[TMP3]], float [[TMP4]]
@@ -3947,7 +3946,7 @@ extern "C" __device__ float test_logbf(float x) {
 // DEFAULT-NEXT:    [[TMP0:%.*]] = tail call { double, i32 } @llvm.frexp.f64.i32(double [[X]])
 // DEFAULT-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
 // DEFAULT-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// DEFAULT-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to double
+// DEFAULT-NEXT:    [[TMP3:%.*]] = sitofp contract i32 [[TMP2]] to double
 // DEFAULT-NEXT:    [[TMP4:%.*]] = tail call contract double @llvm.fabs.f64(double [[X]])
 // DEFAULT-NEXT:    [[TMP5:%.*]] = fcmp contract one double [[TMP4]], +inf
 // DEFAULT-NEXT:    [[TMP6:%.*]] = select contract i1 [[TMP5]], double [[TMP3]], double [[TMP4]]
@@ -3961,7 +3960,7 @@ extern "C" __device__ float test_logbf(float x) {
 // FINITEONLY-NEXT:    [[TMP0:%.*]] = tail call { double, i32 } @llvm.frexp.f64.i32(double nofpclass(nan inf) [[X]])
 // FINITEONLY-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
 // FINITEONLY-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// FINITEONLY-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to double
+// FINITEONLY-NEXT:    [[TMP3:%.*]] = sitofp nnan ninf contract i32 [[TMP2]] to double
 // FINITEONLY-NEXT:    ret double [[TMP3]]
 //
 // APPROX-LABEL: define dso_local double @test_logb(
@@ -3970,7 +3969,7 @@ extern "C" __device__ float test_logbf(float x) {
 // APPROX-NEXT:    [[TMP0:%.*]] = tail call { double, i32 } @llvm.frexp.f64.i32(double [[X]])
 // APPROX-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
 // APPROX-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// APPROX-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to double
+// APPROX-NEXT:    [[TMP3:%.*]] = sitofp contract i32 [[TMP2]] to double
 // APPROX-NEXT:    [[TMP4:%.*]] = tail call contract double @llvm.fabs.f64(double [[X]])
 // APPROX-NEXT:    [[TMP5:%.*]] = fcmp contract one double [[TMP4]], +inf
 // APPROX-NEXT:    [[TMP6:%.*]] = select contract i1 [[TMP5]], double [[TMP3]], double [[TMP4]]
@@ -3984,7 +3983,7 @@ extern "C" __device__ float test_logbf(float x) {
 // NCRDIV-NEXT:    [[TMP0:%.*]] = tail call { double, i32 } @llvm.frexp.f64.i32(double [[X]])
 // NCRDIV-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
 // NCRDIV-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// NCRDIV-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to double
+// NCRDIV-NEXT:    [[TMP3:%.*]] = sitofp contract i32 [[TMP2]] to double
 // NCRDIV-NEXT:    [[TMP4:%.*]] = tail call contract double @llvm.fabs.f64(double [[X]])
 // NCRDIV-NEXT:    [[TMP5:%.*]] = fcmp contract one double [[TMP4]], +inf
 // NCRDIV-NEXT:    [[TMP6:%.*]] = select contract i1 [[TMP5]], double [[TMP3]], double [[TMP4]]
@@ -3998,7 +3997,7 @@ extern "C" __device__ float test_logbf(float x) {
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = tail call addrspace(4) { double, i32 } @llvm.frexp.f64.i32(double [[X]])
 // AMDGCNSPIRV-NEXT:    [[TMP1:%.*]] = extractvalue { double, i32 } [[TMP0]], 1
 // AMDGCNSPIRV-NEXT:    [[TMP2:%.*]] = add nsw i32 [[TMP1]], -1
-// AMDGCNSPIRV-NEXT:    [[TMP3:%.*]] = sitofp i32 [[TMP2]] to double
+// AMDGCNSPIRV-NEXT:    [[TMP3:%.*]] = sitofp contract i32 [[TMP2]] to double
 // AMDGCNSPIRV-NEXT:    [[TMP4:%.*]] = tail call contract addrspace(4) double @llvm.fabs.f64(double [[X]])
 // AMDGCNSPIRV-NEXT:    [[TMP5:%.*]] = fcmp contract one double [[TMP4]], +inf
 // AMDGCNSPIRV-NEXT:    [[TMP6:%.*]] = select contract i1 [[TMP5]], double [[TMP3]], double [[TMP4]]
@@ -4201,7 +4200,7 @@ extern "C" __device__ long int test_lround(double x) {
 }
 
 // DEFAULT-LABEL: define dso_local noundef float @test_modff(
-// DEFAULT-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // DEFAULT-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16:[0-9]+]]
@@ -4212,7 +4211,7 @@ extern "C" __device__ long int test_lround(double x) {
 // DEFAULT-NEXT:    ret float [[CALL_I]]
 //
 // FINITEONLY-LABEL: define dso_local noundef nofpclass(nan inf) float @test_modff(
-// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // FINITEONLY-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16:[0-9]+]]
@@ -4223,7 +4222,7 @@ extern "C" __device__ long int test_lround(double x) {
 // FINITEONLY-NEXT:    ret float [[CALL_I]]
 //
 // APPROX-LABEL: define dso_local noundef float @test_modff(
-// APPROX-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // APPROX-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16:[0-9]+]]
@@ -4234,7 +4233,7 @@ extern "C" __device__ long int test_lround(double x) {
 // APPROX-NEXT:    ret float [[CALL_I]]
 //
 // NCRDIV-LABEL: define dso_local noundef float @test_modff(
-// NCRDIV-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // NCRDIV-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16:[0-9]+]]
@@ -4245,7 +4244,7 @@ extern "C" __device__ long int test_lround(double x) {
 // NCRDIV-NEXT:    ret float [[CALL_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func noundef float @test_modff(
-// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR16:[0-9]+]]
@@ -4260,7 +4259,7 @@ extern "C" __device__ float test_modff(float x, float* y) {
 }
 
 // DEFAULT-LABEL: define dso_local noundef double @test_modf(
-// DEFAULT-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // DEFAULT-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -4271,7 +4270,7 @@ extern "C" __device__ float test_modff(float x, float* y) {
 // DEFAULT-NEXT:    ret double [[CALL_I]]
 //
 // FINITEONLY-LABEL: define dso_local noundef nofpclass(nan inf) double @test_modf(
-// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // FINITEONLY-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -4282,7 +4281,7 @@ extern "C" __device__ float test_modff(float x, float* y) {
 // FINITEONLY-NEXT:    ret double [[CALL_I]]
 //
 // APPROX-LABEL: define dso_local noundef double @test_modf(
-// APPROX-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // APPROX-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -4293,7 +4292,7 @@ extern "C" __device__ float test_modff(float x, float* y) {
 // APPROX-NEXT:    ret double [[CALL_I]]
 //
 // NCRDIV-LABEL: define dso_local noundef double @test_modf(
-// NCRDIV-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // NCRDIV-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -4304,7 +4303,7 @@ extern "C" __device__ float test_modff(float x, float* y) {
 // NCRDIV-NEXT:    ret double [[CALL_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func noundef double @test_modf(
-// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR16]]
@@ -4319,7 +4318,7 @@ extern "C" __device__ double test_modf(double x, double* y) {
 }
 
 // DEFAULT-LABEL: define dso_local float @test_nanf(
-// DEFAULT-SAME: ptr noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// DEFAULT-SAME: ptr nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[TMP0:%.*]] = load i8, ptr [[TAG]], align 1, !tbaa [[CHAR_TBAA7]]
 // DEFAULT-NEXT:    [[CMP_I_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -4406,12 +4405,12 @@ extern "C" __device__ double test_modf(double x, double* y) {
 // DEFAULT-NEXT:    ret float [[TMP14]]
 //
 // FINITEONLY-LABEL: define dso_local nofpclass(nan inf) float @test_nanf(
-// FINITEONLY-SAME: ptr noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// FINITEONLY-SAME: ptr nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    ret float poison
 //
 // APPROX-LABEL: define dso_local float @test_nanf(
-// APPROX-SAME: ptr noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// APPROX-SAME: ptr nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[TMP0:%.*]] = load i8, ptr [[TAG]], align 1, !tbaa [[CHAR_TBAA7]]
 // APPROX-NEXT:    [[CMP_I_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -4498,7 +4497,7 @@ extern "C" __device__ double test_modf(double x, double* y) {
 // APPROX-NEXT:    ret float [[TMP14]]
 //
 // NCRDIV-LABEL: define dso_local float @test_nanf(
-// NCRDIV-SAME: ptr noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// NCRDIV-SAME: ptr nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[TMP0:%.*]] = load i8, ptr [[TAG]], align 1, !tbaa [[CHAR_TBAA7]]
 // NCRDIV-NEXT:    [[CMP_I_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -4585,7 +4584,7 @@ extern "C" __device__ double test_modf(double x, double* y) {
 // NCRDIV-NEXT:    ret float [[TMP14]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func float @test_nanf(
-// AMDGCNSPIRV-SAME: ptr addrspace(4) noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
+// AMDGCNSPIRV-SAME: ptr addrspace(4) nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = load i8, ptr addrspace(4) [[TAG]], align 1, !tbaa [[CHAR_TBAA8]]
 // AMDGCNSPIRV-NEXT:    [[CMP_I_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -4673,7 +4672,7 @@ extern "C" __device__ float test_nanf(const char *tag) {
 }
 
 // DEFAULT-LABEL: define dso_local double @test_nan(
-// DEFAULT-SAME: ptr noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// DEFAULT-SAME: ptr nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[TMP0:%.*]] = load i8, ptr [[TAG]], align 1, !tbaa [[CHAR_TBAA7]]
 // DEFAULT-NEXT:    [[CMP_I_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -4759,12 +4758,12 @@ extern "C" __device__ float test_nanf(const char *tag) {
 // DEFAULT-NEXT:    ret double [[TMP14]]
 //
 // FINITEONLY-LABEL: define dso_local nofpclass(nan inf) double @test_nan(
-// FINITEONLY-SAME: ptr noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// FINITEONLY-SAME: ptr nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    ret double poison
 //
 // APPROX-LABEL: define dso_local double @test_nan(
-// APPROX-SAME: ptr noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// APPROX-SAME: ptr nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[TMP0:%.*]] = load i8, ptr [[TAG]], align 1, !tbaa [[CHAR_TBAA7]]
 // APPROX-NEXT:    [[CMP_I_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -4850,7 +4849,7 @@ extern "C" __device__ float test_nanf(const char *tag) {
 // APPROX-NEXT:    ret double [[TMP14]]
 //
 // NCRDIV-LABEL: define dso_local double @test_nan(
-// NCRDIV-SAME: ptr noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// NCRDIV-SAME: ptr nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[TMP0:%.*]] = load i8, ptr [[TAG]], align 1, !tbaa [[CHAR_TBAA7]]
 // NCRDIV-NEXT:    [[CMP_I_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -4936,7 +4935,7 @@ extern "C" __device__ float test_nanf(const char *tag) {
 // NCRDIV-NEXT:    ret double [[TMP14]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func double @test_nan(
-// AMDGCNSPIRV-SAME: ptr addrspace(4) noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
+// AMDGCNSPIRV-SAME: ptr addrspace(4) nofree noundef readonly captures(none) [[TAG:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = load i8, ptr addrspace(4) [[TAG]], align 1, !tbaa [[CHAR_TBAA8]]
 // AMDGCNSPIRV-NEXT:    [[CMP_I_I:%.*]] = icmp eq i8 [[TMP0]], 48
@@ -5547,7 +5546,7 @@ extern "C" __device__ double test_normcdfinv(double x) {
 }
 
 // DEFAULT-LABEL: define dso_local float @test_normf(
-// DEFAULT-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// DEFAULT-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // DEFAULT-NEXT:  [[ENTRY:.*]]:
 // DEFAULT-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // DEFAULT-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5NORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5570,7 +5569,7 @@ extern "C" __device__ double test_normcdfinv(double x) {
 // DEFAULT-NEXT:    ret float [[__R_0_I_LCSSA]]
 //
 // FINITEONLY-LABEL: define dso_local nofpclass(nan inf) float @test_normf(
-// FINITEONLY-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// FINITEONLY-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*]]:
 // FINITEONLY-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // FINITEONLY-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5NORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5593,7 +5592,7 @@ extern "C" __device__ double test_normcdfinv(double x) {
 // FINITEONLY-NEXT:    ret float [[__R_0_I_LCSSA]]
 //
 // APPROX-LABEL: define dso_local float @test_normf(
-// APPROX-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// APPROX-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // APPROX-NEXT:  [[ENTRY:.*]]:
 // APPROX-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // APPROX-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5NORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5616,7 +5615,7 @@ extern "C" __device__ double test_normcdfinv(double x) {
 // APPROX-NEXT:    ret float [[__R_0_I_LCSSA]]
 //
 // NCRDIV-LABEL: define dso_local float @test_normf(
-// NCRDIV-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// NCRDIV-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // NCRDIV-NEXT:  [[ENTRY:.*]]:
 // NCRDIV-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // NCRDIV-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5NORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5639,7 +5638,7 @@ extern "C" __device__ double test_normcdfinv(double x) {
 // NCRDIV-NEXT:    ret float [[__R_0_I_LCSSA]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func float @test_normf(
-// AMDGCNSPIRV-SAME: i32 noundef [[X:%.*]], ptr addrspace(4) noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
+// AMDGCNSPIRV-SAME: i32 noundef [[X:%.*]], ptr addrspace(4) nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // AMDGCNSPIRV-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5NORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5666,7 +5665,7 @@ extern "C" __device__ float test_normf(int x, const float *y) {
 }
 
 // DEFAULT-LABEL: define dso_local double @test_norm(
-// DEFAULT-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// DEFAULT-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // DEFAULT-NEXT:  [[ENTRY:.*]]:
 // DEFAULT-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // DEFAULT-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL4NORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5689,7 +5688,7 @@ extern "C" __device__ float test_normf(int x, const float *y) {
 // DEFAULT-NEXT:    ret double [[__R_0_I_LCSSA]]
 //
 // FINITEONLY-LABEL: define dso_local nofpclass(nan inf) double @test_norm(
-// FINITEONLY-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// FINITEONLY-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*]]:
 // FINITEONLY-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // FINITEONLY-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL4NORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5712,7 +5711,7 @@ extern "C" __device__ float test_normf(int x, const float *y) {
 // FINITEONLY-NEXT:    ret double [[__R_0_I_LCSSA]]
 //
 // APPROX-LABEL: define dso_local double @test_norm(
-// APPROX-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// APPROX-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // APPROX-NEXT:  [[ENTRY:.*]]:
 // APPROX-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // APPROX-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL4NORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5735,7 +5734,7 @@ extern "C" __device__ float test_normf(int x, const float *y) {
 // APPROX-NEXT:    ret double [[__R_0_I_LCSSA]]
 //
 // NCRDIV-LABEL: define dso_local double @test_norm(
-// NCRDIV-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// NCRDIV-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // NCRDIV-NEXT:  [[ENTRY:.*]]:
 // NCRDIV-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // NCRDIV-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL4NORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -5758,7 +5757,7 @@ extern "C" __device__ float test_normf(int x, const float *y) {
 // NCRDIV-NEXT:    ret double [[__R_0_I_LCSSA]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func double @test_norm(
-// AMDGCNSPIRV-SAME: i32 noundef [[X:%.*]], ptr addrspace(4) noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
+// AMDGCNSPIRV-SAME: i32 noundef [[X:%.*]], ptr addrspace(4) nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR2]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // AMDGCNSPIRV-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL4NORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6057,7 +6056,7 @@ extern "C" __device__ double test_remainder(double x, double y) {
 }
 
 // DEFAULT-LABEL: define dso_local noundef float @test_remquof(
-// DEFAULT-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4, addrspace(5)
 // DEFAULT-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -6068,7 +6067,7 @@ extern "C" __device__ double test_remainder(double x, double y) {
 // DEFAULT-NEXT:    ret float [[CALL_I]]
 //
 // FINITEONLY-LABEL: define dso_local noundef nofpclass(nan inf) float @test_remquof(
-// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], float noundef nofpclass(nan inf) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], float noundef nofpclass(nan inf) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4, addrspace(5)
 // FINITEONLY-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -6079,7 +6078,7 @@ extern "C" __device__ double test_remainder(double x, double y) {
 // FINITEONLY-NEXT:    ret float [[CALL_I]]
 //
 // APPROX-LABEL: define dso_local noundef float @test_remquof(
-// APPROX-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4, addrspace(5)
 // APPROX-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -6090,7 +6089,7 @@ extern "C" __device__ double test_remainder(double x, double y) {
 // APPROX-NEXT:    ret float [[CALL_I]]
 //
 // NCRDIV-LABEL: define dso_local noundef float @test_remquof(
-// NCRDIV-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4, addrspace(5)
 // NCRDIV-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -6101,7 +6100,7 @@ extern "C" __device__ double test_remainder(double x, double y) {
 // NCRDIV-NEXT:    ret float [[CALL_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func noundef float @test_remquof(
-// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR16]]
@@ -6116,7 +6115,7 @@ extern "C" __device__ float test_remquof(float x, float y, int* z) {
 }
 
 // DEFAULT-LABEL: define dso_local noundef double @test_remquo(
-// DEFAULT-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4, addrspace(5)
 // DEFAULT-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -6127,7 +6126,7 @@ extern "C" __device__ float test_remquof(float x, float y, int* z) {
 // DEFAULT-NEXT:    ret double [[CALL_I]]
 //
 // FINITEONLY-LABEL: define dso_local noundef nofpclass(nan inf) double @test_remquo(
-// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], double noundef nofpclass(nan inf) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], double noundef nofpclass(nan inf) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4, addrspace(5)
 // FINITEONLY-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -6138,7 +6137,7 @@ extern "C" __device__ float test_remquof(float x, float y, int* z) {
 // FINITEONLY-NEXT:    ret double [[CALL_I]]
 //
 // APPROX-LABEL: define dso_local noundef double @test_remquo(
-// APPROX-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4, addrspace(5)
 // APPROX-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -6149,7 +6148,7 @@ extern "C" __device__ float test_remquof(float x, float y, int* z) {
 // APPROX-NEXT:    ret double [[CALL_I]]
 //
 // NCRDIV-LABEL: define dso_local noundef double @test_remquo(
-// NCRDIV-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4, addrspace(5)
 // NCRDIV-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -6160,7 +6159,7 @@ extern "C" __device__ float test_remquof(float x, float y, int* z) {
 // NCRDIV-NEXT:    ret double [[CALL_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func noundef double @test_remquo(
-// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR16]]
@@ -6311,7 +6310,7 @@ extern "C" __device__ double test_rint(double x) {
 }
 
 // DEFAULT-LABEL: define dso_local noundef float @test_rnormf(
-// DEFAULT-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// DEFAULT-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // DEFAULT-NEXT:  [[ENTRY:.*]]:
 // DEFAULT-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // DEFAULT-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL6RNORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6332,7 +6331,7 @@ extern "C" __device__ double test_rint(double x) {
 // DEFAULT-NEXT:    ret float [[CALL_I]]
 //
 // FINITEONLY-LABEL: define dso_local noundef nofpclass(nan inf) float @test_rnormf(
-// FINITEONLY-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// FINITEONLY-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*]]:
 // FINITEONLY-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // FINITEONLY-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL6RNORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6353,7 +6352,7 @@ extern "C" __device__ double test_rint(double x) {
 // FINITEONLY-NEXT:    ret float [[CALL_I]]
 //
 // APPROX-LABEL: define dso_local noundef float @test_rnormf(
-// APPROX-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// APPROX-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // APPROX-NEXT:  [[ENTRY:.*]]:
 // APPROX-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // APPROX-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL6RNORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6374,7 +6373,7 @@ extern "C" __device__ double test_rint(double x) {
 // APPROX-NEXT:    ret float [[CALL_I]]
 //
 // NCRDIV-LABEL: define dso_local noundef float @test_rnormf(
-// NCRDIV-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// NCRDIV-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // NCRDIV-NEXT:  [[ENTRY:.*]]:
 // NCRDIV-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // NCRDIV-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL6RNORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6395,7 +6394,7 @@ extern "C" __device__ double test_rint(double x) {
 // NCRDIV-NEXT:    ret float [[CALL_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func noundef float @test_rnormf(
-// AMDGCNSPIRV-SAME: i32 noundef [[X:%.*]], ptr addrspace(4) noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR5]] {
+// AMDGCNSPIRV-SAME: i32 noundef [[X:%.*]], ptr addrspace(4) nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR5]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // AMDGCNSPIRV-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL6RNORMFIPKF_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6420,7 +6419,7 @@ extern "C" __device__ float test_rnormf(int x, const float* y) {
 }
 
 // DEFAULT-LABEL: define dso_local noundef double @test_rnorm(
-// DEFAULT-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// DEFAULT-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // DEFAULT-NEXT:  [[ENTRY:.*]]:
 // DEFAULT-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // DEFAULT-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5RNORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6441,7 +6440,7 @@ extern "C" __device__ float test_rnormf(int x, const float* y) {
 // DEFAULT-NEXT:    ret double [[CALL_I]]
 //
 // FINITEONLY-LABEL: define dso_local noundef nofpclass(nan inf) double @test_rnorm(
-// FINITEONLY-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// FINITEONLY-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*]]:
 // FINITEONLY-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // FINITEONLY-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5RNORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6462,7 +6461,7 @@ extern "C" __device__ float test_rnormf(int x, const float* y) {
 // FINITEONLY-NEXT:    ret double [[CALL_I]]
 //
 // APPROX-LABEL: define dso_local noundef double @test_rnorm(
-// APPROX-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// APPROX-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // APPROX-NEXT:  [[ENTRY:.*]]:
 // APPROX-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // APPROX-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5RNORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6483,7 +6482,7 @@ extern "C" __device__ float test_rnormf(int x, const float* y) {
 // APPROX-NEXT:    ret double [[CALL_I]]
 //
 // NCRDIV-LABEL: define dso_local noundef double @test_rnorm(
-// NCRDIV-SAME: i32 noundef [[X:%.*]], ptr noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// NCRDIV-SAME: i32 noundef [[X:%.*]], ptr nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // NCRDIV-NEXT:  [[ENTRY:.*]]:
 // NCRDIV-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // NCRDIV-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5RNORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -6504,7 +6503,7 @@ extern "C" __device__ float test_rnormf(int x, const float* y) {
 // NCRDIV-NEXT:    ret double [[CALL_I]]
 //
 // AMDGCNSPIRV-LABEL: define spir_func noundef double @test_rnorm(
-// AMDGCNSPIRV-SAME: i32 noundef [[X:%.*]], ptr addrspace(4) noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR5]] {
+// AMDGCNSPIRV-SAME: i32 noundef [[X:%.*]], ptr addrspace(4) nofree noundef readonly captures(none) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR5]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*]]:
 // AMDGCNSPIRV-NEXT:    [[TOBOOL_NOT_I1:%.*]] = icmp eq i32 [[X]], 0
 // AMDGCNSPIRV-NEXT:    br i1 [[TOBOOL_NOT_I1]], label %[[_ZL5RNORMIPKD_EXIT:.*]], label %[[WHILE_BODY_I:.*]]
@@ -7040,7 +7039,7 @@ extern "C" __device__ BOOL_TYPE test___signbit(double x) {
 }
 
 // DEFAULT-LABEL: define dso_local void @test_sincosf(
-// DEFAULT-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // DEFAULT-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7052,7 +7051,7 @@ extern "C" __device__ BOOL_TYPE test___signbit(double x) {
 // DEFAULT-NEXT:    ret void
 //
 // FINITEONLY-LABEL: define dso_local void @test_sincosf(
-// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // FINITEONLY-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7064,7 +7063,7 @@ extern "C" __device__ BOOL_TYPE test___signbit(double x) {
 // FINITEONLY-NEXT:    ret void
 //
 // APPROX-LABEL: define dso_local void @test_sincosf(
-// APPROX-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // APPROX-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7076,7 +7075,7 @@ extern "C" __device__ BOOL_TYPE test___signbit(double x) {
 // APPROX-NEXT:    ret void
 //
 // NCRDIV-LABEL: define dso_local void @test_sincosf(
-// NCRDIV-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // NCRDIV-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7088,7 +7087,7 @@ extern "C" __device__ BOOL_TYPE test___signbit(double x) {
 // NCRDIV-NEXT:    ret void
 //
 // AMDGCNSPIRV-LABEL: define spir_func void @test_sincosf(
-// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR16]]
@@ -7104,7 +7103,7 @@ extern "C" __device__ void test_sincosf(float x, float *y, float *z) {
 }
 
 // DEFAULT-LABEL: define dso_local void @test_sincos(
-// DEFAULT-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // DEFAULT-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7116,7 +7115,7 @@ extern "C" __device__ void test_sincosf(float x, float *y, float *z) {
 // DEFAULT-NEXT:    ret void
 //
 // FINITEONLY-LABEL: define dso_local void @test_sincos(
-// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // FINITEONLY-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7128,7 +7127,7 @@ extern "C" __device__ void test_sincosf(float x, float *y, float *z) {
 // FINITEONLY-NEXT:    ret void
 //
 // APPROX-LABEL: define dso_local void @test_sincos(
-// APPROX-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // APPROX-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7140,7 +7139,7 @@ extern "C" __device__ void test_sincosf(float x, float *y, float *z) {
 // APPROX-NEXT:    ret void
 //
 // NCRDIV-LABEL: define dso_local void @test_sincos(
-// NCRDIV-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // NCRDIV-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7152,7 +7151,7 @@ extern "C" __device__ void test_sincosf(float x, float *y, float *z) {
 // NCRDIV-NEXT:    ret void
 //
 // AMDGCNSPIRV-LABEL: define spir_func void @test_sincos(
-// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR16]]
@@ -7168,7 +7167,7 @@ extern "C" __device__ void test_sincos(double x, double *y, double *z) {
 }
 
 // DEFAULT-LABEL: define dso_local void @test_sincospif(
-// DEFAULT-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // DEFAULT-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7180,7 +7179,7 @@ extern "C" __device__ void test_sincos(double x, double *y, double *z) {
 // DEFAULT-NEXT:    ret void
 //
 // FINITEONLY-LABEL: define dso_local void @test_sincospif(
-// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // FINITEONLY-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7192,7 +7191,7 @@ extern "C" __device__ void test_sincos(double x, double *y, double *z) {
 // FINITEONLY-NEXT:    ret void
 //
 // APPROX-LABEL: define dso_local void @test_sincospif(
-// APPROX-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // APPROX-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7204,7 +7203,7 @@ extern "C" __device__ void test_sincos(double x, double *y, double *z) {
 // APPROX-NEXT:    ret void
 //
 // NCRDIV-LABEL: define dso_local void @test_sincospif(
-// NCRDIV-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4, addrspace(5)
 // NCRDIV-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7216,7 +7215,7 @@ extern "C" __device__ void test_sincos(double x, double *y, double *z) {
 // NCRDIV-NEXT:    ret void
 //
 // AMDGCNSPIRV-LABEL: define spir_func void @test_sincospif(
-// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR16]]
@@ -7232,7 +7231,7 @@ extern "C" __device__ void test_sincospif(float x, float *y, float *z) {
 }
 
 // DEFAULT-LABEL: define dso_local void @test_sincospi(
-// DEFAULT-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // DEFAULT-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7244,7 +7243,7 @@ extern "C" __device__ void test_sincospif(float x, float *y, float *z) {
 // DEFAULT-NEXT:    ret void
 //
 // FINITEONLY-LABEL: define dso_local void @test_sincospi(
-// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: double noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // FINITEONLY-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7256,7 +7255,7 @@ extern "C" __device__ void test_sincospif(float x, float *y, float *z) {
 // FINITEONLY-NEXT:    ret void
 //
 // APPROX-LABEL: define dso_local void @test_sincospi(
-// APPROX-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // APPROX-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7268,7 +7267,7 @@ extern "C" __device__ void test_sincospif(float x, float *y, float *z) {
 // APPROX-NEXT:    ret void
 //
 // NCRDIV-LABEL: define dso_local void @test_sincospi(
-// NCRDIV-SAME: double noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: double noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8, addrspace(5)
 // NCRDIV-NEXT:    call void @llvm.lifetime.start.p5(ptr addrspace(5) [[__TMP_I]]) #[[ATTR16]]
@@ -7280,7 +7279,7 @@ extern "C" __device__ void test_sincospif(float x, float *y, float *z) {
 // NCRDIV-NEXT:    ret void
 //
 // AMDGCNSPIRV-LABEL: define spir_func void @test_sincospi(
-// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR16]]
@@ -8825,7 +8824,7 @@ extern "C" __device__ float test___saturatef(float x) {
 }
 
 // DEFAULT-LABEL: define dso_local void @test___sincosf(
-// DEFAULT-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// DEFAULT-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // DEFAULT-NEXT:  [[ENTRY:.*:]]
 // DEFAULT-NEXT:    [[CALL_I:%.*]] = tail call contract float @__ocml_native_sin_f32(float noundef [[X]]) #[[ATTR15]]
 // DEFAULT-NEXT:    store float [[CALL_I]], ptr [[Y]], align 4, !tbaa [[FLOAT_TBAA15]]
@@ -8834,7 +8833,7 @@ extern "C" __device__ float test___saturatef(float x) {
 // DEFAULT-NEXT:    ret void
 //
 // FINITEONLY-LABEL: define dso_local void @test___sincosf(
-// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// FINITEONLY-SAME: float noundef nofpclass(nan inf) [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // FINITEONLY-NEXT:  [[ENTRY:.*:]]
 // FINITEONLY-NEXT:    [[CALL_I:%.*]] = tail call nnan ninf contract nofpclass(nan inf) float @__ocml_native_sin_f32(float noundef nofpclass(nan inf) [[X]]) #[[ATTR15]]
 // FINITEONLY-NEXT:    store float [[CALL_I]], ptr [[Y]], align 4, !tbaa [[FLOAT_TBAA15]]
@@ -8843,7 +8842,7 @@ extern "C" __device__ float test___saturatef(float x) {
 // FINITEONLY-NEXT:    ret void
 //
 // APPROX-LABEL: define dso_local void @test___sincosf(
-// APPROX-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// APPROX-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // APPROX-NEXT:  [[ENTRY:.*:]]
 // APPROX-NEXT:    [[CALL_I:%.*]] = tail call contract float @__ocml_native_sin_f32(float noundef [[X]]) #[[ATTR15]]
 // APPROX-NEXT:    store float [[CALL_I]], ptr [[Y]], align 4, !tbaa [[FLOAT_TBAA15]]
@@ -8852,7 +8851,7 @@ extern "C" __device__ float test___saturatef(float x) {
 // APPROX-NEXT:    ret void
 //
 // NCRDIV-LABEL: define dso_local void @test___sincosf(
-// NCRDIV-SAME: float noundef [[X:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
+// NCRDIV-SAME: float noundef [[X:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr #[[ATTR6]] {
 // NCRDIV-NEXT:  [[ENTRY:.*:]]
 // NCRDIV-NEXT:    [[CALL_I:%.*]] = tail call contract float @__ocml_native_sin_f32(float noundef [[X]]) #[[ATTR15]]
 // NCRDIV-NEXT:    store float [[CALL_I]], ptr [[Y]], align 4, !tbaa [[FLOAT_TBAA16]]
@@ -8861,7 +8860,7 @@ extern "C" __device__ float test___saturatef(float x) {
 // NCRDIV-NEXT:    ret void
 //
 // AMDGCNSPIRV-LABEL: define spir_func void @test___sincosf(
-// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
+// AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr addrspace(4) nofree noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = tail call contract spir_func addrspace(4) float @__ocml_native_sin_f32(float noundef [[X]]) #[[ATTR15]]
 // AMDGCNSPIRV-NEXT:    store float [[CALL_I]], ptr addrspace(4) [[Y]], align 4, !tbaa [[FLOAT_TBAA16]]

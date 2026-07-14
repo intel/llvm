@@ -271,13 +271,12 @@ public:
 
   /// \return an OpenCL interoperability queue handle.
 
-  cl_command_queue get() {
+  OpenCLCommandQueueT get() {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                          &nativeHandle);
-    __SYCL_OCL_CALL(clRetainCommandQueue,
-                    ur::cast<cl_command_queue>(nativeHandle));
-    return ur::cast<cl_command_queue>(nativeHandle);
+    detail::retainOpenCLCommandQueue(nativeHandle);
+    return ur::cast<OpenCLCommandQueueT>(nativeHandle);
   }
 
   /// \return an associated SYCL context.

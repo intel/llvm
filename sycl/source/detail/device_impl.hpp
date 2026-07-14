@@ -446,7 +446,7 @@ public:
   ///
   /// \return a valid cl_device_id instance in accordance with the
   /// requirements described in 4.3.1.
-  cl_device_id get() const;
+  OpenCLDeviceIdT get() const;
 
   /// Get reference to UR device
   ///
@@ -1230,10 +1230,12 @@ public:
       return MCache.get<AspectDesc<Aspect>>();
     }
 #define CASE(ASPECT) else if constexpr (Aspect == aspect::ASPECT)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(host) {
       // Deprecated
       return false;
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(cpu) { return is_cpu(); }
     CASE(gpu) { return is_gpu(); }
     CASE(accelerator) { return is_accelerator(); }
@@ -1242,12 +1244,14 @@ public:
     CASE(host_debuggable) { return false; }
     CASE(fp16) { return has_extension("cl_khr_fp16"); }
     CASE(fp64) { return has_extension("cl_khr_fp64"); }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(int64_base_atomics) {
       return has_extension("cl_khr_int64_base_atomics");
     }
     CASE(int64_extended_atomics) {
       return has_extension("cl_khr_int64_extended_atomics");
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(atomic64) { return get_info_impl<UR_DEVICE_INFO_ATOMIC_64>(); }
     CASE(image) { return get_info<info::device::image_support>(); }
     CASE(online_compiler) {
@@ -1277,9 +1281,11 @@ public:
       return (get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_restricted_shared_allocations) {
       return get_info<info::device::usm_restricted_shared_allocations>();
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_system_allocations) {
       return get_info<info::device::usm_system_allocations>();
     }
@@ -2367,9 +2373,14 @@ private:
       EagerCache<InfoInitializer>,               //
       CallOnceCache<InfoInitializer,
                     ext::oneapi::experimental::info::device::architecture>, //
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       AspectCache<EagerCache, aspect::fp16, aspect::fp64,
                   aspect::int64_base_atomics, aspect::int64_extended_atomics,
                   aspect::ext_oneapi_atomic16>,
+#else
+      AspectCache<EagerCache, aspect::fp16, aspect::fp64,
+                  aspect::ext_oneapi_atomic16>,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       AspectCache<
           CallOnceCache,
           // Slow, >100ns (for baseline cached ~30..40ns):
