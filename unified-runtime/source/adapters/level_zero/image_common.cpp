@@ -344,6 +344,16 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     } else {
       BindlessDesc.pNext = &PitchedDesc;
     }
+
+    // If the caller supplied a user pitch, chain a ze_custom_pitch_exp_desc_t
+    // off the pitched desc so L0 uses it instead of computing its own.
+    ZeStruct<ze_custom_pitch_exp_desc_t> CustomPitchDesc;
+    if (pImageDesc->rowPitch != 0 || pImageDesc->slicePitch != 0) {
+      CustomPitchDesc.rowPitch = pImageDesc->rowPitch;
+      CustomPitchDesc.slicePitch = pImageDesc->slicePitch;
+      PitchedDesc.pNext = &CustomPitchDesc;
+    }
+
     try {
       ZE2UR_CALL_THROWS(zeImageCreate, (zeCtx, hDevice->ZeDevice, &ZeImageDesc,
                                         ZeImage.ptr()));
