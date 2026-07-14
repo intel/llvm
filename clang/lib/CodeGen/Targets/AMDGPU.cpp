@@ -350,6 +350,17 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
   const auto *FlatWGS = FD->getAttr<AMDGPUFlatWorkGroupSizeAttr>();
   if (ReqdWGS || FlatWGS) {
     M.handleAMDGPUFlatWorkGroupSizeAttr(F, FlatWGS, ReqdWGS);
+  } else if (M.getLangOpts().SYCLIsDevice) {
+    if (const auto *SYCLReqdWGS = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+      auto GetDim = [](std::optional<llvm::APSInt> V) -> unsigned {
+        return V ? (unsigned)V->getZExtValue() : 1;
+      };
+      unsigned Size = GetDim(SYCLReqdWGS->getXDimVal()) *
+                      GetDim(SYCLReqdWGS->getYDimVal()) *
+                      GetDim(SYCLReqdWGS->getZDimVal());
+      std::string AttrVal = llvm::utostr(Size) + "," + llvm::utostr(Size);
+      F->addFnAttr("amdgpu-flat-work-group-size", AttrVal);
+    }
   } else if (IsOpenCLKernel || IsHIPKernel) {
     // By default, restrict the maximum size to a value specified by
     // --gpu-max-threads-per-block=n or its default value for HIP.
@@ -741,15 +752,15 @@ void CodeGenModule::handleAMDGPUFlatWorkGroupSizeAttr(
   auto Eval = [&](Expr *E) {
     return E->EvaluateKnownConstInt(getContext()).getExtValue();
   };
-  if (FlatWGS) {
+  if (ReqdWGS) {
+    Min = Max = Eval(ReqdWGS->getXDim()) * Eval(ReqdWGS->getYDim()) *
+                Eval(ReqdWGS->getZDim());
+  } else if (FlatWGS) {
     Min = Eval(FlatWGS->getMin());
     Max = Eval(FlatWGS->getMax());
   }
-  if (ReqdWGS && Min == 0 && Max == 0)
-    Min = Max = Eval(ReqdWGS->getXDim()) * Eval(ReqdWGS->getYDim()) *
-                Eval(ReqdWGS->getZDim());
 
-  if (Min != 0) {
+  if (Min != 0 || ReqdWGS) {
     assert(Min <= Max && "Min must be less than or equal Max");
 
     if (MinThreadsVal)

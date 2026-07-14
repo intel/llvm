@@ -2379,8 +2379,7 @@ LValue CodeGenFunction::EmitMatrixElementExpr(const MatrixElementExpr *E) {
     RawAddress MatAddr = Base.getAddress();
     if (getLangOpts().HLSL &&
         E->getBase()->getType().getAddressSpace() == LangAS::hlsl_constant)
-      MatAddr = CGM.getHLSLRuntime().createBufferMatrixTempAddress(
-          Base, E->getExprLoc(), *this);
+      MatAddr = CGM.getHLSLRuntime().createBufferMatrixTempAddress(Base, *this);
 
     llvm::Constant *CV =
         llvm::ConstantDataVector::get(getLLVMContext(), Indices);
@@ -2493,8 +2492,7 @@ static RValue EmitLoadOfMatrixLValue(LValue LV, SourceLocation Loc,
   // non-padded local alloca before loading.
   if (CGF.getLangOpts().HLSL &&
       LV.getType().getAddressSpace() == LangAS::hlsl_constant)
-    DestAddr =
-        CGF.CGM.getHLSLRuntime().createBufferMatrixTempAddress(LV, Loc, CGF);
+    DestAddr = CGF.CGM.getHLSLRuntime().createBufferMatrixTempAddress(LV, CGF);
 
   Address Addr = MaybeConvertMatrixAddress(DestAddr, CGF);
   LV.setAddress(Addr);
@@ -3460,8 +3458,7 @@ static LValue EmitGlobalVarDeclLValue(CodeGenFunction &CGF,
   // the initialized global resource array.
   if (CGF.getLangOpts().HLSL && VD->getType()->isHLSLResourceRecordArray()) {
     std::optional<LValue> LV =
-        CGF.CGM.getHLSLRuntime().emitGlobalResourceArrayAsLValue(
-            CGF, VD, E->getExprLoc());
+        CGF.CGM.getHLSLRuntime().emitGlobalResourceArrayAsLValue(CGF, VD);
     if (LV.has_value())
       return LV.value();
   }
@@ -5242,8 +5239,7 @@ LValue CodeGenFunction::EmitMatrixSingleSubscriptExpr(
   RawAddress MatAddr = Base.getAddress();
   if (getLangOpts().HLSL &&
       E->getBase()->getType().getAddressSpace() == LangAS::hlsl_constant)
-    MatAddr = CGM.getHLSLRuntime().createBufferMatrixTempAddress(
-        Base, E->getExprLoc(), *this);
+    MatAddr = CGM.getHLSLRuntime().createBufferMatrixTempAddress(Base, *this);
 
   return LValue::MakeMatrixRow(MaybeConvertMatrixAddress(MatAddr, *this),
                                RowIdx, E->getBase()->getType(),
@@ -6408,6 +6404,11 @@ CodeGenFunction::EmitHLSLOutArgLValues(const HLSLOutArgExpr *E, QualType Ty) {
   Address OutTemp = CreateIRTempWithoutCast(ExprTy);
   LValue TempLV = MakeAddrLValue(OutTemp, ExprTy);
 
+  // Start the lifetime before the copy-in so that the temporary is live when
+  // the initial value is written. This ensures the store is within the
+  // lifetime and is not killed by a store undef inserted at lifetime.start.
+  EmitLifetimeStart(OutTemp.getBasePointer());
+
   if (E->isInOut())
     EmitInitializationToLValue(E->getCastedTemporary()->getSourceExpr(),
                                TempLV);
@@ -6423,8 +6424,6 @@ LValue CodeGenFunction::EmitHLSLOutArgExpr(const HLSLOutArgExpr *E,
 
   llvm::Value *Addr = TempLV.getAddress().getBasePointer();
   llvm::Type *ElTy = ConvertTypeForMem(TempLV.getType());
-
-  EmitLifetimeStart(Addr);
 
   Address TmpAddr(Addr, ElTy, TempLV.getAlignment());
   Args.addWriteback(BaseLV, TmpAddr, nullptr, E->getWritebackCast());

@@ -9,7 +9,6 @@
 #include "detail/context_impl.hpp"
 #include "detail/event_impl.hpp"
 #include "detail/queue_impl.hpp"
-#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 

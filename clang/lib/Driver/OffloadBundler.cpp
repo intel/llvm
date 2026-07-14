@@ -2393,7 +2393,8 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
   if (Error Err = FH->ReadHeader(Input.getBuffer()))
     return std::move(Err);
 
-  StringRef triple = BundlerConfig.TargetNames.front();
+  auto TargetInfo =
+      OffloadTargetInfo(BundlerConfig.TargetNames.front(), BundlerConfig);
 
   // Read all the bundles that are in the work list. If we find no bundles we
   // assume the file is meant for the host target.
@@ -2408,7 +2409,13 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
     if (!*CurTripleOrErr)
       break;
 
-    if (*CurTripleOrErr == triple) {
+    StringRef CurTriple = **CurTripleOrErr;
+    if (!checkOffloadBundleID(CurTriple))
+      return createStringError(errc::invalid_argument,
+                               "invalid bundle id read from the bundle");
+
+    if (isCodeObjectCompatible(OffloadTargetInfo(CurTriple, BundlerConfig),
+                               TargetInfo)) {
       found = true;
       break;
     }

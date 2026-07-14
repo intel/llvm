@@ -143,11 +143,13 @@ const async_handler &context_impl::get_async_handler() const {
   return MAsyncHandler;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
   return get_context_info<info::context::reference_count>(this->getHandleRef(),
                                                           this->getAdapter());
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
@@ -598,8 +600,7 @@ bool context_impl::supportsReusableEvents() {
 }
 
 bool context_impl::supportsEventProfiling() {
-  // TODO: use UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP once it exists.
-  return allDevicesSupport(static_cast<ur_device_info_t>(0),
+  return allDevicesSupport(UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
                            MEventProfilingSupport);
 }
 

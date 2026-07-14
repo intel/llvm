@@ -95,10 +95,14 @@ private:
   bool ownZeHandle;
 };
 
+#define HANDLE_WRAPPER_TYPE_NAMED(Alias, ZeHandleT, DestroyFunc)               \
+  inline constexpr char Alias##_destroyName[] = #DestroyFunc;                  \
+  using Alias =                                                                \
+      ze_handle_wrapper<::ZeHandleT, DestroyFunc, Alias##_destroyName>;
+
+// Common case: the alias name matches the raw handle type name.
 #define HANDLE_WRAPPER_TYPE(ZeHandleT, DestroyFunc)                            \
-  inline constexpr char ZeHandleT##_destroyName[] = #DestroyFunc;              \
-  using ZeHandleT =                                                            \
-      ze_handle_wrapper<::ZeHandleT, DestroyFunc, ZeHandleT##_destroyName>;
+  HANDLE_WRAPPER_TYPE_NAMED(ZeHandleT, ZeHandleT, DestroyFunc)
 
 HANDLE_WRAPPER_TYPE(ze_kernel_handle_t, zeKernelDestroy)
 HANDLE_WRAPPER_TYPE(ze_event_handle_t, zeEventDestroy)
@@ -110,11 +114,8 @@ HANDLE_WRAPPER_TYPE(ze_image_handle_t, zeImageDestroy)
 // Counter-based event IPC handle opened via zeEventCounterBasedOpenIpcHandle.
 // Same underlying handle type as ze_event_handle_t but a different teardown
 // function, hence a distinct alias.
-inline constexpr char ipc_event_destroy_name[] =
-    "zeEventCounterBasedCloseIpcHandle";
-using ipc_event_handle_t =
-    ze_handle_wrapper<::ze_event_handle_t, zeEventCounterBasedCloseIpcHandle,
-                      ipc_event_destroy_name>;
+HANDLE_WRAPPER_TYPE_NAMED(ipc_event_handle_t, ze_event_handle_t,
+                          zeEventCounterBasedCloseIpcHandle)
 
 template <typename RawHandle, ur_result_t (*retain)(RawHandle),
           ur_result_t (*release)(RawHandle)>

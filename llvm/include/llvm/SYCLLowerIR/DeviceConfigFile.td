@@ -106,6 +106,7 @@ def Aspectext_intel_eus_per_xe_core : Aspect<"ext_intel_eus_per_xe_core">;
 def Aspectext_intel_max_lanes_per_hw_thread : Aspect<"ext_intel_max_lanes_per_hw_thread">;
 def Aspectext_oneapi_ipc_physical_memory : Aspect<"ext_oneapi_ipc_physical_memory">;
 def Aspectext_oneapi_register_host_memory : Aspect<"ext_oneapi_register_host_memory">;
+def Aspectext_oneapi_per_event_profiling : Aspect<"ext_oneapi_per_event_profiling">;
 def Aspectext_oneapi_ipc_event : Aspect<"ext_oneapi_ipc_event">;
 
 // Deprecated aspects
@@ -195,6 +196,7 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_intel_max_lanes_per_hw_thread,
     Aspectext_oneapi_ipc_physical_memory,
     Aspectext_oneapi_register_host_memory,
+    Aspectext_oneapi_per_event_profiling,
     Aspectext_oneapi_ipc_event],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT

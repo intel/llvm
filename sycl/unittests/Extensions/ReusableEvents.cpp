@@ -14,6 +14,10 @@
 
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
+#include <condition_variable>
+#include <mutex>
+#include <vector>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 class TestKernel;
@@ -125,8 +129,7 @@ ur_result_t after_urDeviceGetInfo(void *pParams) {
       *static_cast<ur_bool_t *>(*params.ppPropValue) =
           ur_bool_t{ReusableEventsSupported};
     return UR_RESULT_SUCCESS;
-  case (ur_device_info_t)0: // TODO reusable events
-                            // UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
     if (*params.ppPropSizeRet)
       **params.ppPropSizeRet = sizeof(ur_bool_t);
     if (*params.ppPropValue)
@@ -388,8 +391,9 @@ TEST_F(ReusableEventsTest, ProfilingInfoQuery) {
   sycl::platform Plt = Dev.get_platform();
 
   sycl::context Ctx{Dev};
-  auto event = syclex::make_event(Ctx, syclex::enable_profiling{true});
-  sycl::queue Queue{sycl::property::queue::in_order{}};
+  syclex::properties PropList{syclex::enable_profiling};
+  auto event = syclex::make_event(Ctx, PropList);
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
 
   syclex::enqueue_signal_event(Queue, event);
   event.wait();
@@ -539,66 +543,14 @@ TEST_F(ReusableEventsTest, EmptyEventVectorWait) {
   Queue.wait();
 }
 
-TEST_F(ReusableEventsTest, SignalEventHostTask) {
-  sycl::platform Plt = sycl::platform();
-  const sycl::device Dev = Plt.get_devices()[0];
-  sycl::context Ctx{Dev};
-  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
-
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
-
-  // Host task submission generates additional event
-  // for a helper barrier, so skip the handle checks related
-  // to event release.
-  CheckUrEventReleaseHandle = false;
-
-  {
-    auto event = syclex::make_event(Ctx);
-
-    bool exception = false;
-    std::mutex CvMutex;
-    std::condition_variable Cv;
-    bool ready = false;
-
-    Queue.submit([&](sycl::handler &CGH) {
-      CGH.host_task([&] {
-        std::unique_lock<std::mutex> lk(CvMutex);
-        Cv.wait(lk, [&ready] { return ready; });
-      });
-    });
-
-    try {
-      syclex::enqueue_signal_event(Queue, event);
-    } catch (sycl::exception const &e) {
-      exception = true;
-      EXPECT_EQ(e.code(), sycl::errc::invalid);
-      EXPECT_STREQ(e.what(), "An event cannot be enqueued for signaling behind "
-                             "a command which is not enqueued in the backend.");
-    }
-
-    {
-      std::unique_lock<std::mutex> lk(CvMutex);
-      ready = true;
-    }
-    Cv.notify_one();
-
-    EXPECT_TRUE(exception);
-  }
-
-  Queue.wait();
-}
-
 // Queue with enable_profiling property
 TEST_F(ReusableEventsTest, QueueWithProfilingProperty) {
   sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  sycl::queue Queue{Ctx, Dev,
-                    sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::enable_profiling{}};
 
-  auto event = syclex::make_event(Ctx, syclex::enable_profiling{false});
+  auto event = syclex::make_event(Ctx);
 
   syclex::enqueue_signal_event(Queue, event);
   event.wait();

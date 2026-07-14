@@ -287,8 +287,11 @@ private:
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
   std::optional<bool> MReusableEventsSupport;
+  std::mutex MReusableEventsSupportMutex;
   std::optional<bool> MEventProfilingSupport;
+  std::mutex MEventProfilingSupportMutex;
   std::optional<bool> MIPCEventSupport;
+  std::mutex MIPCEventSupportMutex;
 
   // Device pools.
   // Weak_ptr preventing circular dependency between memory_pool_impl and

@@ -3,8 +3,9 @@
 
 // Test: Cross-queue dependency with enqueue_signal_event and enqueue_wait_event
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #include <cassert>
 #include <vector>

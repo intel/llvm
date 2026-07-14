@@ -182,9 +182,9 @@ event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
 
 void event_impl::setQueue(queue_impl &Queue) {
   MQueue = Queue.weak_from_this();
-  if (!MIsProfilingEnabled) {
-    MIsProfilingEnabled = Queue.MIsProfilingEnabled;
-  }
+  // Inherit profiling from the queue only if not already enabled per-event,
+  // per-event profiling takes precedence over queue-level profiling.
+  MIsProfilingEnabled = MIsProfilingEnabled || Queue.MIsProfilingEnabled;
 }
 
 ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
@@ -400,7 +400,8 @@ void event_impl::checkProfilingPreconditions() const {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
         "Profiling information is unavailable as the queue associated with "
-        "the event does not have the 'enable_profiling' property.");
+        "the event does not have the 'enable_profiling' property or the "
+        "event was not created with the 'enable_profiling' property.");
   }
 }
 
@@ -485,6 +486,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   return MHostProfilingInfo->getEndTime();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   auto Handle = this->getHandle();
   if (!MIsHostEvent && Handle) {
@@ -493,6 +495,7 @@ template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   }
   return 0;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <>
 info::event_command_status

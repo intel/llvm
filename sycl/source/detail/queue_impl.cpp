@@ -62,6 +62,7 @@ getUrEvents(const std::vector<sycl::event> &DepEvents) {
   return RetUrEvents;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -69,6 +70,7 @@ uint32_t queue_impl::get_info<info::queue::reference_count>() const {
       MQueue, UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result, nullptr);
   return result;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <> context queue_impl::get_info<info::queue::context>() const {
   return get_context();
@@ -485,6 +487,7 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
 
   // EventForReuse can only be set for BarrierType equal to CGType::Barrier
   // (enqueue_signal_event function)
+  assert(!EventForReuse || (EventForReuse && BarrierType == CGType::Barrier));
 
   ur_event_handle_t UREvent =
       EventForReuse ? EventForReuse->getHandleReusable(*this) : nullptr;
@@ -507,13 +510,13 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   if (!DiscardEvent || EventForReuse) {
     ResEvent = EventForReuse ? EventForReuse
                              : detail::event_impl::create_device_event(*this);
+    if (EventForReuse) {
+      ResEvent->setQueue(*this);
+    }
     ResEvent->setWorkerQueue(weak_from_this());
     ResEvent->setSubmissionTime();
     ResEvent->setEnqueued();
     ResEvent->setStateIncomplete();
-    if (EventForReuse) {
-      ResEvent->setQueue(*this);
-    }
   }
 
   // We can skip the barrier UR call only if both the barrier wait list
@@ -613,6 +616,10 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
     }
 
     if (EventForReuse) {
+      // Current limitation: reusable events require scheduler bypass so that
+      // the barrier can be submitted directly to the backend with the reusable
+      // event's handle as the output event. Scheduler bypass is not possible
+      // when dependencies include host tasks or cross-context dependencies.
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "An event cannot be enqueued for signaling behind "
                             "a command which is not enqueued in the backend.");

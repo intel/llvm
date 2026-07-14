@@ -51,17 +51,17 @@ template <typename PropertyListT> uint32_t getMakeEventFlags() {
 } // namespace detail
 
 template <typename PropertyListT = empty_properties_t>
-__SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
-                                     PropertyListT props = {}) {
+inline sycl::event make_event(const sycl::context &ctxt,
+                              PropertyListT props = {}) {
   static_assert(is_property_list_v<PropertyListT>,
                 "Props must be a sycl::ext::oneapi::experimental::properties");
   (void)props;
-  return detail::make_event(ctxt,
-                            detail::getMakeEventFlags<PropertyListT>());
+
+  return detail::make_event(ctxt, detail::getMakeEventFlags<PropertyListT>());
 }
 
 template <typename PropertyListT = empty_properties_t>
-__SYCL_EXPORT sycl::event make_event(PropertyListT props = {}) {
+inline sycl::event make_event(PropertyListT props = {}) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return make_event(Ctx, props);
