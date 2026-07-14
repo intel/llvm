@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <detail/context_impl.hpp>
+
 #include <helpers/UrMock.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/core.hpp>
@@ -34,7 +35,6 @@ thread_local int urIPCGetEventHandleExp_counter = 0;
 thread_local int urIPCPutEventHandleExp_counter = 0;
 thread_local int urIPCOpenEventHandleExp_counter = 0;
 thread_local int urEventRelease_counter = 0;
-
 // Filled in by SetUp() from the live mock context — needed by the
 // urEventGetInfo(UR_EVENT_INFO_CONTEXT) mock so that event_impl's constructor
 // can validate that the imported event belongs to the right context.
@@ -73,7 +73,7 @@ ur_result_t replace_urIPCOpenEventHandleExp_WrongSize(void *pParams) {
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-ur_result_t replace_urEventRelease(void *pParams) {
+ur_result_t replace_urEventRelease(void *) {
   ++urEventRelease_counter;
   return UR_RESULT_SUCCESS;
 }
@@ -157,9 +157,13 @@ protected:
 // make_event(enable_ipc) sets the IPC flag; the event is not yet backed by a
 // UR handle (lazy materialization).
 TEST_F(IPCEventTests, MakeEventIPCFlagSet) {
-  sycl::event Evt =
-      syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
-  EXPECT_TRUE(Evt.ext_oneapi_ipc_enabled());
+  {
+    sycl::event Evt =
+        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    EXPECT_TRUE(Evt.ext_oneapi_ipc_enabled());
+  }
+  // No UR handle was ever materialized, so nothing to release.
+  EXPECT_EQ(urEventRelease_counter, 0);
 }
 
 // A default-constructed event is NOT IPC-enabled.
@@ -177,18 +181,22 @@ TEST_F(IPCEventTests, MakeEventNoIPCFlag) {
 // ipc::event::get calls urIPCGetEventHandleExp; the returned handle carries the
 // correct data.
 TEST_F(IPCEventTests, GetCallsURAndReturnsHandle) {
-  sycl::event Evt =
-      syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+  {
+    sycl::event Evt =
+        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
 
-  sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
+    sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
 
-  EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
-  EXPECT_EQ(urIPCPutEventHandleExp_counter, 0);
-  EXPECT_EQ(urIPCOpenEventHandleExp_counter, 0);
+    EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
+    EXPECT_EQ(urIPCPutEventHandleExp_counter, 0);
+    EXPECT_EQ(urIPCOpenEventHandleExp_counter, 0);
 
-  sycl::ext::oneapi::experimental::ipc::handle_data_t Data = H.data();
-  ASSERT_EQ(Data.size(), DummyHandleDataSize);
-  EXPECT_EQ(memcmp(Data.data(), DummyHandleData, DummyHandleDataSize), 0);
+    sycl::ext::oneapi::experimental::ipc::handle_data_t Data = H.data();
+    ASSERT_EQ(Data.size(), DummyHandleDataSize);
+    EXPECT_EQ(memcmp(Data.data(), DummyHandleData, DummyHandleDataSize), 0);
+  }
+  // get() materializes the UR event; it must be released on destruction.
+  EXPECT_EQ(urEventRelease_counter, 1);
 }
 
 // ipc::event::get on a non-IPC event throws errc::invalid.
@@ -207,44 +215,55 @@ TEST_F(IPCEventTests, GetOnNonIPCEventThrows) {
 
 // ipc::event::put calls urIPCPutEventHandleExp with the handle data.
 TEST_F(IPCEventTests, PutCallsUR) {
-  sycl::event Evt =
-      syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+  {
+    sycl::event Evt =
+        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
 
-  sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
-  EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
+    sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
+    EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
 
-  ipcevt::put(H, Ctxt);
+    ipcevt::put(H, Ctxt);
 
-  EXPECT_EQ(urIPCPutEventHandleExp_counter, 1);
-  EXPECT_EQ(urIPCOpenEventHandleExp_counter, 0);
+    EXPECT_EQ(urIPCPutEventHandleExp_counter, 1);
+    EXPECT_EQ(urIPCOpenEventHandleExp_counter, 0);
+  }
+  // The materialized UR event must be released on destruction.
+  EXPECT_EQ(urEventRelease_counter, 1);
 }
 
 // ipc::event::open calls urIPCOpenEventHandleExp; the returned event is NOT
 // IPC-enabled (imported events cannot be re-exported).
 TEST_F(IPCEventTests, OpenCallsURAndImportedEventNotIPC) {
-  sycl::ext::oneapi::experimental::ipc::handle_data_t HandleData{
-      DummyHandleData, DummyHandleData + DummyHandleDataSize};
+  {
+    sycl::ext::oneapi::experimental::ipc::handle_data_t HandleData{
+        DummyHandleData, DummyHandleData + DummyHandleDataSize};
 
-  sycl::event Imported = ipcevt::open(HandleData, Ctxt);
+    sycl::event Imported = ipcevt::open(HandleData, Ctxt);
 
-  EXPECT_EQ(urIPCGetEventHandleExp_counter, 0);
-  EXPECT_EQ(urIPCPutEventHandleExp_counter, 0);
-  EXPECT_EQ(urIPCOpenEventHandleExp_counter, 1);
+    EXPECT_EQ(urIPCGetEventHandleExp_counter, 0);
+    EXPECT_EQ(urIPCPutEventHandleExp_counter, 0);
+    EXPECT_EQ(urIPCOpenEventHandleExp_counter, 1);
 
-  // Imported events cannot be re-exported.
-  EXPECT_FALSE(Imported.ext_oneapi_ipc_enabled());
+    // Imported events cannot be re-exported.
+    EXPECT_FALSE(Imported.ext_oneapi_ipc_enabled());
+  }
+  // The UR handle obtained from open() must be released on destruction.
+  EXPECT_EQ(urEventRelease_counter, 1);
 }
 
 #if __cpp_lib_span
 // Same test via the span (handle_data_view_t) overload.
 TEST_F(IPCEventTests, OpenViewCallsUR) {
-  sycl::ext::oneapi::experimental::ipc::handle_data_view_t HandleView{
-      DummyHandleData, DummyHandleDataSize};
+  {
+    sycl::ext::oneapi::experimental::ipc::handle_data_view_t HandleView{
+        DummyHandleData, DummyHandleDataSize};
 
-  sycl::event Imported = ipcevt::open(HandleView, Ctxt);
+    sycl::event Imported = ipcevt::open(HandleView, Ctxt);
 
-  EXPECT_EQ(urIPCOpenEventHandleExp_counter, 1);
-  EXPECT_FALSE(Imported.ext_oneapi_ipc_enabled());
+    EXPECT_EQ(urIPCOpenEventHandleExp_counter, 1);
+    EXPECT_FALSE(Imported.ext_oneapi_ipc_enabled());
+  }
+  EXPECT_EQ(urEventRelease_counter, 1);
 }
 #endif
 
