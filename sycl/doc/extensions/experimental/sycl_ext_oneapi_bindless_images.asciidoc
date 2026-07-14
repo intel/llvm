@@ -294,9 +294,11 @@ successive rows and slices of pixel data respectively. They default to `0`,
 which is interpreted as a tightly-packed layout (rows are
 `width * num_channels * sizeof(channel)` bytes, slices are `row_pitch * height`
 bytes). Non-zero values allow callers to describe images whose backing memory
-has additional padding to meet device alignment requirements. `row_pitch` and
-`slice_pitch` are only meaningful for 2D and 3D images; they are ignored for 1D
-images.
+has additional padding to meet device alignment requirements. `row_pitch` is
+meaningful for 2D and 3D images and is ignored for 1D images. `slice_pitch` is
+meaningful for 3D images and for 2D image arrays (where each array layer is a
+"slice"); it is ignored for plain 2D and 1D images. Both members are accepted
+on the `range<2>` constructor to cover the 2D-array case uniformly.
 
 [NOTE]
 ====
