@@ -1,16 +1,134 @@
-/// Test that -fsycl-allow-device-image-dependencies on Windows passes
-/// /INCLUDE:__imp_<sym> to force-load user import libs.
+/// Test that -fsycl-allow-device-image-dependencies on Windows force-loads
+/// user import libs by passing /INCLUDE:__imp_<sym>, across every way a .lib
+/// can be named and located.
+///
+/// The library-name form (direct filename, /link, /defaultlib:, /wholearchive:,
+/// -l, -Wl,/-Xlinker, @response-file) is crossed with how the .lib is found
+/// (a full path, /libpath:, the LIB env var, or -L).
 
 // REQUIRES: system-windows
 
-/// Create a minimal import lib with a known symbol via llvm-dlltool.
+/// Build a minimal import lib "dep.lib" (exporting TestFunc) in its own
+/// directory, so the directory can be handed to the linker search path.
+// RUN: rm -rf %t.libdir && mkdir -p %t.libdir
 // RUN: echo "LIBRARY test.dll" > %t.def
 // RUN: echo "EXPORTS" >> %t.def
 // RUN: echo "TestFunc" >> %t.def
-// RUN: llvm-dlltool -m i386:x86-64 --input-def %t.def --output-lib %t.lib
+// RUN: llvm-dlltool -m i386:x86-64 --input-def %t.def --output-lib %t.libdir/dep.lib
 
-/// Check that /INCLUDE:__imp_TestFunc is passed to the linker.
-// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL \
-// RUN:          -fsycl-allow-device-image-dependencies /O2 -### -- %s %t.lib 2>&1 \
-// RUN:  | FileCheck %s
+/// ---------------------------------------------------------------------------
+/// clang-cl driver: the library reaches link.exe as a cl-style argument.
+/// ---------------------------------------------------------------------------
+
+/// (1) Full path named directly as an input.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          %t.libdir/dep.lib 2>&1 | FileCheck %s
+
+/// (2) Full path passed through /link.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link %t.libdir/dep.lib 2>&1 | FileCheck %s
+
+/// (3) Bare name via /link, resolved through /libpath:.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link dep.lib /libpath:%t.libdir 2>&1 | FileCheck %s
+
+/// (4) Bare name via /link, resolved through the LIB env var.
+// RUN: env "LIB=%t.libdir" %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link dep.lib 2>&1 | FileCheck %s
+
+/// (5) /defaultlib: with the .lib extension omitted (the driver appends it),
+///     resolved through /libpath:.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link /defaultlib:dep /libpath:%t.libdir 2>&1 | FileCheck %s
+
+/// (6) /wholearchive: with a bare name, resolved through /libpath:.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link /wholearchive:dep /libpath:%t.libdir 2>&1 | FileCheck %s
+
+/// (7) A .lib pulled in via a linker response file (bare name + /libpath:).
+// RUN: echo "dep.lib /libpath:%t.libdir" > %t.rsp
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link @%t.rsp 2>&1 | FileCheck %s
+
+/// ---------------------------------------------------------------------------
+/// clang driver (GNU-style): -l / -L / -Wl / -Xlinker forms.
+/// ---------------------------------------------------------------------------
+
+/// (8) -l<name> resolved through -L.
+// RUN: %clang -fsycl --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies -O2 -### %s \
+// RUN:          -L%t.libdir -ldep 2>&1 | FileCheck %s
+
+/// (9) Full path forwarded verbatim via -Wl,.
+// RUN: %clang -fsycl --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies -O2 -### %s \
+// RUN:          -Wl,%t.libdir/dep.lib 2>&1 | FileCheck %s
+
+/// (10) Full path forwarded verbatim via -Xlinker.
+// RUN: %clang -fsycl --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies -O2 -### %s \
+// RUN:          -Xlinker %t.libdir/dep.lib 2>&1 | FileCheck %s
+
 // CHECK: "/INCLUDE:__imp_TestFunc"
+
+/// ---------------------------------------------------------------------------
+/// Negative: a named system library (kernel32.lib, found on the LIB env var
+/// the toolchain sets up) must never be force-loaded.
+/// ---------------------------------------------------------------------------
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link kernel32.lib 2>&1 | FileCheck --check-prefix=SYSLIB %s
+/// The linker line is emitted (driver did not crash scanning the .lib) but
+/// carries no force-load directive.
+// SYSLIB: link.exe
+// SYSLIB-NOT: "/INCLUDE:__imp_
+
+/// ---------------------------------------------------------------------------
+/// Negative: a .lib that cannot be resolved emits no /INCLUDE: (and the driver
+/// does not fail). Covers every resolution path — a bare name with no search
+/// dir, a name that misses in an existing /libpath:, a nonexistent full path,
+/// the extension-appending /defaultlib:/wholearchive: forms, and a missing
+/// @response-file.
+/// ---------------------------------------------------------------------------
+
+/// Bare name, nothing on the search path.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link nosuch.lib 2>&1 | FileCheck --check-prefix=NONE %s
+
+/// Name misses in a /libpath: dir that exists but lacks it.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link nosuch.lib /libpath:%t.libdir 2>&1 | FileCheck --check-prefix=NONE %s
+
+/// Nonexistent full path named directly.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          %t.libdir/nosuch.lib 2>&1 | FileCheck --check-prefix=NONE %s
+
+/// /defaultlib: (extension appended) that resolves to nothing.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link /defaultlib:nosuch /libpath:%t.libdir 2>&1 | FileCheck --check-prefix=NONE %s
+
+/// /wholearchive: that resolves to nothing.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link /wholearchive:nosuch.lib 2>&1 | FileCheck --check-prefix=NONE %s
+
+/// Missing response file.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          /link @%t.nosuch.rsp 2>&1 | FileCheck --check-prefix=NONE %s
+
+/// The linker line is emitted (driver did not crash resolving the .lib) but
+/// carries no force-load directive.
+// NONE: link.exe
+// NONE-NOT: "/INCLUDE:__imp_
