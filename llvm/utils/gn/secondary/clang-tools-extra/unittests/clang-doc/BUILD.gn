@@ -44,6 +44,5 @@ unittest("ClangDocTests") {
     "MDGeneratorTest.cpp",
     "MergeTest.cpp",
     "SerializeTest.cpp",
-    "YAMLGeneratorTest.cpp",
   ]
 }

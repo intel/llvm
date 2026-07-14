@@ -28,6 +28,5 @@ static_library("clang-doc") {
     "Mapper.cpp",
     "Representation.cpp",
     "Serialize.cpp",
-    "YAMLGenerator.cpp",
   ]
 }
