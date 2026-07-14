@@ -9,7 +9,6 @@ on:
     - sycl-rel-**
     - llvmspirv_pulldown
 
-
   pull_request:
     branches:
     - sycl
