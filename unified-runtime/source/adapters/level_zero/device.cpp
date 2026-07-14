@@ -1541,7 +1541,13 @@ ur_result_t urDeviceGetInfo(
       LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
       DeviceProp.pNext = (void *)&LuidDesc;
 
-      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+      const auto ZeResult = zeDeviceGetProperties(ZeDevice, &DeviceProp);
+      if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return ze2urResult(ZeResult);
+      }
 
       const auto &LUID = LuidDesc.luid.id;
       return ReturnValue(LUID, sizeof(LUID));
@@ -1564,7 +1570,13 @@ ur_result_t urDeviceGetInfo(
       LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
       DeviceProp.pNext = (void *)&LuidDesc;
 
-      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+      const auto ZeResult = zeDeviceGetProperties(ZeDevice, &DeviceProp);
+      if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return ze2urResult(ZeResult);
+      }
 
       return ReturnValue(LuidDesc.nodeMask);
     } else {
