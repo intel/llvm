@@ -45,9 +45,8 @@ template <typename T, size_t N> marray<T, N> makeB() {
     return marray<T, N>(T(2));
 }
 
-// Binary op, marray-marray: the operand order whose result differs between the
-// vector and scalar execution branches. Host computes the oracle; device must
-// match.
+// Binary op, marray-marray. The same Op runs on host (the oracle) and device;
+// their results must match.
 template <typename T, size_t N, typename OpT>
 void checkBinary(queue &Q, OpT Op) {
   auto A = makeA<T, N>();
@@ -56,8 +55,7 @@ void checkBinary(queue &Q, OpT Op) {
   assert(runOnDevice(Q, [=]() { return equal(Op(A, B), Expected); }));
 }
 
-// Scalar-operand overloads (marray-scalar, scalar-marray). Overload resolution,
-// independent of N -- checked once.
+// Scalar-operand overloads (marray-scalar, scalar-marray).
 template <typename T, size_t N, typename OpT>
 void checkScalarOrders(queue &Q, OpT Op) {
   auto A = makeA<T, N>();
@@ -75,8 +73,7 @@ void checkUnary(queue &Q, OpT Op) {
   assert(runOnDevice(Q, [=]() { return equal(Op(A), Expected); }));
 }
 
-// Compound assignment, marray rhs and scalar rhs (the Num != 1 OPASSIGN).
-// Overload resolution, independent of N -- checked once.
+// Compound assignment, marray rhs and scalar rhs.
 template <typename T, size_t N, typename OpT>
 void checkAssign(queue &Q, OpT Op) {
   auto A = makeA<T, N>();
@@ -110,7 +107,7 @@ void checkMutate(queue &Q, OpT Op) {
   }));
 }
 
-// __SYCL_BINOP (+), __SYCL_RELLOGOP (==), unary -, __SYCL_UOP (++ pre/post).
+// Arithmetic/relational operators: +, ==, unary -, pre/post ++.
 template <typename T, size_t N> void checkNumericAt(queue &Q) {
   checkBinary<T, N>(Q, [](auto A, auto B) { return A + B; });
   checkBinary<T, N>(Q, [](auto A, auto B) { return A == B; });
@@ -119,7 +116,7 @@ template <typename T, size_t N> void checkNumericAt(queue &Q) {
   checkMutate<T, N>(Q, [](auto &X) { X++; });
 }
 
-// __SYCL_BINOP_INTEGRAL (&), operator~, operator!.
+// Integral-only operators: &, ~, !.
 template <typename T, size_t N> void checkIntegralAt(queue &Q) {
   checkBinary<T, N>(Q, [](auto A, auto B) { return A & B; });
   checkUnary<T, N>(Q, [](auto A) { return ~A; });
@@ -129,9 +126,8 @@ template <typename T, size_t N> void checkIntegralAt(queue &Q) {
 int main() {
   queue Q;
 
-  // int: storeVecResult memcpy branch (vec_elem_ty == DataT). Run each op at a
-  // vectorizable N (ext_vector branch) then N=3 (scalar branch on device);
-  // scalar-operand overloads and compound-assign are N-independent, once each.
+  // Run each op at a power-of-two N and at N=3, since the operators take
+  // different code paths depending on whether N is vectorizable.
   checkNumericAt<int, 4>(Q);
   checkNumericAt<int, 3>(Q);
   checkIntegralAt<int, 4>(Q);
@@ -141,12 +137,12 @@ int main() {
   checkAssign<int, 4>(Q, [](auto &X, auto Y) { X += Y; });
   checkAssign<int, 4>(Q, [](auto &X, auto Y) { X &= Y; });
 
-  // half: storeVecResult convert branch (half -> _Float16), vector path only.
+  // half: floating-point element type.
   if (Q.get_device().has(aspect::fp16))
     checkBinary<half, 4>(Q, [](auto A, auto B) { return A + B; });
 
-  // bool: convert branch (bool -> uint8) via an integral op, plus operator~'s
-  // bool special-case (returns !Lhs). ++/-- are deprecated for marray<bool>.
+  // bool: operator~ has a special case (returns !Lhs). ++/-- are deprecated for
+  // marray<bool>, so they are not exercised here.
   checkBinary<bool, 4>(Q, [](auto A, auto B) { return A & B; });
   checkUnary<bool, 4>(Q, [](auto A) { return ~A; });
   checkUnary<bool, 4>(Q, [](auto A) { return !A; });
