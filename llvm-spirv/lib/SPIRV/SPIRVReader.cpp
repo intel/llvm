@@ -403,14 +403,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
   }
   case OpTypeImage: {
     auto *ST = static_cast<SPIRVTypeImage *>(T);
-    if (ST->isOCLImage())
-      return mapType(T,
-                     getSPIRVType(OpTypeImage, transType(ST->getSampledType()),
-                                  ST->getDescriptor(), getAccessQualifier(ST),
-                                  !UseTPT));
-    else
-      llvm_unreachable("Unsupported image type");
-    return nullptr;
+    return mapType(T, getSPIRVType(OpTypeImage, transType(ST->getSampledType()),
+                                   ST->getDescriptor(), getAccessQualifier(ST),
+                                   !UseTPT));
   }
   case OpTypeSampledImage: {
     const auto *ST = static_cast<SPIRVTypeSampledImage *>(T)->getImageType();
@@ -1102,10 +1097,29 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
 
       FPEncodingWrap SrcEnc = GetEncodingAndUpdateType(SPVSrcTy);
       FPEncodingWrap DstEnc = GetEncodingAndUpdateType(SPVDstTy);
+      bool IsSaturatedFP8 = BC->hasDecorate(
+          DecorationSaturatedToLargestFloat8NormalConversionEXT);
+      if (IsSaturatedFP8) {
+        BM->getErrorLog().checkError(
+            (OC == OpFConvert || OC == OpConvertSToF || OC == OpConvertUToF) &&
+                (DstEnc == FPEncodingWrap::E4M3 ||
+                 DstEnc == FPEncodingWrap::E5M2),
+            SPIRVEC_InvalidInstruction,
+            "SaturatedToLargestFloat8NormalConversionEXT decoration is only "
+            "valid on OpFConvert/OpConvertSToF/OpConvertUToF whose Result "
+            "Type uses Float8E4M3EXT or Float8E5M2EXT encoding.\n");
+      }
       if (IsFP4OrFP8Encoding(SrcEnc) || IsFP4OrFP8Encoding(DstEnc) ||
           SPVSrcTy->isTypeInt(4) || SPVDstTy->isTypeInt(4)) {
-        FPConversionDesc FPDesc = {
-            SrcEnc, DstEnc, static_cast<SPIRV::SPIRVWord>(BC->getOpCode())};
+        // SPV_EXT_float8: an OpFConvert to E4M3/E5M2 decorated with
+        // SaturatedToLargestFloat8NormalConversionEXT round-trips through the
+        // ClampConvert<Src>To<E4M3|E5M2>INTEL builtin name. Only the FToF
+        // variant has a corresponding SPV_INTEL_fp_conversions builtin name;
+        // for OpConvertSToF/OpConvertUToF the standard mapping is preserved.
+        SPIRV::SPIRVWord LookupOp = (IsSaturatedFP8 && OC == OpFConvert)
+                                        ? internal::OpClampConvertFToFINTEL
+                                        : OC;
+        FPConversionDesc FPDesc = {SrcEnc, DstEnc, LookupOp};
         auto Conv = SPIRV::FPConvertToEncodingMap::rmap(FPDesc);
         std::vector<Value *> Ops = {Src};
         std::vector<Type *> OpsTys = {Src->getType()};
@@ -5010,11 +5024,14 @@ bool SPIRVToLLVM::transMetadata() {
     if (BF->getExecutionMode(ExecutionModeInitializer)) {
       CtorKernels.push_back(F);
     }
-    // Generate metadata for intel_reqd_sub_group_size
+    // Generate metadata for reqd_sub_group_size.
     if (auto *EM = BF->getExecutionMode(ExecutionModeSubgroupSize)) {
       auto *SizeMD =
           ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
       F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
+      // Add vendor specific alias for backward compatibility.
+      F->setMetadata("intel_reqd_sub_group_size",
+                     MDNode::get(*Context, SizeMD));
     }
     // Generate metadata for intel_reqd_sub_group_size
     if (BF->getExecutionMode(internal::ExecutionModeNamedSubgroupSizeINTEL)) {
@@ -5026,7 +5043,8 @@ bool SPIRVToLLVM::transMetadata() {
       // On the LLVM IR side, this is represented as the metadata
       // intel_reqd_sub_group_size with value -1.
       auto *SizeMD = ConstantAsMetadata::get(getInt32(M, -1));
-      F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
+      F->setMetadata("intel_reqd_sub_group_size",
+                     MDNode::get(*Context, SizeMD));
     }
     // Generate metadata for SubgroupsPerWorkgroup/SubgroupsPerWorkgroupId.
     auto EmitSubgroupsPerWorkgroupMD = [this, F](SPIRVExecutionModeKind EMK,
@@ -5531,9 +5549,9 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
       FastMathFlags FMF;
       FMF.setNoInfs();
       FMF.setNoNaNs();
-      CallInst *MinMax = IRB.CreateIntrinsic(
-          IntrinsicID, {Args.front()->getType()}, Args, FMF);
-      return MinMax;
+      Value *MinMax = IRB.CreateIntrinsic(IntrinsicID,
+                                          {Args.front()->getType()}, Args, FMF);
+      return cast<CallInst>(MinMax);
     }
   }
 

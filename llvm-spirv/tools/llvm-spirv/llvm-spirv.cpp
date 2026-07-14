@@ -219,11 +219,6 @@ static cl::opt<bool>
     SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                   cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
-static cl::opt<bool>
-    SPIRVPreserveAuxData("spirv-preserve-auxdata", cl::init(false),
-                         cl::desc("Preserve all auxiliary data, such as "
-                                  "function attributes and metadata"));
-
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
     cl::desc("Display id of constants available for specializaion and their "
@@ -836,12 +831,22 @@ int main(int Ac, char **Av) {
     OptToDisable->setArgStr("spirv-ext-coming-from-spirv-backend");
     OptToDisable->setHiddenFlag(cl::Hidden);
   }
+  if (RegisteredOptions.count("spirv-preserve-auxdata") == 1) {
+    llvm::cl::Option *OptToDisable =
+        RegisteredOptions["spirv-preserve-auxdata"];
+    OptToDisable->setArgStr("spirv-preserve-auxdata-coming-from-spirv-backend");
+    OptToDisable->setHiddenFlag(cl::Hidden);
+  }
 #endif
   cl::list<std::string> SPVExt(
       "spirv-ext", cl::CommaSeparated,
       cl::desc("Specify list of allowed/disallowed extensions"),
       cl::value_desc("+SPV_extenstion1_name,-SPV_extension2_name"),
       cl::ValueRequired);
+  cl::opt<bool> SPIRVPreserveAuxData(
+      "spirv-preserve-auxdata", cl::init(false),
+      cl::desc("Preserve all auxiliary data, such as function attributes and "
+               "metadata"));
 
   cl::ParseCommandLineOptions(Ac, Av, "LLVM/SPIR-V translator");
 
