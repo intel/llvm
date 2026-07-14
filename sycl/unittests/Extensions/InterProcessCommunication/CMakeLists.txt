@@ -1,5 +1,6 @@
 if("cxx_std_20" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
   add_sycl_unittest(IPCTests OBJECT
+    Event.cpp
     Memory.cpp
     PhysicalMemory.cpp
   )
