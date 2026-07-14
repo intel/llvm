@@ -81,6 +81,15 @@
 // RUN:          -fsycl-allow-device-image-dependencies -O2 -### %s \
 // RUN:          -Xlinker %t.libdir/dep.lib 2>&1 | FileCheck %s
 
+/// (11) A .lib named only by a /DEFAULTLIB: directive embedded in an object
+///      file's COFF .drectve section (as /Qmkl and #pragma comment(lib) do),
+///      never on the command line. Resolved through /libpath:.
+// RUN: echo '#pragma comment(lib, "dep.lib")' > %t.dep.c
+// RUN: %clang_cl /clang:--sysroot=%S/Inputs/SYCL -c -o %t.dep.obj %t.dep.c
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          %t.dep.obj /link /libpath:%t.libdir 2>&1 | FileCheck %s
+
 // CHECK: "/INCLUDE:__imp_TestFunc"
 
 /// ---------------------------------------------------------------------------

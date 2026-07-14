@@ -17,6 +17,8 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Object/Archive.h"
+#include "llvm/Object/COFF.h"
+#include "llvm/Object/ObjectFile.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CommandLine.h"
@@ -151,6 +153,43 @@ class DeviceImageDepForcer {
     }
   }
 
+  // Object files can carry embedded linker directives in their COFF .drectve
+  // section (e.g. /Qmkl injects /DEFAULTLIB:mkl_core.lib etc.). These never
+  // appear on the command line, so scan the section and route each directive
+  // through processToken, which already understands /defaultlib:.
+  void scanObjectDirectives(StringRef Path) {
+    auto BufOrErr = TC.getVFS().getBufferForFile(Path);
+    if (!BufOrErr)
+      return;
+    auto BinOrErr =
+        llvm::object::createBinary(BufOrErr.get()->getMemBufferRef());
+    if (!BinOrErr) {
+      llvm::consumeError(BinOrErr.takeError());
+      return;
+    }
+    const auto *Obj =
+        llvm::dyn_cast<llvm::object::COFFObjectFile>(BinOrErr.get().get());
+    if (!Obj)
+      return;
+    for (const llvm::object::SectionRef &Sec : Obj->sections()) {
+      llvm::Expected<StringRef> Name = Sec.getName();
+      if (!Name || *Name != ".drectve") {
+        if (!Name)
+          llvm::consumeError(Name.takeError());
+        continue;
+      }
+      llvm::Expected<StringRef> Contents = Sec.getContents();
+      if (!Contents) {
+        llvm::consumeError(Contents.takeError());
+        continue;
+      }
+      llvm::SmallVector<const char *, 8> Tokens;
+      llvm::cl::TokenizeWindowsCommandLine(*Contents, Saver, Tokens);
+      for (const char *T : Tokens)
+        processToken(T);
+    }
+  }
+
   // Resolve and force-include a .lib named by Name, unless it's a system lib.
   void forceIncludeLibName(StringRef Name) {
     if (!Name.ends_with_insensitive(".lib"))
@@ -242,12 +281,14 @@ public:
   }
 
   // Scan all linker inputs and append /INCLUDE: directives for user .libs.
-  void run(const InputInfoList &Inputs) {
+  void scanIncludeSymbol(const InputInfoList &Inputs) {
     // .libs given directly as inputs (filenames, -l<name>, and -Wl,/-Xlinker
     // values that MSVC renders straight through).
     for (const auto &Input : Inputs) {
       if (Input.isFilename()) {
         processToken(Input.getFilename());
+        // Object-file inputs may carry embedded /DEFAULTLIB: directives.
+        scanObjectDirectives(Input.getFilename());
         continue;
       }
       // -l<name>
@@ -643,7 +684,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       Args.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
                    options::OPT_fno_sycl_allow_device_image_dependencies,
                    false))
-    DeviceImageDepForcer(TC, Args, CmdArgs).run(Inputs);
+    DeviceImageDepForcer(TC, Args, CmdArgs).scanIncludeSymbol(Inputs);
 
   std::vector<const char *> Environment;
 
