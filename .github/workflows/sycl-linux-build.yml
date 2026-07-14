@@ -121,6 +121,19 @@ on:
         type: choice
         options:
           - "--cuda --native_cpu"
+          # SPIR-V-only JIT probe: passthrough -D wins over --ci-defaults and
+          # slims the JIT embed to SPIR-V (drops libclc).
+          - "-DSYCL_JIT_TARGETS=SPIRV"
+      build_target:
+        type: choice
+        options:
+          - "sycl-toolchain"
+          # Build only the JIT library (fast path for the size probe).
+          - "sycl-jit"
+      report_jit_size:
+        description: 'Report libsycl-jit.so size and skip the deploy/test tail.'
+        type: boolean
+        default: false
       # Cache properties need to match CC/CXX/CMake opts. Any additional choices
       # would need extra care.
       build_cache_root:

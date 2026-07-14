@@ -87,6 +87,12 @@ on:
         options:
           - "sycl-toolchain"
           - "all"
+          # Build only the JIT library (fast path for the size probe).
+          - "sycl-jit"
+      report_jit_size:
+        description: 'Report sycl-jit.dll size and skip the deploy/test tail.'
+        type: boolean
+        default: false
       toolchain_artifact_filename:
         type: choice
         options:
