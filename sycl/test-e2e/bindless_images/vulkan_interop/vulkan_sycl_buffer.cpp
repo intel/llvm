@@ -5,12 +5,10 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
-// RUN-IF: (windows && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores
+// RUN-IF: ext_oneapi_external_semaphore_import, %{run} %t.out --semaphores
 
-// DMABUF  technically is linux only, but running on Windows won't hurt us...
-// except for semaphores which are having trouble on Linux. (see above)
 // RUN-IF: level_zero, %{run} %t.out --dmabuf
-// XXX-IF: (level_zero && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores --dmabuf
+// RUN-IF: (level_zero && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores --dmabuf
 
 
 /*
