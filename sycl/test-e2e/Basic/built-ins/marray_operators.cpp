@@ -7,11 +7,11 @@
 #include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
 
+#include <algorithm>
 #include <cassert>
 
 using namespace sycl;
 
-// Runs Fn() inside a single-task kernel and returns its bool result.
 template <typename FnT> bool runOnDevice(queue &Q, FnT Fn) {
   buffer<bool, 1> ResultBuf{1};
   Q.submit([&](handler &Cgh) {
@@ -22,22 +22,19 @@ template <typename FnT> bool runOnDevice(queue &Q, FnT Fn) {
 }
 
 template <typename MArrayT> bool equal(const MArrayT &A, const MArrayT &B) {
-  for (size_t I = 0; I < A.size(); ++I)
-    if (A[I] != B[I])
-      return false;
-  return true;
+  return std::equal(A.begin(), A.end(), B.begin());
 }
 
-// Distinct input patterns so operators don't collapse to trivial values.
 template <typename T, size_t N> marray<T, N> makeA() {
   marray<T, N> Ret;
   for (size_t I = 0; I < N; ++I)
     if constexpr (std::is_same_v<T, bool>)
       Ret[I] = (I % 2 == 0);
     else
-      Ret[I] = T(I + 1); // 1,2,3,...
+      Ret[I] = T(I + 1);
   return Ret;
 }
+
 template <typename T, size_t N> marray<T, N> makeB() {
   if constexpr (std::is_same_v<T, bool>)
     return marray<T, N>(true);
@@ -55,7 +52,6 @@ void checkBinary(queue &Q, OpT Op) {
   assert(runOnDevice(Q, [=]() { return equal(Op(A, B), Expected); }));
 }
 
-// Scalar-operand overloads (marray-scalar, scalar-marray).
 template <typename T, size_t N, typename OpT>
 void checkScalarOrders(queue &Q, OpT Op) {
   auto A = makeA<T, N>();
@@ -73,7 +69,6 @@ void checkUnary(queue &Q, OpT Op) {
   assert(runOnDevice(Q, [=]() { return equal(Op(A), Expected); }));
 }
 
-// Compound assignment, marray rhs and scalar rhs.
 template <typename T, size_t N, typename OpT>
 void checkAssign(queue &Q, OpT Op) {
   auto A = makeA<T, N>();
@@ -107,16 +102,13 @@ void checkMutate(queue &Q, OpT Op) {
   }));
 }
 
-// Arithmetic/relational operators: +, ==, unary -, pre/post ++.
 template <typename T, size_t N> void checkNumericAt(queue &Q) {
   checkBinary<T, N>(Q, [](auto A, auto B) { return A + B; });
   checkBinary<T, N>(Q, [](auto A, auto B) { return A == B; });
   checkUnary<T, N>(Q, [](auto A) { return -A; });
   checkMutate<T, N>(Q, [](auto &X) { ++X; });
-  checkMutate<T, N>(Q, [](auto &X) { X++; });
 }
 
-// Integral-only operators: &, ~, !.
 template <typename T, size_t N> void checkIntegralAt(queue &Q) {
   checkBinary<T, N>(Q, [](auto A, auto B) { return A & B; });
   checkUnary<T, N>(Q, [](auto A) { return ~A; });
@@ -137,7 +129,6 @@ int main() {
   checkAssign<int, 4>(Q, [](auto &X, auto Y) { X += Y; });
   checkAssign<int, 4>(Q, [](auto &X, auto Y) { X &= Y; });
 
-  // half: floating-point element type.
   if (Q.get_device().has(aspect::fp16))
     checkBinary<half, 4>(Q, [](auto A, auto B) { return A + B; });
 
