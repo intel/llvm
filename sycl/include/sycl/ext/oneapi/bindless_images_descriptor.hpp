@@ -158,8 +158,13 @@ struct image_descriptor {
 
     // This will generate the new descriptor with image_type standard
     // since individual mip levels are standard images
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    image_descriptor levelDesc({width, height, depth}, this->num_channels,
+                               this->channel_type, this->color_space);
+#else
     image_descriptor levelDesc({width, height, depth}, this->num_channels,
                                this->channel_type);
+#endif
 
     levelDesc.verify();
     return levelDesc;

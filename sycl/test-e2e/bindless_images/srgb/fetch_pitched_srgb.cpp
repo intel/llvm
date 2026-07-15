@@ -8,16 +8,18 @@
 // RUN: %clangxx -fsycl -fpreview-breaking-changes %s -Wno-error=unused-command-line-argument -o %t.out
 // RUN: %{run} %t.out
 
-// Unsampled fetch of an sRGB image allocated via pitched_alloc_device:
+// Sampled fetch of an sRGB image allocated via pitched_alloc_device:
 // hardware must apply the IEC 61966-2-1 decode on fetch, returning linear
 // values. A linear image_descriptor with the same raw bytes must return the
 // raw unorm value unchanged.
 
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/usm.hpp>
+#include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -131,15 +133,27 @@ int main() {
     bool passed = true;
     const float epsilon = 0.01f;
     for (size_t i = 0; i < numElems; i++) {
-      if (std::abs(outputSrgb[i].x() - expectedLinear) > epsilon) {
+      if (std::abs(outputSrgb[i].x() - expectedLinear) > epsilon ||
+          std::abs(outputSrgb[i].y() - expectedLinear) > epsilon ||
+          std::abs(outputSrgb[i].z() - expectedLinear) > epsilon) {
         std::cerr << "sRGB decode mismatch at " << i << ": expected "
-                  << expectedLinear << ", got " << outputSrgb[i].x()
+                  << expectedLinear << ", got (" << outputSrgb[i].x() << ", "
+                  << outputSrgb[i].y() << ", " << outputSrgb[i].z() << ")"
                   << std::endl;
         passed = false;
       }
-      if (std::abs(outputLinear[i].x() - rawNorm) > epsilon) {
+      if (std::abs(outputSrgb[i].w() - 1.0f) > epsilon) {
+        std::cerr << "sRGB alpha should not be decoded at " << i
+                  << ": expected 1.0, got " << outputSrgb[i].w() << std::endl;
+        passed = false;
+      }
+      if (std::abs(outputLinear[i].x() - rawNorm) > epsilon ||
+          std::abs(outputLinear[i].y() - rawNorm) > epsilon ||
+          std::abs(outputLinear[i].z() - rawNorm) > epsilon) {
         std::cerr << "Linear passthrough mismatch at " << i << ": expected "
-                  << rawNorm << ", got " << outputLinear[i].x() << std::endl;
+                  << rawNorm << ", got (" << outputLinear[i].x() << ", "
+                  << outputLinear[i].y() << ", " << outputLinear[i].z() << ")"
+                  << std::endl;
         passed = false;
       }
     }

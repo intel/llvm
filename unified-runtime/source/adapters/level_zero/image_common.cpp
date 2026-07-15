@@ -1134,8 +1134,7 @@ ur_result_t urBindlessImagesImageAllocateExp(
   ZeSrgbDesc.pNext = nullptr;
   ZeSrgbDesc.sRGB = true;
 
-  ze_image_bindless_exp_desc_t ZeImageBindlessDesc;
-  ZeImageBindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
+  ZeStruct<ze_image_bindless_exp_desc_t> ZeImageBindlessDesc;
   ZeImageBindlessDesc.pNext =
       (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA)
           ? static_cast<void *>(&ZeSrgbDesc)
