@@ -201,10 +201,71 @@ jobs:
           echo "| --- | --- | --- |";
           echo "| sycl-jit.dll | ${RAW_MB} MB | ${ZST_MB} MB |";
         } >> "$GITHUB_STEP_SUMMARY"
+    - name: Report SYCL JIT+run runtime closure size
+      # Libraries an app needs to JIT-compile SYCL C++ and run it on Intel GPU:
+      # sycl.dll (host runtime + UR loader), the dlopen'd sycl-jit.dll (RTC),
+      # both L0 adapters (v1 + v2), and umf. DLLs land in build/bin on Windows.
+      # Needs build_target: sycl-toolchain. Missing libs are skipped.
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.report_jit_size }}
+      shell: bash
+      run: |
+        set -eu
+        BINDIR="build/bin"
+        # Windows-specific closure: unlike Linux (static libur_loader baked into
+        # libsycl), Windows ships ur_loader.dll separately plus the Win-only
+        # ur_win_proxy_loader.dll shim that locates it.
+        PATTERNS="sycl-jit.dll sycl?.dll ur_loader.dll ur_win_proxy_loader.dll ur_adapter_level_zero.dll ur_adapter_level_zero_v2.dll umf.dll"
+        RAW_SUM=0; ZST_SUM=0; ROWS=""; MISSING=""
+        for pat in $PATTERNS; do
+          f=$(find "$BINDIR" -maxdepth 1 -name "$pat" -type f | head -1)
+          if [ -z "${f:-}" ]; then MISSING="${MISSING} ${pat}"; continue; fi
+          r=$(stat -c%s "$f")
+          z=$(zstd -19 -q -c "$f" | wc -c)
+          RAW_SUM=$((RAW_SUM + r)); ZST_SUM=$((ZST_SUM + z))
+          rmb=$(awk -v b="$r" 'BEGIN{printf "%.1f", b/1048576}')
+          zmb=$(awk -v b="$z" 'BEGIN{printf "%.1f", b/1048576}')
+          ROWS="${ROWS}| $(basename "$f") | ${rmb} MB | ${zmb} MB |\n"
+        done
+        RAW_MB=$(awk -v b="$RAW_SUM" 'BEGIN{printf "%.1f", b/1048576}')
+        ZST_MB=$(awk -v b="$ZST_SUM" 'BEGIN{printf "%.1f", b/1048576}')
+        echo "runtime closure: on-disk=${RAW_MB}MB  compressed=${ZST_MB}MB  (missing:${MISSING:- none})"
+        {
+          echo "### SYCL JIT+run runtime closure (Windows)";
+          echo "";
+          echo "| Library | On-disk | Download (zstd -19) |";
+          echo "| --- | --- | --- |";
+          printf "%b" "$ROWS";
+          echo "| **Total** | **${RAW_MB} MB** | **${ZST_MB} MB** |";
+          if [ -n "$MISSING" ]; then echo ""; echo "_Not built (skipped):${MISSING}_"; fi
+        } >> "$GITHUB_STEP_SUMMARY"
+    - name: Report openvino package size
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.report_jit_size }}
+      shell: bash
+      run: |
+        set -eu
+        PKG=openvino
+        DL=$(mktemp -d)
+        INST=$(mktemp -d)
+        # (1) Download size: full wheel closure (package + all deps).
+        python -m pip download "$PKG" -d "$DL" --quiet
+        DL_BYTES=$(find "$DL" -type f -printf '%s\n' | awk '{s+=$1}END{print s+0}')
+        # (2) Installed size: on-disk footprint after unpacking to a clean dir.
+        python -m pip install "$PKG" --target "$INST" --quiet
+        INST_BYTES=$(find "$INST" -type f -printf '%s\n' | awk '{s+=$1}END{print s+0}')
+        DL_MB=$(awk -v b="$DL_BYTES" 'BEGIN{printf "%.1f", b/1048576}')
+        INST_MB=$(awk -v b="$INST_BYTES" 'BEGIN{printf "%.1f", b/1048576}')
+        echo "openvino  download=${DL_MB}MB  installed=${INST_MB}MB"
+        {
+          echo "### openvino package size (Windows)";
+          echo "";
+          echo "| Package | Download (wheels) | Installed (on-disk) |";
+          echo "| --- | --- | --- |";
+          echo "| openvino | ${DL_MB} MB | ${INST_MB} MB |";
+        } >> "$GITHUB_STEP_SUMMARY"
     - name: check-llvm
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
       shell: bash
-      run: |      
+      run: |
         cmake --build build --target check-llvm
     - name: check-clang
       if: ${{ !cancelled() && contains(inputs.changes, 'clang') }}
