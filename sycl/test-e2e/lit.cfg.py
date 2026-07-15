@@ -685,20 +685,20 @@ if platform.system() == "Windows":
 # Maps intel_gpu_<X> target names to the short names accepted by ocloc.
 # Some of the targets are outdated and commented here for now.
 INTEL_GPU_SHORT_NAMES = {
-    #"intel_gpu_bdw": "bdw",
-    #"intel_gpu_skl": "skl",
-    #"intel_gpu_kbl": "kbl",
-    "intel_gpu_cfl": "cfl",
+    # "intel_gpu_bdw": "bdw",
+    # "intel_gpu_skl": "skl",
+    # "intel_gpu_kbl": "kbl",
+    # "intel_gpu_cfl": "cfl",
     "intel_gpu_apl": "apl",
     "intel_gpu_bxt": "apl",
-    #"intel_gpu_glk": "glk",
-    #"intel_gpu_whl": "whl",
-    "intel_gpu_aml": "aml",
-    "intel_gpu_cml": "cml",
-    #"intel_gpu_icllp": "icllp",
+    # "intel_gpu_glk": "glk",
+    # "intel_gpu_whl": "whl",
+    # "intel_gpu_aml": "aml",
+    # "intel_gpu_cml": "cml",
+    # "intel_gpu_icllp": "icllp",
     "intel_gpu_icl": "icllp",
-    #"intel_gpu_ehl": "ehl",
-    "intel_gpu_jsl": "ehl",
+    # "intel_gpu_ehl": "ehl",
+    # "intel_gpu_jsl": "ehl",
     "intel_gpu_tgllp": "tgllp",
     "intel_gpu_tgl": "tgllp",
     "intel_gpu_rkl": "rkl",
@@ -727,7 +727,7 @@ INTEL_GPU_SHORT_NAMES = {
     "intel_gpu_lnl_m": "lnl-m",
 }
 
-all_intel_gpu_aot_targets = ','.join(INTEL_GPU_SHORT_NAMES.keys())
+all_intel_gpu_aot_targets = ",".join(INTEL_GPU_SHORT_NAMES.keys())
 
 intel_gpu_aot_targets = (
     config.intel_gpu_aot_targets

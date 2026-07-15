@@ -16,8 +16,8 @@
 // -- is in object state and was previously dropped by
 // -- SYCLBINBinaries::getBestCompatibleImages.
 //
-// -- spir64_x86_64 is intentionally not exercised here: the Intel OpenCL CPU runtime's
-// -- clBuildProgram does not accept unresolved imported symbols (no
+// -- spir64_x86_64 is intentionally not exercised here: the Intel OpenCL CPU
+// -- runtime's clBuildProgram does not accept unresolved imported symbols (no
 // -- equivalent of IGC's -library-compilation), and the -cmd=compile path
 // -- emits SPIR-V rather than native code, which would not exercise the
 // -- native-AOT-object selector path under test. A separate test should be
