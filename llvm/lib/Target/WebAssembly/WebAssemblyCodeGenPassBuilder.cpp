@@ -115,7 +115,8 @@ void WebAssemblyCodeGenPassBuilder::addIRPasses(PassManagerWrapper &PMW) const {
   // transformation algorithms with Emscripten SjLj, so we run
   // LowerEmscriptenEHSjLj pass also when Wasm SjLj is enabled.
   if (WasmEnableEmEH || WasmEnableEmSjLj || WasmEnableSjLj) {
-    // TODO(boomanaiden154): WebAssemblyLowerEmscriptenEHSjLj
+    flushFPMsToMPM(PMW);
+    addModulePass(WebAssemblyLowerEmscriptenEHSjLjPass(), PMW);
   }
 
   // Expand indirectbr instructions to switches.

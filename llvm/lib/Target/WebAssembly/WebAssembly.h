@@ -31,7 +31,13 @@ class ModulePass;
 class FunctionPass;
 
 // LLVM IR passes.
-ModulePass *createWebAssemblyLowerEmscriptenEHSjLj();
+class WebAssemblyLowerEmscriptenEHSjLjPass
+    : public RequiredPassInfoMixin<WebAssemblyLowerEmscriptenEHSjLjPass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
+};
+
+ModulePass *createWebAssemblyLowerEmscriptenEHSjLjLegacyPass();
 
 class WebAssemblyAddMissingPrototypesPass
     : public RequiredPassInfoMixin<WebAssemblyAddMissingPrototypesPass> {
@@ -122,7 +128,7 @@ void initializeWebAssemblyFixFunctionBitcastsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixIrreducibleControlFlowPass(PassRegistry &);
 void initializeWebAssemblyLateEHPreparePass(PassRegistry &);
 void initializeWebAssemblyLowerBrUnlessPass(PassRegistry &);
-void initializeWebAssemblyLowerEmscriptenEHSjLjPass(PassRegistry &);
+void initializeWebAssemblyLowerEmscriptenEHSjLjLegacyPass(PassRegistry &);
 void initializeWebAssemblyMCLowerPrePassPass(PassRegistry &);
 void initializeWebAssemblyMemIntrinsicResultsPass(PassRegistry &);
 void initializeWebAssemblyNullifyDebugValueListsPass(PassRegistry &);

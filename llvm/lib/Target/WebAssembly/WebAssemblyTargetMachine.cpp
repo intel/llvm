@@ -94,7 +94,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyPreLegalizerCombinerPass(PR);
   initializeWebAssemblyPostLegalizerCombinerPass(PR);
   initializeWebAssemblyAddMissingPrototypesLegacyPass(PR);
-  initializeWebAssemblyLowerEmscriptenEHSjLjPass(PR);
+  initializeWebAssemblyLowerEmscriptenEHSjLjLegacyPass(PR);
   initializeLowerGlobalDtorsLegacyPassPass(PR);
   initializeWebAssemblyFixFunctionBitcastsLegacyPass(PR);
   initializeWebAssemblyOptimizeReturnedLegacyPass(PR);
@@ -518,7 +518,7 @@ void WebAssemblyPassConfig::addIRPasses() {
   // transformation algorithms with Emscripten SjLj, so we run
   // LowerEmscriptenEHSjLj pass also when Wasm SjLj is enabled.
   if (WasmEnableEmEH || WasmEnableEmSjLj || WasmEnableSjLj)
-    addPass(createWebAssemblyLowerEmscriptenEHSjLj());
+    addPass(createWebAssemblyLowerEmscriptenEHSjLjLegacyPass());
 
   // Expand indirectbr instructions to switches.
   addPass(createIndirectBrExpandPass());

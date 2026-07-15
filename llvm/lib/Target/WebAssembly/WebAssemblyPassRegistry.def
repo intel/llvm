@@ -16,6 +16,7 @@
 #endif
 MODULE_PASS("wasm-add-missing-prototypes", WebAssemblyAddMissingPrototypesPass())
 MODULE_PASS("wasm-fix-function-bitcasts", WebAssemblyFixFunctionBitcastsPass())
+MODULE_PASS("wasm-lower-em-ehsjlj", WebAssemblyLowerEmscriptenEHSjLjPass())
 #undef MODULE_PASS
 
 #ifndef FUNCTION_PASS
