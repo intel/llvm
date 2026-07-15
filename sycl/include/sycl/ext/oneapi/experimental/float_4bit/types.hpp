@@ -16,12 +16,14 @@
 
 #include <sycl/bit_cast.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/detail/fp_conversion_common.hpp>
 #include <sycl/marray.hpp>
 
 #include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <type_traits>
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -77,26 +79,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-enum class rounding {
-  to_even,
-  toward_zero,
-};
-
-struct stochastic_seed {
-  explicit stochastic_seed(uint32_t *pseed) : pseed(pseed) {}
-  uint32_t *const pseed;
-};
+// `rounding`, `stochastic_seed`, and `detail::BitWidth` are shared with the
+// other narrow-FP conversion extensions; see fp_conversion_common.hpp.
+// Note: fp4 (E2M1) only supports `rounding::to_even` at its API surface.
 
 namespace detail {
-
-template <typename T> static inline int Fp4BitWidth(T x) noexcept {
-  int width = 0;
-  while (x != 0u) {
-    ++width;
-    x >>= 1;
-  }
-  return width;
-}
 
 template <typename T> struct Fp4SourceTraits;
 
@@ -168,7 +155,7 @@ static inline uint8_t ConvertIntToFP4_CPU(T f, rounding R) noexcept {
   if (magnitude == 0)
     return sign;
 
-  int unbiasedExp = Fp4BitWidth(static_cast<uint64_t>(magnitude)) - 1;
+  int unbiasedExp = BitWidth(static_cast<uint64_t>(magnitude)) - 1;
   if (unbiasedExp > Format::MaxFiniteExp)
     return static_cast<uint8_t>(sign | Format::MaxFiniteCode);
 
@@ -247,12 +234,7 @@ static inline uint8_t ConvertFloatToFP4_CPU(T f, rounding R) noexcept {
     unbiasedExp = static_cast<int>(exp) - Traits::Bias;
   } else {
     significand = static_cast<uint64_t>(frac);
-    uint64_t tmp = significand;
-    leadingBit = -1;
-    while (tmp != 0u) {
-      ++leadingBit;
-      tmp >>= 1;
-    }
+    leadingBit = BitWidth(significand) - 1;
     unbiasedExp =
         1 - Traits::Bias - static_cast<int>(Traits::FracBits) + leadingBit;
   }
@@ -345,12 +327,12 @@ static constexpr float kFp4ToFloatTable[16] = {
 
 // CPU host conversion: E2M1 nibble (low 4 bits of `code`) to ToT.
 template <typename ToT>
-static inline ToT ConvertFromFP4ToBinaryFloat_CPU(uint8_t code,
-                                                  rounding R) noexcept {
+static inline ToT
+ConvertFromFP4ToBinaryFloat_CPU(uint8_t code,
+                                [[maybe_unused]] rounding R) noexcept {
   using Format = FP4E2M1Traits;
 
   if constexpr (Fp4HasFloatTraits<ToT>::value) {
-    (void)R;
     return static_cast<ToT>(kFp4ToFloatTable[code & 0x0Fu]);
   } else if constexpr (std::is_integral_v<ToT>) {
     constexpr uint8_t SignBit = 0x8u;
@@ -392,13 +374,12 @@ static inline ToT ConvertFromFP4ToBinaryFloat_CPU(uint8_t code,
       const int rshift = -shift;
       magnitude = static_cast<uint64_t>(significand) >> rshift;
       // rounding::toward_zero: discard remainder bits.
-      (void)R;
     }
 
     if (magnitude == 0u)
       return ToT{};
 
-    if (Fp4BitWidth(magnitude) > Traits::ValueBits) {
+    if (BitWidth(magnitude) > Traits::ValueBits) {
       if constexpr (Traits::IsSigned)
         return negative ? std::numeric_limits<ToT>::min()
                         : std::numeric_limits<ToT>::max();
@@ -412,7 +393,6 @@ static inline ToT ConvertFromFP4ToBinaryFloat_CPU(uint8_t code,
                                        : static_cast<ToT>(narrowed));
     return static_cast<ToT>(narrowed);
   } else {
-    (void)R;
     return ToT{};
   }
 }
@@ -426,9 +406,6 @@ static inline uint8_t Fp4Pack(uint8_t lo, uint8_t hi) noexcept {
 static inline uint8_t Fp4Extract(uint8_t packed, size_t i) noexcept {
   return static_cast<uint8_t>((packed >> (i * 4)) & 0x0Fu);
 }
-
-// Always-false used to defer static_assert until template instantiation.
-template <size_t> inline constexpr bool kFp4StochasticHostFalse = false;
 
 } // namespace detail
 
@@ -533,7 +510,7 @@ template <size_t N> class fp4_e2m1_x {
 #endif
   }
 
-  static constexpr void CheckConstraints(rounding r) {
+  static constexpr void CheckConstraints([[maybe_unused]] rounding r) {
     // `rounding` is a compile-time enum; ctors always pass a literal.
     // The runtime check is left in place for the unlikely caller that
     // computes the value, but only `to_even` is supported.
@@ -688,8 +665,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     StochasticFromHalf(&in[0], seed);
 #else
-    static_assert(detail::kFp4StochasticHostFalse<N>,
-                  "stochastic rounding constructors are not supported on host");
+    throw std::runtime_error(
+        "stochastic rounding constructors are not supported on host");
 #endif
   }
 
@@ -698,8 +675,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     StochasticFromBFloat16(&in[0], seed);
 #else
-    static_assert(detail::kFp4StochasticHostFalse<N>,
-                  "stochastic rounding constructors are not supported on host");
+    throw std::runtime_error(
+        "stochastic rounding constructors are not supported on host");
 #endif
   }
 
@@ -709,8 +686,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     StochasticFromHalf(&in[0], seed);
 #else
-    static_assert(detail::kFp4StochasticHostFalse<N>,
-                  "stochastic rounding constructors are not supported on host");
+    throw std::runtime_error(
+        "stochastic rounding constructors are not supported on host");
 #endif
   }
 
@@ -719,8 +696,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     StochasticFromBFloat16(&in[0], seed);
 #else
-    static_assert(detail::kFp4StochasticHostFalse<N>,
-                  "stochastic rounding constructors are not supported on host");
+    throw std::runtime_error(
+        "stochastic rounding constructors are not supported on host");
 #endif
   }
 
