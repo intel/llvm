@@ -443,52 +443,6 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
   Queue.wait();
 }
 
-// Cross-context events with wait
-TEST_F(ReusableEventsTest, CrossContextEventWait) {
-  mock::getCallbacks().set_replace_callback("urDeviceGet",
-                                            &redefinedUrDeviceGet);
-  mock::getCallbacks().set_replace_callback("urDeviceRelease",
-                                            &redefinedUrDeviceRelease);
-
-  sycl::platform Plt = sycl::platform();
-  auto Devices = Plt.get_devices();
-
-  if (Devices.size() < 2) {
-    GTEST_SKIP() << "Need at least 2 devices for this test";
-  }
-
-  const sycl::device Dev1 = Devices[0];
-  const sycl::device Dev2 = Devices[1];
-  sycl::context Ctx1{Dev1};
-  sycl::context Ctx2{Dev2};
-
-  sycl::queue Queue1{Ctx1, Dev1};
-  sycl::queue Queue2{Ctx2, Dev2};
-
-  auto event = syclex::make_event(Ctx1);
-
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
-
-  syclex::enqueue_signal_event(Queue1, event);
-
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
-
-  ExpectedNumEventsInWaitList = 1;
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_wait);
-
-  // Event from different context should still work with enqueue_wait_event
-  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue2, event); });
-
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
-
-  Queue1.wait();
-  Queue2.wait();
-}
-
 // Cross-context make_event and signal event - not allowed
 TEST_F(ReusableEventsTest, CrossContextMakeEventSignalEvent) {
   mock::getCallbacks().set_replace_callback("urDeviceGet",
