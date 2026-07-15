@@ -39,8 +39,9 @@ bool isJointMatrixAccess(Value *V);
 void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions);
 
 // Compute a unique id for the module.
-// The result is cached in the module as named metadata ("sycl.sanitizer.hash")
-// so it remains stable even if the module is modified after the first call.
+// The result is cached in the module as named metadata
+// ("device.sanitizer.hash") so it remains stable even if the module is modified
+// after the first call.
 SmallString<40> computeMetadataUniqueId(Module &M);
 
 bool hasESIMDKernel(Module &M);

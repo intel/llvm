@@ -304,10 +304,10 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
     return UR_RESULT_SUCCESS;
 
   bool HasDeviceGlobal = false;
-  for (auto Device : Devices)
+  for (auto Device : Devices) {
+    ManagedQueue Queue(Context, Device);
     for (const auto &MsanDeviceGlobalMetadataName :
          MsanDeviceGlobalMetadataNames) {
-      ManagedQueue Queue(Context, Device);
 
       size_t MetadataSize;
       void *MetadataPtr;
@@ -350,6 +350,7 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
       }
       HasDeviceGlobal = true;
     }
+  }
 
   if (!HasDeviceGlobal)
     UR_LOG_L(getContext()->logger, INFO, "No device global");

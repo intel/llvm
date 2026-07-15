@@ -210,10 +210,10 @@ TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   if (TsanDeviceGlobalMetadataNames.empty())
     return UR_RESULT_SUCCESS;
 
-  for (auto Device : Devices)
+  for (auto Device : Devices) {
+    ur_queue_handle_t Queue = ContextInfo->getInternalQueue(Device);
     for (const auto &TsanDeviceGlobalMetadataName :
          TsanDeviceGlobalMetadataNames) {
-      ur_queue_handle_t Queue = ContextInfo->getInternalQueue(Device);
 
       size_t MetadataSize;
       void *MetadataPtr;
@@ -244,6 +244,7 @@ TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         ProgramInfo.AllocInfoForGlobals.emplace_back(std::move(AI));
       }
     }
+  }
 
   if (ProgramInfo.AllocInfoForGlobals.empty()) {
     UR_LOG_L(getContext()->logger, INFO, "No device global");

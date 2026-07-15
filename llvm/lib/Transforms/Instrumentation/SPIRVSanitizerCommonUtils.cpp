@@ -71,7 +71,7 @@ void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions) {
 
 SmallString<40> computeMetadataUniqueId(Module &M) {
   // Return the cached hash if already computed for this module.
-  constexpr StringRef CacheKey = "sycl.sanitizer.hash";
+  constexpr StringRef CacheKey = "device.sanitizer.hash";
   if (NamedMDNode *NMD = M.getNamedMetadata(CacheKey))
     if (NMD->getNumOperands() > 0)
       if (auto *MS = dyn_cast<MDString>(NMD->getOperand(0)->getOperand(0)))

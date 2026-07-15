@@ -615,10 +615,10 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   if (AsanDeviceGlobalMetadataNames.empty())
     return UR_RESULT_SUCCESS;
 
-  for (auto Device : Devices)
+  for (auto Device : Devices) {
+    ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
     for (const auto &AsanDeviceGlobalMetadataName :
          AsanDeviceGlobalMetadataNames) {
-      ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
 
       size_t MetadataSize;
       void *MetadataPtr;
@@ -663,6 +663,7 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
       }
     }
+  }
 
   if (ProgramInfo->AllocInfoForGlobals.empty()) {
     UR_LOG_L(getContext()->logger, INFO, "No device global");
