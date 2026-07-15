@@ -3651,17 +3651,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Profiling tag requires a valid queue");
     adapter_impl &Adapter = MQueue->getAdapter();
 
-    bool IsInOrderQueue = MQueue->isInOrder();
-    ur_event_handle_t *TimestampDeps = nullptr;
-    size_t NumTimestampDeps = 0;
-
-    // TO DO - once the following WA removed: to change call to call_nocheck and
-    // return operation result to Command::enqueue (see other CG types). Set
-    // UREvent to EventImpl only for successful case.
+    const bool IsInOrderQueue = MQueue->isInOrder();
 
     // If the queue is not in-order, the implementation will need to first
     // insert a marker event that the timestamp waits for.
     ur_event_handle_t PreTimestampMarkerEvent{};
+    ur_event_handle_t *TimestampDeps = nullptr;
+    size_t NumTimestampDeps = 0;
     if (!IsInOrderQueue) {
       // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
       //        Use that instead once it has been fixed.
@@ -3674,25 +3670,51 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       NumTimestampDeps = 1;
     }
 
-    Adapter.call<UrApiKind::urEnqueueTimestampRecordingExp>(
-        MQueue->getHandleRef(),
-        /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
+    // Try to record a device timestamp natively. Not every backend can do so:
+    // the OpenCL backend can only record a reliable timestamp on a
+    // profiling-enabled queue (see intel/llvm#22229). When the recording is
+    // unsupported we fall back to a plain barrier, whose event still carries
+    // (best-effort) profiling information and provides the same ordering.
+    ur_result_t TimestampResult =
+        Adapter.call_nocheck<UrApiKind::urEnqueueTimestampRecordingExp>(
+            MQueue->getHandleRef(),
+            /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
 
-    // If the queue is not in-order, we need to insert a barrier. This barrier
-    // does not need output events as it will implicitly enforce the following
-    // enqueue is blocked until it finishes.
-    if (!IsInOrderQueue) {
-      // We also need to release the timestamp event from the marker.
-      Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
-      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
-      //        not pass an output event to the UR call. Once that is fixed,
-      //        this immediately-deleted event can be removed.
-      ur_event_handle_t PostTimestampBarrierEvent{};
-      Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-          MQueue->getHandleRef(),
-          /*num_events_in_wait_list=*/0,
-          /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
-      Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+    if (TimestampResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      // Release the marker the (unused) timestamp recording would have waited
+      // for.
+      if (!IsInOrderQueue)
+        Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
+      // A barrier with an empty wait list waits for all previously-submitted
+      // work and blocks subsequent work, providing the same ordering semantics
+      // as a native profiling tag.
+      if (auto Result =
+              Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+                  MQueue->getHandleRef(),
+                  /*num_events_in_wait_list=*/0,
+                  /*event_wait_list=*/nullptr, Event);
+          Result != UR_RESULT_SUCCESS)
+        return Result;
+    } else {
+      if (TimestampResult != UR_RESULT_SUCCESS)
+        return TimestampResult;
+
+      // If the queue is not in-order, we need to insert a barrier. This barrier
+      // does not need output events as it will implicitly enforce the following
+      // enqueue is blocked until it finishes.
+      if (!IsInOrderQueue) {
+        // We also need to release the timestamp event from the marker.
+        Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
+        // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we
+        //        do not pass an output event to the UR call. Once that is
+        //        fixed, this immediately-deleted event can be removed.
+        ur_event_handle_t PostTimestampBarrierEvent{};
+        Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+            MQueue->getHandleRef(),
+            /*num_events_in_wait_list=*/0,
+            /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
+        Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+      }
     }
 
     SetEventHandleOrDiscard();

@@ -21,22 +21,24 @@ namespace ext::oneapi::experimental {
 inline event submit_profiling_tag(queue &Queue,
                                   const sycl::detail::code_location &CodeLoc =
                                       sycl::detail::code_location::current()) {
-  if (Queue.get_device().has(aspect::ext_oneapi_queue_profiling_tag)) {
-    return Queue.submit(
-        [=](handler &CGH) {
-          sycl::detail::HandlerAccess::internalProfilingTagImpl(CGH);
-        },
-        CodeLoc);
-  }
-
-  // If it is not supported natively on the device, we use another path if
-  // profiling is enabled.
-  if (!Queue.has_property<sycl::property::queue::enable_profiling>())
+  // The profiling tag can be serviced natively when the device advertises the
+  // ext_oneapi_queue_profiling_tag aspect. Otherwise, we can still service it
+  // as long as the queue has profiling enabled. In both cases we submit an
+  // internal profiling-tag command group: the runtime records the timestamp
+  // using a native device command where possible and otherwise falls back to a
+  // barrier (see CGType::ProfilingTag handling in the scheduler).
+  if (!Queue.get_device().has(aspect::ext_oneapi_queue_profiling_tag) &&
+      !Queue.has_property<sycl::property::queue::enable_profiling>())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Device must either have aspect::ext_oneapi_queue_profiling_tag or the "
         "queue must have profiling enabled.");
-  return Queue.ext_oneapi_submit_barrier();
+
+  return Queue.submit(
+      [=](handler &CGH) {
+        sycl::detail::HandlerAccess::internalProfilingTagImpl(CGH);
+      },
+      CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental
