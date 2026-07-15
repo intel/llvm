@@ -128,6 +128,7 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 ### Bug Fixes in This Version
 
 - Fixed a constraint comparison bug in partial ordering. (#GH182671)
+- Fixed a rejected-valid case that used an explicit object parameter in an out-of-line definition of a nested class member. (#GH136472)
 
 #### Bug Fixes to Compiler Builtins
 
