@@ -134,7 +134,8 @@ void WebAssemblyCodeGenPassBuilder::addISelPrepare(
   // loads and stores are promoted to local.gets/local.sets.
   addFunctionPass(WebAssemblyRefTypeMem2LocalPass(), PMW);
   // Lower atomics and TLS if necessary
-  // TODO(boomanaiden154): CoalesceFeaturesAndStripAtomics
+  flushFPMsToMPM(PMW);
+  addModulePass(WebAssemblyCoalesceFeaturesAndStripAtomicsPass(TM), PMW);
 
   // This is a no-op if atomics are not used in the module
   addFunctionPass(AtomicExpandPass(TM), PMW);

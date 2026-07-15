@@ -85,8 +85,20 @@ public:
 
 FunctionPass *
 createWebAssemblyReduceToAnyAllTrueLegacyPass(WebAssemblyTargetMachine &TM);
-ModulePass *
-createWebAssemblyCoalesceFeaturesAndStripAtomics(WebAssemblyTargetMachine &TM);
+
+class WebAssemblyCoalesceFeaturesAndStripAtomicsPass
+    : public RequiredPassInfoMixin<
+          WebAssemblyCoalesceFeaturesAndStripAtomicsPass> {
+  WebAssemblyTargetMachine &TM;
+
+public:
+  WebAssemblyCoalesceFeaturesAndStripAtomicsPass(WebAssemblyTargetMachine &TM)
+      : TM(TM) {}
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
+};
+
+ModulePass *createWebAssemblyCoalesceFeaturesAndStripAtomicsLegacyPass(
+    WebAssemblyTargetMachine &TM);
 
 // GlobalISel
 InstructionSelector *
@@ -162,7 +174,8 @@ void initializeWebAssemblyRegNumberingPass(PassRegistry &);
 void initializeWebAssemblyRegStackifyPass(PassRegistry &);
 void initializeWebAssemblyReplacePhysRegsPass(PassRegistry &);
 void initializeWebAssemblySetP2AlignOperandsPass(PassRegistry &);
-void initializeWebAssemblyCoalesceFeaturesAndStripAtomicsPass(PassRegistry &);
+void initializeWebAssemblyCoalesceFeaturesAndStripAtomicsLegacyPass(
+    PassRegistry &);
 
 namespace WebAssembly {
 enum TargetIndex {

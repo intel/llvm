@@ -367,7 +367,7 @@ void WebAssemblyPassConfig::addISelPrepare() {
   // loads and stores are promoted to local.gets/local.sets.
   addPass(createWebAssemblyRefTypeMem2LocalLegacyPass());
   // Lower atomics and TLS if necessary
-  addPass(createWebAssemblyCoalesceFeaturesAndStripAtomics(
+  addPass(createWebAssemblyCoalesceFeaturesAndStripAtomicsLegacyPass(
       getWebAssemblyTargetMachine()));
 
   // This is a no-op if atomics are not used in the module
