@@ -10522,6 +10522,17 @@ static void addRunTimeWrapperOpts(Compilation &C,
   // Grab any Target specific options that need to be added to the wrapper
   // information.
   ArgStringList BuildArgs;
+  // FIXME: BuildArgs is joined with spaces below into a single
+  // -compile-opts=/-link-opts= string embedded in the image descriptor, then
+  // later re-split on spaces by clang-linker-wrapper for AOT triples (see
+  // addOclocOptions/runAOTCompileIntelCPU in
+  // clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp). Any individual
+  // token containing an embedded space is corrupted by this round trip
+  // unless it happens to fall inside the pre-existing "-options \"...\""
+  // wrapper convention. Forwarding these as individual tokens instead of a
+  // joined string (as is already done for the CLI-supplied
+  // --device-compiler=/--device-linker= counterpart via AOTDeviceArgs) would
+  // avoid this.
   auto createArgString = [&](const char *Opt) {
     if (BuildArgs.empty())
       return;
@@ -10840,6 +10851,17 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // compilers and the clang-offload-wrapper in the case of SYCL offloading.
     if (OffloadAction->getOffloadingDeviceKind() == Action::OFK_SYCL) {
       ArgStringList BuildArgs;
+      // FIXME: BuildArgs is joined with spaces into a single compile-opts=/
+      // link-opts= string below, then later re-split on spaces by
+      // clang-linker-wrapper (see addOclocOptions/runAOTCompileIntelCPU in
+      // clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp). Any
+      // individual token containing an embedded space (e.g. from
+      // -Xsycl-target-backend "-abc 'multi word'") is corrupted by this
+      // round trip unless it happens to fall inside the pre-existing
+      // "-options \"...\"" wrapper convention. The CLI-supplied counterpart
+      // of these options (--device-compiler=/--device-linker=) avoids this
+      // by forwarding individual tokens (AOTDeviceArgs); the image-embedded
+      // path here still does not.
       auto createArgString = [&](const char *Opt) {
         if (BuildArgs.empty())
           return;
