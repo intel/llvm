@@ -1000,9 +1000,15 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// ("-options") in the first member of the pair, and everything after the
 /// separator in the second part of the pair. The separator is not included in
 /// any of them.
-/// \p BackendOptions is a string containing backend compilation options. For
-/// example, "-options -cl-opt-disable".
+/// \p BackendOptions is a string containing backend compilation options
+/// extracted from the device image (e.g. "-options -cl-opt-disable").
+/// \p AOTDeviceArgs are additional options supplied on the clang-linker-
+/// wrapper command line via --device-compiler=/--device-linker=; each is
+/// already an individual token and is appended to \p CmdArgs verbatim,
+/// without being merged into \p BackendOptions and re-split, so that tokens
+/// containing embedded spaces are preserved intact.
 static void addOclocOptions(StringRef BackendOptions,
+                            ArrayRef<std::string> AOTDeviceArgs,
                             SmallVector<StringRef, 8> &CmdArgs) {
   auto [BeforeOptions, AfterOptions] = BackendOptions.split("-options ");
   BeforeOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
@@ -1011,6 +1017,7 @@ static void addOclocOptions(StringRef BackendOptions,
     CmdArgs.push_back("-options");
     CmdArgs.push_back(AfterOptions);
   }
+  llvm::append_range(CmdArgs, AOTDeviceArgs);
 }
 
 /// Run AOT compilation for Intel CPU.
@@ -1018,11 +1025,15 @@ static void addOclocOptions(StringRef BackendOptions,
 /// \p InputFile is the input SPIR-V file.
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
-/// \p BackendOptions is a string containing backend compilation options. For
-/// example, "-options -cl-opt-disable".
-static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
-                                                 const ArgList &Args,
-                                                 StringRef BackendOptions) {
+/// \p BackendOptions is a string containing backend compilation options
+/// extracted from the device image. For example, "-options -cl-opt-disable".
+/// \p AOTDeviceArgs are additional individual option tokens supplied on the
+/// clang-linker-wrapper command line, appended verbatim as separate argv
+/// entries.
+static Expected<StringRef>
+runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args,
+                      StringRef BackendOptions,
+                      ArrayRef<std::string> AOTDeviceArgs) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   SmallVector<StringRef, 8> CmdArgs;
   Expected<std::string> OpenCLAOTPath =
@@ -1033,6 +1044,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
   CmdArgs.push_back(*OpenCLAOTPath);
   CmdArgs.push_back("--device=cpu");
   BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  llvm::append_range(CmdArgs, AOTDeviceArgs);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1051,11 +1063,15 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 /// \p InputFile is the input SPIR-V file.
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
-/// \p BackendOptions is a string containing backend compilation options. For
-/// example, "-options -cl-opt-disable".
-static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
-                                                 const ArgList &Args,
-                                                 StringRef BackendOptions) {
+/// \p BackendOptions is a string containing backend compilation options
+/// extracted from the device image. For example, "-options -cl-opt-disable".
+/// \p AOTDeviceArgs are additional individual option tokens supplied on the
+/// clang-linker-wrapper command line, appended verbatim as separate argv
+/// entries (see addOclocOptions).
+static Expected<StringRef>
+runAOTCompileIntelGPU(StringRef InputFile, const ArgList &Args,
+                      StringRef BackendOptions,
+                      ArrayRef<std::string> AOTDeviceArgs) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
   SmallVector<StringRef, 8> CmdArgs;
@@ -1072,7 +1088,7 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
     CmdArgs.push_back("-device");
     CmdArgs.push_back(Arch);
   }
-  addOclocOptions(BackendOptions, CmdArgs);
+  addOclocOptions(BackendOptions, AOTDeviceArgs, CmdArgs);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1091,17 +1107,23 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
 /// \p InputFile is the input SPIR-V file.
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
-/// \p BackendOptions is a string containing backend compilation options. For
-/// example, "-options -cl-opt-disable".
+/// \p BackendOptions is a string containing backend compilation options
+/// extracted from the device image. For example, "-options -cl-opt-disable".
+/// \p AOTDeviceArgs are additional individual option tokens supplied on the
+/// clang-linker-wrapper command line via --device-compiler=/
+/// --device-linker=.
 static Expected<StringRef> runAOTCompile(StringRef InputFile,
                                          const ArgList &Args,
-                                         StringRef BackendOptions) {
+                                         StringRef BackendOptions,
+                                         ArrayRef<std::string> AOTDeviceArgs) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Triple.isSPIRAOT()) {
     if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
-      return runAOTCompileIntelGPU(InputFile, Args, BackendOptions);
+      return runAOTCompileIntelGPU(InputFile, Args, BackendOptions,
+                                   AOTDeviceArgs);
     if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-      return runAOTCompileIntelCPU(InputFile, Args, BackendOptions);
+      return runAOTCompileIntelCPU(InputFile, Args, BackendOptions,
+                                   AOTDeviceArgs);
   }
   return createStringError(inconvertibleErrorCode(),
                            "Unsupported SYCL Triple and Arch");
@@ -1820,7 +1842,8 @@ namespace sycl {
 /// compilation (Intel CPU/GPU).
 Expected<StringRef>
 invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
-                           StringRef SYCLBackendOptions = StringRef()) {
+                           StringRef SYCLBackendOptions = StringRef(),
+                           ArrayRef<std::string> AOTDeviceArgs = {}) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
   case Triple::nvptx:
@@ -1848,9 +1871,10 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
         (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
          Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
     Expected<StringRef> AOTFile =
-        (NeedAOTCompile)
-            ? sycl::runAOTCompile(*SPVFile, Args, SYCLBackendOptions)
-            : *SPVFile;
+        (NeedAOTCompile) ? sycl::runAOTCompile(*SPVFile, Args,
+                                               SYCLBackendOptions,
+                                               AOTDeviceArgs)
+                         : *SPVFile;
     if (!AOTFile)
       return AOTFile.takeError();
     return NeedAOTCompile ? *AOTFile : *SPVFile;
@@ -1868,9 +1892,10 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
 Expected<StringRef> compileDeviceAndBundle(StringRef ModuleFilePath,
                                            const ArgList &LinkerArgs,
                                            const llvm::Triple &Triple,
-                                           StringRef AdditionalCompileOptions) {
+                                           StringRef AdditionalCompileOptions,
+                                           ArrayRef<std::string> AOTDeviceArgs = {}) {
   Expected<StringRef> OutputOrErr = invokeBackendForSYCLDevice(
-      ModuleFilePath, LinkerArgs, AdditionalCompileOptions);
+      ModuleFilePath, LinkerArgs, AdditionalCompileOptions, AOTDeviceArgs);
   if (!OutputOrErr)
     return OutputOrErr.takeError();
 
@@ -1899,9 +1924,44 @@ Expected<StringRef> compileDeviceAndBundle(StringRef ModuleFilePath,
 Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
     StringRef ModuleFilePath, const ArgList &LinkerArgs,
     const std::pair<std::string, std::string> &CompileLinkOptions,
+    ArrayRef<std::string> AOTDeviceArgs,
     function_ref<void(StringRef)> WrappedOutputCallback) {
+  const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+
+  // AOT tools (ocloc/opencl-aot) don't distinguish compile vs. link options,
+  // so combine both here regardless of whether an option arrived via
+  // --device-compiler= or --device-linker=. CompileLinkOptions holds only
+  // the options extracted from the image for AOT triples (a flat, already
+  // space-joined string); options supplied on the CLI for this invocation
+  // live separately in AOTDeviceArgs, as individual tokens, and are appended
+  // later (in runAOTCompileIntelGPU/CPU) without being folded into this
+  // string, so that values with embedded spaces survive intact.
+  std::string AOTOptions;
+  if (Triple.isSPIRAOT()) {
+    AOTOptions = CompileLinkOptions.first;
+    if (!CompileLinkOptions.second.empty()) {
+      if (!AOTOptions.empty())
+        AOTOptions += ' ';
+      AOTOptions += CompileLinkOptions.second;
+    }
+  }
+  StringRef BackendOptions = Triple.isSPIRAOT()
+                                 ? StringRef(AOTOptions)
+                                 : StringRef(CompileLinkOptions.first);
+
+  // Detect whether the user already specified "-device <arch>" via
+  // -Xsycl-target-backend, either embedded in the image string above or
+  // supplied on the CLI (AOTDeviceArgs). Split every source on spaces for
+  // this search (a single CLI token can still contain an embedded space,
+  // e.g. when clang-linker-wrapper is invoked directly rather than through
+  // the driver's tokenizing -Xsycl-target-backend handling); this does not
+  // affect how AOTDeviceArgs are forwarded to the backend tool's argv below,
+  // which keeps each token intact. StringRef::split() appends to its output
+  // vector, so accumulate tokens from both sources before searching.
   SmallVector<StringRef, 16> CompileArgsSplit;
-  StringRef(CompileLinkOptions.first).split(CompileArgsSplit, ' ');
+  BackendOptions.split(CompileArgsSplit, ' ');
+  for (StringRef Arg : AOTDeviceArgs)
+    Arg.split(CompileArgsSplit, ' ');
   bool IsDevicePassedWithSyclTargetBackend =
       std::find(CompileArgsSplit.begin(), CompileArgsSplit.end(), "-device") !=
       CompileArgsSplit.end();
@@ -1917,7 +1977,6 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
     return SplitModulesOrErr.takeError();
 
   std::vector<module_split::SplitModule> &SplitModules = *SplitModulesOrErr;
-  const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
   if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
       LinkerArgs.hasArg(OPT_sycl_embed_ir)) {
     // When compiling for Nvidia/AMD devices and the user requested the
@@ -1948,7 +2007,7 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
   for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
     Expected<StringRef> OutputOrErr =
         compileDeviceAndBundle(SplitModules[I].ModuleFilePath, LinkerArgs,
-                               Triple, CompileLinkOptions.first);
+                               Triple, BackendOptions, AOTDeviceArgs);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
 
@@ -1976,6 +2035,7 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
 Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     ArrayRef<StringRef> InputModules, const ArgList &LinkerArgs,
     const std::pair<std::string, std::string> &CompileLinkOptions,
+    ArrayRef<std::string> AOTDeviceArgs,
     function_ref<void(StringRef)> WrappedOutputCallback) {
   // Note: pipeline can skip linking due to -fno-sycl-rdc option.
   // In that case, we apply sycl processing to several modules.
@@ -2000,7 +2060,7 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     // split.
     Expected<std::vector<module_split::SplitModule>> ModulesOrErr =
         postLinkProcessModule(Module, LinkerArgs, CompileLinkOptions,
-                              WrappedOutputCallback);
+                              AOTDeviceArgs, WrappedOutputCallback);
     if (!ModulesOrErr)
       return ModulesOrErr.takeError();
 
@@ -2465,19 +2525,49 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           *CompileLinkOptionsOrErr;
 
       // Append device compiler and linker options passed via
-      // -device-compiler= and -device-linker= to clang-linker-warpper,
-      // together with options extracted from the image.
-      StringRef DeviceCompilerArgs =
-          LinkerArgs.getLastArgValue(OPT_compiler_arg_EQ);
-      if (!DeviceCompilerArgs.empty()) {
-        CompileLinkOptions.first += " ";
-        CompileLinkOptions.first += DeviceCompilerArgs;
-      }
-      StringRef DeviceLinkerArgs =
-          LinkerArgs.getLastArgValue(OPT_linker_arg_EQ);
-      if (!DeviceLinkerArgs.empty()) {
-        CompileLinkOptions.second += " ";
-        CompileLinkOptions.second += DeviceLinkerArgs;
+      // --device-compiler= and --device-linker= to clang-linker-wrapper.
+      // Each occurrence of --device-compiler=/--device-linker= that matched
+      // this triple/kind was forwarded as its own compiler-arg=/linker-arg=
+      // by getLinkerArgs().
+      //
+      // JIT targets: the SYCL runtime consumes these as flat strings, so
+      // join them (after the options already extracted from the image) into
+      // CompileLinkOptions.
+      //
+      // AOT targets (ocloc/opencl-aot): keep the CLI-supplied tokens as a
+      // separate list (AOTDeviceArgs) rather than folding them into
+      // CompileLinkOptions, so that a token containing an embedded space
+      // isn't re-split downstream. They are appended to the AOT tool's argv
+      // as individual entries, alongside the image-embedded options (which
+      // remain a flat, space-tokenized string, unrelated to this list).
+      const llvm::Triple TargetTriple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      std::vector<std::string> AOTDeviceArgs;
+      if (TargetTriple.isSPIRAOT()) {
+        for (std::string &DeviceCompilerArg :
+             LinkerArgs.getAllArgValues(OPT_compiler_arg_EQ))
+          if (!DeviceCompilerArg.empty())
+            AOTDeviceArgs.push_back(std::move(DeviceCompilerArg));
+        for (std::string &DeviceLinkerArg :
+             LinkerArgs.getAllArgValues(OPT_linker_arg_EQ))
+          if (!DeviceLinkerArg.empty())
+            AOTDeviceArgs.push_back(std::move(DeviceLinkerArg));
+      } else {
+        for (const std::string &DeviceCompilerArg :
+             LinkerArgs.getAllArgValues(OPT_compiler_arg_EQ)) {
+          if (DeviceCompilerArg.empty())
+            continue;
+          if (!CompileLinkOptions.first.empty())
+            CompileLinkOptions.first += " ";
+          CompileLinkOptions.first += DeviceCompilerArg;
+        }
+        for (const std::string &DeviceLinkerArg :
+             LinkerArgs.getAllArgValues(OPT_linker_arg_EQ)) {
+          if (DeviceLinkerArg.empty())
+            continue;
+          if (!CompileLinkOptions.second.empty())
+            CompileLinkOptions.second += " ";
+          CompileLinkOptions.second += DeviceLinkerArg;
+        }
       }
 
       SmallVector<StringRef> InputFiles;
@@ -2491,7 +2581,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
 
       Expected<std::vector<module_split::SplitModule>> ModulesOrErr =
           sycl::runSYCLOffloadingPipeline(InputFiles, LinkerArgs,
-                                          CompileLinkOptions,
+                                          CompileLinkOptions, AOTDeviceArgs,
                                           AppendImageToWrapperOutput);
       if (!ModulesOrErr)
         return ModulesOrErr.takeError();

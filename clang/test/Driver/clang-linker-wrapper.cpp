@@ -132,6 +132,17 @@
 // RUN: clang-linker-wrapper -sycl-embed-ir --bitcode-library=spir64_gen-unknown-unknown=%t1.devicelib.bc -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--device-compiler=spir64_gen-unknown-unknown=-device pvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN %s
 // CHK-NO-CMDS-AOT-GEN: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o {{[^,]*}}.table {{.*}}.bc
 
+// Check that when "-device pvc" specification, split across two separate
+// --device-linker= arguments, is reconstructed correctly and still suppresses
+// the sycl-post-link target filtering prefix.
+// RUN: clang-linker-wrapper -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" --device-linker=spir64_gen-unknown-unknown=-device --device-linker=spir64_gen-unknown-unknown=pvc --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN-LINKERARG %s
+// CHK-NO-CMDS-AOT-GEN-LINKERARG: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o {{[^,]*}}.table {{.*}}.bc
+
+// Check that multiple distinct --device-linker= values for the same AOT
+// target all reach the ocloc invocation.
+// RUN: clang-linker-wrapper --device-linker=spir64_gen-unknown-unknown=-foo-opt --device-linker=spir64_gen-unknown-unknown=-bar-opt --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-MULTI-DEVICE-LINKER-AOT %s
+// CHK-MULTI-DEVICE-LINKER-AOT: ocloc{{.*}} -foo-opt -bar-opt{{.*}}
+
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
 // -------
 // Generate .o file as linker wrapper input.
@@ -329,9 +340,10 @@
 // RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t1.devicelib.bc \
 // RUN:                      %t.aot.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-AOT
 //
-// Check that in AOT case backend options are passed to ocloc and are not passed to offload wrapper
-// because SYCL Runtime can't make any use of it in AOT case.
-// CHECK-COMPILE-LINK-OPTS-AOT: ocloc{{.*}} -device pvc ccc ccc -output
+// Check that in AOT case backend and linker options are passed to ocloc and
+// are not passed to offload wrapper because SYCL runtime can't make any use of
+// it in AOT case.
+// CHECK-COMPILE-LINK-OPTS-AOT: ocloc{{.*}} -device pvc ccc ccc ddd ddd -output
 // CHECK-COMPILE-LINK-OPTS-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
 
 // TODO: The following check is turned off because clang-linker-wrapper doesn't support
@@ -343,7 +355,7 @@
 // rUN:                      %t.jit_and_aot.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-JIT-AND-AOT
 
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: aaa aaa, link-opts: bbb bbb
-// cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: ocloc{{.*}} -device pvc ccc ccc
+// cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: ocloc{{.*}} -device pvc ccc ccc ddd ddd
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
 
 // Check that missed triple in image causes an error.
