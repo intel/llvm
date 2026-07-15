@@ -309,10 +309,52 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urEnqueueTimestampRecordingExp(ur_queue_handle_t, bool, uint32_t,
-                               const ur_event_handle_t *, ur_event_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, bool Blocking, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  // OpenCL has no native "record device timestamp" primitive. Some drivers
+  // (notably the Intel GPU driver) timestamp synchronization-only commands
+  // (barriers/markers) at the point they are inserted into the pipeline rather
+  // than when the preceding work actually completes, which breaks profiling-tag
+  // orderings (see https://github.com/intel/llvm/issues/22229). We therefore
+  // emulate a timestamp by enqueuing a lightweight *real* device command (a
+  // small buffer fill), whose profiling timestamps do reflect completion of the
+  // preceding work.
+  //
+  // This relies on OpenCL command profiling, which is only available when the
+  // queue was created with CL_QUEUE_PROFILING_ENABLE. If profiling is not
+  // enabled we cannot honor the request and report it as unsupported so the
+  // caller can fall back.
+  auto Queue = cast(hQueue);
+
+  cl_command_queue_properties QueueProperties = 0;
+  CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+      Queue->CLQueue, CL_QUEUE_PROPERTIES, sizeof(QueueProperties),
+      &QueueProperties, nullptr));
+  if (!(QueueProperties & CL_QUEUE_PROFILING_ENABLE))
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  cl_mem Buffer = nullptr;
+  UR_RETURN_ON_FAILURE(Queue->Context->getTimestampRecordingBuffer(&Buffer));
+
+  std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
+  for (uint32_t I = 0; I < numEventsInWaitList; I++)
+    CLWaitEvents[I] = cast(phEventWaitList[I])->CLEvent;
+
+  const cl_uint Pattern = 0;
+  cl_event Event = nullptr;
+  CL_RETURN_ON_FAILURE(clEnqueueFillBuffer(
+      Queue->CLQueue, Buffer, &Pattern, sizeof(Pattern), /*offset=*/0,
+      /*size=*/sizeof(Pattern), numEventsInWaitList, CLWaitEvents.data(),
+      ifUrEvent(phEvent, Event)));
+
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
+
+  if (Blocking)
+    CL_RETURN_ON_FAILURE(clFinish(Queue->CLQueue));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
