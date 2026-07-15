@@ -1976,6 +1976,17 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
   // affect how AOTDeviceArgs are forwarded to the backend tool's argv below,
   // which keeps each token intact. StringRef::split() appends to its output
   // vector, so accumulate tokens from both sources before searching.
+  //
+  // NOTE: this mirrors a separate "-device" detector on the driver side
+  // (Driver::getOffloadArchs in clang/lib/Driver/Driver.cpp, which scans the
+  // tokenized -Xsycl-target-backend argv for spir64_gen to pick the Arch
+  // forwarded to this tool). The two detectors operate on different data
+  // shapes (pre- vs. post-serialization) and aren't required to literally
+  // match today, but if -Xsycl-target-backend's "-device" syntax ever grows
+  // (e.g. comma-separated multi-device lists, already anticipated in a
+  // comment there) only one of the two may get updated, which can desync
+  // the Arch this tool receives from whether it thinks "-device" was
+  // explicit.
   SmallVector<StringRef, 16> CompileArgsSplit;
   BackendOptions.split(CompileArgsSplit, ' ');
   for (StringRef Arg : AOTDeviceArgs)
