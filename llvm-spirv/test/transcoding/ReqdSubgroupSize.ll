@@ -1,7 +1,5 @@
-; Check translation of intel_reqd_sub_group_size metadata to SubgroupSize
-; execution mode and back. The IR is producded from the following OpenCL C code:
-; kernel __attribute__((intel_reqd_sub_group_size(8)))
-; void foo() {}
+; Check translation of (intel_)reqd_sub_group_size metadata to SubgroupSize
+; execution mode and back.
 
 ; RUN: llvm-as %s -o - | llvm-spirv -o %t.spv
 ; RUN: spirv-val %t.spv
@@ -9,16 +7,24 @@
 ; RUN: llvm-spirv %t.spv -r -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Capability SubgroupDispatch
-; CHECK-SPIRV: EntryPoint 6 [[kernel:[0-9]+]] "foo"
-; CHECK-SPIRV: ExecutionMode [[kernel]] 35 8
+; CHECK-SPIRV: EntryPoint 6 [[bar_kernel:[0-9]+]] "bar"
+; CHECK-SPIRV: EntryPoint 6 [[foo_kernel:[0-9]+]] "foo"
+; CHECK-SPIRV: ExecutionMode [[bar_kernel]] 35 8
+; CHECK-SPIRV: ExecutionMode [[foo_kernel]] 35 8
 
-; CHECK-LLVM: spir_kernel void @foo() {{.*}} !intel_reqd_sub_group_size ![[MD:[0-9]+]]
+; CHECK-LLVM: spir_kernel void @foo() {{.*}} !reqd_sub_group_size ![[MD:[0-9]+]]
 ; CHECK-LLVM: ![[MD]] = !{i32 8}
 
 ; ModuleID = 'ReqdSubgroupSize.ll'
 source_filename = "ReqdSubgroupSize.ll"
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
+
+; Function Attrs: norecurse nounwind readnone
+define spir_kernel void @bar() local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 !reqd_sub_group_size !5 {
+entry:
+  ret void
+}
 
 ; Function Attrs: norecurse nounwind readnone
 define spir_kernel void @foo() local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 !intel_reqd_sub_group_size !5 {

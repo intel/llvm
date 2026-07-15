@@ -1,0 +1,30 @@
+; SPV_EXT_float8: SaturatedToLargestFloat8NormalConversionEXT must only
+; target an OpFConvert/OpConvertSToF/OpConvertUToF whose result is
+; Float8E4M3EXT or Float8E5M2EXT. Here the decoration is placed on an
+; FP16 -> FP32 OpFConvert, which the reverse translator must reject.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.4 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o %t.bc 2>&1 | FileCheck %s
+
+; CHECK: InvalidInstruction
+; CHECK: SaturatedToLargestFloat8NormalConversionEXT decoration is only valid on OpFConvert/OpConvertSToF/OpConvertUToF whose Result Type uses Float8E4M3EXT or Float8E5M2EXT encoding.
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Float16Buffer
+               OpCapability Float8EXT
+               OpExtension "SPV_EXT_float8"
+               OpMemoryModel Physical32 OpenCL
+               OpDecorate %conv SaturatedToLargestFloat8NormalConversionEXT
+       %void = OpTypeVoid
+        %f16 = OpTypeFloat 16
+        %f32 = OpTypeFloat 32
+       %func = OpTypeFunction %void %f16
+          %f = OpFunction %void None %func
+          %h = OpFunctionParameter %f16
+          %b = OpLabel
+       %conv = OpFConvert %f32 %h
+               OpReturn
+               OpFunctionEnd

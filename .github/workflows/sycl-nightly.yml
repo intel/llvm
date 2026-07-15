@@ -70,7 +70,8 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: oneapi
-      build_configure_extra_args: -DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" -DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise"
+      # -fno-unroll-loops is added to workaround icpx bug CMPLRLLVM-76831.
+      build_configure_extra_args: -DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise -fno-unroll-loops" -DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise -fno-unroll-loops"
       cc: icx
       cxx: icpx
 

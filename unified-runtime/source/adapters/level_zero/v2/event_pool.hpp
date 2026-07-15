@@ -43,6 +43,11 @@ public:
   // Allocate an event from the pool. Thread safe.
   ur_event_handle_t allocate();
 
+  // Allocate a detached event that owns its underlying ze_event_handle_t and is
+  // never returned to the pool for recycling, it is destroyed when released.
+  // Used for events that must not be recycled. Thread safe.
+  ur_event_handle_t allocateDetached();
+
   // Free an event back to the pool. Thread safe.
   void free(ur_event_handle_t event);
 

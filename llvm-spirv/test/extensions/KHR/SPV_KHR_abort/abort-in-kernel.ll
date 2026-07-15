@@ -13,10 +13,7 @@
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; FIXME: enable the following run when the translator CI is updated to a new
-; version of the SPIR-V Tools that includes the support for the SPV_KHR_abort
-; extension.
-; TODO: RUNx: spirv-val %t.spv
+; RUN: spirv-val %t.spv
 
 ; Round-trip
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc

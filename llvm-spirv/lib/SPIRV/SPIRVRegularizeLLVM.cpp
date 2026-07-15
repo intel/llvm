@@ -134,11 +134,11 @@ void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
   case Intrinsic::bswap: {
     BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
     IRBuilder<> IRB(EntryBB);
-    auto *BSwap = IRB.CreateIntrinsic(Intrinsic::bswap, Intrinsic->getType(),
-                                      F->getArg(0));
+    Value *BSwap = IRB.CreateIntrinsic(Intrinsic::bswap, Intrinsic->getType(),
+                                       F->getArg(0));
     IRB.CreateRet(BSwap);
     IntrinsicLowering IL(M->getDataLayout());
-    IL.LowerIntrinsicCall(BSwap);
+    IL.LowerIntrinsicCall(cast<CallInst>(BSwap));
     break;
   }
   default:

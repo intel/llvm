@@ -3740,6 +3740,8 @@ bool Sema::InstantiateClassImpl(
     }
   }
 
+  Instantiation->setIsHLSLBuiltinRecord(Pattern->isHLSLBuiltinRecord());
+
   // Exit the scope of this instantiation.
   SavedContext.pop();
 
