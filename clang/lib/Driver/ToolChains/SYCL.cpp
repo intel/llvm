@@ -923,7 +923,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     if (LinkSYCLDeviceLibs) {
-      Opts.push_back("-only-needed");
+      Opts.push_back("--only-needed");
     }
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
