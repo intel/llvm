@@ -8,7 +8,7 @@
 
 #pragma once
 
-// Throw warning when including sycl.hpp without using -fsycl flag.
+// Throw warning when including sycl.hpp without using -fsycl flag..
 // Warning can be disabled by defining SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.
 #define __SYCL_STRINGIFY(x) #x
 #define __SYCL_TOSTRING(x) __SYCL_STRINGIFY(x)
