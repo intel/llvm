@@ -10,6 +10,7 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/access/access.hpp>
+#include <sycl/builtins.hpp> // for device-side __assert_fail (SYCL_EXTERNAL)
 #include <sycl/khr/static_addrspace_cast.hpp>
 #include <sycl/multi_ptr.hpp>
 #endif
