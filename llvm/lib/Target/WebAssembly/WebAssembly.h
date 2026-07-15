@@ -123,7 +123,15 @@ public:
 
 FunctionPass *createWebAssemblyISelDagLegacyPass(WebAssemblyTargetMachine &TM,
                                                  CodeGenOptLevel OptLevel);
-FunctionPass *createWebAssemblyArgumentMove();
+
+class WebAssemblyArgumentMovePass
+    : public RequiredPassInfoMixin<WebAssemblyArgumentMovePass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyArgumentMoveLegacyPass();
 FunctionPass *createWebAssemblySetP2AlignOperands();
 FunctionPass *createWebAssemblyCleanCodeAfterTrap();
 
@@ -167,7 +175,7 @@ ModulePass *createWebAssemblyMCLowerPrePass();
 void initializeWebAssemblyOptimizeReturnedLegacyPass(PassRegistry &);
 void initializeWebAssemblyRefTypeMem2LocalLegacyPass(PassRegistry &);
 void initializeWebAssemblyAddMissingPrototypesLegacyPass(PassRegistry &);
-void initializeWebAssemblyArgumentMovePass(PassRegistry &);
+void initializeWebAssemblyArgumentMoveLegacyPass(PassRegistry &);
 void initializeWebAssemblyAsmPrinterPass(PassRegistry &);
 void initializeWebAssemblyCleanCodeAfterTrapPass(PassRegistry &);
 void initializeWebAssemblyCFGSortPass(PassRegistry &);

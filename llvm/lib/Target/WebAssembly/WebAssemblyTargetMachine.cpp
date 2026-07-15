@@ -99,7 +99,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyFixFunctionBitcastsLegacyPass(PR);
   initializeWebAssemblyOptimizeReturnedLegacyPass(PR);
   initializeWebAssemblyRefTypeMem2LocalLegacyPass(PR);
-  initializeWebAssemblyArgumentMovePass(PR);
+  initializeWebAssemblyArgumentMoveLegacyPass(PR);
   initializeWebAssemblyAsmPrinterPass(PR);
   initializeWebAssemblySetP2AlignOperandsPass(PR);
   initializeWebAssemblyReplacePhysRegsPass(PR);
@@ -383,7 +383,7 @@ bool WebAssemblyPassConfig::addInstSelector() {
   // Run the argument-move pass immediately after the ScheduleDAG scheduler
   // so that we can fix up the ARGUMENT instructions before anything else
   // sees them in the wrong place.
-  addPass(createWebAssemblyArgumentMove());
+  addPass(createWebAssemblyArgumentMoveLegacyPass());
   // Set the p2align operands. This information is present during ISel, however
   // it's inconvenient to collect. Collect it now, and update the immediate
   // operands.
@@ -546,7 +546,7 @@ bool WebAssemblyPassConfig::addGlobalInstructionSelect() {
 
   // We insert only if ISelDAG won't insert these at a later point.
   if (isGlobalISelAbortEnabled()) {
-    addPass(createWebAssemblyArgumentMove());
+    addPass(createWebAssemblyArgumentMoveLegacyPass());
     addPass(createWebAssemblySetP2AlignOperands());
     addPass(createWebAssemblyFixBrTableDefaults());
     addPass(createWebAssemblyCleanCodeAfterTrap());

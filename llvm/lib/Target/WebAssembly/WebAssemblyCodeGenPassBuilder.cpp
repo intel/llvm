@@ -150,7 +150,7 @@ Error WebAssemblyCodeGenPassBuilder::addInstSelector(
   // Run the argument-move pass immediately after the ScheduleDAG scheduler
   // so that we can fix up the ARGUMENT instructions before anything else
   // sees them in the wrong place.
-  // TODO(boomanaiden154): WebAssemblyArgumentMove
+  addMachineFunctionPass(WebAssemblyArgumentMovePass(), PMW);
 
   // Set the p2align operands. This information is present during ISel, however
   // it's inconvenient to collect. Collect it now, and update the immediate
