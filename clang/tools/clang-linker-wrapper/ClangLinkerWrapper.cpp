@@ -1930,71 +1930,19 @@ compileDeviceAndBundle(StringRef ModuleFilePath, const ArgList &LinkerArgs,
 /// * Set Compile/Link options to the output Modules.
 /// * Invokes device backend compilation + bundling.
 ///
+/// \p Triple, \p BackendOptions and \p IsDevicePassedWithSyclTargetBackend
+/// are derived from \p CompileLinkOptions/\p AOTDeviceArgs once per triple by
+/// the caller (they are identical across every module for a given triple),
+/// rather than being recomputed here on each call.
+///
 /// \returns The list of the processed Modules.
 Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
     StringRef ModuleFilePath, const ArgList &LinkerArgs,
+    const llvm::Triple &Triple,
     const std::pair<std::string, std::string> &CompileLinkOptions,
-    ArrayRef<std::string> AOTDeviceArgs,
+    ArrayRef<std::string> AOTDeviceArgs, StringRef BackendOptions,
+    bool IsDevicePassedWithSyclTargetBackend,
     function_ref<void(StringRef)> WrappedOutputCallback) {
-  const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-
-  // AOT tools (ocloc/opencl-aot) don't distinguish compile vs. link options,
-  // so combine both here regardless of whether an option arrived via
-  // --device-compiler= or --device-linker=. CompileLinkOptions holds only
-  // the options extracted from the image for AOT triples (a flat, already
-  // space-joined string); options supplied on the CLI for this invocation
-  // live separately in AOTDeviceArgs, as individual tokens, and are appended
-  // later (in runAOTCompileIntelGPU/CPU) without being folded into this
-  // string, so that values with embedded spaces survive intact.
-  // FIXME: Concatenating compile-opts and link-opts into one flat string
-  // here means any "-options ..." wrapper already present in compile-opts
-  // (see SYCLToolChain::AddSPIRVImpliedTargetArgs) will swallow the
-  // appended link-opts into ocloc's -options value in addOclocOptions
-  // below. This is a symptom of -Xsycl-target-backend/-Xsycl-target-linker
-  // requiring us to parse and re-serialize ocloc's option syntax; consider
-  // deprecating and removing those options so backend/linker options can be
-  // forwarded as opaque tokens without this kind of string surgery.
-  std::string AOTOptions;
-  if (Triple.isSPIRAOT()) {
-    AOTOptions = CompileLinkOptions.first;
-    if (!CompileLinkOptions.second.empty()) {
-      if (!AOTOptions.empty())
-        AOTOptions += ' ';
-      AOTOptions += CompileLinkOptions.second;
-    }
-  }
-  StringRef BackendOptions = Triple.isSPIRAOT()
-                                 ? StringRef(AOTOptions)
-                                 : StringRef(CompileLinkOptions.first);
-
-  // Detect whether the user already specified "-device <arch>" via
-  // -Xsycl-target-backend, either embedded in the image string above or
-  // supplied on the CLI (AOTDeviceArgs). Split every source on spaces for
-  // this search (a single CLI token can still contain an embedded space,
-  // e.g. when clang-linker-wrapper is invoked directly rather than through
-  // the driver's tokenizing -Xsycl-target-backend handling); this does not
-  // affect how AOTDeviceArgs are forwarded to the backend tool's argv below,
-  // which keeps each token intact. StringRef::split() appends to its output
-  // vector, so accumulate tokens from both sources before searching.
-  //
-  // NOTE: this mirrors a separate "-device" detector on the driver side
-  // (Driver::getOffloadArchs in clang/lib/Driver/Driver.cpp, which scans the
-  // tokenized -Xsycl-target-backend argv for spir64_gen to pick the Arch
-  // forwarded to this tool). The two detectors operate on different data
-  // shapes (pre- vs. post-serialization) and aren't required to literally
-  // match today, but if -Xsycl-target-backend's "-device" syntax ever grows
-  // (e.g. comma-separated multi-device lists, already anticipated in a
-  // comment there) only one of the two may get updated, which can desync
-  // the Arch this tool receives from whether it thinks "-device" was
-  // explicit.
-  SmallVector<StringRef, 16> CompileArgsSplit;
-  BackendOptions.split(CompileArgsSplit, ' ');
-  for (StringRef Arg : AOTDeviceArgs)
-    Arg.split(CompileArgsSplit, ' ');
-  bool IsDevicePassedWithSyclTargetBackend =
-      std::find(CompileArgsSplit.begin(), CompileArgsSplit.end(), "-device") !=
-      CompileArgsSplit.end();
-
   SmallVector<StringRef> InputFilesSYCL = {ModuleFilePath};
   Expected<std::vector<module_split::SplitModule>> SplitModulesOrErr =
       UseSYCLPostLinkTool
@@ -2066,6 +2014,65 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     const std::pair<std::string, std::string> &CompileLinkOptions,
     ArrayRef<std::string> AOTDeviceArgs,
     function_ref<void(StringRef)> WrappedOutputCallback) {
+  const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+
+  // AOT tools (ocloc/opencl-aot) don't distinguish compile vs. link options,
+  // so combine both here regardless of whether an option arrived via
+  // --device-compiler= or --device-linker=. CompileLinkOptions holds only
+  // the options extracted from the image for AOT triples (a flat, already
+  // space-joined string); options supplied on the CLI for this invocation
+  // live separately in AOTDeviceArgs, as individual tokens, and are appended
+  // later (in runAOTCompileIntelGPU/CPU) without being folded into this
+  // string, so that values with embedded spaces survive intact.
+  // FIXME: Concatenating compile-opts and link-opts into one flat string
+  // here means any "-options ..." wrapper already present in compile-opts
+  // (see SYCLToolChain::AddSPIRVImpliedTargetArgs) will swallow the
+  // appended link-opts into ocloc's -options value in addOclocOptions
+  // below. This is a symptom of -Xsycl-target-backend/-Xsycl-target-linker
+  // requiring us to parse and re-serialize ocloc's option syntax; consider
+  // deprecating and removing those options so backend/linker options can be
+  // forwarded as opaque tokens without this kind of string surgery.
+  std::string AOTOptions;
+  if (Triple.isSPIRAOT()) {
+    AOTOptions = CompileLinkOptions.first;
+    if (!CompileLinkOptions.second.empty()) {
+      if (!AOTOptions.empty())
+        AOTOptions += ' ';
+      AOTOptions += CompileLinkOptions.second;
+    }
+  }
+  StringRef BackendOptions = Triple.isSPIRAOT()
+                                 ? StringRef(AOTOptions)
+                                 : StringRef(CompileLinkOptions.first);
+
+  // Detect whether the user already specified "-device <arch>" via
+  // -Xsycl-target-backend, either embedded in the image string above or
+  // supplied on the CLI (AOTDeviceArgs). Split every source on spaces for
+  // this search (a single CLI token can still contain an embedded space,
+  // e.g. when clang-linker-wrapper is invoked directly rather than through
+  // the driver's tokenizing -Xsycl-target-backend handling); this does not
+  // affect how AOTDeviceArgs are forwarded to the backend tool's argv below,
+  // which keeps each token intact. StringRef::split() appends to its output
+  // vector, so accumulate tokens from both sources before searching.
+  //
+  // NOTE: this mirrors a separate "-device" detector on the driver side
+  // (Driver::getOffloadArchs in clang/lib/Driver/Driver.cpp, which scans the
+  // tokenized -Xsycl-target-backend argv for spir64_gen to pick the Arch
+  // forwarded to this tool). The two detectors operate on different data
+  // shapes (pre- vs. post-serialization) and aren't required to literally
+  // match today, but if -Xsycl-target-backend's "-device" syntax ever grows
+  // (e.g. comma-separated multi-device lists, already anticipated in a
+  // comment there) only one of the two may get updated, which can desync
+  // the Arch this tool receives from whether it thinks "-device" was
+  // explicit.
+  SmallVector<StringRef, 16> CompileArgsSplit;
+  BackendOptions.split(CompileArgsSplit, ' ');
+  for (StringRef Arg : AOTDeviceArgs)
+    Arg.split(CompileArgsSplit, ' ');
+  bool IsDevicePassedWithSyclTargetBackend =
+      std::find(CompileArgsSplit.begin(), CompileArgsSplit.end(), "-device") !=
+      CompileArgsSplit.end();
+
   // Note: pipeline can skip linking due to -fno-sycl-rdc option.
   // In that case, we apply sycl processing to several modules.
   std::vector<StringRef> Modules;
@@ -2088,8 +2095,10 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     // Note: sycl-post-link can produce more modules than incoming due to module
     // split.
     Expected<std::vector<module_split::SplitModule>> ModulesOrErr =
-        postLinkProcessModule(Module, LinkerArgs, CompileLinkOptions,
-                              AOTDeviceArgs, WrappedOutputCallback);
+        postLinkProcessModule(Module, LinkerArgs, Triple, CompileLinkOptions,
+                              AOTDeviceArgs, BackendOptions,
+                              IsDevicePassedWithSyclTargetBackend,
+                              WrappedOutputCallback);
     if (!ModulesOrErr)
       return ModulesOrErr.takeError();
 
