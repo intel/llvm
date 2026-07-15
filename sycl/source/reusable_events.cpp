@@ -60,6 +60,18 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
 
 __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+  detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
+
+  // Current limitation:
+  // The queue and an event need to be in the same context. The reason
+  // is, that cross-context dependencies use host tasks, and the wait
+  // command might be queued in the runtime. This flow is currently
+  // not supported by the Reusable Events APIs.
+  if (&QueueImpl.getContextImpl() != &EventImpl.getContextImpl()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "A queue and an event need to be in the same context.");
+  }
 
   QueueImpl.submit_barrier_direct_without_event(
       sycl::span<const event>(&evt, 1), detail::CGType::BarrierWaitlist,
@@ -69,6 +81,20 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
 __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
                                        const std::vector<event> &evts) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+
+  // Current limitation:
+  // The queue and all the events need to be in the same context. The
+  // reason is, that cross-context dependencies use host tasks, and the
+  // wait command might be queued in the runtime. This flow is currently
+  // not supported by the Reusable Events APIs.
+  for (sycl::event evt : evts) {
+    detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
+    if (&QueueImpl.getContextImpl() != &EventImpl.getContextImpl()) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "A queue and all the events need to be in the same context.");
+    }
+  }
 
   QueueImpl.submit_barrier_direct_without_event(
       evts, detail::CGType::BarrierWaitlist, detail::code_location::current());
