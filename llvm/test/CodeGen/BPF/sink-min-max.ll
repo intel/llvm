@@ -15,15 +15,15 @@
 ; @test10: check that umin belonging to the same loop is not touched
 ; @test11: check that nested loops are processed
 
-define i32 @test1(i64 %a, i64 %b, i64 %x) {
+define i32 @test1(i64 %a, i64 %b, i64 %x) !prof !0 {
 ; CHECK-LABEL: define i32 @test1(
-; CHECK-SAME: i64 [[A:%.*]], i64 [[B:%.*]], i64 [[X:%.*]]) {
+; CHECK-SAME: i64 [[A:%.*]], i64 [[B:%.*]], i64 [[X:%.*]]) !prof [[PROF0:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    br label %[[LOOP:.*]]
 ; CHECK:       [[LOOP]]:
 ; CHECK-NEXT:    [[TMP0:%.*]] = icmp ult i64 [[X]], [[A]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i64 [[X]], [[B]]
-; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP0]], i1 [[TMP1]], i1 false
+; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP0]], i1 [[TMP1]], i1 false, !prof [[PROF1:![0-9]+]]
 ; CHECK-NEXT:    br i1 [[TMP2]], label %[[LOOP]], label %[[RET:.*]]
 ; CHECK:       [[RET]]:
 ; CHECK-NEXT:    ret i32 0
@@ -37,15 +37,15 @@ loop:
 ret: ret i32 0
 }
 
-define i32 @test2(i64 %a, i64 %b, i64 %x) {
+define i32 @test2(i64 %a, i64 %b, i64 %x) !prof !0 {
 ; CHECK-LABEL: define i32 @test2(
-; CHECK-SAME: i64 [[A:%.*]], i64 [[B:%.*]], i64 [[X:%.*]]) {
+; CHECK-SAME: i64 [[A:%.*]], i64 [[B:%.*]], i64 [[X:%.*]]) !prof [[PROF0]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    br label %[[LOOP:.*]]
 ; CHECK:       [[LOOP]]:
 ; CHECK-NEXT:    [[TMP0:%.*]] = icmp ult i64 [[X]], [[A]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i64 [[X]], [[B]]
-; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP0]], i1 true, i1 [[TMP1]]
+; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP0]], i1 true, i1 [[TMP1]], !prof [[PROF1]]
 ; CHECK-NEXT:    br i1 [[TMP2]], label %[[LOOP]], label %[[RET:.*]]
 ; CHECK:       [[RET]]:
 ; CHECK-NEXT:    ret i32 0
@@ -279,3 +279,9 @@ declare i32 @llvm.umin.i32(i32, i32)
 declare i32 @llvm.smin.i32(i32, i32)
 declare i32 @llvm.umax.i32(i32, i32)
 declare i32 @llvm.smax.i32(i32, i32)
+
+!0 = !{!"function_entry_count", i64 1000}
+;.
+; CHECK: [[PROF0]] = !{!"function_entry_count", i64 1000}
+; CHECK: [[PROF1]] = !{!"unknown", !"bpf-check-and-opt-ir"}
+;.
