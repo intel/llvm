@@ -10871,6 +10871,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
@@ -10880,14 +10882,15 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
   if (nullptr == pfnCreateExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_event_create_exp_params_t params = {&hContext, &pEventDesc, &phEvent};
+  ur_event_create_exp_params_t params = {&hContext, &hDevice, &pEventDesc,
+                                         &phEvent};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_EVENT_CREATE_EXP,
                                                  "urEventCreateExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urEventCreateExp\n");
 
-  ur_result_t result = pfnCreateExp(hContext, pEventDesc, phEvent);
+  ur_result_t result = pfnCreateExp(hContext, hDevice, pEventDesc, phEvent);
 
   getContext()->notify_end(UR_FUNCTION_EVENT_CREATE_EXP, "urEventCreateExp",
                            &params, &result, instance);
@@ -11314,6 +11317,41 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_GRAPH_IS_EMPTY_EXP,
                                     &params);
     UR_LOG_L(logger, INFO, "   <--- urGraphIsEmptyExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetIdExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) {
+  auto pfnGetIdExp = getContext()->urDdiTable.GraphExp.pfnGetIdExp;
+
+  if (nullptr == pfnGetIdExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_get_id_exp_params_t params = {&hGraph, &pGraphId};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_GRAPH_GET_ID_EXP,
+                                                 "urGraphGetIdExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphGetIdExp\n");
+
+  ur_result_t result = pfnGetIdExp(hGraph, pGraphId);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_GET_ID_EXP, "urGraphGetIdExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_GRAPH_GET_ID_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urGraphGetIdExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -12131,6 +12169,9 @@ __urdlllocal ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 
   dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
   pDdiTable->pfnIsEmptyExp = ur_tracing_layer::urGraphIsEmptyExp;
+
+  dditable.pfnGetIdExp = pDdiTable->pfnGetIdExp;
+  pDdiTable->pfnGetIdExp = ur_tracing_layer::urGraphGetIdExp;
 
   dditable.pfnSetDestructionCallbackExp =
       pDdiTable->pfnSetDestructionCallbackExp;

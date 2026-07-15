@@ -11357,7 +11357,7 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == pEventDesc->hDevice`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pEventDesc`
 ///         + `NULL == phEvent`
@@ -11372,6 +11372,8 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
@@ -11380,7 +11382,7 @@ ur_result_t UR_APICALL urEventCreateExp(
   if (nullptr == pfnCreateExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnCreateExp(hContext, pEventDesc, phEvent);
+  return pfnCreateExp(hContext, hDevice, pEventDesc, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -11687,6 +11689,33 @@ ur_result_t UR_APICALL urGraphIsEmptyExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   return pfnIsEmptyExp(hGraph, pResult);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Returns a process-unique identifier that increases monotonically per
+///        graph.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGraphId`
+ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) try {
+  auto pfnGetIdExp = ur_lib::getContext()->urDdiTable.GraphExp.pfnGetIdExp;
+  if (nullptr == pfnGetIdExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetIdExp(hGraph, pGraphId);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

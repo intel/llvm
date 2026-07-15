@@ -1422,6 +1422,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP:
     os << "UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP";
     break;
+  case UR_FUNCTION_GRAPH_GET_ID_EXP:
+    os << "UR_FUNCTION_GRAPH_GET_ID_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -3396,6 +3399,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
@@ -5779,6 +5785,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -13519,11 +13538,6 @@ inline std::ostream &operator<<(std::ostream &os,
   ur::details::printStruct(os, (params.pNext));
 
   os << ", ";
-  os << ".hDevice = ";
-
-  ur::details::printPtr(os, (params.hDevice));
-
-  os << ", ";
   os << ".flags = ";
 
   ur::details::printFlag<ur_exp_event_flag_t>(os, (params.flags));
@@ -14469,6 +14483,11 @@ operator<<(std::ostream &os,
   os << ".hContext = ";
 
   ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
 
   os << ", ";
   os << ".pEventDesc = ";
@@ -21821,6 +21840,26 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_get_id_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_get_id_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".pGraphId = ";
+
+  ur::details::printPtr(os, *(params->ppGraphId));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_graph_set_destruction_callback_exp_params_t
 /// type
 /// @returns
@@ -23742,6 +23781,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_GRAPH_IS_EMPTY_EXP: {
     os << (const struct ur_graph_is_empty_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_GET_ID_EXP: {
+    os << (const struct ur_graph_get_id_exp_params_t *)params;
   } break;
   case UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP: {
     os << (const struct ur_graph_set_destruction_callback_exp_params_t *)params;

@@ -110,17 +110,20 @@ ur_command_t convertCLCommandTypeToUR(const cl_command_type &CommandType) {
   }
 }
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
     const ur_event_native_properties_t *pProperties,
     ur_event_handle_t *phEvent) {
   cl_event NativeHandle = reinterpret_cast<cl_event>(hNativeEvent);
+  auto Context = cast(hContext);
   try {
     auto UREvent =
-        std::make_unique<ur_event_handle_t_>(NativeHandle, hContext, nullptr);
+        std::make_unique<ur_event_handle_t_>(NativeHandle, Context, nullptr);
     UREvent->IsNativeHandleOwned =
         pProperties ? pProperties->isNativeHandleOwned : false;
-    *phEvent = UREvent.release();
+    *phEvent = cast(UREvent.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -131,24 +134,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ur_native_handle_t *phNativeEvent) {
-  return getNativeHandle(hEvent->CLEvent, phNativeEvent);
+  auto Event = cast(hEvent);
+  return getNativeHandle(Event->CLEvent, phNativeEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
-  if (hEvent->RefCount.release()) {
-    delete hEvent;
+  auto Event = cast(hEvent);
+  if (Event->RefCount.release()) {
+    delete Event;
   }
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  hEvent->RefCount.retain();
+  auto Event = cast(hEvent);
+  Event->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
-  ur_context_handle_t hContext = phEventWaitList[0]->Context;
+  ur_context_handle_t_ *hContext = cast(phEventWaitList[0])->Context;
   std::vector<cl_event> CLEvents;
   CLEvents.reserve(numEvents);
 
@@ -156,13 +162,13 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   // If the events are from different contexts, we need to wait for each
   // set of events separately.
   for (uint32_t i = 0; i < numEvents; i++) {
-    if (phEventWaitList[i]->Context != hContext) {
+    if (cast(phEventWaitList[i])->Context != hContext) {
       CL_RETURN_ON_FAILURE(clWaitForEvents(CLEvents.size(), CLEvents.data()));
       CLEvents.clear();
     }
 
-    CLEvents.push_back(phEventWaitList[i]->CLEvent);
-    hContext = phEventWaitList[i]->Context;
+    CLEvents.push_back(cast(phEventWaitList[i])->CLEvent);
+    hContext = cast(phEventWaitList[i])->Context;
   }
   if (CLEvents.size()) {
     CL_RETURN_ON_FAILURE(clWaitForEvents(CLEvents.size(), CLEvents.data()));
@@ -175,23 +181,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    size_t propSize,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
+  auto Event = cast(hEvent);
   cl_event_info CLEventInfo = convertUREventInfoToCL(propName);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
   case UR_EVENT_INFO_CONTEXT: {
-    return ReturnValue(hEvent->Context);
+    return ReturnValue(cast(Event->Context));
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
-    hEvent->ensureQueue();
-    return ReturnValue(hEvent->Queue);
+    Event->ensureQueue();
+    return ReturnValue(cast(Event->Queue));
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hEvent->RefCount.getCount());
+    return ReturnValue(Event->RefCount.getCount());
   }
   default: {
     size_t CheckPropSize = 0;
-    cl_int RetErr = clGetEventInfo(hEvent->CLEvent, CLEventInfo, propSize,
+    cl_int RetErr = clGetEventInfo(Event->CLEvent, CLEventInfo, propSize,
                                    pPropValue, &CheckPropSize);
     if (pPropValue && CheckPropSize != propSize &&
         propName != UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
@@ -228,8 +235,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     ur_event_handle_t hEvent, ur_profiling_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropSizeRet) {
+  auto Event = cast(hEvent);
   cl_profiling_info CLProfilingInfo = convertURProfilingInfoToCL(propName);
-  cl_int RetErr = clGetEventProfilingInfo(hEvent->CLEvent, CLProfilingInfo,
+  cl_int RetErr = clGetEventProfilingInfo(Event->CLEvent, CLProfilingInfo,
                                           propSize, pPropValue, pPropSizeRet);
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
@@ -238,6 +246,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
                    ur_event_callback_t pfnNotify, void *pUserData) {
+  auto Event = cast(hEvent);
   static std::unordered_map<ur_event_handle_t, std::set<ur_event_callback_t>>
       EventCallbackMap;
   static std::mutex EventCallbackMutex;
@@ -296,7 +305,7 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
     C->execute();
   };
   CL_RETURN_ON_FAILURE(
-      clSetEventCallback(hEvent->CLEvent, CallbackType, ClCallback, Callback));
+      clSetEventCallback(Event->CLEvent, CallbackType, ClCallback, Callback));
   return UR_RESULT_SUCCESS;
 }
 
@@ -306,7 +315,25 @@ urEnqueueTimestampRecordingExp(ur_queue_handle_t, bool, uint32_t,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventCreateExp(
-    ur_context_handle_t, const ur_exp_event_desc_t *, ur_event_handle_t *) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urEventCreateExp(ur_context_handle_t, ur_device_handle_t,
+                 const ur_exp_event_desc_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetEventHandleExp(ur_event_handle_t,
+                                                           void **, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutEventHandleExp(ur_context_handle_t,
+                                                           void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenEventHandleExp(
+    ur_context_handle_t, const void *, size_t, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+} // namespace ur::opencl

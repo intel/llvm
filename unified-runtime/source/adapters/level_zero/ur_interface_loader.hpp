@@ -865,6 +865,7 @@ ur_result_t urEnqueueNativeCommandExp(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
 ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             ur_device_handle_t hDevice,
                              const ur_exp_event_desc_t *pEventDesc,
                              ur_event_handle_t *phEvent);
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
@@ -890,6 +891,7 @@ ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
 ur_result_t urQueueGetGraphExp(ur_queue_handle_t hQueue,
                                ur_exp_graph_handle_t *phGraph);
 ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pResult);
+ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t hGraph, uint64_t *pGraphId);
 ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_handle_t hGraph,
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData);

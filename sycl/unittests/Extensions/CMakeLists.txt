@@ -25,6 +25,8 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DeviceInfo.cpp
   RootGroup.cpp
   USMPrefetch.cpp
+  RegisterHostMemory.cpp
+  ReusableEvents.cpp
 )
 
 add_subdirectory(BindlessImages)

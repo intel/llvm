@@ -446,7 +446,7 @@ public:
   ///
   /// \return a valid cl_device_id instance in accordance with the
   /// requirements described in 4.3.1.
-  cl_device_id get() const;
+  OpenCLDeviceIdT get() const;
 
   /// Get reference to UR device
   ///
@@ -904,7 +904,7 @@ public:
       return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
-      size_t result[3];
+      size_t result[3] = {};
       getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
@@ -1230,10 +1230,12 @@ public:
       return MCache.get<AspectDesc<Aspect>>();
     }
 #define CASE(ASPECT) else if constexpr (Aspect == aspect::ASPECT)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(host) {
       // Deprecated
       return false;
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(cpu) { return is_cpu(); }
     CASE(gpu) { return is_gpu(); }
     CASE(accelerator) { return is_accelerator(); }
@@ -1242,13 +1244,15 @@ public:
     CASE(host_debuggable) { return false; }
     CASE(fp16) { return has_extension("cl_khr_fp16"); }
     CASE(fp64) { return has_extension("cl_khr_fp64"); }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(int64_base_atomics) {
       return has_extension("cl_khr_int64_base_atomics");
     }
     CASE(int64_extended_atomics) {
       return has_extension("cl_khr_int64_extended_atomics");
     }
-    CASE(atomic64) { return get_info<info::device::atomic64>(); }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+    CASE(atomic64) { return get_info_impl<UR_DEVICE_INFO_ATOMIC_64>(); }
     CASE(image) { return get_info<info::device::image_support>(); }
     CASE(online_compiler) {
       return get_info<info::device::is_compiler_available>();
@@ -1277,9 +1281,11 @@ public:
       return (get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_restricted_shared_allocations) {
       return get_info<info::device::usm_restricted_shared_allocations>();
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_system_allocations) {
       return get_info<info::device::usm_system_allocations>();
     }
@@ -1389,6 +1395,11 @@ public:
     CASE(ext_oneapi_external_memory_import) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_register_host_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP>()
           .value_or(0);
     }
     CASE(ext_oneapi_external_semaphore_import) {
@@ -1617,6 +1628,10 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_ipc_event) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP>()
+          .value_or(0);
+    }
     CASE(ext_oneapi_device_wait) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
           .value_or(0);
@@ -1624,6 +1639,11 @@ public:
     CASE(ext_oneapi_ipc_physical_memory) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_per_event_profiling) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP>()
           .value_or(0);
     }
     else {
@@ -2313,10 +2333,20 @@ public:
   void unregisterQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
     auto It = std::find(MQueues.begin(), MQueues.end(), Q);
-    assert(It != MQueues.end() && "Queue not found in device's queue list");
-    // Swap with last element and pop — O(1) removal, order doesn't matter.
-    std::swap(*It, MQueues.back());
-    MQueues.pop_back();
+
+    // device_impl can be destroyed before queue_impl in unittests.
+    // On Windows, unittests involving host tasks race with scheduler
+    // cleanup (invoked by ~UrMock). UrMock constructor destroys the
+    // platform cache, along with device_impl. Now, when two unittests
+    // involving host tasks run one after another, URMock destructor of
+    // first can race with URMock constructor of second, causing device_impl
+    // to not have registered queue.
+    if (It != MQueues.end()) {
+      // Swap with last element and pop — O(1) removal,
+      // order doesn't matter.
+      std::swap(*It, MQueues.back());
+      MQueues.pop_back();
+    }
   }
 
 private:
@@ -2352,9 +2382,14 @@ private:
       EagerCache<InfoInitializer>,               //
       CallOnceCache<InfoInitializer,
                     ext::oneapi::experimental::info::device::architecture>, //
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       AspectCache<EagerCache, aspect::fp16, aspect::fp64,
                   aspect::int64_base_atomics, aspect::int64_extended_atomics,
                   aspect::ext_oneapi_atomic16>,
+#else
+      AspectCache<EagerCache, aspect::fp16, aspect::fp64,
+                  aspect::ext_oneapi_atomic16>,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       AspectCache<
           CallOnceCache,
           // Slow, >100ns (for baseline cached ~30..40ns):

@@ -68,6 +68,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       __SYCL_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
       $<$<BOOL:${UR_STATIC_LOADER}>:SYCL_UR_STATIC_LOADER>
+      $<$<BOOL:${UR_STATIC_ADAPTER_OPENCL}>:SYCL_UR_STATIC_ADAPTER_OPENCL>
   )
 
   target_include_directories(
@@ -172,9 +173,16 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   endif()
 
   if (LLVM_ENABLE_ZSTD)
+    if (WIN32)
+      set(zstd_target ${zstd_STATIC_LIBRARY})
+    elseif (TARGET zstd::libzstd_shared AND NOT LLVM_USE_STATIC_ZSTD)
+      set(zstd_target zstd::libzstd_shared)
+    else()
+      set(zstd_target zstd::libzstd_static)
+    endif()
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_AVAILABLE)
-    target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
+    target_link_libraries(${LIB_NAME} PRIVATE ${zstd_target})
   endif()
 
   target_link_libraries(${LIB_OBJ_NAME} PRIVATE emhash::emhash)
@@ -351,6 +359,7 @@ set(SYCL_COMMON_SOURCES
     "handler.cpp"
     "image.cpp"
     "interop_handle.cpp"
+    "ipc_event.cpp"
     "ipc_memory.cpp"
     "ipc_physical_memory.cpp"
     "kernel.cpp"
@@ -359,6 +368,7 @@ set(SYCL_COMMON_SOURCES
     "platform.cpp"
     "printers.cpp"
     "queue.cpp"
+    "reusable_events.cpp"
     "sampler.cpp"
     "stream.cpp"
     "virtual_mem.cpp"

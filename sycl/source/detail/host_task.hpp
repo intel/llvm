@@ -76,7 +76,30 @@ public:
 
   friend class DispatchHostTask;
   friend class ExecCGCommand;
+  friend class sycl::detail::HandlerAccess;
 };
+
+inline std::function<void()> HandlerAccess::getHostTaskFunc(HostTask &HT) {
+  return std::move(HT.MHostTask);
+}
+
+struct EnqueueHostTaskData {
+  explicit EnqueueHostTaskData(std::function<void()> HostTask)
+      : Func(std::move(HostTask)) {}
+
+  std::function<void()> Func;
+};
+
+template <bool OwnsData> inline void NativeHostTask(void *Data) {
+  auto *HostTaskData = static_cast<EnqueueHostTaskData *>(Data);
+  if constexpr (OwnsData) {
+    // so it's freed if the user function throws
+    std::unique_ptr<EnqueueHostTaskData> Owner(HostTaskData);
+    Owner->Func();
+  } else {
+    HostTaskData->Func();
+  }
+}
 
 } // namespace detail
 } // namespace _V1

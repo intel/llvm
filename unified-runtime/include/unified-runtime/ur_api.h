@@ -532,6 +532,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP = 324,
   /// Enumerator for ::urIPCOpenEventHandleExp
   UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP = 325,
+  /// Enumerator for ::urGraphGetIdExp
+  UR_FUNCTION_GRAPH_GET_ID_EXP = 326,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2558,6 +2560,10 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports registering host
   /// memory ranges.
   UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP = 0x2090,
+  /// [::ur_bool_t] returns true if the device can produce profiling
+  /// information for individual events without the whole queue being
+  /// created with ::UR_QUEUE_FLAG_PROFILING_ENABLE.
+  UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP = 0x20A0,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -13977,8 +13983,6 @@ typedef struct ur_exp_event_desc_t {
   ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
-  /// [in] handle of the device object associated with this event
-  ur_device_handle_t hDevice;
   /// [in] combination of event creation flags. If
   /// ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set, the event captures
   /// UR_PROFILING_INFO_COMMAND_START and UR_PROFILING_INFO_COMMAND_END
@@ -14006,7 +14010,7 @@ typedef struct ur_exp_event_desc_t {
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == pEventDesc->hDevice`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pEventDesc`
 ///         + `NULL == phEvent`
@@ -14021,6 +14025,8 @@ typedef struct ur_exp_event_desc_t {
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
@@ -14251,6 +14257,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to a boolean where the result will be stored.
     bool *pResult);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Returns a process-unique identifier that increases monotonically per
+///        graph.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGraphId`
+UR_APIEXPORT ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function invoked when a graph is destroyed.
@@ -14704,6 +14729,7 @@ typedef struct ur_event_set_callback_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_event_create_exp_params_t {
   ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
   const ur_exp_event_desc_t **ppEventDesc;
   ur_event_handle_t **pphEvent;
 } ur_event_create_exp_params_t;
@@ -16877,6 +16903,15 @@ typedef struct ur_graph_is_empty_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
   bool **ppResult;
 } ur_graph_is_empty_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphGetIdExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_get_id_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  uint64_t **ppGraphId;
+} ur_graph_get_id_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urGraphSetDestructionCallbackExp

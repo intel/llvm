@@ -3,8 +3,8 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Returning non-FP values from sampling fails on HIP.
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
+// UNSUPPORTED: cuda-ge-13
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21807
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -29,6 +29,7 @@
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/half_type.hpp>
+#include <sycl/vector.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

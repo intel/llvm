@@ -780,10 +780,13 @@ class Attr {
   // Note: Any additional data members will leak and should be constructed
   // externally on the ASTContext.
   code AdditionalMembers = [{}];
+
+  string comparisonFn = "";
+  string profileFn = "";
+
   // Any documentation that should be associated with the attribute. Since an
   // attribute may be documented under multiple categories, more than one
   // Documentation entry may be listed.
-  string comparisonFn = "";
   list<Documentation> Documentation;
   // The SYCL specification allows attributes on lambdas as a nonconforming
   // extension to C++. The attributes are written in the type position but will
@@ -938,6 +941,7 @@ def Aligned : InheritableAttr {
                                           CustomKeyword<"_Alignas">]>,
                    Accessor<"isDeclspec",[Declspec<"align">]>];
   let comparisonFn = "areAlignedAttrsEqual";
+  let profileFn = "profileAlignedAttr";
   let Documentation = [Undocumented];
 }
 
@@ -1076,7 +1080,7 @@ def Annotate : InheritableParamOrStmtAttr {
   }];
   let PragmaAttributeSupport = 1;
   let AcceptsExprPack = 1;
-  let Documentation = [Undocumented];
+  let Documentation = [AnnotateDocs];
 }
 
 def AnnotateType : TypeAttr {
@@ -1203,6 +1207,7 @@ static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
              .Case("macosx", "macos")
              .Case("tvOS", "tvos")
              .Case("watchOS", "watchos")
+             .Case("DriverKit", "driverkit")
              .Case("iOSApplicationExtension", "ios_app_extension")
              .Case("macOSApplicationExtension", "macos_app_extension")
              .Case("tvOSApplicationExtension", "tvos_app_extension")
@@ -1279,6 +1284,7 @@ static llvm::Triple::OSType getOSType(llvm::StringRef Platform) {
              .Case("tvos", OSType::TvOS)
              .Case("watchos", OSType::WatchOS)
              .Case("bridgeos", OSType::BridgeOS)
+             .Case("driverkit", OSType::DriverKit)
              .Case("ios_app_extension", OSType::IOS)
              .Case("maccatalyst_app_extension", OSType::IOS)
              .Case("macos_app_extension", OSType::MacOSX)
@@ -1816,13 +1822,13 @@ def SYCLType: InheritableAttr {
   let Args = [EnumArgument<"Type", "SYCLType", /*is_string=*/true,
                            ["accessor", "local_accessor", "dynamic_local_accessor",
                            "work_group_memory", "dynamic_work_group_memory",
-                            "specialization_id", "kernel_handler", "buffer_location",
+                            "specialization_id", "kernel_handler",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
                             "stream", "sampler", "host_pipe", "multi_ptr"],
                            ["accessor", "local_accessor", "dynamic_local_accessor",
                            "work_group_memory", "dynamic_work_group_memory",
-                            "specialization_id", "kernel_handler", "buffer_location",
+                            "specialization_id", "kernel_handler",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
                             "stream", "sampler", "host_pipe", "multi_ptr"]>];
@@ -1940,13 +1946,6 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
 }
 
-def SYCLIntelBufferLocation : InheritableAttr {
-  // No spelling, as this attribute can't be created in the source code.
-  let Spellings = [];
-  let Args = [UnsignedArgument<"LocationID">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  let Documentation = [InternalOnly];
-}
 
 def SYCLRequiresDecomposition : InheritableAttr {
   // No spellings, as this is for internal use.
@@ -2731,14 +2730,14 @@ def ExplicitInit : InheritableAttr {
 }
 
 def LifetimeBound : DeclOrTypeAttr {
-  let Spellings = [Clang<"lifetimebound", 0>];
+  let Spellings = [Clang<"lifetimebound", 1>];
   let Subjects = SubjectList<[ParmVar, ImplicitObjectParameter], ErrorDiag>;
   let Documentation = [LifetimeBoundDocs];
   let SimpleHandler = 1;
 }
 
 def LifetimeCaptureBy : DeclOrTypeAttr {
-  let Spellings = [Clang<"lifetime_capture_by", 0>];
+  let Spellings = [Clang<"lifetime_capture_by", 1>];
   let Subjects = SubjectList<[ParmVar, ImplicitObjectParameter], ErrorDiag>;
   let Args = [VariadicParamOrParamIdxArgument<"Params">];
   let Documentation = [LifetimeCaptureByDocs];
@@ -2993,7 +2992,6 @@ def NoConvergent : InheritableAttr {
   let Spellings = [Clang<"noconvergent">, Declspec<"noconvergent">];
   let Subjects = SubjectList<[Function, Stmt], WarnDiag,
                              "functions and statements">;
-  let LangOpts = [CUDA];
   let Documentation = [NoConvergentDocs];
   let SimpleHandler = 1;
 }
@@ -4106,7 +4104,7 @@ def Sentinel : InheritableAttr {
   let Args = [DefaultIntArgument<"Sentinel", 0>,
               DefaultIntArgument<"NullPos", 0>];
 //  let Subjects = SubjectList<[Function, ObjCMethod, Block, Var]>;
-  let Documentation = [Undocumented];
+  let Documentation = [SentinelDocs];
 }
 
 def StdCall : DeclOrTypeAttr {
@@ -4594,7 +4592,7 @@ def VecReturn : InheritableAttr {
 def WarnUnused : InheritableAttr {
   let Spellings = [GCC<"warn_unused">];
   let Subjects = SubjectList<[Record]>;
-  let Documentation = [Undocumented];
+  let Documentation = [WarnUnusedDocs];
   let SimpleHandler = 1;
 }
 
@@ -5868,6 +5866,12 @@ def HLSLShader : InheritableAttr {
 }];
 }
 
+def HLSLIsArray : TypeAttr {
+  let Spellings = [CXX11<"hlsl", "is_array">];
+  let LangOpts = [HLSL];
+  let Documentation = [InternalOnly];
+}
+
 def HLSLROV : TypeAttr {
   let Spellings = [CXX11<"hlsl", "is_rov">];
   let LangOpts = [HLSL];
@@ -6167,7 +6171,7 @@ def OverflowBehavior : TypeAttr {
   let Args = [IdentifierArgument<"BehaviorKind">];
   let Subjects = SubjectList<[Var, TypedefName, Field], WarnDiag,
                              "variables, typedefs, and data members">;
-  let Documentation = [Undocumented];
+  let Documentation = [OverflowBehaviorDocs];
 }
 
 def Personality : InheritableAttr {

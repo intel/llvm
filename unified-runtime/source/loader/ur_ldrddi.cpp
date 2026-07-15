@@ -6175,6 +6175,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
@@ -6187,7 +6189,7 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnCreateExp(hContext, pEventDesc, phEvent);
+  return pfnCreateExp(hContext, hDevice, pEventDesc, phEvent);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6399,6 +6401,24 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 
   // forward to device-platform
   return pfnIsEmptyExp(hGraph, pResult);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetIdExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnGetIdExp = dditable->GraphExp.pfnGetIdExp;
+  if (nullptr == pfnGetIdExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetIdExp(hGraph, pGraphId);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7105,6 +7125,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
       pDdiTable->pfnExecutableGraphDestroyExp =
           ur_loader::urGraphExecutableGraphDestroyExp;
       pDdiTable->pfnIsEmptyExp = ur_loader::urGraphIsEmptyExp;
+      pDdiTable->pfnGetIdExp = ur_loader::urGraphGetIdExp;
       pDdiTable->pfnSetDestructionCallbackExp =
           ur_loader::urGraphSetDestructionCallbackExp;
       pDdiTable->pfnDumpContentsExp = ur_loader::urGraphDumpContentsExp;

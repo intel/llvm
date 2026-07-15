@@ -9,6 +9,8 @@
 
 #include <unified-runtime/ur_api.h>
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_queue_handle_t, ur_exp_enqueue_native_command_function_t, void *,
     uint32_t, const ur_mem_handle_t *,
@@ -16,3 +18,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl
