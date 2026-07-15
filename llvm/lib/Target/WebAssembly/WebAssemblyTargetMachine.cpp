@@ -108,7 +108,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyRegStackifyPass(PR);
   initializeWebAssemblyRegColoringPass(PR);
   initializeWebAssemblyNullifyDebugValueListsLegacyPass(PR);
-  initializeWebAssemblyFixIrreducibleControlFlowPass(PR);
+  initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PR);
   initializeWebAssemblyLateEHPreparePass(PR);
   initializeWebAssemblyExceptionInfoPass(PR);
   initializeWebAssemblyCFGSortPass(PR);
@@ -446,7 +446,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
   addPass(&UnreachableMachineBlockElimID);
 
   // Eliminate multiple-entry loops.
-  addPass(createWebAssemblyFixIrreducibleControlFlow());
+  addPass(createWebAssemblyFixIrreducibleControlFlowLegacyPass());
 
   // Do various transformations for exception handling.
   // Every CFG-changing optimizations should come before this.

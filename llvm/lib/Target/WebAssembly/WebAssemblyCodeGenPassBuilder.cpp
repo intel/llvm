@@ -179,7 +179,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
   addMachineFunctionPass(UnreachableMachineBlockElimPass(), PMW);
 
   // Eliminate multiple-entry loops.
-  // TODO(boomanaiden154): WebAssemblyFixIrreducibleControlFlow
+  addMachineFunctionPass(WebAssemblyFixIrreducibleControlFlowPass(), PMW);
 
   // Do various transformations for exception handling.
   // Every CFG-changing optimizations should come before this.
