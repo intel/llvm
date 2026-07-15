@@ -75,6 +75,20 @@
 using namespace llvm;
 using namespace llvm::object;
 
+// Forward-declared instead of #include "llvm/Frontend/Offloading/Utility.h"
+// because pulling in that header (transitively llvm/Object/OffloadBinary.h)
+// makes llvm::object::OffloadKind visible via `using namespace llvm::object`
+// above, which collides with the local anonymous-namespace `enum OffloadKind`
+// this tool defines.
+namespace llvm {
+namespace offloading {
+LLVM_ABI Expected<bool>
+compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
+                        SmallVectorImpl<uint8_t> &Output, int Level = 10,
+                        size_t Threshold = 512, bool Verbose = false);
+} // namespace offloading
+} // namespace llvm
+
 // Fields in the binary descriptor which are made available to SYCL runtime
 // by the offload wrapper. Must match across tools -
 // clang/lib/Driver/Driver.cpp, sycl-post-link.cpp, ClangOffloadWrapper.cpp
@@ -1059,68 +1073,47 @@ private:
         Fbin = *FBinOrErr;
       } else {
 
-        // If '--offload-compress' option is specified and zstd is not
-        // available, throw an error.
-        if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
-          return createStringError(
-              inconvertibleErrorCode(),
-              "'--offload-compress' is specified but the compiler is "
-              "built without zstd support.\n"
-              "If you are using a custom DPC++ build, please refer to "
-              "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-              "GetStartedGuide.md#build-dpc-toolchain-with-device-image-"
-              "compression-support"
-              " for more information on how to build with zstd support.");
+        SmallVector<uint8_t, 512> CompressedBuffer;
+
+        // Diagnose --offload-compress without zstd up-front, matching the
+        // pre-refactor behavior which errored regardless of image kind or
+        // format. The guarded branch below would otherwise skip the check for
+        // non-SYCL / explicit-format images.
+        if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable())
+          return offloading::compressSYCLDeviceImage({}, CompressedBuffer)
+              .takeError();
+
+        // Skip compression when it's disabled, the image kind isn't SYCL, or
+        // the user pinned the binary image format explicitly. Otherwise
+        // delegate to the shared helper, which enforces the size-threshold
+        // check and does the verbose logging.
+        bool DidCompress = false;
+        if (OffloadCompressDevImgs && Kind == OffloadKind::SYCL &&
+            Img.Fmt == BinaryImageFormat::none) {
+          Expected<bool> Compressed = offloading::compressSYCLDeviceImage(
+              ArrayRef<uint8_t>(
+                  reinterpret_cast<const uint8_t *>(Bin->getBufferStart()),
+                  Bin->getBufferSize()),
+              CompressedBuffer, OffloadCompressLevel, OffloadCompressThreshold,
+              Verbose);
+          if (!Compressed)
+            return Compressed.takeError();
+          DidCompress = *Compressed;
         }
 
-        // Don't compress if the user explicitly specifies the binary image
-        // format or if the image is smaller than OffloadCompressThreshold
-        // bytes.
-        if (Kind != OffloadKind::SYCL || !OffloadCompressDevImgs ||
-            Img.Fmt != BinaryImageFormat::none ||
-            !llvm::compression::zstd::isAvailable() ||
-            static_cast<int>(Bin->getBufferSize()) < OffloadCompressThreshold) {
-          Fbin = addDeviceImageToModule(
-              ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
-              Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
-              Img.Tgt);
-        } else {
-
-          // Compress the image using zstd.
-          SmallVector<uint8_t, 512> CompressedBuffer;
-#if LLVM_ENABLE_EXCEPTIONS
-          try {
-#endif
-            llvm::compression::zstd::compress(
-                ArrayRef<unsigned char>(
-                    (const unsigned char *)(Bin->getBufferStart()),
-                    Bin->getBufferSize()),
-                CompressedBuffer, OffloadCompressLevel);
-#if LLVM_ENABLE_EXCEPTIONS
-          } catch (const std::exception &ex) {
-            return createStringError(inconvertibleErrorCode(),
-                                     std::string("Failed to compress the device image: \n") +
-                                     std::string(ex.what()));
-          }
-#endif
-          if (Verbose)
-            errs() << "[Compression] Original image size: "
-                   << Bin->getBufferSize() << "\n"
-                   << "[Compression] Compressed image size: "
-                   << CompressedBuffer.size() << "\n"
-                   << "[Compression] Compression level used: "
-                   << OffloadCompressLevel << "\n";
-
-          // Add the compressed image to the module.
+        if (DidCompress) {
           Fbin = addDeviceImageToModule(
               ArrayRef<char>((const char *)CompressedBuffer.data(),
                              CompressedBuffer.size()),
               Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
               Img.Tgt);
-
-          // Change image format to compressed_none.
           Ffmt = ConstantInt::get(Type::getInt8Ty(C),
                                   BinaryImageFormat::compressed_none);
+        } else {
+          Fbin = addDeviceImageToModule(
+              ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
+              Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+              Img.Tgt);
         }
       }
 

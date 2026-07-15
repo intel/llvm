@@ -44,7 +44,6 @@
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/SYCLPostLink/SYCLPostLink.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Compression.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -1179,17 +1178,13 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
                         ImageTarget, SI.CompileOptions, SI.LinkOptions);
   }
 
-  // SYCL device image compression: zstd-compress each image and flip its
-  // Format to BIF_Compressed. The SYCL runtime decompresses lazily via
-  // CompressedRTDeviceBinaryImage.
+  // SYCL device image compression. --compress and --compression-level= are
+  // the same flags that HIP forwards to clang-offload-bundler; for SYCL we
+  // consume them here and zstd-compress each image payload in place, flipping
+  // its Format to BIF_Compressed. The SYCL runtime recognizes that tag and
+  // decompresses lazily via CompressedRTDeviceBinaryImage.
   if (Args.hasArg(OPT_compress)) {
-    if (!compression::zstd::isAvailable())
-      return createStringError(
-          "'--offload-compress' is specified but zstd is not available");
-
-    // Defaults match clang-offload-wrapper.
     int Level = 10;
-    constexpr size_t Threshold = 512;
     if (auto *A = Args.getLastArg(OPT_compression_level_eq)) {
       if (StringRef(A->getValue()).getAsInteger(10, Level))
         return createStringError(
@@ -1198,21 +1193,16 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
     }
 
     for (auto &Image : Images) {
-      if (Image.Image->getBufferSize() < Threshold)
-        continue;
-
       SmallVector<uint8_t, 0> CompressedBytes;
-      const size_t OriginalSize = Image.Image->getBufferSize();
-      compression::zstd::compress(
+      Expected<bool> Compressed = offloading::compressSYCLDeviceImage(
           ArrayRef<uint8_t>(
               reinterpret_cast<const uint8_t *>(Image.Image->getBufferStart()),
-              OriginalSize),
-          CompressedBytes, Level);
-      if (Verbose)
-        errs() << "[Compression] Original image size: " << OriginalSize << "\n"
-               << "[Compression] Compressed image size: "
-               << CompressedBytes.size() << "\n"
-               << "[Compression] Compression level used: " << Level << "\n";
+              Image.Image->getBufferSize()),
+          CompressedBytes, Level, /*Threshold=*/512, Verbose);
+      if (!Compressed)
+        return Compressed.takeError();
+      if (!*Compressed)
+        continue;
       Image.Image = MemoryBuffer::getMemBufferCopy(
           StringRef(reinterpret_cast<const char *>(CompressedBytes.data()),
                     CompressedBytes.size()),

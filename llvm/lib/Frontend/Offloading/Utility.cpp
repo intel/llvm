@@ -18,7 +18,9 @@
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/ObjectYAML/ELFYAML.h"
 #include "llvm/ObjectYAML/yaml2obj.h"
+#include "llvm/Support/Compression.h"
 #include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 using namespace llvm;
@@ -505,4 +507,27 @@ void sycl::writeSymbolTable(ArrayRef<StringRef> Names, SmallString<0> &Out) {
     Out.push_back('\0');
     CurrentOffset += Names[I].size() + 1;
   }
+}
+
+Expected<bool>
+offloading::compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
+                                    SmallVectorImpl<uint8_t> &Output, int Level,
+                                    size_t Threshold, bool Verbose) {
+  if (!compression::zstd::isAvailable())
+    return createStringError(
+        "'--offload-compress' is specified but the compiler is built without "
+        "zstd support.\nIf you are using a custom DPC++ build, please refer "
+        "to https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+        "GetStartedGuide.md#build-dpc-toolchain-with-device-image-compression-"
+        "support for more information on how to build with zstd support.");
+
+  if (Input.size() < Threshold)
+    return false;
+
+  compression::zstd::compress(Input, Output, Level);
+  if (Verbose)
+    errs() << "[Compression] Original image size: " << Input.size() << "\n"
+           << "[Compression] Compressed image size: " << Output.size() << "\n"
+           << "[Compression] Compression level used: " << Level << "\n";
+  return true;
 }
