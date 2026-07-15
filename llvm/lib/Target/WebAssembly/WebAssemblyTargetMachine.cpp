@@ -107,7 +107,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyMemIntrinsicResultsPass(PR);
   initializeWebAssemblyRegStackifyPass(PR);
   initializeWebAssemblyRegColoringPass(PR);
-  initializeWebAssemblyNullifyDebugValueListsPass(PR);
+  initializeWebAssemblyNullifyDebugValueListsLegacyPass(PR);
   initializeWebAssemblyFixIrreducibleControlFlowPass(PR);
   initializeWebAssemblyLateEHPreparePass(PR);
   initializeWebAssemblyExceptionInfoPass(PR);
@@ -439,7 +439,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
   TargetPassConfig::addPreEmitPass();
 
   // Nullify DBG_VALUE_LISTs that we cannot handle.
-  addPass(createWebAssemblyNullifyDebugValueLists());
+  addPass(createWebAssemblyNullifyDebugValueListsLegacyPass());
 
   // Remove any unreachable blocks that may be left floating around.
   // Rare, but possible. Needed for WebAssemblyFixIrreducibleControlFlow.

@@ -172,7 +172,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
   Base::addPreEmitPass(PMW);
 
   // Nullify DBG_VALUE_LISTs that we cannot handle.
-  // TODO(boomanaiden154): WebAssemblyNullifyDebugValueLists
+  addMachineFunctionPass(WebAssemblyNullifyDebugValueListsPass(), PMW);
 
   // Remove any unreachable blocks that may be left floating around.
   // Rare, but possible. Needed for WebAssemblyFixIrreducibleControlFlow.
