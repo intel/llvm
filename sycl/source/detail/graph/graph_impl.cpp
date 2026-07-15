@@ -139,7 +139,8 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
 /// @param PartitionNum Number to propagate.
 void propagatePartitionUp(node_impl &Node, int PartitionNum) {
   if (((Node.MPartitionNum != -1) && (Node.MPartitionNum <= PartitionNum)) ||
-      (Node.MCGType == sycl::detail::CGType::CodeplayHostTask)) {
+      Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+      Node.MCGType == sycl::detail::CGType::NativeHostTask) {
     return;
   }
   Node.MPartitionNum = PartitionNum;
@@ -157,7 +158,8 @@ void propagatePartitionUp(node_impl &Node, int PartitionNum) {
 /// are encountered as successors to the node Node.
 void propagatePartitionDown(node_impl &Node, int PartitionNum,
                             std::list<node_impl *> &HostTaskList) {
-  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+      Node.MCGType == sycl::detail::CGType::NativeHostTask) {
     if (Node.MPartitionNum != -1) {
       HostTaskList.push_front(&Node);
     }
@@ -195,7 +197,8 @@ void exec_graph_impl::makePartitions() {
   std::list<node_impl *> HostTaskList;
   // find all the host-tasks in the graph
   for (node_impl &Node : nodes()) {
-    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+        Node.MCGType == sycl::detail::CGType::NativeHostTask) {
       HostTaskList.push_back(&Node);
     }
   }
@@ -268,7 +271,8 @@ void exec_graph_impl::makePartitions() {
         Node.MSamePartitionPredecessors = countPredecessorsInPartition(Node);
         if (Node.MSamePartitionPredecessors == 0) {
           Partition->MRoots.insert(&Node);
-          if (Node.MCGType == CGType::CodeplayHostTask) {
+          if (Node.MCGType == CGType::CodeplayHostTask ||
+              Node.MCGType == CGType::NativeHostTask) {
             Partition->MIsHostTask = true;
           }
         }

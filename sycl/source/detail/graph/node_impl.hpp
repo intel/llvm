@@ -678,6 +678,7 @@ private:
       }
       break;
     case sycl::detail::CGType::CodeplayHostTask:
+    case sycl::detail::CGType::NativeHostTask:
       Stream << "CGHostTask \\n";
       break;
     case sycl::detail::CGType::Barrier:
