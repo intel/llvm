@@ -72,9 +72,18 @@ __builtin_spirv_StochasticRoundFP16ToE2M1INTEL(_Float16, uint32_t,
                                                __attribute__((opencl_private))
                                                uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_StochasticRoundFP16ToE2M1INTEL(::sycl::detail::fp4_float16_vec2,
+                                               uint32_t,
+                                               __attribute__((opencl_private))
+                                               uint32_t *) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_StochasticRoundBF16ToE2M1INTEL(__bf16, uint32_t,
                                                __attribute__((opencl_private))
                                                uint32_t *) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_StochasticRoundBF16ToE2M1INTEL(
+    ::sycl::detail::fp4_bfloat16_vec2, uint32_t,
+    __attribute__((opencl_private)) uint32_t *) noexcept;
 
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -531,46 +540,55 @@ template <size_t N> class fp4_e2m1_x {
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // Stochastic rounding loops shared by the array and marray ctors.
-  // The seed referenced by `seed.pseed` is updated to the final next-seed
-  // value as required by the spec.
+  // Stochastic rounding shared by the array and marray ctors. The seed
+  // referenced by `seed.pseed` is updated to the returned next-seed value as
+  // required by the spec.
+  //
+  // For N == 2 the vec2 builtin does the whole pair in a single op: the
+  // SPIR-V stochastic-rounding instruction takes a scalar/vector Value and a
+  // single scalar Seed, computes results per component, and returns a single
+  // scalar Next Seed. The vec2 encode returns the packed pair of nibbles.
   void StochasticFromHalf(const half *in, const stochastic_seed &seed) {
     uint32_t current_seed = *seed.pseed;
     uint32_t next_seed;
-    uint8_t nibbles[2] = {0, 0};
-    for (size_t i = 0; i < N; ++i) {
-      const _Float16 v = sycl::bit_cast<_Float16>(in[i]);
-      nibbles[i] = __builtin_spirv_StochasticRoundFP16ToE2M1INTEL(
-          v, current_seed,
-          sycl::khr::static_addrspace_cast<
-              sycl::access::address_space::private_space>(&next_seed)
-              .get_decorated());
-      current_seed = next_seed;
+    auto *next_seed_ptr =
+        sycl::khr::static_addrspace_cast<
+            sycl::access::address_space::private_space>(&next_seed)
+            .get_decorated();
+    if constexpr (N == 1) {
+      const _Float16 v = sycl::bit_cast<_Float16>(in[0]);
+      vals[0] =
+          static_cast<uint8_t>(__builtin_spirv_StochasticRoundFP16ToE2M1INTEL(
+                                   v, current_seed, next_seed_ptr) &
+                               0x0Fu);
+    } else {
+      const ::sycl::detail::fp4_float16_vec2 v{sycl::bit_cast<_Float16>(in[0]),
+                                               sycl::bit_cast<_Float16>(in[1])};
+      vals[0] = __builtin_spirv_StochasticRoundFP16ToE2M1INTEL(v, current_seed,
+                                                               next_seed_ptr);
     }
-    *seed.pseed = current_seed;
-    if constexpr (N == 1)
-      vals[0] = static_cast<uint8_t>(nibbles[0] & 0x0Fu);
-    else
-      vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
+    *seed.pseed = next_seed;
   }
 
   void StochasticFromBFloat16(const bfloat16 *in, const stochastic_seed &seed) {
     uint32_t current_seed = *seed.pseed;
     uint32_t next_seed;
-    uint8_t nibbles[2] = {0, 0};
-    for (size_t i = 0; i < N; ++i) {
-      nibbles[i] = __builtin_spirv_StochasticRoundBF16ToE2M1INTEL(
-          sycl::bit_cast<__bf16>(in[i]), current_seed,
-          sycl::khr::static_addrspace_cast<
-              sycl::access::address_space::private_space>(&next_seed)
-              .get_decorated());
-      current_seed = next_seed;
+    auto *next_seed_ptr =
+        sycl::khr::static_addrspace_cast<
+            sycl::access::address_space::private_space>(&next_seed)
+            .get_decorated();
+    if constexpr (N == 1) {
+      vals[0] = static_cast<uint8_t>(
+          __builtin_spirv_StochasticRoundBF16ToE2M1INTEL(
+              sycl::bit_cast<__bf16>(in[0]), current_seed, next_seed_ptr) &
+          0x0Fu);
+    } else {
+      const ::sycl::detail::fp4_bfloat16_vec2 v{sycl::bit_cast<__bf16>(in[0]),
+                                                sycl::bit_cast<__bf16>(in[1])};
+      vals[0] = __builtin_spirv_StochasticRoundBF16ToE2M1INTEL(v, current_seed,
+                                                               next_seed_ptr);
     }
-    *seed.pseed = current_seed;
-    if constexpr (N == 1)
-      vals[0] = static_cast<uint8_t>(nibbles[0] & 0x0Fu);
-    else
-      vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
+    *seed.pseed = next_seed;
   }
 #endif // __SYCL_DEVICE_ONLY__
 
