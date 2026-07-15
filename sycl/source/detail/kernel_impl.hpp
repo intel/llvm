@@ -16,8 +16,9 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/kernel.hpp>
 #include <sycl/queue.hpp>
 
 #include <cassert>
@@ -74,12 +75,12 @@ public:
   /// an exception with errc::invalid error code will be thrown.
   ///
   /// \return a valid cl_kernel instance
-  cl_kernel get() const {
+  OpenCLKernelT get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                           &nativeHandle);
-    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
-    return ur::cast<cl_kernel>(nativeHandle);
+    retainOpenCLKernel(nativeHandle);
+    return ur::cast<OpenCLKernelT>(nativeHandle);
   }
 
   adapter_impl &getAdapter() const { return MContext->getAdapter(); }
@@ -215,7 +216,7 @@ public:
     Adapter.call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     if (MContext->getBackend() == backend::opencl)
-      __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
+      retainOpenCLKernel(NativeKernel);
 
     return NativeKernel;
   }
@@ -242,6 +243,10 @@ public:
                : ProgramManager::getInstance().getDeviceKernelInfo(
                      std::string_view(getName()));
   }
+  template <int Dimensions>
+  size_t queryMaxNumWorkGroups(queue Queue,
+                               const range<Dimensions> &WorkGroupSize,
+                               size_t DynamicLocalMemorySize) const;
 
 private:
   Managed<ur_kernel_handle_t> MKernel;
@@ -272,10 +277,6 @@ private:
   bool exceedsOccupancyResourceLimits(const device &Device,
                                       const range<Dimensions> &WorkGroupSize,
                                       size_t DynamicLocalMemorySize) const;
-  template <int Dimensions>
-  size_t queryMaxNumWorkGroups(queue Queue,
-                               const range<Dimensions> &WorkGroupSize,
-                               size_t DynamicLocalMemorySize) const;
 
   void enableUSMIndirectAccess() const;
   std::optional<unsigned> getFreeFuncKernelArgSize() const;
@@ -333,6 +334,10 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
 
+// NOTE: the global_work_size and spill_memory_size pre-query checks below are
+// mirrored in validateDeviceSpecificQuery (get_kernel_info_impl.cpp), which
+// serves the ext::oneapi::get_kernel_info<KernelName, Param> fast path that
+// does not go through kernel_impl. Keep both in sync.
 template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device) const {

@@ -1,14 +1,15 @@
 //===--------- usm_p2p.cpp - OpenCL Adapter-------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+
+namespace ur::opencl {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urUsmP2PEnablePeerAccessExp([[maybe_unused]] ur_device_handle_t commandDevice,
@@ -36,3 +37,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   die("Experimental P2P feature is not implemented for OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

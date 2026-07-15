@@ -51,12 +51,6 @@ static cl::opt<bool> WasmDisableExplicitLocals(
              " instruction output for test purposes only."),
     cl::init(false));
 
-static cl::opt<bool> WasmDisableFixIrreducibleControlFlowPass(
-    "wasm-disable-fix-irreducible-control-flow-pass", cl::Hidden,
-    cl::desc("webassembly: disables the fix "
-             " irreducible control flow optimization pass"),
-    cl::init(false));
-
 // Exception handling & setjmp-longjmp handling related options.
 
 // Emscripten's asm.js-style exception handling
@@ -221,6 +215,9 @@ WebAssemblyTargetMachine::WebAssemblyTargetMachine(
 
   basicCheckForEHAndSjLj(this);
   initAsmInfo();
+
+  LLT::setUseExtended(true);
+
   // Note that we don't use setRequiresStructuredCFG(true). It disables
   // optimizations than we're ok with, and want, such as critical edge
   // splitting and tail merging.
@@ -253,11 +250,6 @@ WebAssemblyTargetMachine::getSubtargetImpl(const Function &F) const {
   std::string FS =
       FSAttr.isValid() ? FSAttr.getValueAsString().str() : TargetFS;
 
-  // This needs to be done before we create a new subtarget since any
-  // creation will depend on the TM and the code generation flags on the
-  // function that reside in TargetOptions.
-  resetTargetOptions(F);
-
   return getSubtargetImpl(CPU, FS);
 }
 
@@ -286,14 +278,21 @@ public:
     bool StrippedAtomics = false;
     bool StrippedTLS = false;
 
+    // In cooperative threading mode, thread locals are meaningful even without
+    // atomics.
+    bool CooperativeThreading =
+        WasmTM->getSubtargetImpl()->hasCooperativeMultithreading();
+
     if (!Features[WebAssembly::FeatureAtomics]) {
       StrippedAtomics = stripAtomics(M);
+      if (!CooperativeThreading)
+        StrippedTLS = stripThreadLocals(M);
+    }
+    if (!Features[WebAssembly::FeatureBulkMemory] && !StrippedTLS) {
       StrippedTLS = stripThreadLocals(M);
-    } else if (!Features[WebAssembly::FeatureBulkMemory]) {
-      StrippedTLS |= stripThreadLocals(M);
     }
 
-    if (StrippedAtomics && !StrippedTLS)
+    if (StrippedAtomics && !StrippedTLS && !CooperativeThreading)
       stripThreadLocals(M);
     else if (StrippedTLS && !StrippedAtomics)
       stripAtomics(M);
@@ -413,7 +412,7 @@ private:
     // Code compiled without atomics or bulk-memory may have had its atomics or
     // thread-local data lowered to nonatomic operations or non-thread-local
     // data. In that case, we mark the pseudo-feature "shared-mem" as disallowed
-    // to tell the linker that it would be unsafe to allow this code ot be used
+    // to tell the linker that it would be unsafe to allow this code to be used
     // in a module with shared memory.
     if (Stripped) {
       M.addModuleFlag(Module::ModFlagBehavior::Error, "wasm-feature-shared-mem",
@@ -523,6 +522,9 @@ void WebAssemblyPassConfig::addIRPasses() {
   // Expand indirectbr instructions to switches.
   addPass(createIndirectBrExpandPass());
 
+  // Try to expand `vecreduce_{and, or}` into `{any, all}_true`.
+  addPass(createWebAssemblyReduceToAnyAllTrue(getWebAssemblyTargetMachine()));
+
   TargetPassConfig::addIRPasses();
 }
 
@@ -604,9 +606,12 @@ void WebAssemblyPassConfig::addPreEmitPass() {
   // Nullify DBG_VALUE_LISTs that we cannot handle.
   addPass(createWebAssemblyNullifyDebugValueLists());
 
+  // Remove any unreachable blocks that may be left floating around.
+  // Rare, but possible. Needed for WebAssemblyFixIrreducibleControlFlow.
+  addPass(&UnreachableMachineBlockElimID);
+
   // Eliminate multiple-entry loops.
-  if (!WasmDisableFixIrreducibleControlFlowPass)
-    addPass(createWebAssemblyFixIrreducibleControlFlow());
+  addPass(createWebAssemblyFixIrreducibleControlFlow());
 
   // Do various transformations for exception handling.
   // Every CFG-changing optimizations should come before this.

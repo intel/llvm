@@ -15,6 +15,7 @@
 #include <detail/cg.hpp>
 #include <detail/global_handler.hpp>
 #include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/interop_handle.hpp>
 
@@ -23,15 +24,31 @@ inline namespace _V1 {
 class interop_handle;
 namespace detail {
 class HostTask {
+  enum class HostTaskOrigin {
+    SYCLCoreAPI,
+    ExtEnqueueFunctionsAPI,
+  };
+
   std::function<void()> MHostTask;
   std::function<void(interop_handle)> MInteropTask;
+  HostTaskOrigin MOrigin;
 
 public:
-  HostTask() : MHostTask([]() {}) {}
-  HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
-  HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
+  HostTask() : MHostTask([]() {}), MOrigin(HostTaskOrigin::SYCLCoreAPI) {}
+  HostTask(std::function<void()> &&Func,
+           bool IsFromExtEnqueueFunctionsAPI = false)
+      : MHostTask(std::move(Func)),
+        MOrigin(IsFromExtEnqueueFunctionsAPI
+                    ? HostTaskOrigin::ExtEnqueueFunctionsAPI
+                    : HostTaskOrigin::SYCLCoreAPI) {}
+  HostTask(std::function<void(interop_handle)> &&Func)
+      : MInteropTask(std::move(Func)), MOrigin(HostTaskOrigin::SYCLCoreAPI) {}
 
   bool isInteropTask() const { return !!MInteropTask; }
+
+  bool isCreatedFromEnqueueFunction() const {
+    return MOrigin == HostTaskOrigin::ExtEnqueueFunctionsAPI;
+  }
 
   void call(HostProfilingInfo *HPI) {
     if (!GlobalHandler::instance().isOkToDefer()) {
@@ -59,7 +76,30 @@ public:
 
   friend class DispatchHostTask;
   friend class ExecCGCommand;
+  friend class sycl::detail::HandlerAccess;
 };
+
+inline std::function<void()> HandlerAccess::getHostTaskFunc(HostTask &HT) {
+  return std::move(HT.MHostTask);
+}
+
+struct EnqueueHostTaskData {
+  explicit EnqueueHostTaskData(std::function<void()> HostTask)
+      : Func(std::move(HostTask)) {}
+
+  std::function<void()> Func;
+};
+
+template <bool OwnsData> inline void NativeHostTask(void *Data) {
+  auto *HostTaskData = static_cast<EnqueueHostTaskData *>(Data);
+  if constexpr (OwnsData) {
+    // so it's freed if the user function throws
+    std::unique_ptr<EnqueueHostTaskData> Owner(HostTaskData);
+    Owner->Func();
+  } else {
+    HostTaskData->Func();
+  }
+}
 
 } // namespace detail
 } // namespace _V1

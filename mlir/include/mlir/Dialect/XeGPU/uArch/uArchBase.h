@@ -19,6 +19,7 @@
 #include <iostream>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <tuple>
 
@@ -36,13 +37,14 @@ enum class InstructionScope { Lane, Subgroup, Workgroup, Cluster };
 enum class InstructionKind {
   SubgroupMatrixMultiplyAcc, // Dot Product Accumulate Systolic (DPAS) is a
                              // matrix multiply-add operation
-  Subgroup2DBlockStore,      // Subgroup-level 2D block write instruction
-  Subgroup2DBlockLoad,       // Subgroup-level 2D block load instruction
-  Subgroup2DBlockPrefetch,   // Subgroup-level 2D block prefetch instruction
-  StoreScatter,              // Lane-level store (scalar, vector)
-  LoadGather,                // Lane-level load (scalar, vector)
-  StoreMatrix,               // Lane-level matrix store to slm
-  LoadMatrix                 // Lane-level matrix load to slm
+  SubgroupScaledMatrixMultiplyAcc, // Scaled Matrix Multiply Accumulate is a
+                                   // DPAS with scaling factor applied to
+                                   // operand A or B before multiplication
+  Subgroup2DBlockStore,            // Subgroup-level 2D block write instruction
+  Subgroup2DBlockLoad,             // Subgroup-level 2D block load instruction
+  Subgroup2DBlockPrefetch, // Subgroup-level 2D block prefetch instruction
+  StoreScatter,            // Lane-level store (scalar, vector)
+  LoadGather,              // Lane-level load (scalar, vector)
   // @TODO: Add more instructions as needed
 };
 
@@ -63,6 +65,8 @@ struct Instruction {
     switch (instKind) {
     case InstructionKind::SubgroupMatrixMultiplyAcc:
       return "dpas";
+    case InstructionKind::SubgroupScaledMatrixMultiplyAcc:
+      return "dpas_mx";
     case InstructionKind::Subgroup2DBlockStore:
       return "store_nd";
     case InstructionKind::Subgroup2DBlockLoad:
@@ -73,10 +77,6 @@ struct Instruction {
       return "store";
     case InstructionKind::LoadGather:
       return "load";
-    case InstructionKind::StoreMatrix:
-      return "store_matrix";
-    case InstructionKind::LoadMatrix:
-      return "load_matrix";
     }
     llvm_unreachable("Unknown InstructionKind");
   }
@@ -252,8 +252,26 @@ struct MMAInstructionInterface {
   virtual llvm::SmallVector<uint32_t, 8> getSupportedM(Type type) const = 0;
   virtual llvm::SmallVector<uint32_t, 8> getSupportedK(Type type) const = 0;
   virtual llvm::SmallVector<uint32_t, 8> getSupportedN(Type type) const = 0;
-
+  virtual bool isLaneLayoutRowMajorOrder() const = 0;
   virtual ~MMAInstructionInterface() = default;
+};
+
+// Interface for subgroup-level 2D block instructions (load / store / prefetch).
+// All three describe the set of hardware-supported block shapes via
+// (width, height, count) tuples and share a packed-format bit size. The
+// transform / transpose / upConv flags are only meaningful for loads; store
+// and prefetch implementations ignore them.
+struct BlockIOInstructionInterface {
+  // Returns the supported (widths, heights, counts) for the given element
+  // type, or std::nullopt if the element type is unsupported.
+  virtual std::optional<
+      std::tuple<llvm::ArrayRef<int>, llvm::ArrayRef<int>, llvm::ArrayRef<int>>>
+  getBlockWidthHeightCount(Type elemTy, bool hasTransform = false,
+                           bool hasTranspose = false,
+                           bool upConv = false) const = 0;
+  // Bit size of the packed format used by this block instruction.
+  virtual int32_t getPackedFormatBitSize() const = 0;
+  virtual ~BlockIOInstructionInterface() = default;
 };
 
 //===----------------------------------------------------------------------===//
@@ -280,28 +298,6 @@ struct StoreScatterInstructionInterface : public Instruction {
 
   virtual int32_t getMaxLaneStoreSize(int32_t bitWidth) const = 0;
   virtual ~StoreScatterInstructionInterface() = default;
-};
-
-struct LoadMatrixInstructionInterface : public Instruction {
-  LoadMatrixInstructionInterface()
-      : Instruction(InstructionKind::LoadMatrix, InstructionScope::Lane) {}
-  static bool classof(const Instruction *B) {
-    return B->getInstructionKind() == InstructionKind::LoadMatrix;
-  }
-
-  virtual int32_t getMaxLaneLoadSize(int32_t bitWidth) const = 0;
-  virtual ~LoadMatrixInstructionInterface() = default;
-};
-
-struct StoreMatrixInstructionInterface : public Instruction {
-  StoreMatrixInstructionInterface()
-      : Instruction(InstructionKind::StoreMatrix, InstructionScope::Lane) {}
-  static bool classof(const Instruction *B) {
-    return B->getInstructionKind() == InstructionKind::StoreMatrix;
-  }
-
-  virtual int32_t getMaxLaneStoreSize(int32_t bitWidth) const = 0;
-  virtual ~StoreMatrixInstructionInterface() = default;
 };
 
 } // namespace uArch

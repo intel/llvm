@@ -52,6 +52,9 @@ llvm_config.with_system_environment(
 )
 
 config.substitutions.append(("%python", '"%s"' % (sys.executable)))
+config.substitutions.append(
+    ("%dpclangxx", os.path.join(config.install_bin_dir, "dpclang++"))
+)
 
 # Propagate extra environment variables
 if config.extra_environment:
@@ -202,6 +205,6 @@ if not dump_only_tests:
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    config.maxIndividualTestTime = 600
 except ImportError:
     pass

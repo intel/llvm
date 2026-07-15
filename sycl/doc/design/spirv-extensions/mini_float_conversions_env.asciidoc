@@ -1,145 +1,136 @@
-Mini-float Types and Conversions Environment Specification
-==========================================================
+:fp4_extension_name: SPV_EXT_ocp_microscaling_types
+:fp4_encoding_name: Float4E2M1EXT
+
+= Mini-float Types and Conversions Environment Specification
+
+== Implementation Notes
 
 This document provides list of supported conversions for types and instructions
-added in *SPV_EXT_float8*, *SPV_INTEL_int4*, *SPV_INTEL_float4* and *SPV_INTEL_fp_conversions* extensons
-in Level-Zero and OpenCL Environments for Intel platforms. +
+added by the *SPV_INTEL_fp_conversions*, *SPV_EXT_float8*, *SPV_INTEL_int4*,
+*{fp4_extension_name}* extensions for Level-Zero and OpenCL Environments for
+Intel platforms.
 
-Conversion from NaNs to `Float4E2M1INTEL`
------------------------------------------
+NOTE: These implementation notes will eventually be moved to client API specifications.
 
-NaNs are converted to largest representable finite value with a matching sign.
+The following conversions are supported for *OpFConvert*.
 
-Float to float conversions via OpFConvert
------------------------------------------
+ * For conversions to the fp8 types *Float8E4M3EXT* and *Float8E5M2EXT*, use the *SaturatedToLargestFloat8NormalConversionEXT* decoration to control whether the conversions are saturated.
+ * For conversions to the fp4 type *{fp4_encoding_name}*, the conversion is always saturated to the nearest representable value.
+ * For conversions to the *BFloat16KHR* type, the only supported rounding mode is *RTE* (round to nearest even), and is the default rounding mode.
+ * For conversions to the fp8 types *Float8E4M3EXT* and *Float8E5M2EXT*, the only supported rounding mode is *RTE* (round to nearest even), and is the default rounding mode.
+ * For conversions to the fp4 type *{fp4_encoding_name}*, the only supported rounding mode is *RTE* (round to nearest even), and is the default rounding mode.
 
-Conversions to *OpTypeFloat* with *Float4E2M1INTEL* encoding are being done with
-round to the nearest even (RTE) mode by default. It's illegal to put any *FPRoundingMode*
-decoration other than *RTE* on the instruction in these cases. *RoundingModeRTZ*
-execution mode has no affect on these conversions. +
+[cols="9*^.^", width="100%"]
+|====
+2.2+| *OpFConvert*: 7+| To:
+| 64-bit *IEEE754* | 32-bit *IEEE754* | 16-bit *IEEE754* | *BFloat16KHR* | *Float8E4M3EXT* | *Float8E5M2EXT* | *{fp4_encoding_name}*
+.7+| From:
+//                       fp64  fp32  fp16  bf16  e4m3  e5m2  e2m1
+| 64-bit *IEEE754*      |  -  | Yes | Yes |     |     |     |
+| 32-bit *IEEE754*      | Yes |  -  | Yes | Yes |     |     |
+| 16-bit *IEEE754*      | Yes | Yes |  -  | Yes | Yes | Yes | Yes
+| *BFloat16KHR*         |     | Yes | Yes |  -  | Yes | Yes | Yes
+| *Float8E4M3EXT*       |     |     | Yes | Yes |  -  |     |
+| *Float8E5M2EXT*       |     |     | Yes | Yes |     |  -  |
+| *{fp4_encoding_name}* |     |     | Yes | Yes | Yes | Yes |  -
+|====
 
-Only the following conversions via *OpFConvert* to or from 4-bit floating-point values with the `Float4E2M1INTEL` encoding
-are supported: +
- +
+The following conversions are supported for *OpStochasticRoundFToFINTEL*.
 
-[cols="1,1", options="header"]
-|===
-| To *Float4E2M1INTEL* 'Result' | From *Float4E2M1INTEL* 'Value'
-| From 16-bit *IEEE754*      | To 16-bit *IEEE754*
-| From 16-bit *BFloat16KHR*  | To 16-bit *BFloat16KHR*
-|                            | To 8-bit *Float8E4M3EXT*
-|                            | To 8-bit *Float8E5M2EXT*
-|===
+ * For conversions to the fp8 types *Float8E4M3EXT* and *Float8E5M2EXT*, use the *SaturatedToLargestFloat8NormalConversionEXT* decoration to control whether the conversions are saturated.
+ * For conversions to the fp4 type *{fp4_encoding_name}*, the conversion is always saturated to the nearest representable value.
+ * For conversions to the fp8 types *Float8E4M3EXT* and *Float8E5M2EXT*, the only supported rounding mode is *RTE* (round to nearest even), and is the default rounding mode.
+ * For conversions to the fp4 type *{fp4_encoding_name}*, the only supported rounding mode is *RTE* (round to nearest even), and is the default rounding mode.
 
-Only the following conversions via *OpFConvert* to or from 8-bit floating-point values with the `Float8E4M3EXT` and `Float8E5M2EXT` encodings
-are supported: +
- +
+[cols="9*^.^", width="100%"]
+|====
+2.2+| *OpStochasticRoundFToFINTEL*: 7+| To:
+| 64-bit *IEEE754* | 32-bit *IEEE754* | 16-bit *IEEE754* | *BFloat16KHR* | *Float8E4M3EXT* | *Float8E5M2EXT* | *{fp4_encoding_name}*
+.7+| From:
+//                       fp64  fp32  fp16  bf16  e4m3  e5m2  e2m1
+| 64-bit *IEEE754*      |  -  |     |     |     |     |     |
+| 32-bit *IEEE754*      |     |  -  | Yes |     |     |     |
+| 16-bit *IEEE754*      |     |     |  -  |     | Yes | Yes | Yes
+| *BFloat16KHR*         |     |     |     |  -  | Yes | Yes | Yes
+| *Float8E4M3EXT*       |     |     |     |     |  -  |     |
+| *Float8E5M2EXT*       |     |     |     |     |     |  -  |
+| *{fp4_encoding_name}* |     |     |     |     |     |     |  -
+|====
 
-[cols="1,1", options="header"]
-|===
-| To *Float8E4M3EXT* 'Result' | From *Float8E4M3EXT* 'Value'
-| From 16-bit *IEEE754*      | To 16-bit *IEEE754*
-| From 16-bit *BFloat16KHR*  | To 16-bit *BFloat16KHR*
-| From 4-bit *Float4E2M1INTEL*  |
-|===
+The following conversions are supported for *OpClampConvertFToSINTEL* and *OpClampStochasticRoundFToSINTEL*.
 
-[cols="1,1", options="header"]
-|===
-| To *Float8E5M2EXT* 'Result' | From *Float8E5M2EXT* 'Value'
-| From 16-bit *IEEE754*      | To 16-bit *IEEE754*
-| From 16-bit *BFloat16KHR*  | To 16-bit *BFloat16KHR*
-| From 4-bit *Float4E2M1INTEL*  |
-|===
+* For these conversions, the only supported rounding mode is *RTE* (round to nearest even), and is the default rounding mode.
 
-Float to integer conversions via OpConvertFToS
-----------------------------------------------
+[cols="3*^.^", width="20%"]
+|====
+2.2+| *OpClampConvertFToSINTEL* and +
+*OpClampStochasticRoundFToSINTEL*: 1+| To:
+| 4-bit *Integer*
+.7+| From:
+//                       int4
+| 64-bit *IEEE754*      |
+| 32-bit *IEEE754*      |
+| 16-bit *IEEE754*      | Yes
+| *BFloat16KHR*         | Yes
+| *Float8E4M3EXT*       |
+| *Float8E5M2EXT*       |
+| *{fp4_encoding_name}* |
+|====
 
-Only the following conversions via *OpConvertFToS* from float to 4-bit integer values are supported: +
- +
+NOTE: There is currently no support for saturated conversions from 32-bit *IEEE754* to 16-bit *IEEE754* - is this OK?
 
-[cols="1,1", options="header"]
-|===
-| _Result_      | 'Value'
-| 4-bit integer | 16-bit *IEEE754*
-| 4-bit integer | 16-bit *BFloat16KHR*
-|===
+=== Mappings from Prior Names
 
-Float to float conversions via OpClampConvertFToFINTEL
-------------------------------------------------------
+This section describes mappings from prior versions of this extension and related extensions to the new names:
 
-Only the following conversions via *OpClampConvertFToFINTEL* are supported: +
- +
+NOTE: This mapping is informative and may be removed before publishing.
 
-[cols="1,1", options="header"]
-|===
-| _Result_                  | 'Value'
-| 16-bit *IEEE754*          | 32-bit *IEEE754*
-| 8-bit *Float8E5M2EXT*     | 16-bit *IEEE754*
-| 8-bit *Float8E5M2EXT*     | 16-bit *BFloat16KHR*
-| 8-bit *Float8E4M3EXT*     | 16-bit *IEEE754*
-| 8-bit *Float8E4M3EXT*     | 16-bit *BFloat16KHR*
-| 4-bit *Float4E2M1INTEL*     | 16-bit *IEEE754*
-| 4-bit *Float4E2M1INTEL*     | 16-bit *BFloat16KHR*
-|===
+[cols="2*", width="100%"]
+[options="header"]
+|====
+| Prior Name: | New Name:
 
-Float to integer conversions via OpClampConvertFToSINTEL
---------------------------------------------------------
+// OpClampConvertFToFINTEL:
 
-Only the following conversions via *OpClampConvertFToSINTEL* from float to 4-bit integer values are supported: +
- +
+| *OpClampConvertFToFINTEL* +
+to *Float8E4M3EXT* or *Float8E5M2EXT*
+| *OpFConvert* +
+with *SaturatedToLargestFloat8NormalConversionEXT*
 
-[cols="1,1", options="header"]
-|===
-| _Result_      | 'Value'
-| 4-bit integer | 16-bit *IEEE754*
-| 4-bit integer | 16-bit *BFloat16KHR*
-|===
+| *OpClampConvertFToFINTEL* +
+to *{fp4_encoding_name}*
+| *OpFConvert* +
+(saturation is unconditional to *{fp4_encoding_name}*)
 
-Float to float conversions via OpStochasticRoundFToFINTEL
----------------------------------------------------------
+| *OpClampConvertFToFINTEL* +
+to 16-bit *IEEE754*
+| Not supported - is this OK?
 
-Only the following conversions via *OpStochasticRoundFToFINTEL* are supported: +
- +
+// OpClampStochasticRoundFToFINTEL:
 
-[cols="1,1", options="header"]
-|===
-| _Result_                  | 'Value'
-| 16-bit *IEEE754*          | 32-bit *IEEE754*
-| 8-bit *Float8E5M2EXT*     | 16-bit *IEEE754*
-| 8-bit *Float8E5M2EXT*     | 16-bit *BFloat16KHR*
-| 8-bit *Float8E4M3EXT*     | 16-bit *IEEE754*
-| 8-bit *Float8E4M3EXT*     | 16-bit *BFloat16KHR*
-| 4-bit *Float4E2M1INTEL*   | 16-bit *IEEE754*
-| 4-bit *Float4E2M1INTEL*   | 16-bit *BFloat16KHR*
-|===
+| *OpClampStochasticRoundFToFINTEL* +
+to *Float8E4M3EXT* or *Float8E5M2EXT*
+| *OpStochasticRoundFToFINTEL* +
+with *SaturatedToLargestFloat8NormalConversionEXT*
 
-Float to float conversions via OpClampStochasticRoundFToFINTEL
---------------------------------------------------------------
+| *OpClampStochasticRoundFToFINTEL* +
+to *{fp4_encoding_name}*
+| *OpStochasticRoundFToFINTEL* +
+(saturation is unconditional to *{fp4_encoding_name}*)
 
-Only the following conversions via *OpClampStochasticRoundFToFINTEL* are supported: +
- +
-[cols="1,1", options="header"]
-|===
-| _Result_                  | 'Value'
-| 16-bit *IEEE754*          | 32-bit *IEEE754*
-| 8-bit *Float8E5M2EXT*     | 16-bit *IEEE754*
-| 8-bit *Float8E5M2EXT*     | 16-bit *BFloat16KHR*
-| 8-bit *Float8E4M3EXT*     | 16-bit *IEEE754*
-| 8-bit *Float8E4M3EXT*     | 16-bit *BFloat16KHR*
-| 4-bit *Float4E2M1INTEL*   | 16-bit *IEEE754*
-| 4-bit *Float4E2M1INTEL*   | 16-bit *BFloat16KHR*
-|===
+| *OpClampStochasticRoundFToFINTEL* +
+to 16-bit *IEEE754*
+| Not supported - is this OK?
 
+|====
 
-Float to integer conversions via OpClampStochasticRoundFToSINTEL
-----------------------------------------------------------------
+== Revision History
 
-Only the following conversions via *OpClampStochasticRoundFToSINTEL* from float to 4-bit integer values are supported: +
- +
-
-[cols="1,1", options="header"]
-|===
-| _Result_      | 'Value'
-| 4-bit integer | 16-bit *IEEE754*
-| 4-bit integer | 16-bit *BFloat16KHR*
-|===
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2024-06-15|Dmitry Sidorov|Initial revision
+|1|2026-05-28|Ben Ashbaugh|More preparations for publication
+|========================================

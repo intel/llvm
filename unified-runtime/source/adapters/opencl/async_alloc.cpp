@@ -1,14 +1,15 @@
 //===--------- async_alloc.cpp - CUDA Adapter -----------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include <unified-runtime/ur_api.h>
+
+namespace ur::opencl {
 
 UR_APIEXPORT ur_result_t urEnqueueUSMDeviceAllocExp(
     ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
@@ -38,3 +39,5 @@ UR_APIEXPORT ur_result_t urEnqueueUSMFreeExp(ur_queue_handle_t,
                                              ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

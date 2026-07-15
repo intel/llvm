@@ -10,10 +10,9 @@ from templates import helper as th
     Adapter=adapter.upper()
 %>//===--------- ${n}_interface_loader.hpp - Level Zero Adapter ------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -41,7 +40,7 @@ ${x}_result_t ${th.make_func_name(n, tags, obj)}(
 %endif
 %endfor
 %endfor
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#ifdef UR_STATIC_ADAPTER_${Adapter}
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif
 

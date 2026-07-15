@@ -98,6 +98,16 @@ def Aspectext_oneapi_clock_device : Aspect<"ext_oneapi_clock_device">;
 def Aspectext_oneapi_is_integrated_gpu : Aspect<"ext_oneapi_is_integrated_gpu">;
 def Aspectext_oneapi_ipc_memory : Aspect<"ext_oneapi_ipc_memory">;
 def Aspectext_oneapi_device_wait : Aspect<"ext_oneapi_device_wait">;
+def Aspectext_intel_xe_stack_count : Aspect<"ext_intel_xe_stack_count">;
+def Aspectext_intel_xe_regions_per_stack : Aspect<"ext_intel_xe_regions_per_stack">;
+def Aspectext_intel_xe_clusters_per_region : Aspect<"ext_intel_xe_clusters_per_region">;
+def Aspectext_intel_xe_cores_per_cluster : Aspect<"ext_intel_xe_cores_per_cluster">;
+def Aspectext_intel_eus_per_xe_core : Aspect<"ext_intel_eus_per_xe_core">;
+def Aspectext_intel_max_lanes_per_hw_thread : Aspect<"ext_intel_max_lanes_per_hw_thread">;
+def Aspectext_oneapi_ipc_physical_memory : Aspect<"ext_oneapi_ipc_physical_memory">;
+def Aspectext_oneapi_register_host_memory : Aspect<"ext_oneapi_register_host_memory">;
+def Aspectext_oneapi_per_event_profiling : Aspect<"ext_oneapi_per_event_profiling">;
+def Aspectext_oneapi_ipc_event : Aspect<"ext_oneapi_ipc_event">;
 
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
@@ -177,7 +187,17 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_oneapi_clock_device,
     Aspectext_oneapi_is_integrated_gpu,
     Aspectext_oneapi_ipc_memory,
-    Aspectext_oneapi_device_wait],
+    Aspectext_oneapi_device_wait,
+    Aspectext_intel_xe_stack_count,
+    Aspectext_intel_xe_regions_per_stack,
+    Aspectext_intel_xe_clusters_per_region,
+    Aspectext_intel_xe_cores_per_cluster,
+    Aspectext_intel_eus_per_xe_core,
+    Aspectext_intel_max_lanes_per_hw_thread,
+    Aspectext_oneapi_ipc_physical_memory,
+    Aspectext_oneapi_register_host_memory,
+    Aspectext_oneapi_per_event_profiling,
+    Aspectext_oneapi_ipc_event],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -203,6 +223,7 @@ def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
 def : TargetInfo<"spir64_x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"intel_cpu_spr", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
+def : TargetInfo<"intel_cpu_gnr", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
 //defvar AspectList = [AspectCpu] # AllUSMAspects;
 //def : TargetInfo<"Test", AspectList, []>;
@@ -245,16 +266,20 @@ def : IntelTargetInfo<"intel_gpu_nvl_p", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_nvl_u", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_nvl_s", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_wcl", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_ptl", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_ptl_u", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_ptl_h", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_bmg", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_bmg_g31", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_mtl", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_pvc_vg", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_pvc", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_dg2", Fp16Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_acm_g12", Fp16Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_acm_g11", Fp16Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_acm_g10", Fp16Atomic64, Sg8_16_32>;

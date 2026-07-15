@@ -15,6 +15,11 @@
 ; CHECK-SPIRV-DAG: Capability Float8EXT
 ; CHECK-SPIRV-DAG: Capability FloatConversionsINTEL
 
+; When SPV_INTEL_fp_conversions is enabled, ClampConvert<Src>To<E4M3|E5M2>INTEL
+; must use the OpClampConvertFToFINTEL encoding, not the SPV_EXT_float8
+; OpFConvert + SaturatedToLargestFloat8NormalConversionEXT form.
+; CHECK-SPIRV-NOT: SaturatedToLargestFloat8NormalConversionEXT
+
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_int4"
 ; CHECK-SPIRV-DAG: Extension "SPV_EXT_float8"
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_float4"
@@ -66,12 +71,12 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: hf16_hf8_clamp
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z43__builtin_spirv_ClampConvertFP16ToE4M3INTELDh(half 0xH3C00)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z43__builtin_spirv_ClampConvertFP16ToE4M3INTELDh(half 1.000000e+00)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_hf8_clamp() {
 entry:
-  %0 = call i8 @_Z43__builtin_spirv_ClampConvertFP16ToE4M3INTELDh(half 1.0)
+  %0 = call spir_func i8 @_Z43__builtin_spirv_ClampConvertFP16ToE4M3INTELDh(half 1.0)
   ret i8 %0
 }
 
@@ -83,12 +88,12 @@ declare dso_local spir_func i8 @_Z43__builtin_spirv_ClampConvertFP16ToE4M3INTELD
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: hf16_bf8_clamp
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z43__builtin_spirv_ClampConvertFP16ToE5M2INTELDh(half 0xH3C00)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z43__builtin_spirv_ClampConvertFP16ToE5M2INTELDh(half 1.000000e+00)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_bf8_clamp() {
 entry:
-  %0 = call i8 @_Z43__builtin_spirv_ClampConvertFP16ToE5M2INTELDh(half 1.0)
+  %0 = call spir_func i8 @_Z43__builtin_spirv_ClampConvertFP16ToE5M2INTELDh(half 1.0)
   ret i8 %0
 }
 
@@ -100,12 +105,12 @@ declare dso_local spir_func i8 @_Z43__builtin_spirv_ClampConvertFP16ToE5M2INTELD
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: bf16_hf8_clamp
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z43__builtin_spirv_ClampConvertBF16ToE4M3INTELDF16b(bfloat 0xR3F80)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z43__builtin_spirv_ClampConvertBF16ToE4M3INTELDF16b(bfloat 1.000000e+00)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @bf16_hf8_clamp() {
 entry:
-  %0 = call i8 @_Z43__builtin_spirv_ClampConvertBF16ToE4M3INTELDF16b(bfloat 1.0)
+  %0 = call spir_func i8 @_Z43__builtin_spirv_ClampConvertBF16ToE4M3INTELDF16b(bfloat 1.0)
   ret i8 %0
 }
 
@@ -117,12 +122,12 @@ declare dso_local spir_func i8 @_Z43__builtin_spirv_ClampConvertBF16ToE4M3INTELD
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: bf16_bf8_clamp
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z43__builtin_spirv_ClampConvertBF16ToE5M2INTELDF16b(bfloat 0xR3F80)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z43__builtin_spirv_ClampConvertBF16ToE5M2INTELDF16b(bfloat 1.000000e+00)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @bf16_bf8_clamp() {
 entry:
-  %0 = call i8 @_Z43__builtin_spirv_ClampConvertBF16ToE5M2INTELDF16b(bfloat 1.0)
+  %0 = call spir_func i8 @_Z43__builtin_spirv_ClampConvertBF16ToE5M2INTELDF16b(bfloat 1.0)
   ret i8 %0
 }
 
@@ -134,12 +139,12 @@ declare dso_local spir_func i8 @_Z43__builtin_spirv_ClampConvertBF16ToE5M2INTELD
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: hf16_bf8_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhi(half 0xH3C00, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhi(half 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_bf8_stochastic() {
 entry:
-  %0 = call i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhi(half 1.0, i32 1)
+  %0 = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhi(half 1.0, i32 1)
   ret i8 %0
 }
 
@@ -151,12 +156,12 @@ declare dso_local spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INT
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: hf16_hf8_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE4M3INTELDhi(half 0xH3C00, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE4M3INTELDhi(half 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_hf8_stochastic() {
 entry:
-  %0 = call i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE4M3INTELDhi(half 1.0, i32 1)
+  %0 = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE4M3INTELDhi(half 1.0, i32 1)
   ret i8 %0
 }
 
@@ -168,12 +173,12 @@ declare dso_local spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE4M3INT
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: bf16_bf8_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE5M2INTELDF16bi(bfloat 0xR3F80, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE5M2INTELDF16bi(bfloat 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @bf16_bf8_stochastic() {
 entry:
-  %0 = call i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE5M2INTELDF16bi(bfloat 1.0, i32 1)
+  %0 = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE5M2INTELDF16bi(bfloat 1.0, i32 1)
   ret i8 %0
 }
 
@@ -185,12 +190,12 @@ declare dso_local spir_func i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE5M2INT
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: bf16_hf8_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE4M3INTELDF16bi(bfloat 0xR3F80, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE4M3INTELDF16bi(bfloat 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @bf16_hf8_stochastic() {
 entry:
-  %0 = call i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE4M3INTELDF16bi(bfloat 1.0, i32 1)
+  %0 = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE4M3INTELDF16bi(bfloat 1.0, i32 1)
   ret i8 %0
 }
 
@@ -202,12 +207,12 @@ declare dso_local spir_func i8 @_Z46__builtin_spirv_StochasticRoundBF16ToE4M3INT
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: hf16_fp4e2m1_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i4 @_Z46__builtin_spirv_StochasticRoundFP16ToE2M1INTELDhi(half 0xH3C00, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i4 @_Z46__builtin_spirv_StochasticRoundFP16ToE2M1INTELDhi(half 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i4 %[[#Call]]
 
 define spir_func i4 @hf16_fp4e2m1_stochastic() {
 entry:
-  %0 = call i4 @_Z46__builtin_spirv_StochasticRoundFP16ToE2M1INTELDhi(half 1.0, i32 1)
+  %0 = call spir_func i4 @_Z46__builtin_spirv_StochasticRoundFP16ToE2M1INTELDhi(half 1.0, i32 1)
   ret i4 %0
 }
 
@@ -219,12 +224,12 @@ declare dso_local spir_func i4 @_Z46__builtin_spirv_StochasticRoundFP16ToE2M1INT
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: bf16_fp4e2m1_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i4 @_Z46__builtin_spirv_StochasticRoundBF16ToE2M1INTELDF16bi(bfloat 0xR3F80, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i4 @_Z46__builtin_spirv_StochasticRoundBF16ToE2M1INTELDF16bi(bfloat 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i4 %[[#Call]]
 
 define spir_func i4 @bf16_fp4e2m1_stochastic() {
 entry:
-  %0 = call i4 @_Z46__builtin_spirv_StochasticRoundBF16ToE2M1INTELDF16bi(bfloat 1.0, i32 1)
+  %0 = call spir_func i4 @_Z46__builtin_spirv_StochasticRoundBF16ToE2M1INTELDF16bi(bfloat 1.0, i32 1)
   ret i4 %0
 }
 
@@ -235,12 +240,12 @@ declare dso_local spir_func i4 @_Z46__builtin_spirv_StochasticRoundBF16ToE2M1INT
 ; CHECK-SPIRV: ReturnValue [[#Conv]]
 
 ; CHECK-LLVM-LABEL: hf16_int4_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToInt4INTELDhi(half 0xH3C00, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToInt4INTELDhi(half 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i4 %[[#Call]]
 
 define spir_func i4 @hf16_int4_stochastic() {
 entry:
-  %0 = call i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToInt4INTELhs(half 1.0, i32 1)
+  %0 = call spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToInt4INTELhs(half 1.0, i32 1)
   ret i4 %0
 }
 
@@ -251,12 +256,12 @@ declare dso_local spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToIn
 ; CHECK-SPIRV: ReturnValue [[#Conv]]
 
 ; CHECK-LLVM-LABEL: bf16_int4_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i4 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToInt4INTELDF16bi(bfloat 0xR3F80, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToInt4INTELDF16bi(bfloat 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i4 %[[#Call]]
 
 define spir_func i4 @bf16_int4_stochastic() {
 entry:
-  %0 = call i4 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToInt4INTELDF16bi(bfloat 1.0, i32 1)
+  %0 = call spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToInt4INTELDF16bi(bfloat 1.0, i32 1)
   ret i4 %0
 }
 
@@ -268,12 +273,12 @@ declare dso_local spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToIn
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: hf16_bf8_clamp_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhi(half 0xH3C00, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhi(half 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_bf8_clamp_stochastic() {
 entry:
-  %0 = call i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhi(half 1.0, i32 1)
+  %0 = call spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhi(half 1.0, i32 1)
   ret i8 %0
 }
 
@@ -285,12 +290,12 @@ declare dso_local spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: bf16_bf8_clamp_stochastic
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTELDF16bi(bfloat 0xR3F80, i32 1)
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTELDF16bi(bfloat 1.000000e+00, i32 1)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @bf16_bf8_clamp_stochastic() {
 entry:
-  %0 = call i8 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTELDF16bi(bfloat 1.0, i32 1)
+  %0 = call spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTELDF16bi(bfloat 1.0, i32 1)
   ret i8 %0
 }
 
@@ -304,13 +309,13 @@ declare dso_local spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundBF16ToE5
 
 ; CHECK-LLVM-LABEL: hf16_bf8_stochastic_last_seed
 ; CHECK-LLVM: %[[#Ptr:]] = alloca i32
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhiPi(half 0xH3C00, i32 1, ptr %[[#Ptr]])
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhiPi(half 1.000000e+00, i32 1, ptr %[[#Ptr]])
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_bf8_stochastic_last_seed() {
 entry:
   %0 = alloca i32
-  %1 = call i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhiPi(half 1.0, i32 1, ptr %0)
+  %1 = call spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhiPi(half 1.0, i32 1, ptr %0)
   ret i8 %1
 }
 
@@ -323,13 +328,13 @@ declare dso_local spir_func i8 @_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INT
 
 ; CHECK-LLVM-LABEL: hf16_int4_stochastic_last_seed
 ; CHECK-LLVM: %[[#Ptr:]] = alloca i32
-; CHECK-LLVM: %[[#Call:]] = call i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToInt4INTELDhiPi(half 0xH3C00, i32 1, ptr %[[#Ptr]])
+; CHECK-LLVM: %[[#Call:]] = call spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToInt4INTELDhiPi(half 1.000000e+00, i32 1, ptr %[[#Ptr]])
 ; CHECK-LLVM: ret i4 %[[#Call]]
 
 define spir_func i4 @hf16_int4_stochastic_last_seed() {
 entry:
   %0 = alloca i32
-  %1 = call i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToInt4INTELhiPi(half 1.0, i32 1, ptr %0)
+  %1 = call spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToInt4INTELhiPi(half 1.0, i32 1, ptr %0)
   ret i4 %1
 }
 
@@ -343,13 +348,13 @@ declare dso_local spir_func i4 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToIn
 
 ; CHECK-LLVM-LABEL: hf16_bf8_clamp_stochastic_last_seed
 ; CHECK-LLVM: %[[#Ptr:]] = alloca i32
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhiPi(half 0xH3C00, i32 1, ptr %[[#Ptr]])
+; CHECK-LLVM: %[[#Call:]] = call spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhiPi(half 1.000000e+00, i32 1, ptr %[[#Ptr]])
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_bf8_clamp_stochastic_last_seed() {
 entry:
   %0 = alloca i32
-  %1 = call i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhiPi(half 1.0, i32 1, ptr %0)
+  %1 = call spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhiPi(half 1.0, i32 1, ptr %0)
   ret i8 %1
 }
 

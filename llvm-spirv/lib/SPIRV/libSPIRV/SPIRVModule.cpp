@@ -53,6 +53,7 @@
 #include "SPIRVValue.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/STLExtras.h"
 
 #include <set>
 #include <unordered_map>
@@ -545,6 +546,11 @@ public:
                                                   llvm::MDNode *MD) override;
   SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
                                          SPIRVBasicBlock *BB) override;
+  SPIRVValue *addPoisonKHR(SPIRVType *TheType) override;
+  SPIRVInstruction *addFreezeKHRInst(SPIRVType *TheType, SPIRVValue *Value,
+                                     SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addAbortKHRInst(SPIRVValue *Message,
+                                    SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy, SPIRVValue *Value,
                                      SPIRVValue *ExpectedValue,
                                      SPIRVBasicBlock *BB) override;
@@ -1023,8 +1029,16 @@ bool SPIRVModuleImpl::importBuiltinSet(const std::string &BuiltinSetName,
 bool SPIRVModuleImpl::importBuiltinSetWithId(const std::string &BuiltinSetName,
                                              SPIRVId BuiltinSetId) {
   SPIRVExtInstSetKind BuiltinSet = SPIRVEIS_Count;
-  SPIRVCKRT(SPIRVBuiltinSetNameMap::rfind(BuiltinSetName, &BuiltinSet),
-            InvalidBuiltinSetName, "Actual is " + BuiltinSetName);
+  if (!SPIRVBuiltinSetNameMap::rfind(BuiltinSetName, &BuiltinSet)) {
+    // Per the non-semantic principle, a consumer may safely ignore any
+    // "NonSemantic.*" extended instruction set it does not recognize.
+    // Accept the import and tag it with a sentinel kind.
+    if (BuiltinSetName.find("NonSemantic.") == 0) {
+      IdToInstSetMap[BuiltinSetId] = SPIRVEIS_NonSemantic_Unknown;
+      return true;
+    }
+    SPIRVCKRT(false, InvalidBuiltinSetName, "Actual is " + BuiltinSetName);
+  }
   IdToInstSetMap[BuiltinSetId] = BuiltinSet;
   ExtInstSetIds[BuiltinSet] = BuiltinSetId;
   return true;
@@ -1433,6 +1447,13 @@ SPIRVValue *SPIRVModuleImpl::addNullConstant(SPIRVType *Ty) {
 
 SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
     SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
+  // Add an OpSpecConstantComposite instead if any of the elements is a
+  // SpecConstant.
+  if (llvm::any_of(Elements, [](SPIRVValue *V) {
+        return isSpecConstantOpCode(V->getOpCode());
+      }))
+    return addSpecConstantComposite(Ty, Elements);
+
   constexpr int MaxNumElements = MaxWordCount - SPIRVConstantComposite::FixedWC;
   const int NumElements = Elements.size();
 
@@ -2010,6 +2031,24 @@ SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
 SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueKHRInst(SPIRVValue *Condition,
                                                         SPIRVBasicBlock *BB) {
   return addInstruction(new SPIRVAssumeTrueKHR(Condition->getId(), BB), BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addAbortKHRInst(SPIRVValue *Message,
+                                                   SPIRVBasicBlock *BB) {
+  return addInstruction(new SPIRVAbortKHR(Message, BB), BB);
+}
+
+SPIRVValue *SPIRVModuleImpl::addPoisonKHR(SPIRVType *TheType) {
+  return addConstant(new SPIRVPoisonKHR(this, TheType, getId()));
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addFreezeKHRInst(SPIRVType *TheType,
+                                                    SPIRVValue *Value,
+                                                    SPIRVBasicBlock *BB) {
+  return addInstruction(
+      SPIRVInstTemplateBase::create(OpFreezeKHR, TheType, getId(),
+                                    getVec(Value->getId()), BB, this),
+      BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,

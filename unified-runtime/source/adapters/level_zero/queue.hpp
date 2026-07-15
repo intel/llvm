@@ -1,9 +1,8 @@
 //===--------- queue.hpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -595,11 +594,11 @@ struct ur_queue_handle_t_ : ur_object {
   void CaptureIndirectAccesses();
 
   // Kernel is not necessarily submitted for execution during
-  // urEnqueueKernelLaunch, it may be batched. That's why we need to save the
-  // list of kernels which is going to be submitted but have not been submitted
-  // yet. This is needed to capture memory allocations for each kernel with
-  // indirect access in the list at the moment when kernel is really submitted
-  // for execution.
+  // urEnqueueKernelLaunchWithArgsExp, it may be batched. That's why we need to
+  // save the list of kernels which is going to be submitted but have not been
+  // submitted yet. This is needed to capture memory allocations for each kernel
+  // with indirect access in the list at the moment when kernel is really
+  // submitted for execution.
   std::vector<ur_kernel_handle_t> KernelsToBeSubmitted;
 
   // Append command to the command list to signal new event if the last event in

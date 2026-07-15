@@ -143,17 +143,6 @@ public:
   bool operator!=(const property_list &rhs) const { return false; }
 };
 
-namespace ext {
-namespace intel {
-namespace property {
-// Compile time known accessor property
-struct __SYCL_TYPE(buffer_location) buffer_location {
-  template <int> class instance {};
-};
-} // namespace property
-} // namespace intel
-} // namespace ext
-
 template <typename ElementType, access::address_space addressSpace>
 struct DecoratedType;
 

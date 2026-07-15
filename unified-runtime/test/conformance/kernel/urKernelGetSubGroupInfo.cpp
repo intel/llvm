@@ -1,6 +1,5 @@
-// Copyright (C) 2023-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -10,9 +9,11 @@
 
 struct urKernelGetSubGroupInfoFixedSubGroupSizeTest : uur::urKernelTest {
   void SetUp() override {
+    // CUDA/HIP: The loaded device image does not carry the kernel metadata required for this query.
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     // See https://github.com/oneapi-src/unified-runtime/issues/2514
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::OpenCL{},
-                         uur::LevelZero{}, uur::LevelZeroV2{});
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{}, uur::LevelZero{}, uur::LevelZeroV2{});
     program_name = "fixed_sg_size";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }

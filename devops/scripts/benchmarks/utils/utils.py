@@ -1,6 +1,5 @@
-# Copyright (C) 2024-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import gzip
@@ -212,7 +211,7 @@ def download(dir, url, file, untar=False, unzip=False, checksum=""):
 
 def get_device_architecture(additional_env_vars):
     sycl_ls_output = run(
-        ["sycl-ls", "--verbose"], add_sycl=True, env_vars=additional_env_vars
+        ["dpsycl-ls", "--verbose"], add_sycl=True, env_vars=additional_env_vars
     ).stdout.decode()
 
     architectures = set()
@@ -235,7 +234,7 @@ def warn_if_level_zero_is_not_found(additional_env_vars) -> bool:
     sycl_ls_found_l0 = False
 
     sycl_ls_output = run(
-        ["sycl-ls"], add_sycl=True, env_vars=additional_env_vars
+        ["dpsycl-ls"], add_sycl=True, env_vars=additional_env_vars
     ).stdout.decode()
 
     for line in sycl_ls_output.splitlines():

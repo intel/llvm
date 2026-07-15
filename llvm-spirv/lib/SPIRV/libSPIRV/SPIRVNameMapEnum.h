@@ -58,6 +58,7 @@ template <> inline void SPIRVMap<LinkageType, std::string>::init() {
   add(LinkageTypeExport, "Export");
   add(LinkageTypeImport, "Import");
   add(LinkageTypeLinkOnceODR, "LinkOnceODR");
+  add(LinkageTypeWeakAMD, "WeakAMD");
   add(internal::LinkageTypeInternal, "Internal");
   add(LinkageTypeMax, "Max");
 }
@@ -92,6 +93,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationUniform, "Uniform");
   add(DecorationUniformId, "UniformId");
   add(DecorationSaturatedConversion, "SaturatedConversion");
+  add(DecorationSaturatedToLargestFloat8NormalConversionEXT,
+      "SaturatedToLargestFloat8NormalConversionEXT");
   add(DecorationStream, "Stream");
   add(DecorationLocation, "Location");
   add(DecorationComponent, "Component");
@@ -487,6 +490,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFragmentMaskAMD, "FragmentMaskAMD");
   add(CapabilityStencilExportEXT, "StencilExportEXT");
   add(CapabilityImageReadWriteLodAMD, "ImageReadWriteLodAMD");
+  add(CapabilityWeakLinkageAMD, "WeakLinkageAMD");
   add(CapabilityInt64ImageEXT, "Int64ImageEXT");
   add(CapabilityShaderClockKHR, "ShaderClockKHR");
   add(CapabilitySampleMaskOverrideCoverageNV, "SampleMaskOverrideCoverageNV");
@@ -576,6 +580,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityBindlessTextureNV, "BindlessTextureNV");
   add(CapabilitySubgroupShuffleINTEL, "SubgroupShuffleINTEL");
   add(CapabilitySubgroupBufferBlockIOINTEL, "SubgroupBufferBlockIOINTEL");
+  add(CapabilitySubgroupBufferPrefetchINTEL, "SubgroupBufferPrefetchINTEL");
   add(CapabilitySubgroupImageBlockIOINTEL, "SubgroupImageBlockIOINTEL");
   add(CapabilitySubgroupImageMediaBlockIOINTEL,
       "SubgroupImageMediaBlockIOINTEL");
@@ -640,6 +645,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityLongCompositesINTEL, "LongCompositesINTEL");
   add(CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
+  add(CapabilityAtomicFloat16VectorNV, "AtomicFloat16VectorNV");
   add(internal::CapabilityAtomicBFloat16AddINTEL, "AtomicBFloat16AddINTEL");
   add(internal::CapabilityAtomicBFloat16MinMaxINTEL,
       "AtomicBFloat16MinMaxINTEL");
@@ -672,6 +678,9 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "SubgroupMatrixMultiplyAccumulateINTEL");
   add(CapabilityTernaryBitwiseFunctionINTEL, "TernaryBitwiseFunctionINTEL");
   add(CapabilityFMAKHR, "FMAKHR");
+  add(CapabilityPredicatedIOINTEL, "PredicatedIOINTEL");
+  add(CapabilityAbortKHR, "AbortKHR");
+  add(CapabilityPoisonFreezeKHR, "PoisonFreezeKHR");
   // From spirv_internal.hpp
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
@@ -706,7 +715,6 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityBFloat16ArithmeticINTEL, "BFloat16ArithmeticINTEL");
   add(CapabilityFloat8EXT, "Float8EXT");
   add(CapabilityFloat8CooperativeMatrixEXT, "Float8CooperativeMatrixEXT");
-  add(internal::CapabilityPredicatedIOINTEL, "PredicatedIOINTEL");
   add(internal::CapabilitySigmoidINTEL, "SigmoidINTEL");
   add(internal::CapabilityDeviceBarrierINTEL, "DeviceBarrierINTEL");
   add(internal::CapabilityFloat4E2M1INTEL, "Float4E2M1INTEL");
@@ -718,6 +726,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityInt16AtomicsINTEL, "Int16AtomicsINTEL");
   add(internal::CapabilityAtomicBFloat16LoadStoreINTEL,
       "AtomicBFloat16LoadStoreINTEL");
+  add(CapabilityRoundedDivideSqrtINTEL, "RoundedDivideSqrtINTEL");
   add(CapabilityFloatControls2, "FloatControls2");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)

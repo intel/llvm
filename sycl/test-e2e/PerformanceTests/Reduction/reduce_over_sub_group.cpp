@@ -3,6 +3,7 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/17872
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/sub_group.hpp>

@@ -10,4 +10,4 @@
 // RUN: -Xsycl-target-backend --offload-arch=gfx908 --rocm-path=%S/Inputs/rocm %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ONLY-NEEDED %s
 
-// CHK-ONLY-NEEDED: llvm-link"{{.*}}"-only-needed"{{.*}}"{{.*}}devicelib-amdgcn-amd-amdhsa.bc"{{.*}}
+// CHK-ONLY-NEEDED: llvm-link"{{.*}}"--only-needed"{{.*}}"{{.*}}devicelib-amdgcn-amd-amdhsa.bc"{{.*}}

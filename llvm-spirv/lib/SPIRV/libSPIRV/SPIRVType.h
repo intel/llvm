@@ -86,6 +86,7 @@ public:
   bool isTypeReserveId() const;
   bool isTypeFloat(unsigned Bits = 0,
                    unsigned FloatingPointEncoding = FPEncodingMax) const;
+  bool isTypeIEEE754Float() const;
   bool isTypeImage() const;
   bool isTypeOCLImage() const;
   bool isTypePipe() const;
@@ -175,7 +176,9 @@ public:
       break;
     default:
       if (Module->isAllowedToUseExtension(
-              ExtensionID::SPV_INTEL_arbitrary_precision_integers))
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+          Module->isAllowedToUseExtension(
+              ExtensionID::SPV_ALTERA_arbitrary_precision_integers))
         CV.push_back(CapabilityArbitraryPrecisionIntegersINTEL);
     }
     return CV;
@@ -185,7 +188,10 @@ public:
     case 4: {
       if (Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4))
         return ExtensionID::SPV_INTEL_int4;
-      return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+      if (Module->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers))
+        return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+      return ExtensionID::SPV_ALTERA_arbitrary_precision_integers;
     }
     case 8:
     case 16:
@@ -193,7 +199,10 @@ public:
     case 64:
       return {};
     default:
-      return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+      if (Module->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers))
+        return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+      return ExtensionID::SPV_ALTERA_arbitrary_precision_integers;
     }
   }
 
@@ -206,7 +215,9 @@ protected:
             BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
             BitWidth == 64 ||
             Module->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_arbitrary_precision_integers)) &&
+                ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+            Module->isAllowedToUseExtension(
+                ExtensionID::SPV_ALTERA_arbitrary_precision_integers)) &&
            "Invalid bit width");
   }
 
@@ -635,6 +646,8 @@ public:
       CV.push_back(CapabilityImageReadWrite);
     if (Desc.MS)
       CV.push_back(CapabilityImageMipmap);
+    if (Desc.Format == ImageFormatR64ui || Desc.Format == ImageFormatR64i)
+      CV.push_back(CapabilityInt64ImageEXT);
     return CV;
   }
   SPIRVType *getSampledType() const { return get<SPIRVType>(SampledType); }
@@ -646,21 +659,21 @@ public:
 protected:
   _SPIRV_DEF_ENCDEC9(Id, SampledType, Desc.Dim, Desc.Depth, Desc.Arrayed,
                      Desc.MS, Desc.Sampled, Desc.Format, Acc)
-  // The validation assumes OpenCL image or sampler type.
   void validate() const override {
     assert(OpCode == OC);
     assert(WordCount == FixedWC + Acc.size());
     assert(SampledType != SPIRVID_INVALID && "Invalid sampled type");
     assert(Desc.Dim <= 5);
-    assert(Desc.Depth <= 1);
+    assert(Desc.Depth <= 2);
     assert(Desc.Arrayed <= 1);
     assert(Desc.MS <= 1);
-    assert(Desc.Sampled == 0); // For OCL only
-    assert(Desc.Format == 0);  // For OCL only
+    assert(Desc.Sampled <= 2);
+    assert(Desc.Format <= ImageFormatR64i);
     assert(Acc.size() <= 1);
   }
   void setWordCount(SPIRVWord TheWC) override {
-    WordCount = TheWC;
+    SPIRVEntry::setWordCount(TheWC);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     Acc.resize(WordCount - FixedWC);
   }
 
@@ -783,6 +796,7 @@ public:
 
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVType::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     MemberTypeIdVec.resize(WordCount - FixedWC);
   }
 
@@ -832,10 +846,11 @@ private:
 
 class SPIRVTypeFunction : public SPIRVType {
 public:
+  constexpr static SPIRVWord FixedWC = 3;
   // Complete constructor
   SPIRVTypeFunction(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheReturnType,
                     const std::vector<SPIRVType *> &TheParameterTypes)
-      : SPIRVType(M, 3 + TheParameterTypes.size(), OpTypeFunction, TheId),
+      : SPIRVType(M, FixedWC + TheParameterTypes.size(), OpTypeFunction, TheId),
         ReturnType(TheReturnType) {
     for (const SPIRVType *T : TheParameterTypes) {
       ParamTypeIdVec.push_back(T->getId());
@@ -862,7 +877,8 @@ protected:
   _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeIdVec)
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVType::setWordCount(WordCount);
-    ParamTypeIdVec.resize(WordCount - 3);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
+    ParamTypeIdVec.resize(WordCount - FixedWC);
   }
   void validate() const override {
     SPIRVEntry::validate();

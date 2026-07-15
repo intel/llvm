@@ -9,6 +9,7 @@
 
 // REQUIRES: aspect-ext_intel_matrix, gpu
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22281
 
 // RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DOOB -DVNNI
 // RUN: %{run} %t_gpu_vnni.out

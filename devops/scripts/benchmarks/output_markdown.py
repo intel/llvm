@@ -1,7 +1,5 @@
-# Copyright (C) 2024-2025 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-# Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import collections
@@ -121,6 +119,7 @@ def get_explicit_group_name(result: Result, metadata: dict[str, BenchmarkMetadat
     except Exception:
         log.debug(f"No explicit group found for {result.label}, using 'Other'")
         return "Other"
+
 
 # Function to generate the markdown collapsible sections for each variant
 def generate_markdown_details(

@@ -25,13 +25,13 @@ $dg_int2 = comdat any
 ; CHECK-MOD2-NOT: @dg_int2
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel3RN2cl4sycl5queueEEUlvE_() #1 comdat !kernel_arg_buffer_location !10 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel3RN2cl4sycl5queueEEUlvE_() #1 comdat {
 entry:
   ret void
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel1RN2cl4sycl5queueEEUlvE_() #2 comdat !kernel_arg_buffer_location !10 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel1RN2cl4sycl5queueEEUlvE_() #2 comdat {
 entry:
   %0 = alloca %"class.cl::sycl::detail::accessor_common", align 1
   %1 = addrspacecast %"class.cl::sycl::detail::accessor_common"* %0 to %"class.cl::sycl::detail::accessor_common" addrspace(4)*
@@ -71,7 +71,7 @@ entry:
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel2RN2cl4sycl5queueEEUlvE_() #4 comdat !kernel_arg_buffer_location !10 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel2RN2cl4sycl5queueEEUlvE_() #4 comdat {
 entry:
   %0 = alloca %"class.cl::sycl::detail::accessor_common", align 1
   %1 = addrspacecast %"class.cl::sycl::detail::accessor_common"* %0 to %"class.cl::sycl::detail::accessor_common" addrspace(4)*
@@ -103,7 +103,7 @@ entry:
   ret i32 addrspace(4)* %val
 }
 
-attributes #0 = { "sycl-device-global-size"="4" "sycl-host-access"="2" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-unique-id"="dg_int2" }
+attributes #0 = { "sycl-device-global-size"="4" "sycl-host-access"="1" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-unique-id"="dg_int2" }
 attributes #1 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test_global_variable_main.cpp" "uniform-work-group-size"="true" }
 attributes #2 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test_global_variable_1.cpp" "uniform-work-group-size"="true" }
 attributes #3 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
@@ -120,14 +120,13 @@ attributes #6 = { convergent nounwind }
 !0 = !{!1, !2, !3}
 !1 = !{i32 6149, i32 1}
 !2 = !{i32 6148, i32 0}
-!3 = !{i32 6188, i32 2, !"dg_int2"}
+!3 = !{i32 6147, i32 1, !"dg_int2"}
 !4 = !{!"libcpmt"}
 !5 = !{i32 1, i32 2}
 !6 = !{i32 4, i32 100000}
 !7 = !{!"clang version 14.0.0"}
 !8 = !{i32 1, !"wchar_size", i32 2}
 !9 = !{i32 7, !"frame-pointer", i32 2}
-!10 = !{}
-; CHECK-MOD0: !{i32 6188, i32 2, !"dg_int2"}
-; CHECK-MOD1: !{i32 6188, i32 2, !"dg_int2"}
-; CHECK-MOD2-NOT: !{i32 6188, i32 2, !"dg_int2"}
+; CHECK-MOD0: !{i32 6147, i32 1, !"dg_int2"}
+; CHECK-MOD1: !{i32 6147, i32 1, !"dg_int2"}
+; CHECK-MOD2-NOT: !{i32 6147, i32 1, !"dg_int2"}

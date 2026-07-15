@@ -1,6 +1,5 @@
-# Copyright (C) 2022-2025 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 if (UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
@@ -80,12 +79,13 @@ if(umf_FOUND)
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
-  
-  # commit 6c97f3de424fa5d852f2e1c0d8f0dfbbc9b419b6 
+
+  # commit a190c7c07858b1668c9204d169ce47b78574769d
   # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Tue Feb 3 14:28:16 2026 +0100
-  # 1.1.0 release
-  set(UMF_TAG v1.1.0)
+  # Date:   Wed Jul 8 13:45:13 2026 +0200
+  # Merge pull request #1585 from wenju-he/hwloc-external-project-add
+  # Build hwloc via ExternalProject_Add instead of raw add_custom_command
+  set(UMF_TAG v1.2.0-dev2)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -139,6 +139,7 @@ if (UNIX)
 endif()
 
 install(TARGETS ur_common
+    COMPONENT unified-runtime
     EXPORT ${PROJECT_NAME}-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -158,3 +159,14 @@ target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
 )
+
+# Install ur_umf when any static adapter is enabled, so install(EXPORT ...)
+# can resolve it for static consumers.
+if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_OPENCL)
+    install(TARGETS ur_umf
+        EXPORT ${PROJECT_NAME}-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()

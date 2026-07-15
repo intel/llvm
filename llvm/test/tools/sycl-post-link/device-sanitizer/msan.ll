@@ -20,12 +20,12 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel = comdat any
 @__MsanKernelMetadata = appending dso_local local_unnamed_addr addrspace(1) global [1 x { i64, i64 }] [{ i64, i64 } { i64 ptrtoint (ptr addrspace(1) @__msan_kernel to i64), i64 54 }], !spirv.Decorations !9 #0
 ; CHECK-IR: @__MsanKernelMetadata = dso_local local_unnamed_addr addrspace(1) global %0 { {{.*}} }, !spirv.Decorations [[MD1:![0-9]+]] #{{.*}}
 ; CHECK-IR: [[MD1]] = !{[[MD2:![0-9]+]]}
-; CHECK-IR: [[MD2]] = !{i32 6188, i32 0, !"_Z20__SanitizerKernelMetadata"}
+; CHECK-IR: [[MD2]] = !{i32 6147, i32 0, !"_Z20__SanitizerKernelMetadata"}
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 @__msan_func = internal addrspace(2) constant [106 x i8] c"typeinfo name for main::'lambda'(sycl::_V1::handler&)::operator()(sycl::_V1::handler&) const::MyKernelR_4\00"
 
 ; Function Attrs: mustprogress norecurse nounwind sanitize_memory uwtable
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel(ptr addrspace(1) noundef align 4 %_arg_array) local_unnamed_addr #1 comdat !srcloc !6 !kernel_arg_buffer_location !7 !sycl_fixed_targets !8 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel(ptr addrspace(1) noundef align 4 %_arg_array) local_unnamed_addr #1 comdat !srcloc !6 !sycl_fixed_targets !8 {
 entry:
   %0 = load i32, ptr addrspace(1) %_arg_array, align 4
   %1 = ptrtoint ptr addrspace(1) %_arg_array to i64
@@ -69,7 +69,7 @@ declare i64 @__msan_get_shadow(i64, i32)
 declare void @__msan_maybe_warning_1(i8, i32, ptr addrspace(2), i32, ptr addrspace(2))
 declare void @__msan_maybe_warning_8(i8, i32, ptr addrspace(2), i32, ptr addrspace(2))
 
-attributes #0 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="1" "sycl-unique-id"="_Z20__MsanKernelMetadata" }
+attributes #0 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__MsanKernelMetadata" }
 attributes #1 = { mustprogress norecurse nounwind sanitize_memory uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="check_call.cpp" "sycl-single-task" "uniform-work-group-size"="true" }
 attributes #2 = { mustprogress noinline norecurse nounwind sanitize_memory uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 
@@ -85,7 +85,6 @@ attributes #2 = { mustprogress noinline norecurse nounwind sanitize_memory uwtab
 !4 = !{i32 4, i32 100000}
 !5 = !{!"clang version 19.0.0git (https://github.com/intel/llvm f8eada76c08c6a5e6c5842842ac5b98fa72669be)"}
 !6 = !{i32 563}
-!7 = !{i32 -1}
 !8 = !{}
 !9 = !{!10}
 !10 = !{i32 41, !"__MsanKernelMetadata", i32 0}

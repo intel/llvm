@@ -334,6 +334,11 @@ inline VulkanContext createVulkanContext() {
   appInfo.apiVersion = VK_API_VERSION_1_2;
 
   std::vector<const char *> instanceExtensions;
+  VkInstanceCreateInfo createInfo{};
+  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  createInfo.pApplicationInfo = &appInfo;
+
+#ifndef ONT_VALIDATE
   uint32_t instanceExtensionCount = 0;
   VK_CHECK(vkEnumerateInstanceExtensionProperties(
       nullptr, &instanceExtensionCount, nullptr));
@@ -373,13 +378,8 @@ inline VulkanContext createVulkanContext() {
     throw std::runtime_error("failed to find Vulkan validation layer!");
   }
 
-  VkInstanceCreateInfo createInfo{};
-  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  createInfo.pApplicationInfo = &appInfo;
   createInfo.ppEnabledLayerNames = &validationLayerName;
   createInfo.enabledLayerCount = 1;
-  createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
-  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
 
   VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerInfo{};
   debugUtilsMessengerInfo.sType =
@@ -397,8 +397,16 @@ inline VulkanContext createVulkanContext() {
   // that occur while creating the instance itself. This debug util messangegr
   // will be alive only during instance creation.
   createInfo.pNext = &debugUtilsMessengerInfo;
+#else
+  ctx.debugMessenger = VK_NULL_HANDLE;
+#endif
+
+  createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
+  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
+
   VK_CHECK(vkCreateInstance(&createInfo, nullptr, &ctx.instance));
 
+#ifndef ONT_VALIDATE
   // Create a persistent debug messenger that stays alive for the application's
   // lifetime to capture all subsequent events.
   auto vkCreateDebugUtilsMessengerFuncPtr =
@@ -411,6 +419,7 @@ inline VulkanContext createVulkanContext() {
     throw std::runtime_error(
         "Failed to fetch vkCreateDebugUtilsMessengerEXT function pointer!");
   }
+#endif
 
   uint32_t deviceCount = 0;
   vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, nullptr);
@@ -466,6 +475,7 @@ inline VulkanContext createVulkanContext() {
 
 inline void cleanupVulkanContext(VulkanContext &ctx) {
   vkDestroyDevice(ctx.device, nullptr);
+#ifndef ONT_VALIDATE
   auto vkDestroyDebugUtilsMessengerFuncPtr =
       (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
           ctx.instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -473,6 +483,7 @@ inline void cleanupVulkanContext(VulkanContext &ctx) {
     vkDestroyDebugUtilsMessengerFuncPtr(ctx.instance, ctx.debugMessenger,
                                         nullptr);
   }
+#endif
   vkDestroyInstance(ctx.instance, nullptr);
 }
 
@@ -1045,6 +1056,7 @@ bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
   VkCommandPoolCreateInfo poolInfo{};
   poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   poolInfo.queueFamilyIndex = ctx.queueFamilyIndex;
+  poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   VkCommandPool commandPool;
   VK_CHECK(vkCreateCommandPool(ctx.device, &poolInfo, nullptr, &commandPool));
 
@@ -1065,6 +1077,9 @@ bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
 
   VkImageMemoryBarrier barrier{};
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.pNext = nullptr;
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1075,8 +1090,6 @@ bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
   barrier.subresourceRange.levelCount = 1;
   barrier.subresourceRange.baseArrayLayer = 0;
   barrier.subresourceRange.layerCount = 1;
-  barrier.srcAccessMask = 0;
-  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
   vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
@@ -1228,6 +1241,7 @@ inline void cleanupVulkan(VulkanContext &ctx, ImageResources &res) {
   vkDestroyImage(ctx.device, res.image, nullptr);
   vkFreeMemory(ctx.device, res.memory, nullptr);
   vkDestroyDevice(ctx.device, nullptr);
+#ifndef ONT_VALIDATE
   auto vkDestroyDebugUtilsMessengerFuncPtr =
       (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
           ctx.instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -1235,5 +1249,6 @@ inline void cleanupVulkan(VulkanContext &ctx, ImageResources &res) {
     vkDestroyDebugUtilsMessengerFuncPtr(ctx.instance, ctx.debugMessenger,
                                         nullptr);
   }
+#endif
   vkDestroyInstance(ctx.instance, nullptr);
 }

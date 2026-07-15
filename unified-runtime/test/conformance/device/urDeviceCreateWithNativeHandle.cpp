@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
@@ -10,6 +9,8 @@ using urDeviceCreateWithNativeHandleTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urDeviceCreateWithNativeHandleTest);
 
 TEST_P(urDeviceCreateWithNativeHandleTest, Success) {
+  // Related issue: #22025
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
   ur_native_handle_t native_handle = 0;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
@@ -34,6 +35,8 @@ TEST_P(urDeviceCreateWithNativeHandleTest, Success) {
 
 TEST_P(urDeviceCreateWithNativeHandleTest,
        SuccessWithExplicitUnOwnedNativeHandle) {
+  // Related issue: #22025
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
   ur_native_handle_t native_handle = 0;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetNativeHandle(device, &native_handle));

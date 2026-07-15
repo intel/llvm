@@ -1,9 +1,8 @@
 //===--------- event.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -14,10 +13,11 @@
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool.hpp"
-#include "event_provider.hpp"
+#include "event_provider_counter.hpp"
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
 
+#include "../device.hpp"
 #include "../ur_interface_loader.hpp"
 
 static uint64_t adjustEndEventTimestamp(uint64_t adjustedStartTimestamp,
@@ -122,6 +122,11 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   profilingData.reset();
 }
 
+ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
+                                       event_variant hZeEvent,
+                                       v2::event_flags_t flags)
+    : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr) {}
+
 void ur_event_handle_t_::setBatch(ur_event_generation_t batch_generation) {
   this->batchGeneration = batch_generation;
 }
@@ -165,11 +170,7 @@ void ur_event_handle_t_::reset() {
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
-  if (event_pool) {
-    return std::get<v2::raii::cache_borrowed_event>(hZeEvent).get();
-  } else {
-    return std::get<v2::raii::ze_event_handle_t>(hZeEvent).get();
-  }
+  return std::visit([](const auto &handle) { return handle.get(); }, hZeEvent);
 }
 
 ur_result_t ur_event_handle_t_::retain() {
@@ -177,16 +178,23 @@ ur_result_t ur_event_handle_t_::retain() {
   return UR_RESULT_SUCCESS;
 }
 
+struct event_teardown {
+  v2::event_pool *event_pool;
+  ur_event_handle_t_ *event;
+
+  void operator()(const v2::raii::cache_borrowed_event &) {
+    event_pool->free(event);
+  }
+
+  void operator()(const v2::raii::ze_event_handle_t &) { delete event; }
+  void operator()(const v2::raii::ipc_event_handle_t &) { delete event; }
+};
+
 ur_result_t ur_event_handle_t_::release() {
   if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
-  if (event_pool) {
-    event_pool->free(this);
-  } else {
-    std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
-    delete this;
-  }
+  std::visit(event_teardown{event_pool, this}, hZeEvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -196,6 +204,14 @@ bool ur_event_handle_t_::isTimestamped() const {
 
 bool ur_event_handle_t_::isProfilingEnabled() const {
   return flags & v2::EVENT_FLAGS_PROFILING_ENABLED;
+}
+
+bool ur_event_handle_t_::isIpcCapable() const {
+  return flags & v2::EVENT_FLAGS_IPC;
+}
+
+bool ur_event_handle_t_::isIpcImported() const {
+  return flags & v2::EVENT_FLAGS_IPC_IMPORTED;
 }
 
 std::pair<uint64_t *, ze_event_handle_t>
@@ -412,6 +428,39 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
   } else {
     *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);
   }
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             ur_device_handle_t hDevice,
+                             const ur_exp_event_desc_t *pEventDesc,
+                             ur_event_handle_t *phEvent) try {
+  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pEventDesc && phEvent, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(!(pEventDesc->flags & UR_EXP_EVENT_FLAGS_MASK),
+            UR_RESULT_ERROR_INVALID_ENUMERATION);
+
+  const v2::event_flags_t flags =
+      v2::EVENT_FLAGS_COUNTER |
+      (pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING
+           ? v2::EVENT_FLAGS_PROFILING_ENABLED
+           : 0) |
+      (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP ? v2::EVENT_FLAGS_IPC : 0);
+
+  UR_ASSERT(!(flags & v2::EVENT_FLAGS_IPC &&
+              flags & v2::EVENT_FLAGS_PROFILING_ENABLED),
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  auto eventPool =
+      hContext->getReusableEventPoolCache().borrow(hDevice->Id.value(), flags);
+  assert(eventPool);
+
+  // IPC events must not be recycled (their native handle may outlive this
+  // process's reference), so they get a detached, self-owning event.
+  *phEvent = (flags & v2::EVENT_FLAGS_IPC) ? eventPool->allocateDetached()
+                                           : eventPool->allocate();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

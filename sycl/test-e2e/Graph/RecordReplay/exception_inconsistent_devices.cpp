@@ -5,6 +5,7 @@
 // This test checks that an exception is thrown when we try to
 // record a graph whose device differs from the queue device.
 // We ensure that the exception code matches the expected code.
+#include <iostream>
 
 #include "../graph_common.hpp"
 

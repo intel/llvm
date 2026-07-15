@@ -1,9 +1,8 @@
 //===--------- common.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -11,6 +10,7 @@
 #include "common.hpp"
 #include "logger/ur_logger.hpp"
 #include "usm.hpp"
+#include <level_zero/ze_api.h>
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -344,6 +344,28 @@ getZexStructureType<ze_intel_device_block_array_exp_properties_t>() {
   return ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
 }
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+
+template <>
+ze_structure_type_ext_t
+getZexStructureType<ze_intel_xe_device_exp_properties_t>() {
+  return ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+}
+template <>
+ze_structure_type_t
+getZeStructureType<ze_device_pitched_alloc_exp_properties_t>() {
+  return ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+}
+
+template <>
+ze_structure_type_t
+getZeStructureType<ze_pitched_alloc_2dimage_linear_pitch_exp_info_t>() {
+  return ZE_STRUCTURE_TYPE_PITCHED_ALLOC_2DIMAGE_LINEAR_PITCH_EXP_INFO;
+}
+template <>
+ze_structure_type_ext_t
+getZexStructureType<ze_record_replay_graph_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
+}
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local int32_t ErrorMessageCode = 0;

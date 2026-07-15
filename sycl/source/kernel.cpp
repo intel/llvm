@@ -11,13 +11,14 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/ur.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
 #include <sycl/kernel.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 
 // TODO(pi2ur): Don't cast straight from cl_kernel below
-kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
+kernel::kernel(OpenCLKernelT ClKernel, const context &SyclContext) {
   using namespace sycl::detail;
   adapter_impl &Adapter = ur::getAdapter<backend::opencl>();
   Managed<ur_kernel_handle_t> hKernel{Adapter};
@@ -31,11 +32,11 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainKernel, ClKernel);
+    retainOpenCLKernel(nativeHandle);
   }
 }
 
-cl_kernel kernel::get() const { return impl->get(); }
+OpenCLKernelT kernel::get() const { return impl->get(); }
 
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();
@@ -55,13 +56,17 @@ kernel::get_info_impl() const {
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
-  kernel::get_info_impl<info::kernel::Desc>() const;
-
-#include <sycl/info/kernel_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_KERNEL_INFO_INST(NAME, RETURN_T)                                \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  kernel::get_info_impl<info::kernel::NAME>() const;
+__SYCL_KERNEL_INFO_INST(num_args, uint32_t)
+__SYCL_KERNEL_INFO_INST(attributes, std::string)
+__SYCL_KERNEL_INFO_INST(function_name, std::string)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_KERNEL_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_KERNEL_INFO_INST(context, sycl::context)
+#undef __SYCL_KERNEL_INFO_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
@@ -86,21 +91,26 @@ kernel::get_info(const device &Device, const range<3> &WGSize) const {
   return impl->get_info<Param>(Device, WGSize);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT ReturnT kernel::get_info<info::DescType::Desc>(       \
-      const device &) const;
+#define __SYCL_KDS_INFO_INST(NAME, RETURN_T)                                   \
+  template __SYCL_EXPORT RETURN_T                                              \
+  kernel::get_info<info::kernel_device_specific::NAME>(const device &) const;
+__SYCL_KDS_INFO_INST(global_work_size, sycl::range<3>)
+__SYCL_KDS_INFO_INST(work_group_size, size_t)
+__SYCL_KDS_INFO_INST(compile_work_group_size, sycl::range<3>)
+__SYCL_KDS_INFO_INST(preferred_work_group_size_multiple, size_t)
+__SYCL_KDS_INFO_INST(private_mem_size, size_t)
+__SYCL_KDS_INFO_INST(max_num_sub_groups, uint32_t)
+__SYCL_KDS_INFO_INST(compile_num_sub_groups, uint32_t)
+__SYCL_KDS_INFO_INST(max_sub_group_size, uint32_t)
+__SYCL_KDS_INFO_INST(compile_sub_group_size, uint32_t)
+__SYCL_KDS_INFO_INST(ext_codeplay_num_regs, uint32_t)
+#undef __SYCL_KDS_INFO_INST
 
-#include <sycl/info/kernel_device_specific_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template __SYCL_EXPORT ReturnT                                               \
-  kernel::get_info<Namespace::info::DescType::Desc>(const device &) const;
-
-#include <sycl/info/ext_intel_kernel_info_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+// Self-describing extension traits: explicit instantiation for the ABI
+// surface lives here until the matching trait moves to a dedicated TU.
+template __SYCL_EXPORT size_t
+kernel::get_info<ext::intel::info::kernel_device_specific::spill_memory_size>(
+    const device &) const;
 
 template __SYCL_EXPORT uint32_t
 kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
@@ -125,7 +135,7 @@ kernel::ext_oneapi_get_info(queue Queue, const range<1> &WorkGroupSize,
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<3> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>
@@ -139,13 +149,13 @@ kernel::ext_oneapi_get_info(queue Queue, const range<2> &WorkGroupSize,
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<2> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<1> &WG) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WG);
 }
 
 template <typename Param>
@@ -226,12 +236,36 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
   template __SYCL_EXPORT ReturnT                                               \
   kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \
       queue, const range<3> &, size_t) const;
-// Not including "ext_oneapi_kernel_queue_specific_traits.def" because not all
-// kernel_queue_specific queries require the above-defined get_info interface.
+// Only kernel_queue_specific queries that take a work-group size + dynamic
+// local mem size go through this overload; the rest are instantiated above.
 // clang-format off
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_groups, size_t)
 // clang-format on
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+template <int Dimensions>
+size_t
+kernel::queryMaxNumWorkGroups(const device &Dev, sycl::range<Dimensions> Range,
+                              size_t Bytes, KernelExecInfoTy ExecInfo) const {
+  impl->getAdapter().call_nocheck<sycl::detail::UrApiKind::urKernelSetExecInfo>(
+      impl->getHandleRef(), UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
+      sizeof(ur_kernel_cache_config_t), nullptr, &(ExecInfo.CacheConfig));
+  sycl::queue Queue{Dev};
+  return impl->queryMaxNumWorkGroups<Dimensions>(
+      Queue, Range, Bytes + ExecInfo.DynamicWorkGroupMem);
+}
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<1>(
+    const device &Dev, sycl::range<1> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<2>(
+    const device &Dev, sycl::range<2> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<3>(
+    const device &Dev, sycl::range<3> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 

@@ -13,7 +13,8 @@ from lit.llvm.subst import FindTool
 config.name = 'LLVM_SPIRV'
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
+# force_execute_external for now until migrated
+config.test_format = lit.formats.ShTest(execute_external=not llvm_config.use_lit_shell, force_execute_external=True)
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.cl', '.ll', '.spt', '.spvasm']
@@ -55,6 +56,10 @@ tool_dirs = [config.llvm_spirv_dir, config.llvm_tools_dir]
 tools = ['llvm-as', 'llvm-dis', 'llvm-spirv', 'not']
 if not config.spirv_skip_debug_info_tests:
     tools.extend(['llc', 'llvm-dwarfdump', 'llvm-objdump', 'llvm-readelf', 'llvm-readobj'])
+if config.spirv_backend_found:
+    config.available_features.add('spirv-backend')
+    if config.spirv_skip_debug_info_tests:
+        tools.extend(['llc'])
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
@@ -81,7 +86,7 @@ if config.spirv_tools_have_spirv_val:
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
     using_spirv_tools = True
 else:
-    config.substitutions.append(('spirv-val', ':'))
+    llvm_config.add_tool_substitutions([ToolSubst('spirv-val', ':')])
 
 if not config.llvm_spirv_build_external and config.llvm_build_shared_libs:
     config.available_features.add('pass-plugin')

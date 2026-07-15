@@ -15,6 +15,7 @@
 
 #include "OSTargets.h"
 #include "clang/Basic/TargetBuiltins.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/TargetParser/AArch64TargetParser.h"
 #include <optional>
 
@@ -48,11 +49,14 @@ static const unsigned ARM64AddrSpaceMap[] = {
     0, // hlsl_private
     0, // hlsl_device
     0, // hlsl_input
+    0, // hlsl_output
     0, // hlsl_push_constant
     // Wasm address space values for this target are dummy values,
     // as it is only enabled for Wasm targets.
     20, // wasm_funcref
 };
+
+using AArch64FeatureSet = llvm::SmallDenseSet<StringRef, 32>;
 
 class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   static const TargetInfo::GCCRegAlias GCCRegAliases[];
@@ -143,6 +147,10 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
 
   const llvm::AArch64::ArchInfo *ArchInfo = &llvm::AArch64::ARMV8A;
 
+  AArch64FeatureSet HasFeatureLookup;
+
+  void computeFeatureLookup();
+
 protected:
   std::string ABI;
 
@@ -159,7 +167,7 @@ public:
 
   bool isValidCPUName(StringRef Name) const override;
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
-  bool setCPU(const std::string &Name) override;
+  bool setCPU(StringRef Name) override;
 
   llvm::APInt getFMVPriority(ArrayRef<StringRef> Features) const override;
 

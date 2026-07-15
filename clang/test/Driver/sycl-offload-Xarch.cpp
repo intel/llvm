@@ -24,13 +24,15 @@
 // RUN:   -Xarch_amdgcn --offload-arch=gfx90a,gfx906 -Xarch_nvptx64 --offload-arch=sm_52,sm_89 -S -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=MULTI-ARCH %s
 
-// O3ONCE-AMD: "-triple" "amdgcn-amd-amdhsa" "-O3"
-// O3ONCE-NVPTX: "-triple" "nvptx64-nvidia-cuda" "-O3"
+// O3ONCE-AMD: "-triple" "amdgcn-amd-amdhsa"
+// O3ONCE-AMD-SAME: "-O3"
+// O3ONCE-NVPTX: "-triple" "nvptx64-nvidia-cuda"
+// O3ONCE-NVPTX-SAME: "-O3"
 // INVALID-ARCH-FOR-TARGET: clang: error: invalid target ID 'sm_75'; format is a processor name followed by an optional colon-delimited list of features followed by an enable/disable sign (e.g., 'gfx908:sramecc+:xnack-')
-// AMD-ARCH: {{"[^"]*llvm-offload-binary[^"]*" "-o".* "--image=file=.*.bc,triple=amdgcn-amd-amdhsa,arch=gfx90a,kind=sycl"}}
+// AMD-ARCH: {{"[^"]*llvm-offload-binary[^"]*" "-o".* "--image=file=.*.s,triple=amdgcn-amd-amdhsa,arch=gfx90a,kind=sycl"}}
 // NVPTX-ARCH: {{"[^"]*llvm-offload-binary[^"]*" "-o".* "--image=file=.*.bc,triple=nvptx64-nvidia-cuda,arch=sm_52,kind=sycl"}}
-// MULTI-ARCH: {{"[^"]*llvm-offload-binary[^"]*" "-o".* "--image=file=.*.bc,triple=amdgcn-amd-amdhsa,arch=gfx906,kind=sycl"}}
-// MULTI-ARCH-SAME: {{"--image=file=.*.bc,triple=amdgcn-amd-amdhsa,arch=gfx90a,kind=sycl"}}
+// MULTI-ARCH: {{"[^"]*llvm-offload-binary[^"]*" "-o".* "--image=file=.*.s,triple=amdgcn-amd-amdhsa,arch=gfx906,kind=sycl"}}
+// MULTI-ARCH-SAME: {{"--image=file=.*.s,triple=amdgcn-amd-amdhsa,arch=gfx90a,kind=sycl"}}
 // MULTI-ARCH-SAME: {{"--image=file=.*.bc,triple=nvptx64-nvidia-cuda,arch=sm_52,kind=sycl"}}
 // MULTI-ARCH-SAME: {{"--image=file=.*.bc,triple=nvptx64-nvidia-cuda,arch=sm_89,kind=sycl"}}
 

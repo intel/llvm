@@ -719,6 +719,8 @@ public:
     case ExecutionModeMaximumRegistersIdINTEL:
     case ExecutionModeNamedMaximumRegistersINTEL:
       return ExtensionID::SPV_INTEL_maximum_registers;
+    case ExecutionModeArithmeticPoisonKHR:
+      return ExtensionID::SPV_KHR_poison_freeze;
     default:
       return {};
     }
@@ -947,10 +949,14 @@ public:
       return ExtensionID::SPV_INTEL_function_variants;
     case internal::CapabilityBFloat16ArithmeticINTEL:
       return ExtensionID::SPV_INTEL_bfloat16_arithmetic;
+    case CapabilityRoundedDivideSqrtINTEL:
+      return ExtensionID::SPV_INTEL_rounded_divide_sqrt;
     case internal::CapabilityDeviceBarrierINTEL:
       return ExtensionID::SPV_INTEL_device_barrier;
     case CapabilityFloatControls2:
       return ExtensionID::SPV_KHR_float_controls2;
+    case CapabilityInt64ImageEXT:
+      return ExtensionID::SPV_EXT_shader_image_int64;
     default:
       return {};
     }
@@ -1012,6 +1018,7 @@ protected:
   void validate() const override;
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    this->SPIRVCK(WordCount, InvalidWordCount, "");
     Elements.resize(WordCount - 1);
   }
   _SPIRV_DCL_ENCDEC

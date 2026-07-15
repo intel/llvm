@@ -12,7 +12,7 @@
 
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
 
-#include <sycl/half_type.hpp>
+#include <sycl/detail/half_type_impl.hpp>
 
 /// @cond ESIMD_DETAIL
 

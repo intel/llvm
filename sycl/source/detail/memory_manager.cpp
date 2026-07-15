@@ -18,6 +18,7 @@
 
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
@@ -309,7 +310,8 @@ void *MemoryManager::allocateInteropMemObject(
     const sycl::property_list &, ur_event_handle_t &OutEventToWait) {
   (void)TargetContext;
   (void)InteropContext;
-  // If memory object is created with interop c'tor return cl_mem as is.
+  // If memory object is created with interop c'tor return the native
+  // handle as is.
   assert(TargetContext == InteropContext && "Expected matching contexts");
 
   OutEventToWait = InteropEvent->getHandle();

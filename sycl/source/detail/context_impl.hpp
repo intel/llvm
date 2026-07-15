@@ -16,7 +16,6 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
 
 #include <map>
@@ -28,6 +27,18 @@ namespace sycl {
 inline namespace _V1 {
 // Forward declaration
 class device;
+namespace detail {
+class context_impl;
+} // namespace detail
+namespace ext {
+namespace oneapi {
+namespace experimental {
+namespace detail {
+class graph_impl;
+} // namespace detail
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 namespace detail {
 class context_impl : public std::enable_shared_from_this<context_impl> {
   struct private_tag {
@@ -84,7 +95,7 @@ public:
   /// Gets OpenCL interoperability context handle.
   ///
   /// \return an instance of OpenCL cl_context.
-  cl_context get() const;
+  OpenCLContextT get() const;
 
   /// Gets asynchronous exception handler.
   ///
@@ -194,6 +205,15 @@ public:
                                   devices_range Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
+  /// Removes device global initializers for a program.
+  void removeDeviceGlobalInitializer(ur_program_handle_t Program,
+                                     const RTDeviceBinaryImage *BinImage);
+
+  /// Returns the number of programs with device globals not yet initialized.
+  size_t getDeviceGlobalNotInitializedCnt() const {
+    return MDeviceGlobalNotInitializedCnt.load(std::memory_order_relaxed);
+  }
+
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
   initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl,
@@ -231,7 +251,34 @@ public:
   get_default_memory_pool(const context &Context, const device &Device,
                           const usm::alloc &Kind);
 
+  /// Register a native UR graph handle with its SYCL graph implementation.
+  /// @param UrGraphHandle The native UR graph handle to register
+  /// @param Graph The SYCL graph implementation to associate with the handle
+  void registerNativeGraph(
+      ur_exp_graph_handle_t UrGraphHandle,
+      std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+          Graph);
+
+  /// Lookup a SYCL graph implementation from a native UR graph handle.
+  /// @param UrGraphHandle The native UR graph handle to look up
+  /// @return Shared pointer to graph_impl if found, nullptr otherwise
+  std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+  getNativeGraph(ur_exp_graph_handle_t UrGraphHandle) const;
+
+  /// Deregister a native UR graph handle.
+  /// @param UrGraphHandle The native UR graph handle to deregister
+  void deregisterNativeGraph(ur_exp_graph_handle_t UrGraphHandle);
+
+  bool supportsReusableEvents();
+  bool supportsEventProfiling();
+  bool supportsIPCEvents();
+
 private:
+  // Returns whether every device in the context reports \p Info as true,
+  // caching the result in \p Cache.
+  bool allDevicesSupport(ur_device_info_t Info, std::optional<bool> &Cache,
+                         std::mutex &CacheMutex);
+
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
   std::vector<device_impl *> MDevices;
@@ -240,6 +287,12 @@ private:
   property_list MPropList;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
+  std::optional<bool> MReusableEventsSupport;
+  std::mutex MReusableEventsSupportMutex;
+  std::optional<bool> MEventProfilingSupport;
+  std::mutex MEventProfilingSupportMutex;
+  std::optional<bool> MIPCEventSupport;
+  std::mutex MIPCEventSupportMutex;
 
   // Device pools.
   // Weak_ptr preventing circular dependency between memory_pool_impl and
@@ -309,6 +362,16 @@ private:
            std::unique_ptr<std::byte[]>>
       MDeviceGlobalUnregisteredData;
   std::mutex MDeviceGlobalUnregisteredDataMutex;
+
+  // Native graph registry mapping UR handles to their originating SYCL graph
+  // object. Enables command_graph lookup in cases where direct backend
+  // submissions (e.g. L0) bypass SYCL and cause a queue to transition to
+  // recording without our knowledge.
+  std::unordered_map<
+      ur_exp_graph_handle_t,
+      std::weak_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>>
+      MNativeGraphRegistry;
+  mutable std::mutex MNativeGraphRegistryMutex;
 
   void verifyProps(const property_list &Props) const;
 };

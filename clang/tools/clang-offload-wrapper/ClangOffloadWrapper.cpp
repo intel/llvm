@@ -97,14 +97,6 @@ enum OffloadKind {
 
 namespace llvm {
 template <> struct DenseMapInfo<OffloadKind> {
-  static inline OffloadKind getEmptyKey() {
-    return static_cast<OffloadKind>(DenseMapInfo<unsigned>::getEmptyKey());
-  }
-
-  static inline OffloadKind getTombstoneKey() {
-    return static_cast<OffloadKind>(DenseMapInfo<unsigned>::getTombstoneKey());
-  }
-
   static unsigned getHashValue(const OffloadKind &Val) {
     return DenseMapInfo<unsigned>::getHashValue(static_cast<unsigned>(Val));
   }

@@ -22,8 +22,10 @@ int main() {
   (void)Device.get();
   // expected-warning@+1 {{'has_extension' is deprecated: use device::has() function with aspects APIs instead}}
   (void)Device.has_extension("abc");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // expected-warning@+1{{'host' is deprecated: removed in SYCL 2020, 'host' device has been removed}}
   (void)Device.has(sycl::aspect::host);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   cl_event ClEvent;
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::event'}}
@@ -31,6 +33,7 @@ int main() {
   // expected-error@+1 {{no member named 'get' in 'sycl::event'}}
   (void)Evt.get();
 
+  // expected-warning@+2 {{'image<>' is deprecated: The SYCL 1.2.1 image class has been removed in SYCL 2020}}
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::image<1>'}}
   sycl::image<1> Img{Mem, Ctx};
   (void)Img;
@@ -136,6 +139,17 @@ int main() {
 
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;
+
+  // expected-warning@+1{{'reference_count' is deprecated: info::context::reference_count is not part of SYCL 2020}}
+  using CRC = sycl::info::context::reference_count;
+  // expected-warning@+1{{'reference_count' is deprecated: info::device::reference_count is not part of SYCL 2020}}
+  using DRC = sycl::info::device::reference_count;
+  // expected-warning@+1{{'reference_count' is deprecated: info::event::reference_count is not part of SYCL 2020}}
+  using ERC = sycl::info::event::reference_count;
+  // expected-warning@+1{{'reference_count' is deprecated: info::kernel::reference_count is not part of SYCL 2020}}
+  using KRC = sycl::info::kernel::reference_count;
+  // expected-warning@+1{{'reference_count' is deprecated: info::queue::reference_count is not part of SYCL 2020}}
+  using QRC = sycl::info::queue::reference_count;
 
   // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;

@@ -26,7 +26,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel = comdat any
 declare void @llvm.assume(i1 noundef) #0
 
 ; Function Attrs: mustprogress norecurse nounwind sanitize_address uwtable
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel(ptr addrspace(1) noundef align 4 %_arg_array, i64 %__asan_launch) local_unnamed_addr #1 comdat !srcloc !7 !kernel_arg_buffer_location !8 !sycl_fixed_targets !9 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel(ptr addrspace(1) noundef align 4 %_arg_array, i64 %__asan_launch) local_unnamed_addr #1 comdat !srcloc !7 !sycl_fixed_targets !9 {
 entry:
   call spir_func void @__itt_offload_wi_start_wrapper()
   %0 = load i64, ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !10
@@ -52,7 +52,7 @@ declare spir_func void @__itt_offload_wi_finish_wrapper()
 
 attributes #0 = { mustprogress nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: write) }
 attributes #1 = { mustprogress norecurse nounwind sanitize_address uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="parallel_for_int.cpp" "sycl-optlevel"="2" "uniform-work-group-size"="true" }
-attributes #2 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="1" "sycl-unique-id"="_Z20__AsanKernelMetadata" }
+attributes #2 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__AsanKernelMetadata" }
 
 !llvm.module.flags = !{!0, !1, !2}
 !opencl.spir.version = !{!3}
@@ -68,7 +68,6 @@ attributes #2 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl
 !5 = !{!"clang version 19.0.0git (https://github.com/intel/llvm f8eada76c08c6a5e6c5842842ac5b98fa72669be)"}
 !6 = !{!"asan"}
 !7 = !{i32 1536}
-!8 = !{i32 -1, i32 -1}
 !9 = !{}
 !10 = !{!11, !13, !15}
 !11 = distinct !{!11, !12, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN4sycl3_V12idILi1EEEE8initSizeEv: %agg.result"}

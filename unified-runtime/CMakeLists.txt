@@ -1,6 +1,5 @@
-# Copyright (C) 2022-2025 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
@@ -49,11 +48,13 @@ option(UR_BUILD_ADAPTER_ALL "Build all currently supported adapters" OFF)
 option(UR_BUILD_ADAPTER_L0_V2 "Build the (experimental) Level-Zero v2 adapter" OFF)
 option(UR_BUILD_ADAPTER_OFFLOAD "Build the experimental Offload adapter" OFF)
 option(UR_STATIC_ADAPTER_L0 "Build the Level-Zero adapter as static and embed in the loader" OFF)
+option(UR_STATIC_ADAPTER_OPENCL "Build the OpenCL adapter as static library with dynamic OpenCL loading" ON)
 option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
 option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
 option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
-option(UR_STATIC_LOADER "Build loader as a static library" OFF)
+option(UR_STATIC_LOADER "Build loader as a static library" ON)
+option(UR_ADAPTER_SEARCH_LOADER_DIR_FIRST "Prefer loader library directory over OS search paths when discovering adapters" ON)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
 option(UR_FORCE_FETCH_LEVEL_ZERO "Force fetching Level Zero even if preinstalled loader is found" OFF)

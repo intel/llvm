@@ -2,8 +2,15 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
+// UNSUPPORTED: windows && (gpu-intel-gen12 || arch-intel_gpu_bmg_g21)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22033
+
+// UNSUPPORTED: linux && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21 || arch-intel_gpu_mtl_u)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
+
 // Test to check that we don't insert unnecessary L0 commands for
 // queue::ext_oneapi_submit_barrier() when we have in-order queue.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>

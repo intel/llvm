@@ -1,10 +1,9 @@
 #
-# Copyright (C) 2026 Intel Corporation
 #
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM
 # Exceptions.
 #
-# See LICENSE.TXT
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
@@ -30,8 +29,11 @@ type: enum
 desc: "USM host memory registration flags."
 name: $x_exp_usm_host_alloc_register_flags_t
 etors:
-    - name: TBD
-      desc: "Reserved for future use."
+    - name: READ_ONLY
+      desc: |-
+            Device access to the registered range is read-only.  The behavior
+            is undefined if device code writes to a range registered with this
+            flag.
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "USM host memory registration properties."

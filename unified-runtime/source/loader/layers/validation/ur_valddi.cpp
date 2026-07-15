@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2023-2026 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -861,6 +860,9 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 
     if (NULL != pProperties && UR_CONTEXT_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (DeviceCount == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
   ur_result_t result =
@@ -3822,100 +3824,6 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunch
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
-
-  if (nullptr == pfnKernelLaunch) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == pGlobalWorkSize)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL != launchPropList &&
-        UR_KERNEL_LAUNCH_FLAGS_MASK & launchPropList->flags)
-      return UR_RESULT_ERROR_INVALID_ENUMERATION;
-
-    if (phEventWaitList == NULL && numEventsInWaitList > 0)
-      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-
-    if (phEventWaitList != NULL && numEventsInWaitList == 0)
-      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-
-    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
-      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
-        if (phEventWaitList[i] == NULL) {
-          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-        }
-      }
-    }
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    URLOG_CTX_INVALID_REFERENCE(hQueue);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    URLOG_CTX_INVALID_REFERENCE(hKernel);
-  }
-
-  ur_result_t result =
-      pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                      pGlobalWorkSize, pLocalWorkSize, launchPropList,
-                      numEventsInWaitList, phEventWaitList, phEvent);
-
-  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
-      phEvent) {
-    getContext()->refCountContext->createRefCount(*phEvent);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWait
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     /// [in] handle of the queue object
@@ -6196,12 +6104,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     if (phEventWaitList != NULL && numEventsInWaitList == 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
-    if (pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
-        pGlobalWorkSize[2] == 0)
+    if (pGlobalWorkSize[0] == 0 || (workDim >= 2 && pGlobalWorkSize[1] == 0) ||
+        (workDim >= 3 && pGlobalWorkSize[2] == 0))
       return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
 
-    if (pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] == 0 ||
-                           pLocalWorkSize[2] == 0))
+    if (pLocalWorkSize &&
+        (pLocalWorkSize[0] == 0 || (workDim >= 2 && pLocalWorkSize[1] == 0) ||
+         (workDim >= 3 && pLocalWorkSize[2] == 0)))
       return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
 
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -6272,78 +6181,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
     getContext()->refCountContext->createRefCount(*phKernel);
   }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgValue
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue) {
-  auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
-
-  if (nullptr == pfnSetArgValue) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == pArgValue)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    URLOG_CTX_INVALID_REFERENCE(hKernel);
-  }
-
-  ur_result_t result =
-      pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
-
-  if (nullptr == pfnSetArgLocal) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    URLOG_CTX_INVALID_REFERENCE(hKernel);
-  }
-
-  ur_result_t result = pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
 
   return result;
 }
@@ -6552,40 +6389,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgPointer
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) {
-  auto pfnSetArgPointer = getContext()->urDdiTable.Kernel.pfnSetArgPointer;
-
-  if (nullptr == pfnSetArgPointer) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    URLOG_CTX_INVALID_REFERENCE(hKernel);
-  }
-
-  ur_result_t result =
-      pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetExecInfo
 __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     /// [in] handle of the kernel object
@@ -6623,88 +6426,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
 
   ur_result_t result =
       pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgSampler
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue) {
-  auto pfnSetArgSampler = getContext()->urDdiTable.Kernel.pfnSetArgSampler;
-
-  if (nullptr == pfnSetArgSampler) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hArgValue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    URLOG_CTX_INVALID_REFERENCE(hKernel);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hArgValue)) {
-    URLOG_CTX_INVALID_REFERENCE(hArgValue);
-  }
-
-  ur_result_t result =
-      pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgMemObj
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) {
-  auto pfnSetArgMemObj = getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
-
-  if (nullptr == pfnSetArgMemObj) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL != pProperties && UR_MEM_FLAGS_MASK & pProperties->memoryAccess)
-      return UR_RESULT_ERROR_INVALID_ENUMERATION;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    URLOG_CTX_INVALID_REFERENCE(hKernel);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hArgValue)) {
-    URLOG_CTX_INVALID_REFERENCE(hArgValue);
-  }
-
-  ur_result_t result =
-      pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
 
   return result;
 }
@@ -8808,7 +8529,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT < semHandleType)
+    if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE < semHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
@@ -9007,9 +8728,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
 
   if (getContext()->enableParameterValidation) {
     if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (hDevice == nullptr)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
@@ -9281,6 +8999,287 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
   }
 
   ur_result_t result = pfnCloseMemHandleExp(hContext, pMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet) {
+  auto pfnGetPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnGetPhysMemHandleExp;
+
+  if (nullptr == pfnGetPhysMemHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == ppIPCPhysMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCPhysMemHandleDataSizeRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPhysMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPhysMem)) {
+    URLOG_CTX_INVALID_REFERENCE(hPhysMem);
+  }
+
+  ur_result_t result = pfnGetPhysMemHandleExp(
+      hContext, hPhysMem, ppIPCPhysMemHandleData, pIPCPhysMemHandleDataSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData) {
+  auto pfnPutPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnPutPhysMemHandleExp;
+
+  if (nullptr == pfnPutPhysMemHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pIPCPhysMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnPutPhysMemHandleExp(hContext, pIPCPhysMemHandleData);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem) {
+  auto pfnOpenPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnOpenPhysMemHandleExp;
+
+  if (nullptr == pfnOpenPhysMemHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phPhysMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCPhysMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result =
+      pfnOpenPhysMemHandleExp(hContext, hDevice, pIPCPhysMemHandleData,
+                              ipcPhysMemHandleDataSize, phPhysMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCClosePhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem) {
+  auto pfnClosePhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnClosePhysMemHandleExp;
+
+  if (nullptr == pfnClosePhysMemHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPhysMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPhysMem)) {
+    URLOG_CTX_INVALID_REFERENCE(hPhysMem);
+  }
+
+  ur_result_t result = pfnClosePhysMemHandleExp(hContext, hPhysMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetEventHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent,
+    /// [out] a pointer to the IPC event handle data
+    void **ppIPCEventHandleData,
+    /// [out] size of the resulting IPC event handle data
+    size_t *pIPCEventHandleDataSizeRet) {
+  auto pfnGetEventHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnGetEventHandleExp;
+
+  if (nullptr == pfnGetEventHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == ppIPCEventHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCEventHandleDataSizeRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hEvent)) {
+    URLOG_CTX_INVALID_REFERENCE(hEvent);
+  }
+
+  ur_result_t result = pfnGetEventHandleExp(hEvent, ppIPCEventHandleData,
+                                            pIPCEventHandleDataSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutEventHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC event handle data obtained with
+    /// ::urIPCGetEventHandleExp
+    void *pIPCEventHandleData) {
+  auto pfnPutEventHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnPutEventHandleExp;
+
+  if (nullptr == pfnPutEventHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pIPCEventHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnPutEventHandleExp(hContext, pIPCEventHandleData);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenEventHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] the IPC event handle data
+    const void *pIPCEventHandleData,
+    /// [in] size of the IPC event handle data
+    size_t ipcEventHandleDataSize,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  auto pfnOpenEventHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnOpenEventHandleExp;
+
+  if (nullptr == pfnOpenEventHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCEventHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnOpenEventHandleExp(hContext, pIPCEventHandleData,
+                                             ipcEventHandleDataSize, phEvent);
 
   return result;
 }
@@ -11570,9 +11569,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
+    /// [in,out][optional][alloc] return an event object that identifies this
     /// particular command instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array. If *phEvent is not NULL on input and points to a reusable event
+    /// created by ::urEventCreateExp, it is signaled by this command instead
+    /// of allocating a new event. A reusable event may only be passed when
+    /// the device associated with hQueue reports
+    /// ::UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
     ur_event_handle_t *phEvent) {
   auto pfnEventsWaitWithBarrierExt =
       getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrierExt;
@@ -11687,6 +11691,60 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   ur_result_t result = pfnNativeCommandExp(
       hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventCreateExp
+__urdlllocal ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to event creation descriptor
+    const ur_exp_event_desc_t *pEventDesc,
+    /// [out] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  auto pfnCreateExp = getContext()->urDdiTable.EventExp.pfnCreateExp;
+
+  if (nullptr == pfnCreateExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pEventDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == phEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_EVENT_FLAGS_MASK & pEventDesc->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnCreateExp(hContext, hDevice, pEventDesc, phEvent);
 
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
@@ -11986,6 +12044,38 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueGetGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph) {
+  auto pfnGetGraphExp = getContext()->urDdiTable.QueueExp.pfnGetGraphExp;
+
+  if (nullptr == pfnGetGraphExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnGetGraphExp(hQueue, phGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphIsEmptyExp
 __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
@@ -12007,6 +12097,64 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
   }
 
   ur_result_t result = pfnIsEmptyExp(hGraph, pResult);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetIdExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) {
+  auto pfnGetIdExp = getContext()->urDdiTable.GraphExp.pfnGetIdExp;
+
+  if (nullptr == pfnGetIdExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pGraphId)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnGetIdExp(hGraph, pGraphId);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphSetDestructionCallbackExp
+__urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
+  auto pfnSetDestructionCallbackExp =
+      getContext()->urDdiTable.GraphExp.pfnSetDestructionCallbackExp;
+
+  if (nullptr == pfnSetDestructionCallbackExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pfnCallback)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result =
+      pfnSetDestructionCallbackExp(hGraph, pfnCallback, pUserData);
 
   return result;
 }
@@ -12034,6 +12182,61 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
   }
 
   ur_result_t result = pfnDumpContentsExp(hGraph, filePath);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph) {
+  auto pfnGetNativeHandleExp =
+      getContext()->urDdiTable.GraphExp.pfnGetNativeHandleExp;
+
+  if (nullptr == pfnGetNativeHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phNativeGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnGetNativeHandleExp(hGraph, phNativeGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph) {
+  auto pfnExecutableGraphGetNativeHandleExp =
+      getContext()->urDdiTable.GraphExp.pfnExecutableGraphGetNativeHandleExp;
+
+  if (nullptr == pfnExecutableGraphGetNativeHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phNativeExecutableGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hExecutableGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnExecutableGraphGetNativeHandleExp(
+      hExecutableGraph, phNativeExecutableGraph);
 
   return result;
 }
@@ -12422,9 +12625,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  dditable.pfnKernelLaunch = pDdiTable->pfnKernelLaunch;
-  pDdiTable->pfnKernelLaunch = ur_validation_layer::urEnqueueKernelLaunch;
-
   dditable.pfnEventsWait = pDdiTable->pfnEventsWait;
   pDdiTable->pfnEventsWait = ur_validation_layer::urEnqueueEventsWait;
 
@@ -12631,6 +12831,38 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EventExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_event_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_validation_layer::getContext()->urDdiTable.EventExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
+  pDdiTable->pfnCreateExp = ur_validation_layer::urEventCreateExp;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's GraphExp table
 ///        with current process' addresses
 ///
@@ -12674,8 +12906,25 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
   dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
   pDdiTable->pfnIsEmptyExp = ur_validation_layer::urGraphIsEmptyExp;
 
+  dditable.pfnGetIdExp = pDdiTable->pfnGetIdExp;
+  pDdiTable->pfnGetIdExp = ur_validation_layer::urGraphGetIdExp;
+
+  dditable.pfnSetDestructionCallbackExp =
+      pDdiTable->pfnSetDestructionCallbackExp;
+  pDdiTable->pfnSetDestructionCallbackExp =
+      ur_validation_layer::urGraphSetDestructionCallbackExp;
+
   dditable.pfnDumpContentsExp = pDdiTable->pfnDumpContentsExp;
   pDdiTable->pfnDumpContentsExp = ur_validation_layer::urGraphDumpContentsExp;
+
+  dditable.pfnGetNativeHandleExp = pDdiTable->pfnGetNativeHandleExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur_validation_layer::urGraphGetNativeHandleExp;
+
+  dditable.pfnExecutableGraphGetNativeHandleExp =
+      pDdiTable->pfnExecutableGraphGetNativeHandleExp;
+  pDdiTable->pfnExecutableGraphGetNativeHandleExp =
+      ur_validation_layer::urGraphExecutableGraphGetNativeHandleExp;
 
   return result;
 }
@@ -12717,6 +12966,32 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
 
   dditable.pfnCloseMemHandleExp = pDdiTable->pfnCloseMemHandleExp;
   pDdiTable->pfnCloseMemHandleExp = ur_validation_layer::urIPCCloseMemHandleExp;
+
+  dditable.pfnGetPhysMemHandleExp = pDdiTable->pfnGetPhysMemHandleExp;
+  pDdiTable->pfnGetPhysMemHandleExp =
+      ur_validation_layer::urIPCGetPhysMemHandleExp;
+
+  dditable.pfnPutPhysMemHandleExp = pDdiTable->pfnPutPhysMemHandleExp;
+  pDdiTable->pfnPutPhysMemHandleExp =
+      ur_validation_layer::urIPCPutPhysMemHandleExp;
+
+  dditable.pfnOpenPhysMemHandleExp = pDdiTable->pfnOpenPhysMemHandleExp;
+  pDdiTable->pfnOpenPhysMemHandleExp =
+      ur_validation_layer::urIPCOpenPhysMemHandleExp;
+
+  dditable.pfnClosePhysMemHandleExp = pDdiTable->pfnClosePhysMemHandleExp;
+  pDdiTable->pfnClosePhysMemHandleExp =
+      ur_validation_layer::urIPCClosePhysMemHandleExp;
+
+  dditable.pfnGetEventHandleExp = pDdiTable->pfnGetEventHandleExp;
+  pDdiTable->pfnGetEventHandleExp = ur_validation_layer::urIPCGetEventHandleExp;
+
+  dditable.pfnPutEventHandleExp = pDdiTable->pfnPutEventHandleExp;
+  pDdiTable->pfnPutEventHandleExp = ur_validation_layer::urIPCPutEventHandleExp;
+
+  dditable.pfnOpenEventHandleExp = pDdiTable->pfnOpenEventHandleExp;
+  pDdiTable->pfnOpenEventHandleExp =
+      ur_validation_layer::urIPCOpenEventHandleExp;
 
   return result;
 }
@@ -12782,23 +13057,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
       ur_validation_layer::urKernelGetSuggestedLocalWorkSizeWithArgs;
 
-  dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
-  pDdiTable->pfnSetArgValue = ur_validation_layer::urKernelSetArgValue;
-
-  dditable.pfnSetArgLocal = pDdiTable->pfnSetArgLocal;
-  pDdiTable->pfnSetArgLocal = ur_validation_layer::urKernelSetArgLocal;
-
-  dditable.pfnSetArgPointer = pDdiTable->pfnSetArgPointer;
-  pDdiTable->pfnSetArgPointer = ur_validation_layer::urKernelSetArgPointer;
-
   dditable.pfnSetExecInfo = pDdiTable->pfnSetExecInfo;
   pDdiTable->pfnSetExecInfo = ur_validation_layer::urKernelSetExecInfo;
-
-  dditable.pfnSetArgSampler = pDdiTable->pfnSetArgSampler;
-  pDdiTable->pfnSetArgSampler = ur_validation_layer::urKernelSetArgSampler;
-
-  dditable.pfnSetArgMemObj = pDdiTable->pfnSetArgMemObj;
-  pDdiTable->pfnSetArgMemObj = ur_validation_layer::urKernelSetArgMemObj;
 
   dditable.pfnSetSpecializationConstants =
       pDdiTable->pfnSetSpecializationConstants;
@@ -13222,6 +13482,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   dditable.pfnIsGraphCaptureEnabledExp = pDdiTable->pfnIsGraphCaptureEnabledExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =
       ur_validation_layer::urQueueIsGraphCaptureEnabledExp;
+
+  dditable.pfnGetGraphExp = pDdiTable->pfnGetGraphExp;
+  pDdiTable->pfnGetGraphExp = ur_validation_layer::urQueueGetGraphExp;
 
   return result;
 }
@@ -13654,6 +13917,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetEventProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Event);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_validation_layer::urGetEventExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->EventExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

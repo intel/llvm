@@ -2,13 +2,8 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: vulkan
 
-// hangs on linux
-// UNSUPPORTED: linux
-// UNSUPPORTED-TRACKER: GSD-12371
-
-//
-// UNSUPPORTED: windows && gpu-intel-gen12
-// UNSUPPORTED-TRACKER: URLZA-723
+// Hung on Linux; fix tracked by GSD-12371, landed in driver 38362.
+// REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
@@ -53,6 +48,7 @@
 #include <string>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/queue_properties.hpp>
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -134,7 +130,15 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
     auto device = q.get_device();
     auto context = q.get_context();
 

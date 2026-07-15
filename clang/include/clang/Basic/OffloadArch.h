@@ -9,16 +9,18 @@
 #ifndef LLVM_CLANG_BASIC_OFFLOADARCH_H
 #define LLVM_CLANG_BASIC_OFFLOADARCH_H
 
+#include "llvm/ADT/StringRef.h"
+#include <tuple>
+
 namespace llvm {
-class StringRef;
-template <typename T, typename R> class StringSwitch;
+class Triple;
 } // namespace llvm
 
 namespace clang {
 
 enum class OffloadArch {
-  UNUSED,
-  UNKNOWN,
+  Unused,
+  Unknown,
   // TODO: Deprecate and remove GPU architectures older than sm_52.
   SM_20,
   SM_21,
@@ -45,16 +47,22 @@ enum class OffloadArch {
   SM_90a,
   SM_100,
   SM_100a,
+  SM_100f,
   SM_101,
   SM_101a,
+  SM_101f,
   SM_103,
   SM_103a,
+  SM_103f,
   SM_110,
   SM_110a,
+  SM_110f,
   SM_120,
   SM_120a,
+  SM_120f,
   SM_121,
   SM_121a,
+  SM_121f,
   GFX600,
   GFX601,
   GFX602,
@@ -103,12 +111,16 @@ enum class OffloadArch {
   GFX1151,
   GFX1152,
   GFX1153,
+  GFX1154,
   GFX1170,
+  GFX1171,
+  GFX1172,
   GFX12_GENERIC,
   GFX1200,
   GFX1201,
   GFX1250,
   GFX1251,
+  GFX12_5_GENERIC,
   GFX1310,
   AMDGCNSPIRV,
   Generic, // A processor model named 'generic' if the target backend defines a
@@ -154,6 +166,7 @@ enum class OffloadArch {
   ADL_P,
   ADL_N,
   DG1,
+  DG2,
   ACM_G10,
   DG2_G10,
   ACM_G11,
@@ -162,15 +175,18 @@ enum class OffloadArch {
   DG2_G12,
   PVC,
   PVC_VG,
+  MTL,
   MTL_U,
   MTL_S,
   ARL_U,
   ARL_S,
   MTL_H,
   ARL_H,
+  BMG,
   BMG_G21,
+  PTL,
   LNL_M,
-  LAST,
+  LAST = LNL_M,
 
   CudaDefault = OffloadArch::SM_75,
   HIPDefault = OffloadArch::GFX906,
@@ -191,7 +207,7 @@ static inline bool IsIntelCPUOffloadArch(OffloadArch Arch) {
 }
 
 static inline bool IsIntelGPUOffloadArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::BDW && Arch < OffloadArch::LAST;
+  return Arch >= OffloadArch::BDW && Arch <= OffloadArch::LAST;
 }
 
 static inline bool IsIntelOffloadArch(OffloadArch Arch) {
@@ -225,8 +241,39 @@ const char *OffloadArchToString(OffloadArch A);
 const char *OffloadArchToVirtualArchString(OffloadArch A);
 
 // Convert a string to an OffloadArch enum value. Returns
-// OffloadArch::UNKNOWN if the string is not recognized.
+// OffloadArch::Unknown if the string is not recognized.
 OffloadArch StringToOffloadArch(llvm::StringRef S);
+
+llvm::Triple OffloadArchToTriple(const llvm::Triple &DefaultToolchainTriple,
+                                 OffloadArch ID);
+
+/// Represents a bound architecture for offload / multiple architecture
+/// compilation.
+struct BoundArch {
+  llvm::StringRef ArchName;
+
+  /// The parsed offload architecture enum.
+  /// Will be OffloadArch::Unknown if ArchName not recognized.
+  OffloadArch Arch = OffloadArch::Unused;
+
+  BoundArch() = default;
+  explicit BoundArch(llvm::StringRef Name)
+      : ArchName(Name),
+        Arch(Name.empty() ? OffloadArch::Unknown : StringToOffloadArch(Name)) {}
+
+  BoundArch(llvm::StringRef Name, OffloadArch A) : ArchName(Name), Arch(A) {}
+
+  bool empty() const { return ArchName.empty(); }
+  explicit operator bool() const { return Arch != OffloadArch::Unused; }
+
+  bool operator==(const BoundArch &Other) const {
+    return Arch == Other.Arch && ArchName == Other.ArchName;
+  }
+
+  bool operator<(const BoundArch &Other) const {
+    return std::tie(Arch, ArchName) < std::tie(Other.Arch, Other.ArchName);
+  }
+};
 
 } // namespace clang
 

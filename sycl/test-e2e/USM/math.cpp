@@ -3,10 +3,12 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/vector.hpp>
 
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <sycl/builtins.hpp>
 
 namespace s = sycl;
 

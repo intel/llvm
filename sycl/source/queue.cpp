@@ -60,7 +60,7 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(),
             PropList) {}
 
-queue::queue(cl_command_queue clQueue, const context &SyclContext,
+queue::queue(OpenCLCommandQueueT clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
   impl = detail::queue_impl::create(
@@ -69,31 +69,23 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
       *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
-cl_command_queue queue::get() const { return impl->get(); }
+OpenCLCommandQueueT queue::get() const { return impl->get(); }
 
 context queue::get_context() const { return impl->get_context(); }
 
 device queue::get_device() const { return impl->get_device(); }
 
 ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
-  return impl->hasCommandGraph()
-             ? ext::oneapi::experimental::queue_state::recording
-             : ext::oneapi::experimental::queue_state::executing;
+  return impl->ext_oneapi_get_state_impl();
 }
 
 ext::oneapi::experimental::command_graph<
     ext::oneapi::experimental::graph_state::modifiable>
 queue::ext_oneapi_get_graph() const {
-  auto Graph = impl->getCommandGraph();
-  if (!Graph)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "ext_oneapi_get_graph() can only be called on recording queues.");
-
   return sycl::detail::createSyclObjFromImpl<
       ext::oneapi::experimental::command_graph<
           ext::oneapi::experimental::graph_state::modifiable>>(
-      std::move(Graph));
+      impl->ext_oneapi_get_graph_impl());
 }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
@@ -207,7 +199,8 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  return ext_oneapi_submit_barrier(std::vector<event>{}, CodeLoc);
+  return impl->submit_barrier_direct_with_event({}, detail::CGType::Barrier,
+                                                CodeLoc);
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -221,26 +214,8 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-
-  // If waitlist contains only empty, default constructed events, ignore
-  // them.
-  bool AllEventsEmptyOrNop = std::all_of(
-      begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
-        return (EventImpl.isDefaultConstructed() || EventImpl.isNOP()) &&
-               !EventImpl.hasCommandGraph();
-      });
-
-  // TODO: Support no-handler barrier submission for queues with command graphs.
-  if (impl->getCommandGraph()) {
-    if (WaitList.empty() || AllEventsEmptyOrNop)
-      return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
-    else
-      return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
-                    CodeLoc);
-  } else {
-    return impl->submit_barrier_direct_with_event(WaitList, CodeLoc);
-  }
+  return impl->submit_barrier_direct_with_event(
+      WaitList, detail::CGType::BarrierWaitlist, CodeLoc);
 }
 
 template <typename Param>
@@ -249,12 +224,14 @@ queue::get_info() const {
   return impl->get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT queue::get_info<info::queue::Desc>() const;
-
-#include <sycl/info/queue_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_QUEUE_INFO_INST(NAME, RETURN_T)                                 \
+  template __SYCL_EXPORT RETURN_T queue::get_info<info::queue::NAME>() const;
+__SYCL_QUEUE_INFO_INST(context, sycl::context)
+__SYCL_QUEUE_INFO_INST(device, sycl::device)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_QUEUE_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#undef __SYCL_QUEUE_INFO_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
@@ -271,6 +248,8 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 bool queue::ext_oneapi_empty() const { return impl->queue_empty(); }
 
 bool queue::khr_empty() const { return impl->queue_empty(); }
+
+void queue::khr_flush() const { return impl->queue_flush(); }
 
 void queue::ext_oneapi_prod() { impl->flush(); }
 
@@ -322,7 +301,7 @@ event submit_kernel_direct_with_event_impl(
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
+  return detail::getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
 }
@@ -334,7 +313,7 @@ void submit_kernel_direct_without_event_impl(
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
+  detail::getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
 }
@@ -345,8 +324,8 @@ event submit_graph_direct_with_event_impl(
         ext::oneapi::experimental::graph_state::executable> &G,
     sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return getSyclObjImpl(Queue)->submit_graph_direct_with_event(
-      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+  return detail::getSyclObjImpl(Queue)->submit_graph_direct_with_event(
+      detail::getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
       TlsCodeLocCapture.isToplevel());
 }
 
@@ -356,8 +335,8 @@ void submit_graph_direct_without_event_impl(
         ext::oneapi::experimental::graph_state::executable> &G,
     sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  getSyclObjImpl(Queue)->submit_graph_direct_without_event(
-      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+  detail::getSyclObjImpl(Queue)->submit_graph_direct_without_event(
+      detail::getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
       TlsCodeLocCapture.isToplevel());
 }
 

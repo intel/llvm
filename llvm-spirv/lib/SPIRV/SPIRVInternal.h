@@ -179,20 +179,6 @@ typedef SPIRVMap<Op, Op, IntBoolOpMapId> IntBoolOpMap;
   "-v128:128:128-v192:256:256-v256:256:256"                                    \
   "-v512:512:512-v1024:1024:1024"
 
-enum SPIRAddressSpace {
-  SPIRAS_Private,
-  SPIRAS_Global,
-  SPIRAS_Constant,
-  SPIRAS_Local,
-  SPIRAS_Generic,
-  SPIRAS_GlobalDevice,
-  SPIRAS_GlobalHost,
-  SPIRAS_Input,
-  SPIRAS_Output,
-  SPIRAS_CodeSectionINTEL,
-  SPIRAS_Count,
-};
-
 template <> inline void SPIRVMap<SPIRAddressSpace, std::string>::init() {
   add(SPIRAS_Private, "Private");
   add(SPIRAS_Global, "Global");
@@ -412,7 +398,7 @@ const static char SPIRVer[] = "opencl.spir.version";
 const static char VecTyHint[] = "vec_type_hint";
 const static char WGSize[] = "reqd_work_group_size";
 const static char WGSizeHint[] = "work_group_size_hint";
-const static char SubgroupSize[] = "intel_reqd_sub_group_size";
+const static char SubgroupSize[] = "reqd_sub_group_size";
 const static char MaxWGSize[] = "max_work_group_size";
 const static char NoGlobalOffset[] = "no_global_work_offset";
 const static char MaxWGDim[] = "max_global_work_dim";
@@ -898,7 +884,8 @@ bool containsUnsignedAtomicType(StringRef Name);
 /// \return \param UniqName if \param BtnInfo is null pointer, otherwise
 ///    return IA64 mangled name.
 std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
-                          BuiltinFuncMangleInfo *BtnInfo);
+                          BuiltinFuncMangleInfo *BtnInfo,
+                          const SPIRV::AddrSpaceMap *Map = nullptr);
 
 /// Extract the true pointer types, expressed as a TypedPointerType, of
 /// arguments from a mangled function name. If the corresponding type is not a
@@ -920,9 +907,10 @@ bool getRetParamSignedness(Function *F, ParamSignedness &RetSignedness,
 
 /// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
 /// manner
-std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
-                                           ArrayRef<Type *> ArgTys,
-                                           Type *RetTy = nullptr);
+std::string
+getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId, ArrayRef<Type *> ArgTys,
+                               Type *RetTy = nullptr,
+                               const SPIRV::AddrSpaceMap *Map = nullptr);
 
 /// Mangle a function in SPIR-V friendly IR manner
 /// \param UniqName full unmangled name of the SPIR-V built-in function that
@@ -933,9 +921,9 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 /// \param Types of arguments of SPIR-V built-in function
 /// \param Ops Operands of SPIRVInstruction
 /// \return IA64 mangled name.
-std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC, ArrayRef<Type *> ArgTys,
-                                           ArrayRef<SPIRVValue *> Ops);
+std::string getSPIRVFriendlyIRFunctionName(
+    const std::string &UniqName, spv::Op OC, ArrayRef<Type *> ArgTys,
+    ArrayRef<SPIRVValue *> Ops, const SPIRV::AddrSpaceMap *Map = nullptr);
 
 /// Get i8* with the same address space.
 PointerType *getInt8PtrTy(PointerType *T);

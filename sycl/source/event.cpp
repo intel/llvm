@@ -14,7 +14,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <memory>
 #include <unordered_set>
@@ -24,17 +23,19 @@ inline namespace _V1 {
 
 event::event() : impl(detail::event_impl::create_default_event()) {}
 
-event::event(cl_event ClEvent, const context &SyclContext)
+event::event(OpenCLEventT ClEvent, const context &SyclContext)
     : impl(detail::event_impl::create_from_handle(
           detail::ur::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  __SYCL_OCL_CALL(clRetainEvent, ClEvent);
+  detail::retainOpenCLEvent(detail::ur::cast<ur_native_handle_t>(ClEvent));
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 void event::wait() { impl->wait(); }
 
@@ -92,26 +93,31 @@ event::get_profiling_info() const {
   return impl->template get_profiling_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const;
+#define __SYCL_EVENT_INFO_INST(NAME, RETURN_T)                                 \
+  template __SYCL_EXPORT RETURN_T event::get_info<info::event::NAME>() const;
+__SYCL_EVENT_INFO_INST(command_execution_status, info::event_command_status)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EVENT_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#undef __SYCL_EVENT_INFO_INST
 
-#include <sycl/info/event_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  event::get_profiling_info<info::DescType::Desc>() const;
-
-#include <sycl/info/event_profiling_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_EVENT_PROFILING_INFO_INST(NAME, RETURN_T)                       \
+  template __SYCL_EXPORT RETURN_T                                              \
+  event::get_profiling_info<info::event_profiling::NAME>() const;
+__SYCL_EVENT_PROFILING_INFO_INST(command_submit, uint64_t)
+__SYCL_EVENT_PROFILING_INFO_INST(command_start, uint64_t)
+__SYCL_EVENT_PROFILING_INFO_INST(command_end, uint64_t)
+#undef __SYCL_EVENT_PROFILING_INFO_INST
 
 backend event::get_backend() const noexcept try {
   return getImplBackend(impl);
 } catch (std::exception &e) {
   __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in get_backend", e);
   std::abort();
+}
+
+bool event::ext_oneapi_ipc_enabled() const noexcept {
+  return impl->isIPCEnabled();
 }
 
 ur_native_handle_t event::getNative() const { return impl->getNative(); }

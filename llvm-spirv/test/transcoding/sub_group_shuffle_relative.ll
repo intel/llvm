@@ -85,6 +85,10 @@
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformShuffleRelative
 
@@ -341,8 +345,8 @@ declare dso_local spir_func float @_Z22sub_group_shuffle_downfj(float, i32) loca
 ; CHECK-SPIRV: FunctionEnd
 
 ; CHECK-LLVM-LABEL: @testShuffleRelativeHalf
-; CHECK-LLVM: call spir_func half @_Z20sub_group_shuffle_upDhj(half 0xH0000, i32 0)
-; CHECK-LLVM: call spir_func half @_Z22sub_group_shuffle_downDhj(half 0xH0000, i32 0)
+; CHECK-LLVM: call spir_func half @_Z20sub_group_shuffle_upDhj(half 0.000000e+00, i32 0)
+; CHECK-LLVM: call spir_func half @_Z22sub_group_shuffle_downDhj(half 0.000000e+00, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleRelativeHalf(ptr addrspace(1) captures(none)) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !26 !kernel_arg_base_type !26 !kernel_arg_type_qual !6 {

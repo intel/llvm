@@ -15,7 +15,15 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/device.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
 
 // Trying to force MSVC to generate the symbol/export for the inline function
 // that it needs on the import (because the class itself is being exported):
@@ -39,7 +47,7 @@ device::device() : device(default_selector_v) {}
 device::device(const device &rhs) = default;
 device::device(device &&rhs) = default;
 
-device::device(cl_device_id DeviceId) {
+device::device(OpenCLDeviceIdT DeviceId) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
   // The implementation constructor takes ownership of the native handle so we
@@ -50,7 +58,7 @@ device::device(cl_device_id DeviceId) {
       nullptr, &Device);
   impl = &detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
               .getOrMakeDeviceImpl(Device);
-  __SYCL_OCL_CALL(clRetainDevice, DeviceId);
+  detail::retainOpenCLDevice(detail::ur::cast<ur_native_handle_t>(DeviceId));
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -77,7 +85,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   return devices;
 }
 
-cl_device_id device::get() const { return impl->get(); }
+OpenCLDeviceIdT device::get() const { return impl->get(); }
 
 bool device::is_cpu() const { return impl->is_cpu(); }
 
@@ -138,7 +146,8 @@ device::get_info_impl() const {
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
-// Explicit override. Not fulfilled by #include device_traits.def below.
+// Explicit override; the macro-generated instantiation block below skips this
+// trait so the runtime can apply the sub-device check.
 template <>
 __SYCL_EXPORT device
 device::get_info_impl<info::device::parent_device>() const {
@@ -178,24 +187,224 @@ __SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
   return impl->template get_info<info::device::image_support>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
-  device::get_info_impl<info::device::Desc>() const;
+#define __SYCL_DEVICE_INFO_INST(NAME, RETURN_T)                                \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  device::get_info_impl<info::device::NAME>() const;
+__SYCL_DEVICE_INFO_INST(device_type, info::device_type)
+__SYCL_DEVICE_INFO_INST(vendor_id, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_compute_units, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_work_item_dimensions, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_work_item_sizes<1>, range<1>)
+__SYCL_DEVICE_INFO_INST(max_work_item_sizes<2>, range<2>)
+__SYCL_DEVICE_INFO_INST(max_work_item_sizes<3>, range<3>)
+__SYCL_DEVICE_INFO_INST(max_work_group_size, size_t)
+__SYCL_DEVICE_INFO_INST(max_num_sub_groups, uint32_t)
+__SYCL_DEVICE_INFO_INST(sub_group_sizes, std::vector<size_t>)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_char, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_short, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_int, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_long, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_long_long, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_float, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_double, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_half, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_char, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_short, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_int, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_long, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_long_long, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_float, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_double, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_half, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_clock_frequency, uint32_t)
+__SYCL_DEVICE_INFO_INST(address_bits, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_mem_alloc_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(max_read_image_args, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_write_image_args, uint32_t)
+__SYCL_DEVICE_INFO_INST(image2d_max_width, size_t)
+__SYCL_DEVICE_INFO_INST(image2d_max_height, size_t)
+__SYCL_DEVICE_INFO_INST(image3d_max_width, size_t)
+__SYCL_DEVICE_INFO_INST(image3d_max_height, size_t)
+__SYCL_DEVICE_INFO_INST(image3d_max_depth, size_t)
+__SYCL_DEVICE_INFO_INST(image_max_buffer_size, size_t)
+__SYCL_DEVICE_INFO_INST(max_samplers, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_parameter_size, size_t)
+__SYCL_DEVICE_INFO_INST(mem_base_addr_align, uint32_t)
+__SYCL_DEVICE_INFO_INST(half_fp_config, std::vector<info::fp_config>)
+__SYCL_DEVICE_INFO_INST(single_fp_config, std::vector<info::fp_config>)
+__SYCL_DEVICE_INFO_INST(double_fp_config, std::vector<info::fp_config>)
+__SYCL_DEVICE_INFO_INST(global_mem_cache_type, info::global_mem_cache_type)
+__SYCL_DEVICE_INFO_INST(global_mem_cache_line_size, uint32_t)
+__SYCL_DEVICE_INFO_INST(global_mem_cache_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(global_mem_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(max_constant_buffer_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(max_constant_args, uint32_t)
+__SYCL_DEVICE_INFO_INST(local_mem_type, info::local_mem_type)
+__SYCL_DEVICE_INFO_INST(local_mem_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(error_correction_support, bool)
+__SYCL_DEVICE_INFO_INST(host_unified_memory, bool)
+__SYCL_DEVICE_INFO_INST(atomic_memory_order_capabilities,
+                        std::vector<sycl::memory_order>)
+__SYCL_DEVICE_INFO_INST(atomic_fence_order_capabilities,
+                        std::vector<sycl::memory_order>)
+__SYCL_DEVICE_INFO_INST(atomic_memory_scope_capabilities,
+                        std::vector<sycl::memory_scope>)
+__SYCL_DEVICE_INFO_INST(atomic_fence_scope_capabilities,
+                        std::vector<sycl::memory_scope>)
+__SYCL_DEVICE_INFO_INST(profiling_timer_resolution, size_t)
+__SYCL_DEVICE_INFO_INST(is_endian_little, bool)
+__SYCL_DEVICE_INFO_INST(is_available, bool)
+__SYCL_DEVICE_INFO_INST(is_compiler_available, bool)
+__SYCL_DEVICE_INFO_INST(is_linker_available, bool)
+__SYCL_DEVICE_INFO_INST(execution_capabilities,
+                        std::vector<info::execution_capability>)
+__SYCL_DEVICE_INFO_INST(queue_profiling, bool)
+__SYCL_DEVICE_INFO_INST(built_in_kernel_ids, std::vector<sycl::kernel_id>)
+__SYCL_DEVICE_INFO_INST(built_in_kernels, std::vector<std::string>)
+__SYCL_DEVICE_INFO_INST(platform, sycl::platform)
+__SYCL_DEVICE_INFO_INST(name, std::string)
+__SYCL_DEVICE_INFO_INST(vendor, std::string)
+__SYCL_DEVICE_INFO_INST(driver_version, std::string)
+__SYCL_DEVICE_INFO_INST(profile, std::string)
+__SYCL_DEVICE_INFO_INST(version, std::string)
+__SYCL_DEVICE_INFO_INST(backend_version, std::string)
+__SYCL_DEVICE_INFO_INST(extensions, std::vector<std::string>)
+__SYCL_DEVICE_INFO_INST(printf_buffer_size, size_t)
+__SYCL_DEVICE_INFO_INST(preferred_interop_user_sync, bool)
+__SYCL_DEVICE_INFO_INST(partition_max_sub_devices, uint32_t)
+__SYCL_DEVICE_INFO_INST(partition_properties,
+                        std::vector<info::partition_property>)
+__SYCL_DEVICE_INFO_INST(partition_affinity_domains,
+                        std::vector<info::partition_affinity_domain>)
+__SYCL_DEVICE_INFO_INST(partition_type_property, info::partition_property)
+__SYCL_DEVICE_INFO_INST(partition_type_affinity_domain,
+                        info::partition_affinity_domain)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_DEVICE_INFO_INST(atomic64, bool)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_DEVICE_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_DEVICE_INFO_INST(usm_device_allocations, bool)
+__SYCL_DEVICE_INFO_INST(usm_host_allocations, bool)
+__SYCL_DEVICE_INFO_INST(usm_shared_allocations, bool)
+__SYCL_DEVICE_INFO_INST(usm_restricted_shared_allocations, bool)
+__SYCL_DEVICE_INFO_INST(usm_system_allocations, bool)
+__SYCL_DEVICE_INFO_INST(image_max_array_size, size_t)
+__SYCL_DEVICE_INFO_INST(opencl_c_version, std::string)
+__SYCL_DEVICE_INFO_INST(sub_group_independent_forward_progress, bool)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_srgb, bool)
+__SYCL_DEVICE_INFO_INST(ext_intel_pci_address, std::string)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_count, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_simd_width, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_slices, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_subslices_per_slice, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_count_per_subslice, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_hw_threads_per_eu, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_device_info_uuid, detail::uuid_type)
+__SYCL_DEVICE_INFO_INST(ext_intel_max_mem_bandwidth, uint64_t)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_1d, id<1>)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_2d, id<2>)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_3d, id<3>)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_max_global_work_groups, size_t)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_cuda_cluster_group, bool)
+#undef __SYCL_DEVICE_INFO_INST
 
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)
+// Self-describing extension traits: explicit instantiation for the ABI
+// surface lives here until the matching trait moves to a dedicated TU.
+template __SYCL_EXPORT detail::ABINeutralT_t<
+    std::vector<ext::oneapi::experimental::matrix::combination>>
+device::get_info_impl<
+    ext::oneapi::experimental::info::device::matrix_combinations>() const;
+template __SYCL_EXPORT detail::ABINeutralT_t<uint32_t> device::get_info_impl<
+    ext::codeplay::experimental::info::device::max_registers_per_work_group>()
+    const;
 
-#include <sycl/info/device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_INTEL_DEVICE_INST(NS, NAME, RETURN_T)                           \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  device::get_info_impl<NS::NAME>() const;
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, device_id, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, pci_address, std::string)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_eu_count, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_eu_simd_width, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_slices, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_subslices_per_slice,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_eu_count_per_subslice,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_hw_threads_per_eu,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_mem_bandwidth, uint64_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, uuid, detail::uuid_type)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, free_memory, uint64_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, memory_clock_rate, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, memory_bus_width, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_compute_queue_indices,
+                         int32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::esimd::info::device,
+                         has_2d_block_io_support, bool)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device,
+                         current_clock_throttle_reasons,
+                         std::vector<ext::intel::throttle_reason>)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, fan_speed, int32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, min_power_limit, int32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_power_limit, int32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, luid, detail::luid_type)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, node_mask, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_stack_count, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_regions_per_stack,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_clusters_per_region,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_cores_per_cluster,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, eus_per_xe_core, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_lanes_per_hw_thread,
+                         uint32_t)
+#undef __SYCL_INTEL_DEVICE_INST
 
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
-  device::get_info_impl<Namespace::info::DescType::Desc>() const;
+#define __SYCL_ONEAPI_DEVICE_INST(NS, NAME, RETURN_T)                          \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  device::get_info_impl<NS::NAME>() const;
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_global_work_groups, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_work_groups<1>, id<1>)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_work_groups<2>, id<2>)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_work_groups<3>, id<3>)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device, architecture,
+                          ext::oneapi::experimental::architecture)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          image_row_pitch_align, uint32_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_image_linear_row_pitch, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_image_linear_width, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_image_linear_height, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          mipmap_max_anisotropy, float)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          component_devices, std::vector<sycl::device>)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          composite_device, sycl::device)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::info::device, num_compute_units, size_t)
+#undef __SYCL_ONEAPI_DEVICE_INST
 
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_ONEAPI_PROGRESS_INST(NAME, SCOPE)                               \
+  template __SYCL_EXPORT detail::ABINeutralT_t<                                \
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>>      \
+  device::get_info_impl<ext::oneapi::experimental::info::device::NAME<         \
+      ext::oneapi::experimental::execution_scope::SCOPE>>() const;
+__SYCL_ONEAPI_PROGRESS_INST(work_group_progress_capabilities, root_group)
+__SYCL_ONEAPI_PROGRESS_INST(sub_group_progress_capabilities, root_group)
+__SYCL_ONEAPI_PROGRESS_INST(sub_group_progress_capabilities, work_group)
+__SYCL_ONEAPI_PROGRESS_INST(work_item_progress_capabilities, root_group)
+__SYCL_ONEAPI_PROGRESS_INST(work_item_progress_capabilities, work_group)
+__SYCL_ONEAPI_PROGRESS_INST(work_item_progress_capabilities, sub_group)
+#undef __SYCL_ONEAPI_PROGRESS_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
@@ -209,22 +418,32 @@ ur_native_handle_t device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
+template <detail::UrApiKind ApiKind>
+static void p2pAccessHelper(const device &self, const device &peer,
+                            ur_device_handle_t Device, ur_device_handle_t Peer,
+                            detail::adapter_impl &Adapter,
+                            const char *errorMsg) {
+  if (Device == Peer)
+    return;
+
+  if (peer.get_platform() != self.get_platform())
+    throw exception(errc::invalid, errorMsg);
+
+  Adapter.call<ApiKind>(Device, Peer);
+}
+
 void device::ext_oneapi_enable_peer_access(const device &peer) {
-  ur_device_handle_t Device = impl->getHandleRef();
-  ur_device_handle_t Peer = peer.impl->getHandleRef();
-  if (Device != Peer) {
-    detail::adapter_impl &Adapter = impl->getAdapter();
-    Adapter.call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
-  }
+  p2pAccessHelper<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(
+      *this, peer, impl->getHandleRef(), peer.impl->getHandleRef(),
+      impl->getAdapter(),
+      "Cannot enable peer access between different platforms");
 }
 
 void device::ext_oneapi_disable_peer_access(const device &peer) {
-  ur_device_handle_t Device = impl->getHandleRef();
-  ur_device_handle_t Peer = peer.impl->getHandleRef();
-  if (Device != Peer) {
-    detail::adapter_impl &Adapter = impl->getAdapter();
-    Adapter.call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device, Peer);
-  }
+  p2pAccessHelper<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(
+      *this, peer, impl->getHandleRef(), peer.impl->getHandleRef(),
+      impl->getAdapter(),
+      "Cannot disable peer access between different platforms");
 }
 
 bool device::ext_oneapi_can_access_peer(const device &peer,

@@ -1,12 +1,11 @@
 
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
  *
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -45,6 +44,7 @@ _UR_API(urEventRelease)
 _UR_API(urEventGetNativeHandle)
 _UR_API(urEventCreateWithNativeHandle)
 _UR_API(urEventSetCallback)
+_UR_API(urEventCreateExp)
 _UR_API(urProgramCreateWithIL)
 _UR_API(urProgramCreateWithBinary)
 _UR_API(urProgramBuild)
@@ -73,12 +73,7 @@ _UR_API(urKernelGetNativeHandle)
 _UR_API(urKernelCreateWithNativeHandle)
 _UR_API(urKernelGetSuggestedLocalWorkSize)
 _UR_API(urKernelGetSuggestedLocalWorkSizeWithArgs)
-_UR_API(urKernelSetArgValue)
-_UR_API(urKernelSetArgLocal)
-_UR_API(urKernelSetArgPointer)
 _UR_API(urKernelSetExecInfo)
-_UR_API(urKernelSetArgSampler)
-_UR_API(urKernelSetArgMemObj)
 _UR_API(urKernelSetSpecializationConstants)
 _UR_API(urKernelSuggestMaxCooperativeGroupCount)
 _UR_API(urQueueGetInfo)
@@ -93,6 +88,7 @@ _UR_API(urQueueBeginGraphCaptureExp)
 _UR_API(urQueueBeginCaptureIntoGraphExp)
 _UR_API(urQueueEndGraphCaptureExp)
 _UR_API(urQueueIsGraphCaptureEnabledExp)
+_UR_API(urQueueGetGraphExp)
 _UR_API(urSamplerCreate)
 _UR_API(urSamplerRetain)
 _UR_API(urSamplerRelease)
@@ -113,7 +109,6 @@ _UR_API(urPhysicalMemCreate)
 _UR_API(urPhysicalMemRetain)
 _UR_API(urPhysicalMemRelease)
 _UR_API(urPhysicalMemGetInfo)
-_UR_API(urEnqueueKernelLaunch)
 _UR_API(urEnqueueEventsWait)
 _UR_API(urEnqueueEventsWaitWithBarrier)
 _UR_API(urEnqueueMemBufferRead)
@@ -223,11 +218,22 @@ _UR_API(urGraphInstantiateGraphExp)
 _UR_API(urGraphDestroyExp)
 _UR_API(urGraphExecutableGraphDestroyExp)
 _UR_API(urGraphIsEmptyExp)
+_UR_API(urGraphGetIdExp)
+_UR_API(urGraphSetDestructionCallbackExp)
 _UR_API(urGraphDumpContentsExp)
+_UR_API(urGraphGetNativeHandleExp)
+_UR_API(urGraphExecutableGraphGetNativeHandleExp)
 _UR_API(urIPCGetMemHandleExp)
 _UR_API(urIPCPutMemHandleExp)
 _UR_API(urIPCOpenMemHandleExp)
 _UR_API(urIPCCloseMemHandleExp)
+_UR_API(urIPCGetPhysMemHandleExp)
+_UR_API(urIPCPutPhysMemHandleExp)
+_UR_API(urIPCOpenPhysMemHandleExp)
+_UR_API(urIPCClosePhysMemHandleExp)
+_UR_API(urIPCGetEventHandleExp)
+_UR_API(urIPCPutEventHandleExp)
+_UR_API(urIPCOpenEventHandleExp)
 _UR_API(urMemoryExportAllocExportableMemoryExp)
 _UR_API(urMemoryExportFreeExportableMemoryExp)
 _UR_API(urMemoryExportExportMemoryHandleExp)

@@ -2,10 +2,10 @@
 /// Tests for -Xspirv-translator
 ///
 
-// RUN: %clangxx -fsycl --offload-new-driver -Xspirv-translator "foo" -### %s 2>&1 | \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-translator "foo" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SINGLE-TARGET
 
-// RUN: %clangxx -fsycl --offload-new-driver -Xspirv-translator=spir64_gen "foo" -### %s 2>&1 | \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-translator=spir64_gen "foo" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SINGLE-TARGET-UNUSED --implicit-check-not 'llvm-spirv{{.*}} "foo"'
 
 // CHECK-SINGLE-TARGET: clang-linker-wrapper{{.*}} "--llvm-spirv-options=foo{{.*}}

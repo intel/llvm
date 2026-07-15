@@ -279,7 +279,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain release
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
@@ -302,7 +302,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
@@ -326,7 +326,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia"
 
     - name: Build E2E tests with NewOffloadModel
@@ -341,7 +341,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia" --param enable_new_offload_model=True
 
     - name: Build E2E tests with SPIR-V Backend
@@ -352,7 +352,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_spirv_backend_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
         extra_lit_opts: --param spirv-backend=True
 
     - name: Build E2E tests in Preview Mode
@@ -363,5 +363,5 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_preview_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
         extra_lit_opts: --param test-preview-mode=True

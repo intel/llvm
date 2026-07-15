@@ -1,9 +1,8 @@
 //===--------- queue_immediate_in_order.cpp - Level Zero Adapter ---------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -146,22 +145,32 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier");
-  // For in-order queue we don't need a real barrier, just wait for
-  // requested events in potentially different queues and add a "barrier"
-  // event signal because it is already guaranteed that previous commands
-  // in this queue are completed when the signal is started. However, we do
-  // need to use barrier if profiling is enabled: see
-  // zeCommandListAppendWaitOnEvents
+  if (phEvent)
+    *phEvent = nullptr;
+  return enqueueEventsWaitWithBarrierExt(nullptr, numEventsInWaitList,
+                                         phEventWaitList, phEvent);
+}
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
+    const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt");
+
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList);
 
-  if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
-    return commandListManager.lock()->appendEventsWaitWithBarrier(
-        waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
-  } else {
-    return commandListManager.lock()->appendEventsWait(
-        waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
-  }
-}
+  if (phEvent && *phEvent && !(*phEvent)->isCounter())
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
 
+  ur_event_handle_t event =
+      createEventOrReuseIfRequested(eventPool.get(), phEvent, this);
+
+  auto &&cmdListMan = commandListManager.lock();
+
+  if (flags & UR_QUEUE_FLAG_PROFILING_ENABLE)
+    return cmdListMan->appendEventsWaitWithBarrier(waitListView, event);
+
+  return cmdListMan->appendEventsWait(waitListView, event);
+}
 } // namespace v2
