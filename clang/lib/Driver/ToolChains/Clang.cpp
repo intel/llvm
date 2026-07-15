@@ -12185,10 +12185,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       ArgStringList BuildArgs;
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs)
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" +
-            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + A));
+        CmdArgs.push_back(
+            Args.MakeArgString("--device-compiler=" +
+                               Action::GetOffloadKindName(Action::OFK_SYCL) +
+                               ":" + TC->getTripleString() + "=" + A));
 
       BuildArgs.clear();
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);

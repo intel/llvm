@@ -1871,10 +1871,10 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
         (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
          Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
     Expected<StringRef> AOTFile =
-        (NeedAOTCompile) ? sycl::runAOTCompile(*SPVFile, Args,
-                                               SYCLBackendOptions,
-                                               AOTDeviceArgs)
-                         : *SPVFile;
+        (NeedAOTCompile)
+            ? sycl::runAOTCompile(*SPVFile, Args, SYCLBackendOptions,
+                                  AOTDeviceArgs)
+            : *SPVFile;
     if (!AOTFile)
       return AOTFile.takeError();
     return NeedAOTCompile ? *AOTFile : *SPVFile;
@@ -1889,11 +1889,11 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
   }
 }
 
-Expected<StringRef> compileDeviceAndBundle(StringRef ModuleFilePath,
-                                           const ArgList &LinkerArgs,
-                                           const llvm::Triple &Triple,
-                                           StringRef AdditionalCompileOptions,
-                                           ArrayRef<std::string> AOTDeviceArgs = {}) {
+Expected<StringRef>
+compileDeviceAndBundle(StringRef ModuleFilePath, const ArgList &LinkerArgs,
+                       const llvm::Triple &Triple,
+                       StringRef AdditionalCompileOptions,
+                       ArrayRef<std::string> AOTDeviceArgs = {}) {
   Expected<StringRef> OutputOrErr = invokeBackendForSYCLDevice(
       ModuleFilePath, LinkerArgs, AdditionalCompileOptions, AOTDeviceArgs);
   if (!OutputOrErr)
@@ -2540,7 +2540,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       // isn't re-split downstream. They are appended to the AOT tool's argv
       // as individual entries, alongside the image-embedded options (which
       // remain a flat, space-tokenized string, unrelated to this list).
-      const llvm::Triple TargetTriple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      const llvm::Triple TargetTriple(
+          LinkerArgs.getLastArgValue(OPT_triple_EQ));
       std::vector<std::string> AOTDeviceArgs;
       if (TargetTriple.isSPIRAOT()) {
         for (std::string &DeviceCompilerArg :
