@@ -40,7 +40,14 @@ public:
 };
 
 ModulePass *createWebAssemblyAddMissingPrototypesLegacyPass();
-ModulePass *createWebAssemblyFixFunctionBitcasts();
+
+class WebAssemblyFixFunctionBitcastsPass
+    : public RequiredPassInfoMixin<WebAssemblyFixFunctionBitcastsPass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
+};
+
+ModulePass *createWebAssemblyFixFunctionBitcastsLegacyPass();
 FunctionPass *createWebAssemblyOptimizeReturned();
 FunctionPass *createWebAssemblyRefTypeMem2Local();
 FunctionPass *createWebAssemblyReduceToAnyAllTrue(WebAssemblyTargetMachine &TM);
@@ -91,7 +98,6 @@ FunctionPass *createWebAssemblyPeephole();
 ModulePass *createWebAssemblyMCLowerPrePass();
 
 // PassRegistry initialization declarations.
-void initializeFixFunctionBitcastsPass(PassRegistry &);
 void initializeOptimizeReturnedPass(PassRegistry &);
 void initializeWebAssemblyRefTypeMem2LocalPass(PassRegistry &);
 void initializeWebAssemblyAddMissingPrototypesLegacyPass(PassRegistry &);
@@ -105,6 +111,7 @@ void initializeWebAssemblyDebugFixupPass(PassRegistry &);
 void initializeWebAssemblyExceptionInfoPass(PassRegistry &);
 void initializeWebAssemblyExplicitLocalsPass(PassRegistry &);
 void initializeWebAssemblyFixBrTableDefaultsPass(PassRegistry &);
+void initializeWebAssemblyFixFunctionBitcastsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixIrreducibleControlFlowPass(PassRegistry &);
 void initializeWebAssemblyLateEHPreparePass(PassRegistry &);
 void initializeWebAssemblyLowerBrUnlessPass(PassRegistry &);

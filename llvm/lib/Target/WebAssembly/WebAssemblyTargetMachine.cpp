@@ -96,7 +96,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyAddMissingPrototypesLegacyPass(PR);
   initializeWebAssemblyLowerEmscriptenEHSjLjPass(PR);
   initializeLowerGlobalDtorsLegacyPassPass(PR);
-  initializeFixFunctionBitcastsPass(PR);
+  initializeWebAssemblyFixFunctionBitcastsLegacyPass(PR);
   initializeOptimizeReturnedPass(PR);
   initializeWebAssemblyRefTypeMem2LocalPass(PR);
   initializeWebAssemblyArgumentMovePass(PR);
@@ -494,7 +494,7 @@ void WebAssemblyPassConfig::addIRPasses() {
 
   // Fix function bitcasts, as WebAssembly requires caller and callee signatures
   // to match.
-  addPass(createWebAssemblyFixFunctionBitcasts());
+  addPass(createWebAssemblyFixFunctionBitcastsLegacyPass());
 
   // Optimize "returned" function attributes.
   if (getOptLevel() != CodeGenOptLevel::None)
