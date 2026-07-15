@@ -22,7 +22,7 @@
 #define __SYCL_HAS_BUILTIN_BIT_CAST 0
 #endif
 
-#if __cplusplus >= 202002L
+#if __cplusplus >= 202002L && __has_include(<version>)
 #include <version> // defines __cpp_lib_bit_cast
 #endif
 
