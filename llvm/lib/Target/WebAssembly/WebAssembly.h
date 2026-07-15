@@ -63,7 +63,21 @@ public:
 
 FunctionPass *createWebAssemblyOptimizeReturnedLegacyPass();
 FunctionPass *createWebAssemblyRefTypeMem2Local();
-FunctionPass *createWebAssemblyReduceToAnyAllTrue(WebAssemblyTargetMachine &TM);
+
+class WebAssemblyReduceToAnyAllTruePass
+    : public RequiredPassInfoMixin<WebAssemblyReduceToAnyAllTruePass> {
+private:
+  Module *CachedModule = nullptr;
+  bool ModuleHasInterestingIntrinsics = false;
+  WebAssemblyTargetMachine &TM;
+
+public:
+  WebAssemblyReduceToAnyAllTruePass(WebAssemblyTargetMachine &TM) : TM(TM) {}
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
+};
+
+FunctionPass *
+createWebAssemblyReduceToAnyAllTrueLegacyPass(WebAssemblyTargetMachine &TM);
 
 // GlobalISel
 InstructionSelector *

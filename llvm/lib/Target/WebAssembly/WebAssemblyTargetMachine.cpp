@@ -524,7 +524,8 @@ void WebAssemblyPassConfig::addIRPasses() {
   addPass(createIndirectBrExpandPass());
 
   // Try to expand `vecreduce_{and, or}` into `{any, all}_true`.
-  addPass(createWebAssemblyReduceToAnyAllTrue(getWebAssemblyTargetMachine()));
+  addPass(createWebAssemblyReduceToAnyAllTrueLegacyPass(
+      getWebAssemblyTargetMachine()));
 
   TargetPassConfig::addIRPasses();
 }
