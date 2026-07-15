@@ -2671,8 +2671,17 @@ sycl::free(data, queue);
 
 === Limitations of Native Recording [[native-recording-limitations]]
 
-The following features cannot be used with native recording and will throw an
-exception if attempted:
+Native recording strongly interoperates with native command submission, so
+capturable commands and state queries on a graph handle owned by a
+`command_graph` object may be submitted through native API calls. However, graph
+creation, destruction, finalization, and begin / end capture for SYCL graphs
+using native recording must be performed by invoking member functions of the
+`command_graph` class. Attempting to perform any of these operations through
+native APIs on a graph handle owned by a `command_graph` object is undefined
+behavior.
+
+Furthermore, the following features cannot be used with native recording and
+will throw an exception if attempted:
 
 [cols="1,3,1"]
 |===
@@ -2702,8 +2711,12 @@ exception if attempted:
 | Implies update support which is unavailable for native recording.
 | `feature_not_supported`
 
-| Calling `begin_recording` with a vector of queues, or calling it more than once per graph
-| Only a single call to `begin_recording` with a single queue is supported per graph.
+| Calling `begin_recording` with a vector containing more than one queue.
+| The recorded graph must contain only one root node from a single queue submission.
+| `feature_not_supported`
+
+| Calling `begin_recording` and `end_recording` more than once on the same `command_graph` (pause and resume).
+| Ending recording seals the graph capture leaving it unable to accept more nodes.
 | `feature_not_supported`
 
 | Events from submissions within a graph used outside that graph
