@@ -36,29 +36,31 @@ namespace llvm {
 template <typename ContextT>
 void GenericCycleInfo<ContextT>::getExitBlocks(
     const CycleT &C, SmallVectorImpl<BlockT *> &TmpStorage) const {
-  if (!C.ExitBlocksCache.empty()) {
-    TmpStorage.append(C.ExitBlocksCache.begin(), C.ExitBlocksCache.end());
+  if (ExitBlocksCaches.empty())
+    ExitBlocksCaches.resize(NumCycles);
+  auto &Cache = ExitBlocksCaches[C.ID];
+  if (!Cache.empty()) {
+    TmpStorage.append(Cache.begin(), Cache.end());
     return;
   }
 
   size_t NumExitBlocks = 0;
   for (BlockT *Block : getBlocks(C)) {
-    llvm::append_range(C.ExitBlocksCache, successors(Block));
+    llvm::append_range(Cache, successors(Block));
 
-    for (size_t Idx = NumExitBlocks, End = C.ExitBlocksCache.size(); Idx < End;
-         ++Idx) {
-      BlockT *Succ = C.ExitBlocksCache[Idx];
+    for (size_t Idx = NumExitBlocks, End = Cache.size(); Idx < End; ++Idx) {
+      BlockT *Succ = Cache[Idx];
       if (!contains(C, Succ)) {
-        auto ExitEndIt = C.ExitBlocksCache.begin() + NumExitBlocks;
-        if (std::find(C.ExitBlocksCache.begin(), ExitEndIt, Succ) == ExitEndIt)
-          C.ExitBlocksCache[NumExitBlocks++] = Succ;
+        auto ExitEndIt = Cache.begin() + NumExitBlocks;
+        if (std::find(Cache.begin(), ExitEndIt, Succ) == ExitEndIt)
+          Cache[NumExitBlocks++] = Succ;
       }
     }
 
-    C.ExitBlocksCache.resize(NumExitBlocks);
+    Cache.resize(NumExitBlocks);
   }
 
-  TmpStorage.append(C.ExitBlocksCache.begin(), C.ExitBlocksCache.end());
+  TmpStorage.append(Cache.begin(), Cache.end());
 }
 
 template <typename ContextT>
@@ -320,7 +322,8 @@ void GenericCycleInfo<ContextT>::addBlockToCycle(BlockT *Block, CycleT *Cycle) {
   // invalidate its exit-block cache in a single walk up the tree.
   for (CycleT *C = Cycle; C; C = C->getParentCycle()) {
     ++C->IdxEnd;
-    C->clearCache();
+    if (!ExitBlocksCaches.empty())
+      ExitBlocksCaches[C->ID].clear();
   }
 }
 
@@ -340,7 +343,9 @@ void GenericCycleInfo<ContextT>::layoutBlocks(ArrayRef<BlockT *> Order) {
   };
   SmallVector<Frame, 8> Stack;
   unsigned Cursor = 0;
+  NumCycles = 0;
   auto enter = [&](CycleT *C) {
+    C->ID = NumCycles++;
     Cursor += C->IdxEnd; // IdxEnd currently holds C's own-block count.
     C->IdxBegin = Cursor;
     Stack.push_back({C, C->child_begin(), C->child_end()});
@@ -550,6 +555,8 @@ template <typename ContextT> void GenericCycleInfo<ContextT>::clear() {
   TopLevelCycles.clear();
   BlockMap.clear();
   BlockLayout.clear();
+  NumCycles = 0;
+  ExitBlocksCaches.clear();
 }
 
 /// \brief Compute the cycle info for a function.

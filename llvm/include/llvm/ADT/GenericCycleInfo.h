@@ -78,22 +78,11 @@ private:
   ///       always have the same depth.
   unsigned Depth = 0;
 
-  /// Cache for the results of GetExitBlocks
-  mutable SmallVector<BlockT *, 4> ExitBlocksCache;
+  /// Preorder number of this cycle in the forest, assigned by layoutBlocks.
+  /// Indexes per-cycle side tables in GenericCycleInfo.
+  unsigned ID = 0;
 
-  void clear() {
-    Entries.clear();
-    Children.clear();
-    IdxBegin = IdxEnd = 0;
-    Depth = 0;
-    ParentCycle = nullptr;
-    clearCache();
-  }
-
-  void appendEntry(BlockT *Block) {
-    Entries.push_back(Block);
-    clearCache();
-  }
+  void appendEntry(BlockT *Block) { Entries.push_back(Block); }
 
   GenericCycle(const GenericCycle &) = delete;
   GenericCycle &operator=(const GenericCycle &) = delete;
@@ -112,11 +101,6 @@ public:
     return Entries;
   }
 
-  /// Clear the cache of the cycle.
-  /// This should be run in all non-const function in GenericCycle
-  /// and GenericCycleInfo.
-  void clearCache() const { ExitBlocksCache.clear(); }
-
   /// \brief Return whether \p Block is an entry block of the cycle.
   bool isEntry(const BlockT *Block) const {
     return is_contained(Entries, Block);
@@ -127,7 +111,6 @@ public:
   void setSingleEntry(BlockT *Block) {
     Entries.clear();
     Entries.push_back(Block);
-    clearCache();
   }
 
   /// \brief Returns true iff this cycle contains \p C. O(1). Non-strict, i.e.
@@ -214,6 +197,12 @@ private:
   /// Euler tour of the cycle forest: every cycle's blocks form a contiguous
   /// slice [IdxBegin, IdxEnd) of this array, nested inside its parent's.
   SmallVector<BlockT *, 8> BlockLayout;
+
+  unsigned NumCycles = 0;
+
+  /// getExitBlocks caches, indexed by CycleT::ID. Empty until the first
+  /// query, then sized to NumCycles.
+  mutable SmallVector<SmallVector<BlockT *, 0>, 0> ExitBlocksCaches;
 
   /// Top-level cycles discovered by any DFS.
   ///
