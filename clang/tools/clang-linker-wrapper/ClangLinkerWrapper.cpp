@@ -1007,6 +1007,16 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// already an individual token and is appended to \p CmdArgs verbatim,
 /// without being merged into \p BackendOptions and re-split, so that tokens
 /// containing embedded spaces are preserved intact.
+// FIXME: This literal-substring split on "-options " is inherently fragile
+// (e.g. link-opts appended after a compile-opts "-options ..." blob get
+// silently absorbed into the -options value). The root issue is that
+// -Xsycl-target-backend/-Xsycl-target-linker require the driver and this
+// tool to parse and re-serialize ocloc's own option syntax. Consider
+// deprecating and removing -Xsycl-target-backend/-Xsycl-target-linker (and
+// the compile-opts=/link-opts= image encoding they feed) in favor of a
+// mechanism that forwards backend/linker options as opaque tokens end to
+// end, so neither the driver nor clang-linker-wrapper needs to understand
+// ocloc's option grammar.
 static void addOclocOptions(StringRef BackendOptions,
                             ArrayRef<std::string> AOTDeviceArgs,
                             SmallVector<StringRef, 8> &CmdArgs) {
@@ -1936,6 +1946,14 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
   // live separately in AOTDeviceArgs, as individual tokens, and are appended
   // later (in runAOTCompileIntelGPU/CPU) without being folded into this
   // string, so that values with embedded spaces survive intact.
+  // FIXME: Concatenating compile-opts and link-opts into one flat string
+  // here means any "-options ..." wrapper already present in compile-opts
+  // (see SYCLToolChain::AddSPIRVImpliedTargetArgs) will swallow the
+  // appended link-opts into ocloc's -options value in addOclocOptions
+  // below. This is a symptom of -Xsycl-target-backend/-Xsycl-target-linker
+  // requiring us to parse and re-serialize ocloc's option syntax; consider
+  // deprecating and removing those options so backend/linker options can be
+  // forwarded as opaque tokens without this kind of string surgery.
   std::string AOTOptions;
   if (Triple.isSPIRAOT()) {
     AOTOptions = CompileLinkOptions.first;
