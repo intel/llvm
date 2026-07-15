@@ -85,6 +85,8 @@ public:
 
 FunctionPass *
 createWebAssemblyReduceToAnyAllTrueLegacyPass(WebAssemblyTargetMachine &TM);
+ModulePass *
+createWebAssemblyCoalesceFeaturesAndStripAtomics(WebAssemblyTargetMachine &TM);
 
 // GlobalISel
 InstructionSelector *
@@ -160,6 +162,7 @@ void initializeWebAssemblyRegNumberingPass(PassRegistry &);
 void initializeWebAssemblyRegStackifyPass(PassRegistry &);
 void initializeWebAssemblyReplacePhysRegsPass(PassRegistry &);
 void initializeWebAssemblySetP2AlignOperandsPass(PassRegistry &);
+void initializeWebAssemblyCoalesceFeaturesAndStripAtomicsPass(PassRegistry &);
 
 namespace WebAssembly {
 enum TargetIndex {
