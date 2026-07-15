@@ -57,25 +57,6 @@ def compress : Flag<["--"], "compress">,
 def compression_level_eq : Joined<["--"], "compression-level=">,
   Flags<[WrapperOnlyOption]>, HelpText<"Specify the compression level (integer)">;
 
-// SYCL device image compression (zstd). Read by bundleSYCL() in
-// ClangLinkerWrapper.cpp, which compresses each SYCL image payload in-place
-// and flips its Format field to BIF_CompressedNone. The SYCL runtime
-// (libsycl.so) recognizes that format tag and decompresses lazily via
-// CompressedRTDeviceBinaryImage.
-//
-// The --compress flag above is a different mechanism: for HIP only, it is
-// forwarded verbatim to a clang-offload-bundler subprocess which does the
-// compression itself.
-def offload_compress : Flag<["--"], "offload-compress">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Compress SYCL device images using zstd">;
-def offload_compression_level_eq : Joined<["--"], "offload-compression-level=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"zstd compression level (default: 10)">;
-def offload_compression_threshold_eq : Joined<["--"], "offload-compression-threshold=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Skip compression below <bytes> (default: 512)">;
-
 def wrapper_time_trace_eq : Joined<["--"], "wrapper-time-trace=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<file>">,
   HelpText<"Enable time-trace and write the output to <file>">;

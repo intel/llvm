@@ -1180,30 +1180,25 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
   }
 
   // SYCL device image compression: zstd-compress each image and flip its
-  // Format to BIF_CompressedNone. The SYCL runtime decompresses lazily via
+  // Format to BIF_Compressed. The SYCL runtime decompresses lazily via
   // CompressedRTDeviceBinaryImage.
-  if (Args.hasArg(OPT_offload_compress)) {
+  if (Args.hasArg(OPT_compress)) {
     if (!compression::zstd::isAvailable())
       return createStringError(
           "'--offload-compress' is specified but zstd is not available");
 
-    int Level = 10;      // default zstd level, matches clang-offload-wrapper
-    int Threshold = 512; // skip compression below this many bytes
-    if (auto *A = Args.getLastArg(OPT_offload_compression_level_eq)) {
+    // Defaults match clang-offload-wrapper.
+    int Level = 10;
+    constexpr size_t Threshold = 512;
+    if (auto *A = Args.getLastArg(OPT_compression_level_eq)) {
       if (StringRef(A->getValue()).getAsInteger(10, Level))
         return createStringError(
             "invalid value for --offload-compression-level=: '%s'",
             A->getValue());
     }
-    if (auto *A = Args.getLastArg(OPT_offload_compression_threshold_eq)) {
-      if (StringRef(A->getValue()).getAsInteger(10, Threshold) || Threshold < 0)
-        return createStringError(
-            "invalid value for --offload-compression-threshold=: '%s'",
-            A->getValue());
-    }
 
     for (auto &Image : Images) {
-      if (static_cast<int>(Image.Image->getBufferSize()) < Threshold)
+      if (Image.Image->getBufferSize() < Threshold)
         continue;
 
       SmallVector<uint8_t, 0> CompressedBytes;
@@ -1222,7 +1217,7 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
           StringRef(reinterpret_cast<const char *>(CompressedBytes.data()),
                     CompressedBytes.size()),
           Image.Image->getBufferIdentifier());
-      Image.Format = offloading::SYCLBinaryImageFormat::BIF_CompressedNone;
+      Image.Format = offloading::SYCLBinaryImageFormat::BIF_Compressed;
     }
   }
 

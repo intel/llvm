@@ -28,7 +28,7 @@ enum class SYCLBinaryImageFormat {
   BIF_Native,        // Native Image kind
   BIF_SPIRV,         // SPIR-V
   BIF_LLVMBC,        // LLVM bitcode
-  BIF_CompressedNone // zstd-compressed image; format-of-original unknown
+  BIF_Compressed     // zstd-compressed image; format-of-original unknown
 };
 
 struct SYCLImage {

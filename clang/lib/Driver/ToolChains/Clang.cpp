@@ -12317,17 +12317,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   addOffloadCompressArgs(Args, CmdArgs);
 
-  // Forward SYCL compression flags to clang-linker-wrapper (consumed by
-  // wrapSYCLBinariesFromFile). Distinct from the --compress pushed above,
-  // which HIP forwards to clang-offload-bundler.
-  if (Args.hasFlag(options::OPT_offload_compress,
-                   options::OPT_no_offload_compress, false)) {
-    CmdArgs.push_back("--offload-compress");
-    if (auto *A = Args.getLastArg(options::OPT_offload_compression_level_EQ))
-      CmdArgs.push_back(Args.MakeArgString(
-          Twine("--offload-compression-level=") + A->getValue()));
-  }
-
   if (Arg *A = Args.getLastArg(options::OPT_offload_jobs_EQ)) {
     StringRef Val = A->getValue();
 
