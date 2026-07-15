@@ -31,7 +31,7 @@ static std::string getExecutablePath(const char *Argv0) {
   // This just needs to be some symbol in the binary; C++ doesn't
   // allow taking the address of ::main however.
   void *P = (void *)(intptr_t)getExecutablePath;
-  return sys::fs::getMainExecutable(Argv0, P);
+  return llvm::sys::fs::getMainExecutable(Argv0, P);
 }
 
 int main(int argc, char *argv[]) {
