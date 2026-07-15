@@ -90,6 +90,16 @@
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          %t.dep.obj /link /libpath:%t.libdir 2>&1 | FileCheck %s
 
+/// (12) Same, but the object carrying the directive is a *fat* -fsycl object.
+///      The driver hands the linker an unbundled temp (which does not exist at
+///      -### time), so the directive must be read from the original on-disk
+///      base input, not the linker's filename. Guards the getBaseInput() switch
+///      that (11), a plain object where the two names coincide, cannot.
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL -c -o %t.fatdep.obj %t.dep.c
+// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
+// RUN:          %t.fatdep.obj /link /libpath:%t.libdir 2>&1 | FileCheck %s
+
 // CHECK: "/INCLUDE:__imp_TestFunc"
 
 /// ---------------------------------------------------------------------------

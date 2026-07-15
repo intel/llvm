@@ -31,7 +31,6 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/Host.h"
-#include <algorithm>
 #include <cstdio>
 
 #ifdef _WIN32
@@ -78,9 +77,10 @@ namespace {
 ///
 /// This walks every linker input that can name a .lib — direct filenames,
 /// -l<name>, -Wl,/-Xlinker values, /link tokens, /defaultlib: and
-/// /wholearchive: options, and @response-files — resolves each against the
-/// linker's search path (LIB, -L, /libpath:), skips system libraries, and
-/// appends the /INCLUDE: directives to CmdArgs.
+/// /wholearchive: options, @response-files, and /DEFAULTLIB: directives
+/// embedded in object files — resolves each against the linker's search path
+/// (LIB, -L, /libpath:), skips system libraries, and appends the /INCLUDE:
+/// directives to CmdArgs.
 class DeviceImageDepForcer {
   const toolchains::MSVCToolChain &TC;
   const ArgList &Args;
@@ -95,17 +95,16 @@ class DeviceImageDepForcer {
   llvm::StringSaver Saver{Alloc};
   llvm::StringSet<> SeenRspFiles;
 
-  // Collapse '/' and runs of separators to a single '\' so prefix matching
-  // survives the mixed separators that show up in the LIB env var (e.g.
-  // "...\\10\\\\lib\\...") vs. clang's computed paths. This also collapses a
-  // leading UNC "\\server" prefix, but system libs are never on UNC paths.
+  // Canonicalize a path so prefix matching survives the mixed separators, runs
+  // of separators, and un-collapsed dot-dots that show up in the LIB env var
+  // (e.g. "...\\10\\\\lib\\..\\lib\\...") vs. clang's computed paths: normalize
+  // every separator to '\' and resolve '.'/'..' components.
   static std::string collapseSeps(StringRef P) {
-    std::string R = P.str();
-    llvm::replace(R, '/', '\\');
-    R.erase(std::unique(R.begin(), R.end(),
-                        [](char A, char B) { return A == '\\' && B == '\\'; }),
-            R.end());
-    return R;
+    llvm::SmallString<128> R(P);
+    llvm::sys::path::native(R, llvm::sys::path::Style::windows_backslash);
+    llvm::sys::path::remove_dots(R, /*remove_dot_dot=*/true,
+                                 llvm::sys::path::Style::windows_backslash);
+    return std::string(R);
   }
 
   bool isSystemLib(StringRef LibPath) const {
@@ -250,14 +249,10 @@ public:
     if (TC.getUniversalCRTLibraryPath(Args, UCRTLibPath))
       SystemLibDirs.push_back(UCRTLibPath);
 
-    // Normalize the system lib dirs so prefix matching survives mixed
-    // separators and un-collapsed dot-dots (e.g. "...\\bin\\..\\lib"), and give
-    // each a trailing '\' so a dir only matches on a path boundary.
+    // Canonicalize the system lib dirs (collapseSeps) and give each a trailing
+    // '\' so a dir only matches on a path boundary.
     for (std::string &Dir : SystemLibDirs) {
-      llvm::SmallString<128> Canon(collapseSeps(Dir));
-      llvm::sys::path::remove_dots(Canon, /*remove_dot_dot=*/true,
-                                   llvm::sys::path::Style::windows_backslash);
-      Dir = Canon.str();
+      Dir = collapseSeps(Dir);
       if (!Dir.empty() && Dir.back() != '\\')
         Dir += '\\';
     }
@@ -287,8 +282,14 @@ public:
     for (const auto &Input : Inputs) {
       if (Input.isFilename()) {
         processToken(Input.getFilename());
-        // Object-file inputs may carry embedded /DEFAULTLIB: directives.
-        scanObjectDirectives(Input.getFilename());
+        // Object-file inputs may carry embedded /DEFAULTLIB: directives. Under
+        // -fsycl the object handed to the linker is an unbundled temp that does
+        // not exist yet at -### time, so scan the original on-disk input.
+        // (A from-source single-step link can't be handled here: the base
+        // input is the .cpp and the linker's object is a compile temp that
+        // doesn't exist until the link job's command has already been built.)
+        if (const char *Base = Input.getBaseInput())
+          scanObjectDirectives(Base);
         continue;
       }
       // -l<name>
