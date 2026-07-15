@@ -93,7 +93,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeGlobalISel(PR);
   initializeWebAssemblyPreLegalizerCombinerPass(PR);
   initializeWebAssemblyPostLegalizerCombinerPass(PR);
-  initializeWebAssemblyAddMissingPrototypesPass(PR);
+  initializeWebAssemblyAddMissingPrototypesLegacyPass(PR);
   initializeWebAssemblyLowerEmscriptenEHSjLjPass(PR);
   initializeLowerGlobalDtorsLegacyPassPass(PR);
   initializeFixFunctionBitcastsPass(PR);
@@ -487,7 +487,7 @@ FunctionPass *WebAssemblyPassConfig::createTargetRegisterAllocator(bool) {
 
 void WebAssemblyPassConfig::addIRPasses() {
   // Add signatures to prototype-less function declarations
-  addPass(createWebAssemblyAddMissingPrototypes());
+  addPass(createWebAssemblyAddMissingPrototypesLegacyPass());
 
   // Lower .llvm.global_dtors into .llvm.global_ctors with __cxa_atexit calls.
   addPass(createLowerGlobalDtorsLegacyPass());

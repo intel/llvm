@@ -83,10 +83,10 @@ public:
 
 void WebAssemblyCodeGenPassBuilder::addIRPasses(PassManagerWrapper &PMW) const {
   // Add signatures to prototype-less function declarations
-  // TODO(boomanaiden154): WebAssemblyAddMissingPrototypes
+  flushFPMsToMPM(PMW);
+  addModulePass(WebAssemblyAddMissingPrototypesPass(), PMW);
 
   // Lower .llvm.global_dtors into .llvm.global_ctors with __cxa_atexit calls.
-  flushFPMsToMPM(PMW);
   addModulePass(LowerGlobalDtorsPass(), PMW);
 
   // Fix function bitcasts, as WebAssembly requires caller and callee signatures

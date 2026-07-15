@@ -11,6 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef MODULE_PASS
+#define MODULE_PASS(NAME, CREATE_PASS)
+#endif
+MODULE_PASS("wasm-add-missing-prototypes", WebAssemblyAddMissingPrototypesPass())
+#undef MODULE_PASS
+
 #ifndef MACHINE_FUNCTION_PASS
 #define MACHINE_FUNCTION_PASS(NAME, CREATE_PASS)
 #endif
