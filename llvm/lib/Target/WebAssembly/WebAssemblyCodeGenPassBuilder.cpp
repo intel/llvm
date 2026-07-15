@@ -132,7 +132,7 @@ void WebAssemblyCodeGenPassBuilder::addISelPrepare(
     PassManagerWrapper &PMW) const {
   // We need to move reference type allocas to WASM_ADDRESS_SPACE_VAR so that
   // loads and stores are promoted to local.gets/local.sets.
-  // TODO(boomanaiden154): WebAssemblyRefTypeMem2Local
+  addFunctionPass(WebAssemblyRefTypeMem2LocalPass(), PMW);
   // Lower atomics and TLS if necessary
   // TODO(boomanaiden154): CoalesceFeaturesAndStripAtomics
 

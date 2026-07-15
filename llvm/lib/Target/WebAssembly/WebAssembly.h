@@ -62,7 +62,14 @@ public:
 };
 
 FunctionPass *createWebAssemblyOptimizeReturnedLegacyPass();
-FunctionPass *createWebAssemblyRefTypeMem2Local();
+
+class WebAssemblyRefTypeMem2LocalPass
+    : public RequiredPassInfoMixin<WebAssemblyRefTypeMem2LocalPass> {
+public:
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
+};
+
+FunctionPass *createWebAssemblyRefTypeMem2LocalLegacyPass();
 
 class WebAssemblyReduceToAnyAllTruePass
     : public RequiredPassInfoMixin<WebAssemblyReduceToAnyAllTruePass> {
@@ -126,7 +133,7 @@ ModulePass *createWebAssemblyMCLowerPrePass();
 
 // PassRegistry initialization declarations.
 void initializeWebAssemblyOptimizeReturnedLegacyPass(PassRegistry &);
-void initializeWebAssemblyRefTypeMem2LocalPass(PassRegistry &);
+void initializeWebAssemblyRefTypeMem2LocalLegacyPass(PassRegistry &);
 void initializeWebAssemblyAddMissingPrototypesLegacyPass(PassRegistry &);
 void initializeWebAssemblyArgumentMovePass(PassRegistry &);
 void initializeWebAssemblyAsmPrinterPass(PassRegistry &);
