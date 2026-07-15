@@ -31,8 +31,8 @@ template <typename T> int test_fp4_simple_type_conversion(sycl::queue &queue) {
   // E2M1 representable values: 0, 0.5, 1, 1.5, 2, 3, 4, 6 (and negatives).
   // 1.5 + 1.0 = 2.5 -> rounds to either 2 (to_even) or 3.
   // We compare via an fp4 round-trip so the expected is well-defined.
-  fp4_e2m1 expected(static_cast<T>(static_cast<float>(static_cast<T>(1.5)) +
-                                   1.0f));
+  fp4_e2m1 expected(
+      static_cast<T>(static_cast<float>(static_cast<T>(1.5)) + 1.0f));
   T out = static_cast<T>(data[0]);
   T expected_out = static_cast<T>(expected);
 

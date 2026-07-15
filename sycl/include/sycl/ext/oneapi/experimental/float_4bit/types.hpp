@@ -46,13 +46,13 @@ using fp4_uint8_vec2 = uint8_t __attribute__((ext_vector_type(2)));
 
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ClampConvertFP16ToE2M1INTEL(_Float16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL uint8_t
-    __builtin_spirv_ClampConvertFP16ToE2M1INTEL(
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_ClampConvertFP16ToE2M1INTEL(
         ::sycl::detail::fp4_float16_vec2) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ClampConvertBF16ToE2M1INTEL(__bf16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL uint8_t
-    __builtin_spirv_ClampConvertBF16ToE2M1INTEL(
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_ClampConvertBF16ToE2M1INTEL(
         ::sycl::detail::fp4_bfloat16_vec2) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL _Float16
@@ -67,11 +67,13 @@ extern __DPCPP_SYCL_EXTERNAL ::sycl::detail::fp4_bfloat16_vec2
         ::sycl::detail::fp4_uint8_vec2) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_StochasticRoundFP16ToE2M1INTEL(
-    _Float16, uint32_t, __attribute__((opencl_private)) uint32_t *) noexcept;
+__builtin_spirv_StochasticRoundFP16ToE2M1INTEL(_Float16, uint32_t,
+                                               __attribute__((opencl_private))
+                                               uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_StochasticRoundBF16ToE2M1INTEL(
-    __bf16, uint32_t, __attribute__((opencl_private)) uint32_t *) noexcept;
+__builtin_spirv_StochasticRoundBF16ToE2M1INTEL(__bf16, uint32_t,
+                                               __attribute__((opencl_private))
+                                               uint32_t *) noexcept;
 
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -128,8 +130,8 @@ struct FP4E2M1Traits {
   static constexpr uint8_t MaxFiniteCode =
       static_cast<uint8_t>((MaxFiniteExpField << Mbits) | MaxFiniteFracField);
   static constexpr int MaxFiniteExp =
-      static_cast<int>(MaxFiniteExpField) - Bias; // 2
-  static constexpr uint64_t MinNormalMantissa = uint64_t{1} << Mbits; // 2
+      static_cast<int>(MaxFiniteExpField) - Bias;                          // 2
+  static constexpr uint64_t MinNormalMantissa = uint64_t{1} << Mbits;      // 2
   static constexpr uint64_t OverflowMantissa = uint64_t{1} << (Mbits + 1); // 4
   static constexpr uint64_t MaxFiniteMantissa =
       MinNormalMantissa + MaxFiniteFracField; // 3
@@ -166,8 +168,7 @@ static inline uint8_t ConvertIntToFP4_CPU(T f, rounding R) noexcept {
   } else {
     const uint64_t truncated = static_cast<uint64_t>(magnitude) >> shift;
     const uint64_t remainderMask = (uint64_t{1} << shift) - 1u;
-    const uint64_t remainder =
-        static_cast<uint64_t>(magnitude) & remainderMask;
+    const uint64_t remainder = static_cast<uint64_t>(magnitude) & remainderMask;
 
     mantissa = truncated;
     if (remainder != 0u && R == rounding::to_even) {
@@ -188,8 +189,7 @@ static inline uint8_t ConvertIntToFP4_CPU(T f, rounding R) noexcept {
        mantissa > Format::MaxFiniteMantissa))
     return static_cast<uint8_t>(sign | Format::MaxFiniteCode);
 
-  const uint8_t expField =
-      static_cast<uint8_t>(unbiasedExp + Format::Bias);
+  const uint8_t expField = static_cast<uint8_t>(unbiasedExp + Format::Bias);
   const uint8_t fracField =
       static_cast<uint8_t>(mantissa - Format::MinNormalMantissa);
   return static_cast<uint8_t>(
@@ -280,8 +280,7 @@ static inline uint8_t ConvertFloatToFP4_CPU(T f, rounding R) noexcept {
       return sign;
 
     if (mantissa >= Format::MinNormalMantissa)
-      return static_cast<uint8_t>(sign |
-                                  (uint8_t{1} << Format::Mbits));
+      return static_cast<uint8_t>(sign | (uint8_t{1} << Format::Mbits));
 
     return static_cast<uint8_t>(sign | static_cast<uint8_t>(mantissa));
   }
@@ -300,8 +299,7 @@ static inline uint8_t ConvertFloatToFP4_CPU(T f, rounding R) noexcept {
        mantissa > Format::MaxFiniteMantissa))
     return static_cast<uint8_t>(sign | Format::MaxFiniteCode);
 
-  const uint8_t expField =
-      static_cast<uint8_t>(unbiasedExp + Format::Bias);
+  const uint8_t expField = static_cast<uint8_t>(unbiasedExp + Format::Bias);
   const uint8_t fracField =
       static_cast<uint8_t>(mantissa - Format::MinNormalMantissa);
   return static_cast<uint8_t>(
@@ -473,8 +471,8 @@ template <size_t N> class fp4_e2m1_x {
 
   void ConvertFromFP4_Vec2(sycl::marray<sycl::half, N> &ret) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    const ::sycl::detail::fp4_uint8_vec2 packed{
-        detail::Fp4Extract(vals[0], 0), detail::Fp4Extract(vals[0], 1)};
+    const ::sycl::detail::fp4_uint8_vec2 packed{detail::Fp4Extract(vals[0], 0),
+                                                detail::Fp4Extract(vals[0], 1)};
     ::sycl::detail::fp4_float16_vec2 hi =
         __builtin_spirv_ConvertE2M1ToFP16INTEL(packed);
     ret[0] = sycl::bit_cast<sycl::half>(hi[0]);
@@ -497,8 +495,8 @@ template <size_t N> class fp4_e2m1_x {
 
   void ConvertBF16FromFP4_Vec2(sycl::marray<bfloat16, N> &ret) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    const ::sycl::detail::fp4_uint8_vec2 packed{
-        detail::Fp4Extract(vals[0], 0), detail::Fp4Extract(vals[0], 1)};
+    const ::sycl::detail::fp4_uint8_vec2 packed{detail::Fp4Extract(vals[0], 0),
+                                                detail::Fp4Extract(vals[0], 1)};
     ::sycl::detail::fp4_bfloat16_vec2 hi =
         __builtin_spirv_ConvertE2M1ToBF16INTEL(packed);
     ret[0] = sycl::bit_cast<bfloat16>(hi[0]);
@@ -555,8 +553,7 @@ template <size_t N> class fp4_e2m1_x {
       vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
   }
 
-  void StochasticFromBFloat16(const bfloat16 *in,
-                              const stochastic_seed &seed) {
+  void StochasticFromBFloat16(const bfloat16 *in, const stochastic_seed &seed) {
     uint32_t current_seed = *seed.pseed;
     uint32_t next_seed;
     uint8_t nibbles[2] = {0, 0};

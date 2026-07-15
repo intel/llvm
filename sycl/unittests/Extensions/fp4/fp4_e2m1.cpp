@@ -305,8 +305,8 @@ TEST(FP4E2M1Test, CArrayHalfHostToEvenSaturating) {
 }
 
 TEST(FP4E2M1Test, CArrayBFloat16HostToEvenSaturating) {
-  const sycl::ext::oneapi::bfloat16 in[2] = {
-      sycl::ext::oneapi::bfloat16(6.0f), sycl::ext::oneapi::bfloat16(7.0f)};
+  const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(6.0f),
+                                             sycl::ext::oneapi::bfloat16(7.0f)};
   const sycl::ext::oneapi::bfloat16 in1[2] = {
       sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(0.5f)};
   const sycl::ext::oneapi::bfloat16 in2[2] = {
@@ -442,8 +442,7 @@ TEST(FP4E2M1Test, CArrayHalfRoundingToEven) {
 
 TEST(FP4E2M1Test, CArrayBFloat16RoundingToEven) {
   const sycl::ext::oneapi::bfloat16 in[2] = {
-      sycl::ext::oneapi::bfloat16(1.25f),
-      sycl::ext::oneapi::bfloat16(1000.0f)};
+      sycl::ext::oneapi::bfloat16(1.25f), sycl::ext::oneapi::bfloat16(1000.0f)};
   fp4_e2m1_x2 a(in, rounding::to_even);
 
   EXPECT_EQ(a.vals[0], static_cast<uint8_t>(0x2 | (0x7 << 4)));
