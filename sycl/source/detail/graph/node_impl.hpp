@@ -63,6 +63,7 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   case sycl::detail::CGType::BarrierWaitlist:
     return node_type::ext_oneapi_barrier;
   case sycl::detail::CGType::CodeplayHostTask:
+  case sycl::detail::CGType::NativeHostTask:
     return node_type::host_task;
   case sycl::detail::CGType::ExecCommandBuffer:
     return node_type::subgraph;
