@@ -43,6 +43,7 @@ libc_test(
         "//libc:__support_osutil_syscall",
         "//libc:getrlimit",
         "//libc:hdr_sys_mman_macros",
+        "//libc:hdr_sys_resource_macros",
         "//libc:madvise",
         "//libc:mincore",
         "//libc:mlock",
@@ -142,6 +143,7 @@ libc_test(
     deps = [
         "//libc:close",
         "//libc:hdr_sys_mman_macros",
+        "//libc:hdr_sys_stat_macros",
         "//libc:mmap",
         "//libc:munmap",
         "//libc:open",
