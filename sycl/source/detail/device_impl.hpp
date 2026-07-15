@@ -904,7 +904,7 @@ public:
       return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
-      size_t result[3];
+      size_t result[3] = {};
       getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
@@ -1628,6 +1628,10 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_ipc_event) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP>()
+          .value_or(0);
+    }
     CASE(ext_oneapi_device_wait) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
           .value_or(0);
@@ -1635,6 +1639,11 @@ public:
     CASE(ext_oneapi_ipc_physical_memory) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_per_event_profiling) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP>()
           .value_or(0);
     }
     else {

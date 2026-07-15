@@ -269,7 +269,16 @@ public:
   /// @param UrGraphHandle The native UR graph handle to deregister
   void deregisterNativeGraph(ur_exp_graph_handle_t UrGraphHandle);
 
+  bool supportsReusableEvents();
+  bool supportsEventProfiling();
+  bool supportsIPCEvents();
+
 private:
+  // Returns whether every device in the context reports \p Info as true,
+  // caching the result in \p Cache.
+  bool allDevicesSupport(ur_device_info_t Info, std::optional<bool> &Cache,
+                         std::mutex &CacheMutex);
+
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
   std::vector<device_impl *> MDevices;
@@ -278,6 +287,12 @@ private:
   property_list MPropList;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
+  std::optional<bool> MReusableEventsSupport;
+  std::mutex MReusableEventsSupportMutex;
+  std::optional<bool> MEventProfilingSupport;
+  std::mutex MEventProfilingSupportMutex;
+  std::optional<bool> MIPCEventSupport;
+  std::mutex MIPCEventSupportMutex;
 
   // Device pools.
   // Weak_ptr preventing circular dependency between memory_pool_impl and
