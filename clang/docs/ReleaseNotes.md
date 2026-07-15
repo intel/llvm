@@ -157,6 +157,14 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 
 #### AMDGPU Support
 
+- Deprecated the following builtins in favor of `__builtin_amdgcn_ballot_w32` or
+  `__builtin_amdgcn_ballot_w64`:
+  - `__builtin_amdgcn_uicmp`
+  - `__builtin_amdgcn_uicmpl`
+  - `__builtin_amdgcn_sicmpl`
+  - `__builtin_amdgcn_fcmp`
+  - `__builtin_amdgcn_fcmpf`
+
 #### NVPTX Support
 
 #### X86 Support
