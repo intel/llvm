@@ -26,12 +26,10 @@
 // -- exercises the full AOT object-state link-and-run path.
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object \
-// RUN:   -fsycl-targets=spir64_gen \
-// RUN:   -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts \
+// RUN:   -fsycl-targets=%{intel_gpu_aot_targets} \
 // RUN:   %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object \
-// RUN:   -fsycl-targets=spir64_gen \
-// RUN:   -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts \
+// RUN:   -fsycl-targets=%{intel_gpu_aot_targets} \
 // RUN:   %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.export.syclbin %t.import.syclbin
