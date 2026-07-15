@@ -1852,8 +1852,8 @@ namespace sycl {
 /// compilation (Intel CPU/GPU).
 Expected<StringRef>
 invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
-                           StringRef SYCLBackendOptions = StringRef(),
-                           ArrayRef<std::string> AOTDeviceArgs = {}) {
+                           StringRef SYCLBackendOptions,
+                           ArrayRef<std::string> AOTDeviceArgs) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
   case Triple::nvptx:
@@ -1903,7 +1903,7 @@ Expected<StringRef>
 compileDeviceAndBundle(StringRef ModuleFilePath, const ArgList &LinkerArgs,
                        const llvm::Triple &Triple,
                        StringRef AdditionalCompileOptions,
-                       ArrayRef<std::string> AOTDeviceArgs = {}) {
+                       ArrayRef<std::string> AOTDeviceArgs) {
   Expected<StringRef> OutputOrErr = invokeBackendForSYCLDevice(
       ModuleFilePath, LinkerArgs, AdditionalCompileOptions, AOTDeviceArgs);
   if (!OutputOrErr)
