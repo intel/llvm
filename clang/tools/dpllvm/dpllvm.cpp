@@ -26,9 +26,13 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 
-// getMainExecutable just needs the address of some symbol in the binary;
-// C++ doesn't allow taking the address of ::main.
-static void anchor() {}
+/// Compute the path to the main executable.
+static std::string getExecutablePath(const char *Argv0) {
+  // This just needs to be some symbol in the binary; C++ doesn't
+  // allow taking the address of ::main however.
+  void *P = (void *)(intptr_t)getExecutablePath;
+  return sys::fs::getMainExecutable(Argv0, P);
+}
 
 int main(int argc, char *argv[]) {
   using namespace llvm;
@@ -52,8 +56,7 @@ int main(int argc, char *argv[]) {
   // Locate the directory this tool was installed into so we can find the real
   // binary sitting next to it, regardless of the current working directory or
   // how the tool was found on PATH.
-  void *MainAddr = reinterpret_cast<void *>(&anchor);
-  std::string DpllvmPath = fs::getMainExecutable(argv[0], MainAddr);
+  std::string DpllvmPath = getExecutablePath(argv[0]);
   if (DpllvmPath.empty())
     Exit(createStringError(
         "couldn't determine the path to the DPC++ bin/ directory."));
