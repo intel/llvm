@@ -97,7 +97,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyLowerEmscriptenEHSjLjPass(PR);
   initializeLowerGlobalDtorsLegacyPassPass(PR);
   initializeWebAssemblyFixFunctionBitcastsLegacyPass(PR);
-  initializeOptimizeReturnedPass(PR);
+  initializeWebAssemblyOptimizeReturnedLegacyPass(PR);
   initializeWebAssemblyRefTypeMem2LocalPass(PR);
   initializeWebAssemblyArgumentMovePass(PR);
   initializeWebAssemblyAsmPrinterPass(PR);
@@ -498,7 +498,7 @@ void WebAssemblyPassConfig::addIRPasses() {
 
   // Optimize "returned" function attributes.
   if (getOptLevel() != CodeGenOptLevel::None)
-    addPass(createWebAssemblyOptimizeReturned());
+    addPass(createWebAssemblyOptimizeReturnedLegacyPass());
 
   // If exception handling is not enabled and setjmp/longjmp handling is
   // enabled, we lower invokes into calls and delete unreachable landingpad

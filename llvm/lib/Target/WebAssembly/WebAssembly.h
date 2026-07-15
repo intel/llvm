@@ -48,7 +48,14 @@ public:
 };
 
 ModulePass *createWebAssemblyFixFunctionBitcastsLegacyPass();
-FunctionPass *createWebAssemblyOptimizeReturned();
+
+class WebAssemblyOptimizeReturnedPass
+    : public OptionalPassInfoMixin<WebAssemblyOptimizeReturnedPass> {
+public:
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
+};
+
+FunctionPass *createWebAssemblyOptimizeReturnedLegacyPass();
 FunctionPass *createWebAssemblyRefTypeMem2Local();
 FunctionPass *createWebAssemblyReduceToAnyAllTrue(WebAssemblyTargetMachine &TM);
 
@@ -98,7 +105,7 @@ FunctionPass *createWebAssemblyPeephole();
 ModulePass *createWebAssemblyMCLowerPrePass();
 
 // PassRegistry initialization declarations.
-void initializeOptimizeReturnedPass(PassRegistry &);
+void initializeWebAssemblyOptimizeReturnedLegacyPass(PassRegistry &);
 void initializeWebAssemblyRefTypeMem2LocalPass(PassRegistry &);
 void initializeWebAssemblyAddMissingPrototypesLegacyPass(PassRegistry &);
 void initializeWebAssemblyArgumentMovePass(PassRegistry &);

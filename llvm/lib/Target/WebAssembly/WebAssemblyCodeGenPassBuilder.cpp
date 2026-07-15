@@ -94,9 +94,8 @@ void WebAssemblyCodeGenPassBuilder::addIRPasses(PassManagerWrapper &PMW) const {
   addModulePass(WebAssemblyFixFunctionBitcastsPass(), PMW);
 
   // Optimize "returned" function attributes.
-  if (getOptLevel() != CodeGenOptLevel::None) {
-    // TODO(boomanaiden154): WebAssemblyOptimizeReturned
-  }
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addFunctionPass(WebAssemblyOptimizeReturnedPass(), PMW);
 
   // If exception handling is not enabled and setjmp/longjmp handling is
   // enabled, we lower invokes into calls and delete unreachable landingpad
