@@ -145,11 +145,31 @@ jobs:
       # This is to check that install command does not fail
       run: cmake --install build
 
+    - name: Build artifact name suffix
+      id: artifact_suffix
+      shell: bash
+      run: |
+        # Build unique suffix from runner name + static + other_adapter
+        RUNNER_SUFFIX=$(echo "${{inputs.runner_name}}" | sed 's/^UR_//')
+        SUFFIX="${RUNNER_SUFFIX}"
+        
+        # Add static marker if enabled
+        if [ "${{matrix.adapter.static_Loader}}" = "ON" ]; then
+          SUFFIX="${SUFFIX}-static"
+        fi
+        
+        # Add other adapter if present
+        if [ -n "${{matrix.adapter.other_name}}" ]; then
+          SUFFIX="${SUFFIX}-${{matrix.adapter.other_name}}"
+        fi
+        
+        echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
+
     - name: Test adapter specific
       uses: ./devops/actions/run-tests/ur/adapter-specific
       with:
         build_dir: build
-        artifact_name: 'ur-${{matrix.adapter.name}}-adapter-specific'
+        artifact_name: 'ur-${{matrix.adapter.name}}-${{steps.artifact_suffix.outputs.suffix}}-adapter-specific'
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
@@ -157,7 +177,7 @@ jobs:
       uses: ./devops/actions/run-tests/ur/adapters
       with:
         build_dir: build
-        artifact_name: 'ur-${{matrix.adapter.name}}-conformance'
+        artifact_name: 'ur-${{matrix.adapter.name}}-${{steps.artifact_suffix.outputs.suffix}}-conformance'
 
     - name: Debug CI platform information
       if: ${{ always() }}
