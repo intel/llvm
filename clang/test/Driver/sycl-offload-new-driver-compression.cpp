@@ -18,3 +18,9 @@
 // RUN: %clangxx -### -fsycl --offload-new-driver --offload-compress \
 // RUN:     --no-offload-compress %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-NO-COMPRESS
+
+// ...and vice versa: a later --offload-compress wins over --no-offload-compress.
+// RUN: %clangxx -### -fsycl --offload-new-driver --no-offload-compress \
+// RUN:     --offload-compress %s 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-COMPRESS-LAST
+// CHECK-COMPRESS-LAST: {{.*}}clang-linker-wrapper{{.*}}"--compress"
