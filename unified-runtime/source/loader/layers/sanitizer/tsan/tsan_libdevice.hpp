@@ -110,8 +110,6 @@ struct TsanRuntimeData {
 constexpr auto kSPIR_TsanDeviceGlobalMetadataPrefix =
     "__TsanDeviceGlobalMetadata_";
 
-constexpr auto kSPIR_TsanSpirKernelMetadata = "__TsanKernelMetadata";
-
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer
 #endif // !__SPIR__ && !__SPIRV__

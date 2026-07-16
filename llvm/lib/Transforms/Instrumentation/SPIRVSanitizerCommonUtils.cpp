@@ -69,6 +69,10 @@ void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions) {
   }
 }
 
+// Must be random, not a content hash: identical device images (e.g. a
+// header-only kernel built into two libraries) would hash alike and their
+// external-linkage metadata globals would collide when linked into one
+// program.
 SmallString<40> computeMetadataUniqueId(Module &M) {
   // Return the cached hash if already computed for this module.
   constexpr StringRef CacheKey = "device.sanitizer.hash";

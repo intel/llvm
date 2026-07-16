@@ -118,8 +118,8 @@ static bool FixSanitizerKernelMetadata(Module &M) {
 }
 
 // SPIR-V does not support weak_odr linkage. Change sanitizer configuration
-// globals to linkonce_odr.
-static void FixWeakGlobalVariable(Module &M) {
+// globals to linkonce_odr (requires SPV_KHR_linkonce_odr).
+static void FixWeakGlobalVariables(Module &M) {
   if (GlobalVariable *GV = M.getNamedGlobal("__asan_check_shadow_bounds"))
     GV->setLinkage(GlobalVariable::LinkOnceODRLinkage);
   if (GlobalVariable *GV = M.getNamedGlobal("__msan_track_origins"))
@@ -137,7 +137,7 @@ PreservedAnalyses SanitizerPostOptimizerPass::run(Module &M,
     V.eraseDeadCheck();
   }
 
-  FixWeakGlobalVariable(M);
+  FixWeakGlobalVariables(M);
 
   return PreservedAnalyses::none();
 }
