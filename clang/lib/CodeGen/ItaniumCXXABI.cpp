@@ -2260,6 +2260,8 @@ llvm::GlobalVariable *ItaniumCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
   VTable = CGM.CreateOrReplaceCXXRuntimeVariable(
       Name, VTableType, llvm::GlobalValue::ExternalLinkage,
       getContext().toCharUnitsFromBits(PAlign).getAsAlign());
+  if (!CGM.shouldEmitRTTI())
+    VTable->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
 
   if (CGM.getTarget().hasPS4DLLImportExport())
     setVTableSelectiveDLLImportExport(CGM, VTable, RD);

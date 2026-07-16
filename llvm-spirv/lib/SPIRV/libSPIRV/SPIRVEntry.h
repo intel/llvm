@@ -949,10 +949,14 @@ public:
       return ExtensionID::SPV_INTEL_function_variants;
     case internal::CapabilityBFloat16ArithmeticINTEL:
       return ExtensionID::SPV_INTEL_bfloat16_arithmetic;
+    case CapabilityRoundedDivideSqrtINTEL:
+      return ExtensionID::SPV_INTEL_rounded_divide_sqrt;
     case internal::CapabilityDeviceBarrierINTEL:
       return ExtensionID::SPV_INTEL_device_barrier;
     case CapabilityFloatControls2:
       return ExtensionID::SPV_KHR_float_controls2;
+    case CapabilityInt64ImageEXT:
+      return ExtensionID::SPV_EXT_shader_image_int64;
     default:
       return {};
     }

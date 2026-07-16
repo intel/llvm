@@ -40,7 +40,7 @@ SYCL_EXTERNAL [[sycl::device_has(sycl::aspect::cpu)]] void kernel_name_1() {
   func1();
   func2();
   func3();
-  func4<sycl::aspect::host>();
+  func4<sycl::aspect::fp64>();
   func5();
   func6();
 }
@@ -54,6 +54,6 @@ SYCL_EXTERNAL [[sycl::device_has(sycl::aspect::gpu)]] void kernel_name_2() {}
 // CHECK-ASPECTS-DAG: [[ASPECTS2]] = !{![[ASPECTFP16:[0-9]+]], ![[ASPECTGPU:[0-9]+]]}
 // CHECK-ASPECTS-DAG: [[ASPECTFP16]] = !{!"fp16", i32 5}
 // CHECK-ASPECTS-DAG: [[ASPECTGPU]] = !{!"gpu", i32 2}
-// CHECK-ASPECTS-DAG: [[ASPECTS3]] = !{![[ASPECTHOST:[0-9]+]]}
-// CHECK-ASPECTS-DAG: [[ASPECTHOST]] = !{!"host", i32 0}
+// CHECK-ASPECTS-DAG: [[ASPECTS3]] = !{![[ASPECTFP64:[0-9]+]]}
+// CHECK-ASPECTS-DAG: [[ASPECTFP64]] = !{!"fp64", i32 6}
 // CHECK-ASPECTS-DAG: [[ASPECTS4]] = !{![[ASPECTGPU]]}

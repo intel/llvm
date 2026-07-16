@@ -8,6 +8,7 @@ import subprocess
 import textwrap
 import shlex
 import shutil
+import json
 
 import lit.formats
 import lit.util
@@ -151,6 +152,21 @@ if platform.system() == "Linux":
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
+    # Expose a "hugepages" feature when the system has free HugeTLB pages, so
+    # tests that require explicit huge-page mappings (mmap(MAP_HUGETLB)) run
+    # only where they can actually get such pages and are UNSUPPORTED (rather
+    # than silently self-skipping) elsewhere. This is a runtime-only feature,
+    # so it must not be evaluated in build-only mode.
+    if config.test_mode != "build-only":
+        try:
+            with open("/proc/meminfo") as meminfo:
+                for line in meminfo:
+                    if line.startswith("HugePages_Free:") and int(line.split()[1]) > 0:
+                        config.available_features.add("hugepages")
+                        break
+        except OSError:
+            pass
+
 elif platform.system() == "Windows":
     config.available_features.add("windows")
     llvm_config.with_system_environment(
@@ -278,6 +294,18 @@ def check_igc_tag_and_add_feature():
             contents = tag_file.read()
 
 
+def is_windows_unc_network_path(path):
+    if not path or platform.system() != "Windows":
+        return false
+    return path.startswith("//") or path.startswith(r"\\")
+
+
+def normalize_windows_network_path(path):
+    if is_windows_unc_network_path(path):
+        path = path.replace("/", r"\\")
+    return path
+
+
 def quote_path(path):
     if not path:
         return ""
@@ -345,6 +373,8 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
+# For Windows, we need to normalize the path before quoting
+level_zero_win_lib = config.level_zero_libs_dir + "/ze_loader.lib"
 config.level_zero_libs_dir = quote_path(
     lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
@@ -366,10 +396,12 @@ level_zero_options = level_zero_options = (
     + config.level_zero_include
 )
 if cl_options:
+    if is_windows_unc_network_path(level_zero_win_lib):
+        level_zero_win_lib = normalize_windows_network_path(level_zero_win_lib)
     level_zero_options = (
         " "
         + (
-            config.level_zero_libs_dir + "/ze_loader.lib "
+            quote_path(level_zero_win_lib)
             if config.level_zero_libs_dir
             else "ze_loader.lib"
         )
@@ -459,6 +491,8 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
+# For Windows, we need to normalize the path before quoting
+cuda_win_lib = config.cuda_libs_dir + "/cuda.lib"
 config.cuda_libs_dir = quote_path(
     lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 )
@@ -476,9 +510,11 @@ cuda_options = (
     + config.cuda_include
 )
 if cl_options:
+    if is_windows_unc_network_path(cuda_win_lib):
+        cuda_win_lib = normalize_windows_network_path(cuda_win_lib)
     cuda_options = (
         " "
-        + (config.cuda_libs_dir + "/cuda.lib " if config.cuda_libs_dir else "cuda.lib")
+        + (quote_path(cuda_win_lib) if config.cuda_libs_dir else "cuda.lib")
         + " /I"
         + config.cuda_include
     )
@@ -512,6 +548,9 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
+
+# For Windows, we need to normalize the path before quoting
+hip_win_lib = config.hip_libs_dir + "/amdhip64.lib"
 config.hip_libs_dir = quote_path(
     lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
 )
@@ -529,13 +568,11 @@ hip_options = (
     + config.hip_include
 )
 if cl_options:
+    if is_windows_unc_network_path(hip_win_lib):
+        hip_win_lib = normalize_windows_network_path(hip_win_lib)
     hip_options = (
         " "
-        + (
-            config.hip_libs_dir + "/amdhip64.lib "
-            if config.hip_libs_dir
-            else "amdhip64.lib"
-        )
+        + (quote_path(hip_win_lib) if config.hip_libs_dir else "amdhip64.lib")
         + " /I"
         + config.hip_include
     )
@@ -557,12 +594,13 @@ llvm_config.with_system_environment("ROCM_PATH")
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
+    opencl_win_lib = config.opencl_libs_dir + "/OpenCL.lib"
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
     config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
-        config.substitutions.append(
-            ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
-        )
+        if is_windows_unc_network_path(opencl_win_lib):
+            opencl_win_lib = normalize_windows_network_path(opencl_win_lib)
+        config.substitutions.append(("%opencl_lib", " " + quote_path(opencl_win_lib)))
     else:
         config.substitutions.append(
             ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
@@ -786,6 +824,28 @@ if "cuda:gpu" in config.sycl_devices:
     else:
         config.cuda_libs_dir = os.path.join(os.environ["CUDA_PATH"], r"lib64")
         config.cuda_include = os.path.join(os.environ["CUDA_PATH"], "include")
+
+    # Detect CUDA version and add version-specific features for conditional test execution
+    cuda_version_json = os.path.join(os.environ["CUDA_PATH"], "version.json")
+    if os.path.exists(cuda_version_json):
+        try:
+            with open(cuda_version_json, "r") as f:
+                version_data = json.load(f)
+                cuda_version_str = version_data.get("cuda", {}).get("version", "")
+                if cuda_version_str:
+                    major = int(cuda_version_str.split(".")[0])
+                    MIN_CUDA_VERSION = 11  # Minimum CUDA version supported by SYCL
+
+                    for version in range(MIN_CUDA_VERSION, major + 1):
+                        config.available_features.add(f"cuda-ge-{version}")
+
+                    lit_config.note(
+                        f"CUDA {cuda_version_str}: added features cuda-ge-{MIN_CUDA_VERSION}..cuda-ge-{major}"
+                    )
+        except (json.JSONDecodeError, IOError, ValueError, KeyError) as e:
+            lit_config.warning(
+                f"Failed to parse CUDA version from {cuda_version_json}: {e}"
+            )
 
 config.substitutions.append(("%threads_lib", config.sycl_threads_lib))
 
