@@ -4439,6 +4439,14 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     auto *AL = dyn_cast<AllocaInst>(Inst);
     Type *AllocatedTy = AL ? AL->getAllocatedType() : Inst->getType();
 
+    // A value with no decorations of its own can contribute Intel FPGA
+    // annotations only through struct-member decorations on an alloca of
+    // struct type. Skip the boilerplate work for all other undecorated values.
+    const bool MaybeStructMemberAnnot =
+        AL && BV->getType()->getPointerElementType()->isTypeStruct();
+    if (BV->getNumDecorations() == 0 && !MaybeStructMemberAnnot)
+      return;
+
     IRBuilder<> Builder(Inst->getParent());
 
     Type *Int8PtrTyPrivate =
@@ -4451,7 +4459,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     Value *UndefInt32 = PoisonValue::get(Int32Ty);
     Constant *NullPtrConst = Constant::getNullValue(PtrTyConstant);
 
-    if (AL && BV->getType()->getPointerElementType()->isTypeStruct()) {
+    if (MaybeStructMemberAnnot) {
       auto *ST = BV->getType()->getPointerElementType();
       SPIRVTypeStruct *STS = static_cast<SPIRVTypeStruct *>(ST);
 
