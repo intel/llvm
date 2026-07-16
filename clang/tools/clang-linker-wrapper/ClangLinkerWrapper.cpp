@@ -2033,6 +2033,11 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   // deprecating and removing those options so backend/linker options can be
   // forwarded as opaque tokens without this kind of string surgery.
   std::string AOTOptions;
+  // TODO: This isSPIRAOT() check must stay in sync with the equivalent check
+  // in linkAndWrapDeviceFiles() above, which decides whether CLI-supplied
+  // options for this triple go into AOTDeviceArgs (token vector) or get
+  // folded into CompileLinkOptions (flat string). Nothing enforces
+  // agreement between the two; see the TODO there for the suggested fix.
   if (Triple.isSPIRAOT()) {
     AOTOptions = CompileLinkOptions.first;
     if (!CompileLinkOptions.second.empty()) {
@@ -2581,6 +2586,13 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       const llvm::Triple TargetTriple(
           LinkerArgs.getLastArgValue(OPT_triple_EQ));
       std::vector<std::string> AOTDeviceArgs;
+      // TODO: This isSPIRAOT() check must stay in sync with the equivalent
+      // check in runSYCLOffloadingPipeline() below, which decides whether to
+      // fold CompileLinkOptions into AOTOptions for the same triple. Nothing
+      // enforces agreement between the two; consider unifying the option
+      // representation (e.g. making CompileLinkOptions itself a token
+      // vector) so both AOT option origins share one code path instead of
+      // two independently-maintained branches.
       if (TargetTriple.isSPIRAOT()) {
         for (std::string &DeviceCompilerArg :
              LinkerArgs.getAllArgValues(OPT_compiler_arg_EQ))
