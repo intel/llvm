@@ -520,142 +520,116 @@ def filter_log_for_display(lines: List[str]) -> List[str]:
     return result
 
 
-def show_statistics_and_lists(
-    lines: List[str], all_tests_file: str = None, xml_file: str = None
-) -> None:
-    # Extract statistics
-    stats = extract_statistics(lines)
+def _display_statistics(stats: List[str]) -> None:
     if stats:
         print("=== Test Statistics ===")
         for stat in stats:
             print(stat.rstrip())
         print()
 
-    # Validate totals match sum of categories
-    total_discovered = None
+
+def _get_count_from_stats(stats: List[str], keywords: List[str]) -> int:
     for stat in stats:
-        if "Total Discovered" in stat:
+        if any(keyword in stat for keyword in keywords):
             match = re.search(r"(\d+)", stat)
             if match:
-                total_discovered = int(match.group(1))
-                break
+                return int(match.group(1))
+    return 0
 
-    # Extract test lists in collapsed sections (LIT format)
-    test_lists, declared_counts = extract_test_lists(lines)
 
-    # Track if we display skipped/excluded separately (for validation later)
-    displayed_skipped_count = 0
-    displayed_excluded_count = 0
-    stats_skipped_count = None
-    stats_excluded_count = None
-
-    # Extract skipped count from statistics
-    for stat in stats:
-        if "Skipped:" in stat or "Unsupported:" in stat:
-            match = re.search(r"(\d+)", stat)
-            if match:
-                stats_skipped_count = int(match.group(1))
-                break
-
-    # Handle Skipped/Unsupported tests
-    # Check if LIT already extracted them to logs (with --show-skipped flag)
+def _display_skipped_tests(
+    test_lists: Dict[str, List[str]],
+    declared_counts: Dict[str, int],
+    stats: List[str],
+    xml_file: str
+) -> int:
     skipped_from_log = test_lists.get("Skipped", test_lists.get("Unsupported", []))
-    declared_skipped_count = declared_counts.get(
-        "Skipped", declared_counts.get("Unsupported", None)
-    )
+    declared_count = declared_counts.get("Skipped", declared_counts.get("Unsupported", 0))
+    stats_count = _get_count_from_stats(stats, ["Skipped:", "Unsupported:"])
 
-    if skipped_from_log and declared_skipped_count:
-        # We have skipped tests from log - verify count matches header
+    if skipped_from_log and declared_count:
         actual_count = len(skipped_from_log)
-
-        if actual_count == declared_skipped_count:
-            # Count matches declared count in log header - use log data
-            displayed_skipped_count = actual_count
+        
+        if actual_count == declared_count:
             print(f"::group::Skipped Tests ({actual_count})")
             for test in skipped_from_log:
                 print(test)
             print("::endgroup::")
-        else:
-            # Mismatch between header and actual lines - fallback to XML
-            skipped_xml = extract_skipped_from_xml(xml_file)
-            if skipped_xml:
-                count = len(skipped_xml)
-                displayed_skipped_count = count
-                print(f"::group::Skipped Tests ({count})")
-                print(
-                    f"Note: Using XML data (log header claimed {declared_skipped_count}, but found {actual_count} lines)."
-                )
-                print()
-                for test in skipped_xml:
-                    print(test)
-                print("::endgroup::")
-            else:
-                # No XML fallback - use log data anyway with warning
-                displayed_skipped_count = actual_count
-                print(f"::group::Skipped Tests ({actual_count})")
-                print(
-                    f"Warning: Log header claimed {declared_skipped_count} skipped, but found {actual_count} lines."
-                )
-                print()
-                for test in skipped_from_log:
-                    print(test)
-                print("::endgroup::")
-
-        # Remove from test_lists to avoid duplicate display
-        test_lists.pop("Skipped", None)
-        test_lists.pop("Unsupported", None)
-
-    elif stats_skipped_count:
-        # No skipped in log, but statistics show some - try XML
+            test_lists.pop("Skipped", None)
+            test_lists.pop("Unsupported", None)
+            return actual_count
+        
         skipped_xml = extract_skipped_from_xml(xml_file)
         if skipped_xml:
             count = len(skipped_xml)
-            displayed_skipped_count = count
             print(f"::group::Skipped Tests ({count})")
+            print(f"Note: Using XML data (log header claimed {declared_count}, but found {actual_count} lines).")
+            print()
             for test in skipped_xml:
                 print(test)
             print("::endgroup::")
         else:
-            # No XML data either
-            print(f"::group::Skipped Tests ({stats_skipped_count})")
-            print("Warning: Could not extract individual skipped test names.")
-            print(
-                f"Statistics show {stats_skipped_count} skipped tests, but they are not available in the output."
-            )
-            print("::endgroup::")
-
-    # Handle Excluded tests similarly
-    # BUT: only if they're not already in test_lists (avoid duplicates)
-    if "Excluded" not in test_lists:
-        # Extract from LIT xunit XML output
-        excluded_xml = extract_excluded_from_xml(xml_file)
-
-        # Extract excluded count from statistics
-        for stat in stats:
-            if "Excluded:" in stat:
-                match = re.search(r"(\d+)", stat)
-                if match:
-                    stats_excluded_count = int(match.group(1))
-                    break
-
-        if excluded_xml:
-            count = len(excluded_xml)
-            displayed_excluded_count = count
-
-            print(f"::group::Excluded Tests ({count})")
-            for test in excluded_xml:
+            count = actual_count
+            print(f"::group::Skipped Tests ({actual_count})")
+            print(f"Warning: Log header claimed {declared_count} skipped, but found {actual_count} lines.")
+            print()
+            for test in skipped_from_log:
                 print(test)
             print("::endgroup::")
-        elif stats_excluded_count:
-            # Statistics show excluded but we couldn't extract the list
-            print(f"::group::Excluded Tests ({stats_excluded_count})")
-            print(f"Warning: Could not extract individual excluded test names.")
-            print(
-                f"Statistics show {stats_excluded_count} excluded tests, but they are not available in the output."
-            )
+        
+        test_lists.pop("Skipped", None)
+        test_lists.pop("Unsupported", None)
+        return count
+    
+    elif stats_count:
+        skipped_xml = extract_skipped_from_xml(xml_file)
+        if skipped_xml:
+            count = len(skipped_xml)
+            print(f"::group::Skipped Tests ({count})")
+            for test in skipped_xml:
+                print(test)
             print("::endgroup::")
+            return count
+        
+        print(f"::group::Skipped Tests ({stats_count})")
+        print("Warning: Could not extract individual skipped test names.")
+        print(f"Statistics show {stats_count} skipped tests, but they are not available in the output.")
+        print("::endgroup::")
+        return stats_count
+    
+    return 0
 
-    # Show remaining test categories from LIT format
+
+def _display_excluded_tests(
+    test_lists: Dict[str, List[str]],
+    stats: List[str],
+    xml_file: str
+) -> int:
+    if "Excluded" in test_lists:
+        return 0
+    
+    excluded_xml = extract_excluded_from_xml(xml_file)
+    stats_count = _get_count_from_stats(stats, ["Excluded:"])
+    
+    if excluded_xml:
+        count = len(excluded_xml)
+        print(f"::group::Excluded Tests ({count})")
+        for test in excluded_xml:
+            print(test)
+        print("::endgroup::")
+        return count
+    
+    elif stats_count:
+        print(f"::group::Excluded Tests ({stats_count})")
+        print("Warning: Could not extract individual excluded test names.")
+        print(f"Statistics show {stats_count} excluded tests, but they are not available in the output.")
+        print("::endgroup::")
+        return stats_count
+    
+    return 0
+
+
+def _display_remaining_categories(test_lists: Dict[str, List[str]]) -> None:
     for category, tests in test_lists.items():
         count = len(tests)
         if count > 0:
@@ -664,71 +638,84 @@ def show_statistics_and_lists(
                 print(test)
             print("::endgroup::")
 
-    # Validate that total discovered matches sum of all categories
-    if total_discovered:
-        # Sum from test_lists + any skipped/excluded we displayed separately
-        # BUT: Don't double-count if they're already in test_lists
-        sum_categories = sum(len(tests) for tests in test_lists.values())
 
-        # Only add displayed counts if we displayed them separately
-        if displayed_skipped_count > 0 and "Skipped" not in test_lists:
-            sum_categories += displayed_skipped_count
-        if displayed_excluded_count > 0 and "Excluded" not in test_lists:
-            sum_categories += displayed_excluded_count
+def _validate_test_counts(
+    total_discovered: int,
+    test_lists: Dict[str, List[str]],
+    displayed_skipped: int,
+    displayed_excluded: int
+) -> None:
+    if not total_discovered:
+        return
+    
+    sum_categories = sum(len(tests) for tests in test_lists.values())
+    
+    if displayed_skipped > 0 and "Skipped" not in test_lists:
+        sum_categories += displayed_skipped
+    if displayed_excluded > 0 and "Excluded" not in test_lists:
+        sum_categories += displayed_excluded
+    
+    if total_discovered != sum_categories:
+        print()
+        print(f"::warning::Test count mismatch: Total Discovered = {total_discovered}, but sum of all categories = {sum_categories}")
+        print(f"Warning: {total_discovered - sum_categories} tests are unaccounted for.")
+        print(f"This may indicate tests in unexpected categories or parsing issues.")
+        print(f"Categories found: {', '.join(test_lists.keys())}")
+        if displayed_skipped > 0:
+            print(f"(Plus {displayed_skipped} skipped tests displayed separately)")
+        if displayed_excluded > 0:
+            print(f"(Plus {displayed_excluded} excluded tests displayed separately)")
+        print()
 
-        if total_discovered != sum_categories:
-            print()
-            print(
-                f"::warning::Test count mismatch: Total Discovered = {total_discovered}, but sum of all categories = {sum_categories}"
-            )
-            print(
-                f"Warning: {total_discovered - sum_categories} tests are unaccounted for."
-            )
-            print(
-                f"This may indicate tests in unexpected categories or parsing issues."
-            )
-            print(f"Categories found: {', '.join(test_lists.keys())}")
-            if displayed_skipped_count > 0:
-                print(
-                    f"(Plus {displayed_skipped_count} skipped tests displayed separately)"
-                )
-            if displayed_excluded_count > 0:
-                print(
-                    f"(Plus {displayed_excluded_count} excluded tests displayed separately)"
-                )
-            print()
 
-    # Extract and display test timing information if available
+def _display_timing_summary(lines: List[str]) -> None:
     time_info = extract_time_summary(lines)
-
-    # Extract Testing Time from logs
+    
     testing_time = None
     for line in lines:
         if line.strip().startswith("Testing Time:"):
             testing_time = line.strip()
             break
+    
+    if not (time_info["slowest"] or time_info["histogram"] or testing_time):
+        return
+    
+    print("::group::Test Timing Summary")
+    
+    if testing_time:
+        print(testing_time)
+        print()
+    
+    if time_info["slowest"]:
+        print("Slowest Tests:")
+        print("-" * 70)
+        for line in time_info["slowest"]:
+            print(line)
+        print()
+    
+    if time_info["histogram"]:
+        print("Test Times Distribution:")
+        print("-" * 70)
+        for line in time_info["histogram"]:
+            print(line)
+    
+    print("::endgroup::")
 
-    if time_info["slowest"] or time_info["histogram"] or testing_time:
-        print("::group::Test Timing Summary")
 
-        if testing_time:
-            print(testing_time)
-            print()
-
-        if time_info["slowest"]:
-            print("Slowest Tests:")
-            print("-" * 70)
-            for line in time_info["slowest"]:
-                print(line)
-            print()
-
-        if time_info["histogram"]:
-            print("Test Times Distribution:")
-            print("-" * 70)
-            for line in time_info["histogram"]:
-                print(line)
-
-        print("::endgroup::")
+def show_statistics_and_lists(
+    lines: List[str], all_tests_file: str = None, xml_file: str = None
+) -> None:
+    stats = extract_statistics(lines)
+    _display_statistics(stats)
+    
+    total_discovered = _get_count_from_stats(stats, ["Total Discovered"])
+    test_lists, declared_counts = extract_test_lists(lines)
+    
+    displayed_skipped = _display_skipped_tests(test_lists, declared_counts, stats, xml_file)
+    displayed_excluded = _display_excluded_tests(test_lists, stats, xml_file)
+    _display_remaining_categories(test_lists)
+    _validate_test_counts(total_discovered, test_lists, displayed_skipped, displayed_excluded)
+    _display_timing_summary(lines)
 
 
 def main():
