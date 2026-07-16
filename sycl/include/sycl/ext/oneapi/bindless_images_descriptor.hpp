@@ -143,6 +143,30 @@ struct image_descriptor {
                             "Images must have 1, 2, 3, or 4 channels.");
     }
 
+    // row_pitch is meaningful only for 2D and 3D images.
+    if (this->row_pitch != 0 && this->height == 0) {
+      throw sycl::exception(
+          sycl::errc::invalid,
+          "row_pitch is meaningful only for 2D and 3D images.");
+    }
+
+    // slice_pitch is meaningful only for 3D images and 2D image arrays.
+    const bool is_3d = this->depth != 0;
+    const bool is_2d_array =
+        this->type == image_type::array && this->height != 0;
+    if (this->slice_pitch != 0 && !is_3d && !is_2d_array) {
+      throw sycl::exception(
+          sycl::errc::invalid,
+          "slice_pitch is meaningful only for 3D images and 2D image arrays.");
+    }
+
+    // A non-zero slice_pitch must describe non-overlapping slices.
+    if (this->slice_pitch != 0 && this->row_pitch != 0 && this->height != 0 &&
+        this->slice_pitch < this->row_pitch * this->height) {
+      throw sycl::exception(sycl::errc::invalid,
+                            "slice_pitch must be at least row_pitch * height.");
+    }
+
     switch (this->type) {
     case image_type::standard:
       if (this->array_size > 1) {

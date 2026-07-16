@@ -295,10 +295,16 @@ which is interpreted as a tightly-packed layout (rows are
 `width * num_channels * sizeof(channel)` bytes, slices are `row_pitch * height`
 bytes). Non-zero values allow callers to describe images whose backing memory
 has additional padding to meet device alignment requirements. `row_pitch` is
-meaningful for 2D and 3D images and is ignored for 1D images. `slice_pitch` is
-meaningful for 3D images and for 2D image arrays (where each array layer is a
-"slice"); it is ignored for plain 2D and 1D images. Both members are accepted
-on the `range<2>` constructor to cover the 2D-array case uniformly.
+meaningful only for 2D and 3D images. `slice_pitch` is meaningful only for 3D
+images and for 2D image arrays (where each array layer is a "slice"). Both
+members are accepted on the `range<2>` constructor to cover the 2D-array case
+uniformly.
+
+The `verify` member function will reject descriptors that set these members on
+image shapes where they have no meaning (a non-zero `row_pitch` on a 1D image,
+or a non-zero `slice_pitch` on anything other than a 3D image or a 2D image
+array), and will also reject a non-zero `slice_pitch` that is smaller than
+`row_pitch * height`.
 
 [NOTE]
 ====

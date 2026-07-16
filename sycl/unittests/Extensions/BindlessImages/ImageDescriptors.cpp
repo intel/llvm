@@ -140,6 +140,57 @@ TEST(BindlessImagesExtensionTests, ImageDescriptorCopyPropagatesPitch) {
   syclexp::free_image_mem(DstHandle, syclexp::image_type::standard, Q);
 }
 
+TEST(BindlessImagesExtensionTests, ImageDescriptorPitchValidation) {
+  // row_pitch on a 1D image is rejected. The 1D ctor doesn't take row_pitch,
+  // so we default-construct and set the field directly.
+  {
+    syclexp::image_descriptor Desc;
+    Desc.width = 32;
+    Desc.num_channels = 4;
+    Desc.channel_type = sycl::image_channel_type::fp32;
+    Desc.row_pitch = 256;
+    EXPECT_THROW(Desc.verify(), sycl::exception);
+  }
+
+  // slice_pitch on a plain 2D standard image is rejected.
+  {
+    syclexp::image_descriptor Desc;
+    Desc.width = 32;
+    Desc.height = 32;
+    Desc.num_channels = 4;
+    Desc.channel_type = sycl::image_channel_type::fp32;
+    Desc.slice_pitch = 8192;
+    EXPECT_THROW(Desc.verify(), sycl::exception);
+  }
+
+  // slice_pitch on a 2D image array is accepted.
+  {
+    syclexp::image_descriptor Desc;
+    Desc.width = 32;
+    Desc.height = 32;
+    Desc.num_channels = 4;
+    Desc.channel_type = sycl::image_channel_type::fp32;
+    Desc.type = syclexp::image_type::array;
+    Desc.array_size = 4;
+    Desc.row_pitch = 512;
+    Desc.slice_pitch = 512 * 32;
+    EXPECT_NO_THROW(Desc.verify());
+  }
+
+  // slice_pitch smaller than row_pitch * height is rejected (3D case).
+  {
+    syclexp::image_descriptor Desc;
+    Desc.width = 16;
+    Desc.height = 16;
+    Desc.depth = 4;
+    Desc.num_channels = 1;
+    Desc.channel_type = sycl::image_channel_type::fp32;
+    Desc.row_pitch = 512;
+    Desc.slice_pitch = 2048; // < 512 * 16 = 8192
+    EXPECT_THROW(Desc.verify(), sycl::exception);
+  }
+}
+
 TEST(BindlessImagesExtensionTests, ImageDescriptorPropagatesSlicePitch) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_replace_callback(
