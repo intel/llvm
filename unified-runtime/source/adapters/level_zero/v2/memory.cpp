@@ -338,10 +338,48 @@ void *ur_discrete_buffer_handle_t::getActiveDeviceAlloc(size_t offset) {
          offset;
 }
 
+static void migrateMemory(ze_command_list_handle_t cmdList, void *src,
+                          void *dst, size_t size, wait_list_view &waitListView);
+
+void *ur_discrete_buffer_handle_t::asyncMigrateDeviceAllocThroughHost(
+    ur_device_handle_t hDevice, size_t offset, ze_command_list_handle_t cmdList,
+    wait_list_view &waitListView) {
+  // Allocate a staging buffer on the host for the migration
+  void *stagingPtr{};
+
+  UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+      hContext, nullptr, nullptr, UR_USM_TYPE_HOST, getSize(), &stagingPtr));
+
+  usm_unique_ptr_t stagingAlloc = usm_unique_ptr_t(stagingPtr, [this](void *p) {
+    auto ret = hContext->getDefaultUSMPool()->free(p);
+    if (ret != UR_RESULT_SUCCESS)
+      UR_LOG(ERR, "Failed to free mapped memory: {}", ret);
+  });
+
+  stagingAllocations.emplace_back(std::move(stagingAlloc));
+  auto const hostPtr = stagingAllocations.back().get();
+
+  // Copy data from the source device allocation to the staging buffer
+  migrateMemory(cmdList, getActiveDeviceAlloc(0), hostPtr, getSize(),
+                waitListView);
+
+  // Allocate the destination buffer, if necessary
+  auto const id = hDevice->Id.value();
+  auto const dstPtr = deviceAllocations[id].get()
+                          ? deviceAllocations[id].get()
+                          : allocateOnDevice(hDevice, getSize());
+
+  // Copy data from the staging buffer to the destination device allocation
+  ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
+                    (cmdList, dstPtr, hostPtr, getSize(), nullptr, 0, nullptr));
+  activeAllocationDevice = hDevice;
+  return getActiveDeviceAlloc(offset);
+}
+
 void *ur_discrete_buffer_handle_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t /*access*/, size_t offset,
-    size_t /*size*/, ze_command_list_handle_t /*cmdList*/,
-    wait_list_view & /*waitListView*/) {
+    size_t /*size*/, ze_command_list_handle_t cmdList,
+    wait_list_view &waitListView) {
   TRACK_SCOPE_LATENCY("ur_discrete_buffer_handle_t::getDevicePtr");
 
   if (!activeAllocationDevice) {
@@ -366,12 +404,12 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
                                  activeAllocationDevice) != p2pDevices.end();
 
   if (!p2pAccessible) {
-    // TODO: migrate buffer through the host
-    UR_LOG(WARN,
-           "p2p is not accessible: requesting device ptr:{} cannot access "
-           "allocation on device ptr:{}",
-           (void *)hDevice, (void *)activeAllocationDevice);
-    throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    UR_LOG(DEBUG,
+           "p2p is not accessible: migrating buffer through host: "
+           "from src device: {} to dst device: {}",
+           (void *)activeAllocationDevice, (void *)hDevice);
+    return asyncMigrateDeviceAllocThroughHost(hDevice, offset, cmdList,
+                                              waitListView);
   }
 
   // TODO: see if it's better to migrate the memory to the specified device

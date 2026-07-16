@@ -170,11 +170,17 @@ private:
   usm_unique_ptr_t mapToPtr;
 
   std::vector<host_allocation_desc_t> hostAllocations;
+  std::vector<usm_unique_ptr_t> stagingAllocations;
 
   void *getActiveDeviceAlloc(size_t offset = 0);
   void *allocateOnDevice(ur_device_handle_t hDevice, size_t size);
   ur_result_t migrateBufferTo(ur_device_handle_t hDevice, void *src,
                               size_t size);
+
+  void *asyncMigrateDeviceAllocThroughHost(ur_device_handle_t hDevice,
+                                           size_t offset,
+                                           ze_command_list_handle_t cmdList,
+                                           wait_list_view &waitListView);
 };
 
 struct ur_shared_buffer_handle_t : ur_mem_buffer_t {
