@@ -98,7 +98,6 @@ runs:
     env:
       BUILD_DIR: ${{ inputs.build_dir }}
     run: |
-      echo "::group::Prepare test artifacts"
       mkdir -p conformance_artifacts
       
       # Copy log file
@@ -117,7 +116,6 @@ runs:
           cp "$FOUND_XML" conformance_artifacts/conformance_results.xml
         fi
       fi
-      echo "::endgroup::"
 
   - name: Upload conformance test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}
