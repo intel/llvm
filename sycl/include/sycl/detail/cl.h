@@ -16,6 +16,12 @@
 // such tests before we can drop OpenCL headers.
 #ifndef __SYCL_IGC_COMPILER__
 
+// Pin the OpenCL API version, otherwise CL/cl_version.h emits a #pragma
+// message and defaults to 3.0 anyway.
+#ifndef CL_TARGET_OPENCL_VERSION
+#define CL_TARGET_OPENCL_VERSION 300
+#endif
+
 // Include symbols for beta extensions.
 // Required for _cl_command_buffer_khr.
 #ifndef CL_ENABLE_BETA_EXTENSIONS
@@ -38,6 +44,11 @@ typedef struct _cl_mem *cl_mem;
 typedef struct _cl_platform_id *cl_platform_id;
 typedef struct _cl_program *cl_program;
 typedef struct _cl_sampler *cl_sampler;
+#endif
+
+// Old cl_ext.h OpenCL-Header files might not have the command-buffer
+// extension defined.
+#ifndef cl_khr_command_buffer
 typedef struct _cl_command_buffer_khr *cl_command_buffer_khr;
 #endif
 
@@ -52,6 +63,7 @@ using OpenCLMemT = cl_mem;
 using OpenCLPlatformT = cl_platform_id;
 using OpenCLProgramT = cl_program;
 using OpenCLSamplerT = cl_sampler;
+using OpenCLExtCommandBufferKHRT = cl_command_buffer_khr;
 
 namespace detail {
 #ifdef __SYCL_DEVICE_ONLY__

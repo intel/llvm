@@ -133,7 +133,7 @@ template <> struct BackendReturn<backend::opencl, kernel> {
 using graph = ext::oneapi::experimental::command_graph<
     ext::oneapi::experimental::graph_state::executable>;
 template <> struct BackendReturn<backend::opencl, graph> {
-  using type = cl_command_buffer_khr;
+  using type = OpenCLExtCommandBufferKHRT;
 };
 
 template <> struct InteropFeatureSupportMap<backend::opencl> {
