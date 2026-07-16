@@ -14,6 +14,7 @@ thread_local size_t ExpectedSlicePitch = 0;
 thread_local uint32_t ExpectedNumSamples = 0;
 thread_local int MapExternalArrayCallCounter = 0;
 
+thread_local size_t ImageCopySrcRowPitch = 0;
 thread_local size_t ImageCopyDstRowPitch = 0;
 thread_local size_t ImageCopyDstSlicePitch = 0;
 thread_local int ImageCopyCallCounter = 0;
@@ -45,7 +46,9 @@ inline ur_result_t urBindlessImagesImageCopyExp_replace(void *pParams) {
   auto Params =
       *reinterpret_cast<ur_bindless_images_image_copy_exp_params_t *>(pParams);
 
+  const ur_image_desc_t *urSrcDesc = *Params.ppSrcImageDesc;
   const ur_image_desc_t *urDstDesc = *Params.ppDstImageDesc;
+  ImageCopySrcRowPitch = urSrcDesc->rowPitch;
   ImageCopyDstRowPitch = urDstDesc->rowPitch;
   ImageCopyDstSlicePitch = urDstDesc->slicePitch;
 
@@ -102,10 +105,13 @@ TEST(BindlessImagesExtensionTests, ImageDescriptorCopyPropagatesPitch) {
   sycl::queue Q;
 
   ImageCopyCallCounter = 0;
+  ImageCopySrcRowPitch = 0;
   ImageCopyDstRowPitch = 0;
   ImageCopyDstSlicePitch = 0;
 
   constexpr size_t DescRowPitch = 4096;
+  // 32 * 4 channels * sizeof(float) = 512
+  constexpr size_t TightHostPitch = 32 * 4 * sizeof(float);
 
   syclexp::image_descriptor Desc(
       sycl::range<2>{32, 32}, 4, sycl::image_channel_type::fp32,
@@ -120,11 +126,16 @@ TEST(BindlessImagesExtensionTests, ImageDescriptorCopyPropagatesPitch) {
     Q.ext_oneapi_copy(HostSrc.data(), DstHandle, Desc);
     Q.wait();
   } catch (const sycl::exception &e) {
+    syclexp::free_image_mem(DstHandle, syclexp::image_type::standard, Q);
     FAIL() << "Caught unexpected SYCL exception: " << e.what();
   }
 
   EXPECT_EQ(ImageCopyCallCounter, 1);
+  // Image side (dst) gets the descriptor's row_pitch.
   EXPECT_EQ(ImageCopyDstRowPitch, DescRowPitch);
+  // Memory side (src) must be the tight host stride, NOT the descriptor's
+  // row_pitch. UR adapters use pSrcImageDesc->rowPitch as the host stride.
+  EXPECT_EQ(ImageCopySrcRowPitch, TightHostPitch);
 
   syclexp::free_image_mem(DstHandle, syclexp::image_type::standard, Q);
 }
@@ -139,7 +150,10 @@ TEST(BindlessImagesExtensionTests, ImageDescriptorPropagatesSlicePitch) {
 
   MapExternalArrayCallCounter = 0;
   ExpectedRowPitch = 512;
-  ExpectedSlicePitch = 2048;
+  // slice_pitch is the byte stride between successive slices; it must be at
+  // least row_pitch * height (512 * 16 = 8192) to describe a non-overlapping
+  // layout.
+  ExpectedSlicePitch = 8192;
   ExpectedNumSamples = 1;
 
   syclexp::image_descriptor Desc(
