@@ -100,10 +100,6 @@ enum OldOffloadKind {
 
 namespace llvm {
 template <> struct DenseMapInfo<OldOffloadKind> {
-  static inline OldOffloadKind getEmptyKey() {
-    return static_cast<OldOffloadKind>(DenseMapInfo<unsigned>::getEmptyKey());
-  }
-
   static unsigned getHashValue(const OldOffloadKind &Val) {
     return DenseMapInfo<unsigned>::getHashValue(static_cast<unsigned>(Val));
   }
