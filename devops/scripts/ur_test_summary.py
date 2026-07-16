@@ -526,6 +526,80 @@ def show_statistics_and_lists(
     - Statistics section (always visible)
     - Collapsed sections for each test category
     """
+
+
+def filter_log_for_display(lines: List[str]) -> List[str]:
+    """
+    Filter log to remove sections that are displayed separately.
+
+    Removes:
+    - Test statistics (Total Discovered, Passed:, Failed:, etc.)
+    - Test lists with status (Passed Tests (N):, Failed Tests (N):, etc.)
+    - Test timing summary (Testing Time, Slowest Tests, histogram)
+
+    Returns filtered log lines suitable for "Show Full Log" section.
+    """
+    result = []
+    skip_until_empty = False
+    in_timing = False
+    
+    # Pattern for statistics lines
+    stats_pattern = re.compile(
+        r"^\s*(Total Discovered|Expected Passes|Expectedly Failed|"
+        r"Excluded|Unsupported|Skipped|Passed|Passed With Retry|"
+        r"Failed|Timed Out|Unexpectedly Passed|Unresolved)(\s+Tests)?\s*:"
+    )
+    
+    # Pattern for test list headers
+    test_list_pattern = re.compile(
+        r"^([A-Za-z ]+) Tests \(\d+\):"
+    )
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Skip statistics lines
+        if stats_pattern.match(line):
+            continue
+            
+        # Skip test list sections (e.g., "Passed Tests (123):")
+        if test_list_pattern.match(line):
+            skip_until_empty = True
+            continue
+            
+        # Skip timing sections
+        if stripped in ["Slowest Tests:", "Tests Times:", "Test Times:"]:
+            in_timing = True
+            continue
+            
+        # End of timing section at asterisks line
+        if in_timing and stripped.replace("*", "") == "":
+            in_timing = False
+            continue
+            
+        # Skip content while in timing section
+        if in_timing:
+            continue
+            
+        # Skip Testing Time line
+        if stripped.startswith("Testing Time:"):
+            continue
+            
+        # Stop skipping at empty line after test list
+        if skip_until_empty:
+            if not stripped:
+                skip_until_empty = False
+            continue
+            
+        # Keep this line
+        result.append(line)
+    
+    return result
+
+
+def show_statistics_and_lists(
+    lines: List[str], all_tests_file: str = None, xml_file: str = None
+) -> None:
     # Extract statistics
     stats = extract_statistics(lines)
     if stats:
@@ -751,6 +825,10 @@ def main():
             file=sys.stderr,
         )
         print(
+            "  filter-log <log>      - Filter log to remove test lists and timing (for Show Full Log)",
+            file=sys.stderr,
+        )
+        print(
             "\nArguments:",
             file=sys.stderr,
         )
@@ -799,6 +877,12 @@ def main():
         for line in result:
             print(line, end="")
 
+    elif command == "filter-log":
+        # Filter log for "Show Full Log" section
+        result = filter_log_for_display(lines)
+        for line in result:
+            print(line, end="")
+
     elif command == "show-summary":
         # Optional: all tests file for GoogleTest format
         all_tests_file = sys.argv[3] if len(sys.argv) > 3 else None
@@ -831,7 +915,7 @@ def main():
 
     else:
         print(f"Error: Unknown command: {command}", file=sys.stderr)
-        print("Valid commands: extract-errors, show-summary", file=sys.stderr)
+        print("Valid commands: extract-errors, filter-log, show-summary", file=sys.stderr)
         sys.exit(1)
 
 

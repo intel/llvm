@@ -39,6 +39,20 @@ runs:
       fi
       
       exit $EXIT_CODE
+
+  - name: Show full adapter specific test log
+    if: ${{ always() }}
+    shell: bash
+    run: |
+      if [ ! -f adapter_tests.log ]; then
+        echo "::warning::Test log not found"
+        exit 0
+      fi
+      
+      echo "::group::Show Full Test Log (filtered)"
+      # Filter out test lists, statistics, and timing - those are shown separately below
+      python3 devops/scripts/ur_test_summary.py filter-log adapter_tests.log || cat adapter_tests.log
+      echo "::endgroup::"
   
   - name: Report adapter specific failures
     if: steps.run_tests.outcome != 'success'
