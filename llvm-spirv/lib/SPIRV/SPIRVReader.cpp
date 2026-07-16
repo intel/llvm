@@ -1070,8 +1070,10 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   case OpUConvert:
     CO = IsExt ? Instruction::ZExt : Instruction::Trunc;
     break;
+  case internal::OpClampConvertFToFINTEL:
   case internal::OpClampConvertFToSINTEL:
   case internal::OpStochasticRoundFToFINTEL:
+  case internal::OpClampStochasticRoundFToFINTEL:
   case internal::OpClampStochasticRoundFToSINTEL:
   case OpConvertSToF:
   case OpConvertFToS:
@@ -1079,6 +1081,12 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   case OpConvertFToU:
   case OpFConvert: {
     const auto OC = BC->getOpCode();
+    // These 2 old opcodes should follow exactly the same translation
+    // path as OpFConvert/OpStochasticRoundFToFINTEL with
+    // SaturatedToLargestFloat8NormalConversionEXT
+    const bool IsOldConvertFToFOp =
+        OC == internal::OpClampConvertFToFINTEL ||
+        OC == internal::OpClampStochasticRoundFToFINTEL;
     {
       auto SPVOps = BC->getOperands();
       auto *SPVSrcTy = SPVOps[0]->getType();
@@ -1097,9 +1105,17 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
 
       FPEncodingWrap SrcEnc = GetEncodingAndUpdateType(SPVSrcTy);
       FPEncodingWrap DstEnc = GetEncodingAndUpdateType(SPVDstTy);
-      bool IsSaturatedFP8 = BC->hasDecorate(
+      const bool HasSaturatedFP8Decor = BC->hasDecorate(
           DecorationSaturatedToLargestFloat8NormalConversionEXT);
-      if (IsSaturatedFP8) {
+      bool IsSaturatedFP8 = false;
+      if (IsOldConvertFToFOp) {
+        BM->getErrorLog().checkError(
+            !HasSaturatedFP8Decor, SPIRVEC_InvalidInstruction,
+            "SaturatedToLargestFloat8NormalConversionEXT is not valid on "
+            "OpClampConvertFToFINTEL or OpClampStochasticRoundFToFINTEL.\n");
+        IsSaturatedFP8 =
+            DstEnc == FPEncodingWrap::E4M3 || DstEnc == FPEncodingWrap::E5M2;
+      } else if (HasSaturatedFP8Decor) {
         BM->getErrorLog().checkError(
             (OC == OpFConvert || OC == OpConvertSToF || OC == OpConvertUToF ||
              OC == internal::OpStochasticRoundFToFINTEL) &&
@@ -1110,10 +1126,19 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
             "valid on OpFConvert/OpConvertSToF/OpConvertUToF/"
             "OpStochasticRoundFToFINTEL whose Result Type uses Float8E4M3EXT "
             "or Float8E5M2EXT encoding.\n");
+        IsSaturatedFP8 = true;
       }
       if (IsFP4OrFP8Encoding(SrcEnc) || IsFP4OrFP8Encoding(DstEnc) ||
           SPVSrcTy->isTypeInt(4) || SPVDstTy->isTypeInt(4)) {
-        FPConversionDesc FPDesc = {SrcEnc, DstEnc, OC,
+        // The old opcodes share the encoding map with their surviving
+        // equivalents: OpClampConvertFToFINTEL with OpFConvert and
+        // OpClampStochasticRoundFToFINTEL with OpStochasticRoundFToFINTEL.
+        SPIRVWord LookupOC = OC;
+        if (OC == internal::OpClampConvertFToFINTEL)
+          LookupOC = OpFConvert;
+        else if (OC == internal::OpClampStochasticRoundFToFINTEL)
+          LookupOC = internal::OpStochasticRoundFToFINTEL;
+        FPConversionDesc FPDesc = {SrcEnc, DstEnc, LookupOC,
                                    /*Saturate=*/IsSaturatedFP8};
         auto Conv = SPIRV::FPConvertToEncodingMap::rmap(FPDesc);
         std::vector<Value *> Ops = {Src};
@@ -1125,6 +1150,7 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         std::string MangledName;
         // Translate additional Ops for stochastic conversions.
         if (OC == internal::OpStochasticRoundFToFINTEL ||
+            OC == internal::OpClampStochasticRoundFToFINTEL ||
             OC == internal::OpClampStochasticRoundFToSINTEL) {
           // Seed.
           Ops.emplace_back(transValue(SPVOps[1], F, BB, true));
@@ -1158,11 +1184,12 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         return CI;
       }
     }
-    // OpStochasticRoundFToFINTEL has no native LLVM cast equivalent.
-    // For fp4/fp8/int4 types, it is handled via the __builtin_spirv path above.
-    // For the remaining types it is emitted as an
-    // __spirv_StochasticRoundFToFINTEL_R<type> builtin call.
-    if (OC == internal::OpStochasticRoundFToFINTEL)
+    // OpStochasticRoundFToFINTEL and the old OpClampConvertFToFINTEL /
+    // OpClampStochasticRoundFToFINTEL opcodes have no native LLVM cast
+    // equivalent. For fp4/fp8/int4 types, they are handled via the
+    // __builtin_spirv path above. For the remaining types they are emitted as
+    // an __spirv_<OpName>_R<type> builtin call.
+    if (OC == internal::OpStochasticRoundFToFINTEL || IsOldConvertFToFOp)
       return mapValue(BV, transSPIRVBuiltinFromInst(
                               static_cast<SPIRVInstruction *>(BV), BB));
 
@@ -4097,6 +4124,9 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case internal::OpClampConvertFToSINTEL:
   case internal::OpStochasticRoundFToFINTEL:
   case internal::OpClampStochasticRoundFToSINTEL:
+  // Old opcodes, for backward compatibility.
+  case internal::OpClampConvertFToFINTEL:
+  case internal::OpClampStochasticRoundFToFINTEL:
     AddRetTypePostfix = true;
     break;
   default: {
