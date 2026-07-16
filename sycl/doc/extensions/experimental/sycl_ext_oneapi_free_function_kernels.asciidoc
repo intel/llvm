@@ -43,14 +43,29 @@ the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
-  sycl_ext_oneapi_free_function_queries]
-* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
-  sycl_ext_oneapi_properties]
+* `sycl_khr_work_item_queries`
+* `sycl_khr_properties`
 * link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
 * link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions]
+
+[_Note:_ This extension uses the `single_task` and `nd_launch` function names
+from `sycl_ext_oneapi_enqueue_functions`, but it does not use that extension's
+`launch_config` type in this version (see the note in "New free functions to
+launch a kernel").
+This dependency is expected to be revisited if and when an equivalent of those
+launch functions is provided by a finalized SYCL extension.
+_{endnote}_]
+
+[_Note:_ This extension's compile-time properties (`nd_range_kernel` and
+`single_task_kernel`) are still defined below using the `property_value` shape
+and the `sycl::ext::oneapi::experimental` namespace from the experimental
+`sycl_ext_oneapi_properties` extension.
+Once `sycl_khr_properties` is finalized, these property definitions need to be
+revisited to use the `sycl::khr::property` shape (reading a compile-time
+property's value through its `value` member) and the `sycl::khr` namespace.
+_{endnote}_]
 
 
 == Status
@@ -70,22 +85,27 @@ This is different from standard SYCL kernels, where the kernel arguments are
 either captures of a lambda expression or member variables of a callable
 object.
 
-The primary motivation for this extension is the
-link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
-sycl_ext_oneapi_kernel_compiler], which allows online compilation of a kernel
-from source code.
-These kernels must have a clean separation between host and device code, and
-they must have a defined order to their arguments because the application sets
-the argument values by their "index" via `handler::set_arg(index, value)`.
-Because variables captured by lambda expressions have no defined order, we need
-some other way to define kernel arguments for use with the
-sycl_ext_oneapi_kernel_compiler extension, and the
-sycl_ext_oneapi_free_function_kernels extension provides that mechanism.
-The "free function kernel" feature is a separate extension, though, because it
-can also be used independently from sycl_ext_oneapi_kernel_compiler.
-For example, some users may find it more familiar to define kernels as plain
-functions or they might have other reasons to prefer a clean separation between
-host and device code.
+The captures or member variables of a standard SYCL kernel have no defined
+order.
+A free function kernel instead exposes each argument as a function parameter,
+which gives the arguments a defined order, so the application can set each
+argument by its index via `handler::set_arg(index, value)`.
+When the arguments are restricted to trivially copyable types (see the
+restrictions below), each argument also has a well defined size and
+representation, giving the kernel a stable argument ABI.
+
+A defined argument order and a stable argument ABI allow a free function kernel
+to be invoked directly through a SYCL backend's native kernel-invocation API,
+using the backend interoperability interface in the core SYCL specification,
+without going through the SYCL host runtime APIs.
+They also provide a clean separation between host and device code, which makes
+free function kernels a useful building block for software layers built on top
+of this extension.
+
+A free function kernel can also be enqueued through the normal SYCL host runtime
+APIs, so the feature does not require any particular backend.
+Kernels that need accessors or buffer-based data management are not a good fit
+for this feature and should use standard SYCL kernels instead.
 
 
 == Specification
@@ -149,12 +169,10 @@ following rules must be observed:
 
 * The function must not accept variadic arguments.
 
-* Each of the function's arguments must have a type that is an allowed kernel
-  parameter type as specified in section 4.12.4 "Rules for parameter passing to
-  kernels" of the core SYCL specification.
-  The function must not be declared with parameters of type `reducer` or
-  `kernel_handler`.
-  These special kernel arguments cannot be passed to a free function kernel.
+* Each of the function's arguments must have a type `T` for which
+  `is_valid_free_function_kernel_arg_v<T>` is `true` (see below).
+  In particular, the function must not be declared with parameters of type
+  `accessor`, `local_accessor`, `reducer`, or `kernel_handler`.
 
 * All declarations of the function must provide no default parameter values.
 
@@ -174,6 +192,52 @@ following rules must be observed:
 * If a function is decorated with one of these properties in one translation
   unit, any other translation unit that declares the same function must also
   decorate the function with the same property (with the same argument).
+
+* The way the function's body obtains its iteration ID must be consistent with
+  the declared property: a function decorated with `nd_range_kernel<Dims>` must
+  obtain its iteration ID for an `nd_range` of `Dims` dimensions, and a function
+  decorated with `single_task_kernel` must not obtain an iteration ID.
+  Otherwise the program is ill formed, no diagnostic required.
+
+[_Note:_ An implementation may, but need not, diagnose such an inconsistency.
+This is not always possible, for example when the body is defined in another
+translation unit through a `SYCL_EXTERNAL` function or provided as a precompiled
+device object.
+_{endnote}_]
+
+The set of types that may be passed as a free function kernel argument is
+defined by the following trait.
+
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename T>
+struct is_valid_free_function_kernel_arg;
+
+template<typename T>
+inline constexpr bool is_valid_free_function_kernel_arg_v =
+    is_valid_free_function_kernel_arg<T>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+If `is_valid_free_function_kernel_arg_v<T>` is `true`, then `T` is trivially
+copyable.
+The converse does not hold: an implementation may report `value` as `false` for
+a trivially copyable type whose size or representation it cannot guarantee to be
+stable, for example a type whose layout differs between the toolchains that
+produce the host code and the device code.
+A type may therefore be a valid argument for one implementation and not for
+another; applications can query the trait to detect this at compile time.
+The trait's `value` is always `false` for `accessor`, `local_accessor`, and any
+other type that the implementation must decompose into multiple backend
+arguments, since such types have no single defined size and representation.
+
+Another SYCL extension may specialize this trait so that `value` is `true` for
+an additional permitted argument type.
+Specializing it to `true` for a type that does not meet these requirements is
+undefined behavior.
 
 The following table provides additional details about these compile-time
 properties.
@@ -257,21 +321,22 @@ void iota(float start, float *ptr) {
 }
 ```
 
-A function decorated with one of these properties can still be called as a
-normal function in either host or device code.
-The property has no effect in such cases.
+A function decorated with one of these properties is a kernel entry point.
+It must not be called as a normal function in either host or device code; doing
+so results in undefined behavior.
+The function's address may still be taken and is used to identify the kernel
+(see the `Func` template parameter used by the APIs below).
 
-[_Note:_ Many of the APIs specified below have a template parameter `Func`,
-which identifies a free function kernel.
-This kernel function may be defined in any translation unit in the application.
-It is not necessary for the function to be defined in the same translation unit
-as the instantiation of the template taking the `Func` parameter.
+[_Note:_ Many of the APIs below take a template parameter `Func` that identifies
+a free function kernel.
+The kernel need not be defined in the same translation unit as the instantiation
+of the template taking the `Func` parameter.
 _{endnote}_]
 
 === New traits for kernel functions
 
-This extension defines the following traits that can be used to tell whether a
-function is declared as a free function kernel.
+This extension defines the following traits that tell whether a function is
+declared as a free function kernel.
 
 |====
 a|
@@ -428,39 +493,12 @@ kernel, using the number of work-items specified by the ND-range `r`.
 Each value in the `args` pack is passed to the corresponding argument in
 `Func`, converting it to the argument's type if necessary.
 
-'''
-
-[frame=all,grid=none,separator="@"]
-!====
-a@
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-template <auto *Func, int Dimensions,
-          typename Properties, typename... Args>
-void nd_launch(queue q,
-               launch_config<nd_range<Dimensions>, Properties> c,
-               kernel_function_s<Func> k, Args&& args...);
-
-template <auto *Func, int Dimensions,
-          typename Properties, typename... Args>
-void nd_launch(handler &h,
-               launch_config<nd_range<Dimensions>, Properties> c,
-               kernel_function_s<Func> k, Args&& args...);
-
-} // namespace sycl::ext::oneapi::experimental
-----
-!====
-
-_Constraints_: Available only if `is_nd_range_kernel_v<Func, Dimensions>` is
-`true`.
-Available only if `+std::is_invocable_v<decltype(Func), Args...>+` is `true`.
-
-_Effects_: Enqueues a kernel object to the `queue` or `handler` as an ND-range
-kernel, using the launch configuration specified by `c`.
-Each value in the `args` pack is passed to the corresponding argument in
-`Func`, converting it to the argument's type if necessary.
+[_Note:_ A future version of this extension is expected to add `nd_launch`
+overloads that accept a `launch_config` argument, allowing launch-time
+properties (such as a dynamic work-group local memory size) to be specified.
+These overloads are omitted from this version because they depend on the
+`launch_config` type, which is not yet provided by a finalized SYCL extension.
+_{endnote}_]
 
 === New kernel bundle member functions
 
@@ -755,12 +793,23 @@ defined by the core SYCL specification.
   considers free function kernels defined by the application when computing its
   return value.
 
-The information descriptor `info::kernel::num_args` may be used to query a
-`kernel` object that represents a free function kernel.
-The return value tells the number of formal parameters in the function's
-definition.
+The information descriptor `info::kernel::num_args` may be queried on a `kernel`
+object that represents a free function kernel.
+It returns the number of formal parameters in the function's definition.
 
 === Enqueuing a free function kernel and setting parameter values
+
+There are two ways to enqueue a free function kernel.
+When the kernel's declaration is visible, the `nd_launch` and `single_task`
+functions taking a `kernel_function_s<Func>` (described above) are preferred:
+they check the kernel's kind, dimensionality, and argument types at compile time.
+This section describes the alternative, in which the application obtains a
+`kernel` object and sets each argument by index through `handler::set_arg`.
+This path performs no compile-time checking, but it sets arguments using the
+same positional index, size, and representation contract used to invoke a kernel
+through a native backend (see <<level-zero-and-opencl-compatibility>>), so it
+lets an application exercise that contract through the SYCL runtime on any
+backend.
 
 Once the application obtains a `kernel` object for a free function kernel, it
 can enqueue the kernel to a device using any of the SYCL functions that allow
@@ -771,11 +820,9 @@ enqueued by calling the `handler::parallel_for` overload taking an `nd_range`.
 A free function kernel defined via `single_task_kernel` can be enqueued by
 calling `handler::single_task`.
 
-Attempting to enqueue a free function kernel using a mechanism that does not
-match its type results in undefined behavior.
-Attempting to enqueue a free function kernel with an `nd_range` whose
-dimensionality does not match the free function kernel definition results in
-undefined behavior.
+It is undefined behavior to enqueue a free function kernel using a mechanism
+that does not match its type, or with an `nd_range` whose dimensionality does
+not match the kernel definition.
 
 The application is also responsible for setting the values of any kernel
 arguments when the kernel is enqueued.
@@ -794,15 +841,12 @@ undefined:
 
 === Obtaining the iteration id for a kernel
 
-In a standard SYCL kernel, the iteration ID is passed as a parameter to the
-kernel's callable object.
-However, this is not the case for a free function kernel because the function
-parameters are used to pass the kernel arguments instead.
-Therefore, a free function kernel must obtain the iteration ID in some other
-way.
-Typically, a free function kernel uses the functions specified in
-link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
-sycl_ext_oneapi_free_function_queries] for this purpose.
+A standard SYCL kernel receives its iteration ID as a parameter to the kernel's
+callable object.
+A free function kernel cannot, because its parameters pass the kernel arguments
+instead.
+It therefore obtains the iteration ID through the functions specified in
+`sycl_khr_work_item_queries`, such as `sycl::khr::this_nd_item`.
 
 === Address space of kernel arguments
 
@@ -1017,130 +1061,57 @@ int main() {
 }
 ----
 
-=== Using "scratch" work-group local memory
-
-Free function kernels can use work-group local memory via `local_accessor` or
-via other extensions.
-This example demonstrates how to use work-group local memory via the
-link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[
-sycl_ext_oneapi_work_group_scratch_memory] extension because it also illustrates
-how to pass a kernel launch parameter.
-
-[source,c++]
-----
-#include <sycl/sycl.hpp>
-namespace syclexp = sycl::ext::oneapi::experimental;
-
-static constexpr size_t NUM = 1024;
-static constexpr size_t WGSIZE = 16;
-
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void mykernel() {
-  // Gets a pointer to WGSIZE int's
-  int *ptr = static_cast<int *>(syclexp::get_work_group_scratch_memory());
-}
-
-int main() {
-  sycl::queue q;
-
-  syclexp::launch_config cfg{
-    sycl::nd_range{{NUM}, {WGSIZE}},
-    syclexp::properties{
-      syclexp::work_group_scratch_size{WGSIZE * sizeof(int)}
-    }
-  };
-  syclexp::nd_launch(q, cfg, syclexp::kernel_function<mykernel>);
-
-  q.wait();
-}
-----
-
-
-
 [[level-zero-and-opencl-compatibility]]
-== {dpcpp} guaranteed compatibility with Level Zero and OpenCL backends
+== Direct invocation through a native backend
 
-The contents of this section are non-normative and apply only to the {dpcpp}
-implementation.
-Kernels written using the free function kernel syntax can be submitted to a
-device by using the Level Zero or OpenCL backends, without going through the
-SYCL host runtime APIs.
+A free function kernel can be invoked directly through a SYCL backend's native
+kernel-invocation API, using the backend interoperability interface in the core
+SYCL specification, without going through the SYCL host runtime APIs.
+This is guaranteed only when the kernel adheres to the following restrictions:
 
-The interface to the kernel in the native device code module is only guaranteed
-when the kernel adheres to the following restrictions:
+* The kernel is written in the free function kernel syntax.
+* Each formal argument to the kernel is a {cpp} trivially copyable type, or a
+  type that another SYCL extension specifies as a permitted free function kernel
+  argument.
 
-* The kernel is written in the free function kernel syntax;
-* The kernel function is declared as `extern "C"`;
-* Each formal argument to the kernel is either a {cpp} trivially copyable type
-  or the `work_group_memory` type (see
-  link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[
-  sycl_ext_oneapi_work_group_memory]); and
-* The translation unit containing the kernel is compiled with the
-  `-fno-sycl-dead-args-optimization` option.
+A native backend identifies a kernel by a _name_ string.
+When a kernel adheres to the restrictions above, this name is the name of the
+kernel's function as it appears in the native device code module.
+For a kernel that is not declared with C language linkage, this is the {cpp}
+mangled name of the function.
+For a kernel that is declared `extern "C"`, this is the function's name without
+{cpp} name mangling.
 
-In order to invoke a kernel using Level Zero or OpenCL, the application must
-first obtain the raw backend content of the device image that contains the
-kernel.
-One way to do this is by using
-link:../experimental/sycl_ext_oneapi_device_image_backend_content.asciidoc[
-sycl_ext_oneapi_device_image_backend_content].
-It is also possible to compile the application in AOT mode via the
-`-fsycl-targets` compiler option and then extract the device image's backend
-content from the executable file.
+[_Note:_ Because a function with C language linkage cannot be a template,
+declaring a kernel `extern "C"` gives it a predictable, unmangled name at the
+cost of not being able to define it as a function template.
+A templated free function kernel is still invocable through a native backend
+using the mangled name of the desired specialization.
+_{endnote}_]
 
-Both Level Zero and OpenCL identify a kernel via a _name_ string.
-(See `zeKernelCreate` and `clCreateKernel` in their respective specifications.)
-When a kernel is defined according to the restrictions above, the _name_ is
-guaranteed to be the same as the name of the kernel's function in the {cpp}
-source code but with "++__sycl_kernel_++" prefixed.
-For example, if the function name is "foo", the kernel's name in the native
-device code module is "++__sycl_kernel_foo++".
+A native backend sets a kernel argument value using three pieces of information:
+the index of the argument, the size (in bytes) of the value, and a pointer to
+the start of the value.
+When a kernel adheres to the restrictions above, the argument indices are the
+same as the positions of the formal kernel arguments in the {cpp} source code:
+the first argument has index 0, the next has index 1, etc.
 
-Both Level Zero and OpenCL set kernel argument values using three pieces of
-information:
-
-* The index of the argument;
-* The size (in bytes) of the value; and
-* A pointer to the start of the value.
-
-(See `zeKernelSetArgumentValue` and `clSetKernelArg` in their respective
-specifications.)
-
-When a kernel is defined according to the restrictions above, the argument
-indices are the same as the positions of the formal kernel arguments in the
-{cpp} source code.
-The first argument has index 0, the next has index 1, etc.
-
-If an argument has a trivially copyable type, the size must be the size of that
-type, and the pointer must point to a memory region that has the same size and
+If an argument has a trivially copyable type, the size is the size of that type,
+and the pointer must point to a memory region that has the same size and
 representation as that trivially copyable type.
+An extension that permits an additional free function kernel argument type
+specifies how that argument's size and pointer are set when the kernel is
+invoked through a native backend.
 
-If an argument has the type `work_group_memory`, the size must be the size (in
-bytes) of the device local memory that is represented by the
-`work_group_memory` argument.
-The pointer passed to  `zeKernelSetArgumentValue` or `clSetKernelArg` must be
-NULL in this case.
+A kernel that is invoked through a native backend must not use specialization
+constants as defined in section 4.9.5 "Specialization constants" of the core
+SYCL specification.
 
-Some kernel features are disallowed when submitting a kernel using Level Zero or
-OpenCL.
-Other features require the kernel to be invoked in some special way.
-These features are detailed below:
-
-* When a kernel's static call tree contains a call to
-  `get_work_group_scratch_memory` from
-  link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[
-  sycl_ext_oneapi_work_group_scratch_memory], the kernel has an additional
-  "hidden" argument whose value must be set when the kernel is invoked.
-  This argument appears after all other kernel arguments.
-  The value corresponds to the `work_group_scratch_size` launch property, which
-  specifies the size of the dynamic device local memory that is available via
-  `get_work_group_scratch_memory`.
-  The kernel argument's size specifies the size (in bytes) of the dynamic device
-  local memory.
-  The kernel argument's pointer must be NULL.
-
-* Kernels must not use specialization constants as defined in section 4.9.5
-  "Specialization constants" of the core SYCL specification.
+[_Note:_ The OpenCL backend is an example of a backend that provides such a
+native kernel-invocation interface, via `clCreateKernel` and `clSetKernelArg`.
+Other extensions may specify additional permitted argument types and how their
+size and pointer are set; see the documentation of those extensions.
+_{endnote}_]
 
 
 == Implementation notes
@@ -1197,32 +1168,6 @@ However, each helper function has a unique name, so it can be uniquely
 identified from the `sycl` namespace, where it is called to specialize the
 `is_nd_range_kernel` trait.
 
-=== Decomposed kernel arguments
-
-The {dpcpp} implementation currently "decomposes" certain kernel argument
-types, meaning that some argument types are actually passed as several separate
-arguments when the SYCL runtime invokes the kernel using the underlying
-backend.
-For example, `accessor` consists of several internal member variables.
-On the OpenCL backend, one of these member variables is `cl_mem`, and OpenCL
-restrictions require this variable to be passed directly as an OpenCL kernel
-argument.
-(It cannot be passed as a member embedded within a structure.)
-As a result, {dpcpp} passes each member variable as a separate OpenCL kernel
-argument.
-
-A decomposed argument like this is still represented as a single argument in
-SYCL source code.
-When invoking a free function kernel, the application sets the value of such an
-argument with a single call to `handler::set_arg`.
-For example, the application sets the value of an `accessor` by calling
-`set_arg(acc)`, where `acc` is a variable of type `accessor`.
-
-It is the responsibility of the implementation to translate these calls to
-`set_arg` into multiple backend argument-setting calls when necessary.
-For example, a call to `set_arg(acc)` may actually result in several OpenCL
-calls to `clSetKernelArg`, one for each of the member variables in `accessor`.
-
 === Kernel arguments that are optimized away
 
 The {dpcpp} implementation currently has the ability to optimize away unused
@@ -1255,8 +1200,7 @@ void iota(sycl::nd_item<1> nditem, float start, float *ptr) { /*...*/  }
 ```
 
 The advantage is that the user wouldn't need to use the functions in
-link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
-sycl_ext_oneapi_free_function_queries] to get the iteration index.
+`sycl_khr_work_item_queries` to get the iteration index.
 Doing this raises some new questions, though:
 
 ** When the application sets the value of a kernel parameter via `set_arg`,
