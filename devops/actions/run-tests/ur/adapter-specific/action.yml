@@ -27,26 +27,11 @@ runs:
         exit 1
       fi
       
-      echo "::group::Show Full Test Adapter Specific Logs"
       # Write directly to file to avoid SIGPIPE from GitHub Actions closing stdout
       # (output is too large without --succinct, causing GitHub to close pipe)
       cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter > adapter_tests.log 2>&1
       EXIT_CODE=$?
       
-      # Optionally show full LIT output including test lists from summary
-      # Set SHOW_FULL_TEST_LISTS=0 to filter out duplicate test lists (default: show all for debugging)
-      if [ "${SHOW_FULL_TEST_LISTS:-1}" = "1" ]; then
-        echo "=== Full test execution log (including LIT summary lists) ===" || true
-        cat adapter_tests.log || true
-      else
-        # Filtered: Show only summary without duplicate test lists
-        # (LIT summary with asterisks is filtered out to avoid duplication with collapsed lists below)
-        echo "=== Test execution log (filtered - lists shown in collapsed sections below) ===" || true
-        sed '/^\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*/,$d' adapter_tests.log || true
-      fi
-      echo "::endgroup::"
-      
-      # Only fail if cmake actually failed, not if test failed (continue-on-error handles that)
       # Check that log was created successfully
       if [ ! -f adapter_tests.log ] || [ ! -s adapter_tests.log ]; then
         echo "::error::Test execution failed - no log generated"
@@ -73,6 +58,7 @@ runs:
         echo "## Adapter Specific Tests Not Available" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "No adapter-specific tests were found or executed for this configuration." >> $GITHUB_STEP_SUMMARY
+        echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
         exit 0
       fi
       
@@ -81,6 +67,24 @@ runs:
         echo "## Adapter Specific Tests Log Empty" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "The adapter-specific test log exists but is empty." >> $GITHUB_STEP_SUMMARY
+        echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
+        exit 0
+      fi
+      
+      # Check if log contains only cmake output with no actual tests
+      if grep -q "Testing:" adapter_tests.log; then
+        # Has test results - process normally
+        :
+      else
+        echo "::notice::No adapter-specific tests found for this configuration"
+        echo "## Adapter Specific Tests Not Available" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "No adapter-specific tests were executed. This is normal for some adapter configurations." >> $GITHUB_STEP_SUMMARY
+        echo "Log output:" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat adapter_tests.log >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
         exit 0
       fi
       
@@ -93,7 +97,7 @@ runs:
       python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$XML_FILE" | tee -a $GITHUB_STEP_SUMMARY
 
   - name: Prepare adapter specific test artifacts
-    if: ${{ always() && inputs.artifact_name != '' }}
+    if: ${{ always() && inputs.artifact_name != '' && env.SKIP_ARTIFACTS != '1' }}
     shell: bash
     env:
       BUILD_DIR: ${{ inputs.build_dir }}
@@ -113,7 +117,7 @@ runs:
       fi
 
   - name: Upload adapter specific test artifacts
-    if: ${{ always() && inputs.artifact_name != '' }}
+    if: ${{ always() && inputs.artifact_name != '' && env.SKIP_ARTIFACTS != '1' }}
     uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.5.2
     with:
       name: ${{ inputs.artifact_name }}
