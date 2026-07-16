@@ -102,6 +102,7 @@ runs:
     env:
       BUILD_DIR: ${{ inputs.build_dir }}
     run: |
+      echo "::group::Prepare test artifacts"
       mkdir -p adapter_artifacts
       
       # Copy log file
@@ -115,6 +116,7 @@ runs:
       if [ -n "$FOUND_XML" ]; then
         cp "$FOUND_XML" adapter_artifacts/adapter_results.xml
       fi
+      echo "::endgroup::"
 
   - name: Upload adapter specific test artifacts
     if: ${{ always() && inputs.artifact_name != '' && env.SKIP_ARTIFACTS != '1' }}
