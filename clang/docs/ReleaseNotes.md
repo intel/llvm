@@ -351,6 +351,9 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 
 #### Arm and AArch64 Support
 
+- On AArch64 Windows targets, `-mbranch-protection=standard` and `-mbranch-protection=pac-ret`
+  now uses the B-key by default.
+
 #### Android Support
 
 #### Windows Support
