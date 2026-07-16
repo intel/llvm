@@ -1512,7 +1512,7 @@ public:
       try {
         return std::any_of(
             std::begin(supported_archs), std::end(supported_archs),
-            [=](const arch a) { return this->extOneapiArchitectureIs(a); });
+            [this](const arch a) { return this->extOneapiArchitectureIs(a); });
       } catch (const sycl::exception &) {
         // If we're here it means the device does not support architecture
         // querying
