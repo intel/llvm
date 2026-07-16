@@ -16,7 +16,7 @@ namespace jit_compiler {
 std::string formatError(llvm::Error &&Err, const std::string &Msg);
 
 template <typename ResultType, typename... ExtraArgTypes>
-static ResultType errorTo(llvm::Error &&Err, const std::string &Msg,
+[[maybe_unused]] static ResultType errorTo(llvm::Error &&Err, const std::string &Msg,
                           ExtraArgTypes... ExtraArgs) {
   // Cannot throw an exception here if LLVM itself is compiled without exception
   // support.
