@@ -110,6 +110,8 @@ public:
 
   // Error handling functions
   SPIRVErrorLog &getErrorLog() override { return ErrLog; }
+  // Total size of the input stream, cached once by parseSPIRV.
+  std::streamoff getInputStreamSize() const { return InputStreamSize; }
   SPIRVErrorCode getError(std::string &ErrMsg) override {
     return ErrLog.getError(ErrMsg);
   }
@@ -620,6 +622,7 @@ private:
   SPIRVIdToInstructionSetMap IdToInstSetMap;
   SPIRVIdToBuiltinSetMap IdBuiltinMap;
   SPIRVIdSet NamedId;
+  std::streamoff InputStreamSize = 0;
   SPIRVStringVec StringVec;
   SPIRVMemberNameVec MemberNameVec;
   std::shared_ptr<const SPIRVLine> CurrentLine;
@@ -2439,11 +2442,8 @@ void SPIRVModuleImpl::addUnknownStructField(SPIRVTypeStruct *Struct, unsigned I,
 static void validateWordCount(SPIRVModuleImpl &M, std::istream &IS,
                               SPIRVWord WordCount) {
   if (!SPIRVUseTextFormat) {
-    std::streampos CurrentPos = IS.tellg();
-    IS.seekg(0, std::ios::end);
-    std::streamoff RemainingBytes = IS.tellg() - CurrentPos;
-    IS.clear();
-    IS.seekg(CurrentPos);
+    // Bounds-check against the total stream size.
+    std::streamoff RemainingBytes = M.getInputStreamSize() - IS.tellg();
 
     std::streamoff ExpectedBytes =
         static_cast<std::streamoff>((WordCount - 1) * sizeof(SPIRVWord));
@@ -2694,6 +2694,14 @@ std::istream &SPIRVModuleImpl::parseSPIRV(std::istream &I) {
   MI.GeneratorVer = Header[2] & 0xFFFF;
   MI.NextId = Header[3];
   MI.InstSchema = static_cast<SPIRVInstructionSchemaKind>(Header[4]);
+
+  if (!SPIRVUseTextFormat) {
+    std::streampos HeaderEnd = I.tellg();
+    I.seekg(0, std::ios::end);
+    MI.InputStreamSize = I.tellg();
+    I.clear();
+    I.seekg(HeaderEnd);
+  }
 
   SPIRVEntry *Scope = nullptr;
   while (true) {
