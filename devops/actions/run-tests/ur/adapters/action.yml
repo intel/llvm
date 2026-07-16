@@ -44,7 +44,7 @@ runs:
     if: steps.run_tests.outcome != 'success'
     shell: bash
     run: |
-      python3 devops/scripts/ur_test_summary.py extract-errors conformance_tests.log | tee -a $GITHUB_STEP_SUMMARY
+      python3 devops/scripts/ur_test_summary.py extract-errors conformance_tests.log
       exit 1
   
   - name: List all conformance tests
@@ -90,7 +90,7 @@ runs:
         XML_FILE=""
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt "$XML_FILE" | tee -a $GITHUB_STEP_SUMMARY
+      python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt "$XML_FILE"
 
   - name: Prepare conformance test artifacts
     if: ${{ always() && inputs.artifact_name != '' }}

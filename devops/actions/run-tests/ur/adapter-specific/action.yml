@@ -44,7 +44,7 @@ runs:
     if: steps.run_tests.outcome != 'success'
     shell: bash
     run: |
-      python3 devops/scripts/ur_test_summary.py extract-errors adapter_tests.log | tee -a $GITHUB_STEP_SUMMARY
+      python3 devops/scripts/ur_test_summary.py extract-errors adapter_tests.log
       exit 1
   
   - name: Show adapter specific test statistics and lists
@@ -55,18 +55,18 @@ runs:
     run: |
       if [ ! -f adapter_tests.log ]; then
         echo "::warning::Adapter specific test log not found - no tests may be available for this adapter"
-        echo "## Adapter Specific Tests Not Available" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "No adapter-specific tests were found or executed for this configuration." >> $GITHUB_STEP_SUMMARY
+        echo "## Adapter Specific Tests Not Available"
+        echo ""
+        echo "No adapter-specific tests were found or executed for this configuration."
         echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
         exit 0
       fi
       
       if [ ! -s adapter_tests.log ]; then
         echo "::warning::Adapter specific test log is empty"
-        echo "## Adapter Specific Tests Log Empty" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "The adapter-specific test log exists but is empty." >> $GITHUB_STEP_SUMMARY
+        echo "## Adapter Specific Tests Log Empty"
+        echo ""
+        echo "The adapter-specific test log exists but is empty."
         echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
         exit 0
       fi
@@ -77,13 +77,13 @@ runs:
         :
       else
         echo "::notice::No adapter-specific tests found for this configuration"
-        echo "## Adapter Specific Tests Not Available" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "No adapter-specific tests were executed. This is normal for some adapter configurations." >> $GITHUB_STEP_SUMMARY
-        echo "Log output:" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        cat adapter_tests.log >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "## Adapter Specific Tests Not Available"
+        echo ""
+        echo "No adapter-specific tests were executed. This is normal for some adapter configurations."
+        echo "Log output:"
+        echo '```'
+        cat adapter_tests.log
+        echo '```'
         echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
         exit 0
       fi
@@ -94,7 +94,7 @@ runs:
         XML_FILE=""
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$XML_FILE" | tee -a $GITHUB_STEP_SUMMARY
+      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$XML_FILE"
 
   - name: Prepare adapter specific test artifacts
     if: ${{ always() && inputs.artifact_name != '' && env.SKIP_ARTIFACTS != '1' }}
