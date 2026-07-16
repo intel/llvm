@@ -7,18 +7,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "graph.hpp"
-#include "../external/driver_experimental/zex_graph.h"
+#include <level_zero/ze_api.h>
+
 #include "../ur_interface_loader.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include "graph.hpp"
 
 #include <memory>
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext)
     : hContext(hContext) {
-  ZE2UR_CALL_THROWS(hContext->getPlatform()->ZeGraphExt.zeGraphCreateExp,
-                    (hContext->getZeHandle(), &zeGraph, nullptr));
+  ZE2UR_CALL_THROWS(hContext->getPlatform()->ZeGraphExt.graphCreate,
+                    (hContext->getZeHandle(), nullptr, &zeGraph));
 }
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext,
@@ -38,9 +39,8 @@ ur_exp_graph_handle_t_::~ur_exp_graph_handle_t_() {
 ur_exp_executable_graph_handle_t_::ur_exp_executable_graph_handle_t_(
     ur_context_handle_t hContext, ur_exp_graph_handle_t hGraph)
     : hContext(hContext) {
-  ZE2UR_CALL_THROWS(
-      hContext->getPlatform()->ZeGraphExt.zeCommandListInstantiateGraphExp,
-      (hGraph->getZeHandle(), &zeExGraph, nullptr));
+  ZE2UR_CALL_THROWS(hContext->getPlatform()->ZeGraphExt.instantiateGraph,
+                    (hGraph->getZeHandle(), nullptr, &zeExGraph));
 }
 
 ur_exp_executable_graph_handle_t_::~ur_exp_executable_graph_handle_t_() {
@@ -64,7 +64,10 @@ struct DestructionCallbackContext {
   void *userData;
 };
 
-void ZE_CALLBACK destructionCallbackWrapper(void *pUserData) {
+// Must match the calling convention of zeGraphSetDestructionCallbackExt's
+// pfnCallback parameter, declared as zex_mem_graph_free_callback_fn_t in
+// ze_api.h.
+void ZE_CALLBACK_CONV destructionCallbackWrapper(void *pUserData) {
   auto *CbData = static_cast<DestructionCallbackContext *>(pUserData);
   CbData->callback(CbData->userData);
   delete CbData;
@@ -137,9 +140,9 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ze_result_t zeResult =
-      ZE_CALL_NOCHECK(hContext->getPlatform()->ZeGraphExt.zeGraphIsEmptyExp,
-                      (hGraph->getZeHandle()));
+  auto &ZeGraphExt = hContext->getPlatform()->ZeGraphExt;
+  ze_result_t zeResult = ZeGraphExt.normalizeGraphQueryResult(
+      ZE_CALL_NOCHECK(ZeGraphExt.zeGraphIsEmptyExp, (hGraph->getZeHandle())));
   if (zeResult == ZE_RESULT_ERROR_INVALID_GRAPH) {
     return UR_RESULT_ERROR_INVALID_GRAPH;
   }

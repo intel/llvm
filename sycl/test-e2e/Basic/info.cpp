@@ -386,8 +386,6 @@ int main() {
   print_info<info::device::partition_type_affinity_domain,
              info::partition_affinity_domain>(dev,
                                               "Partition type affinity domain");
-  print_info<info::device::reference_count, sycl::opencl::cl_uint>(
-      dev, "Reference count");
 
   std::cout << separator << "Platform information\n" << separator;
   platform plt(dev.get_platform());

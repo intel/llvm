@@ -570,13 +570,6 @@ SmallVector<Metadata *, 4> LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  for (const auto &VC : Attrs.SYCLIntelFPGAVariantCount) {
-    Metadata *Vals[] = {MDString::get(Ctx, VC.first),
-                        ConstantAsMetadata::get(ConstantInt::get(
-                            llvm::Type::getInt32Ty(Ctx), VC.second))};
-    LoopProperties.push_back(MDNode::get(Ctx, Vals));
-  }
-  
   if (Attrs.SYCLMaxReinvocationDelayNCycles) {
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.intel.max_reinvocation_delay.count"),
@@ -630,7 +623,6 @@ void LoopAttributes::clear() {
   SYCLMaxConcurrencyNThreads.reset();
   SYCLLoopPipeliningDisable = false;
   SYCLMaxInterleavingNInvocations.reset();
-  SYCLIntelFPGAVariantCount.clear();
   SYCLMaxReinvocationDelayNCycles.reset();
   SYCLLoopPipeliningEnable = false;
   UnrollCount = 0;
@@ -665,8 +657,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.ArraySYCLIVDepInfo.empty() && Attrs.SYCLIInterval == 0 &&
       !Attrs.SYCLMaxConcurrencyNThreads &&
       Attrs.SYCLLoopPipeliningDisable == false &&
-      !Attrs.SYCLMaxInterleavingNInvocations &&
-      Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
+      !Attrs.SYCLMaxInterleavingNInvocations && Attrs.UnrollCount == 0 &&
       !Attrs.SYCLMaxReinvocationDelayNCycles &&
       !Attrs.SYCLLoopPipeliningEnable && Attrs.UnrollAndJamCount == 0 &&
       !Attrs.PipelineDisabled && !Attrs.LICMDisabled &&

@@ -45,7 +45,7 @@ void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
   urDesc.rowPitch = pitch;
   urDesc.arraySize = desc.array_size;
   urDesc.slicePitch = 0;
-  urDesc.numMipLevel = desc.num_levels;
+  urDesc.numMipLevel = (desc.type == image_type::mipmap) ? desc.num_levels : 0;
   urDesc.numSamples = 0;
 
   urFormat = {};

@@ -60,8 +60,11 @@ public:
   // - cache_borrowed_event: pooled event; it is returned to the pool.
   // - ze_event_handle_t: standalone/native event; the wrapper's ownZeHandle
   //   flag controls whether zeEventDestroy runs on destruction.
+  // - ipc_event_handle_t: opened from an IPC handle in another process;
+  //   torn down via zeEventCounterBasedCloseIpcHandle.
   using event_variant =
-      std::variant<v2::raii::cache_borrowed_event, v2::raii::ze_event_handle_t>;
+      std::variant<v2::raii::cache_borrowed_event, v2::raii::ze_event_handle_t,
+                   v2::raii::ipc_event_handle_t>;
 
   ur_event_handle_t_(ur_context_handle_t hContext,
                      v2::raii::cache_borrowed_event eventAllocation,
@@ -71,8 +74,7 @@ public:
                      ur_native_handle_t hNativeEvent,
                      const ur_event_native_properties_t *pProperties);
 
-  ur_event_handle_t_(ur_context_handle_t hContext,
-                     v2::raii::ze_event_handle_t hZeEvent,
+  ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,
                      v2::event_flags_t flags);
 
   // Set the queue and command that this event is associated with
@@ -104,6 +106,12 @@ public:
 
   // Tells if this event comes from a pool that has profiling enabled.
   bool isProfilingEnabled() const;
+
+  // True for IPC-shareable events.
+  bool isIpcCapable() const;
+
+  // True for events opened via urIPCOpenEventHandleExp.
+  bool isIpcImported() const;
 
   // Queue associated with this event. Can be nullptr (for native events)
   ur_queue_t_ *getQueue() const;

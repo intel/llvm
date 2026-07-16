@@ -106,22 +106,22 @@ int main() {
   return 0;
 }
 
-// CHECK: define {{.*}} void @{{.*}}kernel_name1() #0 {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D32:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name3() #0 {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D88:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name4() #0 {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D22:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name6() #0 {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D2:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name7() #0 {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D32]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name9() #0 {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D88]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name10() #0 {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D22]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name12() #0 {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D2]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name13() #0 {{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D32:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name15() #0 {{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D88:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name16() #0 {{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D22:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name18() #0 {{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D2_or_WGSIZE1D8:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name19() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D32:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name21() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D2_or_WGSIZE1D8]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name22() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D22:[0-9]+]]
-// CHECK: define {{.*}} void @{{.*}}kernel_name24() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D2:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name1() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D32:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name3() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D88:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name4() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D22:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name6() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D2:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name7() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D32]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name9() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D88]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name10() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D22]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name12() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]] !reqd_work_group_size ![[WGSIZE3D2]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name13() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D32:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name15() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D88:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name16() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D22:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name18() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D2_or_WGSIZE1D8:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name19() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D32:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name21() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D2_or_WGSIZE1D8]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name22() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D22:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name24() #[[#]] {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D2:[0-9]+]]
 
 // CHECK: ![[NDRWGS3D]] = !{i32 3}
 // CHECK: ![[WGSIZE3D32]] = !{i32 16, i32 16, i32 32}
