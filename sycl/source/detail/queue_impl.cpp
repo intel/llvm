@@ -664,32 +664,32 @@ bool queue_impl::isNativeRecording() const {
   return Result == UR_RESULT_SUCCESS && IsGraphCaptureEnabled;
 }
 
-void queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph) {
+queue_impl::NativeRecordingResult
+queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph) {
   std::lock_guard<std::mutex> Lock(MMutex);
-  ur_result_t Result =
+  NativeRecordingResult BeginResult;
+  BeginResult.Result =
       getAdapter().call_nocheck<UrApiKind::urQueueBeginCaptureIntoGraphExp>(
           MQueue, Graph);
-  if (Result != UR_RESULT_SUCCESS) {
-    throw sycl::exception(sycl::make_error_code(errc::runtime),
-                          "Failed to begin native UR graph capture");
+  BeginResult.RecordingActive = BeginResult.Result == UR_RESULT_SUCCESS;
+  if (BeginResult.RecordingActive) {
+    getContextImpl().nativeRecordingBegan();
   }
-  getContextImpl().nativeRecordingBegan();
+  return BeginResult;
 }
 
-ur_exp_graph_handle_t queue_impl::endNativeRecording() {
+queue_impl::NativeRecordingResult queue_impl::endNativeRecording() {
   std::lock_guard<std::mutex> Lock(MMutex);
-  ur_exp_graph_handle_t CapturedGraph = nullptr;
-  ur_result_t Result =
+  NativeRecordingResult EndResult;
+  EndResult.Result =
       getAdapter().call_nocheck<UrApiKind::urQueueEndGraphCaptureExp>(
-          MQueue, &CapturedGraph);
-  if (Result == UR_RESULT_SUCCESS || !isNativeRecording()) {
+          MQueue, &EndResult.CapturedGraph);
+  EndResult.RecordingActive =
+      EndResult.Result != UR_RESULT_SUCCESS && isNativeRecording();
+  if (!EndResult.RecordingActive) {
     getContextImpl().nativeRecordingEnded();
   }
-  if (Result != UR_RESULT_SUCCESS) {
-    throw sycl::exception(sycl::make_error_code(errc::runtime),
-                          "Failed to end native graph capture");
-  }
-  return CapturedGraph;
+  return EndResult;
 }
 
 ext::oneapi::experimental::queue_state

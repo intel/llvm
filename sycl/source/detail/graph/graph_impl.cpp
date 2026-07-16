@@ -726,9 +726,12 @@ void graph_impl::clearQueues(bool NeedsLock) {
   for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
       if (MNativeGraphHandle) {
-        [[maybe_unused]] ur_exp_graph_handle_t CapturedGraph =
-            ValidQueue->endNativeRecording();
-        assert(CapturedGraph == MNativeGraphHandle &&
+        auto EndResult = ValidQueue->endNativeRecording();
+        if (EndResult.Result != UR_RESULT_SUCCESS) {
+          throw sycl::exception(sycl::make_error_code(errc::runtime),
+                                "Error when ending native graph capture");
+        }
+        assert(EndResult.CapturedGraph == getNativeGraphHandle() &&
                "Captured graph handle must match the graph's native handle");
       } else {
         // Only call setCommandGraph for traditional recording
@@ -897,7 +900,14 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "Queue is already in native graph capture mode");
       }
-      Queue.beginNativeRecording(MNativeGraphHandle);
+      auto BeginResult = Queue.beginNativeRecording(MNativeGraphHandle);
+      if (BeginResult.RecordingActive) {
+        addQueue(Queue);
+      }
+      if (BeginResult.Result != UR_RESULT_SUCCESS) {
+        throw sycl::exception(sycl::make_error_code(errc::runtime),
+                              "Failed to begin native UR graph capture");
+      }
     } else {
       // Non-native recording path
       if (AcquireQueueLock) {
@@ -905,8 +915,8 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
       } else {
         Queue.setCommandGraphUnlocked(shared_from_this());
       }
+      addQueue(Queue);
     }
-    addQueue(Queue);
   }
 }
 
@@ -2294,11 +2304,16 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
       // End native UR graph capture
       assert(impl->getNativeGraphHandle() &&
              "Native graph handle must be valid when ending native recording");
-      [[maybe_unused]] ur_exp_graph_handle_t CapturedGraph =
-          QueueImpl.endNativeRecording();
-      assert(CapturedGraph == impl->getNativeGraphHandle() &&
+      auto EndResult = QueueImpl.endNativeRecording();
+      if (!EndResult.RecordingActive) {
+        impl->removeQueue(QueueImpl);
+      }
+      if (EndResult.Result != UR_RESULT_SUCCESS) {
+        throw sycl::exception(sycl::make_error_code(errc::runtime),
+                              "Error when ending native graph capture");
+      }
+      assert(EndResult.CapturedGraph == impl->getNativeGraphHandle() &&
              "Captured graph handle must match the graph's native handle");
-      impl->removeQueue(QueueImpl);
     }
   } else {
     // Traditional recording path
