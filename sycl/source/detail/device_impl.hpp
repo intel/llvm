@@ -1512,7 +1512,7 @@ public:
       try {
         return std::any_of(
             std::begin(supported_archs), std::end(supported_archs),
-            [=](const arch a) { return this->extOneapiArchitectureIs(a); });
+            [this](const arch a) { return this->extOneapiArchitectureIs(a); });
       } catch (const sycl::exception &) {
         // If we're here it means the device does not support architecture
         // querying
@@ -1626,6 +1626,10 @@ public:
     }
     CASE(ext_oneapi_ipc_memory) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_ipc_event) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP>()
           .value_or(0);
     }
     CASE(ext_oneapi_device_wait) {

@@ -75,9 +75,10 @@ static bool isBannedOpenCLDevice(cl_device_id device) {
 
 namespace ur::opencl {
 
-UR_DLLEXPORT ur_result_t UR_APICALL
-urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
-                  size_t propSize, void *pPropValue, size_t *pSizeRet) {
+UR_DLLEXPORT ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
+                                           ur_platform_info_t propName,
+                                           size_t propSize, void *pPropValue,
+                                           size_t *pSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pSizeRet);
   const cl_int CLPropName = mapURPlatformInfoToCL(propName);
@@ -105,16 +106,16 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   }
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL
+UR_DLLEXPORT ur_result_t
 urPlatformGetApiVersion([[maybe_unused]] ur_platform_handle_t hPlatform,
                         ur_api_version_t *pVersion) {
   *pVersion = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
-              ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
+ur_result_t urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
+                          ur_platform_handle_t *phPlatforms,
+                          uint32_t *pNumPlatforms) {
   static std::mutex adapterPopulationMutex{};
   ur_adapter_handle_t AdapterHandle = nullptr;
   UR_RETURN_ON_FAILURE(ur::opencl::urAdapterGet(1, &AdapterHandle, nullptr));
@@ -189,15 +190,15 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
-    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
+ur_result_t urPlatformGetNativeHandle(ur_platform_handle_t hPlatform,
+                                      ur_native_handle_t *phNativePlatform) {
   auto Platform = cast(hPlatform);
   *phNativePlatform =
       reinterpret_cast<ur_native_handle_t>(Platform->CLPlatform);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
+ur_result_t urPlatformCreateWithNativeHandle(
     ur_native_handle_t hNativePlatform, ur_adapter_handle_t,
     const ur_platform_native_properties_t *, ur_platform_handle_t *phPlatform) {
   cl_platform_id NativeHandle =
@@ -223,9 +224,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 // Returns plugin specific backend option.
 // Current support is only for optimization options.
 // Return '-cl-opt-disable' for pFrontendOption = -O0 and '' for others.
-UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
-                           const char **ppPlatformOption) {
+ur_result_t urPlatformGetBackendOption(ur_platform_handle_t,
+                                       const char *pFrontendOption,
+                                       const char **ppPlatformOption) {
   using namespace std::literals;
   if (pFrontendOption == nullptr)
     return UR_RESULT_SUCCESS;

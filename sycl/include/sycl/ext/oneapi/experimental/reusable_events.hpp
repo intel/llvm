@@ -11,9 +11,12 @@
 #include <sycl/context.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/detail/ipc_common.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/queue.hpp>
+
+#include <cstdint>
 
 namespace sycl {
 inline namespace _V1 {
@@ -26,9 +29,14 @@ struct enable_profiling_key
 
 inline constexpr enable_profiling_key::value_t enable_profiling;
 
-namespace detail {
+template <>
+struct is_property_key_of<enable_ipc_key, sycl::event> : std::true_type {};
 
-enum make_event_flags : uint32_t { make_event_flag_enable_profiling = 1u };
+namespace detail {
+enum make_event_flags : uint32_t {
+  make_event_flag_enable_profiling = 1u << 0,
+  make_event_flag_enable_ipc = 1u << 1,
+};
 
 __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt, uint32_t Flags);
 
@@ -36,6 +44,8 @@ template <typename PropertyListT> uint32_t getMakeEventFlags() {
   uint32_t Flags = 0;
   if constexpr (PropertyListT::template has_property<enable_profiling_key>())
     Flags |= make_event_flag_enable_profiling;
+  if constexpr (PropertyListT::template has_property<enable_ipc_key>())
+    Flags |= make_event_flag_enable_ipc;
   return Flags;
 }
 } // namespace detail
