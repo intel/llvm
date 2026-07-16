@@ -158,7 +158,7 @@ Error WebAssemblyCodeGenPassBuilder::addInstSelector(
   addMachineFunctionPass(WebAssemblySetP2AlignOperandsPass(), PMW);
 
   // Eliminate range checks and add default targets to br_table instructions.
-  // TODO(boomanaiden154): WebAssemblyFixBrTableDefaults
+  addMachineFunctionPass(WebAssemblyFixBrTableDefaultsPass(), PMW);
 
   // unreachable is terminator, non-terminator instruction after it is not
   // allowed.

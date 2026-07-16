@@ -158,7 +158,15 @@ FunctionPass *createWebAssemblyOptimizeLiveIntervals();
 FunctionPass *createWebAssemblyMemIntrinsicResults();
 FunctionPass *createWebAssemblyRegStackify(CodeGenOptLevel OptLevel);
 FunctionPass *createWebAssemblyRegColoring();
-FunctionPass *createWebAssemblyFixBrTableDefaults();
+
+class WebAssemblyFixBrTableDefaultsPass
+    : public RequiredPassInfoMixin<WebAssemblyFixBrTableDefaultsPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyFixBrTableDefaultsLegacyPass();
 
 class WebAssemblyFixIrreducibleControlFlowPass
     : public RequiredPassInfoMixin<WebAssemblyFixIrreducibleControlFlowPass> {
@@ -192,7 +200,7 @@ void initializeWebAssemblyDAGToDAGISelLegacyPass(PassRegistry &);
 void initializeWebAssemblyDebugFixupPass(PassRegistry &);
 void initializeWebAssemblyExceptionInfoPass(PassRegistry &);
 void initializeWebAssemblyExplicitLocalsPass(PassRegistry &);
-void initializeWebAssemblyFixBrTableDefaultsPass(PassRegistry &);
+void initializeWebAssemblyFixBrTableDefaultsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixFunctionBitcastsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PassRegistry &);
 void initializeWebAssemblyLateEHPreparePass(PassRegistry &);

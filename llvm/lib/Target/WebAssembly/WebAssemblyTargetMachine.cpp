@@ -119,7 +119,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyDebugFixupPass(PR);
   initializeWebAssemblyPeepholePass(PR);
   initializeWebAssemblyMCLowerPrePassPass(PR);
-  initializeWebAssemblyFixBrTableDefaultsPass(PR);
+  initializeWebAssemblyFixBrTableDefaultsLegacyPass(PR);
   initializeWebAssemblyDAGToDAGISelLegacyPass(PR);
 }
 
@@ -390,7 +390,7 @@ bool WebAssemblyPassConfig::addInstSelector() {
   addPass(createWebAssemblySetP2AlignOperandsLegacyPass());
 
   // Eliminate range checks and add default targets to br_table instructions.
-  addPass(createWebAssemblyFixBrTableDefaults());
+  addPass(createWebAssemblyFixBrTableDefaultsLegacyPass());
 
   // unreachable is terminator, non-terminator instruction after it is not
   // allowed.
@@ -548,7 +548,7 @@ bool WebAssemblyPassConfig::addGlobalInstructionSelect() {
   if (isGlobalISelAbortEnabled()) {
     addPass(createWebAssemblyArgumentMoveLegacyPass());
     addPass(createWebAssemblySetP2AlignOperandsLegacyPass());
-    addPass(createWebAssemblyFixBrTableDefaults());
+    addPass(createWebAssemblyFixBrTableDefaultsLegacyPass());
     addPass(createWebAssemblyCleanCodeAfterTrap());
   }
 
