@@ -29,13 +29,13 @@
 // CHK-DEVICE-TRIPLE-SAME: "-O2"
 // CHK-DEVICE-TRIPLE: llvm-offload-binary{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
 
-// Check if path to libsycl.so is passed to clang-linker-wrapper tool by default for SYCL compilation.
+// Check that path to libsycl.so is not passed to clang-linker-wrapper tool by default for SYCL compilation, but that -lsycl is.
 // The test also checks if SYCL header include paths are added to the SYCL host and device compilation.
 // INTEL-RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
-// RUN:   | FileCheck -check-prefixes=CHECK-LSYCL,CHECK-SYCL-HEADERS-HOST,CHECK-SYCL-HEADERS-DEVICE %s
+// RUN:   | FileCheck -implicit-check-not="libsycl.so" -check-prefixes=CHECK-LSYCL,CHECK-SYCL-HEADERS-HOST,CHECK-SYCL-HEADERS-DEVICE %s
 // CHECK-SYCL-HEADERS-DEVICE: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-SYCL-HEADERS-HOST: "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
-// CHECK-LSYCL: clang-linker-wrapper{{.*}} "{{.*}}libsycl.so"
+// CHECK-LSYCL: "-lsycl"
 // Check that -fsycl -fno-sycl does not pass libsycl.so to the linker.
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-RT %s
