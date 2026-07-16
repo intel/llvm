@@ -1,48 +1,42 @@
-.. If you want to modify sections/contents permanently, you should modify both
-   ReleaseNotes.rst and ReleaseNotesTemplate.txt.
+<!-- If you want to modify sections/contents permanently, you should modify both
+ReleaseNotes.md and ReleaseNotesTemplate.txt. -->
 
-===========================
-lld |release| Release Notes
-===========================
+(lld-release-release-notes)=
 
-.. contents::
-    :local:
+# lld {{ release | default("") }} Release Notes
 
-.. only:: PreRelease
+```{contents}
+:local: true
+```
 
-  .. warning::
-     These are in-progress notes for the upcoming LLVM |release| release.
-     Release notes for previous releases can be found on
-     `the Download Page <https://releases.llvm.org/download.html>`_.
+::::{only} PreRelease
 
-Introduction
-============
+:::{warning}
+These are in-progress notes for the upcoming LLVM {{ release | default("") }} release.
+Release notes for previous releases can be found on
+[the Download Page](https://releases.llvm.org/download.html).
+:::
+::::
 
-This document contains the release notes for the lld linker, release |release|.
+## Introduction
+
+This document contains the release notes for the lld linker, release {{ release | default("") }}.
 Here we describe the status of lld, including major improvements
 from the previous release. All lld releases may be downloaded
-from the `LLVM releases web site <https://llvm.org/releases/>`_.
+from the [LLVM releases web site](https://llvm.org/releases/).
 
-Non-comprehensive list of changes in this release
-=================================================
+## Non-comprehensive list of changes in this release
 
-ELF Improvements
-----------------
+### ELF Improvements
 
-Breaking changes
-----------------
+### Breaking changes
 
-COFF Improvements
------------------
+### COFF Improvements
 
-MinGW Improvements
-------------------
+### MinGW Improvements
 
-MachO Improvements
-------------------
+### MachO Improvements
 
-WebAssembly Improvements
-------------------------
+### WebAssembly Improvements
 
-Fixes
-#####
+#### Fixes
