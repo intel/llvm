@@ -691,7 +691,7 @@ INTEL_GPU_SHORT_NAMES = {
     # "intel_gpu_kbl": "kbl",
     # "intel_gpu_cfl": "cfl",
     # "intel_gpu_apl": "apl",
-    "intel_gpu_bxt": "apl",
+    # "intel_gpu_bxt": "apl",
     # "intel_gpu_glk": "glk",
     # "intel_gpu_whl": "whl",
     # "intel_gpu_aml": "aml",
