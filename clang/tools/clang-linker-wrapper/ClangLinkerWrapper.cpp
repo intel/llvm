@@ -1399,7 +1399,7 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*Linker);
   // Fill linker command line arguments.
-  CmdArgs.push_back("-only-needed");
+  CmdArgs.push_back("--only-needed");
   CmdArgs.push_back("--suppress-warnings");
   // Add input files.
   for (auto &File : InputFiles)
