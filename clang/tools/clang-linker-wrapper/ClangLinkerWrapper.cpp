@@ -1107,6 +1107,46 @@ static Expected<StringRef> runAOTCompile(StringRef InputFile,
                            "Unsupported SYCL Triple and Arch");
 }
 
+/// Compresses each SYCL device image in-place when --compress is set,
+/// tagging its Format as BIF_Compressed. --compress and --compression-level=
+/// are the same flags HIP forwards to clang-offload-bundler; for SYCL we
+/// consume them here. The per-image work delegates to
+/// offloading::compressSYCLDeviceImage, which the old-driver
+/// clang-offload-wrapper also uses; the surrounding loop isn't shared
+/// because that tool operates on one image at a time and emits an LLVM
+/// Constant directly, not a SYCLImage list.
+static Error compressSYCLImages(SmallVectorImpl<offloading::SYCLImage> &Images,
+                                const ArgList &Args) {
+  if (!Args.hasArg(OPT_compress))
+    return Error::success();
+
+  int Level = 10;
+  if (auto *A = Args.getLastArg(OPT_compression_level_eq))
+    if (StringRef(A->getValue()).getAsInteger(10, Level))
+      return createStringError(
+          "invalid value for --offload-compression-level=: '%s'",
+          A->getValue());
+
+  for (auto &Image : Images) {
+    SmallVector<uint8_t, 0> CompressedBytes;
+    Expected<bool> DidCompressOrErr = offloading::compressSYCLDeviceImage(
+        ArrayRef<uint8_t>(
+            reinterpret_cast<const uint8_t *>(Image.Image->getBufferStart()),
+            Image.Image->getBufferSize()),
+        CompressedBytes, Level, /*Threshold=*/512, Verbose);
+    if (!DidCompressOrErr)
+      return DidCompressOrErr.takeError();
+    if (!*DidCompressOrErr)
+      continue;
+    Image.Image = MemoryBuffer::getMemBufferCopy(
+        StringRef(reinterpret_cast<const char *>(CompressedBytes.data()),
+                  CompressedBytes.size()),
+        Image.Image->getBufferIdentifier());
+    Image.Format = offloading::SYCLBinaryImageFormat::BIF_Compressed;
+  }
+  return Error::success();
+}
+
 /// Reads device images from the given \p InputFile and wraps them
 /// in one LLVM IR Module as a constant data.
 ///
@@ -1178,38 +1218,8 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
                         ImageTarget, SI.CompileOptions, SI.LinkOptions);
   }
 
-  // SYCL device image compression. --compress and --compression-level= are
-  // the same flags that HIP forwards to clang-offload-bundler; for SYCL we
-  // consume them here and zstd-compress each image payload in place, flipping
-  // its Format to BIF_Compressed. The SYCL runtime recognizes that tag and
-  // decompresses lazily via CompressedRTDeviceBinaryImage.
-  if (Args.hasArg(OPT_compress)) {
-    int Level = 10;
-    if (auto *A = Args.getLastArg(OPT_compression_level_eq)) {
-      if (StringRef(A->getValue()).getAsInteger(10, Level))
-        return createStringError(
-            "invalid value for --offload-compression-level=: '%s'",
-            A->getValue());
-    }
-
-    for (auto &Image : Images) {
-      SmallVector<uint8_t, 0> CompressedBytes;
-      Expected<bool> Compressed = offloading::compressSYCLDeviceImage(
-          ArrayRef<uint8_t>(
-              reinterpret_cast<const uint8_t *>(Image.Image->getBufferStart()),
-              Image.Image->getBufferSize()),
-          CompressedBytes, Level, /*Threshold=*/512, Verbose);
-      if (!Compressed)
-        return Compressed.takeError();
-      if (!*Compressed)
-        continue;
-      Image.Image = MemoryBuffer::getMemBufferCopy(
-          StringRef(reinterpret_cast<const char *>(CompressedBytes.data()),
-                    CompressedBytes.size()),
-          Image.Image->getBufferIdentifier());
-      Image.Format = offloading::SYCLBinaryImageFormat::BIF_Compressed;
-    }
-  }
+  if (Error E = compressSYCLImages(Images, Args))
+    return std::move(E);
 
   LLVMContext C;
   Module M("offload.wrapper.object", C);

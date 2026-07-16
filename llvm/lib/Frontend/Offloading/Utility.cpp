@@ -524,7 +524,17 @@ offloading::compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
   if (Input.size() < Threshold)
     return false;
 
-  compression::zstd::compress(Input, Output, Level);
+#if LLVM_ENABLE_EXCEPTIONS
+  try {
+#endif
+    compression::zstd::compress(Input, Output, Level);
+#if LLVM_ENABLE_EXCEPTIONS
+  } catch (const std::exception &ex) {
+    return createStringError(std::string("Failed to compress the device "
+                                         "image: \n") +
+                             std::string(ex.what()));
+  }
+#endif
   if (Verbose)
     errs() << "[Compression] Original image size: " << Input.size() << "\n"
            << "[Compression] Compressed image size: " << Output.size() << "\n"
