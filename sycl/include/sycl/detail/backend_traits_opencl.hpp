@@ -133,11 +133,6 @@ template <> struct BackendReturn<backend::opencl, kernel> {
 using graph = ext::oneapi::experimental::command_graph<
     ext::oneapi::experimental::graph_state::executable>;
 template <> struct BackendReturn<backend::opencl, graph> {
-#ifndef cl_khr_command_buffer
-  // Old cl_ext.h OpenCL-Header files might not have the command-buffer
-  // extension defined.
-  typedef struct _cl_command_buffer_khr *cl_command_buffer_khr;
-#endif
   using type = cl_command_buffer_khr;
 };
 

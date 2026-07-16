@@ -9,23 +9,19 @@
 #pragma once
 #include <sycl/detail/ur.hpp>
 
-// Suppress a compiler message about undefined CL_TARGET_OPENCL_VERSION
-// and define all symbols up to OpenCL 3.0
-#ifndef CL_TARGET_OPENCL_VERSION
-#define CL_TARGET_OPENCL_VERSION 300
-#endif
-
-// Include symbols for beta extensions
-#ifndef CL_ENABLE_BETA_EXTENSIONS
-#define CL_ENABLE_BETA_EXTENSIONS
-#endif
-
 // FIXME: Drop OpenCL headers from both host and device.
 // Can not do that under preview breaking changes, because
 // SYCL CTS use -fpreview-breaking-changes and rely on
 // SYCL headers to include OpenCL headers. We need to fix
 // such tests before we can drop OpenCL headers.
 #ifndef __SYCL_IGC_COMPILER__
+
+// Include symbols for beta extensions.
+// Required for _cl_command_buffer_khr.
+#ifndef CL_ENABLE_BETA_EXTENSIONS
+#define CL_ENABLE_BETA_EXTENSIONS
+#endif
+
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #else
@@ -42,6 +38,7 @@ typedef struct _cl_mem *cl_mem;
 typedef struct _cl_platform_id *cl_platform_id;
 typedef struct _cl_program *cl_program;
 typedef struct _cl_sampler *cl_sampler;
+typedef struct _cl_command_buffer_khr *cl_command_buffer_khr;
 #endif
 
 namespace sycl {
