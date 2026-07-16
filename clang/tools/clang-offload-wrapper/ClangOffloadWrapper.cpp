@@ -83,12 +83,12 @@ static constexpr char COL_PROPS[] = "Properties";
 // Offload models supported by this tool. The support basically means mapping
 // a string representation given at the command line to a value from this
 // enum. Distinct from llvm::object::OffloadKind (in Object/OffloadBinary.h),
-// which is the 16-bit bitmask on the OffloadBinary wire format
+// which is the 16-bit bitmask stored in the OffloadBinary header
 // (OFK_None/OFK_OpenMP/... = powers of two). This enum is a sequential
 // command-line-parsed tag with an extra Host slot and First/Last sentinels,
 // serialized as a uint8_t into the SYCL runtime's sycl_device_binary_struct
 // Kind field.
-enum OffloadModelKind {
+enum OldOffloadKind {
   Unknown = 0,
   Host,
   OpenMP,
@@ -99,17 +99,16 @@ enum OffloadModelKind {
 };
 
 namespace llvm {
-template <> struct DenseMapInfo<OffloadModelKind> {
-  static inline OffloadModelKind getEmptyKey() {
-    return static_cast<OffloadModelKind>(DenseMapInfo<unsigned>::getEmptyKey());
+template <> struct DenseMapInfo<OldOffloadKind> {
+  static inline OldOffloadKind getEmptyKey() {
+    return static_cast<OldOffloadKind>(DenseMapInfo<unsigned>::getEmptyKey());
   }
 
-  static unsigned getHashValue(const OffloadModelKind &Val) {
+  static unsigned getHashValue(const OldOffloadKind &Val) {
     return DenseMapInfo<unsigned>::getHashValue(static_cast<unsigned>(Val));
   }
 
-  static bool isEqual(const OffloadModelKind &LHS,
-                      const OffloadModelKind &RHS) {
+  static bool isEqual(const OldOffloadKind &LHS, const OldOffloadKind &RHS) {
     return LHS == RHS;
   }
 };
@@ -178,7 +177,7 @@ enum BinaryImageFormat {
 };
 
 /// Sets offload kind.
-static cl::list<OffloadModelKind> Kinds(
+static cl::list<OldOffloadKind> Kinds(
     "kind", cl::desc("offload kind:"), cl::OneOrMore,
     cl::values(clEnumValN(Unknown, "unknown", "unknown"),
                clEnumValN(Host, "host", "host"),
@@ -264,17 +263,17 @@ static cl::opt<bool> BatchMode(
     cl::cat(ClangOffloadWrapperCategory));
 // clang-format on
 
-static StringRef offloadKindToString(OffloadModelKind Kind) {
+static StringRef offloadKindToString(OldOffloadKind Kind) {
   switch (Kind) {
-  case OffloadModelKind::Unknown:
+  case OldOffloadKind::Unknown:
     return "unknown";
-  case OffloadModelKind::Host:
+  case OldOffloadKind::Host:
     return "host";
-  case OffloadModelKind::OpenMP:
+  case OldOffloadKind::OpenMP:
     return "openmp";
-  case OffloadModelKind::HIP:
+  case OldOffloadKind::HIP:
     return "hip";
-  case OffloadModelKind::SYCL:
+  case OldOffloadKind::SYCL:
     return "sycl";
   }
   llvm_unreachable("bad offload kind");
@@ -365,12 +364,12 @@ private:
   PointerType *PtrTy = nullptr;
 
   /// Records all added device binary images per offload kind.
-  llvm::DenseMap<OffloadModelKind, std::unique_ptr<SameKindPack>> Packs;
+  llvm::DenseMap<OldOffloadKind, std::unique_ptr<SameKindPack>> Packs;
   /// Records all created memory buffers for safe auto-gc
   llvm::SmallVector<std::unique_ptr<MemoryBuffer>, 4> AutoGcBufs;
 
 public:
-  void addImage(const OffloadModelKind Kind, llvm::StringRef File,
+  void addImage(const OldOffloadKind Kind, llvm::StringRef File,
                 llvm::StringRef Tgt, const BinaryImageFormat Fmt,
                 llvm::StringRef CompileOpts, llvm::StringRef LinkOpts,
                 llvm::StringRef EntriesFile, llvm::StringRef PropsFile) {
@@ -532,7 +531,7 @@ private:
   //    /// should increment the version.
   //    uint16_t Version;
   //    /// the kind of offload model the image employs.
-  //    uint8_t OffloadModelKind;
+  //    uint8_t OldOffloadKind;
   //    /// format of the image data - SPIRV, LLVMIR bitcode,...
   //    uint8_t Format;
   //    /// null-terminated string representation of the device's target
@@ -561,7 +560,7 @@ private:
       SyclImageTy = StructType::create(
           {
               Type::getInt16Ty(C), // Version
-              Type::getInt8Ty(C),  // OffloadModelKind
+              Type::getInt8Ty(C),  // OldOffloadKind
               Type::getInt8Ty(C),  // Format
               getPtrTy(),          // DeviceTargetSpec
               getPtrTy(),          // CompileOptions
@@ -730,7 +729,7 @@ private:
   // contains the image data.
   std::pair<Constant *, Constant *>
   addDeviceImageToModule(ArrayRef<char> Buf, const Twine &Name,
-                         OffloadModelKind Kind, StringRef TargetTriple) {
+                         OldOffloadKind Kind, StringRef TargetTriple) {
     // Create global variable for the image data.
     return addArrayToModule(Buf, Name,
                             TargetTriple.empty()
@@ -969,14 +968,14 @@ private:
   /// };
   ///
   /// Global variable that represents BinDesc is returned.
-  Expected<GlobalVariable *> createBinDesc(OffloadModelKind Kind,
+  Expected<GlobalVariable *> createBinDesc(OldOffloadKind Kind,
                                            SameKindPack &Pack) {
-    const std::string OffloadModelKindTag =
+    const std::string OldOffloadKindTag =
         (Twine(".") + offloadKindToString(Kind) + Twine("_offloading.")).str();
 
     Constant *EntriesB = nullptr, *EntriesE = nullptr;
 
-    if (Kind != OffloadModelKind::SYCL) {
+    if (Kind != OldOffloadKind::SYCL) {
       // Create external begin/end symbols for the offload entries table.
       auto *EntriesStart = new GlobalVariable(
           M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
@@ -1030,15 +1029,14 @@ private:
           ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
       auto *Fknd = ConstantInt::get(Type::getInt8Ty(C), Kind);
       auto *Ffmt = ConstantInt::get(Type::getInt8Ty(C), Img.Fmt);
-      auto *Ftgt =
-          addStringToModule(Img.Tgt, Twine(OffloadModelKindTag) +
-                                         Twine("target.") + Twine(ImgId));
+      auto *Ftgt = addStringToModule(
+          Img.Tgt, Twine(OldOffloadKindTag) + Twine("target.") + Twine(ImgId));
       auto *Foptcompile = addStringToModule(
           Img.CompileOpts,
-          Twine(OffloadModelKindTag) + Twine("opts.compile.") + Twine(ImgId));
+          Twine(OldOffloadKindTag) + Twine("opts.compile.") + Twine(ImgId));
       auto *Foptlink = addStringToModule(
           Img.LinkOpts,
-          Twine(OffloadModelKindTag) + Twine("opts.link.") + Twine(ImgId));
+          Twine(OldOffloadKindTag) + Twine("opts.link.") + Twine(ImgId));
 
       if (MySymPropReader)
         MySymPropReader->getNextDeviceImageInitializer();
@@ -1055,7 +1053,7 @@ private:
       if (!BinOrErr)
         return BinOrErr.takeError();
       MemoryBuffer *Bin = *BinOrErr;
-      if (Img.File != "-" && Kind == OffloadModelKind::OpenMP &&
+      if (Img.File != "-" && Kind == OldOffloadKind::OpenMP &&
           AddOpenMPOffloadNotes) {
         // Adding ELF notes for STDIN is not supported yet.
         Bin = addELFNotes(Bin, Img.File);
@@ -1074,7 +1072,7 @@ private:
         // there's no separate up-front check.
         SmallVector<uint8_t, 512> CompressedBuffer;
         bool DidCompress = false;
-        if (OffloadCompressDevImgs && Kind == OffloadModelKind::SYCL &&
+        if (OffloadCompressDevImgs && Kind == OldOffloadKind::SYCL &&
             Img.Fmt == BinaryImageFormat::none) {
           Expected<bool> Compressed = offloading::compressSYCLDeviceImage(
               ArrayRef<uint8_t>(
@@ -1091,19 +1089,19 @@ private:
           Fbin = addDeviceImageToModule(
               ArrayRef<char>((const char *)CompressedBuffer.data(),
                              CompressedBuffer.size()),
-              Twine(OffloadModelKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+              Twine(OldOffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
               Img.Tgt);
           Ffmt = ConstantInt::get(Type::getInt8Ty(C),
                                   BinaryImageFormat::compressed_none);
         } else {
           Fbin = addDeviceImageToModule(
               ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
-              Twine(OffloadModelKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+              Twine(OldOffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
               Img.Tgt);
         }
       }
 
-      if (Kind == OffloadModelKind::SYCL) {
+      if (Kind == OldOffloadKind::SYCL) {
         // For SYCL image offload entries are defined here, by wrapper, so
         // those are created per image
         Expected<std::pair<Constant *, Constant *>> EntriesOrErr =
@@ -1133,7 +1131,7 @@ private:
         auto *ImgInfoVar = new GlobalVariable(
             M, ImgInfoArr->getType(), /*isConstant*/ true,
             GlobalVariable::InternalLinkage, ImgInfoArr,
-            Twine(OffloadModelKindTag) + Twine(ImgId) + Twine(".info"));
+            Twine(OldOffloadKindTag) + Twine(ImgId) + Twine(".info"));
         ImgInfoVar->setAlignment(
             MaybeAlign(M.getDataLayout().getTypeStoreSize(IntPtrTy) * 2u));
         ImgInfoVar->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
@@ -1149,7 +1147,7 @@ private:
 
     // Then create images array.
     auto *ImagesData =
-        Kind == OffloadModelKind::SYCL
+        Kind == OldOffloadKind::SYCL
             ? ConstantArray::get(
                   ArrayType::get(getSyclDeviceImageTy(), ImagesInits.size()),
                   ImagesInits)
@@ -1160,7 +1158,7 @@ private:
     auto *Images =
         new GlobalVariable(M, ImagesData->getType(), /*isConstant*/ true,
                            GlobalValue::InternalLinkage, ImagesData,
-                           Twine(OffloadModelKindTag) + "device_images");
+                           Twine(OldOffloadKindTag) + "device_images");
     if (Verbose)
       errs() << "  global added: " << Images->getName() << "\n";
     Images->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
@@ -1170,7 +1168,7 @@ private:
 
     // And finally create the binary descriptor object.
     auto *DescInit =
-        Kind == OffloadModelKind::SYCL
+        Kind == OldOffloadKind::SYCL
             ? ConstantStruct::get(
                   getSyclBinDescTy(),
                   ConstantInt::get(Type::getInt16Ty(C), BinDescStructVersion),
@@ -1186,13 +1184,13 @@ private:
                                         : GlobalValue::InternalLinkage;
     auto *Res = new GlobalVariable(
         M, DescInit->getType(), /*isConstant*/ true, Lnk, DescInit,
-        Twine(OffloadModelKindTag) + Twine(DescriptorName));
+        Twine(OldOffloadKindTag) + Twine(DescriptorName));
     if (Verbose)
       errs() << "  global added: " << Res->getName() << "\n";
     return Res;
   }
 
-  void createRegisterFunction(OffloadModelKind Kind, GlobalVariable *BinDesc) {
+  void createRegisterFunction(OldOffloadKind Kind, GlobalVariable *BinDesc) {
     auto *FuncTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
     auto *Func =
         Function::Create(FuncTy, GlobalValue::InternalLinkage,
@@ -1202,10 +1200,10 @@ private:
     // Get RegFuncName function declaration.
     auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), getPtrTy(),
                                         /*isVarArg=*/false);
-    FunctionCallee RegFuncC = M.getOrInsertFunction(
-        Kind == OffloadModelKind::SYCL ? "__sycl_register_lib"
-                                       : "__tgt_register_lib",
-        RegFuncTy);
+    FunctionCallee RegFuncC = M.getOrInsertFunction(Kind == OldOffloadKind::SYCL
+                                                        ? "__sycl_register_lib"
+                                                        : "__tgt_register_lib",
+                                                    RegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
@@ -1221,8 +1219,7 @@ private:
     appendToGlobalCtors(M, Func, /*Priority*/ 1);
   }
 
-  void createUnregisterFunction(OffloadModelKind Kind,
-                                GlobalVariable *BinDesc) {
+  void createUnregisterFunction(OldOffloadKind Kind, GlobalVariable *BinDesc) {
     auto *FuncTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
     auto *Func =
         Function::Create(FuncTy, GlobalValue::InternalLinkage,
@@ -1233,8 +1230,8 @@ private:
     auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), getPtrTy(),
                                           /*isVarArg=*/false);
     FunctionCallee UnRegFuncC = M.getOrInsertFunction(
-        Kind == OffloadModelKind::SYCL ? "__sycl_unregister_lib"
-                                       : "__tgt_unregister_lib",
+        Kind == OldOffloadKind::SYCL ? "__sycl_unregister_lib"
+                                     : "__tgt_unregister_lib",
         UnRegFuncTy);
 
     // Construct function body
@@ -1358,7 +1355,7 @@ public:
 
   Expected<const Module *> wrap() {
     for (auto &X : Packs) {
-      OffloadModelKind Kind = X.first;
+      OldOffloadKind Kind = X.first;
       SameKindPack *Pack = X.second.get();
       Expected<GlobalVariable *> DescOrErr = createBinDesc(Kind, *Pack);
       if (!DescOrErr)
@@ -1366,7 +1363,7 @@ public:
 
       if (EmitRegFuncs) {
         GlobalVariable *Desc = *DescOrErr;
-        if (Kind == OffloadModelKind::SYCL &&
+        if (Kind == OldOffloadKind::SYCL &&
             Triple(M.getTargetTriple()).isOSWindows()) {
           createSyclRegisterWithAtexitUnregister(Desc);
         } else {
@@ -1821,7 +1818,7 @@ int main(int argc, const char **argv) {
   // add them to the wrapper
 
   BinaryWrapper Wr(Target, argv[0], SymPropBCFiles);
-  OffloadModelKind Knd = OffloadModelKind::Unknown;
+  OldOffloadKind Knd = OldOffloadKind::Unknown;
   llvm::StringRef Tgt = "";
   BinaryImageFormat Fmt = BinaryImageFormat::none;
   llvm::StringRef CompileOpts = "";
@@ -1871,7 +1868,7 @@ int main(int argc, const char **argv) {
                         Row.getCell(COL_PROPS, ""));
           }
         } else {
-          if (Knd == OffloadModelKind::Unknown) {
+          if (Knd == OldOffloadKind::Unknown) {
             reportError(createStringError(errc::invalid_argument,
                                           "offload model not set"));
             return 1;

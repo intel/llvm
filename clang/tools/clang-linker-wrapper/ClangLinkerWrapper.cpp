@@ -1111,12 +1111,12 @@ static Expected<StringRef> runAOTCompile(StringRef InputFile,
 /// tagging its Format as BIF_Compressed. --compress and --compression-level=
 /// are the same flags HIP forwards to clang-offload-bundler; for SYCL we
 /// consume them here. The per-image work delegates to
-/// offloading::compressSYCLDeviceImage, which the old-driver
-/// clang-offload-wrapper also uses; the surrounding loop isn't shared
-/// because that tool operates on one image at a time and emits an LLVM
-/// Constant directly, not a SYCLImage list.
-static Error compressSYCLImages(SmallVectorImpl<offloading::SYCLImage> &Images,
-                                const ArgList &Args) {
+/// offloading::compressSYCLDeviceImage, shared with clang-offload-wrapper.
+/// The surrounding loop isn't shared because clang-offload-wrapper operates
+/// on one image at a time and emits an LLVM Constant directly, not a
+/// SYCLImage list.
+static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
+                            const ArgList &Args) {
   if (!Args.hasArg(OPT_compress))
     return Error::success();
 
@@ -1218,7 +1218,7 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
                         ImageTarget, SI.CompileOptions, SI.LinkOptions);
   }
 
-  if (Error E = compressSYCLImages(Images, Args))
+  if (Error E = compressImages(Images, Args))
     return std::move(E);
 
   LLVMContext C;

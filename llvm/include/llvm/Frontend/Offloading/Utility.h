@@ -236,9 +236,8 @@ LLVM_ABI Error containerizeOpenMPSPIRVImage(
 } // namespace intel
 
 /// zstd-compress a SYCL device image. Shared between clang-offload-wrapper
-/// (old offloading model) and clang-linker-wrapper (new offloading model) so
-/// both apply the same threshold, level defaults, and verbose logging.
-/// Errors if zstd is unavailable at build time.
+/// and clang-linker-wrapper so both apply the same threshold, level defaults,
+/// and verbose logging. Errors if zstd is unavailable at build time.
 /// \param Input The uncompressed image bytes.
 /// \param Output Receives the compressed bytes on a hit; left untouched on a
 ///        skip.
