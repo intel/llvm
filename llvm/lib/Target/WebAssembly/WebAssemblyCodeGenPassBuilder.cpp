@@ -162,7 +162,7 @@ Error WebAssemblyCodeGenPassBuilder::addInstSelector(
 
   // unreachable is terminator, non-terminator instruction after it is not
   // allowed.
-  // TODO(boomanaiden154): WebAssemblyCleanCodeAfterTrap
+  addMachineFunctionPass(WebAssemblyCleanCodeAfterTrapPass(), PMW);
 
   return Error::success();
 }

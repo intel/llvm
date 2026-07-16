@@ -141,7 +141,15 @@ public:
 };
 
 FunctionPass *createWebAssemblySetP2AlignOperandsLegacyPass();
-FunctionPass *createWebAssemblyCleanCodeAfterTrap();
+
+class WebAssemblyCleanCodeAfterTrapPass
+    : public RequiredPassInfoMixin<WebAssemblyCleanCodeAfterTrapPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyCleanCodeAfterTrapLegacyPass();
 
 // Late passes.
 FunctionPass *createWebAssemblyReplacePhysRegs();
@@ -193,7 +201,7 @@ void initializeWebAssemblyRefTypeMem2LocalLegacyPass(PassRegistry &);
 void initializeWebAssemblyAddMissingPrototypesLegacyPass(PassRegistry &);
 void initializeWebAssemblyArgumentMoveLegacyPass(PassRegistry &);
 void initializeWebAssemblyAsmPrinterPass(PassRegistry &);
-void initializeWebAssemblyCleanCodeAfterTrapPass(PassRegistry &);
+void initializeWebAssemblyCleanCodeAfterTrapLegacyPass(PassRegistry &);
 void initializeWebAssemblyCFGSortPass(PassRegistry &);
 void initializeWebAssemblyCFGStackifyPass(PassRegistry &);
 void initializeWebAssemblyDAGToDAGISelLegacyPass(PassRegistry &);

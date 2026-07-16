@@ -394,7 +394,7 @@ bool WebAssemblyPassConfig::addInstSelector() {
 
   // unreachable is terminator, non-terminator instruction after it is not
   // allowed.
-  addPass(createWebAssemblyCleanCodeAfterTrap());
+  addPass(createWebAssemblyCleanCodeAfterTrapLegacyPass());
 
   return false;
 }
@@ -549,7 +549,7 @@ bool WebAssemblyPassConfig::addGlobalInstructionSelect() {
     addPass(createWebAssemblyArgumentMoveLegacyPass());
     addPass(createWebAssemblySetP2AlignOperandsLegacyPass());
     addPass(createWebAssemblyFixBrTableDefaultsLegacyPass());
-    addPass(createWebAssemblyCleanCodeAfterTrap());
+    addPass(createWebAssemblyCleanCodeAfterTrapLegacyPass());
   }
 
   return false;
