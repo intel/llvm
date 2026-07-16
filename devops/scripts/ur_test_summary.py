@@ -25,7 +25,7 @@ def read_log_file(log_path: str) -> List[str]:
     except FileNotFoundError:
         print(f"Error: Log file not found: {log_path}", file=sys.stderr)
         sys.exit(1)
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         print(f"Error reading log file: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -156,6 +156,70 @@ def extract_time_summary(lines: List[str]) -> Dict[str, List[str]]:
     return result
 
 
+def _extract_tests_from_xml_by_filter(
+    xml_path: str,
+    include_test_not_selected: bool,
+    test_type_name: str
+) -> List[str]:
+    """
+    Generic helper to extract tests from LIT xunit XML output.
+
+    Args:
+        xml_path: Path to XML file
+        include_test_not_selected: If True, include only tests with "Test not selected" message.
+                                   If False, exclude those tests.
+        test_type_name: Name for debug messages ("skipped" or "excluded")
+
+    Returns list of test names in format: classname.name
+    """
+    if not xml_path:
+        return []
+
+    if not Path(xml_path).exists():
+        print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
+        return []
+
+    tests = []
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        # Iterate through all testsuites and testcases
+        for testsuite in root.findall(".//testsuite"):
+            for testcase in testsuite.findall("testcase"):
+                # Check if testcase has <skipped> child element
+                skipped_elem = testcase.find("skipped")
+                if skipped_elem is not None:
+                    message = skipped_elem.get("message", "")
+                    has_test_not_selected = "Test not selected" in message
+                    
+                    # Apply filter logic
+                    if include_test_not_selected and not has_test_not_selected:
+                        continue
+                    if not include_test_not_selected and has_test_not_selected:
+                        continue
+
+                    classname = testcase.get("classname", "")
+                    name = testcase.get("name", "")
+
+                    # Format: classname.name (match GoogleTest format)
+                    if classname and name:
+                        full_name = f"{classname}.{name}"
+                        tests.append(full_name)
+                    elif name:
+                        tests.append(name)
+
+    except ET.ParseError as e:
+        print(f"Warning: Failed to parse XML file {xml_path}: {e}", file=sys.stderr)
+    except (OSError, ValueError) as e:
+        print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
+
+    if xml_path and Path(xml_path).exists():
+        print(f"Note: Found {len(tests)} {test_type_name} tests in XML file", file=sys.stderr)
+
+    return tests
+
+
 def extract_skipped_from_xml(xml_path: str) -> List[str]:
     """
     Extract skipped test names from LIT xunit XML output.
@@ -172,48 +236,11 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
     Returns list of skipped test names in format: classname.name
     Excludes tests with "Test not selected" message (those are excluded, not skipped).
     """
-    if not xml_path:
-        return []
-
-    if not Path(xml_path).exists():
-        print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
-        return []
-
-    skipped = []
-    try:
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
-
-        # Iterate through all testsuites and testcases
-        for testsuite in root.findall(".//testsuite"):
-            for testcase in testsuite.findall("testcase"):
-                # Check if testcase has <skipped> child element
-                skipped_elem = testcase.find("skipped")
-                if skipped_elem is not None:
-                    # Exclude tests with "Test not selected" - those are excluded, not skipped
-                    message = skipped_elem.get("message", "")
-                    if "Test not selected" in message:
-                        continue
-
-                    classname = testcase.get("classname", "")
-                    name = testcase.get("name", "")
-
-                    # Format: classname.name (match GoogleTest format)
-                    if classname and name:
-                        full_name = f"{classname}.{name}"
-                        skipped.append(full_name)
-                    elif name:
-                        skipped.append(name)
-
-    except ET.ParseError as e:
-        print(f"Warning: Failed to parse XML file {xml_path}: {e}", file=sys.stderr)
-    except Exception as e:
-        print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
-
-    if xml_path and Path(xml_path).exists():
-        print(f"Note: Found {len(skipped)} skipped tests in XML file", file=sys.stderr)
-
-    return skipped
+    return _extract_tests_from_xml_by_filter(
+        xml_path,
+        include_test_not_selected=False,
+        test_type_name="skipped"
+    )
 
 
 def extract_excluded_from_xml(xml_path: str) -> List[str]:
@@ -231,47 +258,11 @@ def extract_excluded_from_xml(xml_path: str) -> List[str]:
 
     Returns list of excluded test names in format: classname.name
     """
-    if not xml_path:
-        return []
-
-    if not Path(xml_path).exists():
-        print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
-        return []
-
-    excluded = []
-    try:
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
-
-        # Iterate through all testsuites and testcases
-        for testsuite in root.findall(".//testsuite"):
-            for testcase in testsuite.findall("testcase"):
-                # Check if testcase has <skipped> child with "Test not selected" message
-                skipped_elem = testcase.find("skipped")
-                if skipped_elem is not None:
-                    message = skipped_elem.get("message", "")
-                    if "Test not selected" in message:
-                        classname = testcase.get("classname", "")
-                        name = testcase.get("name", "")
-
-                        # Format: classname.name (match GoogleTest format)
-                        if classname and name:
-                            full_name = f"{classname}.{name}"
-                            excluded.append(full_name)
-                        elif name:
-                            excluded.append(name)
-
-    except ET.ParseError as e:
-        print(f"Warning: Failed to parse XML file {xml_path}: {e}", file=sys.stderr)
-    except Exception as e:
-        print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
-
-    if xml_path and Path(xml_path).exists():
-        print(
-            f"Note: Found {len(excluded)} excluded tests in XML file", file=sys.stderr
-        )
-
-    return excluded
+    return _extract_tests_from_xml_by_filter(
+        xml_path,
+        include_test_not_selected=True,
+        test_type_name="excluded"
+    )
 
 
 def extract_skipped_from_gtest(lines: List[str]) -> List[str]:
@@ -458,74 +449,6 @@ def parse_gtest_list(all_tests_file: str) -> List[str]:
                     tests.append(full_name)
 
     return tests
-
-
-def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> None:
-    """
-    Extract categorized test lists from LIT summary.
-
-    Returns dict like:
-    {
-        'Passed': ['test1', 'test2', ...],
-        'Failed': ['test3'],
-        ...
-    }
-    """
-    categories = {}
-    current_category = None
-    current_tests = []
-
-    # Pattern for category headers: "Passed Tests (123):"
-    # Note: LIT does not generate "Skipped Tests" - only Unsupported and Expectedly Failed
-    header_pattern = re.compile(
-        r"^(Passed|Unsupported|Failed|Expectedly Failed|"
-        r"Timed Out|Unexpectedly Passed|Unresolved) Tests \((\d+)\):"
-    )
-
-    for line in lines:
-        match = header_pattern.match(line)
-        if match:
-            # Save previous category
-            if current_category:
-                categories[current_category] = current_tests
-
-            # Start new category
-            current_category = match.group(1)
-            current_tests = []
-        elif current_category:
-            # Empty line ends the category
-            if not line.strip():
-                categories[current_category] = current_tests
-                current_category = None
-                current_tests = []
-            else:
-                # Add test to current category (strip leading whitespace)
-                test_name = line.strip()
-                if test_name:
-                    current_tests.append(test_name)
-
-    # Save last category
-    if current_category:
-        categories[current_category] = current_tests
-
-    return categories
-
-
-def show_statistics_and_lists(
-    lines: List[str], all_tests_file: str = None, xml_file: str = None
-) -> None:
-    """
-    Show test statistics and collapsed test lists for GitHub Actions.
-
-    Args:
-        lines: Log file lines
-        all_tests_file: Optional file with --gtest_list_tests output
-        xml_file: Optional LIT xunit XML output file
-
-    Output format:
-    - Statistics section (always visible)
-    - Collapsed sections for each test category
-    """
 
 
 def filter_log_for_display(lines: List[str]) -> List[str]:
