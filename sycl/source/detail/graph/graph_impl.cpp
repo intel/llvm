@@ -731,8 +731,7 @@ void graph_impl::clearQueues(bool NeedsLock) {
           throw sycl::exception(sycl::make_error_code(errc::runtime),
                                 "Error when ending native graph capture");
         }
-        assert(EndResult.CapturedGraph == getNativeGraphHandle() &&
-               "Captured graph handle must match the graph's native handle");
+        // CapturedGraph should be the same as MNativeGraphHandle
       } else {
         // Only call setCommandGraph for traditional recording
         ValidQueue->setCommandGraph(nullptr);

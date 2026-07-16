@@ -11,7 +11,6 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/graph/graph_impl.hpp>
 #include <detail/helpers.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
