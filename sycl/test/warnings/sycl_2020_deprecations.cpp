@@ -178,6 +178,7 @@ int main() {
   // expected-warning@+1{{'accelerator_selector' is deprecated: Use the callable sycl::accelerator_selector_v instead.}}
   sycl::accelerator_selector as;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // expected-warning@+1{{Use SYCL 2020 callable device selectors instead.}}
   class user_defined_device_selector : public sycl::device_selector {
   public:
@@ -253,6 +254,7 @@ int main() {
   sycl::queue aq4{ctx, as, ah};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue udq4{ctx, uds, ah};
+#endif
 
   Queue.submit([&](sycl::handler &CGH) {
     // expected-warning@+1{{'local' is deprecated: use `local_accessor` instead}}

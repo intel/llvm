@@ -45,9 +45,10 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
-class ESIMDSelector : public device_selector {
+class ESIMDSelector {
+public:
   // Require GPU device
-  virtual int operator()(const device &device) const {
+  int operator()(const device &device) const {
     if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
       std::string filter_string(dev_filter);
       if (filter_string.find("gpu") != std::string::npos)

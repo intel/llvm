@@ -23,9 +23,9 @@
 
 using namespace sycl;
 
-class DiscreteSelector : public sycl::device_selector {
+class DiscreteSelector {
 public:
-  int operator()(const sycl::device &Device) const final {
+  int operator()(const sycl::device &Device) const {
     if (!Device.is_gpu() ||
         Device.get_backend() != backend::ext_oneapi_level_zero)
       return -1;

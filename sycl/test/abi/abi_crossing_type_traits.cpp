@@ -63,7 +63,9 @@ int main() {
   check_type_traits<vec<int, 4>, true, true, true>();
   check_type_traits<detail::PropertyWithDataBase, false, false, false>();
   check_type_traits<detail::SYCLMemObjAllocator, false, false, false>();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   check_type_traits<device_selector, false, false, false>();
+#endif
 
   return 0;
 }

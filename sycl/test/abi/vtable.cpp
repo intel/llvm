@@ -31,6 +31,7 @@ void foo(sycl::detail::SYCLMemObjAllocator &Allocator) {
 // CHECK-NEXT:   7 | std::size_t sycl::detail::SYCLMemObjAllocator::getValueSize() const [pure]
 // CHECK-NEXT:   8 | void sycl::detail::SYCLMemObjAllocator::setAlignment(std::size_t) [pure]
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void foo(sycl::device_selector &DeviceSelector) {
   (void)DeviceSelector.select_device();
 }
@@ -42,3 +43,4 @@ void foo(sycl::device_selector &DeviceSelector) {
 // CHECK-NEXT:   3 | sycl::device_selector::~device_selector() [deleting]
 // CHECK-NEXT:   4 | device sycl::device_selector::select_device() const
 // CHECK-NEXT:   5 | int sycl::device_selector::operator()(const device &) const [pure]
+#endif

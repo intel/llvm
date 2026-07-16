@@ -10,7 +10,9 @@
 
 #include <sycl/detail/export.hpp>   // for __SYCL_EXPORT
 #include <sycl/device.hpp>          // for device
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/device_selector.hpp> // for device_selector
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #include <memory> // for shared_ptr
 #include <string> // for string
@@ -22,7 +24,6 @@ inline namespace _V1 {
 
 // Forward declarations
 class device;
-class device_selector;
 #ifdef __SYCL_INTERNAL_API
 namespace ONEAPI {
 class filter_selector;
@@ -34,13 +35,26 @@ namespace detail {
 class filter_selector_impl;
 } // namespace detail
 
-class __SYCL_EXPORT filter_selector : public device_selector {
+class __SYCL_EXPORT filter_selector
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    : public device_selector
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+{
 public:
+  virtual ~filter_selector() = default;
   filter_selector(const std::string &filter)
       : filter_selector(sycl::detail::string_view{filter}) {}
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
+#else
+  virtual int operator()(const device &dev) const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   void reset() const;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   device select_device() const override;
+#else
+  virtual device select_device() const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_INTERNAL_API
   friend class sycl::ONEAPI::filter_selector;
 #endif

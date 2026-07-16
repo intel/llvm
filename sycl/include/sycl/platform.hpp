@@ -85,6 +85,7 @@ public:
   explicit platform(OpenCLPlatformT PlatformId);
 #endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs a SYCL platform instance using a device_selector.
   ///
   /// One of the SYCL devices that is associated with the constructed SYCL
@@ -95,6 +96,7 @@ public:
   __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
                         "use SYCL 2020 device selectors instead.")
   explicit platform(const device_selector &DeviceSelector);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Constructs a SYCL platform instance using the platform of the device
   /// identified by the device selector provided.

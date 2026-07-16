@@ -22,6 +22,7 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/info/device.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
@@ -61,9 +62,15 @@ device::device(OpenCLDeviceIdT DeviceId) {
   detail::retainOpenCLDevice(detail::ur::cast<ur_native_handle_t>(DeviceId));
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 device::device(const device_selector &deviceSelector) {
   *this = deviceSelector.select_device();
 }
+#else
+device::device(const ext::oneapi::filter_selector &deviceSelector) {
+  *this = deviceSelector.select_device();
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;
