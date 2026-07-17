@@ -70,7 +70,7 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   if (&QueueImpl.getContextImpl() != &EventImpl.getContextImpl()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
-        "A queue and an event need to be in the same context.");
+        "Not implemented yet. Event context must match the queue context.");
   }
 
   QueueImpl.submit_barrier_direct_without_event(
@@ -92,7 +92,8 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
     if (&QueueImpl.getContextImpl() != &EventImpl.getContextImpl()) {
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
-          "A queue and all the events need to be in the same context.");
+          "Not implemented yet. Context of all events must match the "
+          "queue context.");
     }
   }
 
