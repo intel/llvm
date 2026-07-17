@@ -1183,9 +1183,8 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
   M.setTargetTriple(Triple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple())));
 
-  if (Error E = offloading::wrapSYCLBinaries(
-          M, Images, offloading::SYCLWrappingOptions(),
-          Args.hasArg(OPT_preview_breaking_changes)))
+  if (Error E = offloading::wrapSYCLBinaries(M, Images,
+                                             offloading::SYCLWrappingOptions()))
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))
