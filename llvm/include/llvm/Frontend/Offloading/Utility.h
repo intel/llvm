@@ -235,7 +235,7 @@ LLVM_ABI Error containerizeOpenMPSPIRVImage(
     StringRef CompileOpts = "", StringRef LinkOpts = "");
 } // namespace intel
 
-/// zstd-compress a SYCL device image. 
+/// zstd-compress a SYCL device image.
 /// Errors if zstd is unavailable at build time.
 /// \param Input The uncompressed image bytes.
 /// \param Output Receives the compressed bytes on a hit; left untouched on a
