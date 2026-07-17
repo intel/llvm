@@ -622,6 +622,10 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   CmdArgs.push_back("--llvm-spirv-opts");
   CmdArgs.push_back("--spirv-preserve-auxdata --spirv-target-env=SPV-IR "
                     "--spirv-builtin-format=global");
+  for (const Arg *A : Args.filtered(OPT_spirv_to_ir_wrapper_arg_EQ)) {
+    StringRef(A->getValue())
+        .split(CmdArgs, " ", /* MaxSplit = */ -1, /* KeepEmpty = */ false);
+  }
   if (Error Err = executeCommands(*SPIRVToIRWrapperPath, CmdArgs))
     return std::move(Err);
   return *TempFileOrErr;
@@ -802,11 +806,10 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     }
   }
   getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);
-  StringRef SYCLPostLinkOptions;
-  if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
-    SYCLPostLinkOptions = A->getValue();
-  SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
-                            /* KeepEmpty = */ false);
+  for (const Arg *A : Args.filtered(OPT_sycl_post_link_arg_EQ)) {
+    StringRef(A->getValue())
+        .split(CmdArgs, " ", /* MaxSplit = */ -1, /* KeepEmpty = */ false);
+  }
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Args.MakeArgString(OutputPathWithArch));
   for (auto &File : InputFiles)
@@ -972,11 +975,10 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   CmdArgs.push_back(*LLVMToSPIRVPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   getTripleBasedSPIRVTransOpts(Args, CmdArgs, Triple);
-  StringRef LLVMToSPIRVOptions;
-  if (Arg *A = Args.getLastArg(OPT_llvm_spirv_options_EQ))
-    LLVMToSPIRVOptions = A->getValue();
-  LLVMToSPIRVOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
-                           /* KeepEmpty = */ false);
+  for (const Arg *A : Args.filtered(OPT_llvm_spirv_arg_EQ)) {
+    StringRef(A->getValue())
+        .split(CmdArgs, " ", /* MaxSplit = */ -1, /* KeepEmpty = */ false);
+  }
   CmdArgs.push_back("-o");
 
   // Create a new file to write the translated file to.
@@ -2297,10 +2299,9 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   if (llvm::all_of(Input, ContainsBitcode))
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
-  // This function filters the SYCL device compiler and linker options by target
-  // triple and offload kind.
-  // The device_linker_args and device_compiler_args options accept values
-  // in the form [<kind>:][<triple>=]<value>.
+  // This function filters the SYCL device compiler, linker, sycl-post-link,
+  // llvm-spirv and spirv-to-ir-wrapper options by target triple and offload
+  // kind. The options accept values in the form [<kind>:][<triple>=]<value>.
   // An example of passing such an option to clang-linker-wrapper is:
   // --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
   const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
@@ -2334,6 +2335,10 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
 
   ProcessDeviceArgs(OPT_device_linker_args_EQ, OPT_linker_arg_EQ);
   ProcessDeviceArgs(OPT_device_compiler_args_EQ, OPT_compiler_arg_EQ);
+  ProcessDeviceArgs(OPT_sycl_post_link_options_EQ, OPT_sycl_post_link_arg_EQ);
+  ProcessDeviceArgs(OPT_llvm_spirv_options_EQ, OPT_llvm_spirv_arg_EQ);
+  ProcessDeviceArgs(OPT_spirv_to_ir_wrapper_options_EQ,
+                    OPT_spirv_to_ir_wrapper_arg_EQ);
   return DAL;
 }
 
