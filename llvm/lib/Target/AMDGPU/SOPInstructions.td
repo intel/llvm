@@ -2073,8 +2073,6 @@ let AddedComplexity = 20 in {
   >;
 }
 
-// Uniform saturating unsigned subtraction: usubsat(a, b) = max(a, b) - b
-// If a >= b, result is a - b; otherwise max(a, b) = b, so b - b = 0.
 // Higher complexity to prefer scalar over VALU patterns for uniform values.
 let AddedComplexity = 20 in {
   def : GCNPat<
@@ -2086,7 +2084,6 @@ let AddedComplexity = 20 in {
     (S_SUB_I32 (S_MAX_U32 $src0, $src1), $src1)
   >;
 } // End AddedComplexity = 20
-
 
 // FIXME: We need to use COPY_TO_REGCLASS to work-around the fact that
 // REG_SEQUENCE patterns don't support instructions with multiple
