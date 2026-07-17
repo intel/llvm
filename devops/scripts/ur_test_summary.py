@@ -12,9 +12,25 @@ import re
 from typing import List, Dict, Tuple
 from pathlib import Path
 
-# Use defusedxml for secure XML parsing to prevent XML attacks
-# This is required - install via: pip install defusedxml
 import defusedxml.ElementTree as ET
+
+FAIL_TIMEOUT_PATTERN = re.compile(r"^(FAIL|TIMEOUT):")
+TEST_LIST_HEADER_PATTERN = re.compile(
+    r"^(Passed|Unsupported|Failed|Expectedly Failed|"
+    r"Timed Out|Unexpectedly Passed|Unresolved) Tests \("
+)
+STATS_PATTERN = re.compile(
+    r"^\s*(Total Discovered|Expected Passes|Expectedly Failed|"
+    r"Excluded|Unsupported|Skipped|Passed|Passed With Retry|"
+    r"Failed|Timed Out|Unexpectedly Passed|Unresolved)(\s+Tests)?\s*:"
+)
+TEST_CATEGORY_PATTERN = re.compile(r"^([A-Za-z]+(?: [A-Za-z]+)*) Tests \((\d+)\):")
+GTEST_SKIPPED_HEADER = re.compile(r"^\[\s+SKIPPED\s+\] \d+ tests, listed below:")
+GTEST_SKIPPED_TEST = re.compile(r"^\[\s+SKIPPED\s+\] (.+)$")
+GTEST_SKIPPED_FOOTER = re.compile(r"^\s*\d+ SKIPPED TESTS")
+UNSUPPORTED_PATTERN = re.compile(r"^(UNSUPPORTED|SKIP):\s+(.+?)(?:\s+\(|$)")
+
+TEST_NOT_SELECTED_MSG = "Test not selected"
 
 
 def read_log_file(log_path: str) -> List[str]:
@@ -40,19 +56,11 @@ def extract_error_details(lines: List[str]) -> List[str]:
     result = []
     in_error = False
 
-    # Test list headers that mark the end of error details
-    list_headers_pattern = re.compile(
-        r"^(Passed|Unsupported|Failed|Expectedly Failed|"
-        r"Timed Out|Unexpectedly Passed|Unresolved) Tests \("
-    )
-
     for line in lines:
-        # Start capturing on FAIL/TIMEOUT
-        if re.match(r"^(FAIL|TIMEOUT):", line):
+        if FAIL_TIMEOUT_PATTERN.match(line):
             in_error = True
 
-        # Stop at test list headers
-        if in_error and list_headers_pattern.match(line):
+        if in_error and TEST_LIST_HEADER_PATTERN.match(line):
             break
 
         if in_error:
@@ -71,18 +79,7 @@ def extract_statistics(lines: List[str]) -> List[str]:
     - Failed: 2 (1.63%)
     etc.
     """
-    stats_pattern = re.compile(
-        r"^\s*(Total Discovered|Expected Passes|Expectedly Failed|"
-        r"Excluded|Unsupported|Skipped|Passed|Passed With Retry|"
-        r"Failed|Timed Out|Unexpectedly Passed|Unresolved)(\s+Tests)?\s*:"
-    )
-
-    result = []
-    for line in lines:
-        if stats_pattern.match(line):
-            result.append(line)
-
-    return result
+    return [line for line in lines if STATS_PATTERN.match(line)]
 
 
 def extract_time_summary(lines: List[str]) -> Dict[str, List[str]]:
@@ -156,6 +153,19 @@ def extract_time_summary(lines: List[str]) -> Dict[str, List[str]]:
     return result
 
 
+def _should_include_test(message: str, include_test_not_selected: bool) -> bool:
+    has_test_not_selected = TEST_NOT_SELECTED_MSG in message
+    if include_test_not_selected:
+        return has_test_not_selected
+    return not has_test_not_selected
+
+
+def _format_test_name(classname: str, name: str) -> str:
+    if classname and name:
+        return f"{classname}.{name}"
+    return name
+
+
 def _extract_tests_from_xml_by_filter(
     xml_path: str,
     include_test_not_selected: bool,
@@ -172,11 +182,9 @@ def _extract_tests_from_xml_by_filter(
 
     Returns list of test names in format: classname.name
     """
-    if not xml_path:
-        return []
-
-    if not Path(xml_path).exists():
-        print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
+    if not xml_path or not Path(xml_path).exists():
+        if xml_path and not Path(xml_path).exists():
+            print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
         return []
 
     tests = []
@@ -184,37 +192,27 @@ def _extract_tests_from_xml_by_filter(
         tree = ET.parse(xml_path)
         root = tree.getroot()
 
-        # Iterate through all testsuites and testcases
-        for testsuite in root.findall(".//testsuite"):
-            for testcase in testsuite.findall("testcase"):
-                # Check if testcase has <skipped> child element
-                skipped_elem = testcase.find("skipped")
-                if skipped_elem is not None:
-                    message = skipped_elem.get("message", "")
-                    has_test_not_selected = "Test not selected" in message
-                    
-                    # Apply filter logic
-                    if include_test_not_selected and not has_test_not_selected:
-                        continue
-                    if not include_test_not_selected and has_test_not_selected:
-                        continue
+        for testcase in root.findall(".//testcase"):
+            skipped_elem = testcase.find("skipped")
+            if skipped_elem is None:
+                continue
 
-                    classname = testcase.get("classname", "")
-                    name = testcase.get("name", "")
+            message = skipped_elem.get("message", "")
+            if not _should_include_test(message, include_test_not_selected):
+                continue
 
-                    # Format: classname.name (match GoogleTest format)
-                    if classname and name:
-                        full_name = f"{classname}.{name}"
-                        tests.append(full_name)
-                    elif name:
-                        tests.append(name)
+            test_name = _format_test_name(
+                testcase.get("classname", ""), testcase.get("name", "")
+            )
+            if test_name:
+                tests.append(test_name)
 
     except ET.ParseError as e:
         print(f"Warning: Failed to parse XML file {xml_path}: {e}", file=sys.stderr)
     except (OSError, ValueError) as e:
         print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
 
-    if xml_path and Path(xml_path).exists():
+    if tests and Path(xml_path).exists():
         print(f"Note: Found {len(tests)} {test_type_name} tests in XML file", file=sys.stderr)
 
     return tests
@@ -315,11 +313,9 @@ def extract_unsupported_from_lit_inline(lines: List[str]) -> List[str]:
     """
     unsupported = []
     seen = set()
-    # Pattern: "UNSUPPORTED: test_name" or "SKIP: test_name"
-    unsupported_pattern = re.compile(r"^(UNSUPPORTED|SKIP):\s+(.+?)(?:\s+\(|$)")
 
     for line in lines:
-        match = unsupported_pattern.match(line)
+        match = UNSUPPORTED_PATTERN.match(line)
         if match:
             test_name = match.group(2).strip()
             if test_name not in seen:
@@ -350,13 +346,8 @@ def extract_test_lists(
     current_tests = []
     current_declared_count = 0
 
-    # Pattern: "Category Tests (N):"
-    # Match any word followed by "Tests (N):" to catch unknown categories
-    category_pattern = re.compile(r"^([A-Za-z ]+) Tests \((\d+)\):")
-
     for line in lines:
-        # Check for category header
-        match = category_pattern.match(line)
+        match = TEST_CATEGORY_PATTERN.match(line)
         if match:
             # Save previous category
             if current_category:
@@ -466,27 +457,13 @@ def filter_log_for_display(lines: List[str]) -> List[str]:
     skip_until_empty = False
     in_timing = False
     
-    # Pattern for statistics lines
-    stats_pattern = re.compile(
-        r"^\s*(Total Discovered|Expected Passes|Expectedly Failed|"
-        r"Excluded|Unsupported|Skipped|Passed|Passed With Retry|"
-        r"Failed|Timed Out|Unexpectedly Passed|Unresolved)(\s+Tests)?\s*:"
-    )
-    
-    # Pattern for test list headers
-    test_list_pattern = re.compile(
-        r"^([A-Za-z ]+) Tests \(\d+\):"
-    )
-    
     for line in lines:
         stripped = line.strip()
         
-        # Skip statistics lines
-        if stats_pattern.match(line):
+        if STATS_PATTERN.match(line):
             continue
             
-        # Skip test list sections (e.g., "Passed Tests (123):")
-        if test_list_pattern.match(line):
+        if TEST_CATEGORY_PATTERN.match(line):
             skip_until_empty = True
             continue
             
@@ -718,109 +695,101 @@ def show_statistics_and_lists(
     _display_timing_summary(lines)
 
 
+def _print_usage() -> None:
+    print(
+        "Usage: ur_test_summary.py <command> <log_file> [all_tests_file] [xml_file]",
+        file=sys.stderr,
+    )
+    print("\nCommands:", file=sys.stderr)
+    print(
+        "  extract-errors <log>  - Extract FAIL/TIMEOUT error details", file=sys.stderr
+    )
+    print(
+        "  show-summary <log> [all_tests] [xml]  - Show statistics and collapsed test lists",
+        file=sys.stderr,
+    )
+    print(
+        "  filter-log <log>      - Filter log to remove test lists and timing (for Show Full Log)",
+        file=sys.stderr,
+    )
+    print("\nArguments:", file=sys.stderr)
+    print("  log          - LIT test output log file", file=sys.stderr)
+    print(
+        "  all_tests    - Optional: output from --gtest_list_tests (for computed skipped)",
+        file=sys.stderr,
+    )
+    print(
+        "  xml          - Optional: LIT xunit XML output (--xunit-xml-output)",
+        file=sys.stderr,
+    )
+
+
+def _validate_log_path(path: str) -> None:
+    if ".." in path or path.startswith("/"):
+        print(
+            f"Error: Invalid log file path (absolute paths and '..' not allowed): {path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not Path(path).exists():
+        print(f"Error: Log file not found: {path}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _validate_optional_path(
+    path: str, path_type: str, allow_absolute: bool = False
+) -> str:
+    if not path or path == "":
+        return None
+    if ".." in path:
+        print(
+            f"Error: Invalid {path_type} file path (path traversal): {path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not allow_absolute and path.startswith("/"):
+        print(
+            f"Error: Invalid {path_type} file path (absolute paths not allowed): {path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return path
+
+
 def main():
-    """Main CLI interface."""
     if len(sys.argv) < 2:
-        print(
-            "Usage: ur_test_summary.py <command> <log_file> [all_tests_file] [xml_file]",
-            file=sys.stderr,
-        )
-        print("\nCommands:", file=sys.stderr)
-        print(
-            "  extract-errors <log>  - Extract FAIL/TIMEOUT error details",
-            file=sys.stderr,
-        )
-        print(
-            "  show-summary <log> [all_tests] [xml]  - Show statistics and collapsed test lists",
-            file=sys.stderr,
-        )
-        print(
-            "  filter-log <log>      - Filter log to remove test lists and timing (for Show Full Log)",
-            file=sys.stderr,
-        )
-        print(
-            "\nArguments:",
-            file=sys.stderr,
-        )
-        print(
-            "  log          - LIT test output log file",
-            file=sys.stderr,
-        )
-        print(
-            "  all_tests    - Optional: output from --gtest_list_tests (for computed skipped)",
-            file=sys.stderr,
-        )
-        print(
-            "  xml          - Optional: LIT xunit XML output (--xunit-xml-output)",
-            file=sys.stderr,
-        )
+        _print_usage()
         sys.exit(1)
 
     command = sys.argv[1]
 
-    # All commands require log file
     if len(sys.argv) < 3:
         print(
-            f"Error: Command '{command}' requires a log file argument",
-            file=sys.stderr,
+            f"Error: Command '{command}' requires a log file argument", file=sys.stderr
         )
         sys.exit(1)
 
     log_file = sys.argv[2]
-
-    # Security: Validate path to prevent traversal attacks
-    if ".." in log_file or log_file.startswith("/"):
-        print(
-            f"Error: Invalid log file path (absolute paths and '..' not allowed): {log_file}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    if not Path(log_file).exists():
-        print(f"Error: Log file not found: {log_file}", file=sys.stderr)
-        sys.exit(1)
-
+    _validate_log_path(log_file)
     lines = read_log_file(log_file)
 
     if command == "extract-errors":
-        result = extract_error_details(lines)
-        for line in result:
+        for line in extract_error_details(lines):
             print(line, end="")
 
     elif command == "filter-log":
-        # Filter log for "Show Full Log" section
-        result = filter_log_for_display(lines)
-        for line in result:
+        for line in filter_log_for_display(lines):
             print(line, end="")
 
     elif command == "show-summary":
-        # Optional: all tests file for GoogleTest format
-        all_tests_file = sys.argv[3] if len(sys.argv) > 3 else None
-        # Empty string means not provided (from bash "")
-        if all_tests_file == "":
-            all_tests_file = None
-        if all_tests_file and (
-            ".." in all_tests_file or all_tests_file.startswith("/")
-        ):
-            print(
-                f"Error: Invalid all_tests file path: {all_tests_file}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        # Optional: XML file from LIT xunit output
-        xml_file = sys.argv[4] if len(sys.argv) > 4 else None
-        # Empty string means not provided (from bash "")
-        if xml_file == "":
-            xml_file = None
-        # Validate: reject path traversal but allow absolute paths (BUILD_DIR can be absolute)
-        if xml_file and ".." in xml_file:
-            print(
-                f"Error: Invalid XML file path (path traversal): {xml_file}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
+        all_tests_file = _validate_optional_path(
+            sys.argv[3] if len(sys.argv) > 3 else None,
+            "all_tests",
+            allow_absolute=False,
+        )
+        xml_file = _validate_optional_path(
+            sys.argv[4] if len(sys.argv) > 4 else None, "XML", allow_absolute=True
+        )
         show_statistics_and_lists(lines, all_tests_file, xml_file)
 
     else:

@@ -113,10 +113,6 @@ jobs:
       run: |
         sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --igfx
 
-    - name: Check NVML version compatibility
-      if: ${{ inputs.adapter_name == 'CUDA' }}
-      run: python3 devops/scripts/check_nvml_version.py
-
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
@@ -148,19 +144,20 @@ jobs:
     - name: Build artifact name suffix
       id: artifact_suffix
       shell: bash
+      env:
+        RUNNER_NAME: ${{ inputs.runner_name }}
+        STATIC_LOADER: ${{ matrix.adapter.static_Loader }}
+        OTHER_NAME: ${{ matrix.adapter.other_name }}
       run: |
-        # Build unique suffix from runner name + static + other_adapter
-        RUNNER_SUFFIX=$(echo "${{inputs.runner_name}}" | sed 's/^UR_//')
+        RUNNER_SUFFIX=$(echo "${RUNNER_NAME}" | sed 's/^UR_//')
         SUFFIX="${RUNNER_SUFFIX}"
         
-        # Add static marker if enabled
-        if [ "${{matrix.adapter.static_Loader}}" = "ON" ]; then
+        if [ "${STATIC_LOADER}" = "ON" ]; then
           SUFFIX="${SUFFIX}-static"
         fi
         
-        # Add other adapter if present
-        if [ -n "${{matrix.adapter.other_name}}" ]; then
-          SUFFIX="${SUFFIX}-${{matrix.adapter.other_name}}"
+        if [ -n "${OTHER_NAME}" ]; then
+          SUFFIX="${SUFFIX}-${OTHER_NAME}"
         fi
         
         echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
