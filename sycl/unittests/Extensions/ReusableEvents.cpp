@@ -443,9 +443,7 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
   Queue.wait();
 }
 
-// Cross-context event with wait.
-// Current limitation is that the cross-context wait
-// is not supported.
+// Cross-context event with wait - not supported.
 TEST_F(ReusableEventsTest, CrossContextEventWait) {
   mock::getCallbacks().set_replace_callback("urDeviceGet",
                                             &redefinedUrDeviceGet);
@@ -478,8 +476,7 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
   } catch (sycl::exception const &e) {
     exception = true;
     EXPECT_EQ(e.code(), sycl::errc::invalid);
-    EXPECT_STREQ(e.what(), "Not implemented yet. Event context must "
-                           "match the queue context.");
+    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
   }
 
   EXPECT_TRUE(exception);
@@ -488,9 +485,7 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
   Queue2.wait();
 }
 
-// Cross-context events with wait (multiple events).
-// Current limitation is that the cross-context wait
-// is not supported.
+// Cross-context events with wait (multiple events) - not supported.
 TEST_F(ReusableEventsTest, CrossContextEventsWait) {
   mock::getCallbacks().set_replace_callback("urDeviceGet",
                                             &redefinedUrDeviceGet);
@@ -526,8 +521,7 @@ TEST_F(ReusableEventsTest, CrossContextEventsWait) {
   } catch (sycl::exception const &e) {
     exception = true;
     EXPECT_EQ(e.code(), sycl::errc::invalid);
-    EXPECT_STREQ(e.what(), "Not implemented yet. Context of all events must "
-                           "match the queue context.");
+    EXPECT_STREQ(e.what(), "Context of all events must match the queue context.");
   }
 
   EXPECT_TRUE(exception);
