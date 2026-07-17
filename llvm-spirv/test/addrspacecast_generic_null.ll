@@ -11,7 +11,8 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: %_ptr_Workgroup_uchar = OpTypePointer Workgroup %uchar
 ; CHECK: %[[NULL:[0-9]+]] = OpConstantNull %_ptr_Generic_uchar
 ; CHECK: %[[CAST:[0-9]+]] = OpGenericCastToPtr %_ptr_Workgroup_uchar %[[NULL]]
-; CHECK: OpPtrEqual %bool %[[CAST]]
+; CHECK: %[[PTR2U:[0-9]+]] = OpConvertPtrToU %ulong %[[CAST]]
+; CHECK: OpIEqual %bool %[[PTR2U]]
 
 define spir_kernel void @bar_generic_null(ptr addrspace(3) %arg) {
   %expr = icmp eq ptr addrspace(3) addrspacecast (ptr addrspace(4) null to ptr addrspace(3)), %arg
