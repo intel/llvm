@@ -19,6 +19,7 @@ import defusedxml.ElementTree as ET
 # Type definitions for structured data
 class TestLists(TypedDict, total=False):
     """Type definition for test list dictionary."""
+
     Passed: List[str]
     Failed: List[str]
     Skipped: List[str]
@@ -29,6 +30,7 @@ class TestLists(TypedDict, total=False):
 
 class TestCounts(TypedDict, total=False):
     """Type definition for test count dictionary."""
+
     Passed: int
     Failed: int
     Skipped: int
@@ -39,6 +41,7 @@ class TestCounts(TypedDict, total=False):
 
 class TimingSummary(TypedDict):
     """Type definition for test timing summary."""
+
     slowest: List[str]
     histogram: List[str]
 
@@ -46,6 +49,7 @@ class TimingSummary(TypedDict):
 @dataclass
 class SummaryConfig:
     """Configuration for show_statistics_and_lists function."""
+
     log_lines: List[str]
     xml_file: Optional[str] = None
 
@@ -156,9 +160,7 @@ def _format_test_name(classname: str, name: str) -> str:
 
 
 def _extract_tests_from_xml_by_filter(
-    xml_path: str,
-    include_test_not_selected: bool,
-    test_type_name: str
+    xml_path: str, include_test_not_selected: bool, test_type_name: str
 ) -> List[str]:
     """Extract tests from LIT xunit XML by filtering on 'Test not selected' message."""
     if not xml_path or not Path(xml_path).exists():
@@ -192,7 +194,10 @@ def _extract_tests_from_xml_by_filter(
         print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
 
     if tests and Path(xml_path).exists():
-        print(f"Note: Found {len(tests)} {test_type_name} tests in XML file", file=sys.stderr)
+        print(
+            f"Note: Found {len(tests)} {test_type_name} tests in XML file",
+            file=sys.stderr,
+        )
 
     return tests
 
@@ -200,18 +205,14 @@ def _extract_tests_from_xml_by_filter(
 def extract_skipped_from_xml(xml_path: str) -> List[str]:
     """Extract skipped test names from LIT xunit XML (excludes 'Test not selected')."""
     return _extract_tests_from_xml_by_filter(
-        xml_path,
-        include_test_not_selected=False,
-        test_type_name="skipped"
+        xml_path, include_test_not_selected=False, test_type_name="skipped"
     )
 
 
 def extract_excluded_from_xml(xml_path: str) -> List[str]:
     """Extract excluded test names from LIT xunit XML (marked as 'Test not selected')."""
     return _extract_tests_from_xml_by_filter(
-        xml_path,
-        include_test_not_selected=True,
-        test_type_name="excluded"
+        xml_path, include_test_not_selected=True, test_type_name="excluded"
     )
 
 
@@ -261,42 +262,44 @@ def filter_log_for_display(lines: List[str]) -> List[str]:
     result = []
     skip_until_empty = False
     in_timing = False
-    
+
     for line in lines:
         stripped = line.strip()
-        
+
         if STATS_PATTERN.match(line):
             continue
-            
+
         if TEST_CATEGORY_PATTERN.match(line):
             skip_until_empty = True
             continue
-            
+
         if stripped in ["Slowest Tests:", "Tests Times:", "Test Times:"]:
             in_timing = True
             continue
-            
+
         if in_timing and stripped.replace("*", "") == "":
             in_timing = False
             continue
-            
+
         if in_timing:
             continue
-            
+
         if stripped.startswith("Testing Time:"):
             continue
-            
+
         if skip_until_empty:
             if not stripped:
                 skip_until_empty = False
             continue
-            
+
         result.append(line)
-    
+
     return result
 
 
-def _print_test_group(title: str, tests: List[str], note: str = None, count: int = None) -> None:
+def _print_test_group(
+    title: str, tests: List[str], note: str = None, count: int = None
+) -> None:
     """Print a collapsible GitHub Actions group with test list."""
     test_count = count if count is not None else len(tests)
     print(f"::group::{title} ({test_count})")
@@ -329,21 +332,23 @@ def _display_skipped_tests(
     test_lists: TestLists,
     declared_counts: TestCounts,
     stats: List[str],
-    xml_file: Optional[str]
+    xml_file: Optional[str],
 ) -> int:
     skipped_from_log = test_lists.get("Skipped", test_lists.get("Unsupported", []))
-    declared_count = declared_counts.get("Skipped", declared_counts.get("Unsupported", 0))
+    declared_count = declared_counts.get(
+        "Skipped", declared_counts.get("Unsupported", 0)
+    )
     stats_count = _get_count_from_stats(stats, ["Skipped:", "Unsupported:"])
 
     if skipped_from_log and declared_count:
         actual_count = len(skipped_from_log)
-        
+
         if actual_count == declared_count:
             _print_test_group("Skipped Tests", skipped_from_log)
             test_lists.pop("Skipped", None)
             test_lists.pop("Unsupported", None)
             return actual_count
-        
+
         skipped_xml = extract_skipped_from_xml(xml_file)
         if skipped_xml:
             note = f"Note: Using XML data (log header claimed {declared_count}, but found {actual_count} lines)."
@@ -353,44 +358,42 @@ def _display_skipped_tests(
             note = f"Warning: Log header claimed {declared_count} skipped, but found {actual_count} lines."
             _print_test_group("Skipped Tests", skipped_from_log, note)
             count = actual_count
-        
+
         test_lists.pop("Skipped", None)
         test_lists.pop("Unsupported", None)
         return count
-    
+
     elif stats_count:
         skipped_xml = extract_skipped_from_xml(xml_file)
         if skipped_xml:
             _print_test_group("Skipped Tests", skipped_xml)
             return len(skipped_xml)
-        
+
         note = f"Warning: Could not extract individual skipped test names.\nStatistics show {stats_count} skipped tests, but they are not available in the output."
         _print_test_group("Skipped Tests", [], note, count=stats_count)
         return stats_count
-    
+
     return 0
 
 
 def _display_excluded_tests(
-    test_lists: TestLists,
-    stats: List[str],
-    xml_file: Optional[str]
+    test_lists: TestLists, stats: List[str], xml_file: Optional[str]
 ) -> int:
     if "Excluded" in test_lists:
         return 0
-    
+
     excluded_xml = extract_excluded_from_xml(xml_file)
     stats_count = _get_count_from_stats(stats, ["Excluded:"])
-    
+
     if excluded_xml:
         _print_test_group("Excluded Tests", excluded_xml)
         return len(excluded_xml)
-    
+
     elif stats_count:
         note = f"Warning: Could not extract individual excluded test names.\nStatistics show {stats_count} excluded tests, but they are not available in the output."
         _print_test_group("Excluded Tests", [], note, count=stats_count)
         return stats_count
-    
+
     return 0
 
 
@@ -404,22 +407,26 @@ def _validate_test_counts(
     total_discovered: int,
     test_lists: TestLists,
     displayed_skipped: int,
-    displayed_excluded: int
+    displayed_excluded: int,
 ) -> None:
     if not total_discovered:
         return
-    
+
     sum_categories = sum(len(tests) for tests in test_lists.values())
-    
+
     if displayed_skipped > 0 and "Skipped" not in test_lists:
         sum_categories += displayed_skipped
     if displayed_excluded > 0 and "Excluded" not in test_lists:
         sum_categories += displayed_excluded
-    
+
     if total_discovered != sum_categories:
         print()
-        print(f"::warning::Test count mismatch: Total Discovered = {total_discovered}, but sum of all categories = {sum_categories}")
-        print(f"Warning: {total_discovered - sum_categories} tests are unaccounted for.")
+        print(
+            f"::warning::Test count mismatch: Total Discovered = {total_discovered}, but sum of all categories = {sum_categories}"
+        )
+        print(
+            f"Warning: {total_discovered - sum_categories} tests are unaccounted for."
+        )
         print(f"This may indicate tests in unexpected categories or parsing issues.")
         print(f"Categories found: {', '.join(test_lists.keys())}")
         if displayed_skipped > 0:
@@ -431,35 +438,35 @@ def _validate_test_counts(
 
 def _display_timing_summary(lines: List[str]) -> None:
     time_info = extract_time_summary(lines)
-    
+
     testing_time = None
     for line in lines:
         if line.strip().startswith("Testing Time:"):
             testing_time = line.strip()
             break
-    
+
     if not (time_info["slowest"] or time_info["histogram"] or testing_time):
         return
-    
+
     print("::group::Test Timing Summary")
-    
+
     if testing_time:
         print(testing_time)
         print()
-    
+
     if time_info["slowest"]:
         print("Slowest Tests:")
         print("-" * SEPARATOR_WIDTH)
         for line in time_info["slowest"]:
             print(line)
         print()
-    
+
     if time_info["histogram"]:
         print("Test Times Distribution:")
         print("-" * SEPARATOR_WIDTH)
         for line in time_info["histogram"]:
             print(line)
-    
+
     print("::endgroup::")
 
 
@@ -467,19 +474,24 @@ def show_statistics_and_lists(config: SummaryConfig) -> None:
     """Display test statistics and categorized test lists."""
     stats = extract_statistics(config.log_lines)
     _display_statistics(stats)
-    
+
     total_discovered = _get_count_from_stats(stats, ["Total Discovered"])
     test_lists, declared_counts = extract_test_lists(config.log_lines)
-    
-    displayed_skipped = _display_skipped_tests(test_lists, declared_counts, stats, config.xml_file)
+
+    displayed_skipped = _display_skipped_tests(
+        test_lists, declared_counts, stats, config.xml_file
+    )
     displayed_excluded = _display_excluded_tests(test_lists, stats, config.xml_file)
     _display_remaining_categories(test_lists)
-    _validate_test_counts(total_discovered, test_lists, displayed_skipped, displayed_excluded)
+    _validate_test_counts(
+        total_discovered, test_lists, displayed_skipped, displayed_excluded
+    )
     _display_timing_summary(config.log_lines)
 
 
 def _print_usage() -> None:
-    print("""Usage: ur_test_summary.py <command> <log_file> [xml_file]
+    print(
+        """Usage: ur_test_summary.py <command> <log_file> [xml_file]
 
 Commands:
   extract-errors <log>  - Extract FAIL/TIMEOUT error details
@@ -489,7 +501,9 @@ Commands:
 Arguments:
   log          - LIT test output log file
   xml          - Optional: LIT xunit XML output (--xunit-xml-output)
-""", file=sys.stderr)
+""",
+        file=sys.stderr,
+    )
 
 
 def _validate_log_path(path: str) -> None:
@@ -553,15 +567,14 @@ def main():
         xml_file = _validate_optional_path(
             sys.argv[3] if len(sys.argv) > 3 else None, "XML", allow_absolute=True
         )
-        config = SummaryConfig(
-            log_lines=lines,
-            xml_file=xml_file
-        )
+        config = SummaryConfig(log_lines=lines, xml_file=xml_file)
         show_statistics_and_lists(config)
 
     else:
         print(f"Error: Unknown command: {command}", file=sys.stderr)
-        print("Valid commands: extract-errors, filter-log, show-summary", file=sys.stderr)
+        print(
+            "Valid commands: extract-errors, filter-log, show-summary", file=sys.stderr
+        )
         sys.exit(1)
 
 
