@@ -2340,8 +2340,8 @@ static bool canEmitDelegateCallArgs(CodeGenFunction &CGF,
         return false;
 
     // Likewise if they're inalloca.
-    const CGFunctionInfo &Info = CGF.CGM.getTypes().arrangeCXXConstructorCall(
-        Args, Ctor, Type, 0, 0, CGF.getCurrentFunctionDecl());
+    const CGFunctionInfo &Info =
+        CGF.CGM.getTypes().arrangeCXXConstructorCall(Args, Ctor, Type, 0, 0);
     if (Info.usesInAlloca())
       return false;
   }
@@ -2401,8 +2401,7 @@ void CodeGenFunction::EmitCXXConstructorCall(
   // Emit the call.
   llvm::Constant *CalleePtr = CGM.getAddrOfCXXStructor(GlobalDecl(D, Type));
   const CGFunctionInfo &Info = CGM.getTypes().arrangeCXXConstructorCall(
-      Args, D, Type, ExtraArgs.Prefix, ExtraArgs.Suffix,
-      getCurrentFunctionDecl(), PassPrototypeArgs);
+      Args, D, Type, ExtraArgs.Prefix, ExtraArgs.Suffix, PassPrototypeArgs);
   CGCallee Callee = CGCallee::forDirect(CalleePtr, GlobalDecl(D, Type));
   EmitCall(Info, Callee, ReturnValueSlot(), Args, CallOrInvoke, false, Loc);
 
@@ -3295,7 +3294,7 @@ void CodeGenFunction::EmitLambdaInAllocaImplFn(
     ArgTypes.push_back(I->type);
   *ImplFnInfo = &CGM.getTypes().arrangeLLVMFunctionInfo(
       FnInfo.getReturnType(), FnInfoOpts::IsDelegateCall, ArgTypes,
-      FnInfo.getExtInfo(), {}, FnInfo.getRequiredArgs(), CallOp);
+      FnInfo.getExtInfo(), {}, FnInfo.getRequiredArgs());
 
   // Create mangled name as if this was a method named __impl. If for some
   // reason the name doesn't look as expected then just tack __impl to the
