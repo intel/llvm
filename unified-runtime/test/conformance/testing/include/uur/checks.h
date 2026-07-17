@@ -111,7 +111,7 @@ inline bool stringPropertyIsValid(const char *property,
 // UR_RESULT_ERROR_UNSUPPORTED_FEATURE). Use this for device-info queries whose
 // absence is property-specific rather than a general feature absence.
 #ifndef ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY
-#define ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(CALL, QUERY)             \
+#define ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(CALL, QUERY)              \
   do {                                                                         \
     auto result = CALL;                                                        \
     if (result != UR_RESULT_SUCCESS) {                                         \
