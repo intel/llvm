@@ -29,7 +29,10 @@
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
 namespace std {
 extern "C" {
-int __isa_available = 0;
+// `inline` makes the definition ODR-safe: this header may be included by
+// several device TUs that are later device-linked into one image, and the
+// C++17 inline-variable rule tells the linker to keep exactly one copy.
+inline int __isa_available = 0;
 }
 } // namespace std
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
