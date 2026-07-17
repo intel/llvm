@@ -1550,6 +1550,18 @@ ur_result_t urDeviceGetInfo(
       }
 
       const auto &LUID = LuidDesc.luid.id;
+      // If the LUID is all zeros the extension is present but not usable
+      // on this platform (e.g. Linux).
+      bool isAllZeros = true;
+      for (auto byte : LUID) {
+        if (byte != 0) {
+          isAllZeros = false;
+          break;
+        }
+      }
+      if (isAllZeros) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
       return ReturnValue(LUID, sizeof(LUID));
     } else {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
@@ -1578,6 +1590,11 @@ ur_result_t urDeviceGetInfo(
         return ze2urResult(ZeResult);
       }
 
+      // If the node mask is zero the extension is present but not usable
+      // on this platform (e.g. Linux).
+      if (LuidDesc.nodeMask == 0) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
       return ReturnValue(LuidDesc.nodeMask);
     } else {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
