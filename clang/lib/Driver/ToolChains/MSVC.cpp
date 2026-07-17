@@ -14,13 +14,21 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "clang/Options/Options.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSet.h"
+#include "llvm/Object/Archive.h"
+#include "llvm/Object/COFF.h"
+#include "llvm/Object/ObjectFile.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/Host.h"
 #include <cstdio>
@@ -59,6 +67,252 @@ static std::string FindVisualStudioExecutable(const ToolChain &TC,
   llvm::sys::path::append(FilePath, Exe);
   return std::string(canExecute(TC.getVFS(), FilePath) ? FilePath.str() : Exe);
 }
+
+namespace {
+/// Under -fsycl-allow-device-image-dependencies on Windows, a device-only
+/// dependency on a DLL is invisible to the linker (no host symbol references
+/// it), so /OPT:REF can drop the DLL's import library. To keep it, we scan each
+/// user-provided .lib and emit /INCLUDE:<import-sym> for one symbol from it,
+/// which forces the import in without disabling optimization globally.
+///
+/// This walks every linker input that can name a .lib — direct filenames,
+/// -l<name>, -Wl,/-Xlinker values, /link tokens, /defaultlib: and
+/// /wholearchive: options, @response-files, and /DEFAULTLIB: directives
+/// embedded in object files — resolves each against the linker's search path
+/// (LIB, -L, /libpath:), skips system libraries, and appends the /INCLUDE:
+/// directives to CmdArgs.
+class DeviceImageDepForcer {
+  const toolchains::MSVCToolChain &TC;
+  const ArgList &Args;
+  ArgStringList &CmdArgs;
+
+  // System library dirs to exclude, pre-normalized (see collapseSeps).
+  llvm::SmallVector<std::string, 4> SystemLibDirs;
+  // Dirs the linker would search for a bare .lib name.
+  llvm::SmallVector<std::string, 8> LibSearchDirs;
+
+  llvm::BumpPtrAllocator Alloc;
+  llvm::StringSaver Saver{Alloc};
+  llvm::StringSet<> SeenRspFiles;
+
+  // Canonicalize a path so prefix matching survives the mixed separators, runs
+  // of separators, and un-collapsed dot-dots that show up in the LIB env var
+  // (e.g. "...\\10\\\\lib\\..\\lib\\...") vs. clang's computed paths: normalize
+  // every separator to '\' and resolve '.'/'..' components.
+  static std::string collapseSeps(StringRef P) {
+    llvm::SmallString<128> R(P);
+    llvm::sys::path::native(R, llvm::sys::path::Style::windows_backslash);
+    llvm::sys::path::remove_dots(R, /*remove_dot_dot=*/true,
+                                 llvm::sys::path::Style::windows_backslash);
+    return std::string(R);
+  }
+
+  bool isSystemLib(StringRef LibPath) const {
+    // Compare against the dir plus a trailing '\' (SystemLibDirs are stored
+    // that way) so "C:\sdk\lib" doesn't spuriously match "C:\sdk\library\...".
+    std::string Norm = collapseSeps(LibPath);
+    for (const auto &Dir : SystemLibDirs)
+      if (StringRef(Norm).starts_with_insensitive(Dir))
+        return true;
+    return false;
+  }
+
+  // Resolve a .lib name to an existing file, searching LibSearchDirs when the
+  // name isn't already a path that exists. Empty if not found.
+  std::string resolveLib(StringRef Name) const {
+    if (TC.getVFS().exists(Name))
+      return Name.str();
+    for (const std::string &Dir : LibSearchDirs) {
+      llvm::SmallString<128> Full(Dir);
+      llvm::sys::path::append(Full, Name);
+      if (TC.getVFS().exists(Full))
+        return std::string(Full);
+    }
+    return {};
+  }
+
+  // Emit /INCLUDE: for the first import symbol found in the archive at LibPath.
+  void forceIncludeFromLib(StringRef LibPath) {
+    auto BufOrErr = TC.getVFS().getBufferForFile(LibPath);
+    if (!BufOrErr)
+      return;
+    auto ArchiveOrErr =
+        llvm::object::Archive::create(BufOrErr.get()->getMemBufferRef());
+    if (!ArchiveOrErr) {
+      llvm::consumeError(ArchiveOrErr.takeError());
+      return;
+    }
+    for (const auto &Sym : (*ArchiveOrErr)->symbols()) {
+      StringRef Name = Sym.getName();
+      // Only force-include actual import symbols, not linker metadata.
+      if (!Name.starts_with("__imp_"))
+        continue;
+      CmdArgs.push_back(Args.MakeArgString(Twine("/INCLUDE:") + Name));
+      return;
+    }
+  }
+
+  // Object files can carry embedded linker directives in their COFF .drectve
+  // section (e.g. /Qmkl injects /DEFAULTLIB:mkl_core.lib etc.). These never
+  // appear on the command line, so scan the section and route each directive
+  // through processToken, which already understands /defaultlib:.
+  void scanObjectDirectives(StringRef Path) {
+    auto BufOrErr = TC.getVFS().getBufferForFile(Path);
+    if (!BufOrErr)
+      return;
+    auto BinOrErr =
+        llvm::object::createBinary(BufOrErr.get()->getMemBufferRef());
+    if (!BinOrErr) {
+      llvm::consumeError(BinOrErr.takeError());
+      return;
+    }
+    const auto *Obj =
+        llvm::dyn_cast<llvm::object::COFFObjectFile>(BinOrErr.get().get());
+    if (!Obj)
+      return;
+    for (const llvm::object::SectionRef &Sec : Obj->sections()) {
+      llvm::Expected<StringRef> Name = Sec.getName();
+      if (!Name || *Name != ".drectve") {
+        if (!Name)
+          llvm::consumeError(Name.takeError());
+        continue;
+      }
+      llvm::Expected<StringRef> Contents = Sec.getContents();
+      if (!Contents) {
+        llvm::consumeError(Contents.takeError());
+        continue;
+      }
+      llvm::SmallVector<const char *, 8> Tokens;
+      llvm::cl::TokenizeWindowsCommandLine(*Contents, Saver, Tokens);
+      for (const char *T : Tokens)
+        processToken(T);
+    }
+  }
+
+  // Resolve and force-include a .lib named by Name, unless it's a system lib.
+  void forceIncludeLibName(StringRef Name) {
+    if (!Name.ends_with_insensitive(".lib"))
+      return;
+    std::string Resolved = resolveLib(Name);
+    if (Resolved.empty() || isSystemLib(Resolved))
+      return;
+    forceIncludeFromLib(Resolved);
+  }
+
+  // Process a single linker token: a .lib named directly, a .lib embedded in a
+  // /wholearchive: or /defaultlib: option, or an @response-file to expand.
+  void processToken(StringRef Token) {
+    if (Token.consume_front("@")) {
+      // Response file: expand and process its contents, guarding cycles.
+      std::string RspPath = resolveLib(Token);
+      if (RspPath.empty())
+        RspPath = Token.str();
+      if (!SeenRspFiles.insert(RspPath).second)
+        return;
+      auto BufOrErr = TC.getVFS().getBufferForFile(RspPath);
+      if (!BufOrErr)
+        return;
+      llvm::SmallVector<const char *, 16> RspTokens;
+      llvm::cl::TokenizeWindowsCommandLine(BufOrErr.get()->getBuffer(), Saver,
+                                           RspTokens);
+      for (const char *T : RspTokens)
+        processToken(T);
+      return;
+    }
+    // Strip a leading option prefix that carries a lib (e.g. -defaultlib:).
+    // After such a prefix the name may omit the .lib extension, which the
+    // linker supplies; add it so the name resolves.
+    for (StringRef Prefix :
+         {"/wholearchive:", "-wholearchive:", "/defaultlib:", "-defaultlib:"})
+      if (Token.consume_front_insensitive(Prefix)) {
+        if (!Token.empty() && !Token.ends_with_insensitive(".lib"))
+          Token = Saver.save(Token + ".lib");
+        break;
+      }
+    forceIncludeLibName(Token);
+  }
+
+public:
+  DeviceImageDepForcer(const toolchains::MSVCToolChain &TC, const ArgList &Args,
+                       ArgStringList &CmdArgs)
+      : TC(TC), Args(Args), CmdArgs(CmdArgs) {
+    // Collect system library directories to exclude from force-loading,
+    // pre-normalized so the per-lib check doesn't re-normalize them.
+    SystemLibDirs.push_back(TC.getDriver().Dir + "/../lib");
+    std::string VCLibDir = TC.getSubDirectoryPath(llvm::SubDirectoryType::Lib);
+    if (!VCLibDir.empty())
+      SystemLibDirs.push_back(VCLibDir);
+    std::string WindowsSdkLibPath;
+    if (TC.getWindowsSDKLibraryPath(Args, WindowsSdkLibPath))
+      SystemLibDirs.push_back(WindowsSdkLibPath);
+    std::string UCRTLibPath;
+    if (TC.getUniversalCRTLibraryPath(Args, UCRTLibPath))
+      SystemLibDirs.push_back(UCRTLibPath);
+
+    // Canonicalize the system lib dirs (collapseSeps) and give each a trailing
+    // '\' so a dir only matches on a path boundary.
+    for (std::string &Dir : SystemLibDirs) {
+      Dir = collapseSeps(Dir);
+      if (!Dir.empty() && Dir.back() != '\\')
+        Dir += '\\';
+    }
+
+    // Replicate the linker's library search path so bare .lib names (resolved
+    // via the LIB env var or /libpath:) can be opened, not just absolute paths.
+    if (std::optional<std::string> Lib = llvm::sys::Process::GetEnv("LIB")) {
+      llvm::SmallVector<StringRef, 8> Split;
+      const char Sep[] = {llvm::sys::EnvPathSeparator, '\0'};
+      llvm::SplitString(*Lib, Split, Sep);
+      for (StringRef Dir : Split)
+        LibSearchDirs.push_back(Dir.trim().str());
+    }
+    for (const std::string &Dir : Args.getAllArgValues(options::OPT_L))
+      LibSearchDirs.push_back(Dir);
+    for (const Arg *A : Args.filtered(options::OPT__SLASH_link))
+      for (StringRef Value : A->getValues())
+        if (Value.consume_front_insensitive("-libpath:") ||
+            Value.consume_front_insensitive("/libpath:"))
+          LibSearchDirs.push_back(Value.str());
+  }
+
+  // Scan all linker inputs and append /INCLUDE: directives for user .libs.
+  void scanIncludeSymbol(const InputInfoList &Inputs) {
+    // .libs given directly as inputs (filenames, -l<name>, and -Wl,/-Xlinker
+    // values that MSVC renders straight through).
+    for (const auto &Input : Inputs) {
+      if (Input.isFilename()) {
+        processToken(Input.getFilename());
+        // Object-file inputs may carry embedded /DEFAULTLIB: directives. Under
+        // -fsycl the object handed to the linker is an unbundled temp that does
+        // not exist yet at -### time, so scan the original on-disk input.
+        // (A from-source single-step link can't be handled here: the base
+        // input is the .cpp and the linker's object is a compile temp that
+        // doesn't exist until the link job's command has already been built.)
+        if (const char *Base = Input.getBaseInput())
+          scanObjectDirectives(Base);
+        continue;
+      }
+      // -l<name>
+      const Arg &A = Input.getInputArg();
+      if (A.getOption().matches(options::OPT_l)) {
+        StringRef Lib = A.getValue();
+        processToken(
+            Lib.ends_with_insensitive(".lib") ? Lib : Saver.save(Lib + ".lib"));
+      }
+      // -Wl,/-Xlinker values that MSVC passes straight through to the linker.
+      else if (A.getOption().matches(options::OPT_Wl_COMMA) ||
+               A.getOption().matches(options::OPT_Xlinker)) {
+        for (StringRef Value : A.getValues())
+          processToken(Value);
+      }
+    }
+    // .libs passed through to the linker via /link (not seen as inputs).
+    for (const Arg *A : Args.filtered(options::OPT__SLASH_link))
+      for (StringRef Value : A->getValues())
+        processToken(Value);
+  }
+};
+} // namespace
 
 void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                         const InputInfo &Output,
@@ -430,18 +684,12 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   TC.addProfileRTLibs(Args, CmdArgs);
 
-  // -fsycl-allow-device-image-dependencies explicitly indicates that device
-  // code may depend on external device images contained in linked libraries. On
-  // Windows, /OPT:REF can incorrectly discard those libraries when no host-side
-  // symbol references exist, because the dependency is only visible through
-  // device-side usage. Adding /OPT:NOREF here (after user arguments) ensures it
-  // overrides any user-specified /OPT:REF, preserving required dependencies and
-  // preventing runtime failures such as "No device image found."
+  // Force-load user .libs so device-only DLL deps survive linker optimization.
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
       Args.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
                    options::OPT_fno_sycl_allow_device_image_dependencies,
                    false))
-    CmdArgs.push_back("/OPT:NOREF");
+    DeviceImageDepForcer(TC, Args, CmdArgs).scanIncludeSymbol(Inputs);
 
   std::vector<const char *> Environment;
 
