@@ -72,8 +72,21 @@ jobs:
     # - switch to Ninja generator in CMake
     # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
+    - name: Clean workspace
+      run: |
+        find $GITHUB_WORKSPACE -mindepth 1 -delete 2>/dev/null || true
+        mkdir -p $GITHUB_WORKSPACE
+
     - name: Checkout LLVM
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Verify checkout
+      run: |
+        if [ ! -d "unified-runtime" ]; then
+          echo "ERROR: unified-runtime directory not found after checkout"
+          ls -la
+          exit 1
+        fi
 
     # for some reason it's required to re-configure python for venv to work properly.
     - name: Set up Python 3.12
@@ -83,13 +96,12 @@ jobs:
         python-version: '3.12'
 
     - name: Install UR python dependencies in venv
-      working-directory: ./unified-runtime
       run: |
         python3 -m venv .venv
         . .venv/bin/activate
         echo "$PATH" >> $GITHUB_PATH
-        pip install -r third_party/requirements.txt
-        pip install -r third_party/requirements_testing.txt
+        pip install -r unified-runtime/third_party/requirements.txt
+        pip install -r unified-runtime/third_party/requirements_testing.txt
 
     - name: Download DPC++
       run: |
