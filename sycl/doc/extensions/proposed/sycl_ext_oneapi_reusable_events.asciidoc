@@ -241,8 +241,21 @@ _Effects:_ Enqueues a special barrier to `q` with the following semantic.
 Any commands submitted to the queue after this barrier cannot begin execution
 until all commands associated with `evt` or `evts` have completed.
 
-_Remarks:_ The event `evt` and the events in `evts` do _not_ need to have the
-same context as `q`.
+_Throws:_
+
+ * An `exception` with the `errc::invalid` error code if `evt` or any of events
+   in `evts` was not created using the `make_event` function or default
+   constructed.
+ * An `exception` with the `errc::invalid` error code if `evt` and `q` don't
+   have the same context or any event in `evts` and `q` don't have the same
+   context.
+
+_Remarks:_ If an event `evt` is used as a command dependency for some command
+_C_ (e.g. via `enqueue_wait_event`), the dependency is captured at the point
+when _C_ is submitted.
+It is legal to reassociate the event `evt` to a new command via
+`enqueue_signal_event` even before command _C_ completes. Doing so does _not_
+change the dependency for command _C_.
 
 '''
 
@@ -292,6 +305,8 @@ _Throws:_
 
  * An `exception` with the `errc::invalid` error code if `evt` and `q` don't
    have the same context.
+ * An `exception` with the `errc::invalid` error code if `evt` was not created
+   using the `make_event` function or default constructed.
  * An `exception` with the `errc::feature_not_supported` error code if `evt`
    was created with the `enable_profiling` property that enables profiling
    timestamps and if the platform associated with `q` does not support creation
@@ -311,31 +326,21 @@ _{endnote}_]
 
 === Interaction with other event APIs
 
-An event _E_ created via `make_event` can be used as a command dependency (e.g.
-via `handler::depends_on`) for a command submitted to some queue _Q_.
-It is _not_ necessary for the context of _E_ to match the context of _Q_.
+The core SYCL specification defines a default constructor for the `event`
+class. The default constructor creates an event that is equivalent to calling
+`make_event` with no parameters.
 
-If an event _E_ is used as a command dependency for some command _C_ (e.g. via
-`handler::depends_on`), the dependency is captured at the point when _C_ is
-submitted.
-It is legal to reassociated the event _E_ to a new command via
-`enqueue_signal_event` even before command _C_ completes.
-Doing so does _not_ change the dependency for command _C_.
+An event created via `make_event` or a default constructed event can only be
+used with the APIs defined in this extension.
+
+Several of the `queue` class member functions from the core SYCL specification
+return an event. These events cannot be passed to any of the functions defined
+in this extension.
 
 If another host thread is blocked waiting for event _E_ to complete via
 `event:wait` or `event::wait_and_throw` when event _E_ is reassociated with a
 new command via `enqueue_signal_event`, the behavior of the `event:wait` or
 `event::wait_and_throw` call is undefined.
-
-The core SYCL specification defines a default constructor for the `event`
-class. The default constructor creates an event that is equivalent to calling
-`make_event` with no parameters.
-
-Several of the `queue` class member functions from the core SYCL specification
-return an event. These events are associated with the queue's context as though
-created by `make_event` with that context.
-These events may be passed to any of the functions in this extension that take
-an event parameter.
 
 == Examples
 
