@@ -9,10 +9,46 @@ This script processes LIT test output logs to:
 
 import sys
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional, TypedDict
 from pathlib import Path
+from dataclasses import dataclass
 
 import defusedxml.ElementTree as ET
+
+
+# Type definitions for structured data
+class TestLists(TypedDict, total=False):
+    """Type definition for test list dictionary."""
+    Passed: List[str]
+    Failed: List[str]
+    Skipped: List[str]
+    Unsupported: List[str]
+    Excluded: List[str]
+    Unresolved: List[str]
+
+
+class TestCounts(TypedDict, total=False):
+    """Type definition for test count dictionary."""
+    Passed: int
+    Failed: int
+    Skipped: int
+    Unsupported: int
+    Excluded: int
+    Unresolved: int
+
+
+class TimingSummary(TypedDict):
+    """Type definition for test timing summary."""
+    slowest: List[str]
+    histogram: List[str]
+
+
+@dataclass
+class SummaryConfig:
+    """Configuration for show_statistics_and_lists function."""
+    log_lines: List[str]
+    xml_file: Optional[str] = None
+
 
 FAIL_TIMEOUT_PATTERN = re.compile(r"^(FAIL|TIMEOUT):")
 TEST_LIST_HEADER_PATTERN = re.compile(
@@ -25,12 +61,9 @@ STATS_PATTERN = re.compile(
     r"Failed|Timed Out|Unexpectedly Passed|Unresolved)(\s+Tests)?\s*:"
 )
 TEST_CATEGORY_PATTERN = re.compile(r"^([A-Za-z]+(?: [A-Za-z]+)*) Tests \((\d+)\):")
-GTEST_SKIPPED_HEADER = re.compile(r"^\[\s+SKIPPED\s+\] \d+ tests, listed below:")
-GTEST_SKIPPED_TEST = re.compile(r"^\[\s+SKIPPED\s+\] (.+)$")
-GTEST_SKIPPED_FOOTER = re.compile(r"^\s*\d+ SKIPPED TESTS")
-UNSUPPORTED_PATTERN = re.compile(r"^(UNSUPPORTED|SKIP):\s+(.+?)(?:\s+\(|$)")
 
 TEST_NOT_SELECTED_MSG = "Test not selected"
+SEPARATOR_WIDTH = 70
 
 
 def read_log_file(log_path: str) -> List[str]:
@@ -47,12 +80,7 @@ def read_log_file(log_path: str) -> List[str]:
 
 
 def extract_error_details(lines: List[str]) -> List[str]:
-    """
-    Extract error details from FAIL/TIMEOUT entries.
-
-    Stops before test list sections to avoid duplication
-    (lists are shown in collapsed sections).
-    """
+    """Extract error details from FAIL/TIMEOUT entries."""
     result = []
     in_error = False
 
@@ -70,48 +98,19 @@ def extract_error_details(lines: List[str]) -> List[str]:
 
 
 def extract_statistics(lines: List[str]) -> List[str]:
-    """
-    Extract test statistics from LIT summary.
-
-    Matches lines like:
-    - Total Discovered Tests: 123
-    - Passed: 100 (81.30%)
-    - Failed: 2 (1.63%)
-    etc.
-    """
+    """Extract test statistics from LIT summary."""
     return [line for line in lines if STATS_PATTERN.match(line)]
 
 
-def extract_time_summary(lines: List[str]) -> Dict[str, List[str]]:
-    """
-    Extract test timing information from LIT output.
-
-    LIT with --time-tests flag produces:
-    Slowest Tests:
-    ----------------------------------------------------------------------
-    4.16s: test_name
-    0.10s: test_name2
-    ...
-
-    Tests Times:
-    ----------------------------------------------------------------------
-    [Range] :: [Percentage] :: [Count]
-    ----------------------------------------------------------------------
-    [0.00s, 1.00s) :: [========] :: [10/20]
-    ...
-    ----------------------------------------------------------------------
-    ********************
-
-    Returns dictionary with 'slowest' and 'histogram' keys containing line lists.
-    """
-    result = {"slowest": [], "histogram": []}
+def extract_time_summary(lines: List[str]) -> TimingSummary:
+    """Extract test timing from LIT --time-tests output (slowest tests and histogram)."""
+    result: TimingSummary = {"slowest": [], "histogram": []}
     current_section = None
     skip_next_hr = False
 
     for line in lines:
         stripped = line.strip()
 
-        # Detect section starts
         if stripped == "Slowest Tests:":
             current_section = "slowest"
             skip_next_hr = True
@@ -121,33 +120,23 @@ def extract_time_summary(lines: List[str]) -> Dict[str, List[str]]:
             skip_next_hr = True
             continue
 
-        # Skip horizontal rule after section header
         if skip_next_hr and stripped.startswith("---"):
             skip_next_hr = False
             continue
 
-        # Collect lines for current section
         if current_section == "slowest":
-            # Slowest section ends at empty line or next section
             if not stripped:
                 current_section = None
             elif not stripped.startswith("---"):
                 result["slowest"].append(line.rstrip())
         elif current_section == "histogram":
-            # Histogram section ends at:
-            # - Empty line
-            # - Line with only asterisks (section separator)
-            # - Line not starting with '[' and not only dashes
             if not stripped:
                 current_section = None
             elif stripped.replace("*", "") == "":
-                # Line contains only asterisks - end of section
                 current_section = None
             elif stripped.startswith("[") or stripped.replace("-", "") == "":
-                # Valid histogram line (header, data row, or separator)
                 result["histogram"].append(line.rstrip())
             else:
-                # Something else - end of histogram section
                 current_section = None
 
     return result
@@ -171,17 +160,7 @@ def _extract_tests_from_xml_by_filter(
     include_test_not_selected: bool,
     test_type_name: str
 ) -> List[str]:
-    """
-    Generic helper to extract tests from LIT xunit XML output.
-
-    Args:
-        xml_path: Path to XML file
-        include_test_not_selected: If True, include only tests with "Test not selected" message.
-                                   If False, exclude those tests.
-        test_type_name: Name for debug messages ("skipped" or "excluded")
-
-    Returns list of test names in format: classname.name
-    """
+    """Extract tests from LIT xunit XML by filtering on 'Test not selected' message."""
     if not xml_path or not Path(xml_path).exists():
         if xml_path and not Path(xml_path).exists():
             print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
@@ -219,21 +198,7 @@ def _extract_tests_from_xml_by_filter(
 
 
 def extract_skipped_from_xml(xml_path: str) -> List[str]:
-    """
-    Extract skipped test names from LIT xunit XML output.
-
-    LIT generates XML with --xunit-xml-output flag:
-    <testsuites>
-      <testsuite name="..." tests="123" skipped="10">
-        <testcase name="TestName" classname="TestClass">
-          <skipped message="reason"/>
-        </testcase>
-      </testsuite>
-    </testsuites>
-
-    Returns list of skipped test names in format: classname.name
-    Excludes tests with "Test not selected" message (those are excluded, not skipped).
-    """
+    """Extract skipped test names from LIT xunit XML (excludes 'Test not selected')."""
     return _extract_tests_from_xml_by_filter(
         xml_path,
         include_test_not_selected=False,
@@ -242,20 +207,7 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
 
 
 def extract_excluded_from_xml(xml_path: str) -> List[str]:
-    """
-    Extract excluded test names from LIT xunit XML output.
-
-    LIT marks excluded tests as skipped with specific message:
-    <testsuites>
-      <testsuite name="..." tests="123">
-        <testcase name="TestName" classname="TestClass">
-          <skipped message="Test not selected (--filter, --max-tests)"/>
-        </testcase>
-      </testsuite>
-    </testsuites>
-
-    Returns list of excluded test names in format: classname.name
-    """
+    """Extract excluded test names from LIT xunit XML (marked as 'Test not selected')."""
     return _extract_tests_from_xml_by_filter(
         xml_path,
         include_test_not_selected=True,
@@ -263,85 +215,12 @@ def extract_excluded_from_xml(xml_path: str) -> List[str]:
     )
 
 
-def extract_skipped_from_gtest(lines: List[str]) -> List[str]:
-    """
-    Extract skipped test names from GoogleTest output.
-
-    GoogleTest shows skipped tests in summary section:
-    [  SKIPPED ] 3 tests, listed below:
-    [  SKIPPED ] TestName1
-    [  SKIPPED ] TestName2
-    ...
-
-    Returns list of skipped test names.
-    """
-    skipped = []
-    in_summary = False
-
-    for line in lines:
-        # Start collecting after "[  SKIPPED ] N tests, listed below:"
-        if re.match(r"^\[  SKIPPED \] \d+ tests, listed below:", line):
-            in_summary = True
-            continue
-
-        # Stop at "X SKIPPED TESTS" line or empty line after list
-        if in_summary and (re.match(r"^ *\d+ SKIPPED TESTS", line) or not line.strip()):
-            break
-
-        # Collect test names from summary
-        if in_summary:
-            match = re.match(r"^\[  SKIPPED \] (.+)$", line)
-            if match:
-                test_name = match.group(1).strip()
-                skipped.append(test_name)
-
-    return skipped
-
-
-def extract_unsupported_from_lit_inline(lines: List[str]) -> List[str]:
-    """
-    Extract unsupported/skipped test names from LIT inline output.
-
-    During test execution, LIT prints:
-    UNSUPPORTED: TestName (reason)
-    SKIP: TestName
-
-    This is used for GoogleTest format where LIT doesn't generate
-    "Unsupported Tests (N):" summary list, but shows "Skipped" in statistics.
-
-    Returns list of unsupported/skipped test names (deduplicated).
-    """
-    unsupported = []
-    seen = set()
-
-    for line in lines:
-        match = UNSUPPORTED_PATTERN.match(line)
-        if match:
-            test_name = match.group(2).strip()
-            if test_name not in seen:
-                seen.add(test_name)
-                unsupported.append(test_name)
-
-    return unsupported
-
-
 def extract_test_lists(
     lines: List[str],
-) -> Tuple[Dict[str, List[str]], Dict[str, int]]:
-    """
-    Extract categorized test lists from LIT summary.
-
-    Looks for sections like:
-        Passed Tests (N):
-          test name 1
-          test name 2
-
-    Returns tuple of:
-    - Dictionary with category names as keys and test lists as values
-    - Dictionary with category names as keys and declared counts from headers
-    """
-    categories = {}
-    declared_counts = {}
+) -> Tuple[TestLists, TestCounts]:
+    """Extract categorized test lists and counts from LIT summary."""
+    categories: TestLists = {}
+    declared_counts: TestCounts = {}
     current_category = None
     current_tests = []
     current_declared_count = 0
@@ -349,20 +228,16 @@ def extract_test_lists(
     for line in lines:
         match = TEST_CATEGORY_PATTERN.match(line)
         if match:
-            # Save previous category
             if current_category:
                 categories[current_category] = current_tests
                 declared_counts[current_category] = current_declared_count
 
-            # Start new category
             current_category = match.group(1)
             current_declared_count = int(match.group(2))
             current_tests = []
             continue
 
-        # If we're in a category
         if current_category:
-            # Empty line ends the category
             if not line.strip():
                 categories[current_category] = current_tests
                 declared_counts[current_category] = current_declared_count
@@ -370,12 +245,10 @@ def extract_test_lists(
                 current_tests = []
                 current_declared_count = 0
             else:
-                # Add test to current category (strip leading whitespace)
                 test_name = line.strip()
                 if test_name:
                     current_tests.append(test_name)
 
-    # Save last category
     if current_category:
         categories[current_category] = current_tests
         declared_counts[current_category] = current_declared_count
@@ -383,76 +256,8 @@ def extract_test_lists(
     return categories, declared_counts
 
 
-def parse_gtest_list(all_tests_file: str) -> List[str]:
-    """
-    Parse --gtest_list_tests output to get full test names.
-
-    Format:
-        TestSuite.
-          TestName1/Param  # comment
-          TestName2
-
-    Returns list of full test names: TestSuite.TestName1/Param
-    """
-    if not Path(all_tests_file).exists():
-        return []
-
-    tests = []
-    current_suite = None
-
-    # Patterns to ignore (errors, warnings, GoogleTest verification messages)
-    ignore_patterns = [
-        "Error:",
-        "Warning:",
-        "Actual:",
-        "Expected:",
-        "Value of:",
-        "Failure",
-        "UninstantiatedParameterizedTestSuite",
-        "/__w/",  # File paths from error messages
-        "No platforms",
-    ]
-
-    with open(all_tests_file, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            line = line.rstrip()
-            if not line:
-                continue
-
-            # Skip error messages and warnings
-            if any(pattern in line for pattern in ignore_patterns):
-                continue
-
-            # Skip GoogleTestVerification suite (contains only warnings, not real tests)
-            if line == "GoogleTestVerification.":
-                current_suite = None
-                continue
-
-            # Suite line ends with '.'
-            if line.endswith(".") and not line.startswith(" "):
-                current_suite = line
-            # Test name (indented with exactly 2 spaces)
-            elif line.startswith("  ") and current_suite:
-                # Remove leading whitespace and comments
-                test_name = line.strip().split(" #")[0].strip()
-                if test_name:
-                    full_name = f"{current_suite}{test_name}"
-                    tests.append(full_name)
-
-    return tests
-
-
 def filter_log_for_display(lines: List[str]) -> List[str]:
-    """
-    Filter log to remove sections that are displayed separately.
-
-    Removes:
-    - Test statistics (Total Discovered, Passed:, Failed:, etc.)
-    - Test lists with status (Passed Tests (N):, Failed Tests (N):, etc.)
-    - Test timing summary (Testing Time, Slowest Tests, histogram)
-
-    Returns filtered log lines suitable for "Show Full Log" section.
-    """
+    """Filter log to remove statistics, test lists, and timing sections."""
     result = []
     skip_until_empty = False
     in_timing = False
@@ -467,34 +272,40 @@ def filter_log_for_display(lines: List[str]) -> List[str]:
             skip_until_empty = True
             continue
             
-        # Skip timing sections
         if stripped in ["Slowest Tests:", "Tests Times:", "Test Times:"]:
             in_timing = True
             continue
             
-        # End of timing section at asterisks line
         if in_timing and stripped.replace("*", "") == "":
             in_timing = False
             continue
             
-        # Skip content while in timing section
         if in_timing:
             continue
             
-        # Skip Testing Time line
         if stripped.startswith("Testing Time:"):
             continue
             
-        # Stop skipping at empty line after test list
         if skip_until_empty:
             if not stripped:
                 skip_until_empty = False
             continue
             
-        # Keep this line
         result.append(line)
     
     return result
+
+
+def _print_test_group(title: str, tests: List[str], note: str = None, count: int = None) -> None:
+    """Print a collapsible GitHub Actions group with test list."""
+    test_count = count if count is not None else len(tests)
+    print(f"::group::{title} ({test_count})")
+    if note:
+        print(note)
+        print()
+    for test in tests:
+        print(test)
+    print("::endgroup::")
 
 
 def _display_statistics(stats: List[str]) -> None:
@@ -515,10 +326,10 @@ def _get_count_from_stats(stats: List[str], keywords: List[str]) -> int:
 
 
 def _display_skipped_tests(
-    test_lists: Dict[str, List[str]],
-    declared_counts: Dict[str, int],
+    test_lists: TestLists,
+    declared_counts: TestCounts,
     stats: List[str],
-    xml_file: str
+    xml_file: Optional[str]
 ) -> int:
     skipped_from_log = test_lists.get("Skipped", test_lists.get("Unsupported", []))
     declared_count = declared_counts.get("Skipped", declared_counts.get("Unsupported", 0))
@@ -528,31 +339,20 @@ def _display_skipped_tests(
         actual_count = len(skipped_from_log)
         
         if actual_count == declared_count:
-            print(f"::group::Skipped Tests ({actual_count})")
-            for test in skipped_from_log:
-                print(test)
-            print("::endgroup::")
+            _print_test_group("Skipped Tests", skipped_from_log)
             test_lists.pop("Skipped", None)
             test_lists.pop("Unsupported", None)
             return actual_count
         
         skipped_xml = extract_skipped_from_xml(xml_file)
         if skipped_xml:
+            note = f"Note: Using XML data (log header claimed {declared_count}, but found {actual_count} lines)."
+            _print_test_group("Skipped Tests", skipped_xml, note)
             count = len(skipped_xml)
-            print(f"::group::Skipped Tests ({count})")
-            print(f"Note: Using XML data (log header claimed {declared_count}, but found {actual_count} lines).")
-            print()
-            for test in skipped_xml:
-                print(test)
-            print("::endgroup::")
         else:
+            note = f"Warning: Log header claimed {declared_count} skipped, but found {actual_count} lines."
+            _print_test_group("Skipped Tests", skipped_from_log, note)
             count = actual_count
-            print(f"::group::Skipped Tests ({actual_count})")
-            print(f"Warning: Log header claimed {declared_count} skipped, but found {actual_count} lines.")
-            print()
-            for test in skipped_from_log:
-                print(test)
-            print("::endgroup::")
         
         test_lists.pop("Skipped", None)
         test_lists.pop("Unsupported", None)
@@ -561,26 +361,20 @@ def _display_skipped_tests(
     elif stats_count:
         skipped_xml = extract_skipped_from_xml(xml_file)
         if skipped_xml:
-            count = len(skipped_xml)
-            print(f"::group::Skipped Tests ({count})")
-            for test in skipped_xml:
-                print(test)
-            print("::endgroup::")
-            return count
+            _print_test_group("Skipped Tests", skipped_xml)
+            return len(skipped_xml)
         
-        print(f"::group::Skipped Tests ({stats_count})")
-        print("Warning: Could not extract individual skipped test names.")
-        print(f"Statistics show {stats_count} skipped tests, but they are not available in the output.")
-        print("::endgroup::")
+        note = f"Warning: Could not extract individual skipped test names.\nStatistics show {stats_count} skipped tests, but they are not available in the output."
+        _print_test_group("Skipped Tests", [], note, count=stats_count)
         return stats_count
     
     return 0
 
 
 def _display_excluded_tests(
-    test_lists: Dict[str, List[str]],
+    test_lists: TestLists,
     stats: List[str],
-    xml_file: str
+    xml_file: Optional[str]
 ) -> int:
     if "Excluded" in test_lists:
         return 0
@@ -589,36 +383,26 @@ def _display_excluded_tests(
     stats_count = _get_count_from_stats(stats, ["Excluded:"])
     
     if excluded_xml:
-        count = len(excluded_xml)
-        print(f"::group::Excluded Tests ({count})")
-        for test in excluded_xml:
-            print(test)
-        print("::endgroup::")
-        return count
+        _print_test_group("Excluded Tests", excluded_xml)
+        return len(excluded_xml)
     
     elif stats_count:
-        print(f"::group::Excluded Tests ({stats_count})")
-        print("Warning: Could not extract individual excluded test names.")
-        print(f"Statistics show {stats_count} excluded tests, but they are not available in the output.")
-        print("::endgroup::")
+        note = f"Warning: Could not extract individual excluded test names.\nStatistics show {stats_count} excluded tests, but they are not available in the output."
+        _print_test_group("Excluded Tests", [], note, count=stats_count)
         return stats_count
     
     return 0
 
 
-def _display_remaining_categories(test_lists: Dict[str, List[str]]) -> None:
+def _display_remaining_categories(test_lists: TestLists) -> None:
     for category, tests in test_lists.items():
-        count = len(tests)
-        if count > 0:
-            print(f"::group::{category} Tests ({count})")
-            for test in tests:
-                print(test)
-            print("::endgroup::")
+        if tests:
+            _print_test_group(f"{category} Tests", tests)
 
 
 def _validate_test_counts(
     total_discovered: int,
-    test_lists: Dict[str, List[str]],
+    test_lists: TestLists,
     displayed_skipped: int,
     displayed_excluded: int
 ) -> None:
@@ -665,63 +449,47 @@ def _display_timing_summary(lines: List[str]) -> None:
     
     if time_info["slowest"]:
         print("Slowest Tests:")
-        print("-" * 70)
+        print("-" * SEPARATOR_WIDTH)
         for line in time_info["slowest"]:
             print(line)
         print()
     
     if time_info["histogram"]:
         print("Test Times Distribution:")
-        print("-" * 70)
+        print("-" * SEPARATOR_WIDTH)
         for line in time_info["histogram"]:
             print(line)
     
     print("::endgroup::")
 
 
-def show_statistics_and_lists(
-    lines: List[str], all_tests_file: str = None, xml_file: str = None
-) -> None:
-    stats = extract_statistics(lines)
+def show_statistics_and_lists(config: SummaryConfig) -> None:
+    """Display test statistics and categorized test lists."""
+    stats = extract_statistics(config.log_lines)
     _display_statistics(stats)
     
     total_discovered = _get_count_from_stats(stats, ["Total Discovered"])
-    test_lists, declared_counts = extract_test_lists(lines)
+    test_lists, declared_counts = extract_test_lists(config.log_lines)
     
-    displayed_skipped = _display_skipped_tests(test_lists, declared_counts, stats, xml_file)
-    displayed_excluded = _display_excluded_tests(test_lists, stats, xml_file)
+    displayed_skipped = _display_skipped_tests(test_lists, declared_counts, stats, config.xml_file)
+    displayed_excluded = _display_excluded_tests(test_lists, stats, config.xml_file)
     _display_remaining_categories(test_lists)
     _validate_test_counts(total_discovered, test_lists, displayed_skipped, displayed_excluded)
-    _display_timing_summary(lines)
+    _display_timing_summary(config.log_lines)
 
 
 def _print_usage() -> None:
-    print(
-        "Usage: ur_test_summary.py <command> <log_file> [all_tests_file] [xml_file]",
-        file=sys.stderr,
-    )
-    print("\nCommands:", file=sys.stderr)
-    print(
-        "  extract-errors <log>  - Extract FAIL/TIMEOUT error details", file=sys.stderr
-    )
-    print(
-        "  show-summary <log> [all_tests] [xml]  - Show statistics and collapsed test lists",
-        file=sys.stderr,
-    )
-    print(
-        "  filter-log <log>      - Filter log to remove test lists and timing (for Show Full Log)",
-        file=sys.stderr,
-    )
-    print("\nArguments:", file=sys.stderr)
-    print("  log          - LIT test output log file", file=sys.stderr)
-    print(
-        "  all_tests    - Optional: output from --gtest_list_tests (for computed skipped)",
-        file=sys.stderr,
-    )
-    print(
-        "  xml          - Optional: LIT xunit XML output (--xunit-xml-output)",
-        file=sys.stderr,
-    )
+    print("""Usage: ur_test_summary.py <command> <log_file> [xml_file]
+
+Commands:
+  extract-errors <log>  - Extract FAIL/TIMEOUT error details
+  show-summary <log> [xml]  - Show statistics and collapsed test lists
+  filter-log <log>      - Filter log to remove test lists and timing (for Show Full Log)
+
+Arguments:
+  log          - LIT test output log file
+  xml          - Optional: LIT xunit XML output (--xunit-xml-output)
+""", file=sys.stderr)
 
 
 def _validate_log_path(path: str) -> None:
@@ -739,7 +507,7 @@ def _validate_log_path(path: str) -> None:
 def _validate_optional_path(
     path: str, path_type: str, allow_absolute: bool = False
 ) -> str:
-    if not path or path == "":
+    if not path:
         return None
     if ".." in path:
         print(
@@ -782,15 +550,14 @@ def main():
             print(line, end="")
 
     elif command == "show-summary":
-        all_tests_file = _validate_optional_path(
-            sys.argv[3] if len(sys.argv) > 3 else None,
-            "all_tests",
-            allow_absolute=False,
-        )
         xml_file = _validate_optional_path(
-            sys.argv[4] if len(sys.argv) > 4 else None, "XML", allow_absolute=True
+            sys.argv[3] if len(sys.argv) > 3 else None, "XML", allow_absolute=True
         )
-        show_statistics_and_lists(lines, all_tests_file, xml_file)
+        config = SummaryConfig(
+            log_lines=lines,
+            xml_file=xml_file
+        )
+        show_statistics_and_lists(config)
 
     else:
         print(f"Error: Unknown command: {command}", file=sys.stderr)
