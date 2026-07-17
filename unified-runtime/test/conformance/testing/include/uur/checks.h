@@ -98,7 +98,7 @@ inline bool stringPropertyIsValid(const char *property,
   do {                                                                         \
     auto result = CALL;                                                        \
     if (result != UR_RESULT_SUCCESS) {                                         \
-      ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_FEATURE);       \
+      ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_FEATURE);           \
       ASSERT_TRUE(uur::isQueryOptional(QUERY));                                \
       GTEST_SKIP() << "Query " << #QUERY                                       \
                    << " is not supported by this adapter";                     \
