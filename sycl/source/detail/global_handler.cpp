@@ -312,17 +312,30 @@ void shutdown_early(bool CanJoinThreads = true) {
 
 #if defined(_WIN32)
   // In Windows ExitProcess all non host threads are forcibly terminated prior
-  // to DLL_PROCESS_DETACH. However, backend calls may rely on these threads
-  // being active. In such cases, making backend calls at DLL_PROCESS_DETACH
-  // can lead to hangs or memory corruption in the backend. Because of this it
-  // is best to not unload the backend after thread destruction.
-  //
+  // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
+  // threads being active. In such cases, making XPTI or backend calls at
+  // DLL_PROCESS_DETACH can lead to hangs or memory corruption. Because of this
+  // it is best to not unload the backend after thread destruction.
+#if defined(XPTI_ENABLE_INSTRUMENTATION)
+  if (xptiTraceEnabled())
+    return;
+#endif
   // Process is exiting
   if (CanJoinThreads) {
-    // If spawned threads using the Windows CRT are forcibly killed, this can
-    // prevent stdout buffer being flushed at the program end.
-    std::fflush(stdout);
-    return;
+    // Level zero relies on unloading cleanup for UR_L0_LEAKS_DEBUG
+    // functionality on Windows so don't exit early for L0 platforms.
+    if (auto PlatformCache =
+            GlobalHandler::RTGlobalObjHandler->getPlatformCache();
+        !std::any_of(PlatformCache.begin(), PlatformCache.end(),
+                     [](const std::shared_ptr<platform_impl> &p) {
+                       return p->getBackend() == backend::ext_oneapi_level_zero;
+                     })) {
+
+      // If spawned threads using the Windows CRT are forcibly killed, this
+      // can prevent stdout buffer being flushed at the program end.
+      std::fflush(stdout);
+      return;
+    }
   }
 #endif
 
@@ -367,15 +380,27 @@ void shutdown_late() {
 
 #if defined(_WIN32)
   // In Windows ExitProcess all non host threads are forcibly terminated prior
-  // to DLL_PROCESS_DETACH. However, backend calls may rely on these threads
-  // being active. In such cases, making backend calls at DLL_PROCESS_DETACH
-  // can lead to hangs or use-after-free in the backend. Because of this it is
-  // best to not unload the backend after thread destruction.
-  //
-  // If spawned threads using the Windows CRT are forcibly killed, this can
-  // prevent stdout buffer being flushed at the program end.
-  std::fflush(stdout);
-  return;
+  // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
+  // threads being active. In such cases, making XPTI or backend calls at
+  // DLL_PROCESS_DETACH can lead to hangs or memory corruption. Because of this
+  // it is best to not unload the backend after thread destruction.
+#if defined(XPTI_ENABLE_INSTRUMENTATION)
+  if (xptiTraceEnabled())
+    return;
+#endif
+  // Level zero relies on unloading cleanup for UR_L0_LEAKS_DEBUG
+  // functionality on Windows so don't exit early for L0 platforms.
+  if (auto PlatformCache =
+          GlobalHandler::RTGlobalObjHandler->getPlatformCache();
+      !std::any_of(PlatformCache.begin(), PlatformCache.end(),
+                   [](const std::shared_ptr<platform_impl> &p) {
+                     return p->getBackend() == backend::ext_oneapi_level_zero;
+                   })) {
+    // If spawned threads using the Windows CRT are forcibly killed, this can
+    // prevent stdout buffer being flushed at the program end.
+    std::fflush(stdout);
+    return;
+  }
 #endif
 
   // First, release resources, that may access adapters.
