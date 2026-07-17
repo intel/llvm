@@ -1,4 +1,4 @@
-// REQUIRES: zstd && system-linux
+// REQUIRES: zstd && system-linux && x86-registered-target
 
 // clang-linker-wrapper compression test: checks that the wrapper compresses
 // SYCL device images when --compress is set, tags them with
@@ -25,9 +25,21 @@
 // RUN:   %t.o -o %t.out --linker-path="/usr/bin/ld" 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-COMPRESS
 
-// CHECK-COMPRESS: [Compression] Original image size:
-// CHECK-COMPRESS: [Compression] Compressed image size:
+// Capture the original and compressed sizes.
+// CHECK-COMPRESS: [Compression] Original image size: [[#ORIG:]]
+// CHECK-COMPRESS: [Compression] Compressed image size: [[#COMP:]]
 // CHECK-COMPRESS: [Compression] Compression level used: 9
+//
+// Assert that the compressed size is strictly smaller than the original size
+// (i.e. ORIG - COMP > 0). FileCheck's numeric matching form only supports the
+// `==` constraint — there is no `<` or `>` — but sub() rejects underflow at
+// expression-evaluation time. We attach sub(ORIG, COMP) to a CHECK-NOT
+// pattern that begins with a sentinel string never present in the output:
+//   * when ORIG > COMP, sub() succeeds; the substituted pattern is
+//     "COMPRESSION_SIZE_CHECK<some-number>", which doesn't appear, so the
+//     CHECK-NOT is satisfied vacuously.
+//   * when COMP >= ORIG, sub() underflows and FileCheck fails the pattern.
+// CHECK-COMPRESS-NOT: COMPRESSION_SIZE_CHECK[[#sub(ORIG, COMP)]]
 // The tgt_device_image struct is { i16 Version, i8 Kind, i8 Format, ptr ... };
 // Kind for SYCL is 4, Format for BIF_Compressed is also 4.
 // CHECK-COMPRESS: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 {{[0-9]+}}, i8 4, i8 4,
