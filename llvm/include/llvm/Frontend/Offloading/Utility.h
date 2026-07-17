@@ -235,19 +235,15 @@ LLVM_ABI Error containerizeOpenMPSPIRVImage(
     StringRef CompileOpts = "", StringRef LinkOpts = "");
 } // namespace intel
 
-/// zstd-compress a SYCL device image. Shared between clang-offload-wrapper
-/// and clang-linker-wrapper so both apply the same threshold, level defaults,
-/// and verbose logging. Errors if zstd is unavailable at build time.
+/// zstd-compress a SYCL device image. 
+/// Errors if zstd is unavailable at build time.
 /// \param Input The uncompressed image bytes.
 /// \param Output Receives the compressed bytes on a hit; left untouched on a
 ///        skip.
-/// \param Level zstd compression level (default 10, matches
-///        clang-offload-wrapper).
-/// \param Threshold Skip compression when Input.size() < Threshold (default
-///        512, matches clang-offload-wrapper).
+/// \param Level zstd compression level.
+/// \param Threshold Skip compression when Input.size() < Threshold.
 /// \param Verbose Emit the "[Compression]" size/level lines to errs().
-/// \returns true if compression ran, false if the image was under the
-///          threshold (Output unchanged).
+/// \returns true if compression ran.
 LLVM_ABI Expected<bool>
 compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
                         SmallVectorImpl<uint8_t> &Output, int Level = 10,
