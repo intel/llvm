@@ -1,4 +1,11 @@
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: V1-only
+
+// UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21766
 
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=MODE1 %s
