@@ -17,10 +17,10 @@
 #include "usm.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
-    ur_queue_handle_t hQueue, [[maybe_unused]] ur_usm_pool_handle_t hPool,
-    const size_t size, const ur_exp_async_usm_alloc_properties_t *,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    void **ppMem, ur_event_handle_t *phEvent) try {
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t hPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, void **ppMem,
+    ur_event_handle_t *phEvent) try {
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   ScopedDevice Active(hQueue->getDevice());
@@ -39,10 +39,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     UR_CHECK_ERROR(RetImplEvent->start());
   }
 
-  // Allocate from the device's default stream-ordered memory pool. The HIP
-  // adapter does not expose a native pool for ur_usm_pool_handle_t, so any
-  // provided pool falls back to the default pool.
-  UR_CHECK_ERROR(hipMallocAsync(ppMem, size, HIPStream));
+  // Allocate from the specified device pool if provided. Otherwise, allocate
+  // from the current device's default pool.
+  if (hPool) {
+    assert(hPool->usesHipPool());
+    UR_CHECK_ERROR(
+        hipMallocFromPoolAsync(ppMem, size, hPool->getHipPool(), HIPStream));
+  } else {
+    UR_CHECK_ERROR(hipMallocAsync(ppMem, size, HIPStream));
+  }
 
   if (phEvent) {
     UR_CHECK_ERROR(RetImplEvent->record());

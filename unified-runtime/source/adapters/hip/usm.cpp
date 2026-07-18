@@ -413,6 +413,52 @@ bool ur_usm_pool_handle_t_::hasUMFPool(umf_memory_pool_t *umf_pool) {
          HostMemPool.get() == umf_pool;
 }
 
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                                             ur_device_handle_t Device,
+                                             ur_usm_pool_desc_t *PoolDesc)
+    : handle_base(), Context{Context}, Device{Device} {
+  if (!(PoolDesc->flags & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP))
+    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+
+  hipMemPoolProps MemPoolProps{};
+  size_t threshold = 0;
+
+  const void *pNext = PoolDesc->pNext;
+  while (pNext != nullptr) {
+    const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
+    switch (BaseDesc->stype) {
+    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
+      const ur_usm_pool_limits_desc_t *Limits =
+          reinterpret_cast<const ur_usm_pool_limits_desc_t *>(BaseDesc);
+      MemPoolProps.maxSize = Limits->maxPoolableSize;
+      maxSize = Limits->maxPoolableSize;
+      threshold = Limits->minDriverAllocSize;
+      break;
+    }
+    default: {
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+    }
+    pNext = BaseDesc->pNext;
+  }
+
+  MemPoolProps.allocType = hipMemAllocationTypePinned;
+  MemPoolProps.location.id = Device->getIndex();
+  MemPoolProps.location.type = hipMemLocationTypeDevice;
+  UR_CHECK_ERROR(hipMemPoolCreate(&HIPMemPool, &MemPoolProps));
+
+  // Release threshold is not a property when creating a pool.
+  // It must be set separately.
+  UR_CHECK_ERROR(urUSMPoolSetInfoExp(this,
+                                     UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP,
+                                     &threshold, 8 /*uint64_t*/));
+}
+
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                                             ur_device_handle_t Device,
+                                             hipMemPool_t HIPMemPool)
+    : handle_base(), Context{Context}, Device{Device}, HIPMemPool(HIPMemPool) {}
+
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
     /// [in] handle of the context object
     ur_context_handle_t Context,
@@ -488,34 +534,135 @@ bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc) {
           (alignment == 0 || ((alignment & (alignment - 1)) == 0)));
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t,
-                                                       ur_device_handle_t,
-                                                       ur_usm_pool_desc_t *,
-                                                       ur_usm_pool_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
+                   ur_usm_pool_desc_t *pPoolDesc, ur_usm_pool_handle_t *pPool) {
+  // This entry point only supports native mem pools.
+  if (!(pPoolDesc->flags & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP))
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  try {
+    *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
+        new ur_usm_pool_handle_t_(Context, Device, pPoolDesc));
+  } catch (ur_result_t e) {
+    return e;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t,
-                                                        ur_device_handle_t,
-                                                        ur_usm_pool_handle_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolDestroyExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                    ur_usm_pool_handle_t hPool) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedDevice Active(hDevice);
+
+  try {
+    UR_CHECK_ERROR(hipMemPoolDestroy(hPool->getHipPool()));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
-                                                        ur_usm_pool_info_t,
-                                                        void *, size_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName, void *pPropValue,
+    size_t) {
+  hipMemPoolAttr attr;
+
+  // All current values are expected to be of size uint64_t.
+  switch (propName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    attr = hipMemPoolAttrReleaseThreshold;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    attr = hipMemPoolAttrReservedMemHigh;
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    attr = hipMemPoolAttrUsedMemHigh;
+    break;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+  try {
+    UR_CHECK_ERROR(
+        hipMemPoolSetAttribute(hPool->getHipPool(), attr, pPropValue));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_usm_pool_handle_t *pPool) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedDevice Active(hDevice);
+
+  try {
+    hipMemPool_t HipPool;
+    UR_CHECK_ERROR(
+        hipDeviceGetDefaultMemPool(&HipPool, hDevice->getIndex()));
+
+    *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
+        new ur_usm_pool_handle_t_(hContext, hDevice, HipPool));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t,
-                                                        ur_usm_pool_info_t,
-                                                        void *, size_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
+                    void *pPropValue, size_t *pPropSizeRet) {
+  hipMemPoolAttr attr;
+
+  switch (propName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    attr = hipMemPoolAttrReleaseThreshold;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP:
+    attr = hipMemPoolAttrReservedMemCurrent;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    attr = hipMemPoolAttrReservedMemHigh;
+    break;
+  case UR_USM_POOL_INFO_USED_CURRENT_EXP:
+    attr = hipMemPoolAttrUsedMemCurrent;
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    attr = hipMemPoolAttrUsedMemHigh;
+    break;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  uint64_t value = 0;
+  UR_CHECK_ERROR(
+      hipMemPoolGetAttribute(hPool->getHipPool(), attr, (void *)&value));
+
+  if (pPropValue) {
+    *(size_t *)pPropValue = value;
+  }
+  if (pPropSizeRet) {
+    *(size_t *)pPropSizeRet = sizeof(size_t);
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
@@ -528,11 +675,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
-                                                       ur_device_handle_t,
-                                                       ur_usm_pool_handle_t,
-                                                       size_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                   ur_usm_pool_handle_t hPool, size_t minBytesToKeep) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedDevice Active(hDevice);
+
+  try {
+    UR_CHECK_ERROR(hipMemPoolTrimTo(hPool->getHipPool(), minBytesToKeep));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
