@@ -261,21 +261,31 @@ static ur_result_t urEnqueueKernelLaunch(
   ur_kernel_launch_ext_properties_t *_launchPropList =
       const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
   // HIP supports cooperative kernel launches through
-  // hipModuleLaunchCooperativeKernel. Any other launch property flag is
+  // hipModuleLaunchCooperativeKernel and dynamic work-group local memory
+  // requested via a work-group launch property. Any other launch property is
   // unsupported, see https://github.com/intel/llvm/issues/18421
   bool UseCooperativeLaunch = false;
-  if (_launchPropList &&
-      _launchPropList->flags & ~UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  size_t WorkGroupMemory = 0;
 
   while (_launchPropList != nullptr) {
-    if (_launchPropList->stype !=
-        as_stype<ur_kernel_launch_ext_properties_t>()) {
+    switch (_launchPropList->stype) {
+    case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_EXT_PROPERTIES: {
+      if (_launchPropList->flags & ~UR_KERNEL_LAUNCH_FLAG_COOPERATIVE)
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      if (_launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE)
+        UseCooperativeLaunch = true;
+      break;
+    }
+    case UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY: {
+      WorkGroupMemory =
+          reinterpret_cast<ur_kernel_launch_workgroup_property_t *>(
+              _launchPropList)
+              ->workgroup_mem_size;
+      break;
+    }
+    default:
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
-    if (_launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE)
-      UseCooperativeLaunch = true;
     _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
         _launchPropList->pNext);
   }
@@ -333,16 +343,19 @@ static ur_result_t urEnqueueKernelLaunch(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
+    // Dynamic work-group local memory requested through a launch property is
+    // added on top of the static local memory of the kernel arguments.
+    uint32_t SharedMemBytes = hKernel->getLocalSize() + WorkGroupMemory;
     if (UseCooperativeLaunch) {
       UR_CHECK_ERROR(hipModuleLaunchCooperativeKernel(
           HIPFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
           ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
-          hKernel->getLocalSize(), HIPStream, ArgPointers.data()));
+          SharedMemBytes, HIPStream, ArgPointers.data()));
     } else {
       UR_CHECK_ERROR(hipModuleLaunchKernel(
           HIPFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
           ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
-          hKernel->getLocalSize(), HIPStream, ArgPointers.data(), nullptr));
+          SharedMemBytes, HIPStream, ArgPointers.data(), nullptr));
     }
 
     if (phEvent) {
