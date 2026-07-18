@@ -260,10 +260,10 @@ static ur_result_t urEnqueueKernelLaunch(
 
   ur_kernel_launch_ext_properties_t *_launchPropList =
       const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
-  // Adapters that don't support cooperative kernels are currently expected
-  // to ignore COOPERATIVE launch properties. Ideally we should avoid passing
-  // these at the SYCL RT level instead, see
-  // https://github.com/intel/llvm/issues/18421
+  // HIP supports cooperative kernel launches through
+  // hipModuleLaunchCooperativeKernel. Any other launch property flag is
+  // unsupported, see https://github.com/intel/llvm/issues/18421
+  bool UseCooperativeLaunch = false;
   if (_launchPropList &&
       _launchPropList->flags & ~UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -274,6 +274,8 @@ static ur_result_t urEnqueueKernelLaunch(
         as_stype<ur_kernel_launch_ext_properties_t>()) {
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+    if (_launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE)
+      UseCooperativeLaunch = true;
     _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
         _launchPropList->pNext);
   }
@@ -331,10 +333,17 @@ static ur_result_t urEnqueueKernelLaunch(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    UR_CHECK_ERROR(hipModuleLaunchKernel(
-        HIPFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
-        ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
-        hKernel->getLocalSize(), HIPStream, ArgPointers.data(), nullptr));
+    if (UseCooperativeLaunch) {
+      UR_CHECK_ERROR(hipModuleLaunchCooperativeKernel(
+          HIPFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
+          ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
+          hKernel->getLocalSize(), HIPStream, ArgPointers.data()));
+    } else {
+      UR_CHECK_ERROR(hipModuleLaunchKernel(
+          HIPFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
+          ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
+          hKernel->getLocalSize(), HIPStream, ArgPointers.data(), nullptr));
+    }
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());

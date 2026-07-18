@@ -57,11 +57,22 @@ _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(int scope_memory,
   __mem_fence(scope_memory, semantics);
 }
 
+// Grid-wide synchronization provided by the ROCm device library (ockl). It is
+// only valid when the kernel is launched cooperatively (all work-groups are
+// co-resident), which the HIP UR adapter guarantees for root-group barriers.
+extern _CLC_CONVERGENT void __ockl_grid_sync(void);
+
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
 __spirv_ControlBarrier(int scope_execution, int scope_memory,
                        int semantics) {
   if (semantics) {
     __mem_fence(scope_memory, semantics);
   }
-  __builtin_amdgcn_s_barrier();
+  // A Device/CrossDevice execution scope corresponds to a root-group barrier
+  // that must synchronize every work-item in the grid, not just the work-group.
+  if (scope_execution == Device || scope_execution == CrossDevice) {
+    __ockl_grid_sync();
+  } else {
+    __builtin_amdgcn_s_barrier();
+  }
 }
