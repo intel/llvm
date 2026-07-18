@@ -184,7 +184,15 @@ public:
 };
 
 FunctionPass *createWebAssemblyFixIrreducibleControlFlowLegacyPass();
-FunctionPass *createWebAssemblyLateEHPrepare();
+
+class WebAssemblyLateEHPreparePass
+    : public RequiredPassInfoMixin<WebAssemblyLateEHPreparePass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyLateEHPrepareLegacyPass();
 FunctionPass *createWebAssemblyCFGSort();
 FunctionPass *createWebAssemblyCFGStackify();
 FunctionPass *createWebAssemblyExplicitLocals();
@@ -211,7 +219,7 @@ void initializeWebAssemblyExplicitLocalsPass(PassRegistry &);
 void initializeWebAssemblyFixBrTableDefaultsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixFunctionBitcastsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PassRegistry &);
-void initializeWebAssemblyLateEHPreparePass(PassRegistry &);
+void initializeWebAssemblyLateEHPrepareLegacyPass(PassRegistry &);
 void initializeWebAssemblyLowerBrUnlessPass(PassRegistry &);
 void initializeWebAssemblyLowerEmscriptenEHSjLjLegacyPass(PassRegistry &);
 void initializeWebAssemblyMCLowerPrePassPass(PassRegistry &);

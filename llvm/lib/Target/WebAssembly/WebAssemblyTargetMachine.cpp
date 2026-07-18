@@ -109,7 +109,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyRegColoringPass(PR);
   initializeWebAssemblyNullifyDebugValueListsLegacyPass(PR);
   initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PR);
-  initializeWebAssemblyLateEHPreparePass(PR);
+  initializeWebAssemblyLateEHPrepareLegacyPass(PR);
   initializeWebAssemblyExceptionInfoPass(PR);
   initializeWebAssemblyCFGSortPass(PR);
   initializeWebAssemblyCFGStackifyPass(PR);
@@ -451,7 +451,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
   // Do various transformations for exception handling.
   // Every CFG-changing optimizations should come before this.
   if (TM->Options.ExceptionModel == ExceptionHandling::Wasm)
-    addPass(createWebAssemblyLateEHPrepare());
+    addPass(createWebAssemblyLateEHPrepareLegacyPass());
 
   // Now that we have a prologue and epilogue and all frame indices are
   // rewritten, eliminate SP and FP. This allows them to be stackified,
