@@ -1006,6 +1006,10 @@ public:
       return static_cast<size_t>(
           get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>());
     }
+    CASE(ext::oneapi::info::device::max_threads_per_compute_unit) {
+      return static_cast<size_t>(
+          get_info_impl<UR_DEVICE_INFO_MAX_THREADS_PER_COMPUTE_UNIT>());
+    }
 
     // ext::intel device traits (defined under sycl/ext/intel/info/device.hpp).
 

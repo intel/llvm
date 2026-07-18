@@ -60,6 +60,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     return ReturnValue(hDevice->getNumComputeUnits());
   }
+  case UR_DEVICE_INFO_MAX_THREADS_PER_COMPUTE_UNIT: {
+    int MaxThreads = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxThreads, CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR,
+        hDevice->get()));
+    assert(MaxThreads >= 0);
+    return ReturnValue(static_cast<uint32_t>(MaxThreads));
+  }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS: {
     return ReturnValue(MaxWorkItemDimensions);
   }

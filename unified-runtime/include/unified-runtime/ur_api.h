@@ -2427,6 +2427,12 @@ typedef enum ur_device_info_t {
   /// [uint32_t][optional-query] return Intel GPU maximal number of lanes
   /// (virtual SIMD size) per hardware thread
   UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD = 139,
+  /// [uint32_t][optional-query] the maximum number of work-items (threads)
+  /// that can be resident on a single compute unit (CUDA/HIP streaming
+  /// multiprocessor). Corresponds to
+  /// CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR /
+  /// hipDeviceAttributeMaxThreadsPerMultiProcessor.
+  UR_DEVICE_INFO_MAX_THREADS_PER_COMPUTE_UNIT = 140,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
