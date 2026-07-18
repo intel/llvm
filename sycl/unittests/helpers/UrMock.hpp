@@ -177,6 +177,14 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
       **params->ppPropSizeRet = sizeof(MockDeviceName);
     return UR_RESULT_SUCCESS;
   }
+  case UR_DEVICE_INFO_PLATFORM: {
+    if (*params->ppPropValue)
+      *static_cast<ur_platform_handle_t *>(*params->ppPropValue) =
+          reinterpret_cast<ur_platform_handle_t>(1);
+    if (*params->ppPropSizeRet)
+      **params->ppPropSizeRet = sizeof(ur_platform_handle_t);
+    return UR_RESULT_SUCCESS;
+  }
   case UR_DEVICE_INFO_PARENT_DEVICE: {
     if (*params->ppPropValue)
       *static_cast<ur_device_handle_t *>(*params->ppPropValue) = nullptr;
