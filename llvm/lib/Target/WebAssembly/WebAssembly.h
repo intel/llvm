@@ -152,7 +152,14 @@ public:
 FunctionPass *createWebAssemblyCleanCodeAfterTrapLegacyPass();
 
 // Late passes.
-FunctionPass *createWebAssemblyReplacePhysRegs();
+class WebAssemblyReplacePhysRegsPass
+    : public RequiredPassInfoMixin<WebAssemblyReplacePhysRegsPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyReplacePhysRegsLegacyPass();
 
 class WebAssemblyNullifyDebugValueListsPass
     : public RequiredPassInfoMixin<WebAssemblyNullifyDebugValueListsPass> {
@@ -230,7 +237,7 @@ void initializeWebAssemblyPeepholePass(PassRegistry &);
 void initializeWebAssemblyRegColoringPass(PassRegistry &);
 void initializeWebAssemblyRegNumberingPass(PassRegistry &);
 void initializeWebAssemblyRegStackifyPass(PassRegistry &);
-void initializeWebAssemblyReplacePhysRegsPass(PassRegistry &);
+void initializeWebAssemblyReplacePhysRegsLegacyPass(PassRegistry &);
 void initializeWebAssemblySetP2AlignOperandsLegacyPass(PassRegistry &);
 void initializeWebAssemblyCoalesceFeaturesAndStripAtomicsLegacyPass(
     PassRegistry &);
