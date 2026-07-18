@@ -562,6 +562,20 @@ public:
   /// This ensures UR is setup for adapter mocking and also injects our default
   /// entry-point overrides into the mock adapter.
   UrMock() {
+    // Device selector env vars are read into a process-wide cache on first
+    // use (see SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get()). If left set in the
+    // ambient environment, they filter out the mock adapter's device (which
+    // reports itself as `Backend`, opencl by default) and every mock-based
+    // test aborts with "No device of requested type available". Clear them
+    // before any SYCL runtime code can read them.
+#ifdef _WIN32
+    _putenv_s("ONEAPI_DEVICE_SELECTOR", "");
+    _putenv_s("SYCL_DEVICE_FILTER", "");
+#else
+    unsetenv("ONEAPI_DEVICE_SELECTOR");
+    unsetenv("SYCL_DEVICE_FILTER");
+#endif
+
     if constexpr (Backend == backend::opencl) {
       // Some tests use the interop handles, so we need to ensure the mock
       // OpenCL library is loaded.
