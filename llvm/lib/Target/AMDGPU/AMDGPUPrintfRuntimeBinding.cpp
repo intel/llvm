@@ -29,6 +29,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/Utils/AMDGPUEmitPrintf.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 using namespace llvm;
@@ -58,6 +59,14 @@ private:
                                StringRef fmt, size_t num_ops) const;
 
   bool lowerPrintfForGpu(Module &M);
+
+  // Lowers printf calls using the buffered scheme shared with clang's HIP
+  // -mprintf-kind=buffered lowering (llvm::emitAMDGPUPrintfCall). This produces
+  // a device print buffer layout that the HIP/OpenCL runtime parses. Unlike
+  // lowerPrintfForGpu(), it can be run after inlining, which is required for
+  // SYCL where printf calls are wrapped in a helper and the format string is
+  // only a resolvable constant once the wrapper has been inlined.
+  bool lowerPrintfForGpuBuffered(Module &M);
 
   const DataLayout *TD;
   SmallVector<CallInst *, 32> Printfs;
@@ -423,6 +432,36 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
   return true;
 }
 
+bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpuBuffered(Module &M) {
+  for (auto *CI : Printfs) {
+    // Collect the printf call arguments (format string followed by the
+    // C-vararg-promoted arguments) and hand them off to the shared buffered
+    // printf emitter.
+    SmallVector<Value *, 8> Args(CI->args());
+
+    // Split the call's basic block so the hammock created by
+    // emitAMDGPUPrintfCall has a well-defined continuation.
+    BasicBlock *Tail = CI->getParent()->splitBasicBlock(CI, "printf.split");
+    BasicBlock *Head = Tail->getSinglePredecessor();
+    assert(Head && "expected split to create a single predecessor");
+    Head->getTerminator()->eraseFromParent();
+
+    IRBuilder<> Builder(Head);
+    Builder.SetCurrentDebugLocation(CI->getDebugLoc());
+    Value *Result = emitAMDGPUPrintfCall(Builder, Args, /*IsBuffered=*/true);
+    Builder.CreateBr(Tail);
+
+    if (!CI->use_empty())
+      CI->replaceAllUsesWith(Result);
+  }
+
+  for (auto *CI : Printfs)
+    CI->eraseFromParent();
+
+  Printfs.clear();
+  return true;
+}
+
 bool AMDGPUPrintfRuntimeBindingImpl::run(Module &M) {
   auto *PrintfFunction = M.getFunction("printf");
   if (!PrintfFunction || !PrintfFunction->isDeclaration() ||
@@ -451,6 +490,16 @@ bool AMDGPUPrintfRuntimeBindingImpl::run(Module &M) {
     return false;
 
   TD = &M.getDataLayout();
+
+  // When the module requests the buffered printf scheme (e.g. SYCL device code
+  // targeting the HIP runtime), use the buffered emitter which produces the
+  // print buffer layout expected by the HIP/OpenCL runtime and correctly
+  // handles %s once the format string is a resolvable constant.
+  if (auto *MD = M.getModuleFlag("amdgpu_printf_kind")) {
+    if (auto *MDS = dyn_cast<MDString>(MD))
+      if (MDS->getString() == "buffered")
+        return lowerPrintfForGpuBuffered(M);
+  }
 
   return lowerPrintfForGpu(M);
 }

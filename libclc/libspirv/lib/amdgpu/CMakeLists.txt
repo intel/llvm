@@ -65,3 +65,12 @@ libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   async/wait_group_events.cl
   assert/__assert_fail.cl
 )
+
+# Provide the AMDGPU buffered-printf allocator helper. The AMDGPUPrintfRuntimeBinding
+# backend pass lowers printf calls to __printf_alloc + a device print buffer; the
+# definition is shared with the OpenCL libclc build.
+libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET}
+  BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../opencl/lib/amdgpu
+  FILES
+  printf/__printf_alloc.cl
+)

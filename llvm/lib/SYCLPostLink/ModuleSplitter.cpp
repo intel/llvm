@@ -295,7 +295,11 @@ void collectFunctionsAndGlobalVariablesToExtract(
 
 static bool isIntrinsicOrBuiltin(const Function &F) {
   return F.isIntrinsic() || F.getName().starts_with("__") ||
-         isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName());
+         // printf is a standard C library builtin. On AMDGPU it is left as an
+         // undefined declaration until the AMDGPUPrintfRuntimeBinding backend
+         // pass lowers it, so it is not an undefined *user* function.
+         F.getName() == "printf" || isSpirvSyclBuiltin(F.getName()) ||
+         isESIMDBuiltin(F.getName());
 }
 
 // Checks for use of undefined user functions and emits a warning message.
