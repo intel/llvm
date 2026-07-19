@@ -293,18 +293,18 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     // No operations were performed on the mem object
     return true;
 
-#ifdef _WIN32
-  // If we are shutting down on Windows it may not be
-  // safe to wait on host threads, as the OS may
-  // abandon them. But no worries, the memory WILL be reclaimed.
+  // If we are shutting down it may not be safe to wait on in-flight work.
+  // On Windows the OS may have abandoned host threads. On any platform the
+  // adapters/contexts may already be partially torn down by early shutdown
+  // (e.g. the HIP runtime segfaults when synchronizing on an event whose
+  // stream/context has been released). During shutdown host memory is not
+  // written back either (see SYCLMemObjT::updateHostMemory), so waiting serves
+  // no purpose here and the memory WILL be reclaimed as the process exits.
   bool allowWait =
       MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
   if (!allowWait) {
     StrictLock = false;
   }
-#else
-  bool allowWait = true;
-#endif
 
   if (allowWait) {
     // This only needs a shared mutex as it only involves enqueueing and
