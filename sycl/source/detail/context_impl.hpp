@@ -288,7 +288,9 @@ public:
   /// Register that a native graph recording has ended on a queue in this
   /// context.
   void nativeRecordingEnded() {
-    MNativeRecordingCount.fetch_sub(1, std::memory_order_release);
+    [[maybe_unused]] int64_t Prev =
+        MNativeRecordingCount.fetch_sub(1, std::memory_order_release);
+    assert(Prev > 0 && "Native recording counter underflow");
   }
 
 private:
