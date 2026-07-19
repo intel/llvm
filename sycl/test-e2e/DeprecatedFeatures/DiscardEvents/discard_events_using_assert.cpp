@@ -1,8 +1,5 @@
-// FIXME unsupported on CUDA and HIP until fallback libdevice becomes available
+// FIXME unsupported on CUDA until fallback libdevice becomes available
 // UNSUPPORTED: cuda
-//
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 //
 // RUN: %{build} -o %t.out
 //
