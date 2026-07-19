@@ -78,7 +78,8 @@ __SYCL_INVOKE_SPIRV_CALL_ARG1(ImageQueryFormat)
 __SYCL_INVOKE_SPIRV_CALL_ARG1(ImageQueryOrder)
 
 template <typename ImageT, typename CoordT, typename ValT>
-static void __invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
+__attribute__((always_inline)) static inline void
+__invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
@@ -89,7 +90,8 @@ static void __invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
+__attribute__((always_inline)) static inline RetType
+__invoke__ImageRead(ImageT Img, CoordT Coords) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
@@ -100,7 +102,8 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static RetType __invoke__ImageFetch(ImageT Img, CoordT Coords) {
+__attribute__((always_inline)) static inline RetType
+__invoke__ImageFetch(ImageT Img, CoordT Coords) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
@@ -112,7 +115,8 @@ static RetType __invoke__ImageFetch(ImageT Img, CoordT Coords) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static RetType __invoke__SampledImageFetch(ImageT Img, CoordT Coords) {
+__attribute__((always_inline)) static inline RetType
+__invoke__SampledImageFetch(ImageT Img, CoordT Coords) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
@@ -124,10 +128,11 @@ static RetType __invoke__SampledImageFetch(ImageT Img, CoordT Coords) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static std::enable_if_t<std::is_same_v<RetType, sycl::vec<float, 4>> ||
-                            std::is_same_v<RetType, sycl::vec<int, 4>> ||
-                            std::is_same_v<RetType, sycl::vec<unsigned int, 4>>,
-                        RetType>
+__attribute__((always_inline)) static inline std::enable_if_t<
+    std::is_same_v<RetType, sycl::vec<float, 4>> ||
+        std::is_same_v<RetType, sycl::vec<int, 4>> ||
+        std::is_same_v<RetType, sycl::vec<unsigned int, 4>>,
+    RetType>
 __invoke__SampledImageGather(ImageT Img, CoordT Coords, unsigned Component) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
@@ -140,8 +145,8 @@ __invoke__SampledImageGather(ImageT Img, CoordT Coords, unsigned Component) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
-                                         int ArrayLayer) {
+__attribute__((always_inline)) static inline RetType
+__invoke__ImageArrayFetch(ImageT Img, CoordT Coords, int ArrayLayer) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
@@ -153,8 +158,8 @@ static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static RetType __invoke__SampledImageArrayFetch(ImageT Img, CoordT Coords,
-                                                int ArrayLayer) {
+__attribute__((always_inline)) static inline RetType
+__invoke__SampledImageArrayFetch(ImageT Img, CoordT Coords, int ArrayLayer) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
@@ -166,8 +171,8 @@ static RetType __invoke__SampledImageArrayFetch(ImageT Img, CoordT Coords,
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static RetType __invoke__ImageArrayRead(ImageT Img, CoordT Coords,
-                                        int ArrayLayer) {
+__attribute__((always_inline)) static inline RetType
+__invoke__ImageArrayRead(ImageT Img, CoordT Coords, int ArrayLayer) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
@@ -179,8 +184,8 @@ static RetType __invoke__ImageArrayRead(ImageT Img, CoordT Coords,
 }
 
 template <typename ImageT, typename CoordT, typename ValT>
-static void __invoke__ImageArrayWrite(ImageT Img, CoordT Coords, int ArrayLayer,
-                                      ValT Val) {
+__attribute__((always_inline)) static inline void
+__invoke__ImageArrayWrite(ImageT Img, CoordT Coords, int ArrayLayer, ValT Val) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
@@ -191,7 +196,8 @@ static void __invoke__ImageArrayWrite(ImageT Img, CoordT Coords, int ArrayLayer,
 }
 
 template <typename RetType, typename SmpImageT, typename DirVecT>
-static RetType __invoke__ImageReadCubemap(SmpImageT SmpImg, DirVecT DirVec) {
+__attribute__((always_inline)) static inline RetType
+__invoke__ImageReadCubemap(SmpImageT SmpImg, DirVecT DirVec) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
@@ -203,8 +209,8 @@ static RetType __invoke__ImageReadCubemap(SmpImageT SmpImg, DirVecT DirVec) {
 }
 
 template <typename RetType, typename SmpImageT, typename CoordT>
-static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
-                                      float Level) {
+__attribute__((always_inline)) static inline RetType
+__invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords, float Level) {
   // The result type of the SPIR-V instruction OpImageSampleExplicitLod must be
   // a vector of four components. Use the type trait to get the appropriate
   // temporary vector type based on the original return type.
@@ -237,8 +243,8 @@ static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
 }
 
 template <typename RetType, typename SmpImageT, typename CoordT>
-static RetType __invoke__ImageReadGrad(SmpImageT SmpImg, CoordT Coords,
-                                       CoordT Dx, CoordT Dy) {
+__attribute__((always_inline)) static inline RetType
+__invoke__ImageReadGrad(SmpImageT SmpImg, CoordT Coords, CoordT Dx, CoordT Dy) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
@@ -260,8 +266,9 @@ static RetType __invoke__ImageReadGrad(SmpImageT SmpImg, CoordT Coords,
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
-                                          const __ocl_sampler_t &Smpl) {
+__attribute__((always_inline)) static inline RetType
+__invoke__ImageReadSampler(ImageT Img, CoordT Coords,
+                           const __ocl_sampler_t &Smpl) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
