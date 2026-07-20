@@ -39,6 +39,7 @@
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/Runtime/Assign.h"
+#include "flang/Optimizer/Builder/Runtime/CUDA/Descriptor.h"
 #include "flang/Optimizer/Builder/Runtime/Character.h"
 #include "flang/Optimizer/Builder/Runtime/Derived.h"
 #include "flang/Optimizer/Builder/Runtime/EnvironmentDefaults.h"
@@ -1246,6 +1247,13 @@ public:
     return bridge.fctCtx();
   }
 
+  Fortran::lower::StatementContext &getCudaCleanupCtx() override final {
+    if (!activeConstructStack.empty() &&
+        activeConstructStack.back().eval.isA<Fortran::parser::BlockConstruct>())
+      return activeConstructStack.back().stmtCtx;
+    return bridge.cudaCleanupCtx();
+  }
+
   /// Initializes values for STAT and ERRMSG
   std::pair<mlir::Value, mlir::Value>
   genStatAndErrmsg(mlir::Location loc,
@@ -1972,11 +1980,20 @@ private:
   void genExitRoutine(bool earlyReturn, mlir::ValueRange retval = {}) {
     if (blockIsUnterminated()) {
       bridge.openAccCtx().finalizeAndKeep();
+      if (bridge.cudaCleanupCtx().hasCode()) {
+        mlir::Location loc = toLocation();
+        mlir::Value active =
+            fir::runtime::cuda::genDeviceIsActive(*builder, loc);
+        builder->genIfThen(loc, active)
+            .genThen([&]() { bridge.cudaCleanupCtx().finalizeAndKeep(); })
+            .end();
+      }
       bridge.fctCtx().finalizeAndKeep();
       mlir::func::ReturnOp::create(*builder, toLocation(), retval);
     }
     if (!earlyReturn) {
       bridge.openAccCtx().pop();
+      bridge.cudaCleanupCtx().pop();
       bridge.fctCtx().pop();
     }
   }
@@ -6322,6 +6339,7 @@ private:
   void startNewFunction(Fortran::lower::pft::FunctionLikeUnit &funit) {
     assert(!builder && "expected nullptr");
     bridge.fctCtx().pushScope();
+    bridge.cudaCleanupCtx().pushScope();
     bridge.openAccCtx().pushScope();
     const Fortran::semantics::Scope &scope = funit.getScope();
     LLVM_DEBUG(llvm::dbgs() << "\n[bridge - startNewFunction]";
