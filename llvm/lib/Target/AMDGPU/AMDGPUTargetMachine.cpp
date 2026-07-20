@@ -163,7 +163,7 @@ public:
   void addPreEmitPass(PassManagerWrapper &PMWM) const;
   void addPreEmitRegAlloc(PassManagerWrapper &PMW) const;
   Error addRegAssignAndRewriteFast(PassManagerWrapper &PMW) const;
-  Error addRegAssignAndRewriteOptimized(PassManagerWrapper &PMW) const;
+  Expected<bool> addRegAssignAndRewriteOptimized(PassManagerWrapper &PMW) const;
   void addPreRegAlloc(PassManagerWrapper &PMW) const;
   Error addFastRegAlloc(PassManagerWrapper &PMW) const;
   Error addOptimizedRegAlloc(PassManagerWrapper &PMW) const;
@@ -2606,7 +2606,7 @@ void AMDGPUCodeGenPassBuilder::addPreRegAlloc(PassManagerWrapper &PMW) const {
     addMachineFunctionPass(AMDGPUPrepareAGPRAllocPass(), PMW);
 }
 
-Error AMDGPUCodeGenPassBuilder::addRegAssignAndRewriteOptimized(
+Expected<bool> AMDGPUCodeGenPassBuilder::addRegAssignAndRewriteOptimized(
     PassManagerWrapper &PMW) const {
   if (auto Err = validateRegAllocOptions())
     return Err;
@@ -2657,7 +2657,7 @@ Error AMDGPUCodeGenPassBuilder::addRegAssignAndRewriteOptimized(
   addMachineFunctionPass(VirtRegRewriterPass(true), PMW);
 
   addMachineFunctionPass(AMDGPUMarkLastScratchLoadPass(), PMW);
-  return Error::success();
+  return true;
 }
 
 void AMDGPUCodeGenPassBuilder::addPostRegAlloc(PassManagerWrapper &PMW) const {
