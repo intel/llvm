@@ -1,5 +1,5 @@
 // REQUIRES: hip
-// REQUIRES: hip-arch-gfx942
+// REQUIRES: hip-arch-gfx942 || hip-arch-gfx941 || hip-arch-gfx940
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S %s -o -| FileCheck %s
 
 // gfx942 (CDNA3) int8 MFMA uses larger K dimensions than gfx90a:
