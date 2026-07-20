@@ -10522,6 +10522,17 @@ static void addRunTimeWrapperOpts(Compilation &C,
   // Grab any Target specific options that need to be added to the wrapper
   // information.
   ArgStringList BuildArgs;
+  // FIXME: BuildArgs is joined with spaces below into a single
+  // -compile-opts=/-link-opts= string embedded in the image descriptor, then
+  // later re-split on spaces by clang-linker-wrapper for AOT triples (see
+  // addOclocOptions/runAOTCompileIntelCPU in
+  // clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp). Any individual
+  // token containing an embedded space is corrupted by this round trip
+  // unless it happens to fall inside the pre-existing "-options \"...\""
+  // wrapper convention. Forwarding these as individual tokens instead of a
+  // joined string (as is already done for the CLI-supplied
+  // --device-compiler=/--device-linker= counterpart via AOTDeviceArgs) would
+  // avoid this.
   auto createArgString = [&](const char *Opt) {
     if (BuildArgs.empty())
       return;
@@ -10840,6 +10851,17 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // compilers and the clang-offload-wrapper in the case of SYCL offloading.
     if (OffloadAction->getOffloadingDeviceKind() == Action::OFK_SYCL) {
       ArgStringList BuildArgs;
+      // FIXME: BuildArgs is joined with spaces into a single compile-opts=/
+      // link-opts= string below, then later re-split on spaces by
+      // clang-linker-wrapper (see addOclocOptions/runAOTCompileIntelCPU in
+      // clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp). Any
+      // individual token containing an embedded space (e.g. from
+      // -Xsycl-target-backend "-abc 'multi word'") is corrupted by this
+      // round trip unless it happens to fall inside the pre-existing
+      // "-options \"...\"" wrapper convention. The CLI-supplied counterpart
+      // of these options (--device-compiler=/--device-linker=) avoids this
+      // by forwarding individual tokens (AOTDeviceArgs); the image-embedded
+      // path here still does not.
       auto createArgString = [&](const char *Opt) {
         if (BuildArgs.empty())
           return;
@@ -12008,7 +12030,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                               Args);
     SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
     SmallString<128> LibName("libsycl-crt.bc");
-    bool IsNewOffload = D.getUseNewOffloadingDriver();
     for (const auto &LibLoc : LibLocCandidates) {
       SmallString<128> FullLibName(LibLoc);
       llvm::sys::path::append(FullLibName, LibName);
@@ -12027,12 +12048,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -mlink-builtin-bitcode, so they are not passed here. Only non-SPIR
     // targets (NVPTX, AMD) pass device libraries to clang-linker-wrapper.
     SmallVector<std::string, 4> BCLibList;
-
-    auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
-      if (List.size() > 0)
-        List += ",";
-      List += Arg.str();
-    };
 
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (const auto &[Kind, TC] :
@@ -12190,33 +12205,19 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
-      SmallString<128> BackendOptString;
-      SmallString<128> LinkOptString;
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs)
-        appendOption(BackendOptString, A);
+        CmdArgs.push_back(
+            Args.MakeArgString("--device-compiler=" +
+                               Action::GetOffloadKindName(Action::OFK_SYCL) +
+                               ":" + TC->getTripleString() + "=" + A));
 
       BuildArgs.clear();
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs) {
-        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
-          appendOption(LinkOptString, A);
-        else
-          // For AOT, combine the Backend and Linker strings into one.
-          appendOption(BackendOptString, A);
-      }
-
-      if (!BackendOptString.empty()) {
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" +
-            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + BackendOptString));
-      }
-      if (!LinkOptString.empty()) {
+      for (const auto &A : BuildArgs)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
-            ":" + TC->getTripleString() + "=" + LinkOptString));
-      }
+            ":" + TC->getTripleString() + "=" + A));
 
       BuildArgs.clear();
       SmallString<128> PostLinkOptString;
