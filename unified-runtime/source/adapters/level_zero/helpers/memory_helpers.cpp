@@ -31,9 +31,11 @@ bool maybeImportUSM(ze_driver_handle_t hTranslatedDriver,
   auto ret = getMemoryAttrs(hContext, ptr, nullptr, &properties);
 
   if (ret == UR_RESULT_SUCCESS && properties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-    // Promote the host ptr to USM host memory
-    ZeUSMImport.doZeUSMImport(hTranslatedDriver, ptr, size);
-    return true;
+    // Promote the host ptr to USM host memory. The driver-level import can
+    // fail (e.g., for a misaligned ptr), so report success to callers only
+    // when the underlying L0 call actually succeeded.
+    return ZeUSMImport.doZeUSMImport(hTranslatedDriver, ptr, size) ==
+           ZE_RESULT_SUCCESS;
   }
   return false;
 }

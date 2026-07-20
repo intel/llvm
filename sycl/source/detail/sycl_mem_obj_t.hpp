@@ -165,16 +165,6 @@ public:
            has_property<property::image::use_host_ptr>();
   }
 
-  bool canReadHostPtr(void *HostPtr, const size_t RequiredAlign) {
-    bool Aligned =
-        (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
-    return Aligned || useHostPtr();
-  }
-
-  bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
-    return !MHostPtrReadOnly && canReadHostPtr(HostPtr, RequiredAlign);
-  }
-
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
     MHostPtrProvided = true;
     if (!MHostPtrReadOnly && HostPtr) {
@@ -184,10 +174,16 @@ public:
     }
 
     if (HostPtr) {
-      if (canReuseHostPtr(HostPtr, RequiredAlign)) {
-        MUserPtr = HostPtr;
-      } else if (canReadHostPtr(HostPtr, RequiredAlign)) {
-        MUserPtr = HostPtr;
+      // Pass the user pointer to UR unchanged. Each adapter is responsible
+      // for handling pointers it cannot use directly (misaligned, not
+      // importable, etc.) by allocating its own backing storage and copying.
+      MUserPtr = HostPtr;
+
+      // For a read-only host pointer we still need a writable backing store
+      // if the user later creates a write accessor. Defer the allocation
+      // until that happens. This is adapter-independent: the language rule
+      // is that we may not write through a const user pointer.
+      if (MHostPtrReadOnly) {
         std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
           setAlign(RequiredAlign);
@@ -195,11 +191,6 @@ public:
           MUserPtr = MShadowCopy;
           std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
         };
-      } else {
-        setAlign(RequiredAlign);
-        MShadowCopy = allocateHostMem();
-        MUserPtr = MShadowCopy;
-        std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
       }
     }
   }
@@ -218,10 +209,9 @@ public:
       if (!MHostPtrReadOnly)
         set_final_data_from_storage();
 
-      if (canReuseHostPtr(HostPtr.get(), RequiredAlign)) {
-        MUserPtr = HostPtr.get();
-      } else if (canReadHostPtr(HostPtr.get(), RequiredAlign)) {
-        MUserPtr = HostPtr.get();
+      MUserPtr = HostPtr.get();
+
+      if (MHostPtrReadOnly) {
         std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
           setAlign(RequiredAlign);
@@ -229,11 +219,6 @@ public:
           MUserPtr = MShadowCopy;
           std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
         };
-      } else {
-        setAlign(RequiredAlign);
-        MShadowCopy = allocateHostMem();
-        MUserPtr = MShadowCopy;
-        std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
       }
     }
   }
