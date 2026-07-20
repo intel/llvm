@@ -60,7 +60,6 @@ add_clang_library(clangDriver
   ToolChains/Arch/X86.cpp
   ToolChains/AIX.cpp
   ToolChains/AMDGPU.cpp
-  ToolChains/AMDGPUOpenMP.cpp
   ToolChains/AVR.cpp
   ToolChains/BareMetal.cpp
   ToolChains/Clang.cpp
@@ -121,10 +120,10 @@ add_clang_library(clangDriver
   clangBasic
   clangDependencyScanning
   clangFrontend
-  clangScalableStaticAnalysisFrameworkAnalyses
-  clangScalableStaticAnalysisFrameworkCore
-  clangScalableStaticAnalysisFrameworkFrontend
-  clangScalableStaticAnalysisFrameworkSourceTransformation
+  clangScalableStaticAnalysisAnalyses
+  clangScalableStaticAnalysisCore
+  clangScalableStaticAnalysisFrontend
+  clangScalableStaticAnalysisSourceTransformation
   clangSerialization
   clangLex
   clangOptions

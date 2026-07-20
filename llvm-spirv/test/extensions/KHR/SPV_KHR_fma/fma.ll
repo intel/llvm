@@ -6,6 +6,9 @@
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o - | llvm-dis -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv %s --spirv-ext=+SPV_KHR_fma -o %t-fmf.spv
+; RUN: spirv-val %t-fmf.spv
+; RUN: llvm-spirv %t-fmf.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-FMF
 
 ; RUN: llvm-spirv %s -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV-NO-EXT
@@ -23,6 +26,9 @@
 ; CHECK-SPIRV: FmaKHR [[#TYPE_FLOAT]] [[#]]
 ; CHECK-SPIRV: FmaKHR [[#TYPE_VEC]] [[#]]
 ; CHECK-SPIRV: FmaKHR [[#TYPE_FLOAT]] [[#]]
+
+; CHECK-SPIRV-FMF: Decorate [[#FMF_RES:]] FPFastMathMode 3
+; CHECK-SPIRV-FMF: FmaKHR [[#]] [[#FMF_RES]]
 
 ; CHECK-SPIRV-NO-EXT-NOT: Capability FMAKHR
 ; CHECK-SPIRV-NO-EXT-NOT: Extension "SPV_KHR_fma"
@@ -62,6 +68,12 @@ entry:
 define spir_func float @test_fma_ocl_scalar(float %a, float %b, float %c) {
 entry:
   %result = call spir_func float @_Z15__spirv_ocl_fmafff(float %a, float %b, float %c)
+  ret float %result
+}
+
+define spir_func float @test_fma_fast_math(float %a, float %b, float %c) {
+entry:
+  %result = call nnan ninf float @llvm.fma.f32(float %a, float %b, float %c)
   ret float %result
 }
 
