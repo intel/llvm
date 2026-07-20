@@ -72,9 +72,8 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   // is, that cross-context dependencies use host tasks, and the wait
   // command might be queued in the runtime.
   if (&QueueImpl.getContextImpl() != &EventImpl.getContextImpl()) {
-    throw sycl::exception(
-        sycl::make_error_code(errc::invalid),
-        "Event context must match the queue context.");
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Event context must match the queue context.");
   }
 
   QueueImpl.submit_barrier_direct_without_event(

@@ -528,14 +528,15 @@ TEST_F(ReusableEventsTest, CrossContextEventsWait) {
 
   bool exception = false;
 
-  // Current limiation is that an event from different context
-  // cannot be used with enqueue_wait_event
+  // An event from different context cannot be used
+  // with enqueue_wait_event
   try {
     syclex::enqueue_wait_events(Queue2, events);
   } catch (sycl::exception const &e) {
     exception = true;
     EXPECT_EQ(e.code(), sycl::errc::invalid);
-    EXPECT_STREQ(e.what(), "Context of all events must match the queue context.");
+    EXPECT_STREQ(e.what(),
+                 "Context of all events must match the queue context.");
   }
 
   EXPECT_TRUE(exception);

@@ -626,9 +626,10 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
       //
       // The !CallerNeedsEvent condition is used to detect the
       // enqueue_wait_event(s) function calls.
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "An event cannot be enqueued for signaling or waiting "
-                            "behind a command which is not enqueued in the backend.");
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "An event cannot be enqueued for signaling or waiting "
+          "behind a command which is not enqueued in the backend.");
     }
 
     std::unique_ptr<detail::CG> CommandGroup;
