@@ -15,7 +15,7 @@
 //
 //// RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
 // RUN:                      --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
-// RUN:                      -sycl-post-link-options="-split=auto -symbols -properties" %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
+// RUN:                      -sycl-post-link-options="-split=auto" -sycl-post-link-options="-symbols" -sycl-post-link-options="-properties" %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
 
 template <typename t, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &func) {
