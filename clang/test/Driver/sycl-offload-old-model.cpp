@@ -473,7 +473,7 @@
 /// Check for default linking of -lsycl with -fsycl --no-offload-new-driver usage
 // RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-SYCL: "-lsycl"
+// CHECK-LD-SYCL: "{{.*}}libsycl.so"
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl --no-offload-new-driver -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s

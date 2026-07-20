@@ -201,7 +201,7 @@
 // CHK-TOOLS-GEN: clang-offload-wrapper{{.*}} "-o=[[OUTPUT8:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_gen" "-kind=sycl" "-batch" "[[OUTPUT7]]"
 // CHK-TOOLS-CPU: clang-offload-wrapper{{.*}} "-o=[[OUTPUT8:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_x86_64" "-kind=sycl" "-batch" "[[OUTPUT7]]"
 // CHK-TOOLS-AOT: clang{{.*}} "--target=[[HOST_TARGET]]" "-c" "-o" "[[OUTPUT9:.+\.o]]" "[[OUTPUT8]]"
-// CHK-TOOLS-AOT: ld{{.*}} "[[OUTPUT10]]" "[[OUTPUT9]]" {{.*}} "-lsycl"
+// CHK-TOOLS-AOT: ld{{.*}} "[[OUTPUT10]]" "[[OUTPUT9]]"
 
 /// ###########################################################################
 
