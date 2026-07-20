@@ -9,7 +9,7 @@
 // threshold, so the compression actually runs.
 // RUN:%clang_cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: llvm-offload-binary -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
-// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
+// RUN:%clang_cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
 // RUN: touch %t.devicelib.bc
 
 // With --compress and --wrapper-verbose the compression path fires and the
