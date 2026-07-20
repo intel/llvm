@@ -19,7 +19,7 @@
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   -sycl-post-link-options="-split=auto -symbols -properties" \
 // RUN:   --compress --compression-level=9 --wrapper-verbose \
-// RUN:   %t.o -o %t.out --linker-path="/usr/bin/ld" 2>&1 \
+// RUN:   --dry-run %t.o -o %t.out 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-COMPRESS
 
 // Capture the original and compressed sizes.
