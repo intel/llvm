@@ -214,7 +214,7 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-  for (event e : WaitList) {
+  for (const event &e : WaitList) {
     if (e.ext_oneapi_reusable()) {
       throw sycl::exception(
           make_error_code(errc::invalid),

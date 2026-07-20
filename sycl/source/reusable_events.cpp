@@ -93,7 +93,7 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
   // the dependency capture).
   //
   // All the events need to be reusable.
-  for (sycl::event evt : evts) {
+  for (const sycl::event &evt : evts) {
     detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
     if (!EventImpl.isReusable()) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
