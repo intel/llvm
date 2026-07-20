@@ -12335,12 +12335,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  // Enable preview breaking changes in clang-linker-wrapper,
-  // in case it needs to introduce any ABI breaking changes.
-  // For example, changes in offload binary descriptor format.
-  if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-    CmdArgs.push_back("-fpreview-breaking-changes");
-
   // Propagate -no-canonical-prefixes.
   if (Args.hasArg(options::OPT_no_canonical_prefixes))
     CmdArgs.push_back("--no-canonical-prefixes");
