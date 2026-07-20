@@ -91,6 +91,13 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 8, 32, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
 
+// gfx942 (CDNA3) int8 MFMA uses larger K dimensions with packed operands:
+// 16x16x32 and 32x32x16. Each work-item holds 8 int8 values (one i64).
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 32, 8)
+
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N)                       \
@@ -370,7 +377,8 @@ void joint_matrix_mad_hip(
     const joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
-#ifdef __gfx90a__
+#if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||       \
+    defined(__gfx942__)
   if constexpr (std::is_same_v<Tm, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
@@ -407,6 +415,25 @@ void joint_matrix_mad_hip(
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(double));
     }
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    // CDNA3 (gfx942) int8 MFMA: 16x16x32 / 32x32x16 with packed i64 operands
+    // (8 int8 values per work-item).
+    if constexpr (M == 16 && N == 16) {
+      auto result = __builtin_amdgcn_mfma_i32_16x16x32_i8(
+          *reinterpret_cast<const int64_t *>(&A.wi_marray),
+          *reinterpret_cast<const int64_t *>(&B.wi_marray),
+          *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(int32_t));
+    } else if constexpr (M == 32 && N == 32) {
+      auto result = __builtin_amdgcn_mfma_i32_32x32x16_i8(
+          *reinterpret_cast<const int64_t *>(&A.wi_marray),
+          *reinterpret_cast<const int64_t *>(&B.wi_marray),
+          *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
+    }
+#else
+    // CDNA2 (gfx90a) int8 MFMA: 16x16x16 / 32x32x8 with i32 operands
+    // (4 int8 values per work-item).
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_i32_16x16x16i8(
           *reinterpret_cast<const Tc *>(&A.wi_marray),
@@ -420,8 +447,9 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
     }
+#endif
   }
-#endif // __gfx90a__
+#endif // __gfx90a__ || __gfx942__
 }
 
 } // namespace detail
