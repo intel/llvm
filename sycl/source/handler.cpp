@@ -938,6 +938,13 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   impl->MEventsWaitWithBarrier.reserve(WaitList.size());
   for (auto &Event : WaitList) {
     auto EventImpl = detail::getSyclObjImpl(Event);
+
+    if (EventImpl->isReusable()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Reusable events cannot be used as barrier events.");
+    }
+
     // We could not wait for host task events in backend.
     // Adding them as dependency to enable proper scheduling.
     if (EventImpl->isHost()) {

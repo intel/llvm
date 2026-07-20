@@ -62,6 +62,12 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
+  // Only reusable events are supported.
+  if (!EventImpl.isReusable()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Event must be reusable.");
+  }
+
   // The queue and an event need to be in the same context. The reason
   // is, that cross-context dependencies use host tasks, and the wait
   // command might be queued in the runtime.
@@ -80,11 +86,21 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
                                        const std::vector<event> &evts) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
 
-  // The queue and all the events need to be in the same context. The
-  // reason is, that cross-context dependencies use host tasks, and the
-  // wait command might be queued in the runtime.
+  // For reusable events, the queue and all the events need to be in
+  // the same context. The reason is, that cross-context dependencies
+  // use host tasks, and the wait command might be queued in the runtime.
+  // This would prevent the runtime from capturing the dependency
+  // at the point in time where this function is called (might delay
+  // the dependency capture).
+  //
+  // All the events need to be reusable.
   for (sycl::event evt : evts) {
     detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
+    if (!EventImpl.isReusable()) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "All events must be reusable.");
+    }
+
     if (&QueueImpl.getContextImpl() != &EventImpl.getContextImpl()) {
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
@@ -99,6 +115,13 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
 __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
+
+  // Only reusable events can be enqueued for signaling.
+  if (!EventImpl.isReusable()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "Only a reusable event can be enqueued for signaling.");
+  }
 
   if (EventImpl.isInterop()) {
     throw sycl::exception(

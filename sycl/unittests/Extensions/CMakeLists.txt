@@ -13,7 +13,6 @@ add_sycl_unittest(ExtensionsTests OBJECT
   OneAPIProd.cpp
   EnqueueFunctionsEvents.cpp
   EnqueueFunctionsPrefetch.cpp
-  ExtOneapiBarrierOpt.cpp
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
