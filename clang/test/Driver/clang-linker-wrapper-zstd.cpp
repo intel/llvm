@@ -37,8 +37,6 @@
 //     CHECK-NOT is satisfied vacuously.
 //   * when COMP >= ORIG, sub() underflows and FileCheck fails the pattern.
 // CHECK-COMPRESS-NOT: COMPRESSION_SIZE_CHECK[[#sub(ORIG, COMP)]]
-// The tgt_device_image struct is { i16 Version, i8 Kind, i8 Format, ptr ... };
-// Kind for SYCL is 4, Format for BIF_Compressed is also 4.
 // CHECK-COMPRESS: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 {{[0-9]+}}, i8 4, i8 4,
 
 // Without --compress the image is left untagged (Format = BIF_None = 0) and
