@@ -134,7 +134,7 @@ _Constraints:_
 
 _Returns:_ An event that is associated with context `ctxt`. The event has
 `info::event_command_status::complete` status. The event is reusable (the
-event::ext_oneapi_reusable() function returns true).
+`event::ext_oneapi_reusable()` function returns `true`).
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 `PropertyListT` contains an `enable_profiling` property that enables profiling
@@ -265,7 +265,7 @@ until all commands associated with `evt` or `evts` have completed.
 _Throws:_
 
  * An `exception` with the `errc::invalid` error code if `evt` is non-reusable
-   (`event::ext_oneapi_reusable() returns false) or any event in `evts` is
+   (`event::ext_oneapi_reusable()` returns `false`) or any event in `evts` is
    non-reusable.
 
 '''
@@ -354,8 +354,8 @@ It is legal to reassociate the event `evt` to a new command via
 change the dependency for command _C_.
 
 If another host thread is blocked waiting for event _E_ to complete via
-`event:wait` or `event::wait_and_throw` when event _E_ is reassociated with a
-new command via `enqueue_signal_event`, the behavior of the `event:wait` or
+`event::wait` or `event::wait_and_throw` when event _E_ is reassociated with a
+new command via `enqueue_signal_event`, the behavior of the `event::wait` or
 `event::wait_and_throw` call is undefined.
 
 == Examples
