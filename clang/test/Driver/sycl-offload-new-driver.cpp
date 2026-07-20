@@ -155,6 +155,18 @@
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown=-backend-gen-opt"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-backend-cpu-opt"
 
+/// Test that -Xsycl-target-backend and -Xsycl-target-linker options for an
+/// AOT (ocloc) target are forwarded via --device-compiler=/--device-linker=
+/// respectively, each token as its own argument, the same as for JIT
+/// targets.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=intel_gpu_pvc \
+// RUN:          -Xsycl-target-backend -opt1 -Xsycl-target-linker -opt2 \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_AOT_SEPARATE %s
+// WRAPPER_OPTIONS_AOT_SEPARATE: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-opt1"
+// WRAPPER_OPTIONS_AOT_SEPARATE-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=-opt2"
+
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
 // RUN:          -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL \
