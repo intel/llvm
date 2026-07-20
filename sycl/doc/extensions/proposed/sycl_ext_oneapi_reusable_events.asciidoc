@@ -345,14 +345,14 @@ The core SYCL specification defines a default constructor for the `event`
 class. The default constructor creates an event that is equivalent to calling
 `make_event` with no parameters.
 
-An event _E_ created via `make_event` can be used as a command dependency (e.g.
-via `handler::depends_on`) for a command submitted to some queue _Q_.
+Reusable event _E_ can be used as a command dependency (e.g. via
+`handler::depends_on`) for a command submitted to some queue _Q_.
 The context of _E_ needs to match the context of _Q_.
 
 Several of the `queue` class member functions from the core SYCL specification
-return an event. These events can be passed to `enqueue_wait_event` and
-`enqueue_wait_events` functions. They are not reusable and cannot be passed to
-`enqueue_signal_event`.
+return an event. These events are non-reusable.
+They can be passed to `enqueue_wait_event` and `enqueue_wait_events` functions.
+They cannot be passed to `enqueue_signal_event`.
 
 If an event `evt` is used as a command dependency for some command _C_ (e.g.
 via `enqueue_wait_event`), the dependency is captured at the point when _C_ is
