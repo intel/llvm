@@ -62,6 +62,11 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
+  if (EventImpl.isHost()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Host events cannot be enqueued for waiting.");
+  }
+
   // Current limitation:
   // The queue and an event need to be in the same context. The reason
   // is, that cross-context dependencies use host tasks, and the wait
@@ -82,13 +87,19 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
                                        const std::vector<event> &evts) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
 
-  // Current limitation:
-  // The queue and all the events need to be in the same context. The
-  // reason is, that cross-context dependencies use host tasks, and the
-  // wait command might be queued in the runtime. This flow is currently
-  // not supported by the Reusable Events APIs.
-  for (sycl::event evt : evts) {
+  for (const sycl::event &evt : evts) {
     detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
+
+    if (EventImpl.isHost()) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Host events cannot be enqueued for waiting.");
+    }
+
+    // Current limitation:
+    // The queue and all the events need to be in the same context. The
+    // reason is, that cross-context dependencies use host tasks, and the
+    // wait command might be queued in the runtime. This flow is currently
+    // not supported by the Reusable Events APIs.
     if (&QueueImpl.getContextImpl() != &EventImpl.getContextImpl()) {
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
@@ -104,6 +115,11 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
 __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
+
+  if (EventImpl.isHost()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Host events cannot be enqueued for signaling.");
+  }
 
   if (EventImpl.isInterop()) {
     throw sycl::exception(
