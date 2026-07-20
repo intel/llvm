@@ -2832,8 +2832,9 @@ private:
                               const IncrementLoopInfo &info,
                               bool *isConst = nullptr) {
     mlir::Location loc = toLocation();
-    mlir::Type controlType = info.isStructured() ? builder->getIndexType()
-                                                 : info.getLoopVariableType();
+    mlir::Type controlType = info.isStructured() && info.isConcurrent
+                                 ? builder->getIndexType()
+                                 : info.getLoopVariableType();
     Fortran::lower::StatementContext stmtCtx;
     if (expr) {
       if (isConst)
@@ -3064,19 +3065,18 @@ private:
         if (genDoConcurrent)
           continue;
 
-        // The loop variable is a doLoop op argument.
-        mlir::Type loopVarType = info.getLoopVariableType();
+        // Lower the loop without the secondary-induction iter_arg so memory
+        // recurrences (e.g. reductions) stay visible to later analyses. The DO
+        // variable is recomputed from the induction variable in the body; its
+        // post-loop value is materialized in genFIRIncrementLoopEnd.
         auto loopOp = fir::DoLoopOp::create(
             *builder, loc, lowerValue, upperValue, stepValue,
-            /*unordered=*/false,
-            /*finalCountValue=*/false,
-            builder->createConvert(loc, loopVarType, lowerValue));
+            /*unordered=*/false, /*finalCountValue=*/false,
+            /*iterArgs=*/mlir::ValueRange{});
         info.loopOp = loopOp;
         builder->setInsertionPointToStart(loopOp.getBody());
-        mlir::Value loopValue = loopOp.getRegionIterArgs()[0];
-
-        // Update the loop variable value in case it has non-index references.
-        fir::StoreOp::create(*builder, loc, loopValue, info.loopVariable);
+        fir::StoreOp::create(*builder, loc, loopOp.getInductionVar(),
+                             info.loopVariable);
         addLoopAnnotationAttr(info, dirs);
         continue;
       }
@@ -3217,23 +3217,31 @@ private:
           continue;
         }
 
-        // End fir.do_loop.
-        // Decrement tripVariable.
+        // End fir.do_loop. The loop carries no secondary-induction iter_arg, so
+        // materialize the Fortran post-loop value lb + tripCount*step after the
+        // loop for later uses of the DO variable. Compute it in the loop's
+        // index type (matching how the loop counts iterations) so the trip
+        // arithmetic does not overflow the DO variable's type for empty
+        // range-extreme loops.
         auto doLoopOp = mlir::cast<fir::DoLoopOp>(info.loopOp);
-        builder->setInsertionPointToEnd(doLoopOp.getBody());
-        // Step loopVariable to help optimizations such as vectorization.
-        // Induction variable elimination will clean up as necessary.
-        mlir::Value step = builder->createConvert(
-            loc, info.getLoopVariableType(), doLoopOp.getStep());
-        mlir::Value loopVar =
-            fir::LoadOp::create(*builder, loc, info.loopVariable);
-        mlir::Value loopVarInc =
-            mlir::arith::AddIOp::create(*builder, loc, loopVar, step, iofAttr);
-        fir::ResultOp::create(*builder, loc, loopVarInc);
         builder->setInsertionPointAfter(doLoopOp);
-        // The loop control variable may be used after the loop.
-        fir::StoreOp::create(*builder, loc, doLoopOp.getResult(0),
-                             info.loopVariable);
+        mlir::Type idxTy = builder->getIndexType();
+        mlir::Value lb =
+            builder->createConvert(loc, idxTy, doLoopOp.getLowerBound());
+        mlir::Value ub =
+            builder->createConvert(loc, idxTy, doLoopOp.getUpperBound());
+        mlir::Value st = builder->createConvert(loc, idxTy, doLoopOp.getStep());
+        mlir::Value zero = builder->createIntegerConstant(loc, idxTy, 0);
+        mlir::Value trip = mlir::arith::SubIOp::create(*builder, loc, ub, lb);
+        trip = mlir::arith::AddIOp::create(*builder, loc, trip, st);
+        trip = mlir::arith::DivSIOp::create(*builder, loc, trip, st);
+        mlir::Value empty = mlir::arith::CmpIOp::create(
+            *builder, loc, mlir::arith::CmpIPredicate::slt, trip, zero);
+        trip = mlir::arith::SelectOp::create(*builder, loc, empty, zero, trip);
+        mlir::Value last = mlir::arith::MulIOp::create(*builder, loc, trip, st);
+        last = mlir::arith::AddIOp::create(*builder, loc, lb, last);
+        last = builder->createConvert(loc, info.getLoopVariableType(), last);
+        fir::StoreOp::create(*builder, loc, last, info.loopVariable);
         continue;
       }
 
