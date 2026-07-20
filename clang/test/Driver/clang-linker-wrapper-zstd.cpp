@@ -5,11 +5,8 @@
 // SYCLBinaryImageFormat::BIF_Compressed (int8 value 4) in the emitted wrapper
 // module, honors --compression-level=, and reports invalid values.
 
-// --- Prepare test data: build a bitcode module, pack it into an
-// llvm-offload-binary, and embed it into an ELF object as the linker-wrapper
-// input. The bitcode is large enough (well over the 512-byte compression
-// threshold in wrapSYCLBinariesFromFile) that compression actually runs.
-
+// Prepare test data. The bitcode is over the 512-byte compression
+// threshold, so the compression actually runs.
 // RUN: %clang -cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: llvm-offload-binary -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
