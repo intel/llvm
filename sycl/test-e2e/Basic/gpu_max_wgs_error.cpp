@@ -1,5 +1,17 @@
 // REQUIRES: gpu
+
+// The runtime does throw errc::nd_range for an oversized work-group on CUDA,
+// but for the work-group size used here (max_work_item_sizes in every
+// dimension) the CUDA driver rejects the launch as
+// UR_RESULT_ERROR_OUT_OF_RESOURCES (register exhaustion) rather than
+// UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE. That is handled by
+// handleOutOfResources(), which throws an nd_range exception with a different,
+// register-count message. The "Total number of work-items in a work-group
+// cannot exceed" branch added in handleInvalidWorkGroupSize() is only reached
+// when each dimension is within limits but their product exceeds the maximum
+// work-group size, so this generic test cannot assert that message on CUDA.
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 // RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int
 // RUN: %{run} %t.out
