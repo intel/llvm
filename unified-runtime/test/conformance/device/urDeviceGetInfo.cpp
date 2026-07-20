@@ -1569,7 +1569,7 @@ TEST_P(urDeviceGetInfoTest, SuccessIntelGPUEUCount) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_GPU_EU_COUNT;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -1603,7 +1603,7 @@ TEST_P(urDeviceGetInfoTest, SuccessIntelGPUEUSlices) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_GPU_EU_SLICES;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -1621,7 +1621,7 @@ TEST_P(urDeviceGetInfoTest, SuccessIntelGPUEUCountPerSlice) {
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -1655,7 +1655,7 @@ TEST_P(urDeviceGetInfoTest, SuccessIntelGPUHWThreadsPerEU) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -1963,7 +1963,7 @@ TEST_P(urDeviceGetInfoTest, SuccessIPVersion) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_IP_VERSION;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));

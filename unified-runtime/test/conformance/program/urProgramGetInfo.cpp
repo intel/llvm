@@ -189,7 +189,7 @@ TEST_P(urProgramGetInfoTest, SuccessNumKernels) {
   size_t property_size = 0;
   const ur_program_info_t property_name = UR_PROGRAM_INFO_NUM_KERNELS;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(size_t));
@@ -207,7 +207,7 @@ TEST_P(urProgramGetInfoTest, SuccessKernelNames) {
   size_t property_size = 0;
   const ur_program_info_t property_name = UR_PROGRAM_INFO_KERNEL_NAMES;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_GT(property_size, 0);
