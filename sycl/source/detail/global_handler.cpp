@@ -310,6 +310,9 @@ void shutdown_early(bool CanJoinThreads = true) {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
+  // Now that we are shutting down, we will no longer defer MemObj releases.
+  GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
+
 #if defined(_WIN32)
   // In Windows ExitProcess all non host threads are forcibly terminated prior
   // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
@@ -338,9 +341,6 @@ void shutdown_early(bool CanJoinThreads = true) {
     }
   }
 #endif
-
-  // Now that we are shutting down, we will no longer defer MemObj releases.
-  GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
