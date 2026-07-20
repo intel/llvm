@@ -166,9 +166,6 @@ def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
 
-// Special option to pass in sycl-post-link options. Accepts the
-// [<kind>:][<triple>=]<value> form so options can be scoped to a target; they
-// are filtered per-triple into -sycl-post-link-arg=.
 def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Options that will control sycl-post-link step">;
@@ -190,9 +187,6 @@ def no_use_sycl_post_link_tool : Flag<["--", "-"], "no-use-sycl-post-link-tool">
   Flags<[WrapperOnlyOption]>,
   HelpText<"Use a SYCL library instead of sycl-post-link tool. (experimental)">;
 
-// Special option to pass in llvm-spirv options. Accepts the
-// [<kind>:][<triple>=]<value> form so options can be scoped to a target; they
-// are filtered per-triple into -llvm-spirv-arg=.
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Options that will control llvm-spirv step">;
@@ -200,9 +194,6 @@ def llvm_spirv_arg_EQ : Joined<["--", "-"], "llvm-spirv-arg=">,
   Flags<[DeviceOnlyOption, HelpHidden]>,
   HelpText<"An extra argument to be passed to llvm-spirv">;
 
-// Special option to pass in spirv-to-ir-wrapper options. Accepts the
-// [<kind>:][<triple>=]<value> form so options can be scoped to a target; they
-// are filtered per-triple into -spirv-to-ir-wrapper-arg=.
 def spirv_to_ir_wrapper_options_EQ : Joined<["--", "-"], "spirv-to-ir-wrapper-options=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Options that will control spirv-to-ir-wrapper step">;

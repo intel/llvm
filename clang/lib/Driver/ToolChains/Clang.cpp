@@ -12100,7 +12100,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     };
     // --sycl-post-link-options="options" provides a string of options to be
     // passed along to the sycl-post-link tool during device link.
-    // Xdevice-post-link is processed separately later.
+    // -Xdevice-post-link is processed separately later.
     SmallString<128> PostLinkOptString;
     ArgStringList PostLinkArgs;
     getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
@@ -12187,16 +12187,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Pass backend compiler, linker options, sycl-post-link options,
-    // llvm-spirv options and spirv-to-ir-wrapper options specified at link
-    // time to clang-linker-wrapper. Link-time options passed via
-    // -Xsycl-target-backend are forwarded using --device-compiler, options
-    // passed via -Xsycl-target-linker are forwarded using --device-linker,
-    // options passed via -Xdevice-post-link are forwarded using
-    // --sycl-post-link-options, options passed via -Xspirv-translator are
-    // forwarded using --llvm-spirv-options, and options passed via
-    // -Xspirv-to-ir-wrapper are forwarded using
-    // --spirv-to-ir-wrapper-options.
+    // Pass backend compiler, linker, sycl-post-link,
+    // llvm-spirv, and spirv-to-ir-wrapper options specified at link
+    // time to clang-linker-wrapper, using the following mapping:
+    // -Xsycl-target-backend  -> --device-compiler
+    // -Xsycl-target-linker -> --device-linker
+    // -Xdevice-post-link -> --sycl-post-link-options
+    // -Xspirv-translator -> --llvm-spirv-options
+    // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
@@ -12220,17 +12218,17 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             ":" + TC->getTripleString() + "=" + A));
 
       BuildArgs.clear();
-      SmallString<128> PostLinkOptString;
+      SmallString<128> PerTargetPostLinkOptString;
       SYCLTC.TranslateTargetOpt(
           TC->getTriple(), Args, BuildArgs, options::OPT_Xdevice_post_link,
           options::OPT_Xdevice_post_link_EQ, /*Device=*/StringRef());
       for (const auto &A : BuildArgs)
-        appendOption(PostLinkOptString, A);
-      if (!PostLinkOptString.empty())
+        appendOption(PerTargetPostLinkOptString, A);
+      if (!PerTargetPostLinkOptString.empty())
         CmdArgs.push_back(Args.MakeArgString(
             "--sycl-post-link-options=" +
             Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + PostLinkOptString));
+            TC->getTripleString() + "=" + PerTargetPostLinkOptString));
 
       BuildArgs.clear();
       SmallString<128> TransOptString;
