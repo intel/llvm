@@ -1152,7 +1152,7 @@ TEST_P(urDeviceGetInfoTest, SuccessILVersion) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_IL_VERSION;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_GT(property_size, 0);
