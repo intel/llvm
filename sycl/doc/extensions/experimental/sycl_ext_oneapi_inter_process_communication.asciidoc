@@ -1332,7 +1332,8 @@ _Returns:_ An `event` object that represents the same event identified by
 `handle_data`. The returned event is associated with context `ctx`. The
 returned event and the event identified by `handle_data` share the same state.
 When one is signaled, the state of the other event automatically becomes
-signaled also.
+signaled also. The returned `event` is reusable (see the
+sycl_ext_oneapi_reusable_events extension).
 
 [_Note:_ The `open` function can be called multiple times on the same handle
 within the same process. Each call to the `open` function may return a unique
