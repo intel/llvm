@@ -216,10 +216,6 @@ template <>
 ze_structure_type_t getZeStructureType<ze_image_pitched_exp_desc_t>() {
   return ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;
 }
-template <>
-ze_structure_type_t getZeStructureType<ze_custom_pitch_exp_desc_t>() {
-  return ZE_STRUCTURE_TYPE_CUSTOM_PITCH_EXP_DESC;
-}
 template <> ze_structure_type_t getZeStructureType<ze_module_desc_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_DESC;
 }
