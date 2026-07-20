@@ -515,11 +515,9 @@ offloading::compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
                                     size_t Threshold, bool Verbose) {
   if (!compression::zstd::isAvailable())
     return createStringError(
-        "'--offload-compress' is specified but the compiler is built without "
-        "zstd support.\nIf you are using a custom DPC++ build, please refer "
-        "to https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-        "GetStartedGuide.md#build-dpc-toolchain-with-device-image-compression-"
-        "support for more information on how to build with zstd support.");
+        "Device image compression was requested, but LLVM was built without "
+        "zstd support. Rebuild with LLVM_ENABLE_ZSTD enabled to use this "
+        "feature.");
 
   if (Input.size() < Threshold)
     return false;
