@@ -112,7 +112,7 @@ TEST_P(urKernelGetGroupInfoTest, SuccessGlobalWorkSize) {
       UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE;
   size_t property_size = 0;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urKernelGetGroupInfo(kernel, device, property_name, 0, nullptr,
                            &property_size),
       property_name);

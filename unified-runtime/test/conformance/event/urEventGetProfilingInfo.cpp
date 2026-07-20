@@ -30,7 +30,7 @@ TEST_P(urEventGetProfilingInfoTest, SuccessCommandSubmit) {
   const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_SUBMIT;
   size_t property_size = 0;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint64_t));
@@ -78,7 +78,7 @@ TEST_P(urEventGetProfilingInfoTest, SuccessCommandComplete) {
   const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_COMPLETE;
   size_t property_size = 0;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint64_t));

@@ -203,7 +203,7 @@ TEST_P(urKernelGetInfoTest, SuccessNumRegs) {
   const ur_kernel_info_t property_name = UR_KERNEL_INFO_NUM_REGS;
   size_t property_size = 0;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));

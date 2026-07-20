@@ -499,7 +499,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMemoryClockRate) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MEMORY_CLOCK_RATE;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
@@ -600,7 +600,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxReadWriteImageArgs) {
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
@@ -843,7 +843,7 @@ TEST_P(urDeviceGetInfoTest, SuccessGlobalMemoryFreeSize) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_GLOBAL_MEM_FREE;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint64_t));
@@ -1552,7 +1552,7 @@ TEST_P(urDeviceGetInfoTest, SuccessPCIAddress) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_PCI_ADDRESS;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_GT(property_size, 0);
@@ -1586,7 +1586,7 @@ TEST_P(urDeviceGetInfoTest, SuccessIntelGPUEUSIMDWidth) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -1672,7 +1672,7 @@ TEST_P(urDeviceGetInfoTest, SuccessIntelMaxMemoryBandwidth) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -1836,7 +1836,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMemoryBusWidth) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MEMORY_BUS_WIDTH;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
@@ -1947,7 +1947,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxRegistersPerWorkGroup) {
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
@@ -2013,7 +2013,7 @@ TEST_P(urDeviceGetInfoTest, SuccessCompositeDevice) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_COMPOSITE_DEVICE;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       UR_DEVICE_INFO_COMPOSITE_DEVICE);
 
@@ -2634,7 +2634,7 @@ TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_FAN_SPEED;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -2652,7 +2652,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_POWER_LIMIT;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -2670,7 +2670,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MIN_POWER_LIMIT;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
@@ -2774,7 +2774,7 @@ TEST_P(urDeviceGetInfoComponentDevicesTest, SuccessComponentDevices) {
     ASSERT_NE(device, nullptr);
 
     ur_bool_t isComposite = false;
-    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+    ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
         urDeviceGetInfo(device, UR_DEVICE_INFO_COMPOSITE_DEVICE,
                         sizeof(ur_device_handle_t), &isComposite, nullptr),
         UR_DEVICE_INFO_COMPOSITE_DEVICE);
