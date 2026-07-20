@@ -249,12 +249,10 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
         auto *AuxInfo = Context.getAuxTargetInfo();
         if (!AuxInfo || !AuxInfo->getTriple().isWindowsMSVCEnvironment())
           return false;
+        if (!VD->isInStdNamespace())
+          return false;
         const IdentifierInfo *Id = VD->getIdentifier();
         if (!Id)
-          return false;
-        const auto *NS =
-            dyn_cast<NamespaceDecl>(VD->getDeclContext()->getRedeclContext());
-        if (!NS || !NS->getIdentifier() || NS->getName() != "std")
           return false;
         return llvm::StringSwitch<bool>(Id->getName())
             .Case("__isa_available", true)
