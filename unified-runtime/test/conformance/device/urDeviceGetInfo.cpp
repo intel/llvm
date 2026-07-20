@@ -2687,7 +2687,7 @@ TEST_P(urDeviceGetInfoTest, SuccessLuid) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_LUID;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(std::array<unsigned char, 8>));
@@ -2706,7 +2706,7 @@ TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_NODE_MASK;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));

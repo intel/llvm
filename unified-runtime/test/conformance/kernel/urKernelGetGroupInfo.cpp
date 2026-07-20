@@ -71,7 +71,7 @@ TEST_P(urKernelGetGroupInfoMaxWorkGroupSizeTest,
       UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE;
   size_t property_size = 0;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urKernelGetGroupInfo(kernel, device, property_name, 0, nullptr,
                            &property_size),
       property_name);
@@ -91,7 +91,7 @@ TEST_P(urKernelGetGroupInfoMaxWorkGroupSizeTest,
       UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE;
   size_t property_size = 0;
 
-  ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urKernelGetGroupInfo(kernel, device, property_name, 0, nullptr,
                            &property_size),
       property_name);

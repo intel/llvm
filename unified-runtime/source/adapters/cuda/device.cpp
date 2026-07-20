@@ -1229,16 +1229,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // std::array<std::byte, 8>. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     std::array<char, 8> LUID{};
-    auto LuidResult = cuDeviceGetLuid(LUID.data(), nullptr, hDevice->get());
-    if (LuidResult == CUDA_ERROR_NOT_SUPPORTED) {
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-    }
-    UR_CHECK_ERROR(LuidResult);
+    unsigned int nodeMask = 0;
+    UR_CHECK_ERROR(cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get()));
 
     bool isAllZeros = true;
     for (char num : LUID) {
       if (num != 0) {
         isAllZeros = false;
+        break;
       }
     }
 
@@ -1255,14 +1253,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // Intel extension for device node mask. This returns the node mask as
     // uint32_t. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-    uint32_t nodeMask = 0;
-    auto NodeMaskResult = cuDeviceGetLuid(nullptr, &nodeMask, hDevice->get());
-    if (NodeMaskResult == CUDA_ERROR_NOT_SUPPORTED) {
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-    }
-    UR_CHECK_ERROR(NodeMaskResult);
+    std::array<char, 8> LUID{};
+    unsigned int nodeMask = 0;
+    UR_CHECK_ERROR(cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get()));
 
-    // If nodeMask has not changed, return unsupported.
+    // If nodeMask is zero, the feature is not supported on this platform
     if (nodeMask == 0) {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
