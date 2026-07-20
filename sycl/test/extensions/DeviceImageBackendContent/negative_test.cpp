@@ -1,4 +1,5 @@
 // RUN: %clang -fsycl -fsyntax-only -std=c++20 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
+// UNSUPPORTED: linux && !cpp_lib_span
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
