@@ -471,7 +471,7 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
 
   bool exception = false;
 
-  // Current limiation is that an event from different context
+  // Current limitation is that an event from different context
   // cannot be used with enqueue_wait_event
   try {
     syclex::enqueue_wait_event(Queue2, event);
@@ -519,7 +519,7 @@ TEST_F(ReusableEventsTest, CrossContextEventsWait) {
 
   bool exception = false;
 
-  // Current limiation is that an event from different context
+  // Current limitation is that an event from different context
   // cannot be used with enqueue_wait_event
   try {
     syclex::enqueue_wait_events(Queue2, events);
