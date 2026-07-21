@@ -235,6 +235,9 @@ LLVM_ABI Error containerizeOpenMPSPIRVImage(
     StringRef CompileOpts = "", StringRef LinkOpts = "");
 } // namespace intel
 
+// Default compression level for --compress.
+constexpr int DefaultSYCLCompressionLevel = 10;
+
 /// zstd-compress a SYCL device image.
 /// Errors if zstd is unavailable at build time.
 /// \param Input The uncompressed image bytes.

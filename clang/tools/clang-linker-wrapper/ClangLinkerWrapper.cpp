@@ -1115,7 +1115,7 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
   if (!Args.hasArg(OPT_compress))
     return Error::success();
 
-  int Level = 10;
+  int Level = llvm::offloading::DefaultSYCLCompressionLevel;
   if (auto *A = Args.getLastArg(OPT_compression_level_eq))
     if (StringRef(A->getValue()).getAsInteger(10, Level))
       return createStringError(
