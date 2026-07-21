@@ -646,6 +646,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityAtomicFloat16VectorNV, "AtomicFloat16VectorNV");
+  add(CapabilityLongVectorEXT, "LongVectorEXT");
   add(internal::CapabilityAtomicBFloat16AddINTEL, "AtomicBFloat16AddINTEL");
   add(internal::CapabilityAtomicBFloat16MinMaxINTEL,
       "AtomicBFloat16MinMaxINTEL");
@@ -720,12 +721,17 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityFloat4E2M1INTEL, "Float4E2M1INTEL");
   add(internal::CapabilityFloat4E2M1CooperativeMatrixINTEL,
       "Float4E2M1CooperativeMatrixINTEL");
-  add(internal::CapabilityFloatConversionsINTEL, "FloatConversionsINTEL");
+  add(internal::CapabilityFloatConversionsFtoFINTEL,
+      "FloatConversionsFtoFINTEL");
+  add(internal::CapabilityFloatConversionsFtoSINTEL,
+      "FloatConversionsFtoSINTEL");
   add(internal::CapabilityAtomicInt16CompareExchangeINTEL,
       "AtomicInt16CompareExchangeINTEL");
   add(internal::CapabilityInt16AtomicsINTEL, "Int16AtomicsINTEL");
   add(internal::CapabilityAtomicBFloat16LoadStoreINTEL,
       "AtomicBFloat16LoadStoreINTEL");
+  add(internal::CapabilitySubgroupScaledMatrixMultiplyAccumulateINTEL,
+      "SubgroupScaledMatrixMultiplyAccumulateINTEL");
   add(CapabilityRoundedDivideSqrtINTEL, "RoundedDivideSqrtINTEL");
   add(CapabilityFloatControls2, "FloatControls2");
 }

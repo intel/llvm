@@ -185,7 +185,7 @@ int main() {
 // CHECK-HOST-LINUX-NEXT: }
 
 
-// CHECK-HOST-LINUX:      define internal void @_ZN7handler18kernel_entry_pointIZ4mainE2KNZ4mainEUliiE_EEvT0_ii(ptr noundef nonnull align 1 dereferenceable(1) %this, ptr noundef %k, i32 noundef %a, i32 noundef %b) #{{[0-9]+}} align 2 {
+// CHECK-HOST-LINUX:      define internal void @_ZN7handler18kernel_entry_pointIZ4mainE2KNZ4mainEUliiE_EEvT0_ii(ptr noundef nonnull align 1 dereferenceable(1) %this, ptr noundef align 4 %k, i32 noundef %a, i32 noundef %b) #{{[0-9]+}} align 2 {
 // CHECK-HOST-LINUX-NEXT: entry:
 // CHECK-HOST-LINUX-NEXT:   %this.addr = alloca ptr, align 8
 // CHECK-HOST-LINUX-NEXT:   %k.indirect_addr = alloca ptr, align 8
@@ -200,7 +200,7 @@ int main() {
 // CHECK-HOST-LINUX-NEXT:   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %agg.tmp, ptr align 4 %k, i64 4, i1 false)
 // CHECK-HOST-LINUX-NEXT:   %0 = load i32, ptr %a.addr, align 4
 // CHECK-HOST-LINUX-NEXT:   %1 = load i32, ptr %b.addr, align 4
-// CHECK-HOST-LINUX-NEXT:   call void @_ZN7handler18sycl_kernel_launchIZ4mainE2KNJZ4mainEUliiE_iiEEEvPKcDpT0_(ptr noundef nonnull align 1 dereferenceable(1) %this1, ptr noundef @.str.3, ptr noundef %agg.tmp, i32 noundef %0, i32 noundef %1)
+// CHECK-HOST-LINUX-NEXT:   call void @_ZN7handler18sycl_kernel_launchIZ4mainE2KNJZ4mainEUliiE_iiEEEvPKcDpT0_(ptr noundef nonnull align 1 dereferenceable(1) %this1, ptr noundef @.str.3, ptr noundef align 4 %agg.tmp, i32 noundef %0, i32 noundef %1)
 // CHECK-HOST-LINUX-NEXT:   call void @_ZZ4mainENUliiE_D1Ev(ptr noundef nonnull align 4 dead_on_return(4) dereferenceable(4) %agg.tmp) #{{[0-9]+}}
 // CHECK-HOST-LINUX-NEXT:   ret void
 // CHECK-HOST-LINUX-NEXT: }

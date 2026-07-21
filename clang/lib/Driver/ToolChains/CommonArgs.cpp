@@ -68,6 +68,22 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+OffloadJobsOpt tools::parseOffloadJobs(const ArgList &Args) {
+  Arg *A = Args.getLastArg(options::OPT_offload_jobs_EQ);
+  if (!A)
+    return {};
+
+  StringRef Val = A->getValue();
+  if (Val.equals_insensitive("jobserver"))
+    return {OffloadJobsOpt::Kind::Jobserver, A, Val};
+
+  int NumThreads;
+  if (Val.getAsInteger(10, NumThreads) || NumThreads <= 0)
+    return {OffloadJobsOpt::Kind::Invalid, A, Val};
+
+  return {OffloadJobsOpt::Kind::Fixed, A, Val, unsigned(NumThreads)};
+}
+
 static bool useFramePointerForTargetByDefault(const llvm::opt::ArgList &Args,
                                               const llvm::Triple &Triple) {
   if (Args.hasArg(options::OPT_pg) && !Args.hasArg(options::OPT_mfentry))
@@ -95,7 +111,7 @@ static bool useFramePointerForTargetByDefault(const llvm::opt::ArgList &Args,
   case llvm::Triple::sparc:
   case llvm::Triple::sparcel:
   case llvm::Triple::sparcv9:
-  case llvm::Triple::amdgcn:
+  case llvm::Triple::amdgpu:
   case llvm::Triple::r600:
   case llvm::Triple::csky:
   case llvm::Triple::loongarch32:
@@ -825,8 +841,8 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::systemz:
     return systemz::getSystemZTargetCPU(Args, T);
 
+  case llvm::Triple::amdgpu:
   case llvm::Triple::r600:
-  case llvm::Triple::amdgcn:
     return getAMDGPUTargetGPU(T, Args);
 
   case llvm::Triple::wasm32:
@@ -907,8 +923,8 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::sparcv9:
     sparc::getSparcTargetFeatures(D, Triple, Args, Features);
     break;
+  case llvm::Triple::amdgpu:
   case llvm::Triple::r600:
-  case llvm::Triple::amdgcn:
     amdgpu::getAMDGPUTargetFeatures(D, Triple, Args, Features);
     break;
   case llvm::Triple::nvptx:
@@ -3142,7 +3158,7 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
   }
 }
 
-void tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
+bool tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
                                  const llvm::opt::ArgList &DriverArgs,
                                  llvm::opt::ArgStringList &CC1Args) {
 
@@ -3153,12 +3169,12 @@ void tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
     LibclcNamespec = A->getValue();
   } else {
     if (!TT.isAMDGPU() || TT.getEnvironment() != llvm::Triple::LLVM)
-      return;
+      return false;
 
     // TODO: Should this accept following -stdlib to override?
     if (DriverArgs.hasArg(options::OPT_no_offloadlib,
                           options::OPT_nodefaultlibs, options::OPT_nostdlib))
-      return;
+      return false;
   }
 
   bool FilenameSearch = LibclcNamespec.consume_front(":");
@@ -3167,10 +3183,10 @@ void tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
     if (D.getVFS().exists(LibclcFile)) {
       CC1Args.push_back("-mlink-builtin-bitcode");
       CC1Args.push_back(DriverArgs.MakeArgString(LibclcFile));
-      return;
+      return true;
     }
     D.Diag(diag::err_drv_libclc_not_found) << LibclcFile;
-    return;
+    return false;
   }
 
   // The OpenCL libraries are stored in <ResourceDir>/lib/<triple>.
@@ -3188,7 +3204,7 @@ void tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
       if (D.getVFS().exists(CPUPath)) {
         CC1Args.push_back("-mlink-builtin-bitcode");
         CC1Args.push_back(DriverArgs.MakeArgString(CPUPath));
-        return;
+        return true;
       }
     }
   }
@@ -3199,10 +3215,11 @@ void tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
   if (D.getVFS().exists(GenericPath)) {
     CC1Args.push_back("-mlink-builtin-bitcode");
     CC1Args.push_back(DriverArgs.MakeArgString(GenericPath));
-    return;
+    return true;
   }
 
   D.Diag(diag::err_drv_libclc_not_found) << "libclc.bc";
+  return false;
 }
 
 void tools::addOutlineAtomicsArgs(const Driver &D, const ToolChain &TC,
@@ -3344,8 +3361,16 @@ void tools::handleColorDiagnosticsArgs(const Driver &D, const ArgList &Args,
           << Value << A->getOption().getName();
   }
 
-  if (D.getDiags().getDiagnosticOptions().ShowColors)
+  switch (D.getDiags().getDiagnosticOptions().getShowColors()) {
+  case ShowColorsKind::On:
     CmdArgs.push_back("-fcolor-diagnostics");
+    break;
+  case ShowColorsKind::Off:
+    CmdArgs.push_back("-fno-color-diagnostics");
+    break;
+  case ShowColorsKind::Auto:
+    break;
+  }
 }
 
 void tools::escapeSpacesAndBackslashes(const char *Arg,
