@@ -1954,8 +1954,10 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
   // TODO: Take into account Arch values considered as JIT: "native",
   // "spir64", "spir", "spirv32" and "spirv64" for SPIR and SPIR-V targets.
   // For now we only consider NoSubArch target as JIT.
-  bool IsJIT =
-      Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
+  // TODO: We allow non-SPIR targets through this path, this logic matches what
+  // we do for the old offload model, it is somewhat strange but at least one
+  // test relies on this behavior: kernel-bundle-merge-options.cpp on NVPTX.
+  bool IsJIT = Triple.getSubArch() == llvm::Triple::NoSubArch;
   if (IsJIT)
     std::for_each(SplitModules.begin(), SplitModules.end(),
                   [&CompileLinkOptions](module_split::SplitModule &M) {
