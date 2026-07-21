@@ -98,23 +98,6 @@ inline bool stringPropertyIsValid(const char *property,
   do {                                                                         \
     auto result = CALL;                                                        \
     if (result != UR_RESULT_SUCCESS) {                                         \
-      ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_FEATURE);           \
-      ASSERT_TRUE(uur::isQueryOptional(QUERY));                                \
-      GTEST_SKIP() << "Query " << #QUERY                                       \
-                   << " is not supported by this adapter";                     \
-    }                                                                          \
-  } while (0)
-#endif
-
-// Like ASSERT_SUCCESS_OR_OPTIONAL_QUERY but enforces that unsupported optional
-// device-info enumerations report UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION (not
-// UR_RESULT_ERROR_UNSUPPORTED_FEATURE). Use this for device-info queries whose
-// absence is property-specific rather than a general feature absence.
-#ifndef ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY
-#define ASSERT_SUCCESS_OR_OPTIONAL_DEVICE_INFO_QUERY(CALL, QUERY)              \
-  do {                                                                         \
-    auto result = CALL;                                                        \
-    if (result != UR_RESULT_SUCCESS) {                                         \
       ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);       \
       ASSERT_TRUE(uur::isQueryOptional(QUERY));                                \
       GTEST_SKIP() << "Query " << #QUERY                                       \
