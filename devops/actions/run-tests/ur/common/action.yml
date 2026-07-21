@@ -24,8 +24,8 @@ runs:
       TEST_TYPE: ${{ inputs.test_type }}
       ZE_ENABLE_LOADER_DEBUG_TRACE: 1
     run: |
-      if [[ "$BUILD_DIR" =~ [^a-zA-Z0-9/_-] ]] || [[ "$BUILD_DIR" =~ \.\. ]]; then
-        echo "::error::Invalid build_dir: contains disallowed characters or path traversal"
+      if ! python3 devops/scripts/ur_test_helper.py validate-build-dir "$BUILD_DIR"; then
+        echo "::error::Invalid build_dir"
         exit 1
       fi
       
@@ -109,14 +109,13 @@ runs:
         exit 0
       fi
       
-      if [ "$TEST_TYPE" = "adapter-specific" ] && ! grep -q "Testing:" "$LOG_FILE"; then
+      if [ "$TEST_TYPE" = "adapter-specific" ] && ! python3 devops/scripts/ur_test_helper.py check-log-has-tests "$LOG_FILE"; then
         echo "No adapter-specific tests found for this configuration"
         echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
         exit 0
       fi
       
-      XML_FILE=$(find "$XML_SEARCH_PATH" -name "$XML_NAME" 2>/dev/null | head -1)
-      [ -z "$XML_FILE" ] && XML_FILE=""
+      XML_FILE=$(python3 devops/scripts/ur_test_helper.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
       
       python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "$XML_FILE"
 
@@ -134,7 +133,7 @@ runs:
         cp "$LOG_FILE" test_artifacts/
       fi
       
-      FOUND_XML=$(find "$XML_SEARCH_PATH" -name "$XML_NAME" 2>/dev/null | head -1)
+      FOUND_XML=$(python3 devops/scripts/ur_test_helper.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
       if [ -n "$FOUND_XML" ]; then
         cp "$FOUND_XML" "test_artifacts/$XML_NAME"
       fi
