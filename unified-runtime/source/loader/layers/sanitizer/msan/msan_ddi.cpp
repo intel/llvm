@@ -1148,9 +1148,17 @@ ur_result_t urEnqueueMemBufferFill(
     ur_event_handle_t Event{};
     ur_device_handle_t Device = GetDevice(hQueue);
     UR_CALL(MemBuffer->getHandle(Device, Handle));
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+    ur_result_t Result = getContext()->urDdiTable.Enqueue.pfnUSMFill(
         hQueue, Handle + offset, patternSize, pPattern, size,
-        numEventsInWaitList, phEventWaitList, &Event));
+        numEventsInWaitList, phEventWaitList, &Event);
+    if (Result != UR_RESULT_SUCCESS) {
+      if (Event) {
+        [[maybe_unused]] auto ReleaseResult =
+            getContext()->urDdiTable.Event.pfnRelease(Event);
+        assert(ReleaseResult == UR_RESULT_SUCCESS);
+      }
+      return Result;
+    }
     Events.push_back(Event);
 
     // Update shadow memory
@@ -1387,8 +1395,16 @@ ur_result_t urEnqueueUSMFill(
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
-  UR_CALL(pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
-                     numEventsInWaitList, phEventWaitList, &Event));
+  ur_result_t Result = pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
+                                  numEventsInWaitList, phEventWaitList, &Event);
+  if (Result != UR_RESULT_SUCCESS) {
+    if (Event) {
+      [[maybe_unused]] auto ReleaseResult =
+          getContext()->urDdiTable.Event.pfnRelease(Event);
+      assert(ReleaseResult == UR_RESULT_SUCCESS);
+    }
+    return Result;
+  }
   Events.push_back(Event);
 
   {

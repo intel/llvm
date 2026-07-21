@@ -94,7 +94,13 @@ ur_result_t DeviceInfo::allocShadowMemory() {
                                                      &ShadowContext));
   Shadow = GetShadowMemory(ShadowContext, Handle, Type);
   assert(Shadow && "Failed to get shadow memory");
-  UR_CALL(Shadow->Setup());
+  auto Result = Shadow->Setup();
+  if (Result != UR_RESULT_SUCCESS || Type == DeviceType::CPU) {
+    [[maybe_unused]] auto ReleaseResult =
+        getContext()->urDdiTable.Context.pfnRelease(ShadowContext);
+    assert(ReleaseResult == UR_RESULT_SUCCESS);
+  }
+  UR_CALL(Result);
   UR_LOG_L(getContext()->logger, INFO, "ShadowMemory(Global): {} - {}",
            (void *)Shadow->ShadowBegin, (void *)Shadow->ShadowEnd);
   return UR_RESULT_SUCCESS;
