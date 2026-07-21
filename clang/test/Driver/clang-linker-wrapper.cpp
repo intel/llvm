@@ -126,13 +126,16 @@
 // CHK-CMDS-AOT-GEN-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
-// Check that when "-device pvc" specification, split across two separate
+// Check that a "-device pvc" specification split across two separate
 // --device-linker= arguments (each --device-compiler=/--device-linker= CLI
 // occurrence becomes exactly one ocloc argv entry, so a multi-token value
-// like "-device pvc" must be supplied as separate occurrences, not as one
-// value containing an embedded space), is reconstructed correctly in the
-// ocloc invocation.
+// must be supplied as separate occurrences) is reconstructed correctly in
+// the ocloc invocation.
 // RUN: clang-linker-wrapper --device-linker=spir64_gen-unknown-unknown=-device --device-linker=spir64_gen-unknown-unknown=pvc --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN-LINKERARG %s
+// Check that the "-device" supplied via --device-linker= is detected, so the
+// target is not also passed to sycl-post-link for filtering (no
+// "intel_gpu_pvc," prefix on the -o argument).
+// CHK-NO-CMDS-AOT-GEN-LINKERARG: sycl-post-link{{.*}} -o {{[^,]*}}.table {{.*}}.bc
 // CHK-NO-CMDS-AOT-GEN-LINKERARG: ocloc{{.*}} -device pvc -output
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
