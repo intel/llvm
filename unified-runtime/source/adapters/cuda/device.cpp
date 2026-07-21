@@ -1230,7 +1230,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     std::array<char, 8> LUID{};
     unsigned int nodeMask = 0;
-    UR_CHECK_ERROR(cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get()));
+    // Must pass both parameters - CUDA returns SUCCESS with zeros on
+    // unsupported platforms
+    CUresult Result = cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
+    
+    // CUDA_ERROR_NOT_SUPPORTED means LUID is not available on this platform
+    if (Result == CUDA_ERROR_NOT_SUPPORTED) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    UR_CHECK_ERROR(Result);
 
     bool isAllZeros = true;
     for (char num : LUID) {
@@ -1255,7 +1263,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     std::array<char, 8> LUID{};
     unsigned int nodeMask = 0;
-    UR_CHECK_ERROR(cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get()));
+    // Must pass both parameters - CUDA returns SUCCESS with zeros on
+    // unsupported platforms
+    CUresult Result = cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
+    
+    // CUDA_ERROR_NOT_SUPPORTED means node mask is not available on this
+    // platform
+    if (Result == CUDA_ERROR_NOT_SUPPORTED) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    UR_CHECK_ERROR(Result);
 
     // If nodeMask is zero, the feature is not supported on this platform
     if (nodeMask == 0) {

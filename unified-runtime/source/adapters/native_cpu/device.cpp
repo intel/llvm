@@ -477,6 +477,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
     return ReturnValue(false);
 
+  // LUID and NODE_MASK are Windows/D3D12 specific - not applicable on Native
+  // CPU
+  case UR_DEVICE_INFO_LUID:
+  case UR_DEVICE_INFO_NODE_MASK:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
   default:
     DIE_NO_IMPLEMENTATION;
   }
