@@ -179,21 +179,21 @@ static LLT getBufferRsrcScalarType(const LLT Ty) {
 
 static LLT getBufferRsrcRegisterType(const LLT Ty) {
   if (!Ty.isVector())
-    return LLT::fixed_vector(4, LLT::scalar(32));
+    return LLT::fixed_vector(4, LLT::integer(32));
   const unsigned NumElems = Ty.getElementCount().getFixedValue();
-  return LLT::fixed_vector(NumElems * 4, LLT::scalar(32));
+  return LLT::fixed_vector(NumElems * 4, LLT::integer(32));
 }
 
 static LLT getBitcastRegisterType(const LLT Ty) {
   const unsigned Size = Ty.getSizeInBits();
 
   if (Size <= 32) {
-    // <2 x s8> -> s16
-    // <4 x s8> -> s32
-    return LLT::scalar(Size);
+    // <2 x i8> -> i16
+    // <4 x i8> -> i32
+    return LLT::integer(Size);
   }
 
-  return LLT::scalarOrVector(ElementCount::getFixed(Size / 32), 32);
+  return LLT::fixed_vector(Size / 32, LLT::integer(32));
 }
 
 static LegalizeMutation bitcastToRegisterType(unsigned TypeIdx) {
@@ -292,6 +292,10 @@ static LegalityPredicate elementTypeIsLegal(unsigned TypeIdx) {
     return EltTy == LLT::scalar(16) || EltTy.getSizeInBits() >= 32;
   };
 }
+
+const LLT I16 = LLT::integer(16);
+constexpr LLT F16 = LLT::float16();
+constexpr LLT BF16 = LLT::bfloat16();
 
 constexpr LLT S1 = LLT::scalar(1);
 constexpr LLT S8 = LLT::scalar(8);
@@ -631,14 +635,14 @@ static LLT castBufferRsrcFromV4I32(MachineInstr &MI, MachineIRBuilder &B,
   if (!PointerTy.isVector()) {
     // Happy path: (4 x s32) -> (s32, s32, s32, s32) -> (p8)
     const unsigned NumParts = PointerTy.getSizeInBits() / 32;
-    const LLT S32 = LLT::scalar(32);
+    const LLT I32 = LLT::integer(32);
 
     Register VectorReg = MRI.createGenericVirtualRegister(VectorTy);
     std::array<Register, 4> VectorElems;
     B.setInsertPt(B.getMBB(), ++B.getInsertPt());
     for (unsigned I = 0; I < NumParts; ++I)
       VectorElems[I] =
-          B.buildExtractVectorElementConstant(S32, VectorReg, I).getReg(0);
+          B.buildExtractVectorElementConstant(I32, VectorReg, I).getReg(0);
     B.buildMergeValues(MO, VectorElems);
     MO.setReg(VectorReg);
     return VectorTy;
@@ -667,7 +671,7 @@ static Register castBufferRsrcToV4I32(Register Pointer, MachineIRBuilder &B) {
     // Special case: p8 -> (s32, s32, s32, s32) -> (4xs32)
     SmallVector<Register, 4> PointerParts;
     const unsigned NumParts = PointerTy.getSizeInBits() / 32;
-    auto Unmerged = B.buildUnmerge(LLT::scalar(32), Pointer);
+    auto Unmerged = B.buildUnmerge(LLT::integer(32), Pointer);
     for (unsigned I = 0; I < NumParts; ++I)
       PointerParts.push_back(Unmerged.getReg(I));
     return B.buildBuildVector(VectorTy, PointerParts).getReg(0);
@@ -926,6 +930,10 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   getActionDefinitionsBuilder(G_BITCAST)
       // Don't worry about the size constraint.
       .legalIf(all(isRegisterClassType(ST, 0), isRegisterClassType(ST, 1)))
+      .widenScalarIf(all(typeInSet(0, {I16, F16, BF16}), isScalar(1)),
+                     changeTo(0, LLT::integer(32)))
+      .widenScalarIf(all(isScalar(0), typeInSet(1, {I16, F16, BF16})),
+                     changeTo(1, LLT::integer(32)))
       .lower();
 
   getActionDefinitionsBuilder(G_CONSTANT)
@@ -1148,9 +1156,9 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   FPTruncActions.scalarize(0).lower();
 
   getActionDefinitionsBuilder(G_FPEXT)
-    .legalFor({{S64, S32}, {S32, S16}})
-    .narrowScalarFor({{S64, S16}}, changeTo(0, S32))
-    .scalarize(0);
+      .legalFor({{S64, S32}, {S32, S16}})
+      .narrowScalarFor({{S64, S16}}, changeElementSizeTo(0, S32))
+      .scalarize(0);
 
   auto &FSubActions = getActionDefinitionsBuilder({G_FSUB, G_STRICT_FSUB});
   if (ST.has16BitInsts()) {
@@ -1216,7 +1224,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   // TODO: Split s1->s64 during regbankselect for VALU.
   auto &IToFP = getActionDefinitionsBuilder({G_SITOFP, G_UITOFP})
                     .legalFor({{S32, S32}, {S64, S32}})
-                    .widenScalarFor({{S16, S32}}, changeTo(0, S32))
+                    .widenScalarFor({{S16, S32}}, changeElementSizeTo(0, S32))
                     .lowerIf(typeIs(1, S1))
                     .customFor({{S32, S64}, {S64, S64}});
   if (ST.has16BitInsts())
@@ -1229,8 +1237,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   auto &FPToI = getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI})
                     .legalFor({{S32, S32}, {S32, S64}})
                     .customFor({{S64, S32}, {S64, S64}})
-                    .widenScalarFor({{S32, S16}}, changeTo(1, S32))
-                    .narrowScalarFor({{S64, S16}}, changeTo(0, S32));
+                    .widenScalarFor({{S32, S16}}, changeElementSizeTo(1, S32))
+                    .narrowScalarFor({{S64, S16}}, changeElementSizeTo(0, S32));
   if (ST.has16BitInsts())
     FPToI.legalFor({{S16, S16}});
   else
@@ -1246,7 +1254,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .legalFor({{S32, S32}, {S32, S64}, {S16, S32}})
     .legalFor(ST.has16BitInsts(), {{S16, S16}})
     .legalFor(ST.hasVCvtPkIU16F32(), {{V2S16, V2S32}})
-    .narrowScalarFor({{S64, S16}}, changeTo(0, S32));
+    .narrowScalarFor({{S64, S16}}, changeElementSizeTo(0, S32));
 
   // If available, widen width <16 to i16, intead of i32 so v_cvt_i16/u16_f16 can be used.
   if (ST.has16BitInsts())
@@ -1925,14 +1933,15 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
 
     // TODO: Support 16-bit shift amounts for all types
     Shifts.widenScalarIf(
-      [=](const LegalityQuery &Query) {
-        // Use 16-bit shift amounts for any 16-bit shift. Otherwise we want a
-        // 32-bit amount.
-        const LLT ValTy = Query.Types[0];
-        const LLT AmountTy = Query.Types[1];
-        return ValTy.isScalar() && ValTy.getSizeInBits() <= 16 &&
-               AmountTy.getSizeInBits() < 16;
-      }, changeTo(1, S16));
+        [=](const LegalityQuery &Query) {
+          // Use 16-bit shift amounts for any 16-bit shift. Otherwise we want a
+          // 32-bit amount.
+          const LLT ValTy = Query.Types[0];
+          const LLT AmountTy = Query.Types[1];
+          return ValTy.isScalar() && ValTy.getSizeInBits() <= 16 &&
+                 AmountTy.getSizeInBits() < 16;
+        },
+        changeElementSizeTo(1, S16));
     Shifts.maxScalarIf(typeIs(0, S16), 1, S16);
     Shifts.clampScalar(1, S32, S32);
     Shifts.widenScalarToNextPow2(0, 16);
@@ -2062,7 +2071,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
           .legalForCartesianProduct(AllS64Vectors, {S64})
           .clampNumElements(0, V16S32, V32S32)
           .clampNumElements(0, V2S64, V16S64)
-          .fewerElementsIf(isWideVec16(0), changeTo(0, V2S16))
+          .fewerElementsIf(isWideVec16(0),
+                           changeElementCountTo(0, ElementCount::getFixed(2)))
           .moreElementsIf(isIllegalRegisterType(ST, 0),
                           moreElementsToNextExistingRegClass(0));
 
@@ -2128,7 +2138,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
                             oneMoreElement(BigTyIdx))
             .fewerElementsIf(all(typeIs(0, S16), vectorWiderThan(1, 32),
                                  elementTypeIs(1, S16)),
-                             changeTo(1, V2S16))
+                             changeElementCountTo(1, ElementCount::getFixed(2)))
             // Clamp the little scalar to s8-s256 and make it a power of 2. It's
             // not worth considering the multiples of 64 since 2*192 and 2*384
             // are not valid.
@@ -2149,12 +2159,12 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
 
     if (Op == G_MERGE_VALUES) {
       Builder.widenScalarIf(
-        // TODO: Use 16-bit shifts if legal for 8-bit values?
-        [=](const LegalityQuery &Query) {
-          const LLT Ty = Query.Types[LitTyIdx];
-          return Ty.getSizeInBits() < 32;
-        },
-        changeTo(LitTyIdx, S32));
+          // TODO: Use 16-bit shifts if legal for 8-bit values?
+          [=](const LegalityQuery &Query) {
+            const LLT Ty = Query.Types[LitTyIdx];
+            return Ty.getSizeInBits() < 32;
+          },
+          changeElementSizeTo(LitTyIdx, S32));
     }
 
     Builder.widenScalarIf(
@@ -6964,7 +6974,7 @@ bool AMDGPULegalizerInfo::legalizeBufferLoad(MachineInstr &MI,
     B.setInsertPt(B.getMBB(), ++B.getInsertPt());
     B.buildTrunc(Dst, LoadDstReg);
   } else if (Unpacked && IsD16 && Ty.isVector()) {
-    LLT UnpackedTy = Ty.changeElementSize(32);
+    LLT UnpackedTy = LLT::fixed_vector(Ty.getNumElements(), LLT::integer(32));
     Register LoadDstReg = B.getMRI()->createGenericVirtualRegister(UnpackedTy);
     buildBufferLoad(Opc, LoadDstReg, RSrc, VIndex, VOffset, SOffset, ImmOffset,
                     Format, AuxiliaryData, MMO, IsTyped, HasVIndex, B);
