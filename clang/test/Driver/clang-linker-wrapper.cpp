@@ -132,9 +132,9 @@
 // must be supplied as separate occurrences) is reconstructed correctly in
 // the ocloc invocation.
 // RUN: clang-linker-wrapper --device-linker=spir64_gen-unknown-unknown=-device --device-linker=spir64_gen-unknown-unknown=pvc --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN-LINKERARG %s
-// Check that the "-device" supplied via --device-linker= is detected, so the
-// target is not also passed to sycl-post-link for filtering (no
-// "intel_gpu_pvc," prefix on the -o argument).
+// Check that the device supplied via '--device-linker=' is correctly detected.
+// This prevents the target from being redundantly passed to sycl-post-link
+// for filtering, which would add an 'intel_gpu_pvc,' prefix to the -o argument.
 // CHK-NO-CMDS-AOT-GEN-LINKERARG: sycl-post-link{{.*}} -o {{[^,]*}}.table {{.*}}.bc
 // CHK-NO-CMDS-AOT-GEN-LINKERARG: ocloc{{.*}} -device pvc -output
 
