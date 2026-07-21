@@ -109,7 +109,6 @@ void testLambdaKernel(sycl::queue &q, sycl::context &ctx, sycl::device &dev,
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctx);
   const sycl::kernel k = bundle.template get_kernel<KernelName>();
-<<<<<<< HEAD
   size_t maxWGs = syclex::get_kernel_info<
       KernelName,
       sycl::ext::oneapi::experimental::info::kernel::max_num_work_groups_sync>(
