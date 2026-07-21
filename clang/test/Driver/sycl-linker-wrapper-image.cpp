@@ -36,7 +36,7 @@ int main() {
 
 // CHECK-DAG: %_pi_device_binary_property_struct = type { ptr, ptr, i32, i64 }
 // CHECK-DAG: %_pi_device_binary_property_set_struct = type { ptr, ptr, ptr }
-// CHECK-DAG: %struct.__tgt_offload_entry = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// CHECK-DAG: %struct.__tgt_offload_entry = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 // CHECK-DAG: %__sycl.tgt_device_image = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
 // CHECK-DAG: %__sycl.tgt_bin_desc = type { i16, i16, ptr, ptr, ptr }
 
@@ -51,7 +51,7 @@ int main() {
 // CHECK-DAG: @__sycl_offload_prop_sets_arr.2 = internal constant [2 x %_pi_device_binary_property_set_struct] [%_pi_device_binary_property_set_struct { ptr @SYCL_PropSetName, ptr @__sycl_offload_prop_sets_arr, ptr getelementptr ([1 x %_pi_device_binary_property_struct], ptr @__sycl_offload_prop_sets_arr, i64 0, i64 1) }, %_pi_device_binary_property_set_struct { ptr @SYCL_PropSetName.1, ptr null, ptr null }]
 // CHECK-DAG: @.sycl_offloading.0.data = internal unnamed_addr constant [[[SIZE1:.*]] x i8]
 // CHECK-DAG: @__sycl_offload_entry_name = internal unnamed_addr constant [25 x i8] c"_ZTSZ4mainE11fake_kernel\00"
-// CHECK-DAG: @__sycl_offload_entries_arr = internal constant [1 x %struct.__tgt_offload_entry] [%struct.__tgt_offload_entry { i64 0, i16 1, i16 8, i32 0, ptr null, ptr @__sycl_offload_entry_name, i64 0, i64 0, ptr null }]
+// CHECK-DAG: @__sycl_offload_entries_arr = internal constant [1 x %struct.__tgt_offload_entry] [%struct.__tgt_offload_entry { i64 0, i16 1, i16 8, i32 0, ptr null, ptr @__sycl_offload_entry_name, i64 0, i64 0, ptr null, i64 0 }]
 // CHECK-DAG: @.sycl_offloading.0.info = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr @.sycl_offloading.0.data to i64), i64 772], section ".tgtimg", align 16
 // CHECK-DAG: @llvm.used = appending global [1 x ptr] [ptr @.sycl_offloading.0.info], section "llvm.metadata"
 

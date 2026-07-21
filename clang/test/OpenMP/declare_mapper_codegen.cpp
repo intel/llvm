@@ -23,7 +23,7 @@
 // Mapper function code generation and runtime interface.
 
 // CK0: [[IDENT_T:%.+]] = type { i32, i32, i32, i32, ptr }
-// CK0: [[ENTRY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// CK0: [[ENTRY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 // CK0: [[ANON_T:%.+]] = type { ptr }
 // CK0: [[ANON_T_0:%.+]] = type { ptr }
 // CK0: [[KMP_TASK_T_WITH_PRIVATES:%.+]] = type { [[KMP_TASK_T:%[^,]+]], [[KMP_PRIVATES_T:%.+]] }

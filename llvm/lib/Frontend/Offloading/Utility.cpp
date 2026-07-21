@@ -34,7 +34,7 @@ StructType *offloading::getEntryTy(Module &M) {
         "struct.__tgt_offload_entry", Type::getInt64Ty(C), Type::getInt16Ty(C),
         Type::getInt16Ty(C), Type::getInt32Ty(C), PointerType::getUnqual(C),
         PointerType::getUnqual(C), Type::getInt64Ty(C), Type::getInt64Ty(C),
-        PointerType::getUnqual(C));
+        PointerType::getUnqual(C), Type::getInt64Ty(C));
   return EntryTy;
 }
 
@@ -79,7 +79,8 @@ offloading::getOffloadingEntryInitializer(Module &M, object::OffloadKind Kind,
       ConstantInt::get(Int64Ty, Size),
       ConstantInt::get(Int64Ty, Data),
       AuxAddr ? ConstantExpr::getPointerBitCastOrAddrSpaceCast(AuxAddr, PtrTy)
-              : ConstantExpr::getNullValue(PtrTy)};
+              : ConstantExpr::getNullValue(PtrTy),
+      ConstantExpr::getNullValue(Int64Ty)};
   Constant *EntryInitializer = ConstantStruct::get(getEntryTy(M), EntryData);
   return {EntryInitializer, Str};
 }
@@ -120,11 +121,14 @@ GlobalVariable *offloading::emitOffloadingEntry(
       M.getDataLayout().getDefaultGlobalsAddressSpace());
 
   // The entry has to be created in the section the linker expects it to be.
-  if (Triple.isOSBinFormatCOFF())
+  if (Triple.isOSBinFormatCOFF()) {
     Entry->setSection((SectionName + "$OE").str());
-  else
+    // Match sizeof(EntryTy) so MSVC /INCREMENTAL cannot inject gaps.
+    Entry->setAlignment(Align(64));
+  } else {
     Entry->setSection(SectionName);
-  Entry->setAlignment(Align(object::OffloadBinary::getAlignment()));
+    Entry->setAlignment(Align(object::OffloadBinary::getAlignment()));
+  }
   return Entry;
 }
 
@@ -177,6 +181,8 @@ offloading::getOffloadEntryArray(Module &M) {
     // sections here to ensure that the beginning and end symbols are sorted.
     EntriesB->setSection((SectionName + "$OA").str());
     EntriesE->setSection((SectionName + "$OZ").str());
+    EntriesB->setAlignment(Align(64));
+    EntriesE->setAlignment(Align(64));
   }
 
   return std::make_pair(EntriesB, EntriesE);
