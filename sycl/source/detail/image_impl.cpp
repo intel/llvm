@@ -27,15 +27,6 @@ static bool checkImageValueRange(devices_range Devices, const size_t Value) {
          });
 }
 
-template <typename Aspect>
-static bool checkImageValueRangeWithAspect(devices_range Devices,
-                                           const size_t Value) {
-  return Value >= 1 &&
-         std::all_of(Devices.begin(), Devices.end(), [Value](device_impl &Dev) {
-           return Value <= Dev.has(Aspect{});
-         });
-}
-
 template <typename T, typename... Args> static bool checkAnyImpl(T) {
   return false;
 }
