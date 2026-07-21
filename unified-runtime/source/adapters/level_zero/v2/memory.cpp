@@ -320,7 +320,8 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
 }
 
 ur_discrete_buffer_handle_t::~ur_discrete_buffer_handle_t() {
-  if (!activeAllocationDevice || !writeBackPtr)
+  if (!activeAllocationDevice || !activeAllocationDevice->Id.has_value() ||
+      !writeBackPtr)
     return;
 
   auto srcPtr = getActiveDeviceAlloc();
