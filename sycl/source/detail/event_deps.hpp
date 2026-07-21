@@ -59,6 +59,11 @@ void registerEventDependency(
                           "Queue operation cannot depend on discarded event.");
   }
 
+  if (EventImpl->isReusable()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Reusable events cannot be used as a dependency.");
+  }
+
   // Async alloc calls adapter immediately. Any explicit/implicit dependencies
   // are handled at that point, including in order queue deps. Further calls to
   // depends_on after an async alloc are explicitly disallowed.

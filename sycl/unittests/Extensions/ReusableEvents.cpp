@@ -231,6 +231,7 @@ TEST_F(ReusableEventsTest, MakeEventDefault) {
 
     auto status = event.get_info<sycl::info::event::command_execution_status>();
     EXPECT_EQ(status, sycl::info::event_command_status::complete);
+    EXPECT_TRUE(event.ext_oneapi_reusable());
   }
 
   // make_event should not call UR.
@@ -354,6 +355,7 @@ TEST_F(ReusableEventsTest, DefaultConstructor) {
 
     auto status = event.get_info<sycl::info::event::command_execution_status>();
     EXPECT_EQ(status, sycl::info::event_command_status::complete);
+    EXPECT_TRUE(event.ext_oneapi_reusable());
   }
 
   EXPECT_EQ(UrEventCreateExp_counter, 0);
@@ -374,13 +376,19 @@ TEST_F(ReusableEventsTest, QueueReturnedEvent) {
   auto event = Queue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  ExpectedNumEventsInWaitList = 1;
+  EXPECT_FALSE(event.ext_oneapi_reusable());
 
-  // Queue-returned events are associated with the queue's context per spec;
-  // verify the event is usable with extension wait functions
-  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
+  bool exception = false;
 
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
+  try {
+    syclex::enqueue_wait_event(Queue, event);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Event must be reusable.");
+  }
+
+  EXPECT_TRUE(exception);
 
   Queue.wait();
 }
@@ -412,7 +420,7 @@ TEST_F(ReusableEventsTest, ProfilingInfoQuery) {
   });
 }
 
-// Event can be used in depends_on
+// Reusable event used in depends_on - not allowed
 TEST_F(ReusableEventsTest, EventInDependsOn) {
   mock::getCallbacks().set_replace_callback(
       "urEnqueueEventsWaitWithBarrierExt",
@@ -431,19 +439,25 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
 
   EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
 
-  ExpectedNumEventsInWaitListKernelLaunch = 1;
+  bool exception = false;
 
-  EXPECT_NO_THROW({
+  try {
     Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on(event);
       cgh.single_task<TestKernel>([]() {});
     });
-  });
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Reusable events cannot be used as a dependency.");
+  }
+
+  EXPECT_TRUE(exception);
 
   Queue.wait();
 }
 
-// Cross-context events with wait
+// Cross-context event with wait - not supported.
 TEST_F(ReusableEventsTest, CrossContextEventWait) {
   mock::getCallbacks().set_replace_callback("urDeviceGet",
                                             &redefinedUrDeviceGet);
@@ -467,23 +481,65 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
 
   auto event = syclex::make_event(Ctx1);
 
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  bool exception = false;
 
-  syclex::enqueue_signal_event(Queue1, event);
+  // Event from different context cannot be used
+  // with enqueue_wait_event.
+  try {
+    syclex::enqueue_wait_event(Queue2, event);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
+  }
 
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+  EXPECT_TRUE(exception);
 
-  ExpectedNumEventsInWaitList = 1;
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_wait);
+  Queue1.wait();
+  Queue2.wait();
+}
 
-  // Event from different context should still work with enqueue_wait_event
-  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue2, event); });
+// Cross-context events with wait (multiple events) - not supported.
+TEST_F(ReusableEventsTest, CrossContextEventsWait) {
+  mock::getCallbacks().set_replace_callback("urDeviceGet",
+                                            &redefinedUrDeviceGet);
+  mock::getCallbacks().set_replace_callback("urDeviceRelease",
+                                            &redefinedUrDeviceRelease);
 
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
+  sycl::platform Plt = sycl::platform();
+  auto Devices = Plt.get_devices();
+
+  if (Devices.size() < 2) {
+    GTEST_SKIP() << "Need at least 2 devices for this test";
+  }
+
+  const sycl::device Dev1 = Devices[0];
+  const sycl::device Dev2 = Devices[1];
+  sycl::context Ctx1{Dev1};
+  sycl::context Ctx2{Dev2};
+
+  sycl::queue Queue1{Ctx1, Dev1};
+  sycl::queue Queue2{Ctx2, Dev2};
+
+  auto event1 = syclex::make_event(Ctx1);
+  auto event2 = syclex::make_event(Ctx1);
+
+  std::vector<sycl::event> events{event1, event2};
+
+  bool exception = false;
+
+  // An event from different context cannot be used
+  // with enqueue_wait_event
+  try {
+    syclex::enqueue_wait_events(Queue2, events);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(),
+                 "Context of all events must match the queue context.");
+  }
+
+  EXPECT_TRUE(exception);
 
   Queue1.wait();
   Queue2.wait();
@@ -525,6 +581,61 @@ TEST_F(ReusableEventsTest, CrossContextMakeEventSignalEvent) {
   EXPECT_TRUE(exception);
 
   Queue1.wait();
+}
+
+// Reusable event on a barrier wait list - not allowed
+TEST_F(ReusableEventsTest, BarrierWaitListReusableEvent) {
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  auto event = syclex::make_event(Ctx);
+
+  std::vector<sycl::event> barrier_wait_list;
+  barrier_wait_list.push_back(event);
+
+  bool exception = false;
+
+  try {
+    Queue.ext_oneapi_submit_barrier(barrier_wait_list);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Reusable events cannot be used as barrier events.");
+  }
+
+  EXPECT_TRUE(exception);
+
+  Queue.wait();
+}
+
+// Reusable event on a barrier wait list - handler - not allowed
+TEST_F(ReusableEventsTest, BarrierWaitListReusableEventHandler) {
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  auto event = syclex::make_event(Ctx);
+
+  std::vector<sycl::event> barrier_wait_list;
+  barrier_wait_list.push_back(event);
+
+  bool exception = false;
+
+  try {
+    Queue.submit(
+        [&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(barrier_wait_list); });
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Reusable events cannot be used as barrier events.");
+  }
+
+  EXPECT_TRUE(exception);
+
+  Queue.wait();
 }
 
 // Empty event vector wait

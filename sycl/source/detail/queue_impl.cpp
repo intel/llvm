@@ -615,14 +615,21 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
               /*SchedulerBypass*/ true};
     }
 
-    if (EventForReuse) {
+    if (EventForReuse || !CallerNeedsEvent) {
       // Current limitation: reusable events require scheduler bypass so that
       // the barrier can be submitted directly to the backend with the reusable
       // event's handle as the output event. Scheduler bypass is not possible
       // when dependencies include host tasks or cross-context dependencies.
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "An event cannot be enqueued for signaling behind "
-                            "a command which is not enqueued in the backend.");
+      //
+      // This limitation applies to both: enqueue_signal_event and
+      // enqueue_wait_event(s).
+      //
+      // The !CallerNeedsEvent condition is used to detect the
+      // enqueue_wait_event(s) function calls.
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "An event cannot be enqueued for signaling or waiting "
+          "behind a command which is not enqueued in the backend.");
     }
 
     std::unique_ptr<detail::CG> CommandGroup;

@@ -214,6 +214,13 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
+  for (const event &e : WaitList) {
+    if (e.ext_oneapi_reusable()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Reusable events cannot be used as barrier events.");
+    }
+  }
   return impl->submit_barrier_direct_with_event(
       WaitList, detail::CGType::BarrierWaitlist, CodeLoc);
 }

@@ -52,7 +52,7 @@ public:
   /// If the constructed SYCL event is waited on it will complete immediately.
   event_impl(private_tag)
       : MIsFlushed(true), MState(HES_Complete), MIsDefaultConstructed(true),
-        MIsHostEvent(false) {
+        MIsHostEvent(false), MReusable(true) {
     // Need to fail in event() constructor  if there are problems with the
     // ONEAPI_DEVICE_SELECTOR. Deferring may lead to conficts with noexcept
     // event methods. This ::get() call uses static vars to read and parse the
@@ -399,6 +399,8 @@ public:
   // Initializes the host profiling info for the event.
   void initHostProfilingInfo();
 
+  bool isReusable() const noexcept { return MReusable; }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -505,6 +507,10 @@ protected:
   // MEvent is lazily created in first ur handle query.
   bool MIsDefaultConstructed = false;
   bool MIsHostEvent = false;
+
+  /// True if the event is reusable (can be enqueued for signaling multiple
+  /// times).
+  bool MReusable = false;
 };
 
 using events_iterator =

@@ -151,6 +151,10 @@ public:
   /// enabled.
   bool ext_oneapi_ipc_enabled() const noexcept;
 
+  /// Returns true if the event is reusable (can be enqueued for signaling
+  /// multiple times).
+  bool ext_oneapi_reusable() const noexcept;
+
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
