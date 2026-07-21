@@ -56,6 +56,33 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
+This extension has been implemented with the following limitations:
+
+* The `evt` passed to the `enqueue_wait_event` function and all events in
+  `evts` passed to the `enqueue_wait_events` function need to have the same
+  context as `q`.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  functions cannot be dependent on a host task (`enqueue_wait_event` and
+  `enqueue_wait_events` cannot take an event produced by a host task submission
+  as an argument and all those functions cannot be enqueued behind a host task
+  on an in-order queue), which has been submitted using the
+  `handler::host_task` function.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  functions cannot be dependent on any commands which use cross-context
+  event dependencies.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  function cannot be dependent on any commands using `sycl::stream`.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  function cannot be dependent on the following methods from the
+  link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[
+  sycl_ext_oneapi_memcpy2d] extension: `queue::ext_oneapi_memcpy2d`,
+  `queue::ext_oneapi_copy2d`, `handler::ext_oneapi_memcpy2d`,
+  `handler::ext_oneapi_copy2d`, if the copy is a host-to-host data copy,
+  and the following methods: `queue::ext_oneapi_fill2d`,
+  `queue::ext_oneapi_memset2d`, `handler::ext_oneapi_fill2d`,
+  `handler::ext_oneapi_memset2d`, if the backend does not support 2D fill or
+  the target memory is on host.
+
 == Backend support status
 
 This extension is not supported with the Level Zero v1 adapter. All of the
@@ -457,32 +484,3 @@ event when a command is submitted, rather than taking an event as input.
   previous call attached to the SYCL `event`.
   If so, the `cl_event` is released before calling `clEnqueueMarkerWithWaitList`
   or `clEnqueueBarrierWithWaitList`.
-
-=== Status
-
-This extension has been implemented with the following limitations:
-
-* The `evt` passed to the `enqueue_wait_event` function and all events in
-  `evts` passed to the `enqueue_wait_events` function need to have the same
-  context as `q`.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  functions cannot be dependent on a host task (`enqueue_wait_event` and
-  `enqueue_wait_events` cannot take an event produced by a host task submission
-  as an argument and all those functions cannot be enqueued behind a host task
-  on an in-order queue), which has been submitted using the
-  `handler::host_task` function.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  functions cannot be dependent on any commands which use cross-context
-  event dependencies.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  function cannot be dependent on any commands using `sycl::stream`.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  function cannot be dependent on the following methods from the
-  link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[
-  sycl_ext_oneapi_memcpy2d] extension: `queue::ext_oneapi_memcpy2d`,
-  `queue::ext_oneapi_copy2d`, `handler::ext_oneapi_memcpy2d`,
-  `handler::ext_oneapi_copy2d`, if the copy is a host-to-host data copy,
-  and the following methods: `queue::ext_oneapi_fill2d`,
-  `queue::ext_oneapi_memset2d`, `handler::ext_oneapi_fill2d`,
-  `handler::ext_oneapi_memset2d`, if the backend does not support 2D fill or
-  the target memory is on host.
