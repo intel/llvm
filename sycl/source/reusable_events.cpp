@@ -104,8 +104,6 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
-  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
-
   if (EventImpl.isInterop()) {
     throw sycl::exception(
         sycl::make_error_code(errc::runtime),
@@ -117,6 +115,8 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
                           "Enqueueing an event for signaling is not supported "
                           "on a queue which is recording a graph.");
   }
+
+  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
 
   // An IPC event cannot be signaled on a profiling-enabled queue.
   if (EventImpl.isIPCEnabled() && QueueImpl.MIsProfilingEnabled) {
