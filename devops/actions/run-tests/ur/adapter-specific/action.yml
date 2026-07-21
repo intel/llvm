@@ -108,7 +108,7 @@ runs:
         XML_FILE=""
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "" "$XML_FILE"
+      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log "$XML_FILE"
 
   - name: Prepare adapter specific test artifacts
     if: ${{ always() && inputs.artifact_name != '' && env.SKIP_ARTIFACTS != '1' }}
