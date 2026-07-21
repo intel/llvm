@@ -6,6 +6,8 @@
 
 target triple = "x86_64-grtev4-linux-gnu"
 
+module asm
+    ""
 define void @foo(ptr , ptr ) {
   ret void
 }
