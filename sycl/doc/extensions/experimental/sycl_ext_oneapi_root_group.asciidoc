@@ -706,7 +706,7 @@ namespace syclex = sycl::ext::oneapi::experimental;
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
 void mykernel(size_t *data) {
   // Get a handle to the root-group.
-  auto root = syclex::get_root_group<1>();
+  auto root = syclex::this_work_item::get_root_group<1>();
 
   // Write to some global memory location.
   data[root.get_local_linear_id()] = root.get_local_linear_id();
@@ -736,7 +736,7 @@ int main() {
   syclex::launch_config cfg{ndr, props};
 
   size_t *data = sycl::malloc_device<size_t>(maxWGs * 32, q);
-  syclex::nd_launch(q, cfg, syclexp::kernel_function<mykernel>, data);
+  syclex::nd_launch(q, cfg, syclex::kernel_function<mykernel>, data);
   q.wait();
 }
 ----
