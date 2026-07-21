@@ -489,21 +489,7 @@ def show_statistics_and_lists(config: SummaryConfig) -> None:
     _display_timing_summary(config.log_lines)
 
 
-def _print_usage() -> None:
-    print(
-        """Usage: ur_test_summary.py <command> <log_file> [xml_file]
 
-Commands:
-  extract-errors <log>  - Extract FAIL/TIMEOUT error details
-  show-summary <log> [xml]  - Show statistics and collapsed test lists
-  filter-log <log>      - Filter log to remove test lists and timing (for Show Full Log)
-
-Arguments:
-  log          - LIT test output log file
-  xml          - Optional: LIT xunit XML output (--xunit-xml-output)
-""",
-        file=sys.stderr,
-    )
 
 
 def _validate_log_path(path: str) -> None:
@@ -539,17 +525,11 @@ def _validate_optional_path(
 
 
 def main():
-    if len(sys.argv) < 2:
-        _print_usage()
+    if len(sys.argv) < 3:
+        print(f"Error: {sys.argv[0]} <command> <log_file> [xml_file]", file=sys.stderr)
         sys.exit(1)
 
     command = sys.argv[1]
-
-    if len(sys.argv) < 3:
-        print(
-            f"Error: Command '{command}' requires a log file argument", file=sys.stderr
-        )
-        sys.exit(1)
 
     log_file = sys.argv[2]
     _validate_log_path(log_file)
@@ -571,10 +551,7 @@ def main():
         show_statistics_and_lists(config)
 
     else:
-        print(f"Error: Unknown command: {command}", file=sys.stderr)
-        print(
-            "Valid commands: extract-errors, filter-log, show-summary", file=sys.stderr
-        )
+        print(f"Error: Unknown command '{command}'", file=sys.stderr)
         sys.exit(1)
 
 

@@ -1,0 +1,149 @@
+name: 'Run UR Tests'
+
+inputs:
+  test_type:
+    description: 'Type of tests to run (adapter-specific or conformance)'
+    required: true
+  build_dir:
+    required: false
+    default: 'build'
+  artifact_name:
+    description: 'Name for uploaded test artifacts (logs, XML)'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+  - name: Run ${{ inputs.test_type }} tests
+    id: run_tests
+    continue-on-error: true
+    shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
+      TEST_TYPE: ${{ inputs.test_type }}
+      ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+    run: |
+      if [[ "$BUILD_DIR" =~ [^a-zA-Z0-9/_-] ]] || [[ "$BUILD_DIR" =~ \.\. ]]; then
+        echo "::error::Invalid build_dir: contains disallowed characters or path traversal"
+        exit 1
+      fi
+      
+      if [ "$TEST_TYPE" = "adapter-specific" ]; then
+        TARGET="check-unified-runtime-adapter"
+        LOG_FILE="adapter_tests.log"
+        XML_NAME="adapter_results.xml"
+        XML_SEARCH_PATH="$BUILD_DIR/test/adapters"
+        LIT_FILTER='(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)'
+        export LIT_FILTER_OUT="$LIT_FILTER"
+      else
+        TARGET="check-unified-runtime-conformance"
+        LOG_FILE="conformance_tests.log"
+        XML_NAME="conformance_results.xml"
+        XML_SEARCH_PATH="$BUILD_DIR/test/conformance"
+      fi
+      
+      export LIT_OPTS="--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50 --time-tests --show-flakypass --show-skipped --xunit-xml-output $XML_NAME"
+      
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- "$TARGET" > "$LOG_FILE" 2>&1
+      EXIT_CODE=$?
+      
+      if [ ! -f "$LOG_FILE" ] || [ ! -s "$LOG_FILE" ]; then
+        echo "::error::Test execution failed - no log generated"
+        exit 1
+      fi
+      
+      echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
+      echo "xml_name=$XML_NAME" >> $GITHUB_OUTPUT
+      echo "xml_search_path=$XML_SEARCH_PATH" >> $GITHUB_OUTPUT
+      
+      exit $EXIT_CODE
+
+  - name: Show full test log
+    if: ${{ always() }}
+    shell: bash
+    env:
+      LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
+    run: |
+      if [ ! -f "$LOG_FILE" ]; then
+        echo "::warning::Test log not found"
+        exit 0
+      fi
+      
+      echo "::group::Show Full Test Log (filtered)"
+      python3 devops/scripts/ur_test_summary.py filter-log "$LOG_FILE" || cat "$LOG_FILE"
+      echo "::endgroup::"
+  
+  - name: Report test failures
+    if: steps.run_tests.outcome != 'success'
+    shell: bash
+    env:
+      LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
+    run: |
+      python3 devops/scripts/ur_test_summary.py extract-errors "$LOG_FILE"
+      exit 1
+  
+  - name: Show test statistics and lists
+    if: ${{ always() }}
+    shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
+      TEST_TYPE: ${{ inputs.test_type }}
+      LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
+      XML_NAME: ${{ steps.run_tests.outputs.xml_name }}
+      XML_SEARCH_PATH: ${{ steps.run_tests.outputs.xml_search_path }}
+    run: |
+      if [ ! -f "$LOG_FILE" ]; then
+        if [ "$TEST_TYPE" = "adapter-specific" ]; then
+          echo "::warning::Adapter specific test log not found"
+          echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
+        fi
+        exit 0
+      fi
+      
+      if [ ! -s "$LOG_FILE" ]; then
+        if [ "$TEST_TYPE" = "adapter-specific" ]; then
+          echo "::warning::Adapter specific test log is empty"
+          echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
+        fi
+        exit 0
+      fi
+      
+      if [ "$TEST_TYPE" = "adapter-specific" ] && ! grep -q "Testing:" "$LOG_FILE"; then
+        echo "No adapter-specific tests found for this configuration"
+        echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
+        exit 0
+      fi
+      
+      XML_FILE=$(find "$XML_SEARCH_PATH" -name "$XML_NAME" 2>/dev/null | head -1)
+      [ -z "$XML_FILE" ] && XML_FILE=""
+      
+      python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "$XML_FILE"
+
+  - name: Prepare test artifacts
+    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || env.SKIP_ARTIFACTS != '1') }}
+    shell: bash
+    env:
+      LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
+      XML_NAME: ${{ steps.run_tests.outputs.xml_name }}
+      XML_SEARCH_PATH: ${{ steps.run_tests.outputs.xml_search_path }}
+    run: |
+      mkdir -p test_artifacts
+      
+      if [ -f "$LOG_FILE" ]; then
+        cp "$LOG_FILE" test_artifacts/
+      fi
+      
+      FOUND_XML=$(find "$XML_SEARCH_PATH" -name "$XML_NAME" 2>/dev/null | head -1)
+      if [ -n "$FOUND_XML" ]; then
+        cp "$FOUND_XML" "test_artifacts/$XML_NAME"
+      fi
+
+  - name: Upload test artifacts
+    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || env.SKIP_ARTIFACTS != '1') }}
+    uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+    with:
+      name: ${{ inputs.artifact_name }}
+      path: test_artifacts/
+      retention-days: 7
+      if-no-files-found: warn
