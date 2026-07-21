@@ -1979,7 +1979,7 @@ public:
           .value_or(ext::oneapi::experimental::architecture::unknown);
     } else if (is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
                             backend::ext_oneapi_hip == CurrentBackend)) {
-      auto MapArchIDToArchName = [&](const char *arch) {
+      auto MapArchIDToArchName = [&](std::string_view arch) {
         for (const auto &Item : NvidiaAmdGPUArchitectures) {
           if (std::string_view(Item.first) == arch)
             return Item.second;
@@ -1990,7 +1990,7 @@ public:
           get_info_impl<UrInfoCode<info::device::version>::value>();
       std::string_view DeviceArchSubstr =
           std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
-      return MapArchIDToArchName(DeviceArchSubstr.data());
+      return MapArchIDToArchName(DeviceArchSubstr);
     } else if (is_cpu() && backend::opencl == CurrentBackend) {
       return LookupIPVersion(IntelCPUArchitectures)
           .value_or(ext::oneapi::experimental::architecture::x86_64);

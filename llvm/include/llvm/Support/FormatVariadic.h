@@ -62,6 +62,16 @@ struct ReplacementItem {
   StringRef Options;
 };
 
+#if 1 // INTEL_CUSTOMIZATION
+// FIXME CMPLRLLVM-76802: icpx -O3 loopopt miscompiles formatv_object
+// construction/formatting, corrupting the substituted values and producing
+// garbage output. Disable optimization for the whole formatv_object machinery
+// so every caller is covered without needing a per-callsite workaround.
+#if defined(__INTEL_LLVM_COMPILER)
+#pragma clang optimize off
+#endif
+#endif // INTEL_CUSTOMIZATION
+
 class formatv_object_base {
 protected:
   StringRef Fmt;
@@ -254,6 +264,12 @@ inline auto formatv(bool Validate, const char *Fmt, Ts &&...Vals) {
 template <typename... Ts> inline auto formatv(const char *Fmt, Ts &&...Vals) {
   return formatv<Ts...>(true, Fmt, std::forward<Ts>(Vals)...);
 }
+
+#if 1 // INTEL_CUSTOMIZATION
+#if defined(__INTEL_LLVM_COMPILER)
+#pragma clang optimize on
+#endif
+#endif // INTEL_CUSTOMIZATION
 
 } // end namespace llvm
 

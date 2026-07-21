@@ -174,6 +174,7 @@ public:
   double getDoubleValue() const { return getValue<double>(); }
   unsigned getNumWords() const { return NumWords; }
   const std::vector<SPIRVWord> &getSPIRVWords() { return Words; }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   constexpr static SPIRVWord FixedWC = 3;
@@ -210,6 +211,7 @@ protected:
   }
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVValue::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     NumWords = WordCount - FixedWC;
   }
   void decode(std::istream &I) override {
@@ -358,6 +360,7 @@ public:
     for (auto &I : ContinuedInstructions)
       O << *I;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   void validate() const override {

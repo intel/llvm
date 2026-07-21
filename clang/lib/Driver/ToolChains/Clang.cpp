@@ -12248,15 +12248,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     };
     // --sycl-post-link-options="options" provides a string of options to be
     // passed along to the sycl-post-link tool during device link.
+    // -Xdevice-post-link is processed separately later.
     SmallString<128> PostLinkOptString;
     ArgStringList PostLinkArgs;
     getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
     for (const auto &A : PostLinkArgs)
       appendOption(PostLinkOptString, A);
-    if (Args.hasArg(options::OPT_Xdevice_post_link)) {
-      for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
-        appendOption(PostLinkOptString, A);
-    }
     if (!PostLinkOptString.empty())
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-post-link-options=" + PostLinkOptString));
@@ -12280,11 +12277,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // --llvm-spirv-options="options" provides a string of options to be passed
     // along to the llvm-spirv (translation) step during device link.
+    // -Xspirv-translator is processed separately later.
     SmallString<128> OptString;
-    if (Args.hasArg(options::OPT_Xspirv_translator)) {
-      for (const auto &A : Args.getAllArgValues(options::OPT_Xspirv_translator))
-        appendOption(OptString, A);
-    }
     ArgStringList TranslatorArgs;
     getNonTripleBasedSPIRVTransOpts(C, Args, TranslatorArgs);
     for (const auto &A : TranslatorArgs)
@@ -12341,10 +12335,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Pass backend compiler and linker options specified at link time to
-    // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend
-    // are forwarded using --device-compiler, while options passed via
-    // -Xsycl-target-linker are forwarded using --device-linker.
+    // Pass backend compiler, linker, sycl-post-link,
+    // llvm-spirv, and spirv-to-ir-wrapper options specified at link
+    // time to clang-linker-wrapper, using the following mapping:
+    // -Xsycl-target-backend  -> --device-compiler
+    // -Xsycl-target-linker -> --device-linker
+    // -Xdevice-post-link -> --sycl-post-link-options
+    // -Xspirv-translator -> --llvm-spirv-options
+    // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
@@ -12366,6 +12364,45 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(Args.MakeArgString(
             "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
             ":" + TC->getTripleString() + "=" + A));
+
+      BuildArgs.clear();
+      SmallString<128> PerTargetPostLinkOptString;
+      SYCLTC.TranslateTargetOpt(
+          TC->getTriple(), Args, BuildArgs, options::OPT_Xdevice_post_link,
+          options::OPT_Xdevice_post_link_EQ, /*Device=*/StringRef());
+      for (const auto &A : BuildArgs)
+        appendOption(PerTargetPostLinkOptString, A);
+      if (!PerTargetPostLinkOptString.empty())
+        CmdArgs.push_back(Args.MakeArgString(
+            "--sycl-post-link-options=" +
+            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+            TC->getTripleString() + "=" + PerTargetPostLinkOptString));
+
+      BuildArgs.clear();
+      SmallString<128> TransOptString;
+      SYCLTC.TranslateTargetOpt(
+          TC->getTriple(), Args, BuildArgs, options::OPT_Xspirv_translator,
+          options::OPT_Xspirv_translator_EQ, /*Device=*/StringRef());
+      for (const auto &A : BuildArgs)
+        appendOption(TransOptString, A);
+      if (!TransOptString.empty())
+        CmdArgs.push_back(Args.MakeArgString(
+            "--llvm-spirv-options=" +
+            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+            TC->getTripleString() + "=" + TransOptString));
+
+      BuildArgs.clear();
+      SmallString<128> SpirvToIrOptString;
+      SYCLTC.TranslateTargetOpt(
+          TC->getTriple(), Args, BuildArgs, options::OPT_Xspirv_to_ir_wrapper,
+          options::OPT_Xspirv_to_ir_wrapper_EQ, /*Device=*/StringRef());
+      for (const auto &A : BuildArgs)
+        appendOption(SpirvToIrOptString, A);
+      if (!SpirvToIrOptString.empty())
+        CmdArgs.push_back(Args.MakeArgString(
+            "--spirv-to-ir-wrapper-options=" +
+            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+            TC->getTripleString() + "=" + SpirvToIrOptString));
     }
 
     // Add option to enable creating of the .syclbin file.
@@ -12478,12 +12515,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           << OffloadJobs.A->getAsString(Args) << OffloadJobs.Value;
     }
   }
-
-  // Enable preview breaking changes in clang-linker-wrapper,
-  // in case it needs to introduce any ABI breaking changes.
-  // For example, changes in offload binary descriptor format.
-  if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-    CmdArgs.push_back("-fpreview-breaking-changes");
 
   // Propagate -no-canonical-prefixes.
   if (Args.hasArg(options::OPT_no_canonical_prefixes))
