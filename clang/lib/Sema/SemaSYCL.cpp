@@ -5266,6 +5266,82 @@ void SemaSYCL::CheckSYCLScopeAttr(CXXRecordDecl *Decl) {
     Decl->dropAttr<SYCLScopeAttr>();
 }
 
+// The free function kernel enqueue functions (nd_launch/single_task taking a
+// kernel_function_s) wrap the free function kernel in a helper kernel whose
+// name type is NdRangeFreeFunctionKernelWrapper<&Func, ...> or
+// SingleTaskFreeFunctionKernelWrapper<&Func, ...>. The wrapper's call operator
+// simply forwards to the free function kernel `Func`, which is where the
+// compile-time kernel properties (e.g. sub_group_size, work_group_size) live.
+// This returns `Func` when `KernelObjTy` is such a wrapper, and nullptr
+// otherwise.
+static FunctionDecl *getFreeFunctionKernelWrapperTarget(QualType KernelObjTy) {
+  const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+      KernelObjTy->getAsCXXRecordDecl());
+  if (!CTSD)
+    return nullptr;
+
+  StringRef Name = CTSD->getName();
+  if (Name != "NdRangeFreeFunctionKernelWrapper" &&
+      Name != "SingleTaskFreeFunctionKernelWrapper")
+    return nullptr;
+
+  // The first template argument is the pointer to the wrapped free function
+  // kernel.
+  const TemplateArgumentList &Args = CTSD->getTemplateArgs();
+  if (Args.size() == 0 || Args[0].getKind() != TemplateArgument::Declaration)
+    return nullptr;
+
+  return dyn_cast_or_null<FunctionDecl>(Args[0].getAsDecl());
+}
+
+// Given a free function kernel's add_ir_attributes_function attribute, build a
+// new attribute that keeps only the compile-time kernel *property* name/value
+// pairs (e.g. sycl-sub-group-size, sycl-work-group-size) and drops the
+// free-function-kernel-kind markers (sycl-nd-range-kernel /
+// sycl-single-task-kernel). The markers identify the original function as a
+// free function kernel; copying them onto the enqueue wrapper's kernel caller
+// would incorrectly make the wrapper itself look like a free function kernel.
+// Returns nullptr if there are no property pairs to copy.
+static SYCLAddIRAttributesFunctionAttr *
+buildFreeFunctionPropertyAttr(SemaSYCL &S,
+                              const SYCLAddIRAttributesFunctionAttr &A) {
+  ASTContext &Context = S.getASTContext();
+
+  // Property attributes coming from SYCL_EXT_ONEAPI_FUNCTION_PROPERTY do not
+  // use a filter list. If one is present, we cannot reliably rebuild the
+  // attribute, so bail out.
+  if (A.hasFilterList())
+    return nullptr;
+
+  size_t NumPairs = A.args_size() / 2;
+  Expr **Names = A.args_begin();
+  Expr **Values = A.args_begin() + NumPairs;
+
+  llvm::SmallVector<Expr *, 4> KeptNames;
+  llvm::SmallVector<Expr *, 4> KeptValues;
+  for (size_t I = 0; I < NumPairs; ++I) {
+    std::optional<std::string> PropName =
+        SYCLAddIRAttributesFunctionAttr::getValidAttributeNameAsString(Names[I],
+                                                                       Context);
+    // Keep pairs whose name cannot be evaluated as-is; only filter out the
+    // known free-function-kernel-kind markers.
+    if (PropName == "sycl-nd-range-kernel" ||
+        PropName == "sycl-single-task-kernel")
+      continue;
+    KeptNames.push_back(Names[I]);
+    KeptValues.push_back(Values[I]);
+  }
+
+  if (KeptNames.empty())
+    return nullptr;
+
+  llvm::SmallVector<Expr *, 8> NewArgs;
+  NewArgs.append(KeptNames.begin(), KeptNames.end());
+  NewArgs.append(KeptValues.begin(), KeptValues.end());
+  return SYCLAddIRAttributesFunctionAttr::Create(Context, NewArgs.data(),
+                                                 NewArgs.size(), A);
+}
+
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
 void SemaSYCL::copyDeviceKernelAttrs(CXXMethodDecl *CallOperator) {
@@ -5400,6 +5476,33 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
     // generated alternative kernel, identified by a known string in its name.
     if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
       copyDeviceKernelAttrs(CallOperator);
+  }
+
+  // The free function kernel enqueue functions (e.g. nd_launch/single_task
+  // taking a kernel_function_s) submit a helper kernel that merely forwards to
+  // the free function kernel. Because the free function is called indirectly
+  // (through the wrapper's call operator rather than the kernel directly), its
+  // compile-time kernel properties (e.g. sub_group_size, work_group_size) are
+  // not propagated to the generated kernel by the usual mechanism in
+  // MarkDevices(). Copy the free function's property attributes onto the kernel
+  // caller so that SyclKernelDeclCreator applies them to the generated kernel
+  // entry point, matching the behavior of launching the free function kernel
+  // directly.
+  if (FunctionDecl *FreeFunc = getFreeFunctionKernelWrapperTarget(
+          calculateKernelNameType(KernelCallerFunc))) {
+    for (const auto *IRAttr :
+         FreeFunc->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      SYCLAddIRAttributesFunctionAttr *PropAttr =
+          buildFreeFunctionPropertyAttr(*this, *IRAttr);
+      if (!PropAttr)
+        continue;
+      // Merge into any existing attribute on the kernel caller so that CodeGen,
+      // which reads a single SYCLAddIRAttributesFunctionAttr, sees all of the
+      // properties.
+      if (SYCLAddIRAttributesFunctionAttr *Merged =
+              mergeSYCLAddIRAttributesFunctionAttr(KernelCallerFunc, *PropAttr))
+        KernelCallerFunc->addAttr(Merged);
+    }
   }
 
   bool IsSIMDKernel = isESIMDKernelType(CallOperator);
