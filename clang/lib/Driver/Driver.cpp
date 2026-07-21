@@ -1341,6 +1341,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
     for (llvm::StringRef Target : ArgValues) {
       if (IsSYCL) {
+        // In the new offload model, spir64_gen as a literal target name is no
+        // longer accepted; users must use intel_gpu_<device> instead.
+        if (Target == "spir64_gen" &&
+            C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                     options::OPT_no_offload_new_driver,
+                                     false)) {
+          Diag(clang::diag::err_drv_sycl_target_spir64_gen_deprecated);
+          continue;
+        }
         StringRef TargetTripleString(Target);
         if (Target.starts_with("intel_gpu_"))
           TargetTripleString = "spir64_gen";

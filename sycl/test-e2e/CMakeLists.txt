@@ -60,6 +60,9 @@ endif()
 
 set(SYCL_E2E_TESTS_LIT_FLAGS "-sv" CACHE STRING "Flags used when running lit")
 
+set(INTEL_GPU_AOT_TARGETS "" CACHE STRING
+  "Comma-separated intel_gpu_* targets for AOT GPU tests, used in both old and new offload models (e.g. intel_gpu_pvc,intel_gpu_bmg_g21)")
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 if(NOT SYCL_TEST_E2E_TARGETS)

@@ -3,11 +3,11 @@
 
 // REQUIRES: ocloc
 
-// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device bmg-g21" -o %t.input_bmg_g21_gpu_device_arch.syclbin %s
-// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device *" -o %t.input_all_gpu_device_archs.syclbin %s
-// RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device bmg-g21" -o %t.object_bmg_g21_gpu_device_arch.syclbin %s
-// RUN: %clangxx --offload-new-driver -fsyclbin=executable -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device bmg-g21" -o %t.executable_bmg_g21_gpu_device_arch.syclbin %s
-// RUN: %clangxx --offload-new-driver -fsyclbin -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device bmg-g21" -o %t.default_bmg_g21_gpu_device_arch.syclbin %s
+// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-targets=intel_gpu_bmg_g21 -o %t.input_bmg_g21_gpu_device_arch.syclbin %s
+// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-targets=intel_gpu_bmg_g21 -o %t.input_all_gpu_device_archs.syclbin %s
+// RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-targets=intel_gpu_bmg_g21 -o %t.object_bmg_g21_gpu_device_arch.syclbin %s
+// RUN: %clangxx --offload-new-driver -fsyclbin=executable -fsycl-targets=intel_gpu_bmg_g21 -o %t.executable_bmg_g21_gpu_device_arch.syclbin %s
+// RUN: %clangxx --offload-new-driver -fsyclbin -fsycl-targets=intel_gpu_bmg_g21 -o %t.default_bmg_g21_gpu_device_arch.syclbin %s
 
 // RUN: syclbin-dump %t.input_bmg_g21_gpu_device_arch.syclbin | FileCheck %s --check-prefix CHECK-INPUT-BMG-G21-GPU-DEVICE-ARCH
 // RUN: syclbin-dump %t.input_all_gpu_device_archs.syclbin | FileCheck %s --check-prefix CHECK-INPUT-ALL-GPU-DEVICE-ARCHS

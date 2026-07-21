@@ -54,7 +54,7 @@ config.cxx_flags = lit_config.params.get("cxx_flags", "@SYCL_E2E_CLANG_CXX_FLAGS
 config.c_flags = "@CMAKE_C_FLAGS@"
 config.external_tests = "@SYCL_EXTERNAL_TESTS@"
 config.extra_include = "@CMAKE_CURRENT_SOURCE_DIR@/include"
-config.gpu_aot_target_opts = lit_config.params.get("gpu_aot_target_opts", "@GPU_AOT_TARGET_OPTS@")
+config.intel_gpu_aot_targets = lit_config.params.get("intel_gpu_aot_targets", "@INTEL_GPU_AOT_TARGETS@")
 
 config.vulkan_include_dir = "@Vulkan_INCLUDE_DIRS@"
 config.vulkan_lib = "@Vulkan_LIBRARY@"

@@ -32,12 +32,12 @@
 // Verify that AOT compilation occurs for the targets (GPU, CPU)
 // specified in the link command line. Note that generic SPIR-V compilation
 // is enabled by default even when AOT GPU or CPU targets are specified.
-// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_cpu_gpu.out -Wno-unused-command-line-argument 2>&1 | FileCheck %s --check-prefix=CHECK-AOT-CPU --check-prefix=CHECK-AOT-GPU --check-prefix=CHECK-GENERIC
+// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64,%{intel_gpu_aot_targets} -v %t.o -o %t_cpu_gpu.out -Wno-unused-command-line-argument 2>&1 | FileCheck %s --check-prefix=CHECK-AOT-CPU --check-prefix=CHECK-AOT-GPU --check-prefix=CHECK-GENERIC
 // RUN: %{run} %t_cpu_gpu.out
 
 // Verify that AOT compilation occurs for the targets (GPU) specified in
 // the link command line.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_spv_gpu.out -Wno-unused-command-line-argument 2>&1 | FileCheck %s --check-prefix=CHECK-GENERIC --check-prefix=CHECK-AOT-GPU --check-prefix=CHECK-NO-AOT-CPU
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{intel_gpu_aot_targets} -v %t.o -o %t_spv_gpu.out -Wno-unused-command-line-argument 2>&1 | FileCheck %s --check-prefix=CHECK-GENERIC --check-prefix=CHECK-AOT-GPU --check-prefix=CHECK-NO-AOT-CPU
 // Check that execution on AOT-compatible devices is unaffected
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t_spv_gpu.out
 

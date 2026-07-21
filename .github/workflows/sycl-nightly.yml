@@ -119,7 +119,7 @@ jobs:
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
-      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}"
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}${{ matrix.enable_new_offload_model == 'True' && ' --param intel_gpu_aot_targets=intel_gpu_tgllp' || '' }}"
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
@@ -137,6 +137,15 @@ jobs:
       matrix:
         enable_new_offload_model: ['False', 'True']
         arch: ['gen12', 'pvc', 'bmg', 'arc']
+        include:
+          - arch: 'gen12'
+            intel_gpu_aot_targets: 'intel_gpu_tgllp'
+          - arch: 'pvc'
+            intel_gpu_aot_targets: 'intel_gpu_pvc'
+          - arch: 'bmg'
+            intel_gpu_aot_targets: 'intel_gpu_bmg_g21'
+          - arch: 'arc'
+            intel_gpu_aot_targets: 'intel_gpu_dg2'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -145,7 +154,7 @@ jobs:
       image_options: '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN'
       target_devices: level_zero:gpu
       tests_selector: e2e
-      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}"
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}${{ matrix.enable_new_offload_model == 'True' && format(' --param intel_gpu_aot_targets={0}', matrix.intel_gpu_aot_targets) || '' }}"
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
@@ -263,14 +272,17 @@ jobs:
           - gpu_type: 'gen12'
             name: Intel Gen12 GPU
             runner: '["Windows", "gen12"]'
+            intel_gpu_aot_targets: 'intel_gpu_tgllp'
 
           - gpu_type: 'arc'
             name: Intel Arc GPU
             runner: '["Windows", "arc"]'
+            intel_gpu_aot_targets: 'intel_gpu_dg2'
 
           - gpu_type: 'bmg'
             name: Intel Battlemage GPU
             runner: '["Windows", "bmg"]'
+            intel_gpu_aot_targets: 'intel_gpu_bmg_g21'
 
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
@@ -278,7 +290,7 @@ jobs:
       runner: ${{ matrix.runner }}
       target_devices: level_zero:gpu
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
-      extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
+      extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}${{ matrix.enable_new_offload_model == 'True' && format(' --param intel_gpu_aot_targets={0}', matrix.intel_gpu_aot_targets) || '' }}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
