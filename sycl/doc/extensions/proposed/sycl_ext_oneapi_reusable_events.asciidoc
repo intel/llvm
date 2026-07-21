@@ -133,7 +133,8 @@ _Constraints:_
   than those listed below in section "New property for creating an event".
 
 _Returns:_ An event that is associated with context `ctxt`. The event has
-`info::event_command_status::complete` status.
+`info::event_command_status::complete` status. The event is reusable (the
+`event::ext_oneapi_reusable()` function returns `true`).
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 `PropertyListT` contains an `enable_profiling` property that enables profiling
@@ -220,6 +221,26 @@ profiling enabled via `make_event`.
 
 '''
 
+==== New event member function
+
+This extension adds a new event type member function, which can be used to
+check if a given event is reusable.
+
+[source,c++]
+----
+namespace sycl {
+
+class event {
+  // ...
+  bool ext_oneapi_reusable() const;
+};
+
+} // namespace sycl
+----
+
+_Returns:_ True if the event was created using the `make_event` function or
+with a default event constructor.
+
 === New functions to enqueue event operations
 
 This extension adds the following free functions which submit operations related
@@ -241,8 +262,11 @@ _Effects:_ Enqueues a special barrier to `q` with the following semantic.
 Any commands submitted to the queue after this barrier cannot begin execution
 until all commands associated with `evt` or `evts` have completed.
 
-_Remarks:_ The event `evt` and the events in `evts` do _not_ need to have the
-same context as `q`.
+_Throws:_
+
+ * An `exception` with the `errc::invalid` error code if `evt` is non-reusable
+   (`event::ext_oneapi_reusable()` returns `false`) or any event in `evts` is
+   non-reusable.
 
 '''
 
@@ -290,6 +314,7 @@ Implementations are encouraged to transition the event directly from the
 
 _Throws:_
 
+ * An `exception` with the `errc::invalid` error code if `evt` is non-reusable.
  * An `exception` with the `errc::invalid` error code if `evt` and `q` don't
    have the same context.
  * An `exception` with the `errc::feature_not_supported` error code if `evt`
@@ -311,31 +336,27 @@ _{endnote}_]
 
 === Interaction with other event APIs
 
-An event _E_ created via `make_event` can be used as a command dependency (e.g.
-via `handler::depends_on`) for a command submitted to some queue _Q_.
-It is _not_ necessary for the context of _E_ to match the context of _Q_.
-
-If an event _E_ is used as a command dependency for some command _C_ (e.g. via
-`handler::depends_on`), the dependency is captured at the point when _C_ is
-submitted.
-It is legal to reassociated the event _E_ to a new command via
-`enqueue_signal_event` even before command _C_ completes.
-Doing so does _not_ change the dependency for command _C_.
-
-If another host thread is blocked waiting for event _E_ to complete via
-`event:wait` or `event::wait_and_throw` when event _E_ is reassociated with a
-new command via `enqueue_signal_event`, the behavior of the `event:wait` or
-`event::wait_and_throw` call is undefined.
-
 The core SYCL specification defines a default constructor for the `event`
 class. The default constructor creates an event that is equivalent to calling
 `make_event` with no parameters.
 
+Reusable events can only be used with APIs defined in this extension.
+
 Several of the `queue` class member functions from the core SYCL specification
-return an event. These events are associated with the queue's context as though
-created by `make_event` with that context.
-These events may be passed to any of the functions in this extension that take
-an event parameter.
+return an event. These events are non-reusable. They cannot be passed to any
+APIs defined in this extension.
+
+If an event `evt` is used as a command dependency for some command _C_ (e.g.
+via `enqueue_wait_event`), the dependency is captured at the point when _C_ is
+submitted.
+It is legal to reassociate the event `evt` to a new command via
+`enqueue_signal_event` even before command _C_ completes. Doing so does _not_
+change the dependency for command _C_.
+
+If another host thread is blocked waiting for event _E_ to complete via
+`event::wait` or `event::wait_and_throw` when event _E_ is reassociated with a
+new command via `enqueue_signal_event`, the behavior of the `event::wait` or
+`event::wait_and_throw` call is undefined.
 
 == Examples
 
@@ -459,20 +480,3 @@ event when a command is submitted, rather than taking an event as input.
   previous call attached to the SYCL `event`.
   If so, the `cl_event` is released before calling `clEnqueueMarkerWithWaitList`
   or `clEnqueueBarrierWithWaitList`.
-
-=== Host tasks
-
-Because host tasks are executed by the SYCL runtime, there can be cases where
-a command _C_ is submitted at the SYCL level, but the command remains pending
-inside the SYCL runtime until a host task completes.
-(E.g. when command _C_ has a dependency on the host task.)
-As a result, there may be cases when `enqueue_signal_event` must also leave the
-"event signal" operation pending in the SYCL runtime, or when
-`enqueue_wait_event` must leave the "event wait" operation pending in the SYCL
-runtime.
-In these cases, we expect that a backend event may not be associated with the
-SYCL event until the pending operations are resolved in the runtime library.
-This will likely cause the handling of events to be less efficient when host
-tasks are submitted to the same queue as "native" commands like kernels or
-copy operations, or when there are dependencies between host tasks and native
-commands.

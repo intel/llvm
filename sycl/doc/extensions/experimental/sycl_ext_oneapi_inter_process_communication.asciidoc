@@ -1172,28 +1172,24 @@ _Remarks:_
    `property::queue::enable_profiling` property.
 
  * `enqueue_signal_event`, `enqueue_wait_event`, `enqueue_wait_events` (from
-   the sycl_ext_oneapi_reusable_events extension) and `handler::depends_on`
-   functions throw an exception with the `errc::feature_not_supported` error
-   code if inter-process sharing of the event is enabled via `enable_ipc` and a
-   device associated with the queue (passed to those functions or associated
-   with the `handler`) does not have the aspect `aspect::ext_oneapi_ipc_event`.
+   the sycl_ext_oneapi_reusable_events extension) functions throw an exception
+   with the `errc::feature_not_supported` error code if inter-process sharing
+   of the event is enabled via `enable_ipc` and a device associated with the
+   queue does not have the aspect `aspect::ext_oneapi_ipc_event`.
 
  * `enqueue_signal_event`, `enqueue_wait_event`, `enqueue_wait_events` (from
-   the sycl_ext_oneapi_reusable_events extension) and `handler::depends_on`
-   functions throw an exception with the `errc::feature_not_supported` error
-   code if inter-process sharing of the event is enabled via `enable_ipc` and a
-   queue (passed to those functions or associated with the `handler`) has an
-   enqueued host task that has not completed (scheduled using the
-   `handler::host_task` function).
+   the sycl_ext_oneapi_reusable_events extension) functions throw an exception
+   with the `errc::feature_not_supported` error code if inter-process sharing
+   of the event is enabled via `enable_ipc` and a queue has an enqueued host
+   task that has not completed.
 
  * If the event has been enqueued for signaling (using `enqueue_signal_event`)
    in some process, and the IPC handle associated with that event has been
    passed to the `open` function in another process, then the resulting event
-   can be used as a dependency (using `handler::depends_on`) or passed to
-   `enqueue_wait_event` or `enqueue_wait_events` functions only if the device
-   associated with the queue passed to `enqueue_signal_event` and the device
-   associated with the queue where the dependency is set, can P2P access each
-   other.
+   can be used as a dependency by calling the `enqueue_wait_event` or
+   `enqueue_wait_events` functions only if the device associated with the queue
+   passed to `enqueue_signal_event` and the device associated with the queue
+   where the dependency is set, can P2P access each other.
 
 ==== New event member function
 
@@ -1332,7 +1328,8 @@ _Returns:_ An `event` object that represents the same event identified by
 `handle_data`. The returned event is associated with context `ctx`. The
 returned event and the event identified by `handle_data` share the same state.
 When one is signaled, the state of the other event automatically becomes
-signaled also.
+signaled also. The returned `event` is reusable (see the
+sycl_ext_oneapi_reusable_events extension).
 
 [_Note:_ The `open` function can be called multiple times on the same handle
 within the same process. Each call to the `open` function may return a unique
