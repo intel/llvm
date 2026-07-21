@@ -39,6 +39,8 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
+#include "llvm/Transforms/IPO/WholeProgramDevirt.h"
+#include "llvm/Transforms/Utils/AssignGUID.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <optional>
 
@@ -890,6 +892,9 @@ llvm::parseReducerWorkItem(StringRef ToolName, StringRef Filename,
       if (MMM->LTOInfo->IsThinLTO && MMM->LTOInfo->EnableSplitLTOUnit)
         initializeTargetInfo();
     }
+
+    if (MMM->LTOInfo)
+      AssignGUIDPass::runOnModule(MMM->getModule());
   }
   if (MMM->verify(&errs())) {
     WithColor::error(errs(), ToolName)
