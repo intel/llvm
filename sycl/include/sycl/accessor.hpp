@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#pragma oce
 
 #include <sycl/access/access.hpp>                     // for target, mode
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
