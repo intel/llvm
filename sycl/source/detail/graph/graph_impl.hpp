@@ -326,8 +326,11 @@ public:
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDumpContentsExp>(
               MNativeGraphHandle, FilePath.c_str());
       if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to dump native UR graph contents");
+        throw sycl::detail::set_ur_error(
+            sycl::exception(sycl::make_error_code(errc::runtime),
+                            "Failed to dump native UR graph contents: " +
+                                sycl::detail::codeToString(Result)),
+            Result);
       }
     } else {
       /// Vector of nodes visited during the graph printing

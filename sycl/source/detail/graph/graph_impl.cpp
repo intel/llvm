@@ -360,8 +360,11 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
     Result = Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphCreateExp>(
         ContextImpl.getHandleRef(), &MNativeGraphHandle);
     if (Result != UR_RESULT_SUCCESS) {
-      throw sycl::exception(sycl::make_error_code(errc::runtime),
-                            "Failed to create native UR graph");
+      throw sycl::detail::set_ur_error(
+          sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to create native UR graph: " +
+                              sycl::detail::codeToString(Result)),
+          Result);
     }
     assert(MNativeGraphHandle != nullptr &&
            "Native UR graph handle should not be null if graph creation "
@@ -390,7 +393,13 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
 
 graph_impl::~graph_impl() {
   try {
-    clearQueues(false /*Needs lock*/);
+    // Handle any exception when ending capture, so we avoid throwing
+    // and can still try to destroy the graph object when native recording.
+    try {
+      clearQueues(false /*Needs lock*/);
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
+    }
     for (auto &MemObj : MMemObjs) {
       MemObj->markNoLongerBeingUsedInGraph();
     }
@@ -405,8 +414,11 @@ graph_impl::~graph_impl() {
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDestroyExp>(
               MNativeGraphHandle);
       if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to destroy native UR graph");
+        throw sycl::detail::set_ur_error(
+            sycl::exception(sycl::make_error_code(errc::runtime),
+                            "Failed to destroy native UR graph: " +
+                                sycl::detail::codeToString(Result)),
+            Result);
       }
       MNativeGraphHandle = nullptr;
     }
@@ -701,8 +713,11 @@ void graph_impl::setDestructionCallback(std::function<void()> Callback) {
         },
         Data.get());
     if (Result != UR_RESULT_SUCCESS) {
-      throw sycl::exception(sycl::make_error_code(errc::runtime),
-                            "Failed to register graph destruction callback");
+      throw sycl::detail::set_ur_error(
+          sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to register graph destruction callback: " +
+                              sycl::detail::codeToString(Result)),
+          Result);
     }
     Data.release();
   } else {
@@ -732,8 +747,11 @@ void graph_impl::clearQueues(bool NeedsLock) {
       if (MNativeGraphHandle) {
         auto EndResult = ValidQueue->endNativeRecording();
         if (EndResult.Result != UR_RESULT_SUCCESS) {
-          throw sycl::exception(sycl::make_error_code(errc::runtime),
-                                "Error when ending native graph capture");
+          throw sycl::detail::set_ur_error(
+              sycl::exception(sycl::make_error_code(errc::runtime),
+                              "Error when ending native graph capture: " +
+                                  sycl::detail::codeToString(EndResult.Result)),
+              EndResult.Result);
         }
         // CapturedGraph should be the same as MNativeGraphHandle
       } else {
@@ -755,12 +773,16 @@ bool graph_impl::empty() const {
   }
 
   bool IsEmptyResult = true;
-  if (getSyclObjImpl(MContext)
-          ->getAdapter()
-          .call_nocheck<UrApiKind::urGraphIsEmptyExp>(
-              MNativeGraphHandle, &IsEmptyResult) != UR_RESULT_SUCCESS) {
-    throw sycl::exception(sycl::make_error_code(errc::runtime),
-                          "Failed to check if graph is empty");
+  ur_result_t Result = getSyclObjImpl(MContext)
+                           ->getAdapter()
+                           .call_nocheck<UrApiKind::urGraphIsEmptyExp>(
+                               MNativeGraphHandle, &IsEmptyResult);
+  if (Result != UR_RESULT_SUCCESS) {
+    throw sycl::detail::set_ur_error(
+        sycl::exception(sycl::make_error_code(errc::runtime),
+                        "Failed to check if graph is empty: " +
+                            sycl::detail::codeToString(Result)),
+        Result);
   }
   return IsEmptyResult;
 }
@@ -908,8 +930,11 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         addQueue(Queue);
       }
       if (BeginResult.Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to begin native UR graph capture");
+        throw sycl::detail::set_ur_error(
+            sycl::exception(sycl::make_error_code(errc::runtime),
+                            "Failed to begin native UR graph capture: " +
+                                sycl::detail::codeToString(BeginResult.Result)),
+            BeginResult.Result);
       }
     } else {
       // Non-native recording path
@@ -1171,8 +1196,11 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                 GraphImpl->getNativeGraphHandle(),
                 &MNativeExecutableGraphHandle);
     if (Result != UR_RESULT_SUCCESS) {
-      throw sycl::exception(sycl::make_error_code(errc::runtime),
-                            "Failed to instantiate native UR executable graph");
+      throw sycl::detail::set_ur_error(
+          sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to instantiate native UR executable graph: " +
+                              sycl::detail::codeToString(Result)),
+          Result);
     }
   } else {
     // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
@@ -1204,9 +1232,14 @@ exec_graph_impl::~exec_graph_impl() {
       ur_result_t Res = Adapter.call_nocheck<
           sycl::detail::UrApiKind::urGraphExecutableGraphDestroyExp>(
           MNativeExecutableGraphHandle);
-      if (Res == UR_RESULT_SUCCESS) {
-        MNativeExecutableGraphHandle = nullptr;
+      if (Res != UR_RESULT_SUCCESS) {
+        throw sycl::detail::set_ur_error(
+            sycl::exception(sycl::make_error_code(errc::runtime),
+                            "Failed to destroy native UR executable graph: " +
+                                sycl::detail::codeToString(Res)),
+            Res);
       }
+      MNativeExecutableGraphHandle = nullptr;
     }
 
     // Clean up any graph-owned allocations that were allocated
@@ -2312,8 +2345,11 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
         impl->removeQueue(QueueImpl);
       }
       if (EndResult.Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Error when ending native graph capture");
+        throw sycl::detail::set_ur_error(
+            sycl::exception(sycl::make_error_code(errc::runtime),
+                            "Error when ending native graph capture: " +
+                                sycl::detail::codeToString(EndResult.Result)),
+            EndResult.Result);
       }
       assert(EndResult.CapturedGraph == impl->getNativeGraphHandle() &&
              "Captured graph handle must match the graph's native handle");
