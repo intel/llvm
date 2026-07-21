@@ -52,8 +52,10 @@ int main() {
     cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::string krnName = krn.get_info<info::kernel::function_name>();
   assert(!krnName.empty());
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   auto refErrMsg =
       "info::kernel::num_args descriptor may only be used to query a kernel "
@@ -69,6 +71,7 @@ int main() {
   };
   checkExceptionIsThrown(getInfoNumArgsFuncExt, refErrMsg, refErrc);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const context krnCtx = krn.get_info<info::kernel::context>();
   assert(krnCtx == q.get_context());
   const cl_uint krnRefCount = krn.get_info<info::kernel::reference_count>();
@@ -83,6 +86,7 @@ int main() {
   const cl_uint krnRefCountExt =
       syclex::get_kernel_info<SingleTask, info::kernel::reference_count>(ctx);
   assert(krnRefCountExt > 0);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   device dev = q.get_device();
   const size_t wgSize =

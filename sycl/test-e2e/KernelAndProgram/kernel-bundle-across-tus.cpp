@@ -42,6 +42,7 @@ int main() {
 
   // operator== isn't guaranteed to work in this scenario, so compare traits
   // about the kernels instead.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   auto FoundKernelName =
       FoundKernel.get_info<sycl::info::kernel::function_name>();
   auto ExpectedKernelName =
@@ -53,6 +54,7 @@ int main() {
 
   assert(FoundKernelName == ExpectedKernelName);
   assert(FoundKernelContext == ExpectedKernelContext);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   return 0;
 }

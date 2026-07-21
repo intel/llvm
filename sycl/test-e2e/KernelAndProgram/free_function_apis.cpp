@@ -236,6 +236,7 @@ bool test_bundle_apis(queue Queue) {
   kernel_bundle Bundle_ff2 = ext::oneapi::experimental::get_kernel_bundle<
       ff_2, bundle_state::executable>(Context);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool PassS =
       ext::oneapi::experimental::get_kernel_info<ff_2,
                                                  info::kernel::function_name>(
@@ -244,6 +245,7 @@ bool test_bundle_apis(queue Queue) {
   std::cout << "Test retrieving function_name using context: " << PassS
             << std::endl;
   Pass &= PassS;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   kernel_bundle Bundle_ff3 = ext::oneapi::experimental::get_kernel_bundle<
       ff_3<int>, bundle_state::executable>(Context);

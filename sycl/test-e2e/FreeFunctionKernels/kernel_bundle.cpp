@@ -33,6 +33,7 @@ template <auto *Func> int test_free_function_kernel_id(sycl::context &ctxt) {
   return res;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <auto *Func>
 int test_kernel_bundle_ctxt(sycl::context &ctxt, std::string_view fname) {
   sycl::kernel_id id = syclexp::get_kernel_id<Func>();
@@ -70,6 +71,7 @@ int test_kernel_bundle_ctxt_dev(sycl::context &ctxt, sycl::device &dev,
               << fname << std::endl;
   return res;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 int main() {
   sycl::queue q;
@@ -78,9 +80,11 @@ int main() {
 
   int ret = test_free_function_kernel_id<func_range>(ctxt);
   ret |= test_free_function_kernel_id<func_single>(ctxt);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   ret |= test_kernel_bundle_ctxt<func_range>(ctxt, "func_range");
   ret |= test_kernel_bundle_ctxt<func_single>(ctxt, "func_single");
   ret |= test_kernel_bundle_ctxt_dev<func_range>(ctxt, dev, "func_range");
   ret |= test_kernel_bundle_ctxt_dev<func_single>(ctxt, dev, "func_single");
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   return ret;
 }

@@ -10,7 +10,7 @@
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
-#endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/info_desc_traits.hpp>
 #include <sycl/range.hpp>
 #include <unified-runtime/ur_api.h>
