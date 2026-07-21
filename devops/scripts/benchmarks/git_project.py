@@ -11,7 +11,6 @@ from utils.logger import log
 from utils.utils import run
 from options import options
 
-
 # Marker file written into build_dir after a successful build. Records a
 # fingerprint of the source tree so reruns can skip rebuilding.
 BUILD_COMPLETE_MARKER = "benchmark_build_complete.json"
@@ -70,9 +69,7 @@ class GitProject:
         caller should always rebuild).
         """
         try:
-            commit = (
-                run("git rev-parse HEAD", cwd=self.src_dir).stdout.decode().strip()
-            )
+            commit = run("git rev-parse HEAD", cwd=self.src_dir).stdout.decode().strip()
             status = (
                 run("git status --porcelain", cwd=self.src_dir).stdout.decode().strip()
             )
