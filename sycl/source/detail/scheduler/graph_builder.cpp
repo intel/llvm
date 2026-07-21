@@ -1221,7 +1221,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   ExecCGCommand *ConnectCmd = nullptr;
 
   try {
-    std::shared_ptr<detail::HostTask> HT(new detail::HostTask);
+    std::shared_ptr<detail::HostTask> HT(new detail::HostTask([]() {}, true));
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ nullptr,
         /* Args = */ {},
