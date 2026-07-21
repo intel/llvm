@@ -115,7 +115,7 @@ int main(void) {
 
 // CHECK: <--- urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
 
-// CHECK: <--- urProgramBuild{{.*}}-ze-exp-register-file-size=512
+// CHECK: <--- urProgramBuild{{.*}}-ze-opt-register-file-size=512
 // CHECK-SAME: -> UR_RESULT_SUCCESS
 
 // CHECK: <--- urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS
