@@ -5,7 +5,7 @@
 include "llvm/TableGen/DynamicTable.td"
 
 // CHECK-LABEL: GET_ATable_IMPL
-// CHECK: std::map<std::string, AEntry> ATable = {
+// CHECK: inline std::map<std::string, AEntry> ATable = {
 // CHECK:   { "bar", {0x5, 0x3 }}, // 0
 // CHECK:   { "baz", {0x2, 0x6 }}, // 1
 // CHECK:   { "foo", {0x4, 0x4 }}, // 2
@@ -30,7 +30,7 @@ def ATable : DynamicTable {
 
 
 // CHECK-LABEL: GET_BTable_IMPL
-// CHECK: std::map<std::string, BTypeName> BTable = {
+// CHECK: inline std::map<std::string, BTypeName> BTable = {
 // CHECK:   { "BAlice", {0xAC, false,  }}, // 0
 // CHECK:   { "BBob", {0x14, false, Bob == 13 }}, // 1
 // CHECK:   { "BCharlie", {0x80, true, Charlie == 42 }}, // 2
@@ -57,7 +57,7 @@ def BTable : DynamicTable {
 }
 
 // CHECK-LABEL: GET_CTable_IMPL
-// CHECK: std::map<std::string, CEntry> CTable = {
+// CHECK: inline std::map<std::string, CEntry> CTable = {
 // CHECK:   { "alice", {0xA }}, // 0
 // CHECK:   { "alice", {0xD }}, // 1
 // CHECK:   { "bob", {0xF }}, // 2
@@ -78,7 +78,7 @@ def CTable : DynamicTable {
 }
 
 // CHECK-LABEL: GET_DTable_IMPL
-// CHECK: std::map<std::string, DEntry> DTable = {
+// CHECK: inline std::map<std::string, DEntry> DTable = {
 // CHECK:  };
 
 class DEntry<string name> {

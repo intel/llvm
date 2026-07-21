@@ -269,7 +269,8 @@ public:
   /// generated in non-LTO compilation.
   LLVM_ABI ModulePassManager buildFatLTODefaultPipeline(OptimizationLevel Level,
                                                         bool ThinLTO,
-                                                        bool EmitSummary);
+                                                        bool EmitSummary,
+                                                        bool Verify = true);
 
   /// Build a pre-link, ThinLTO-targeting default optimization pipeline to
   /// a pass manager.
@@ -1006,8 +1007,26 @@ public:
   }
 };
 
+enum class PrintPipelinePassesFormat {
+  Text,
+  Tree,
+};
+
+struct PrintPipelinePassesFormatParser
+    : public cl::parser<std::optional<PrintPipelinePassesFormat>> {
+  using cl::parser<std::optional<PrintPipelinePassesFormat>>::parser;
+  LLVM_ABI bool parse(cl::Option &O, StringRef ArgName, StringRef ArgValue,
+                      std::optional<PrintPipelinePassesFormat> &Val);
+};
+
 /// Common option used by multiple tools to print pipeline passes
-LLVM_ABI extern cl::opt<bool> PrintPipelinePasses;
+LLVM_ABI extern cl::opt<std::optional<PrintPipelinePassesFormat>, false,
+                        PrintPipelinePassesFormatParser>
+    PrintPipelinePasses;
+
+LLVM_ABI void printFormattedPipelinePasses(
+    raw_ostream &OS, StringRef Pipeline,
+    PrintPipelinePassesFormat Format = PrintPipelinePassesFormat::Text);
 }
 
 #endif

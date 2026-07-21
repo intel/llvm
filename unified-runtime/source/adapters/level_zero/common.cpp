@@ -8,9 +8,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-#include "external/driver_experimental/zex_graph.h"
 #include "logger/ur_logger.hpp"
 #include "usm.hpp"
+#include <level_zero/ze_api.h>
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -363,8 +363,8 @@ getZeStructureType<ze_pitched_alloc_2dimage_linear_pitch_exp_info_t>() {
 }
 template <>
 ze_structure_type_ext_t
-getZexStructureType<ze_record_replay_graph_exp_properties_t>() {
-  return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXP_PROPERTIES;
+getZexStructureType<ze_record_replay_graph_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR

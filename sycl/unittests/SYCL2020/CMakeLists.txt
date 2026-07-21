@@ -13,5 +13,10 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   AtomicMemoryOrderCapabilities.cpp
   AtomicMemoryScopeCapabilities.cpp
   AtomicFenceCapabilities.cpp
+  SYCLBINSerialize.cpp
+  SYCLBINSerializeJIT.cpp
+  SYCLBINSerializeMulti.cpp
+  SYCLBINSerializeOverrides.cpp
+  SYCLBINSerializeSpecConst.cpp
 )
 

@@ -1365,9 +1365,8 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   }
 
   ze_graph_handle_t zeGraph = nullptr;
-  ZE2UR_CALL(
-      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListEndGraphCaptureExp,
-      (getZeCommandList(), &zeGraph, nullptr));
+  ZE2UR_CALL(hContext.get()->getPlatform()->ZeGraphExt.endGraphCapture,
+             (getZeCommandList(), nullptr, &zeGraph));
   auto graph = graphCapture.getGraph();
   graphCapture.disableCapture();
 
@@ -1406,11 +1405,9 @@ ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(hContext.get()
-                          ->getPlatform()
-                          ->ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp,
-                      (getZeCommandList()));
+  auto &ZeGraphExt = hContext.get()->getPlatform()->ZeGraphExt;
+  ze_result_t ZeResult = ZeGraphExt.normalizeGraphQueryResult(ZE_CALL_NOCHECK(
+      ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp, (getZeCommandList())));
 
   *pResult = (ZeResult == ZE_RESULT_QUERY_TRUE);
 

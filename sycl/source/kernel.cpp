@@ -18,7 +18,7 @@ namespace sycl {
 inline namespace _V1 {
 
 // TODO(pi2ur): Don't cast straight from cl_kernel below
-kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
+kernel::kernel(OpenCLKernelT ClKernel, const context &SyclContext) {
   using namespace sycl::detail;
   adapter_impl &Adapter = ur::getAdapter<backend::opencl>();
   Managed<ur_kernel_handle_t> hKernel{Adapter};
@@ -32,11 +32,11 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainKernel, ClKernel);
+    retainOpenCLKernel(nativeHandle);
   }
 }
 
-cl_kernel kernel::get() const { return impl->get(); }
+OpenCLKernelT kernel::get() const { return impl->get(); }
 
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();
@@ -62,7 +62,9 @@ kernel::get_info_impl() const {
 __SYCL_KERNEL_INFO_INST(num_args, uint32_t)
 __SYCL_KERNEL_INFO_INST(attributes, std::string)
 __SYCL_KERNEL_INFO_INST(function_name, std::string)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_KERNEL_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_KERNEL_INFO_INST(context, sycl::context)
 #undef __SYCL_KERNEL_INFO_INST
 

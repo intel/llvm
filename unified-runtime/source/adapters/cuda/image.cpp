@@ -428,7 +428,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
   ScopedContext Active(hDevice);
 
   // Allocate a cuArray
-  if (pImageDesc->numMipLevel == 1) {
+  if (pImageDesc->numMipLevel <= 1) {
     CUarray ImageArray{};
 
     try {
@@ -574,7 +574,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         &mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)hImageMem);
     if (Err != CUDA_SUCCESS) {
       // We have a CUarray
-      if (pImageDesc->numMipLevel == 1) {
+      if (pImageDesc->numMipLevel <= 1) {
         image_res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
         image_res_desc.res.array.hArray = (CUarray)hImageMem;
       }
@@ -1078,7 +1078,7 @@ bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
         (pImageDesc->depth > maxImageDepth)) {
       return false;
     }
-  } else if (pImageDesc->height != 0 && pImageDesc->numMipLevel == 1 &&
+  } else if (pImageDesc->height != 0 && pImageDesc->numMipLevel <= 1 &&
              pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
 
     if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
@@ -1109,7 +1109,7 @@ bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
         (pImageDesc->height > maxImageHeight)) {
       return false;
     }
-  } else if (pImageDesc->width != 0 && pImageDesc->numMipLevel == 1 &&
+  } else if (pImageDesc->width != 0 && pImageDesc->numMipLevel <= 1 &&
              pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
 
     if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
@@ -1579,7 +1579,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ArrayDesc.Format = format;
 
     CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC mipmapDesc = {};
-    mipmapDesc.numLevels = pImageDesc->numMipLevel;
+    mipmapDesc.numLevels =
+        pImageDesc->numMipLevel ? pImageDesc->numMipLevel : 1;
     mipmapDesc.arrayDesc = ArrayDesc;
 
     // External memory is mapped to a CUmipmappedArray

@@ -47,12 +47,12 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -Xspirv-translator -translator-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_TRANSLATOR %s
-// WRAPPER_OPTIONS_TRANSLATOR: clang-linker-wrapper{{.*}} "--llvm-spirv-options={{.*}}-translator-opt{{.*}}"
+// WRAPPER_OPTIONS_TRANSLATOR: clang-linker-wrapper{{.*}} "--llvm-spirv-options=sycl:spir64-unknown-unknown=-translator-opt"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -Xdevice-post-link -post-link-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_POSTLINK %s
-// WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-O2 -device-globals -post-link-opt"
+// WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-O2 -device-globals"{{.*}} "--sycl-post-link-options=sycl:spir64-unknown-unknown=-post-link-opt"
 
 // -fsycl-device-only behavior
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
@@ -154,6 +154,18 @@
 // WRAPPER_OPTIONS_BACKEND_AOT: clang-linker-wrapper{{.*}}  "--host-triple=x86_64-unknown-linux-gnu"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown=-backend-gen-opt"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-backend-cpu-opt"
+
+/// Test that -Xsycl-target-backend and -Xsycl-target-linker options for an
+/// AOT (ocloc) target are forwarded via --device-compiler=/--device-linker=
+/// respectively, each token as its own argument, the same as for JIT
+/// targets.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=intel_gpu_pvc \
+// RUN:          -Xsycl-target-backend -opt1 -Xsycl-target-linker -opt2 \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_AOT_SEPARATE %s
+// WRAPPER_OPTIONS_AOT_SEPARATE: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-opt1"
+// WRAPPER_OPTIONS_AOT_SEPARATE-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=-opt2"
 
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
@@ -280,3 +292,20 @@
 // RUN:          -fsycl-link %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_SYCL_DEVICE_LINKING %s
 // CHECK_SYCL_DEVICE_LINKING: clang-linker-wrapper{{.*}} "--sycl-device-link"
+
+/// Check that SYCL device uses its own toolchain triple when combined with
+/// OpenMP offloading. Regression test: TCAndArchs must be cleared per offload
+/// kind to prevent OpenMP's TC leaking into SYCL's device phases.
+// RUN: %clang -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:        --no-offloadlib -fopenmp -fopenmp-targets=spir64 \
+// RUN:        --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-OPENMP-SYCL-PHASES %s
+// CHK-OPENMP-SYCL-PHASES: [[#OMP_DEV:]]: input, "{{.*}}", c++, (device-openmp)
+// CHK-OPENMP-SYCL-PHASES: [[#OMP_DEV+1]]: preprocessor, {[[#OMP_DEV]]}, c++-cpp-output, (device-openmp)
+// CHK-OPENMP-SYCL-PHASES: [[#OMP_DEV+2]]: compiler, {[[#OMP_DEV+1]]}, ir, (device-openmp)
+// CHK-OPENMP-SYCL-PHASES: offload, {{.*}} "device-openmp (spir64)" {[[#OMP_DEV+2]]}, ir
+// CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV:]]: input, "{{.*}}", c++, (device-sycl)
+// CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV+1]]: preprocessor, {[[#SYCL_DEV]]}, c++-cpp-output, (device-sycl)
+// CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV+2]]: compiler, {[[#SYCL_DEV+1]]}, ir, (device-sycl)
+// CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV+3]]: backend, {[[#SYCL_DEV+2]]}, ir, (device-sycl)
+// CHK-OPENMP-SYCL-PHASES: offload, "device-sycl (spir64-unknown-unknown)" {[[#SYCL_DEV+3]]}, ir

@@ -49,9 +49,6 @@ def print_wrapped_module : Flag<["--"], "print-wrapped-module">,
   HelpText<"Print the wrapped module's IR for testing">;
 def save_temps : Flag<["--"], "save-temps">,
   Flags<[WrapperOnlyOption]>, HelpText<"Save intermediate results">;
-def no_lto : Flag<["--"], "no-lto">,
-             Flags<[WrapperOnlyOption]>,
-             HelpText<"Use the non-LTO device compilation pipeline">;
 def compress : Flag<["--"], "compress">,
   Flags<[WrapperOnlyOption]>, HelpText<"Compress bundled files">;
 def compression_level_eq : Joined<["--"], "compression-level=">,
@@ -76,10 +73,6 @@ def override_image : Joined<["--"], "override-image=">,
 def should_extract : CommaJoined<["--"], "should-extract=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<kind=file>">,
   HelpText<"Set of device architectures we should always extract if found.">;
-
-def preview_breaking_changes : Flag<["-"], "fpreview-breaking-changes">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Enables preview of breaking changes in the wrapper">;
 
 def emit_fatbin_only
     : Flag<["--"], "emit-fatbin-only">,
@@ -166,10 +159,12 @@ def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
 
-// Special option to pass in sycl-post-link options
 def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
-  Flags<[WrapperOnlyOption]>,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Options that will control sycl-post-link step">;
+def sycl_post_link_arg_EQ : Joined<["--", "-"], "sycl-post-link-arg=">,
+  Flags<[DeviceOnlyOption, HelpHidden]>,
+  HelpText<"An extra argument to be passed to sycl-post-link">;
 
 def sycl_module_split_mode_EQ :
   Joined<["--", "-"], "sycl-module-split-mode=">,
@@ -185,10 +180,19 @@ def no_use_sycl_post_link_tool : Flag<["--", "-"], "no-use-sycl-post-link-tool">
   Flags<[WrapperOnlyOption]>,
   HelpText<"Use a SYCL library instead of sycl-post-link tool. (experimental)">;
 
-// Special option to pass in llvm-spirv options
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
-  Flags<[WrapperOnlyOption]>,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Options that will control llvm-spirv step">;
+def llvm_spirv_arg_EQ : Joined<["--", "-"], "llvm-spirv-arg=">,
+  Flags<[DeviceOnlyOption, HelpHidden]>,
+  HelpText<"An extra argument to be passed to llvm-spirv">;
+
+def spirv_to_ir_wrapper_options_EQ : Joined<["--", "-"], "spirv-to-ir-wrapper-options=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
+  HelpText<"Options that will control spirv-to-ir-wrapper step">;
+def spirv_to_ir_wrapper_arg_EQ : Joined<["--", "-"], "spirv-to-ir-wrapper-arg=">,
+  Flags<[DeviceOnlyOption, HelpHidden]>,
+  HelpText<"An extra argument to be passed to spirv-to-ir-wrapper">;
 def sycl_is_windows_msvc_env : Flag<["--", "-"], "sycl-is-windows-msvc-env">,
   Flags<[WrapperOnlyOption, HelpHidden]>;
 
@@ -212,6 +216,10 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
 
 def sycl_embed_ir : Flag<["--", "-"], "sycl-embed-ir">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">;
+
+def no_sycl_rdc : Flag<["--", "-"], "no-sycl-rdc">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Disable RDC mode (Relocatable device code) for SYCL linking">;
 
 def sycl_device_link
     : Flag<["--", "-"], "sycl-device-link">,

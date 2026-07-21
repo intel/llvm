@@ -358,6 +358,44 @@ public:
   /// Constant access to the underlying map.
   const MapTy &getPropSets() const { return PropSetMap; }
 
+  /// Adds a property to the property set with the given \p Category name.
+  template <typename T>
+  void add(std::string_view Category, std::string_view Name, const T &Value) {
+    PropertySet &Set = (*this)[Category];
+    Set[std::string{Name}] = PropertyValue(Value);
+  }
+
+  /// Serialize the registry into \p Out using the same textual format that
+  /// PropertySetRegistry::read accepts.
+  void write(std::ostream &Out) const {
+    for (const auto &PropSet : PropSetMap) {
+      Out << '[' << PropSet.first << "]\n";
+      for (const auto &Prop : PropSet.second) {
+        Out << Prop.first << '=' << static_cast<int>(Prop.second.getType())
+            << '|';
+        switch (Prop.second.getType()) {
+        case PropertyValue::Type::UINT32:
+          Out << Prop.second.asUint32();
+          break;
+        case PropertyValue::Type::BYTE_ARRAY: {
+          PropertyValue::SizeTy RawSize = Prop.second.getRawByteArraySize();
+          Base64::encode(Prop.second.asRawByteArray(), Out,
+                         static_cast<size_t>(RawSize));
+          break;
+        }
+        default:
+          throw sycl::exception(
+              make_error_code(errc::invalid),
+              "Unsupported property type: " +
+                  std::to_string(static_cast<int>(Prop.second.getType())) +
+                  " (property '" + Prop.first + "' in set '" + PropSet.first +
+                  "').");
+        }
+        Out << '\n';
+      }
+    }
+  }
+
 private:
   MapTy PropSetMap;
 };

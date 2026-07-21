@@ -81,7 +81,7 @@ public:
   /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
 #ifdef __SYCL_INTERNAL_API
-  kernel(cl_kernel ClKernel, const context &SyclContext);
+  kernel(OpenCLKernelT ClKernel, const context &SyclContext);
 #endif
 
   kernel() = delete;
@@ -117,7 +117,7 @@ public:
   ///
   /// \return a valid cl_kernel instance
 #ifdef __SYCL_INTERNAL_API
-  cl_kernel get() const;
+  OpenCLKernelT get() const;
 #endif
 
   /// Get the context that this kernel is defined for.

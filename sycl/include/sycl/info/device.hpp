@@ -411,14 +411,20 @@ struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
   using return_type = bool;
 };
 
-// Extensions/deprecated
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct __SYCL_DEPRECATED("use sycl::aspect::atomic64 instead") atomic64
     : device_traits<UR_DEVICE_INFO_ATOMIC_64> {
   using return_type = bool;
 };
-struct reference_count : device_traits<UR_DEVICE_INFO_REFERENCE_COUNT> {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+struct __SYCL_DEPRECATED("info::device::reference_count is not part of "
+                         "SYCL 2020") reference_count
+    : device_traits<UR_DEVICE_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // To be dropped (has alternatives/not needed)
 struct usm_device_allocations
     : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
