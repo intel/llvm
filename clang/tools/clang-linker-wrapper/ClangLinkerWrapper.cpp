@@ -622,10 +622,8 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   CmdArgs.push_back("--llvm-spirv-opts");
   CmdArgs.push_back("--spirv-preserve-auxdata --spirv-target-env=SPV-IR "
                     "--spirv-builtin-format=global");
-  for (const Arg *A : Args.filtered(OPT_spirv_to_ir_wrapper_arg_EQ)) {
-    StringRef(A->getValue())
-        .split(CmdArgs, " ", /* MaxSplit = */ -1, /* KeepEmpty = */ false);
-  }
+  for (const Arg *A : Args.filtered(OPT_spirv_to_ir_wrapper_arg_EQ))
+    CmdArgs.push_back(A->getValue());
   if (Error Err = executeCommands(*SPIRVToIRWrapperPath, CmdArgs))
     return std::move(Err);
   return *TempFileOrErr;
@@ -806,10 +804,8 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     }
   }
   getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);
-  for (const Arg *A : Args.filtered(OPT_sycl_post_link_arg_EQ)) {
-    StringRef(A->getValue())
-        .split(CmdArgs, " ", /* MaxSplit = */ -1, /* KeepEmpty = */ false);
-  }
+  for (const Arg *A : Args.filtered(OPT_sycl_post_link_arg_EQ))
+    CmdArgs.push_back(A->getValue());
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Args.MakeArgString(OutputPathWithArch));
   for (auto &File : InputFiles)
@@ -975,10 +971,8 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   CmdArgs.push_back(*LLVMToSPIRVPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   getTripleBasedSPIRVTransOpts(Args, CmdArgs, Triple);
-  for (const Arg *A : Args.filtered(OPT_llvm_spirv_arg_EQ)) {
-    StringRef(A->getValue())
-        .split(CmdArgs, " ", /* MaxSplit = */ -1, /* KeepEmpty = */ false);
-  }
+  for (const Arg *A : Args.filtered(OPT_llvm_spirv_arg_EQ))
+    CmdArgs.push_back(A->getValue());
   CmdArgs.push_back("-o");
 
   // Create a new file to write the translated file to.

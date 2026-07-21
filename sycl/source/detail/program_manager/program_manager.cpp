@@ -3033,9 +3033,6 @@ static std::string getAspectNameStr(sycl::aspect AspectNum) {
   case aspect::ASPECT:                                                         \
     return #ASPECT;
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
-// We don't need "case aspect::usm_allocator" here because it will duplicate
-// "case aspect::usm_system_allocations", therefore leave this macro empty
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
   switch (AspectNum) {
 #include <sycl/info/aspects.def>
 #include <sycl/info/aspects_deprecated.def>
@@ -3043,7 +3040,6 @@ static std::string getAspectNameStr(sycl::aspect AspectNum) {
   throw sycl::exception(errc::kernel_not_supported,
                         "Unknown aspect " +
                             std::to_string(static_cast<unsigned>(AspectNum)));
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
 }

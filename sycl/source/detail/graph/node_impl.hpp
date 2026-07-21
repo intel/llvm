@@ -63,6 +63,7 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   case sycl::detail::CGType::BarrierWaitlist:
     return node_type::ext_oneapi_barrier;
   case sycl::detail::CGType::CodeplayHostTask:
+  case sycl::detail::CGType::NativeHostTask:
     return node_type::host_task;
   case sycl::detail::CGType::ExecCommandBuffer:
     return node_type::subgraph;
@@ -263,7 +264,8 @@ public:
     case sycl::detail::CGType::Memset2DUSM:
       return createCGCopy<sycl::detail::CGMemset2DUSM>();
     case sycl::detail::CGType::EnqueueNativeCommand:
-    case sycl::detail::CGType::CodeplayHostTask: {
+    case sycl::detail::CGType::CodeplayHostTask:
+    case sycl::detail::CGType::NativeHostTask: {
       // The unique_ptr to the `sycl::detail::HostTask`, which is also used for
       // a EnqueueNativeCommand command, in the HostTask CG prevents from
       // copying the CG. We overcome this restriction by creating a new CG with
@@ -676,6 +678,7 @@ private:
       }
       break;
     case sycl::detail::CGType::CodeplayHostTask:
+    case sycl::detail::CGType::NativeHostTask:
       Stream << "CGHostTask \\n";
       break;
     case sycl::detail::CGType::Barrier:

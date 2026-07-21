@@ -52,7 +52,7 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -Xdevice-post-link -post-link-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_POSTLINK %s
-// WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-O2 -device-globals"{{.*}} "--sycl-post-link-options=sycl:spir64-unknown-unknown=-post-link-opt"
+// WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-O2"{{.*}} "--sycl-post-link-options=-device-globals"{{.*}} "--sycl-post-link-options=sycl:spir64-unknown-unknown=-post-link-opt"
 
 // -fsycl-device-only behavior
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
