@@ -56,8 +56,8 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   return RetEvent;
 }
 
-void check_event_and_throw(detail::event_impl &EventImpl,
-                           detail::context_impl &ContextImpl) {
+static void CheckEventAndThrow(detail::event_impl &EventImpl,
+                               detail::context_impl &ContextImpl) {
   if (EventImpl.isHost()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Host events cannot be enqueued for waiting.");
@@ -80,7 +80,7 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
-  detail::check_event_and_throw(EventImpl, QueueImpl.getContextImpl());
+  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
 
   QueueImpl.submit_barrier_direct_without_event(
       sycl::span<const event>(&evt, 1), detail::CGType::BarrierWaitlist,
@@ -92,8 +92,8 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
 
   for (const sycl::event &evt : evts) {
-    detail::check_event_and_throw(*sycl::detail::getSyclObjImpl(evt),
-                                  QueueImpl.getContextImpl());
+    detail::CheckEventAndThrow(*sycl::detail::getSyclObjImpl(evt),
+                               QueueImpl.getContextImpl());
   }
 
   QueueImpl.submit_barrier_direct_without_event(
@@ -104,7 +104,7 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
-  detail::check_event_and_throw(EventImpl, QueueImpl.getContextImpl());
+  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
 
   if (EventImpl.isInterop()) {
     throw sycl::exception(
