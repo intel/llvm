@@ -5,14 +5,11 @@
 // SYCLBinaryImageFormat::BIF_Compressed (int8 value 4) in the emitted wrapper
 // module, honors --compression-level=, and reports invalid values.
 
-// --- Prepare test data: build a bitcode module, pack it into an
-// llvm-offload-binary, and embed it into an ELF object as the linker-wrapper
-// input. The bitcode is large enough (well over the 512-byte compression
-// threshold in wrapSYCLBinariesFromFile) that compression actually runs.
-
-// RUN: %clang -cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
+// Prepare test data. The bitcode is over the 512-byte compression
+// threshold, so the compression actually runs.
+// RUN:%clang_cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: llvm-offload-binary -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
-// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
+// RUN:%clang_cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
 // RUN: touch %t.devicelib.bc
 
 // With --compress and --wrapper-verbose the compression path fires and the
@@ -22,7 +19,7 @@
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   -sycl-post-link-options="-split=auto -symbols -properties" \
 // RUN:   --compress --compression-level=9 --wrapper-verbose \
-// RUN:   %t.o -o %t.out --linker-path="/usr/bin/ld" 2>&1 \
+// RUN:   --dry-run %t.o -o %t.out 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-COMPRESS
 
 // Capture the original and compressed sizes.
@@ -30,18 +27,16 @@
 // CHECK-COMPRESS: [Compression] Compressed image size: [[#COMP:]]
 // CHECK-COMPRESS: [Compression] Compression level used: 9
 //
-// Assert that the compressed size is strictly smaller than the original size
-// (i.e. ORIG - COMP > 0). FileCheck's numeric matching form only supports the
-// `==` constraint — there is no `<` or `>` — but sub() rejects underflow at
+// Assert ORIG - COMP > 0.
+// FileCheck's numeric matching form only supports the
+// `==` constraint, but sub() rejects underflow at
 // expression-evaluation time. We attach sub(ORIG, COMP) to a CHECK-NOT
 // pattern that begins with a sentinel string never present in the output:
 //   * when ORIG > COMP, sub() succeeds; the substituted pattern is
 //     "COMPRESSION_SIZE_CHECK<some-number>", which doesn't appear, so the
-//     CHECK-NOT is satisfied vacuously.
+//     CHECK-NOT is satisfied.
 //   * when COMP >= ORIG, sub() underflows and FileCheck fails the pattern.
 // CHECK-COMPRESS-NOT: COMPRESSION_SIZE_CHECK[[#sub(ORIG, COMP)]]
-// The tgt_device_image struct is { i16 Version, i8 Kind, i8 Format, ptr ... };
-// Kind for SYCL is 4, Format for BIF_Compressed is also 4.
 // CHECK-COMPRESS: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 {{[0-9]+}}, i8 4, i8 4,
 
 // Without --compress the image is left untagged (Format = BIF_None = 0) and
