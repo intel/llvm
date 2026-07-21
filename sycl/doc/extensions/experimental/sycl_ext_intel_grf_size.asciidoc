@@ -148,6 +148,7 @@ The supported values are as follows:
 |GPU |Supported Values
 | PVC | 128 (small register file), 256 (large register file)
 | DG2 | 128 (small register file), 256 (large register file)
+| CRI | 128, 256, 512
 |===
 
 Providing a value not consistent with the supported values may result in undefined behavior.

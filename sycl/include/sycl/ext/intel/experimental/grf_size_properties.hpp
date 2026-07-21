@@ -40,7 +40,8 @@ namespace ext::oneapi::experimental::detail {
 template <unsigned int Size>
 struct PropertyMetaInfo<
     sycl::ext::intel::experimental::grf_size_key::value_t<Size>> {
-  static_assert(Size == 128 || Size == 256, "Unsupported GRF size");
+  static_assert(Size == 128 || Size == 256 || Size == 512,
+                "Unsupported GRF size");
   static constexpr const char *name = "sycl-grf-size";
   static constexpr unsigned int value = Size;
 };
