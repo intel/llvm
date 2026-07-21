@@ -57,6 +57,7 @@
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
+#include "llvm/SYCLLowerIR/SYCLLegalizeNonStandardIntegers.h"
 #include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
@@ -1118,6 +1119,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
               MPM.addPass(createModuleToFunctionPassAdaptor(
                   SYCLOptimizeBarriersPass()));
           });
+      PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM,
+                                            OptimizationLevel,
+                                            ThinOrFullLTOPhase) -> void {
+        MPM.addPass(SYCLLegalizeNonStandardIntegersPass());
+      });
     }
 
     if (CodeGenOpts.SYCLRemangleLibspirv) {
