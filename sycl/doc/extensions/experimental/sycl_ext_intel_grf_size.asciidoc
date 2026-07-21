@@ -179,7 +179,9 @@ Providing a GRF size that is not consistent with the supported values results in
 undefined behavior.
 
 
-== Example
+== Examples
+
+=== Basic usage
 
 A simple example of using this extension is below.
 
@@ -215,5 +217,39 @@ int main() {
   sycl::nd_range ndr{{256},{16}};
   q.parallel_for(ndr, Kernel1{}).wait();
   q.parallel_for(ndr, Kernel2{}).wait();
+}
+----
+
+=== Usage with a free function kernel
+
+An example using this extension with free function kernels
+(link:../experimental/sycl_ext_oneapi_free_function_kernels.asciidoc[
+sycl_ext_oneapi_free_function_kernels]).
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size<256>))
+void kernel1() {
+  /* ... */
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size_automatic))
+void kernel2() {
+  /* ... */
+}
+
+int main() {
+  sycl::queue q;
+
+  sycl::nd_range ndr{{256},{16}};
+  syclex::nd_launch(q, ndr, syclex::kernel_function<kernel1>);
+  syclex::nd_launch(q, ndr, syclex::kernel_function<kernel2>);
+  q.wait();
 }
 ----
