@@ -163,7 +163,7 @@ jobs:
         echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
 
     - name: Test adapter specific
-      uses: ./devops/actions/run-tests/ur/common
+      uses: ./devops/actions/run-tests/ur
       with:
         test_type: 'adapter-specific'
         build_dir: build
@@ -172,7 +172,7 @@ jobs:
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
-      uses: ./devops/actions/run-tests/ur/common
+      uses: ./devops/actions/run-tests/ur
       with:
         test_type: 'conformance'
         build_dir: build

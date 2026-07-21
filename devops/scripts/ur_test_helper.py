@@ -2,15 +2,22 @@
 """Helper utilities for UR test execution in CI."""
 
 import sys
-import os
 from pathlib import Path
 from typing import Optional
 
+MAX_LINES_TO_SCAN = 1000
 
 def find_xml_file(search_path: str, xml_name: str) -> str:
-    """Find XML file in directory tree."""
-    search_dir = Path(search_path)
-    if not search_dir.exists():
+    """Find XML file in directory tree. search_path must be validated."""
+    if ".." in search_path or not search_path:
+        return ""
+    
+    try:
+        search_dir = Path(search_path).resolve(strict=True)
+    except (OSError, ValueError):
+        return ""
+    
+    if not search_dir.exists() or not search_dir.is_dir():
         return ""
     
     for xml_file in search_dir.rglob(xml_name):
@@ -28,18 +35,21 @@ def validate_build_dir(build_dir: str, workspace: Optional[str] = None) -> bool:
         return False
     
     # Check for shell metacharacters
-    dangerous_chars = set(";&#$|`\\")
+    dangerous_chars = {";", "&", "#", "$", "|", "`", "\\"}
     if any(c in build_dir for c in dangerous_chars):
         return False
     
     if workspace:
         try:
-            build_path = Path(build_dir).resolve()
-            workspace_path = Path(workspace).resolve()
-            return build_path.is_relative_to(workspace_path)
+            build_path = Path(build_dir).resolve(strict=False)
+            workspace_path = Path(workspace).resolve(strict=False)
+            try:
+                build_path.relative_to(workspace_path)
+                return True
+            except ValueError:
+                return False
         except (ValueError, OSError):
             return False
-    
     return True
 
 
@@ -47,19 +57,19 @@ def check_log_has_tests(log_file: str) -> bool:
     """Check if log file contains actual test results."""
     try:
         with open(log_file, "r", encoding="utf-8", errors="replace") as f:
-            # Read first 1000 lines to find "Testing:" marker
-            for _ in range(1000):
+            # Read first MAX_LINES_TO_SCAN lines to find "Testing:" marker
+            for _ in range(MAX_LINES_TO_SCAN):
                 line = f.readline()
                 if not line:
                     break
                 if "Testing:" in line:
                     return True
         return False
-    except (OSError, IOError):
+    except OSError:
         return False
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print(f"Error: {sys.argv[0]} <command> [args...]", file=sys.stderr)
         sys.exit(1)

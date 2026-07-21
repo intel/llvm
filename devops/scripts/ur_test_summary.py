@@ -75,10 +75,7 @@ def read_log_file(log_path: str) -> List[str]:
     try:
         with open(log_path, "r", encoding="utf-8", errors="replace") as f:
             return f.readlines()
-    except FileNotFoundError:
-        print(f"Error: Log file not found: {log_path}", file=sys.stderr)
-        sys.exit(1)
-    except (OSError, UnicodeDecodeError) as e:
+    except OSError as e:
         print(f"Error reading log file: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -163,9 +160,10 @@ def _extract_tests_from_xml_by_filter(
     xml_path: str, include_test_not_selected: bool, test_type_name: str
 ) -> List[str]:
     """Extract tests from LIT xunit XML by filtering on 'Test not selected' message."""
-    if not xml_path or not Path(xml_path).exists():
-        if xml_path and not Path(xml_path).exists():
-            print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
+    if not xml_path:
+        return []
+    if not Path(xml_path).exists():
+        print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
         return []
 
     tests = []
@@ -193,7 +191,7 @@ def _extract_tests_from_xml_by_filter(
     except (OSError, ValueError) as e:
         print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
 
-    if tests and Path(xml_path).exists():
+    if tests:
         print(
             f"Note: Found {len(tests)} {test_type_name} tests in XML file",
             file=sys.stderr,
@@ -320,8 +318,9 @@ def _display_statistics(stats: List[str]) -> None:
 
 
 def _get_count_from_stats(stats: List[str], keywords: List[str]) -> int:
+    _STATS_KEYWORDS = re.compile(r"(Skipped:|Unsupported:|Excluded:)")
     for stat in stats:
-        if any(keyword in stat for keyword in keywords):
+        if any(keyword in stat for keyword in _STATS_KEYWORDS):
             match = re.search(r"(\d+)", stat)
             if match:
                 return int(match.group(1))
@@ -489,9 +488,6 @@ def show_statistics_and_lists(config: SummaryConfig) -> None:
     _display_timing_summary(config.log_lines)
 
 
-
-
-
 def _validate_log_path(path: str) -> None:
     if ".." in path or path.startswith("/"):
         print(
@@ -508,7 +504,7 @@ def _validate_optional_path(
     path: str, path_type: str, allow_absolute: bool = False
 ) -> str:
     if not path:
-        return None
+        return ""
     if ".." in path:
         print(
             f"Error: Invalid {path_type} file path (path traversal): {path}",
@@ -524,7 +520,7 @@ def _validate_optional_path(
     return path
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 3:
         print(f"Error: {sys.argv[0]} <command> <log_file> [xml_file]", file=sys.stderr)
         sys.exit(1)

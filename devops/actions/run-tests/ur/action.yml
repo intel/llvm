@@ -24,7 +24,7 @@ runs:
       TEST_TYPE: ${{ inputs.test_type }}
       ZE_ENABLE_LOADER_DEBUG_TRACE: 1
     run: |
-      if ! python3 devops/scripts/ur_test_helper.py validate-build-dir "$BUILD_DIR"; then
+      if ! python3 devops/scripts/ur_test_helper.py validate-build-dir "$BUILD_DIR" "$GITHUB_WORKSPACE"; then
         echo "::error::Invalid build_dir"
         exit 1
       fi
@@ -35,7 +35,7 @@ runs:
         XML_NAME="adapter_results.xml"
         XML_SEARCH_PATH="$BUILD_DIR/test/adapters"
         LIT_FILTER='(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)'
-        export LIT_FILTER_OUT="$LIT_FILTER"
+        export LIT_FILTER_OUT="${LIT_FILTER}"
       else
         TARGET="check-unified-runtime-conformance"
         LOG_FILE="conformance_tests.log"
@@ -43,9 +43,14 @@ runs:
         XML_SEARCH_PATH="$BUILD_DIR/test/conformance"
       fi
       
-      export LIT_OPTS="--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50 --time-tests --show-flakypass --show-skipped --xunit-xml-output $XML_NAME"
+      LIT_OPTS="--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50 --time-tests --show-flakypass --show-skipped --xunit-xml-output $XML_NAME"
+      export LIT_OPTS
       
-      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- "$TARGET" > "$LOG_FILE" 2>&1
+      MAX_JOBS=16
+      JOBS=$(($(nproc)/3))
+      [ $JOBS -gt $MAX_JOBS ] && JOBS=$MAX_JOBS
+      
+      cmake --build "$BUILD_DIR" -j $JOBS -- "$TARGET" > "$LOG_FILE" 2>&1
       EXIT_CODE=$?
       
       if [ ! -f "$LOG_FILE" ] || [ ! -s "$LOG_FILE" ]; then
@@ -71,7 +76,7 @@ runs:
       fi
       
       echo "::group::Show Full Test Log (filtered)"
-      python3 devops/scripts/ur_test_summary.py filter-log "$LOG_FILE" || cat "$LOG_FILE"
+      python3 devops/scripts/ur_test_summary.py filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
       echo "::endgroup::"
   
   - name: Report test failures
@@ -117,7 +122,7 @@ runs:
       
       XML_FILE=$(python3 devops/scripts/ur_test_helper.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
       
-      python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "$XML_FILE"
+      python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
 
   - name: Prepare test artifacts
     if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || env.SKIP_ARTIFACTS != '1') }}
