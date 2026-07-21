@@ -245,6 +245,9 @@
 ??$is_image_handle_supported@Usampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
+??$queryMaxNumWorkGroups@$00@kernel@_V1@sycl@@AEBA_KAEBVdevice@12@V?$range@$00@12@_KUKernelExecInfoTy@012@@Z
+??$queryMaxNumWorkGroups@$01@kernel@_V1@sycl@@AEBA_KAEBVdevice@12@V?$range@$01@12@_KUKernelExecInfoTy@012@@Z
+??$queryMaxNumWorkGroups@$02@kernel@_V1@sycl@@AEBA_KAEBVdevice@12@V?$range@$02@12@_KUKernelExecInfoTy@012@@Z
 ??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
 ??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
 ??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z

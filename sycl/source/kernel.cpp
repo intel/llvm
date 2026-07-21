@@ -253,20 +253,17 @@ kernel::queryMaxNumWorkGroups(const device &Dev, sycl::range<Dimensions> Range,
       Queue, Range, Bytes + ExecInfo.DynamicWorkGroupMem);
 }
 
-template size_t
-kernel::queryMaxNumWorkGroups<1>(const device &Dev, sycl::range<1> Range,
-                                 size_t Bytes,
-                                 kernel::KernelExecInfoTy ExecInfo) const;
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<1>(
+    const device &Dev, sycl::range<1> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
 
-template size_t
-kernel::queryMaxNumWorkGroups<2>(const device &Dev, sycl::range<2> Range,
-                                 size_t Bytes,
-                                 kernel::KernelExecInfoTy ExecInfo) const;
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<2>(
+    const device &Dev, sycl::range<2> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
 
-template size_t
-kernel::queryMaxNumWorkGroups<3>(const device &Dev, sycl::range<3> Range,
-                                 size_t Bytes,
-                                 kernel::KernelExecInfoTy ExecInfo) const;
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<3>(
+    const device &Dev, sycl::range<3> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
