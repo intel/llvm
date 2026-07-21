@@ -478,8 +478,7 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
   } catch (sycl::exception const &e) {
     exception = true;
     EXPECT_EQ(e.code(), sycl::errc::invalid);
-    EXPECT_STREQ(e.what(), "Not implemented yet. Event context must "
-                           "match the queue context.");
+    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
   }
 
   EXPECT_TRUE(exception);
@@ -509,11 +508,12 @@ TEST_F(ReusableEventsTest, CrossContextEventsWait) {
   sycl::context Ctx1{Dev1};
   sycl::context Ctx2{Dev2};
 
-  sycl::queue Queue1{Ctx1, Dev1};
-  sycl::queue Queue2{Ctx2, Dev2};
+  sycl::queue Queue{Ctx1, Dev1};
 
+  // Check if the exception is thrown if one of the events
+  // has different context than the queue.
   auto event1 = syclex::make_event(Ctx1);
-  auto event2 = syclex::make_event(Ctx1);
+  auto event2 = syclex::make_event(Ctx2);
 
   std::vector<sycl::event> events{event1, event2};
 
@@ -522,18 +522,16 @@ TEST_F(ReusableEventsTest, CrossContextEventsWait) {
   // Current limitation is that an event from different context
   // cannot be used with enqueue_wait_event
   try {
-    syclex::enqueue_wait_events(Queue2, events);
+    syclex::enqueue_wait_events(Queue, events);
   } catch (sycl::exception const &e) {
     exception = true;
     EXPECT_EQ(e.code(), sycl::errc::invalid);
-    EXPECT_STREQ(e.what(), "Not implemented yet. Context of all events must "
-                           "match the queue context.");
+    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
   }
 
   EXPECT_TRUE(exception);
 
-  Queue1.wait();
-  Queue2.wait();
+  Queue.wait();
 }
 
 // Cross-context make_event and signal event - not allowed
