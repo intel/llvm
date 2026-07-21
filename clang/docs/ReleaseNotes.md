@@ -135,6 +135,8 @@ in a future version of Clang.
 
 ### Improvements to Clang's diagnostics
 
+- More consistent rendering of Unicode characters in diagnostic messages.
+
 - Fixed bug in `-Wdocumentation` so that it correctly handles explicit
   function template instantiations (#64087).
 
