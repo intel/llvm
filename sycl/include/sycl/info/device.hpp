@@ -425,7 +425,6 @@ struct __SYCL_DEPRECATED("info::device::reference_count is not part of "
     : device_traits<UR_DEVICE_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // To be dropped (has alternatives/not needed)
 struct __SYCL_DEPRECATED("use sycl::aspect::usm_device_allocations instead")
     usm_device_allocations : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
