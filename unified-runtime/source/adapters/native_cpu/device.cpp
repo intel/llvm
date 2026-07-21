@@ -478,6 +478,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_LUID:
+  case UR_DEVICE_INFO_NODE_MASK:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
