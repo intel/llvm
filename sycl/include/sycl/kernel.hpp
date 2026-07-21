@@ -273,7 +273,9 @@ public:
       typename Param,
       typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
       typename = std::enable_if_t<
-          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+          std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                    max_num_work_groups_sync>,
+          void>>
   typename Param::return_type
   ext_oneapi_get_info(const device &Dev, sycl::range<1> Range,
                       LaunchProperties Props = {}, size_t Bytes = 0) const {
@@ -296,7 +298,9 @@ public:
       typename Param,
       typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
       typename = std::enable_if_t<
-          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+          std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                    max_num_work_groups_sync>,
+          void>>
   typename Param::return_type
   ext_oneapi_get_info(const device &Dev, sycl::range<2> Range,
                       LaunchProperties Props = {}, size_t Bytes = 0) const {
@@ -319,7 +323,9 @@ public:
       typename Param,
       typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
       typename = std::enable_if_t<
-          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+          std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                    max_num_work_groups_sync>,
+          void>>
   typename Param::return_type
   ext_oneapi_get_info(const device &Dev, sycl::range<3> Range,
                       LaunchProperties Props = {}, size_t Bytes = 0) const {

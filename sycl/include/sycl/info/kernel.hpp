@@ -25,10 +25,6 @@ namespace info {
 
 // A.5 Kernel information descriptors
 namespace kernel {
-struct max_num_work_groups_sync {
-  using return_type = size_t;
-};
-
 template <ur_kernel_info_t UrCode>
 using kernel_traits =
     sycl::detail::ur_traits_base<sycl::detail::info_class::kernel, UrCode>;
@@ -104,6 +100,12 @@ struct ext_codeplay_num_regs : kernel_info_traits<UR_KERNEL_INFO_NUM_REGS> {
 } // namespace kernel_device_specific
 
 } // namespace info
+
+namespace ext::oneapi::experimental::info::kernel {
+struct max_num_work_groups_sync {
+  using return_type = size_t;
+};
+} // namespace ext::oneapi::experimental::info::kernel
 
 namespace detail {
 // SFINAE predicates confining `kernel::get_info<T>()` to kernel traits and
