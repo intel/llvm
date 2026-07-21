@@ -61,7 +61,7 @@ This extension also depends on the following other SYCL extensions:
 
 * link:sycl_ext_oneapi_virtual_mem.asciidoc[sycl_ext_oneapi_virtual_mem]
 * link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
-* link:../proposed/sycl_ext_oneapi_reusable_events.asciidoc[
+* link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc[
   sycl_ext_oneapi_reusable_events]
 
 == Status
@@ -1150,7 +1150,7 @@ of events as described in this section.
 
 This feature uses the `enable_ipc` property (defined above for `physical_mem`),
 which can be used with `make_event`
-(from the link:../proposed/sycl_ext_oneapi_reusable_events.asciidoc[
+(from the link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc[
 sycl_ext_oneapi_reusable_events] extension):
 
 The `enable_ipc` property controls whether the event can be shared across

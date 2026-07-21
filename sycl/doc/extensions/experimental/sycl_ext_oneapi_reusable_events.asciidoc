@@ -49,12 +49,10 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.
-Interfaces defined in this specification may not be implemented yet or may be in
-a preliminary state.
-The specification itself may also change in incompatible ways before it is
-finalized.
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
@@ -460,19 +458,31 @@ event when a command is submitted, rather than taking an event as input.
   If so, the `cl_event` is released before calling `clEnqueueMarkerWithWaitList`
   or `clEnqueueBarrierWithWaitList`.
 
-=== Host tasks
+=== Status
 
-Because host tasks are executed by the SYCL runtime, there can be cases where
-a command _C_ is submitted at the SYCL level, but the command remains pending
-inside the SYCL runtime until a host task completes.
-(E.g. when command _C_ has a dependency on the host task.)
-As a result, there may be cases when `enqueue_signal_event` must also leave the
-"event signal" operation pending in the SYCL runtime, or when
-`enqueue_wait_event` must leave the "event wait" operation pending in the SYCL
-runtime.
-In these cases, we expect that a backend event may not be associated with the
-SYCL event until the pending operations are resolved in the runtime library.
-This will likely cause the handling of events to be less efficient when host
-tasks are submitted to the same queue as "native" commands like kernels or
-copy operations, or when there are dependencies between host tasks and native
-commands.
+This extension has been implemented with the following limitations:
+
+* The `evt` passed to the `enqueue_wait_event` function and all events in
+  `evts` passed to the `enqueue_wait_events` function need to have the same
+  context as `q`.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  functions cannot be dependent on a host task (`enqueue_wait_event` and
+  `enqueue_wait_events` cannot take an event produced by a host task submission
+  as an argument and all those functions cannot be enqueued behind a host task
+  on an in-order queue), which has been submitted using the
+  `handler::host_task` function.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  functions cannot be dependent on any commands which use cross-context
+  event dependencies.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  function cannot be dependent on any commands using `sycl::stream`.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  function cannot be dependent on the following methods from the
+  link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[
+  sycl_ext_oneapi_memcpy2d] extension: `queue::ext_oneapi_memcpy2d`,
+  `queue::ext_oneapi_copy2d`, `handler::ext_oneapi_memcpy2d`,
+  `handler::ext_oneapi_copy2d`, if the copy is a host-to-host data copy,
+  and the following methods: `queue::ext_oneapi_fill2d`,
+  `queue::ext_oneapi_memset2d`, `handler::ext_oneapi_fill2d`,
+  `handler::ext_oneapi_memset2d`, if the backend does not support 2D fill or
+  the target memory is on host.
