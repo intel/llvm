@@ -477,6 +477,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
     return ReturnValue(false);
 
+  case UR_DEVICE_INFO_LUID:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
   default:
     DIE_NO_IMPLEMENTATION;
   }
