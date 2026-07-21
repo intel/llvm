@@ -144,7 +144,7 @@ static LegalizeMutation moreEltsToNext32Bit(unsigned TypeIdx) {
 static LegalizeMutation getScalarTypeFromMemDesc(unsigned TypeIdx) {
   return [=](const LegalityQuery &Query) {
     unsigned MemSize = Query.MMODescrs[0].MemoryTy.getSizeInBits();
-    return std::make_pair(TypeIdx, LLT::scalar(MemSize));
+    return std::make_pair(TypeIdx, LLT::integer(MemSize));
   };
 }
 
@@ -208,8 +208,9 @@ static LegalizeMutation bitcastToVectorElement32(unsigned TypeIdx) {
     const LLT Ty = Query.Types[TypeIdx];
     unsigned Size = Ty.getSizeInBits();
     assert(Size % 32 == 0);
-    return std::pair(
-        TypeIdx, LLT::scalarOrVector(ElementCount::getFixed(Size / 32), 32));
+    return std::pair(TypeIdx,
+                     LLT::scalarOrVector(ElementCount::getFixed(Size / 32),
+                                         LLT::integer(32)));
   };
 }
 
@@ -1771,7 +1772,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
               // May need relegalization for the scalars.
               return std::pair(0, EltTy);
             })
-        .minScalar(0, S32)
+        .widenScalarIf(scalarNarrowerThan(0, 32), changeTo(0, LLT::integer(32)))
         .narrowScalarIf(isTruncStoreToSizePowerOf2(0),
                         getScalarTypeFromMemDesc(0))
         .widenScalarToNextPow2(0)
@@ -1817,7 +1818,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   ExtLoads.narrowScalarIf(
       [](const LegalityQuery &Query) {
         LLT MemTy = Query.MMODescrs[0].MemoryTy;
-        return MemTy.isAnyScalar() && MemTy.getSizeInBits() > 32 &&
+        return MemTy.isScalar() && MemTy.getSizeInBits() > 32 &&
                Query.Types[0].getSizeInBits() > MemTy.getSizeInBits();
       }, // For large MemSize, narrowscalar to MemSize (load MemSize + ext)
       getScalarTypeFromMemDesc(0));
