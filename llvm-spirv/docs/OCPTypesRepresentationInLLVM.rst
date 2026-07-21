@@ -98,13 +98,17 @@ SPV_INTEL_fp_conversions
 
 This extension provides conversions with specialized rounding modes for improved precision and efficiency.
 
-**Translated to OpClampConvertFToFINTEL (clamp rounding):**
+**Translated to OpFConvert (clamp rounding):**
 
 .. code-block:: C
 
-  __builtin_spirv_ClampConvertFP16ToE2M1INTEL, __builtin_spirv_ClampConvertBF16ToE2M1INTEL,
   __builtin_spirv_ClampConvertFP16ToE4M3INTEL, __builtin_spirv_ClampConvertBF16ToE4M3INTEL,
   __builtin_spirv_ClampConvertFP16ToE5M2INTEL, __builtin_spirv_ClampConvertBF16ToE5M2INTEL
+
+The result is decorated with *SaturatedToLargestFloat8NormalConversionEXT* (SPV_EXT_float8).
+
+ClampConvert*ToE2M1INTEL builtins are not provided: fp4 (E2M1) saturation is unconditional,
+so they collapse into the plain *Convert\*ToE2M1INTEL* form listed under SPV_INTEL_float4.
 
 **Translated to OpClampConvertFToSINTEL (clamp rounding to signed integer):**
 
@@ -129,7 +133,8 @@ for storing the last seed value.
 
   __builtin_spirv_ClampStochasticRoundFP16ToInt4INTEL, __builtin_spirv_ClampStochasticRoundBF16ToInt4INTEL
 
-**Translated to OpClampStochasticRoundFToFINTEL (clamp + stochastic rounding):**
+**Translated to OpStochasticRoundFToFINTEL with the SaturatedToLargestFloat8NormalConversionEXT
+decoration (clamp + stochastic rounding):**
 
 .. code-block:: C
 

@@ -122,7 +122,7 @@ void SPIRV64TargetInfo::getTargetDefines(const LangOptions &Opts,
 }
 
 static const AMDGPUTargetInfo
-    AMDGPUTI(llvm::Triple(llvm::Triple::amdgcn, llvm::Triple::NoSubArch,
+    AMDGPUTI(llvm::Triple(llvm::Triple::amdgpu, llvm::Triple::NoSubArch,
                           llvm::Triple::AMD, llvm::Triple::AMDHSA),
              {});
 

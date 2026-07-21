@@ -380,6 +380,10 @@ public:
   /// its variable sized member before decoding the remaining words.
   virtual void setWordCount(SPIRVWord TheWordCount);
 
+  /// Return the minimum valid WordCount (1, the OpCode). Other entries will
+  /// override to return their respective fixed word counts.
+  virtual SPIRVWord getFixedWordCount() const { return 1; }
+
   /// Create an empty SPIRV object by op code, e.g. OpTypeInt creates
   /// SPIRVTypeInt.
   static SPIRVEntry *create(Op);
@@ -541,6 +545,7 @@ public:
 class SPIRVEntryPoint : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 4;
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);
@@ -957,6 +962,8 @@ public:
       return ExtensionID::SPV_KHR_float_controls2;
     case CapabilityInt64ImageEXT:
       return ExtensionID::SPV_EXT_shader_image_int64;
+    case CapabilityLongVectorEXT:
+      return ExtensionID::SPV_EXT_long_vector;
     default:
       return {};
     }

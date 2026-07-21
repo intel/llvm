@@ -10,7 +10,7 @@
 ; CHECK-SPIRV-DAG: Capability AtomicFloat32AddEXT
 ; CHECK-SPIRV: TypeInt [[Int:[0-9]+]] 32 0
 ; CHECK-SPIRV-DAG: Constant [[Int]] [[Scope_CrossDevice:[0-9]+]] 0 {{$}}
-; CHECK-SPIRV-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
+; CHECK-SPIRV-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 528
 ; CHECK-SPIRV: TypeFloat [[Float:[0-9]+]] 32
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[FPPointer:[0-9]+]]
 ; CHECK-SPIRV: Constant [[Float]] [[FPValue:[0-9]+]] 1109917696
