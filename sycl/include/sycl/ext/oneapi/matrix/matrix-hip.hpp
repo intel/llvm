@@ -17,6 +17,7 @@
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
 
+#include <cstdint>
 #include <cstring>
 
 #define __HIP_PLATFORM_AMD_MFMA__
@@ -388,6 +389,51 @@ void joint_matrix_store_hip(
   }
 }
 
+// Re-encode one OCP fp8 byte into the CDNA3 (gfx942/gfx940/gfx941) fnuz
+// encoding expected by the fp8/bf8 MFMA instructions. OCP and fnuz share the
+// exact field widths and differ only by a +1 exponent bias, so the transform
+// is a handful of integer ops with no float round-trip, no lookup table and no
+// branches (each ternary lowers to a single v_cndmask). It is exact for every
+// in-range finite value; only the inherently lossy cases (overflow, inf, NaN)
+// are clamped/mapped to the fnuz conventions:
+//   +0/-0     -> +0        (fnuz has no negative zero)
+//   NaN       -> 0x80      (fnuz's single NaN)
+//   Inf(E5M2) -> max finite (saturating clamp)
+//   subnormal -> mag << 1  (the carry lands naturally in the exponent field)
+//   normal    -> exponent_field + 1
+template <typename T> inline uint8_t ocp_fp8_to_fnuz_byte(uint8_t x) {
+  const uint32_t s = x & 0x80u;
+  const uint32_t mag = x & 0x7Fu;
+  if constexpr (std::is_same_v<T, fp8_e4m3>) {
+    // E4M3: subnormal iff mag < 0x08, exponent-overflow iff mag >= 0x78.
+    uint32_t r = (mag < 0x08u) ? (mag << 1) : (mag + 0x08u);
+    r = (mag >= 0x78u) ? 0x7Fu : r;
+    r |= s;
+    r = (mag == 0u) ? 0u : r;
+    return static_cast<uint8_t>((mag == 0x7Fu) ? 0x80u : r);
+  } else {
+    // E5M2: subnormal iff mag < 0x04; mag >= 0x7C is inf (0x7C) or NaN.
+    uint32_t r = (mag < 0x04u) ? (mag << 1) : (mag + 0x04u);
+    r |= s;
+    r = (mag == 0u) ? 0u : r;
+    return static_cast<uint8_t>(
+        (mag >= 0x7Cu) ? ((mag == 0x7Cu) ? (s | 0x7Fu) : 0x80u) : r);
+  }
+}
+
+// Convert the 8 OCP fp8 values packed in an MFMA i64 operand to fnuz in place.
+// Fully unrolled; each byte is independent so there are no cross-byte carries.
+template <typename T> inline int64_t ocp_fp8_to_fnuz_i64(int64_t packed) {
+  const uint64_t u = static_cast<uint64_t>(packed);
+  uint64_t r = 0;
+#pragma unroll
+  for (int i = 0; i < 8; ++i) {
+    const uint8_t b = static_cast<uint8_t>(u >> (i * 8));
+    r |= static_cast<uint64_t>(ocp_fp8_to_fnuz_byte<T>(b)) << (i * 8);
+  }
+  return static_cast<int64_t>(r);
+}
+
 template <typename TmA, typename TmB, typename Tc, std::size_t M, std::size_t K,
           std::size_t N,
           sycl::ext::oneapi::experimental::matrix::layout LayoutA,
@@ -497,8 +543,13 @@ void joint_matrix_mad_hip(
     // the (TmA, TmB) pair. In AMD terms: E4M3 -> "fp8", E5M2 -> "bf8".
     constexpr bool AIsFP8 = std::is_same_v<TmA, fp8_e4m3>;
     constexpr bool BIsFP8 = std::is_same_v<TmB, fp8_e4m3>;
-    const int64_t a = *reinterpret_cast<const int64_t *>(&A.wi_marray);
-    const int64_t b = *reinterpret_cast<const int64_t *>(&B.wi_marray);
+    // The joint_matrix element types are the OCP fp8 formats, but the CDNA3
+    // MFMA reads its operands as fnuz (bias-shifted). Re-encode the packed
+    // operands here; on OCP-native parts (e.g. gfx950) this branch is unused.
+    const int64_t a = ocp_fp8_to_fnuz_i64<TmA>(
+        *reinterpret_cast<const int64_t *>(&A.wi_marray));
+    const int64_t b = ocp_fp8_to_fnuz_i64<TmB>(
+        *reinterpret_cast<const int64_t *>(&B.wi_marray));
     if constexpr (M == 16 && N == 16) {
       const auto c = *reinterpret_cast<const floatx4 *>(&C.wi_marray);
       floatx4 result;
