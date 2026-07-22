@@ -57,7 +57,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: sle15sp4
-      # to override default args
+      # Override default args
       build_configure_extra_args: ''
       build_image: ghcr.io/intel/llvm/sle15sp4_build:latest
       # Override default values - currently check-llvm and check-sycl fail
