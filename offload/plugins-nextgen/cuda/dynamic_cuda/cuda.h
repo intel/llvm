@@ -112,6 +112,7 @@ typedef enum cudaError_enum {
   CUDA_ERROR_NOT_FOUND = 500,
   CUDA_ERROR_NOT_READY = 600,
   CUDA_ERROR_TOO_MANY_PEERS = 711,
+  CUDA_ERROR_NOT_SUPPORTED = 801
 } CUresult;
 
 typedef enum CUstream_flags_enum {

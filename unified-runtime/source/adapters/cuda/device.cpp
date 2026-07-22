@@ -1231,7 +1231,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     std::array<char, 8> LUID{};
     uint32_t nodeMask = 0;
     auto LuidResult = cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
-    if (LuidResult != CUDA_SUCCESS) {
+    if (LuidResult == CUDA_ERROR_NOT_SUPPORTED) {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
     UR_CHECK_ERROR(LuidResult);
@@ -1261,7 +1261,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     uint32_t nodeMask = 0;
     auto NodeMaskResult =
         cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
-    if (NodeMaskResult != CUDA_SUCCESS) {
+    if (NodeMaskResult == CUDA_ERROR_NOT_SUPPORTED) {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
     UR_CHECK_ERROR(NodeMaskResult);
