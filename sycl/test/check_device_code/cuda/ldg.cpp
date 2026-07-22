@@ -19,6 +19,45 @@ sycl::ext::oneapi::experimental::cuda::ldg(const float *);
 // CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL double
 sycl::ext::oneapi::experimental::cuda::ldg(const double *);
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}!invariant.load
+template SYCL_EXTERNAL sycl::ext::oneapi::bfloat16
+sycl::ext::oneapi::experimental::cuda::ldg(
+    const sycl::ext::oneapi::bfloat16 *);
+
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+template SYCL_EXTERNAL sycl::vec<sycl::ext::oneapi::bfloat16, 2>
+sycl::ext::oneapi::experimental::cuda::ldg(
+    const sycl::vec<sycl::ext::oneapi::bfloat16, 2> *);
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+template SYCL_EXTERNAL sycl::vec<sycl::ext::oneapi::bfloat16, 3>
+sycl::ext::oneapi::experimental::cuda::ldg(
+    const sycl::vec<sycl::ext::oneapi::bfloat16, 3> *);
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+template SYCL_EXTERNAL sycl::vec<sycl::ext::oneapi::bfloat16, 4>
+sycl::ext::oneapi::experimental::cuda::ldg(
+    const sycl::vec<sycl::ext::oneapi::bfloat16, 4> *);
+
+// marray shares the storage layout of the corresponding vec, so the same
+// read-only global loads are emitted. This is the type used by real bf16 code.
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+template SYCL_EXTERNAL sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+sycl::ext::oneapi::experimental::cuda::ldg(
+    const sycl::marray<sycl::ext::oneapi::bfloat16, 2> *);
+// The 3-element marray is the structurally distinct case: vec<T, 3> is padded
+// to 4 elements whereas marray<T, 3> is not, so exactly 3 elements are read.
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+template SYCL_EXTERNAL sycl::marray<sycl::ext::oneapi::bfloat16, 3>
+sycl::ext::oneapi::experimental::cuda::ldg(
+    const sycl::marray<sycl::ext::oneapi::bfloat16, 3> *);
 
 // CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
 // CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
