@@ -5,11 +5,11 @@
 // SYCLBinaryImageFormat::BIF_Compressed (int8 value 4) in the emitted wrapper
 // module, honors --compression-level=, and reports invalid values.
 
-// Prepare test data. The bitcode is over the 512-byte compression
-// threshold, so the compression actually runs.
-// RUN:%clang_cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
+// Prepare test data. The bitcode is over the 512-byte compression threshold,
+// so compression actually runs.
+// RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: llvm-offload-binary -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
-// RUN:%clang_cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
+// RUN: %clang_cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
 // RUN: touch %t.devicelib.bc
 
 // With --compress and --wrapper-verbose the compression path fires and the
@@ -19,7 +19,7 @@
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   -sycl-post-link-options="-split=auto -symbols -properties" \
 // RUN:   --compress --compression-level=9 --wrapper-verbose \
-// RUN:   --dry-run %t.o -o %t.out 2>&1 \
+// RUN:   %t.o -o %t.out --linker-path=/usr/bin/ld 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-COMPRESS
 
 // Capture the original and compressed sizes.
@@ -27,11 +27,10 @@
 // CHECK-COMPRESS: [Compression] Compressed image size: [[#COMP:]]
 // CHECK-COMPRESS: [Compression] Compression level used: 9
 //
-// Assert ORIG - COMP > 0.
-// FileCheck's numeric matching form only supports the
-// `==` constraint, but sub() rejects underflow at
-// expression-evaluation time. We attach sub(ORIG, COMP) to a CHECK-NOT
-// pattern that begins with a sentinel string never present in the output:
+// Assert ORIG - COMP > 0. FileCheck's numeric matching form only supports
+// `==`, but sub() rejects underflow at expression-evaluation time. We attach
+// sub(ORIG, COMP) to a CHECK-NOT pattern that begins with a sentinel string
+// never present in the output:
 //   * when ORIG > COMP, sub() succeeds; the substituted pattern is
 //     "COMPRESSION_SIZE_CHECK<some-number>", which doesn't appear, so the
 //     CHECK-NOT is satisfied.
@@ -45,7 +44,7 @@
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   -sycl-post-link-options="-split=auto -symbols -properties" \
 // RUN:   --wrapper-verbose \
-// RUN:   %t.o -o %t.out --linker-path="/usr/bin/ld" 2>&1 \
+// RUN:   %t.o -o %t.out --linker-path=/usr/bin/ld 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-NO-COMPRESS
 
 // CHECK-NO-COMPRESS-NOT: [Compression]
@@ -56,7 +55,7 @@
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   -sycl-post-link-options="-split=auto -symbols -properties" \
 // RUN:   --compress --compression-level=notanumber \
-// RUN:   %t.o -o %t.out --linker-path="/usr/bin/ld" 2>&1 \
+// RUN:   %t.o -o %t.out --linker-path=/usr/bin/ld 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-BAD-LEVEL
 
 // CHECK-BAD-LEVEL: invalid value for --offload-compression-level=: 'notanumber'
@@ -67,7 +66,6 @@ __attribute__((sycl_kernel)) void kernel(const Func &func) {
 }
 
 extern "C" {
-// Symbols so the linker doesn't fail resolving them.
 void __sycl_register_lib(void *) {}
 void __sycl_unregister_lib(void *) {}
 }
