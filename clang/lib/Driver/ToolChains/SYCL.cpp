@@ -868,7 +868,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       return &II == &InputFiles[1];
     };
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
       const bool IsSYCLNativeCPU =
