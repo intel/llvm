@@ -408,8 +408,9 @@ def _display_excluded_tests(
         return len(excluded_xml)
 
     if stats_count:
-        note = f"Warning: Could not extract individual excluded test names.\nStatistics show {stats_count} excluded tests, but they are not available in the output."
-        _print_test_group("Excluded Tests", [], note, count=stats_count)
+        _print_test_group(
+            "Excluded Tests", [], "Warning: Test names not available", count=stats_count
+        )
         return stats_count
 
     return 0

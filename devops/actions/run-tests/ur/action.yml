@@ -24,7 +24,9 @@ runs:
       TEST_TYPE: ${{ inputs.test_type }}
     run: |
       # Run tests via Python (handles validation, config, cmake execution)
-      OUTPUT=$(python3 devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE")
+      # Use temp file instead of command substitution to preserve outputs even on error
+      OUTPUTS_FILE=$(mktemp)
+      python3 devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE"
       EXIT_CODE=$?
       
       # Parse Python output and set GitHub Actions outputs (not env for security)
@@ -32,8 +34,9 @@ runs:
         if [ -n "$key" ] && [ -n "$value" ]; then
           echo "$key=$value" >> $GITHUB_OUTPUT
         fi
-      done <<< "$OUTPUT"
+      done < "$OUTPUTS_FILE"
       
+      rm -f "$OUTPUTS_FILE"
       exit $EXIT_CODE
 
   - name: Show full test log

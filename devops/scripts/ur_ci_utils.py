@@ -28,10 +28,25 @@ def find_xml_file(search_path: str, xml_name: str) -> str:
     if ".." in search_path or not search_path:
         return ""
 
+    search_root = Path(search_path)
+    
+    # Handle wildcard for adapter-specific tests (searches in adapter subfolders)
+    if xml_name == "*.xml":
+        print(f"Note: Searching for XML files in adapter subfolders", file=sys.stderr)
+        if search_root.exists() and search_root.is_dir():
+            # Search in adapter subfolders: level_zero, cuda, hip, etc.
+            for xml_path in search_root.rglob("*.xml"):
+                if xml_path.is_file():
+                    print(f"Note: Found XML at: {xml_path.absolute()}", file=sys.stderr)
+                    return str(xml_path.absolute())
+        print(f"Warning: No XML files found in {search_root}", file=sys.stderr)
+        return ""
+
+    # Standard search for named XML files
     search_locations = [
-        Path(search_path) / xml_name,  # Primary: configured path
-        Path(search_path).parent / xml_name,  # Fallback: parent dir
-        Path(search_path).parent.parent / xml_name,  # Fallback: build root
+        search_root / xml_name,  # Primary: configured path
+        search_root.parent / xml_name,  # Fallback: parent dir
+        search_root.parent.parent / xml_name,  # Fallback: build root
     ]
 
     print(
@@ -46,6 +61,15 @@ def find_xml_file(search_path: str, xml_name: str) -> str:
                 return str(xml_path.absolute())
         except (OSError, ValueError):
             pass
+
+    # Fallback: recursive search in build directory (slower but thorough)
+    build_root = search_root.parent.parent
+    if build_root.exists() and build_root.is_dir():
+        print(f"Note: Attempting recursive search in {build_root}", file=sys.stderr)
+        for xml_path in build_root.rglob(xml_name):
+            if xml_path.is_file():
+                print(f"Note: Found XML at: {xml_path.absolute()}", file=sys.stderr)
+                return str(xml_path.absolute())
 
     print(f"Warning: XML file {xml_name} not found in any location", file=sys.stderr)
     return ""
@@ -92,7 +116,7 @@ def get_test_config(test_type: str, build_dir: str) -> TestConfig:
         return TestConfig(
             target="check-unified-runtime-adapter",
             log_file="adapter_tests.log",
-            xml_name="adapter_results.xml",
+            xml_name="*.xml",  # Wildcard - adapters may have different XML names
             xml_search_path=f"{build_dir}/test/adapters",
             lit_filter_out="(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)",
         )
