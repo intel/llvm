@@ -1139,15 +1139,15 @@ ur_result_t ur_kernel_handle_t_::initialize() {
 
   // Set up how to obtain kernel properties when needed.
   ZeKernelProperties.Compute = [this](ze_kernel_properties_t &Properties) {
-    ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
+    ZE2UR_CALL(zeKernelGetProperties, (ZeKernel, &Properties));
   };
 
   // Cache kernel name.
   ZeKernelName.Compute = [this](std::string &Name) {
     size_t Size = 0;
-    ZE_CALL_NOCHECK(zeKernelGetName, (ZeKernel, &Size, nullptr));
+    ZE2UR_CALL(zeKernelGetName, (ZeKernel, &Size, nullptr));
     char *KernelName = new char[Size];
-    ZE_CALL_NOCHECK(zeKernelGetName, (ZeKernel, &Size, KernelName));
+    ZE2UR_CALL(zeKernelGetName, (ZeKernel, &Size, KernelName));
     Name = KernelName;
     delete[] KernelName;
   };
