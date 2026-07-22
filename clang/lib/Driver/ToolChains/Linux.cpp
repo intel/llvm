@@ -903,6 +903,17 @@ void Linux::addOffloadRTLibs(unsigned ActiveKinds, const ArgList &Args,
   llvm::SmallVector<std::pair<StringRef, StringRef>> Libraries;
   if (ActiveKinds & Action::OFK_HIP)
     Libraries.emplace_back(RocmInstallation->getLibPath(), "libamdhip64.so");
+  else if ((ActiveKinds & Action::OFK_SYCL) &&
+           !Args.hasArg(options::OPT_nolibsycl)) {
+    if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+      Libraries.emplace_back(SYCLInstallation->getSYCLRTLibPath(),
+                             "libsycl-preview.so");
+    else
+      Libraries.emplace_back(SYCLInstallation->getSYCLRTLibPath(),
+                             "libsycl.so");
+    Libraries.emplace_back(SYCLInstallation->getSYCLRTLibPath(),
+                           "libsycl-devicelib-host.a");
+  }
 
   for (auto [Path, Library] : Libraries) {
     if (Args.hasFlag(options::OPT_frtlib_add_rpath,
