@@ -17,15 +17,21 @@
 // gfx942 (CDNA3) fp8 (E4M3) / bf8 (E5M2) MFMA supports 16x16x32 and 32x32x16
 // with an fp32 accumulator. The A and B operand formats are independent, so all
 // four (E4M3, E5M2) format pairs are exercised for both shapes: 8 combinations.
+// Each combination is run with a row_major and a col_major accumulator store.
+template <size_t KX, layout OutLayout> void matrix_fp8_mfma_layout() {
+  hip_matrix_fp8_mfma<fp8_e4m3, fp8_e4m3, 32, 32, 16, KX, OutLayout>();
+  hip_matrix_fp8_mfma<fp8_e4m3, fp8_e4m3, 16, 16, 32, KX, OutLayout>();
+  hip_matrix_fp8_mfma<fp8_e5m2, fp8_e5m2, 32, 32, 16, KX, OutLayout>();
+  hip_matrix_fp8_mfma<fp8_e5m2, fp8_e5m2, 16, 16, 32, KX, OutLayout>();
+  hip_matrix_fp8_mfma<fp8_e4m3, fp8_e5m2, 32, 32, 16, KX, OutLayout>();
+  hip_matrix_fp8_mfma<fp8_e4m3, fp8_e5m2, 16, 16, 32, KX, OutLayout>();
+  hip_matrix_fp8_mfma<fp8_e5m2, fp8_e4m3, 32, 32, 16, KX, OutLayout>();
+  hip_matrix_fp8_mfma<fp8_e5m2, fp8_e4m3, 16, 16, 32, KX, OutLayout>();
+}
+
 template <size_t KX> void matrix_fp8_mfma() {
-  hip_matrix_fp8_mfma<fp8_e4m3, fp8_e4m3, 32, 32, 16, KX, layout::row_major>();
-  hip_matrix_fp8_mfma<fp8_e4m3, fp8_e4m3, 16, 16, 32, KX, layout::row_major>();
-  hip_matrix_fp8_mfma<fp8_e5m2, fp8_e5m2, 32, 32, 16, KX, layout::row_major>();
-  hip_matrix_fp8_mfma<fp8_e5m2, fp8_e5m2, 16, 16, 32, KX, layout::row_major>();
-  hip_matrix_fp8_mfma<fp8_e4m3, fp8_e5m2, 32, 32, 16, KX, layout::row_major>();
-  hip_matrix_fp8_mfma<fp8_e4m3, fp8_e5m2, 16, 16, 32, KX, layout::row_major>();
-  hip_matrix_fp8_mfma<fp8_e5m2, fp8_e4m3, 32, 32, 16, KX, layout::row_major>();
-  hip_matrix_fp8_mfma<fp8_e5m2, fp8_e4m3, 16, 16, 32, KX, layout::row_major>();
+  matrix_fp8_mfma_layout<KX, layout::row_major>();
+  matrix_fp8_mfma_layout<KX, layout::col_major>();
 }
 
 int main() {
