@@ -73,8 +73,21 @@ SEPARATOR_WIDTH = 70
 def read_log_file(log_path: str) -> List[str]:
     """Read log file and return lines."""
     try:
-        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+        # Try strict decoding first
+        with open(log_path, "r", encoding="utf-8", errors="strict") as f:
             return f.readlines()
+    except UnicodeDecodeError:
+        # Fallback to replacement and log warning
+        print(
+            f"Warning: Log contains non-UTF-8 characters, replacing with U+FFFD",
+            file=sys.stderr,
+        )
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                return f.readlines()
+        except OSError as e:
+            print(f"Error reading log file: {e}", file=sys.stderr)
+            sys.exit(1)
     except OSError as e:
         print(f"Error reading log file: {e}", file=sys.stderr)
         sys.exit(1)
@@ -318,9 +331,12 @@ def _display_statistics(stats: List[str]) -> None:
 
 
 def _get_count_from_stats(stats: List[str], keywords: List[str]) -> int:
-    _STATS_KEYWORDS = re.compile(r"(Skipped:|Unsupported:|Excluded:)")
+    """Extract count from stats line matching any keyword."""
+    # Build regex pattern from keywords (compile once per call)
+    pattern = re.compile("|".join(re.escape(kw) for kw in keywords))
+
     for stat in stats:
-        if any(keyword in stat for keyword in _STATS_KEYWORDS):
+        if pattern.search(stat):
             match = re.search(r"(\d+)", stat)
             if match:
                 return int(match.group(1))
