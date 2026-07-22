@@ -24,5 +24,9 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size<256>))
 void kernel_grf256() {}
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size<512>))
+void kernel_grf512() {}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size_automatic))
 void kernel_grf_automatic() {}
