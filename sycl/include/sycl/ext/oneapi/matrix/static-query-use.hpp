@@ -578,7 +578,21 @@ struct matrix_params<
 /// AMD Matrix Cores - GFX942 architecture ///
 //////////////////////////////////////////////
 
-template <typename Ta, typename Tc>
+// E4M3 ("fp8") and E5M2 ("bf8") 8-bit float matrix element types.
+template <typename T> constexpr bool is_fp8_amd_gfx942() {
+  return std::is_same_v<T, fp8_e4m3> || std::is_same_v<T, fp8_e5m2>;
+}
+
+// On gfx942 the fp8/bf8 MFMA instructions accept independent A and B operand
+// formats, so a valid multiplicand pair is either identical types or any
+// combination of the two fp8 formats.
+template <typename Ta, typename Tb>
+constexpr bool is_valid_amd_gfx942_type_pair() {
+  return std::is_same_v<Ta, Tb> ||
+         (is_fp8_amd_gfx942<Ta>() && is_fp8_amd_gfx942<Tb>());
+}
+
+template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_amd_gfx942(size_t sM, size_t sN,
                                                size_t sK) {
   return (std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
@@ -594,16 +608,22 @@ constexpr bool is_combination_valid_amd_gfx942(size_t sM, size_t sN,
           ((sM == 32 && sN == 32 && sK == 8) ||
            (sM == 16 && sN == 16 && sK == 16))) ||
          (std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
-          (sM == 16 && sN == 16 && sK == 4));
+          (sM == 16 && sN == 16 && sK == 4)) ||
+         (is_fp8_amd_gfx942<Ta>() && is_fp8_amd_gfx942<Tb>() &&
+          std::is_same_v<Tc, float> &&
+          ((sM == 32 && sN == 32 && sK == 16) ||
+           (sM == 16 && sN == 16 && sK == 32)));
 }
 
-template <typename Ta, typename Tc>
+template <typename Ta, typename Tb, typename Tc>
 constexpr bool are_types_valid_amd_gfx942() {
   return (std::is_same_v<Ta, half> && std::is_same_v<Tc, float>) ||
          (std::is_same_v<Ta, float> && std::is_same_v<Tc, float>) ||
          (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t>) ||
          (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float>) ||
-         (std::is_same_v<Ta, double> && std::is_same_v<Tc, double>);
+         (std::is_same_v<Ta, double> && std::is_same_v<Tc, double>) ||
+         (is_fp8_amd_gfx942<Ta>() && is_fp8_amd_gfx942<Tb>() &&
+          std::is_same_v<Tc, float>);
 }
 
 // Default-values query:
@@ -614,17 +634,17 @@ struct matrix_params<
     typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td>)>> {
+        is_valid_amd_gfx942_type_pair<Ta, Tb>() && std::is_same_v<Tc, Td>)>> {
   static_assert(
-      are_types_valid_amd_gfx942<Ta, Tc>(),
+      are_types_valid_amd_gfx942<Ta, Tb, Tc>(),
       "Invalid types for AMD gfx942, supported types are half, float, "
-      "int8_t, int32_t, double and bfloat16 ");
+      "int8_t, int32_t, double, bfloat16, and fp8 (E4M3 / E5M2) ");
 
   // Default sizes for AMD gfx942 were chosen to represent a square matrix
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K =
-      std::is_same_v<Ta, int8_t>                                   ? 32
+      (std::is_same_v<Ta, int8_t> || is_fp8_amd_gfx942<Ta>())      ? 32
       : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>) ? 16
                                                                    : 4;
 
@@ -647,10 +667,10 @@ struct matrix_params<
     typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td> && sM != 0 &&
-        sN != 0 && sK != 0)>> {
+        is_valid_amd_gfx942_type_pair<Ta, Tb>() && std::is_same_v<Tc, Td> &&
+        sM != 0 && sN != 0 && sK != 0)>> {
   static_assert(
-      is_combination_valid_amd_gfx942<Ta, Tc>(sM, sN, sK),
+      is_combination_valid_amd_gfx942<Ta, Tb, Tc>(sM, sN, sK),
       "Invalid parameters for AMD gfx942, query valid combinations "
       "using: "
       "q.get_device().get_info<sycl::info::device::matrix::combinations>()");
@@ -683,17 +703,17 @@ struct matrix_params<
     typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td>)>> {
+        is_valid_amd_gfx942_type_pair<Ta, Tb>() && std::is_same_v<Tc, Td>)>> {
   static_assert(
-      are_types_valid_amd_gfx942<Ta, Tc>(),
+      are_types_valid_amd_gfx942<Ta, Tb, Tc>(),
       "Invalid types for AMD gfx940, supported types are half, float, "
-      "int8_t, int32_t, double and bfloat16 ");
+      "int8_t, int32_t, double, bfloat16, and fp8 (E4M3 / E5M2) ");
 
   // Default sizes for AMD gfx940 were chosen to represent a square matrix
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K =
-      std::is_same_v<Ta, int8_t>                                   ? 32
+      (std::is_same_v<Ta, int8_t> || is_fp8_amd_gfx942<Ta>())      ? 32
       : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>) ? 16
                                                                    : 4;
 
@@ -715,10 +735,10 @@ struct matrix_params<
     typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td> && sM != 0 &&
-        sN != 0 && sK != 0)>> {
+        is_valid_amd_gfx942_type_pair<Ta, Tb>() && std::is_same_v<Tc, Td> &&
+        sM != 0 && sN != 0 && sK != 0)>> {
   static_assert(
-      is_combination_valid_amd_gfx942<Ta, Tc>(sM, sN, sK),
+      is_combination_valid_amd_gfx942<Ta, Tb, Tc>(sM, sN, sK),
       "Invalid parameters for AMD gfx940, query valid combinations "
       "using: "
       "q.get_device().get_info<sycl::info::device::matrix::combinations>()");
@@ -744,17 +764,17 @@ struct matrix_params<
     typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td>)>> {
+        is_valid_amd_gfx942_type_pair<Ta, Tb>() && std::is_same_v<Tc, Td>)>> {
   static_assert(
-      are_types_valid_amd_gfx942<Ta, Tc>(),
+      are_types_valid_amd_gfx942<Ta, Tb, Tc>(),
       "Invalid types for AMD gfx941, supported types are half, float, "
-      "int8_t, int32_t, double and bfloat16 ");
+      "int8_t, int32_t, double, bfloat16, and fp8 (E4M3 / E5M2) ");
 
   // Default sizes for AMD gfx941 were chosen to represent a square matrix
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K =
-      std::is_same_v<Ta, int8_t>                                   ? 32
+      (std::is_same_v<Ta, int8_t> || is_fp8_amd_gfx942<Ta>())      ? 32
       : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>) ? 16
                                                                    : 4;
 
@@ -776,10 +796,10 @@ struct matrix_params<
     typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td> && sM != 0 &&
-        sN != 0 && sK != 0)>> {
+        is_valid_amd_gfx942_type_pair<Ta, Tb>() && std::is_same_v<Tc, Td> &&
+        sM != 0 && sN != 0 && sK != 0)>> {
   static_assert(
-      is_combination_valid_amd_gfx942<Ta, Tc>(sM, sN, sK),
+      is_combination_valid_amd_gfx942<Ta, Tb, Tc>(sM, sN, sK),
       "Invalid parameters for AMD gfx941, query valid combinations "
       "using: "
       "q.get_device().get_info<sycl::info::device::matrix::combinations>()");

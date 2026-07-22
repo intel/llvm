@@ -13,6 +13,7 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
 
@@ -27,6 +28,13 @@ namespace oneapi {
 namespace detail {
 
 constexpr int WAVEFRONT_SIZE = 64;
+
+// AMD CDNA3 (gfx942/gfx940/gfx941) 8-bit floating point matrix element types.
+// E4M3 is AMD's "fp8" and E5M2 is AMD's "bf8". The joint_matrix element type is
+// the corresponding experimental fp8 type; only the raw byte storage is used by
+// the MFMA path (the device-side conversion methods are never instantiated).
+using fp8_e4m3 = sycl::ext::oneapi::experimental::fp8_e4m3;
+using fp8_e5m2 = sycl::ext::oneapi::experimental::fp8_e5m2;
 
 template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
@@ -102,6 +110,18 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 32, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 32, 16, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 16, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 32, 8)
+
+// gfx942 (CDNA3) fp8 (E4M3) / bf8 (E5M2) MFMA: 16x16x32 and 32x32x16 with
+// packed i64 operands (8 fp8 values per work-item). A and B formats may differ.
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3, a, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3, b, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3, a, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3, b, 16, 32, 8)
+
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2, a, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2, b, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2, a, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2, b, 16, 32, 8)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
@@ -368,23 +388,24 @@ void joint_matrix_store_hip(
   }
 }
 
-template <typename Tm, typename Tc, std::size_t M, std::size_t K, std::size_t N,
+template <typename TmA, typename TmB, typename Tc, std::size_t M, std::size_t K,
+          std::size_t N,
           sycl::ext::oneapi::experimental::matrix::layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::layout LayoutB>
 void joint_matrix_mad_hip(
     joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
-    const joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::a,
+    const joint_matrix_hip<TmA, sycl::ext::oneapi::experimental::matrix::use::a,
                            M, K, LayoutA> &A,
-    const joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::b,
+    const joint_matrix_hip<TmB, sycl::ext::oneapi::experimental::matrix::use::b,
                            K, N, LayoutB> &B,
     const joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
 #if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||       \
     defined(__gfx942__)
-  if constexpr (std::is_same_v<Tm, float>) {
+  if constexpr (std::is_same_v<TmA, float>) {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x4f32(
@@ -398,7 +419,7 @@ void joint_matrix_mad_hip(
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
 #endif
-  } else if constexpr (std::is_same_v<Tm, sycl::half>) {
+  } else if constexpr (std::is_same_v<TmA, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
           *reinterpret_cast<const float16x4 *>(&A.wi_marray),
@@ -412,7 +433,7 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
-  } else if constexpr (std::is_same_v<Tm, bfloat16>) {
+  } else if constexpr (std::is_same_v<TmA, bfloat16>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
           *reinterpret_cast<const bfloat16x4 *>(&A.wi_marray),
@@ -426,14 +447,14 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
-  } else if constexpr (std::is_same_v<Tm, double>) {
+  } else if constexpr (std::is_same_v<TmA, double>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f64_16x16x4f64(
           A.wi_marray[0], B.wi_marray[0],
           *reinterpret_cast<const doublex4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(double));
     }
-  } else if constexpr (std::is_same_v<Tm, int8_t>) {
+  } else if constexpr (std::is_same_v<TmA, int8_t>) {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // CDNA3 (gfx942) int8 MFMA: 16x16x32 / 32x32x16 with packed i64 operands
     // (8 int8 values per work-item).
@@ -465,6 +486,43 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const Tc *>(&B.wi_marray),
           *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
+    }
+#endif
+  } else if constexpr (std::is_same_v<TmA, fp8_e4m3> ||
+                       std::is_same_v<TmA, fp8_e5m2>) {
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    // CDNA3 (gfx942) fp8 (E4M3) / bf8 (E5M2) MFMA: 16x16x32 / 32x32x16 with
+    // packed i64 operands (8 fp8 values per work-item) and an f32 accumulator.
+    // The A and B operand formats are independent, so pick the intrinsic from
+    // the (TmA, TmB) pair. In AMD terms: E4M3 -> "fp8", E5M2 -> "bf8".
+    constexpr bool AIsFP8 = std::is_same_v<TmA, fp8_e4m3>;
+    constexpr bool BIsFP8 = std::is_same_v<TmB, fp8_e4m3>;
+    const int64_t a = *reinterpret_cast<const int64_t *>(&A.wi_marray);
+    const int64_t b = *reinterpret_cast<const int64_t *>(&B.wi_marray);
+    if constexpr (M == 16 && N == 16) {
+      const auto c = *reinterpret_cast<const floatx4 *>(&C.wi_marray);
+      floatx4 result;
+      if constexpr (AIsFP8 && BIsFP8)
+        result = __builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8(a, b, c, 0, 0, 0);
+      else if constexpr (AIsFP8 && !BIsFP8)
+        result = __builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8(a, b, c, 0, 0, 0);
+      else if constexpr (!AIsFP8 && BIsFP8)
+        result = __builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(a, b, c, 0, 0, 0);
+      else
+        result = __builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8(a, b, c, 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
+    } else if constexpr (M == 32 && N == 32) {
+      const auto c = *reinterpret_cast<const floatx16 *>(&C.wi_marray);
+      floatx16 result;
+      if constexpr (AIsFP8 && BIsFP8)
+        result = __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(a, b, c, 0, 0, 0);
+      else if constexpr (AIsFP8 && !BIsFP8)
+        result = __builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8(a, b, c, 0, 0, 0);
+      else if constexpr (!AIsFP8 && BIsFP8)
+        result = __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(a, b, c, 0, 0, 0);
+      else
+        result = __builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8(a, b, c, 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
 #endif
   }

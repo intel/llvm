@@ -2240,6 +2240,25 @@ public:
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
            matrix_type::fp64, matrix_type::fp64},
+          // fp8 (E4M3) / bf8 (E5M2) MFMA: 16x16x32 and 32x32x16 with an fp32
+          // accumulator. The A and B operand formats may differ, so all four
+          // format pairs are listed for each shape.
+          {0, 0, 0, 32, 32, 16, matrix_type::fp8_e4m3, matrix_type::fp8_e4m3,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 32, matrix_type::fp8_e4m3, matrix_type::fp8_e4m3,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::fp8_e5m2, matrix_type::fp8_e5m2,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 32, matrix_type::fp8_e5m2, matrix_type::fp8_e5m2,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::fp8_e4m3, matrix_type::fp8_e5m2,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 32, matrix_type::fp8_e4m3, matrix_type::fp8_e5m2,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::fp8_e5m2, matrix_type::fp8_e4m3,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 32, matrix_type::fp8_e5m2, matrix_type::fp8_e4m3,
+           matrix_type::fp32, matrix_type::fp32},
       };
     else if (backend::ext_oneapi_cuda == CurrentBackend) {
       // TODO: Tho following can be simplified when comparison of

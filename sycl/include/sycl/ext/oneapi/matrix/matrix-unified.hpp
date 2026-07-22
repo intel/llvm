@@ -452,13 +452,23 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
                     "requires that joint_matrix data types Ta and Tb match");
   }
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  if constexpr (std::is_same<Ta, Tb>::value) {
-    sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tc, M, K, N, LayoutA,
-                                                    LayoutB>(
+  // On CDNA3 (gfx942) the fp8 (E4M3) and bf8 (E5M2) MFMA instructions allow the
+  // A and B operand formats to differ, so mixed fp8/bf8 multiplicands are valid
+  // even when Ta != Tb.
+  constexpr bool IsFP8A =
+      std::is_same_v<Ta, sycl::ext::oneapi::experimental::fp8_e4m3> ||
+      std::is_same_v<Ta, sycl::ext::oneapi::experimental::fp8_e5m2>;
+  constexpr bool IsFP8B =
+      std::is_same_v<Tb, sycl::ext::oneapi::experimental::fp8_e4m3> ||
+      std::is_same_v<Tb, sycl::ext::oneapi::experimental::fp8_e5m2>;
+  if constexpr (std::is_same<Ta, Tb>::value || (IsFP8A && IsFP8B)) {
+    sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tb, Tc, M, K, N,
+                                                    LayoutA, LayoutB>(
         D.matrix_impl, A.matrix_impl, B.matrix_impl, C.matrix_impl);
   } else {
-    assert(false && "Ta != Tb : In the HIP backend joint_matrix_mad "
-                    "requires that joint_matrix data types Ta and Tb match");
+    assert(false && "In the HIP backend joint_matrix_mad requires that "
+                    "joint_matrix data types Ta and Tb match, unless they are "
+                    "the fp8 (E4M3) / bf8 (E5M2) formats");
   }
 #else
   constexpr uint32_t MatrixOperand =
