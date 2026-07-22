@@ -49,14 +49,15 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.
-Interfaces defined in this specification may not be implemented yet or may be in
-a preliminary state.
-The specification itself may also change in incompatible ways before it is
-finalized.
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
+
+This extension has been implemented with temporary limitations, outlined in the
+"Implementation limitations" section.
 
 == Backend support status
 
@@ -476,3 +477,35 @@ This will likely cause the handling of events to be less efficient when host
 tasks are submitted to the same queue as "native" commands like kernels or
 copy operations, or when there are dependencies between host tasks and native
 commands.
+
+=== Implementation limitations
+
+This extension has been implemented with the following limitations:
+
+* The `evt` passed to the `enqueue_wait_event` function and all events in
+  `evts` passed to the `enqueue_wait_events` function need to have the same
+  context as `q`.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  functions cannot be dependent on a host task (`enqueue_wait_event` and
+  `enqueue_wait_events` cannot take an event produced by a host task submission
+  as an argument and all those functions cannot be enqueued behind a host task
+  on an in-order queue), which has been submitted using the
+  `handler::host_task` function. Submitting host tasks using the
+  `sycl::ext::oneapi::experimental::host_task` function from the
+  link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions] extension is supported.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  functions cannot be dependent on any commands which use cross-context
+  event dependencies.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  function cannot be dependent on any commands using `sycl::stream`.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  function cannot be dependent on the following methods from the
+  link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[
+  sycl_ext_oneapi_memcpy2d] extension: `queue::ext_oneapi_memcpy2d`,
+  `queue::ext_oneapi_copy2d`, `handler::ext_oneapi_memcpy2d`,
+  `handler::ext_oneapi_copy2d`, if the copy is a host-to-host data copy,
+  and the following methods: `queue::ext_oneapi_fill2d`,
+  `queue::ext_oneapi_memset2d`, `handler::ext_oneapi_fill2d`,
+  `handler::ext_oneapi_memset2d`, if the backend does not support 2D fill or
+  the target memory is on host.
