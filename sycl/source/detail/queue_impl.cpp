@@ -721,8 +721,11 @@ queue_impl::ext_oneapi_get_graph_impl() const {
     if (Result == UR_RESULT_SUCCESS) {
       Graph = getContextImpl().getNativeGraph(UrGraphHandle);
     } else if (Result != UR_RESULT_ERROR_INVALID_OPERATION) {
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "Failed to query native UR graph from queue.");
+      throw sycl::detail::set_ur_error(
+          sycl::exception(make_error_code(errc::runtime),
+                          "Failed to query native UR graph from queue: " +
+                              sycl::detail::codeToString(Result)),
+          Result);
     }
   }
   if (!Graph) {
