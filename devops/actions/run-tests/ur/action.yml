@@ -22,45 +22,19 @@ runs:
     env:
       BUILD_DIR: ${{ inputs.build_dir }}
       TEST_TYPE: ${{ inputs.test_type }}
-      ZE_ENABLE_LOADER_DEBUG_TRACE: 1
     run: |
-      if ! python3 devops/scripts/ur_test_helper.py validate-build-dir "$BUILD_DIR" "$GITHUB_WORKSPACE"; then
-        echo "::error::Invalid build_dir"
-        exit 1
-      fi
-      
-      if [ "$TEST_TYPE" = "adapter-specific" ]; then
-        TARGET="check-unified-runtime-adapter"
-        LOG_FILE="adapter_tests.log"
-        XML_NAME="adapter_results.xml"
-        XML_SEARCH_PATH="$BUILD_DIR/test/adapters"
-        LIT_FILTER='(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)'
-        export LIT_FILTER_OUT="${LIT_FILTER}"
-      else
-        TARGET="check-unified-runtime-conformance"
-        LOG_FILE="conformance_tests.log"
-        XML_NAME="conformance_results.xml"
-        XML_SEARCH_PATH="$BUILD_DIR/test/conformance"
-      fi
-      
-      LIT_OPTS="--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50 --time-tests --show-flakypass --show-skipped --xunit-xml-output $XML_NAME"
-      export LIT_OPTS
-      
-      MAX_JOBS=16
-      JOBS=$(($(nproc)/3))
-      [ $JOBS -gt $MAX_JOBS ] && JOBS=$MAX_JOBS
-      
-      cmake --build "$BUILD_DIR" -j $JOBS -- "$TARGET" > "$LOG_FILE" 2>&1
+      # Run tests via Python (handles validation, config, cmake execution)
+      OUTPUT=$(python3 devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE")
       EXIT_CODE=$?
       
-      if [ ! -f "$LOG_FILE" ] || [ ! -s "$LOG_FILE" ]; then
-        echo "::error::Test execution failed - no log generated"
-        exit 1
-      fi
-      
-      echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
-      echo "xml_name=$XML_NAME" >> $GITHUB_OUTPUT
-      echo "xml_search_path=$XML_SEARCH_PATH" >> $GITHUB_OUTPUT
+      # Parse Python output and set GitHub Actions variables
+      while IFS='=' read -r key value; do
+        if [ "$key" = "SKIP_ARTIFACTS" ]; then
+          echo "$key=$value" >> $GITHUB_ENV
+        elif [ -n "$key" ] && [ -n "$value" ]; then
+          echo "$key=$value" >> $GITHUB_OUTPUT
+        fi
+      done <<< "$OUTPUT"
       
       exit $EXIT_CODE
 
@@ -114,13 +88,13 @@ runs:
         exit 0
       fi
       
-      if [ "$TEST_TYPE" = "adapter-specific" ] && ! python3 devops/scripts/ur_test_helper.py check-log-has-tests "$LOG_FILE"; then
+      if [ "$TEST_TYPE" = "adapter-specific" ] && ! python3 devops/scripts/ur_ci_utils.py check-log-has-tests "$LOG_FILE"; then
         echo "No adapter-specific tests found for this configuration"
         echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
         exit 0
       fi
       
-      XML_FILE=$(python3 devops/scripts/ur_test_helper.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
+      XML_FILE=$(python3 devops/scripts/ur_ci_utils.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
       
       python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
 
@@ -138,7 +112,7 @@ runs:
         cp "$LOG_FILE" test_artifacts/
       fi
       
-      FOUND_XML=$(python3 devops/scripts/ur_test_helper.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
+      FOUND_XML=$(python3 devops/scripts/ur_ci_utils.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
       if [ -n "$FOUND_XML" ]; then
         cp "$FOUND_XML" "test_artifacts/$XML_NAME"
       fi
