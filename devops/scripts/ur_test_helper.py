@@ -8,20 +8,20 @@ from typing import Optional
 MAX_LINES_TO_SCAN = 1000
 
 def find_xml_file(search_path: str, xml_name: str) -> str:
-    """Find XML file in directory tree. search_path must be validated."""
+    """Find XML file at top-level of search_path.
+    
+    LIT always outputs XML to its working directory (search_path),
+    so there's no need for recursive search.
+    """
     if ".." in search_path or not search_path:
         return ""
     
     try:
-        search_dir = Path(search_path).resolve(strict=True)
+        xml_path = Path(search_path) / xml_name
+        if xml_path.exists() and xml_path.is_file():
+            return str(xml_path.absolute())
     except (OSError, ValueError):
-        return ""
-    
-    if not search_dir.exists() or not search_dir.is_dir():
-        return ""
-    
-    for xml_file in search_dir.rglob(xml_name):
-        return str(xml_file.absolute())
+        pass
     
     return ""
 
