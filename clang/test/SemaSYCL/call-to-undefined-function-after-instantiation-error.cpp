@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s 2> /dev/null | FileCheck %s
+// RUN: not %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s 2> /dev/null | FileCheck %s
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify -verify-ignore-unexpected=note -fsyntax-only %s
 
 // This function verifies we don't trigger the error
@@ -17,7 +17,7 @@ sycl::queue deviceQueue;
 // CHECK-NEXT: DeclRefExpr
 // CHECK-NEXT: SYCLKernelAttr
 
-// CHECK:      ClassTemplateSpecializationDecl {{.*}} struct Ker definition implicit_instantiation
+// CHECK:      ClassTemplateSpecializationDecl {{.*}} struct Ker definition {{.*}} implicit_instantiation
 // CHECK:      CXXRecordDecl {{.*}} implicit struct Ker
 // CHECK-NEXT: CXXMethodDecl [[MethodAddr]] {{.*}} used invalid operator() 'void () const'
 
