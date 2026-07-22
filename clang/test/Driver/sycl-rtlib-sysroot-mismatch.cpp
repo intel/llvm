@@ -1,6 +1,6 @@
 // REQUIRES: system-linux && symlinks
 
-// Verify we still generate a path to libsycl.so even with sysroot is set.
+// Verify we still generate a path to libsycl.so even with sysroot set.
 
 // RUN: rm -rf %t && mkdir -p %t/bin %t/lib
 // RUN: touch %t/lib/libsycl.so

@@ -471,19 +471,19 @@
 /// ###########################################################################
 
 /// Check for default linking of -lsycl with -fsycl --no-offload-new-driver usage
-// RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
+// RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -implicit-check-not="-lsycl" -check-prefix=CHECK-LD-SYCL %s
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-SYCL: "{{.*}}libsycl.so"
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl --no-offload-new-driver -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s
 // CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
+// CHECK-LD-NOLIBSYCL-NOT: "libsycl.so"
 
 /// Check no SYCL runtime is linked with -nostdlib
 // RUN: %clang -fsycl --no-offload-new-driver -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
 // CHECK-LD-NOSTDLIB: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOSTDLIB-NOT: "-lsycl"
+// CHECK-LD-NOSTDLIB-NOT: "libsycl.so"
 
 /// Check for default linking of syclN.lib with -fsycl --no-offload-new-driver usage
 // RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s

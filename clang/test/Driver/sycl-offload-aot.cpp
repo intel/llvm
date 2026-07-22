@@ -80,13 +80,13 @@
 
 /// Ahead of Time compilation for gen, cpu - tool invocation
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN -implicit-check-not="libsycl.so"
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU  -implicit-check-not="libsycl.so"
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN -implicit-check-not="libsycl.so"
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU -implicit-check-not="libsycl.so"
 // CHK-TOOLS-GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHK-TOOLS-CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // CHK-TOOLS-AOT: "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
