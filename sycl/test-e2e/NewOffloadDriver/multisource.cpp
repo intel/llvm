@@ -27,9 +27,6 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.main.o %t.a -o %t3.fat
 // RUN: %{run} %t3.fat
 
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
-
 #include <sycl/detail/core.hpp>
 
 #include <iostream>
