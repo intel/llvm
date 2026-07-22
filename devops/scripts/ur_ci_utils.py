@@ -34,7 +34,10 @@ def find_xml_file(search_path: str, xml_name: str) -> str:
         Path(search_path).parent.parent / xml_name,  # Fallback: build root
     ]
 
-    print(f"Note: Searching for {xml_name} in {len(search_locations)} locations:", file=sys.stderr)
+    print(
+        f"Note: Searching for {xml_name} in {len(search_locations)} locations:",
+        file=sys.stderr,
+    )
     for i, xml_path in enumerate(search_locations, 1):
         print(f"  {i}. {xml_path}", file=sys.stderr)
         try:
@@ -139,9 +142,9 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
     cmake_cmd = ["cmake", "--build", build_dir, "-j", str(jobs), "--", config.target]
 
     # Output configuration for GitHub Actions (always, before tests run)
-    print(f"log_file={config.log_file}")
-    print(f"xml_name={config.xml_name}")
-    print(f"xml_search_path={config.xml_search_path}")
+    print(f"log_file={config.log_file}", flush=True)
+    print(f"xml_name={config.xml_name}", flush=True)
+    print(f"xml_search_path={config.xml_search_path}", flush=True)
 
     print(f"Running: {' '.join(cmake_cmd)}", file=sys.stderr)
     print(f"Log: {config.log_file}, Jobs: {jobs}", file=sys.stderr)
@@ -162,7 +165,7 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
 
     if test_type == "adapter-specific" and not check_log_has_tests(config.log_file):
         print("No adapter-specific tests found", file=sys.stderr)
-        print("skip_artifacts=1")
+        print("skip_artifacts=1", flush=True)
         return 0
 
     return result.returncode
@@ -180,7 +183,7 @@ def main() -> None:
             print(f"Error: find-xml <search_path> <xml_name>", file=sys.stderr)
             sys.exit(1)
         result = find_xml_file(sys.argv[2], sys.argv[3])
-        print(result)
+        print(result, flush=True)
 
     elif command == "validate-build-dir":
         if len(sys.argv) < 3:
