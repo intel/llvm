@@ -5,6 +5,7 @@
 
 #include <numeric>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
 
 using namespace sycl;
 
