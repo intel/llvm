@@ -277,8 +277,10 @@ int main() {
   print_info<info::device::image3d_max_depth, size_t>(dev, "Image3D max depth");
   print_info<info::device::image_max_buffer_size, size_t>(
       dev, "Image max buffer size");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   print_info<info::device::image_max_array_size, size_t>(
       dev, "Image max array size");
+#endif
   print_info<info::device::max_samplers, std::uint32_t>(dev, "Max samplers");
   print_info<info::device::max_parameter_size, size_t>(dev,
                                                        "Max parameter size");
