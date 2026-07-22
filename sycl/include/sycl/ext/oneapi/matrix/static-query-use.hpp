@@ -496,6 +496,9 @@ constexpr bool is_combination_valid_amd_gfx90a(size_t sM, size_t sN,
   return (std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
           ((sM == 32 && sN == 32 && sK == 8) ||
            (sM == 16 && sN == 16 && sK == 16))) ||
+         (std::is_same_v<Ta, float> && std::is_same_v<Tc, float> &&
+          ((sM == 32 && sN == 32 && sK == 2) ||
+           (sM == 16 && sN == 16 && sK == 4))) ||
          (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
           ((sM == 32 && sN == 32 && sK == 8) ||
            (sM == 16 && sN == 16 && sK == 16))) ||
@@ -509,6 +512,7 @@ constexpr bool is_combination_valid_amd_gfx90a(size_t sM, size_t sN,
 template <typename Ta, typename Tc>
 constexpr bool are_types_valid_amd_gfx90a() {
   return (std::is_same_v<Ta, half> && std::is_same_v<Tc, float>) ||
+         (std::is_same_v<Ta, float> && std::is_same_v<Tc, float>) ||
          (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t>) ||
          (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float>) ||
          (std::is_same_v<Ta, double> && std::is_same_v<Tc, double>);

@@ -1371,6 +1371,9 @@ be used. An attempt to run the compiled code on an unsupported architecture will
 .2+| `matrix_type::fp16`  .2+| `matrix_type::fp32`
 |32 |32 |8 
 |16 |16 |16
+.2+| `matrix_type::fp32`  .2+| `matrix_type::fp32`
+|32 |32 |2
+|16 |16 |4
 .2+| `matrix_type::sint8`  .2+| `matrix_type::sint32`
 |32 |32 |8 
 |16 |16 |16

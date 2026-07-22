@@ -385,7 +385,8 @@ void joint_matrix_mad_hip(
 #if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||       \
     defined(__gfx942__)
   if constexpr (std::is_same_v<Tm, float>) {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    // The one-block F32 MFMA shapes (16x16x4 and 32x32x2) are available on all
+    // supported CDNA parts (gfx90a/CDNA2 and gfx94x/CDNA3).
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x4f32(
           A.wi_marray[0], B.wi_marray[0],
@@ -397,7 +398,6 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
-#endif
   } else if constexpr (std::is_same_v<Tm, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
