@@ -28,6 +28,8 @@
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 
+#include "../VirtualMem/helpers.hpp"
+
 #include <cassert>
 #include <cstdlib>
 #include <fstream>
@@ -48,26 +50,6 @@ namespace syclipc = sycl::ext::oneapi::experimental::ipc;
 constexpr size_t N = 32;        // ints per physical_mem range
 constexpr size_t NumRanges = 3; // number of separate physical_mem ranges
 constexpr const char *CommsFile = "ipc_phys_mem_multi_range_comms.txt";
-
-// Return the smallest multiple of Granularity that is >= Bytes.
-static size_t alignUp(size_t Bytes, size_t Granularity) {
-  return ((Bytes + Granularity - 1) / Granularity) * Granularity;
-}
-
-// Return the granularity to use for both physical and virtual allocations.
-static size_t getGranularity(const sycl::device &Dev,
-                             const sycl::context &Ctx) {
-  size_t CtxGran = syclexp::get_mem_granularity(Ctx);
-  size_t DevGran = syclexp::get_mem_granularity(Dev, Ctx);
-  // Use the LCM so the size is aligned to both constraints.
-  size_t GCD = CtxGran;
-  size_t Rem = DevGran % GCD;
-  while (Rem != 0) {
-    std::swap(GCD, Rem);
-    Rem %= GCD;
-  }
-  return (DevGran / GCD) * CtxGran;
-}
 
 int spawner(int argc, char *argv[]) {
   assert(argc == 1);
@@ -95,7 +77,7 @@ int spawner(int argc, char *argv[]) {
 #endif // defined(__linux__)
 
   const size_t AlignedByteSize =
-      alignUp(N * sizeof(int), getGranularity(Dev, Ctx));
+      GetAlignedByteSize(N * sizeof(int), GetLCMGranularity(Dev, Ctx));
 
   std::cout << "[Spawner] Creating " << NumRanges << " physical_mem ranges ("
             << N << " ints, " << AlignedByteSize << " bytes each)...\n";
@@ -158,8 +140,9 @@ int spawner(int argc, char *argv[]) {
 
   // Serialize all handles to the comms file:
   //   NumRanges (size_t)
-  //   AlignedByteSize (size_t)
   //   for each range: HandleDataSize (size_t) + HandleData bytes
+  // AlignedByteSize is not sent: the consumer recovers it from
+  // physical_mem::size() after opening the handles.
   std::cout << "[Spawner] Exporting " << NumRanges << " IPC handles to '"
             << CommsFile << "'...\n";
   {
@@ -175,7 +158,6 @@ int spawner(int argc, char *argv[]) {
       return 1;
     }
     FS.write(reinterpret_cast<const char *>(&NumRanges), sizeof(size_t));
-    FS.write(reinterpret_cast<const char *>(&AlignedByteSize), sizeof(size_t));
     for (size_t R = 0; R < NumRanges; ++R) {
 #ifdef USE_VIEW
       syclipc::handle_data_view_t HandleData = Handles[R].data_view();
@@ -266,8 +248,6 @@ int consumer() {
   }
   size_t FileNumRanges = 0;
   FS.read(reinterpret_cast<char *>(&FileNumRanges), sizeof(size_t));
-  size_t AlignedByteSize = 0;
-  FS.read(reinterpret_cast<char *>(&AlignedByteSize), sizeof(size_t));
 
   std::vector<std::unique_ptr<std::byte[]>> HandleBytesVec(FileNumRanges);
   std::vector<size_t> HandleSizes(FileNumRanges);
@@ -298,6 +278,12 @@ int consumer() {
     PhysMemVec.emplace_back(
         syclipc::physical_memory::open(HandleData, Ctx, Dev));
   }
+
+  // Recover the per-range byte size from the opened physical_mem objects
+  // themselves (rather than sending it through the comms file): open()
+  // queries the actual allocation size from the driver, so size() reports
+  // the same AlignedByteSize the spawner used to create each range.
+  const size_t AlignedByteSize = PhysMemVec[0].size();
 
   // Reserve one contiguous virtual address space large enough for all ranges.
   const size_t TotalByteSize = FileNumRanges * AlignedByteSize;
