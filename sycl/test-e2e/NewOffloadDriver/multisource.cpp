@@ -20,22 +20,12 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.init.o %t.calc.o %t.main.o -o %t2.fat
 // RUN: %{run} %t2.fat
 
-// Multiple sources with kernel code with old-style objects
+// Multiple sources with kernel code in a static archive. Archive is built
+// via the objects above.
 // Test with `--offload-new-driver`
-// RUN: %{build} --no-offload-new-driver -c -o %t.init.o -DINIT_KERNEL
-// RUN: %{build} --no-offload-new-driver -c -o %t.calc.o -DCALC_KERNEL
-// RUN: %{build} --no-offload-new-driver -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.init.o %t.calc.o %t.main.o -o %t3.fat
-// RUN: %{run} %t3.fat
-
-// Multiple sources with kernel code with old-style objects in a static archive
-// Test with `--offload-new-driver`
-// RUN: %{build} --no-offload-new-driver -c -o %t.init.o -DINIT_KERNEL
-// RUN: %{build} --no-offload-new-driver -c -o %t.calc.o -DCALC_KERNEL
-// RUN: %{build} --no-offload-new-driver -c -o %t.main.o -DMAIN_APP
 // RUN: llvm-ar r %t.a %t.init.o %t.calc.o
-// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.main.o %t.a -o %t4.fat
-// RUN: %{run} %t4.fat
+// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.main.o %t.a -o %t3.fat
+// RUN: %{run} %t3.fat
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
