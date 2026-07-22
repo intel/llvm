@@ -27,11 +27,9 @@ runs:
       OUTPUT=$(python3 devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE")
       EXIT_CODE=$?
       
-      # Parse Python output and set GitHub Actions variables
+      # Parse Python output and set GitHub Actions outputs (not env for security)
       while IFS='=' read -r key value; do
-        if [ "$key" = "SKIP_ARTIFACTS" ]; then
-          echo "$key=$value" >> $GITHUB_ENV
-        elif [ -n "$key" ] && [ -n "$value" ]; then
+        if [ -n "$key" ] && [ -n "$value" ]; then
           echo "$key=$value" >> $GITHUB_OUTPUT
         fi
       done <<< "$OUTPUT"
@@ -73,24 +71,12 @@ runs:
       XML_SEARCH_PATH: ${{ steps.run_tests.outputs.xml_search_path }}
     run: |
       if [ ! -f "$LOG_FILE" ]; then
-        if [ "$TEST_TYPE" = "adapter-specific" ]; then
-          echo "::warning::Adapter specific test log not found"
-          echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
-        fi
+        echo "::warning::Test log not found"
         exit 0
       fi
       
       if [ ! -s "$LOG_FILE" ]; then
-        if [ "$TEST_TYPE" = "adapter-specific" ]; then
-          echo "::warning::Adapter specific test log is empty"
-          echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
-        fi
-        exit 0
-      fi
-      
-      if [ "$TEST_TYPE" = "adapter-specific" ] && ! python3 devops/scripts/ur_ci_utils.py check-log-has-tests "$LOG_FILE"; then
-        echo "No adapter-specific tests found for this configuration"
-        echo "SKIP_ARTIFACTS=1" >> $GITHUB_ENV
+        echo "::warning::Test log is empty"
         exit 0
       fi
       
@@ -99,7 +85,7 @@ runs:
       python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
 
   - name: Prepare test artifacts
-    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || env.SKIP_ARTIFACTS != '1') }}
+    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs.skip_artifacts != '1') }}
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
@@ -118,7 +104,7 @@ runs:
       fi
 
   - name: Upload test artifacts
-    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || env.SKIP_ARTIFACTS != '1') }}
+    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs.skip_artifacts != '1') }}
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
     with:
       name: ${{ inputs.artifact_name }}

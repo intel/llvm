@@ -9,7 +9,7 @@ This script processes LIT test output logs to:
 
 import sys
 import re
-from typing import List, Dict, Tuple, Optional, TypedDict
+from typing import List, Tuple, Optional, TypedDict
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -394,17 +394,20 @@ def _display_skipped_tests(
 def _display_excluded_tests(
     test_lists: TestLists, stats: List[str], xml_file: Optional[str]
 ) -> int:
-    if "Excluded" in test_lists:
-        return 0
-
-    excluded_xml = extract_excluded_from_xml(xml_file)
+    excluded_from_log = test_lists.get("Excluded", [])
     stats_count = _get_count_from_stats(stats, ["Excluded:"])
 
+    if excluded_from_log:
+        _print_test_group("Excluded Tests", excluded_from_log)
+        test_lists.pop("Excluded", None)
+        return len(excluded_from_log)
+
+    excluded_xml = extract_excluded_from_xml(xml_file)
     if excluded_xml:
         _print_test_group("Excluded Tests", excluded_xml)
         return len(excluded_xml)
 
-    elif stats_count:
+    if stats_count:
         note = f"Warning: Could not extract individual excluded test names.\nStatistics show {stats_count} excluded tests, but they are not available in the output."
         _print_test_group("Excluded Tests", [], note, count=stats_count)
         return stats_count
