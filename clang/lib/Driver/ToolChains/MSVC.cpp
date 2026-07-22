@@ -108,9 +108,21 @@ class DeviceImageDepForcer {
   }
 
   bool isSystemLib(StringRef LibPath) const {
+    std::string Norm = collapseSeps(LibPath);
+    // A .lib living under any standard Microsoft toolchain directory (the
+    // Windows SDK / UCRT / NETFXSDK under "Windows Kits", or the VC and ATLMFC
+    // libs under "Microsoft Visual Studio") is a system library and must not be
+    // force-loaded. Match on the directory marker rather than one exact version
+    // dir: clang computes only the highest-installed SDK version, but the
+    // linker may resolve a lib against a different version listed earlier on
+    // the LIB env var, and both share the same marker.
+    for (StringRef Marker : {"\\Windows Kits\\", "\\Microsoft Visual Studio\\",
+                             "\\Microsoft SDKs\\"})
+      if (StringRef(Norm).contains_insensitive(Marker))
+        return true;
+    // Also exclude clang's own resource lib dir, which carries no such marker.
     // Compare against the dir plus a trailing '\' (SystemLibDirs are stored
     // that way) so "C:\sdk\lib" doesn't spuriously match "C:\sdk\library\...".
-    std::string Norm = collapseSeps(LibPath);
     for (const auto &Dir : SystemLibDirs)
       if (StringRef(Norm).starts_with_insensitive(Dir))
         return true;
