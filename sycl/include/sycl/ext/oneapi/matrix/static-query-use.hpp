@@ -584,6 +584,9 @@ constexpr bool is_combination_valid_amd_gfx942(size_t sM, size_t sN,
   return (std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
           ((sM == 32 && sN == 32 && sK == 8) ||
            (sM == 16 && sN == 16 && sK == 16))) ||
+         (std::is_same_v<Ta, float> && std::is_same_v<Tc, float> &&
+          ((sM == 32 && sN == 32 && sK == 2) ||
+           (sM == 16 && sN == 16 && sK == 4))) ||
          (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
           ((sM == 32 && sN == 32 && sK == 16) ||
            (sM == 16 && sN == 16 && sK == 32))) ||
@@ -597,6 +600,7 @@ constexpr bool is_combination_valid_amd_gfx942(size_t sM, size_t sN,
 template <typename Ta, typename Tc>
 constexpr bool are_types_valid_amd_gfx942() {
   return (std::is_same_v<Ta, half> && std::is_same_v<Tc, float>) ||
+         (std::is_same_v<Ta, float> && std::is_same_v<Tc, float>) ||
          (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t>) ||
          (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float>) ||
          (std::is_same_v<Ta, double> && std::is_same_v<Tc, double>);
@@ -619,9 +623,11 @@ struct matrix_params<
   // Default sizes for AMD gfx942 were chosen to represent a square matrix
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
-  static constexpr std::size_t K = std::is_same_v<Ta, double>  ? 4
-                                   : std::is_same_v<Ta, int8_t> ? 32
-                                                                : 16;
+  static constexpr std::size_t K =
+      std::is_same_v<Ta, int8_t> ? 32
+      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>)
+          ? 16
+          : 4;
 
   template <typename Group, layout Layout>
   using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
@@ -687,9 +693,11 @@ struct matrix_params<
   // Default sizes for AMD gfx940 were chosen to represent a square matrix
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
-  static constexpr std::size_t K = std::is_same_v<Ta, double>  ? 4
-                                   : std::is_same_v<Ta, int8_t> ? 32
-                                                                : 16;
+  static constexpr std::size_t K =
+      std::is_same_v<Ta, int8_t> ? 32
+      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>)
+          ? 16
+          : 4;
 
   template <typename Group, layout Layout>
   using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
@@ -747,9 +755,11 @@ struct matrix_params<
   // Default sizes for AMD gfx941 were chosen to represent a square matrix
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
-  static constexpr std::size_t K = std::is_same_v<Ta, double>  ? 4
-                                   : std::is_same_v<Ta, int8_t> ? 32
-                                                                : 16;
+  static constexpr std::size_t K =
+      std::is_same_v<Ta, int8_t> ? 32
+      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>)
+          ? 16
+          : 4;
 
   template <typename Group, layout Layout>
   using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;

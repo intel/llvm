@@ -14,16 +14,25 @@ template <architecture Arch> void check_arch() {
   // Compile-time query to validate the matrix parameters
   using myparams =
       matrix_params<Arch, int8_t, int8_t, int32_t, int32_t, 32, 32, 16>;
+  using floatparams =
+      matrix_params<Arch, float, float, float, float, 32, 32, 2>;
 
   static_assert(myparams::M == 32);
   static_assert(myparams::N == 32);
   static_assert(myparams::K == 16);
+  static_assert(floatparams::M == 32);
+  static_assert(floatparams::N == 32);
+  static_assert(floatparams::K == 2);
 
   // Sizes-only compile-time query: types are given, generate default sizes
   using myparams2 = matrix_params<Arch, int8_t, int8_t, int32_t, int32_t>;
+  using floatparams2 = matrix_params<Arch, float, float, float, float>;
   static_assert(myparams2::M == 16);
   static_assert(myparams2::N == 16);
   static_assert(myparams2::K == 32);
+  static_assert(floatparams2::M == 16);
+  static_assert(floatparams2::N == 16);
+  static_assert(floatparams2::K == 4);
 }
 
 int main() {

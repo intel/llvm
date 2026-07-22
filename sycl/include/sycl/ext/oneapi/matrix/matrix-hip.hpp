@@ -83,6 +83,11 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 8, 32, 4)
 
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 16, 4, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 32, 2, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 2, 32, 1)
+
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 16, 1)
 
@@ -379,7 +384,21 @@ void joint_matrix_mad_hip(
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
 #if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||       \
     defined(__gfx942__)
-  if constexpr (std::is_same_v<Tm, sycl::half>) {
+  if constexpr (std::is_same_v<Tm, float>) {
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    if constexpr (M == 16 && N == 16) {
+      auto result = __builtin_amdgcn_mfma_f32_16x16x4f32(
+          A.wi_marray[0], B.wi_marray[0],
+          *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
+    } else if constexpr (M == 32 && N == 32) {
+      auto result = __builtin_amdgcn_mfma_f32_32x32x2f32(
+          A.wi_marray[0], B.wi_marray[0],
+          *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
+    }
+#endif
+  } else if constexpr (std::is_same_v<Tm, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
           *reinterpret_cast<const float16x4 *>(&A.wi_marray),
