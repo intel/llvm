@@ -388,13 +388,11 @@ int main() {
   sycl::context ctxt = q.get_context();
 
   // This example creates a queue that does not enable profiling and then
-  // creates events that do enable profiling.  This is an optional feature, so
-  // check if all devices in a context support it.
-  for (sycl::device dev : ctxt.get_devices()) {
-    if (!dev.has(sycl::aspect::ext_oneapi_per_event_profiling)) {
-      std::cout << "Cannot time kernels without per-event profiling support\n";
-      return 0;
-    }
+  // creates events that do enable profiling. This is an optional feature, so
+  // check if all the devices in the platform support it.
+  if (!ctxt.get_platform().has(sycl::aspect::ext_oneapi_per_event_profiling)) {
+    std::cout << "Cannot time kernels without per-event profiling support\n";
+    return 0;
   }
 
   sycl::event start = syclex::make_event(ctxt, syclex::enable_profiling{true});
