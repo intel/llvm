@@ -263,6 +263,7 @@
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -implicit-check-not="-lsycl" -check-prefix=CHECK-LD-SYCL %s
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-SYCL: "{{.*}}libsycl.so"
+// CHECK-LD-SYCL-SAME: "{{.*}}libsycl-devicelib-host.a"
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s

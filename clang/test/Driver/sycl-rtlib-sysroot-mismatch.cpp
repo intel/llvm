@@ -1,6 +1,6 @@
 // REQUIRES: system-linux && symlinks
 
-// Verify we still generate a path to libsycl.so even with sysroot set.
+// Verify we still generate a path to libsycl.so and libsycl-devicelib-host.a even with sysroot set.
 
 // RUN: rm -rf %t && mkdir -p %t/bin %t/lib
 // RUN: touch %t/lib/libsycl.so
@@ -9,3 +9,4 @@
 // RUN:   | FileCheck %s
 
 // CHECK: "{{.*}}/bin/../lib/libsycl.so"
+// CHECK-SAME: "{{.*}}/bin/../lib/libsycl-devicelib-host.a"
