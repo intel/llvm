@@ -624,10 +624,9 @@ struct matrix_params<
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K =
-      std::is_same_v<Ta, int8_t> ? 32
-      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>)
-          ? 16
-          : 4;
+      std::is_same_v<Ta, int8_t>                                   ? 32
+      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>) ? 16
+                                                                   : 4;
 
   template <typename Group, layout Layout>
   using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
@@ -694,10 +693,9 @@ struct matrix_params<
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K =
-      std::is_same_v<Ta, int8_t> ? 32
-      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>)
-          ? 16
-          : 4;
+      std::is_same_v<Ta, int8_t>                                   ? 32
+      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>) ? 16
+                                                                   : 4;
 
   template <typename Group, layout Layout>
   using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
@@ -756,10 +754,9 @@ struct matrix_params<
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K =
-      std::is_same_v<Ta, int8_t> ? 32
-      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>)
-          ? 16
-          : 4;
+      std::is_same_v<Ta, int8_t>                                   ? 32
+      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>) ? 16
+                                                                   : 4;
 
   template <typename Group, layout Layout>
   using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
