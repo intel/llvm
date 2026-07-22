@@ -24,17 +24,27 @@ class TestConfig:
 
 
 def find_xml_file(search_path: str, xml_name: str) -> str:
-    """Find XML file at top-level of search_path."""
+    """Find XML file - checks search_path and common fallback locations."""
     if ".." in search_path or not search_path:
         return ""
 
-    try:
-        xml_path = Path(search_path) / xml_name
-        if xml_path.exists() and xml_path.is_file():
-            return str(xml_path.absolute())
-    except (OSError, ValueError):
-        pass
+    search_locations = [
+        Path(search_path) / xml_name,  # Primary: configured path
+        Path(search_path).parent / xml_name,  # Fallback: parent dir
+        Path(search_path).parent.parent / xml_name,  # Fallback: build root
+    ]
 
+    print(f"Note: Searching for {xml_name} in {len(search_locations)} locations:", file=sys.stderr)
+    for i, xml_path in enumerate(search_locations, 1):
+        print(f"  {i}. {xml_path}", file=sys.stderr)
+        try:
+            if xml_path.exists() and xml_path.is_file():
+                print(f"Note: Found XML at: {xml_path.absolute()}", file=sys.stderr)
+                return str(xml_path.absolute())
+        except (OSError, ValueError):
+            pass
+
+    print(f"Warning: XML file {xml_name} not found in any location", file=sys.stderr)
     return ""
 
 
@@ -128,6 +138,11 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
     jobs = calculate_jobs()
     cmake_cmd = ["cmake", "--build", build_dir, "-j", str(jobs), "--", config.target]
 
+    # Output configuration for GitHub Actions (always, before tests run)
+    print(f"log_file={config.log_file}")
+    print(f"xml_name={config.xml_name}")
+    print(f"xml_search_path={config.xml_search_path}")
+
     print(f"Running: {' '.join(cmake_cmd)}", file=sys.stderr)
     print(f"Log: {config.log_file}, Jobs: {jobs}", file=sys.stderr)
 
@@ -144,10 +159,6 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
     if not Path(config.log_file).exists() or Path(config.log_file).stat().st_size == 0:
         print("::error::No log generated", file=sys.stderr)
         return 1
-
-    print(f"log_file={config.log_file}")
-    print(f"xml_name={config.xml_name}")
-    print(f"xml_search_path={config.xml_search_path}")
 
     if test_type == "adapter-specific" and not check_log_has_tests(config.log_file):
         print("No adapter-specific tests found", file=sys.stderr)

@@ -353,7 +353,7 @@ def _display_skipped_tests(
     declared_count = declared_counts.get(
         "Skipped", declared_counts.get("Unsupported", 0)
     )
-    stats_count = _get_count_from_stats(stats, ["Skipped:", "Unsupported:"])
+    stats_count = _get_count_from_stats(stats, ["Skipped", "Unsupported"])
 
     if skipped_from_log and declared_count:
         actual_count = len(skipped_from_log)
@@ -395,7 +395,7 @@ def _display_excluded_tests(
     test_lists: TestLists, stats: List[str], xml_file: Optional[str]
 ) -> int:
     excluded_from_log = test_lists.get("Excluded", [])
-    stats_count = _get_count_from_stats(stats, ["Excluded:"])
+    stats_count = _get_count_from_stats(stats, ["Excluded"])
 
     if excluded_from_log:
         _print_test_group("Excluded Tests", excluded_from_log)
