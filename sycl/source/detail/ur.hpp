@@ -39,7 +39,7 @@ namespace ur {
 void *getURLoaderLibrary();
 
 // Performs UR one-time initialization.
-std::vector<adapter_impl *> &
+std::vector<std::shared_ptr<adapter_impl>> &
 initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the adapter serving given backend.

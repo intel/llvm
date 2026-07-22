@@ -195,8 +195,9 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return FilterMutex;
 }
 
-std::vector<adapter_impl *> &GlobalHandler::getAdapters() {
-  static std::vector<adapter_impl *> &adapters = getOrCreate(MAdapters);
+std::vector<std::shared_ptr<adapter_impl>> &GlobalHandler::getAdapters() {
+  static std::vector<std::shared_ptr<adapter_impl>> &adapters =
+      getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
   return adapters;
 }
@@ -274,8 +275,12 @@ void GlobalHandler::unloadAdapters() {
   if (MAdapters.Inst) {
     for (const auto &Adapter : getAdapters()) {
       Adapter->release();
-      delete Adapter;
     }
+    // GlobalHandler is the sole owner of the adapters (shared_ptr). Clearing
+    // the vector below frees them. Managed<> handles hold only a weak_ptr, so
+    // any that outlive this teardown observe an expired adapter and skip their
+    // release instead of dereferencing freed memory (see Managed in
+    // adapter_impl.hpp).
   }
 
   UrFuncInfo<UrApiKind::urLoaderTearDown> loaderTearDownInfo;
