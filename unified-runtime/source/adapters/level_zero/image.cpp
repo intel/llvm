@@ -130,11 +130,6 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
-  // External semaphore operations require an immediate command list per the
-  // Level Zero spec. If the queue is not using immediate command lists,
-  // we need to get one specifically for this operation.
-  bool NeedTempImmCmdList = !hQueue->UsingImmCmdLists;
-
   auto phEventWaitListInternal = v1_cast(phEventWaitListOpque);
   auto phEventInternal = v1_cast(phEventOpque);
 
@@ -144,20 +139,9 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  if (NeedTempImmCmdList) {
-    // Ensure the queue group has ImmCmdLists initialized so we can
-    // obtain an immediate command list.
-    auto &QGroup = hQueue->getQueueGroup(UseCopyEngine);
-    if (QGroup.ImmCmdLists.empty()) {
-      QGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
-          QGroup.ZeQueues.size(), hQueue->CommandListMap.end());
-    }
-    CommandList = QGroup.getImmCmdList();
-  } else {
-    UR_CALL(hQueue->Context->getAvailableCommandList(
-        hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
-        phEventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
-  }
+  UR_CALL(hQueue->Context->getAvailableCommandList(
+      hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
+      phEventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -210,11 +194,6 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
-  // External semaphore operations require an immediate command list per the
-  // Level Zero spec. If the queue is not using immediate command lists,
-  // we need to get one specifically for this operation.
-  bool NeedTempImmCmdList = !hQueue->UsingImmCmdLists;
-
   auto phEventWaitListInternal = v1_cast(phEventWaitListOpque);
   auto phEventInternal = v1_cast(phEventOpque);
 
@@ -224,20 +203,9 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  if (NeedTempImmCmdList) {
-    // Ensure the queue group has ImmCmdLists initialized so we can
-    // obtain an immediate command list.
-    auto &QGroup = hQueue->getQueueGroup(UseCopyEngine);
-    if (QGroup.ImmCmdLists.empty()) {
-      QGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
-          QGroup.ZeQueues.size(), hQueue->CommandListMap.end());
-    }
-    CommandList = QGroup.getImmCmdList();
-  } else {
-    UR_CALL(hQueue->Context->getAvailableCommandList(
-        hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
-        phEventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
-  }
+  UR_CALL(hQueue->Context->getAvailableCommandList(
+      hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
+      phEventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
