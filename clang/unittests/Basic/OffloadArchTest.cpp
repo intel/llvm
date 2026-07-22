@@ -48,3 +48,17 @@ TEST(OffloadArchTest, IntelGPUFamilyArchParsing) {
   EXPECT_EQ(StringToOffloadArch("bmg"), OffloadArch::BMG);
   EXPECT_EQ(StringToOffloadArch("ptl"), OffloadArch::PTL);
 }
+
+TEST(OffloadArchTest, SYCLNVIDIAArchitectures) {
+  EXPECT_FALSE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_37));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_50));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_88));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_90a));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_100a));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_101f));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_103a));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_110f));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_120a));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::SM_121f));
+  EXPECT_FALSE(IsSYCLSupportedNVidiaGPUArch(OffloadArch::GFX600));
+}

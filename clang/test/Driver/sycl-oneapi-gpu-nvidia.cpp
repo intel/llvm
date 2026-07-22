@@ -24,12 +24,50 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_86 -DMAC_STR=SM_86
 // RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_87 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_87 -DMAC_STR=SM_87
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_88 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_88 -DMAC_STR=SM_88
 // RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_89 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_89 -DMAC_STR=SM_89
 // RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_90 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90 -DMAC_STR=SM_90
 // RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_90a -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90a -DMAC_STR=SM_90A
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_100 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_100 -DMAC_STR=SM_100
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_100a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_100a -DMAC_STR=SM_100A
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_100f -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_100f -DMAC_STR=SM_100F
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib --no-cuda-version-check -fsycl-targets=nvidia_gpu_sm_101 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_101 -DMAC_STR=SM_101
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib --no-cuda-version-check -fsycl-targets=nvidia_gpu_sm_101a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_101a -DMAC_STR=SM_101A
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib --no-cuda-version-check -fsycl-targets=nvidia_gpu_sm_101f -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_101f -DMAC_STR=SM_101F
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_103 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_103 -DMAC_STR=SM_103
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_103a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_103a -DMAC_STR=SM_103A
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_103f -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_103f -DMAC_STR=SM_103F
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_110 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_110 -DMAC_STR=SM_110
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_110a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_110a -DMAC_STR=SM_110A
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_110f -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_110f -DMAC_STR=SM_110F
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_120 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_120 -DMAC_STR=SM_120
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_120a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_120a -DMAC_STR=SM_120A
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_120f -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_120f -DMAC_STR=SM_120F
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_121 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_121 -DMAC_STR=SM_121
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_121a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_121a -DMAC_STR=SM_121A
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_121f -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_121f -DMAC_STR=SM_121F
 // MACRO_NVIDIA: clang{{.*}}  "-fsycl-is-host"
 // MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
 // MACRO_NVIDIA: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
