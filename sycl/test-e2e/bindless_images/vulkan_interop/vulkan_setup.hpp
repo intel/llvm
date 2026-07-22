@@ -313,6 +313,15 @@ size_t getRowPitch(VulkanContext &ctx, VkImage image) {
   return layout.rowPitch;
 }
 
+// vkGetImageSubresourceLayout is only valid for VK_IMAGE_TILING_LINEAR images;
+// call only when the VkImage was created with linear tiling.
+size_t getSlicePitch(VulkanContext &ctx, VkImage image) {
+  VkSubresourceLayout layout;
+  VkImageSubresource subResource{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
+  vkGetImageSubresourceLayout(ctx.device, image, &subResource, &layout);
+  return layout.depthPitch;
+}
+
 inline uint32_t findMemoryType(VkPhysicalDevice physicalDevice,
                                uint32_t typeFilter,
                                VkMemoryPropertyFlags properties) {
