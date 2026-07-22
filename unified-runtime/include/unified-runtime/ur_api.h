@@ -649,6 +649,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION = 0x2007,
   /// ::ur_exp_win32_name_t
   UR_STRUCTURE_TYPE_EXP_WIN32_NAME = 0x2008,
+  /// ::ur_exp_image_user_pitch_desc_t
+  UR_STRUCTURE_TYPE_EXP_IMAGE_USER_PITCH_DESC = 0x2009,
   /// ::ur_exp_async_usm_alloc_properties_t
   UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES = 0x2050,
   /// ::ur_exp_enqueue_native_command_properties_t
@@ -10194,6 +10196,33 @@ typedef struct ur_exp_image_copy_region_t {
   ur_rect_region_t copyExtent;
 
 } ur_exp_image_copy_region_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief User-declared image pitch signal for image creation.
+///
+/// @details
+///     - Chain this off ::ur_image_desc_t::pNext when the caller has explicitly
+///       declared a custom row/slice pitch (e.g. via SYCL's
+///       image_descriptor.row_pitch / slice_pitch). The presence of this
+///       structure disambiguates a user-supplied pitch from a driver-computed
+///       pitch that some SYCL entry points bookkeep back through
+///       ::ur_image_desc_t::rowPitch. Adapters that can override the driver's
+///       computed pitch (e.g. Level Zero via ze_custom_pitch_exp_desc_t) should
+///       key off the presence of this struct rather than
+///       ::ur_image_desc_t::rowPitch alone. Adapters that always consume
+///       ::ur_image_desc_t::rowPitch as-is may ignore it.
+typedef struct ur_exp_image_user_pitch_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_IMAGE_USER_PITCH_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] user-declared row pitch, in bytes
+  size_t rowPitch;
+  /// [in] user-declared slice pitch, in bytes
+  size_t slicePitch;
+
+} ur_exp_image_user_pitch_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate pitched memory
