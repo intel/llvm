@@ -26,23 +26,25 @@ runs:
       # Run tests via Python (handles validation, config, cmake execution)
       # Use temp file instead of command substitution to preserve outputs even on error
       OUTPUTS_FILE=$(mktemp)
-      python3 -u devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE"
+      python3 -u devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE" 2>&1 || true
       EXIT_CODE=$?
       
-      echo "::debug::OUTPUTS_FILE contents:"
-      cat "$OUTPUTS_FILE" | grep -E "^(log_file|xml_name|xml_search_path|skip_artifacts)=" || echo "::warning::No outputs found in file"
+      echo "Debug: Captured output file size: $(wc -l < "$OUTPUTS_FILE") lines"
+      echo "Debug: Outputs in file:"
+      grep -E "^(log_file|xml_name|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE" || echo "Warning: No outputs found"
       
       # Parse Python output and set GitHub Actions outputs (not env for security)
       while IFS='=' read -r key value; do
         if [ -n "$key" ] && [ -n "$value" ]; then
           echo "$key=$value" >> $GITHUB_OUTPUT
+          echo "  Set output: $key=$value"
         fi
-      done < "$OUTPUTS_FILE"
+      done < <(grep -E "^(log_file|xml_name|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE")
       
       rm -f "$OUTPUTS_FILE"
       exit $EXIT_CODE
 
-  - name: Show full test log
+  - name: Filter test log
     if: ${{ always() }}
     shell: bash
     env:
@@ -53,9 +55,7 @@ runs:
         exit 0
       fi
       
-      echo "::group::Show Full Test Log (filtered)"
       python3 devops/scripts/ur_test_summary.py filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
-      echo "::endgroup::"
   
   - name: Report test failures
     if: steps.run_tests.outcome != 'success'
@@ -66,7 +66,7 @@ runs:
       python3 devops/scripts/ur_test_summary.py extract-errors "$LOG_FILE"
       exit 1
   
-  - name: Show test statistics and lists
+  - name: Test summary
     if: ${{ always() }}
     shell: bash
     env:
@@ -90,7 +90,7 @@ runs:
       
       python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
 
-  - name: Prepare test artifacts
+  - name: Copy artifacts
     if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs.skip_artifacts != '1') }}
     shell: bash
     env:
@@ -105,8 +105,10 @@ runs:
       fi
       
       FOUND_XML=$(python3 devops/scripts/ur_ci_utils.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
-      if [ -n "$FOUND_XML" ]; then
-        cp "$FOUND_XML" test_artifacts/
+      if [ -n "$FOUND_XML" ] && [ -f "$FOUND_XML" ]; then
+        # Copy XML with explicit basename to avoid wildcard issues
+        XML_BASENAME=$(basename "$FOUND_XML")
+        cp "$FOUND_XML" "test_artifacts/$XML_BASENAME"
       fi
 
   - name: Upload test artifacts

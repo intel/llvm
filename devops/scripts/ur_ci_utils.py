@@ -35,10 +35,14 @@ def find_xml_file(search_path: str, xml_name: str) -> str:
         print(f"Note: Searching for XML files in adapter subfolders", file=sys.stderr)
         if search_root.exists() and search_root.is_dir():
             # Search in adapter subfolders: level_zero, cuda, hip, etc.
-            for xml_path in search_root.rglob("*.xml"):
+            found_files = list(search_root.rglob("*.xml"))
+            print(f"Debug: rglob found {len(found_files)} files", file=sys.stderr)
+            for xml_path in found_files:
+                print(f"Debug: Checking {xml_path} (is_file={xml_path.is_file()})", file=sys.stderr)
                 if xml_path.is_file():
-                    print(f"Note: Found XML at: {xml_path.absolute()}", file=sys.stderr)
-                    return str(xml_path.absolute())
+                    abs_path = xml_path.absolute()
+                    print(f"Note: Found XML at: {abs_path}", file=sys.stderr)
+                    return str(abs_path)
         print(f"Warning: No XML files found in {search_root}", file=sys.stderr)
         return ""
 
