@@ -26,8 +26,11 @@ runs:
       # Run tests via Python (handles validation, config, cmake execution)
       # Use temp file instead of command substitution to preserve outputs even on error
       OUTPUTS_FILE=$(mktemp)
-      python3 devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE"
+      python3 -u devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE"
       EXIT_CODE=$?
+      
+      echo "::debug::OUTPUTS_FILE contents:"
+      cat "$OUTPUTS_FILE" | grep -E "^(log_file|xml_name|xml_search_path|skip_artifacts)=" || echo "::warning::No outputs found in file"
       
       # Parse Python output and set GitHub Actions outputs (not env for security)
       while IFS='=' read -r key value; do
@@ -103,7 +106,7 @@ runs:
       
       FOUND_XML=$(python3 devops/scripts/ur_ci_utils.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
       if [ -n "$FOUND_XML" ]; then
-        cp "$FOUND_XML" "test_artifacts/$XML_NAME"
+        cp "$FOUND_XML" test_artifacts/
       fi
 
   - name: Upload test artifacts

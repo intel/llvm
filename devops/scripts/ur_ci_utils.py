@@ -169,6 +169,7 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
     print(f"log_file={config.log_file}", flush=True)
     print(f"xml_name={config.xml_name}", flush=True)
     print(f"xml_search_path={config.xml_search_path}", flush=True)
+    sys.stdout.flush()  # Ensure outputs are written before subprocess
 
     print(f"Running: {' '.join(cmake_cmd)}", file=sys.stderr)
     print(f"Log: {config.log_file}, Jobs: {jobs}", file=sys.stderr)
