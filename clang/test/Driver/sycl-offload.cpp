@@ -328,7 +328,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
-// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO1 -DFOO2"
+// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO1" "--device-compiler=sycl:spir64-unknown-unknown=-DFOO2"
 
 /// Check for implied options (-g -O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
@@ -348,7 +348,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
-// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-DFOO1 -DFOO2"
+// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-DFOO1" "--device-linker=sycl:spir64-unknown-unknown=-DFOO2"
 
 /// -fsycl-range-rounding settings
 ///
@@ -490,12 +490,6 @@
 // RUN:  | FileCheck -check-prefix=LIB-NODEVICE %s
 // LIB-NODEVICE: 0: input, "somelib", object, (host-sycl)
 // LIB-NODEVICE: 1: clang-linker-wrapper, {0}, image, (host-sycl)
-
-// Checking for an error if c-compilation is forced
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// CHECK_XC_FSYCL: '-x c{{.*}}' must not be used in conjunction with '-fsycl'
 
 // -std=c++17 check (check all 3 compilations)
 // RUN: %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s

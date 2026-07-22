@@ -1328,8 +1328,14 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
     // Functions local variable might be not refered to anywhere else, except
     // here.
     // Just translate them.
-    for (const DINode *Var : Func->getRetainedNodes())
-      transDbgEntry(Var);
+    for (const MDNode *Var : Func->getRetainedNodes()) {
+      // Function-local static variables are retained as
+      // DIGlobalVariableExpression nodes; translate the underlying variable.
+      if (const auto *GVE = dyn_cast<DIGlobalVariableExpression>(Var))
+        transDbgEntry(GVE->getVariable());
+      else
+        transDbgEntry(Var);
+    }
   }
   // If the function has template parameters the function *is* a template.
   if (DITemplateParameterArray TPA = Func->getTemplateParams()) {

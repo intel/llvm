@@ -209,6 +209,10 @@ static std::string commandToName(Command::CommandType Type) {
 std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand) {
+  const bool CanRemoveRedundantEvent =
+      CommandQueue && CommandQueue->isInOrder() && !IsHostTaskCommand &&
+      !CommandQueue->getContextImpl().isNativeRecordingActive();
+
   std::vector<ur_event_handle_t> RetUrEvents;
   for (event_impl &Event : Events) {
     auto Handle = Event.getHandle();
@@ -219,8 +223,12 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (CommandQueue && Event.getWorkerQueue().get() == CommandQueue &&
-        CommandQueue->isInOrder() && !IsHostTaskCommand)
+    // When native recording is in-progress, then we must skip this optimization
+    // to let the driver runtime handle event dependencies crossing the graph
+    // capture boundary.
+    if (CanRemoveRedundantEvent &&
+        Event.getWorkerQueue().get() == CommandQueue &&
+        !Event.isPotentiallyNativeRecorded())
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -341,7 +349,6 @@ public:
     }
 
     try {
-      auto &Queue = HostTask.MQueue;
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
         assert(HostTask.MQueue &&
@@ -349,6 +356,7 @@ public:
         interop_handle IH{MReqToMem, HostTask.MQueue};
         // TODO: should all the backends that support this entry point use this
         // for host task?
+        auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
         Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
             detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
@@ -373,48 +381,7 @@ public:
                                    IH);
         }
       } else {
-        if (HostTask.MHostTask->isCreatedFromEnqueueFunction()) {
-          bool NativeHostTaskSupport = false;
-          Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
-              detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
-              UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
-              sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
-          if (NativeHostTaskSupport) {
-            auto NativeHostTaskData =
-                std::make_unique<detail::EnqueueHostTaskData>(
-                    HostTask.MHostTask->MHostTask);
-            ur_event_handle_t HostTaskEvent{};
-            Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
-                Queue->getHandleRef(), detail::NativeHostTask<true>,
-                NativeHostTaskData.get(), nullptr, 0, nullptr, &HostTaskEvent);
-            // Ownership is transferred to NativeHostTask callback on success.
-            (void)NativeHostTaskData.release();
-
-            // Wait for the host task to complete asynchronously. Since
-            // urEnqueueHostTaskExp executes the callback asynchronously when
-            // UR host task support is available, we must wait for the returned
-            // event before notifying completion. This ensures proper dependency
-            // ordering and allows profiling/async-exception handlers to see the
-            // actual task completion rather than the enqueue time.
-            if (HostTaskEvent) {
-              try {
-                Queue->getAdapter().call<UrApiKind::urEventWait>(
-                    1, &HostTaskEvent);
-              } catch (...) {
-                auto CurrentException = std::current_exception();
-                Queue->getAdapter().call<UrApiKind::urEventRelease>(
-                    HostTaskEvent);
-                throw;
-              }
-              Queue->getAdapter().call<UrApiKind::urEventRelease>(
-                  HostTaskEvent);
-            }
-          } else {
-            HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
-          }
-        } else {
-          HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
-        }
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
       }
     } catch (...) {
       auto CurrentException = std::current_exception();
@@ -532,10 +499,36 @@ Command::Command(
   if (Queue)
     MEvent->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
-  if (MQueue)
-    MEvent->setContextImpl(MQueue->getContextImpl());
+  if (MQueue) {
+    context_impl &Context = MQueue->getContextImpl();
+    MEvent->setContextImpl(Context);
+    MEvent->setPotentiallyNativeRecorded(Context.isNativeRecordingActive());
+  }
   MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Obtain the stream ID so all commands can emit traces to that stream;
+  // copying it to the member variable to avoid ABI breakage
+  MStreamID = getActiveXPTIStreamID();
+#endif
+}
+
+Command::Command(
+    CommandType Type, queue_impl *Queue, EventImplPtr Event,
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
+    : MQueue(Queue ? Queue->shared_from_this() : nullptr),
+      MEvent(std::move(Event)),
+      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
+  MWorkerQueue = MQueue;
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  MEvent->setCommand(this);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
@@ -1512,6 +1505,11 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  // When MQueue is non-null the base Command constructor already set this from
+  // MQueue's context.
+  if (!MQueue && MWorkerQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
 }
@@ -1689,6 +1687,11 @@ MemCpyCommandHost::MemCpyCommandHost(const Requirement &SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  // When MQueue is non-null the base Command constructor already set this from
+  // MQueue's context.
+  if (!MQueue && MWorkerQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
 }
@@ -1939,6 +1942,8 @@ static std::string_view cgTypeToString(detail::CGType Type) {
     return "semaphore wait";
   case detail::CGType::SemaphoreSignal:
     return "semaphore signal";
+  case detail::CGType::NativeHostTask:
+    return "native host task";
   default:
     return "unknown";
     break;
@@ -1949,23 +1954,48 @@ ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
-    : Command(CommandType::RUN_CG, Queue, CommandBuffer, Dependencies),
+    : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
+              CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
-    queue_impl *SubmitQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue.get();
+  emitInstrumentationDataProxy();
+}
+
+EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
+  EventImplPtr ResEvent;
+
+  if (CG.getType() == CGType::NativeHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_device_event(*HT.MQueue);
+    ResEvent->setWorkerQueue(HT.MQueue);
+    ResEvent->setSubmittedQueue(HT.MQueue.get());
+    ResEvent->setContextImpl(HT.MQueue->getContextImpl());
+  } else if (CG.getType() == CGType::CodeplayHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_incomplete_host_event();
+    queue_impl *SubmitQueue = HT.MQueue.get();
     assert(SubmitQueue &&
            "Host task command group must have a valid submit queue");
-
-    MEvent->setSubmittedQueue(SubmitQueue);
+    ResEvent->setSubmittedQueue(SubmitQueue);
     // Initialize host profiling info if the queue has profiling enabled.
     if (SubmitQueue->MIsProfilingEnabled)
-      MEvent->initHostProfilingInfo();
-  }
-  if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
-    MEvent->markAsProfilingTagEvent();
+      ResEvent->initHostProfilingInfo();
+  } else {
+    ResEvent = Queue ? event_impl::create_device_event(*Queue)
+                     : event_impl::create_incomplete_host_event();
+    if (Queue) {
+      ResEvent->setWorkerQueue(Queue->shared_from_this());
+      ResEvent->setSubmittedQueue(Queue);
+      ResEvent->setContextImpl(Queue->getContextImpl());
 
-  emitInstrumentationDataProxy();
+      if (CG.getType() == CGType::ProfilingTag) {
+        ResEvent->markAsProfilingTagEvent();
+      }
+    }
+  }
+
+  ResEvent->setStateIncomplete();
+
+  return ResEvent;
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -3492,6 +3522,37 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     MShouldCompleteEventIfPossible = false;
 
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::NativeHostTask: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+
+    for (ArgDesc &Arg : HostTask->MArgs) {
+      switch (Arg.MType) {
+      case kernel_param_kind_t::kind_accessor: {
+        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+        if (AllocaCmd)
+          Req->MData = AllocaCmd->getMemAllocation();
+        break;
+      }
+      default:
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Unsupported arg type " +
+                                  codeToString(UR_RESULT_ERROR_INVALID_VALUE));
+      }
+    }
+
+    auto &Queue = HostTask->MQueue;
+    auto NativeHostTaskData = std::make_unique<detail::EnqueueHostTaskData>(
+        HostTask->MHostTask->MHostTask);
+    Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), detail::NativeHostTask<true>,
+        NativeHostTaskData.get(), nullptr, RawEvents.size(), RawEvents.data(),
+        Event);
+    (void)NativeHostTaskData.release();
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::EnqueueNativeCommand: {

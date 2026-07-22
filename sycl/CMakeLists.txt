@@ -425,6 +425,7 @@ endif()
 add_custom_target(sycl-compiler
   DEPENDS append-file
           clang
+          dpllvm
           clang-offload-wrapper
           clang-offload-bundler
           clang-offload-deps
@@ -509,6 +510,7 @@ get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONEN
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
      clang
+     dpllvm
      clang-offload-wrapper
      clang-offload-bundler
      clang-offload-deps

@@ -162,9 +162,9 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
   return mapCLErrorToUR(ErrorCode);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
-                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
+                             ur_sampler_info_t propName, size_t propSize,
+                             void *pPropValue, size_t *pPropSizeRet) {
   auto Sampler = cast(hSampler);
   cl_sampler_info SamplerInfo = ur2CLSamplerInfo(propName);
   static_assert(sizeof(cl_addressing_mode) ==
@@ -221,15 +221,13 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urSamplerRetain(ur_sampler_handle_t hSampler) {
+ur_result_t urSamplerRetain(ur_sampler_handle_t hSampler) {
   auto Sampler = cast(hSampler);
   Sampler->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urSamplerRelease(ur_sampler_handle_t hSampler) {
+ur_result_t urSamplerRelease(ur_sampler_handle_t hSampler) {
   auto Sampler = cast(hSampler);
   if (Sampler->RefCount.release()) {
     delete Sampler;
@@ -237,14 +235,14 @@ urSamplerRelease(ur_sampler_handle_t hSampler) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
-    ur_sampler_handle_t hSampler, ur_native_handle_t *phNativeSampler) {
+ur_result_t urSamplerGetNativeHandle(ur_sampler_handle_t hSampler,
+                                     ur_native_handle_t *phNativeSampler) {
   auto Sampler = cast(hSampler);
   *phNativeSampler = reinterpret_cast<ur_native_handle_t>(Sampler->CLSampler);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
+ur_result_t urSamplerCreateWithNativeHandle(
     ur_native_handle_t hNativeSampler, ur_context_handle_t hContext,
     const ur_sampler_native_properties_t *pProperties,
     ur_sampler_handle_t *phSampler) {

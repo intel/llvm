@@ -40,7 +40,7 @@ __attribute__((visibility("protected"), used)) int x;
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=AMDGPU-LINK
 
-// AMDGPU-LINK: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx908.img. --target=amdgcn-amd-amdhsa -mcpu=gfx908 -flto -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// AMDGPU-LINK: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx908.img. --target=amdgcn-amd-amdhsa -mcpu=gfx908 -Wl,--no-undefined {{.*}}.o {{.*}}.o
 
 // RUN: llvm-offload-binary -o %t.out \
 // RUN:   --image=file=%t.amdgpu.bc,kind=openmp,triple=amdgcn-amd-amdhsa,arch=gfx1030 \
@@ -49,7 +49,7 @@ __attribute__((visibility("protected"), used)) int x;
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run --device-compiler=--save-temps \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=AMDGPU-LTO-TEMPS
 
-// AMDGPU-LTO-TEMPS: clang{{.*}} --target=amdgcn-amd-amdhsa -mcpu=gfx1030 -flto {{.*}}-save-temps
+// AMDGPU-LTO-TEMPS: clang{{.*}} --target=amdgcn-amd-amdhsa -mcpu=gfx1030 {{.*}}-save-temps
 
 // RUN: llvm-offload-binary -o %t.out \
 // RUN:   --image=file=%t.spirv.bc,kind=sycl,triple=spirv64-unknown-unknown,arch=generic
@@ -163,7 +163,7 @@ __attribute__((visibility("protected"), used)) int x;
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run --clang-backend \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=CLANG-BACKEND
 
-// CLANG-BACKEND: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx908.img. --target=amdgcn-amd-amdhsa -mcpu=gfx908 -flto -Wl,--no-undefined {{.*}}.o
+// CLANG-BACKEND: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx908.img. --target=amdgcn-amd-amdhsa -mcpu=gfx908 -Wl,--no-undefined {{.*}}.o
 
 // RUN: llvm-offload-binary -o %t.out \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=nvptx64-nvidia-cuda,arch=sm_70
@@ -186,8 +186,24 @@ __attribute__((visibility("protected"), used)) int x;
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
 // RUN:   --linker-path=/usr/bin/ld %t-on.o %t-off.o %t.a -o a.out 2>&1 | FileCheck %s --check-prefix=AMD-TARGET-ID
 
-// AMD-TARGET-ID: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx90a:xnack+.img. --target=amdgcn-amd-amdhsa -mcpu=gfx90a:xnack+ -flto -Wl,--no-undefined {{.*}}.o {{.*}}.o
-// AMD-TARGET-ID: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx90a:xnack-.img. --target=amdgcn-amd-amdhsa -mcpu=gfx90a:xnack- -flto -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// AMD-TARGET-ID: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx90a:xnack+.img. --target=amdgcn-amd-amdhsa -mcpu=gfx90a:xnack+ -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// AMD-TARGET-ID: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx90a:xnack-.img. --target=amdgcn-amd-amdhsa -mcpu=gfx90a:xnack- -Wl,--no-undefined {{.*}}.o {{.*}}.o
+
+// RUN: llvm-offload-binary -o %t-generic.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgcn-amd-amdhsa,arch=gfx90a
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-generic.o -fembed-offload-object=%t-generic.out
+// RUN: llvm-offload-binary -o %t-on.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgcn-amd-amdhsa,arch=gfx90a:xnack+
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-on.o -fembed-offload-object=%t-on.out
+// RUN: llvm-offload-binary -o %t-off.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgcn-amd-amdhsa,arch=gfx90a:xnack-
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-off.o -fembed-offload-object=%t-off.out
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t-on.o %t-off.o %t-generic.o -o a.out 2>&1 | FileCheck %s --check-prefix=AMD-GENERIC-MERGE
+
+// AMD-GENERIC-MERGE-NOT: -mcpu=gfx90a -Wl,--no-undefined
+// AMD-GENERIC-MERGE: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx90a:xnack+.img. --target=amdgcn-amd-amdhsa -mcpu=gfx90a:xnack+ -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// AMD-GENERIC-MERGE: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx90a:xnack-.img. --target=amdgcn-amd-amdhsa -mcpu=gfx90a:xnack- -Wl,--no-undefined {{.*}}.o {{.*}}.o
 
 // RUN: llvm-offload-binary -o %t-lib.out \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgcn-amd-amdhsa,arch=generic
@@ -202,8 +218,65 @@ __attribute__((visibility("protected"), used)) int x;
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
 // RUN:   --linker-path=/usr/bin/ld %t1.o %t2.o %t.a -o a.out 2>&1 | FileCheck %s --check-prefix=ARCH-ALL
 
-// ARCH-ALL: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx90a.img. --target=amdgcn-amd-amdhsa -mcpu=gfx90a -flto -Wl,--no-undefined {{.*}}.o {{.*}}.o
-// ARCH-ALL: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx908.img. --target=amdgcn-amd-amdhsa -mcpu=gfx908 -flto -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// ARCH-ALL: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx90a.img. --target=amdgcn-amd-amdhsa -mcpu=gfx90a -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// ARCH-ALL: clang{{.*}} -o {{.*}}.img -dumpdir a.out.amdgcn.gfx908.img. --target=amdgcn-amd-amdhsa -mcpu=gfx908 -Wl,--no-undefined {{.*}}.o {{.*}}.o
+
+// Two images with the same ISA but different triple spellings (the legacy
+// "amdgcn" alias and the canonical "amdgpu") must merge into a single device
+// link, not produce two separate device images.
+// RUN: llvm-offload-binary -o %t-legacy.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgcn-amd-amdhsa,arch=gfx90a
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-legacy.o -fembed-offload-object=%t-legacy.out
+// RUN: llvm-offload-binary -o %t-canon.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgpu-amd-amdhsa,arch=gfx90a
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-canon.o -fembed-offload-object=%t-canon.out
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t-legacy.o %t-canon.o -o a.out 2>&1 | FileCheck %s --check-prefix=AMDGPU-TRIPLE-MERGE
+
+// AMDGPU-TRIPLE-MERGE: clang{{.*}} --target=amdgcn-amd-amdhsa -mcpu=gfx90a -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// AMDGPU-TRIPLE-MERGE-NOT: clang{{.*}} --target=amdgcn-amd-amdhsa -mcpu=gfx90a -Wl,--no-undefined
+
+// Two images whose triples encode the ISA in the subarch (amdgpu9.0a-amd-amdhsa)
+// and carry no separate arch must merge into a single device link.
+// RUN: llvm-offload-binary -o %t-sub1.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgpu9.0a-amd-amdhsa
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-sub1.o -fembed-offload-object=%t-sub1.out
+// RUN: llvm-offload-binary -o %t-sub2.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgpu9.0a-amd-amdhsa
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-sub2.o -fembed-offload-object=%t-sub2.out
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t-sub1.o %t-sub2.o -o a.out 2>&1 | FileCheck %s --check-prefix=AMDGPU-SUBARCH-MERGE
+
+// AMDGPU-SUBARCH-MERGE: clang{{.*}} --target=amdgpu9.0a-amd-amdhsa -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// AMDGPU-SUBARCH-MERGE-NOT: clang{{.*}} --target=amdgpu9.0a-amd-amdhsa -Wl,--no-undefined
+
+// A major-family subarch triple (amdgpu9-amd-amdhsa) acts as a wildcard that
+// merges into a specific member of that family (amdgpu9.00-amd-amdhsa).
+// RUN: llvm-offload-binary -o %t-specific.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgpu9.00-amd-amdhsa
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-specific.o -fembed-offload-object=%t-specific.out
+// RUN: llvm-offload-binary -o %t-major.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgpu9-amd-amdhsa
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-major.o -fembed-offload-object=%t-major.out
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t-specific.o %t-major.o -o a.out 2>&1 | FileCheck %s --check-prefix=AMDGPU-MAJOR-SUBARCH-MERGE
+
+// AMDGPU-MAJOR-SUBARCH-MERGE: clang{{.*}} --target=amdgpu9.00-amd-amdhsa -Wl,--no-undefined {{.*}}.o {{.*}}.o
+// AMDGPU-MAJOR-SUBARCH-MERGE-NOT: clang{{.*}} --target={{.*}}-amd-amdhsa -Wl,--no-undefined
+
+// Two distinct GPUs in the same major family are not interchangeable and must
+// not merge.
+// RUN: llvm-offload-binary -o %t-gfx900.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgcn-amd-amdhsa,arch=gfx900
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-gfx900.o -fembed-offload-object=%t-gfx900.out
+// RUN: llvm-offload-binary -o %t-gfx906.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=amdgcn-amd-amdhsa,arch=gfx906
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t-gfx906.o -fembed-offload-object=%t-gfx906.out
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t-gfx900.o %t-gfx906.o -o a.out 2>&1 | FileCheck %s --check-prefix=AMDGPU-SAME-MAJOR-NO-MERGE
+
+// AMDGPU-SAME-MAJOR-NO-MERGE-DAG: clang{{.*}} -mcpu=gfx900 -Wl,--no-undefined {{.*}}.o
+// AMDGPU-SAME-MAJOR-NO-MERGE-DAG: clang{{.*}} -mcpu=gfx906 -Wl,--no-undefined {{.*}}.o
 
 // RUN: llvm-offload-binary -o %t.out \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=x86_64-unknown-linux-gnu \

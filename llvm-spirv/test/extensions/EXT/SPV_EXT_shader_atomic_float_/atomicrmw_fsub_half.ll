@@ -11,7 +11,7 @@
 ; CHECK-SPIRV-DAG: Capability AtomicFloat16AddEXT
 ; CHECK-SPIRV: TypeInt [[Int:[0-9]+]] 32 0
 ; CHECK-SPIRV-DAG: Constant [[Int]] [[ScopeCrossDevice:[0-9]+]] 0 {{$}}
-; CHECK-SPIRV-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
+; CHECK-SPIRV-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 528
 ; CHECK-SPIRV: TypeFloat [[Half:[0-9]+]] 16
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[HalfPointer:[0-9]+]]
 ; CHECK-SPIRV: Constant [[Half]] [[HalfValue:[0-9]+]] 15360
