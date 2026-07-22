@@ -28,9 +28,9 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using sycl::ext::oneapi::bfloat16;
 
-constexpr int T = 16;      // MFMA tile M=N=K
-constexpr int TILE = 64;   // work-group output tile (TILE x TILE)
-constexpr int S = 128;     // full square matrix dimension (multiple of TILE)
+constexpr int T = 16;    // MFMA tile M=N=K
+constexpr int TILE = 64; // work-group output tile (TILE x TILE)
+constexpr int S = 128;   // full square matrix dimension (multiple of TILE)
 
 int main() {
   std::vector<float> Alog(S * S), Blog(S * S), Ref(S * S, 0.f);
@@ -68,28 +68,26 @@ int main() {
        accessor accA{bA, h, read_only};
        accessor accB{bB, h, read_only};
        accessor accC{bC, h, write_only};
-       h.parallel_for(
-           nd_range<2>{gws, lws}, [=](nd_item<2> it) {
-             auto sg = it.get_sub_group();
-             const int warpM = it.get_local_id(0);
-             const int warpN = it.get_local_id(1) / 64;
-             const int row = (it.get_group(0) * (TILE / T) + warpM) * T;
-             const int col = (it.get_group(1) * (TILE / T) + warpN) * T;
-             auto pa = accA.template get_multi_ptr<access::decorated::yes>();
-             auto pb = accB.template get_multi_ptr<access::decorated::yes>();
-             auto pc = accC.template get_multi_ptr<access::decorated::yes>();
-             joint_matrix<sub_group, float, use::accumulator, T, T> c;
-             joint_matrix<sub_group, bfloat16, use::a, T, T, layout::row_major> a;
-             joint_matrix<sub_group, bfloat16, use::b, T, T, layout::col_major> b;
-             joint_matrix_fill(sg, c, 0.f);
-             for (int kk = 0; kk < S; kk += T) {
-               joint_matrix_load(sg, a, pa + row * S + kk, S);
-               joint_matrix_load(sg, b, pb + col * S + kk, S);
-               joint_matrix_mad(sg, c, a, b, c);
-             }
-             joint_matrix_store(sg, c, pc + row * S + col, S,
-                                layout::row_major);
-           });
+       h.parallel_for(nd_range<2>{gws, lws}, [=](nd_item<2> it) {
+         auto sg = it.get_sub_group();
+         const int warpM = it.get_local_id(0);
+         const int warpN = it.get_local_id(1) / 64;
+         const int row = (it.get_group(0) * (TILE / T) + warpM) * T;
+         const int col = (it.get_group(1) * (TILE / T) + warpN) * T;
+         auto pa = accA.template get_multi_ptr<access::decorated::yes>();
+         auto pb = accB.template get_multi_ptr<access::decorated::yes>();
+         auto pc = accC.template get_multi_ptr<access::decorated::yes>();
+         joint_matrix<sub_group, float, use::accumulator, T, T> c;
+         joint_matrix<sub_group, bfloat16, use::a, T, T, layout::row_major> a;
+         joint_matrix<sub_group, bfloat16, use::b, T, T, layout::col_major> b;
+         joint_matrix_fill(sg, c, 0.f);
+         for (int kk = 0; kk < S; kk += T) {
+           joint_matrix_load(sg, a, pa + row * S + kk, S);
+           joint_matrix_load(sg, b, pb + col * S + kk, S);
+           joint_matrix_mad(sg, c, a, b, c);
+         }
+         joint_matrix_store(sg, c, pc + row * S + col, S, layout::row_major);
+       });
      }).wait();
   }
 
