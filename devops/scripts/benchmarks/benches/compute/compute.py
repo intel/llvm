@@ -159,6 +159,13 @@ class ComputeBench(Suite):
             [5, 100],  # num_kernels
         )
         for runtime, with_graphs, num_kernels in sin_kernel_graph_params:
+            if (
+                (options.ur_adapter != "level_zero_v2")
+                and (runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW)
+                and (with_graphs == 1)
+            ):
+                # old adapter doesn't support graph mode for SYCL
+                continue
             benches.append(
                 GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
             )
