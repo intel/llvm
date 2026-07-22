@@ -26,6 +26,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   RootGroup.cpp
   USMPrefetch.cpp
   RegisterHostMemory.cpp
+  ReusableEvents.cpp
 )
 
 add_subdirectory(BindlessImages)
@@ -38,3 +39,4 @@ add_subdirectory(KernelQueries)
 add_subdirectory(InterProcessCommunication)
 add_subdirectory(DeviceIndex)
 add_subdirectory(fp8)
+add_subdirectory(fp4)

@@ -65,7 +65,7 @@ runs:
         OIDN_DIR_INPUT: ${{ inputs.oidn_dir }}
         SYCL_DIR_INPUT: ${{ inputs.sycl_dir }}
       run: |
-       unzip -q D:\\github\\blender_5_1_0_source.zip -d .
+       unzip -q D:\\github\\blender_5_2_0_source.zip -d .
        mv blender blender-src
        # Work around CMake issue using preinstalled Embree/OIDN.
        cp -RT "$EMBREE_DIR_INPUT" "blender-src/lib/windows_x64/embree"

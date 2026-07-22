@@ -74,7 +74,7 @@ public:
   ///
   /// \param DeviceId is OpenCL device represented with cl_device_id
 #ifdef __SYCL_INTERNAL_API
-  explicit device(cl_device_id DeviceId);
+  explicit device(OpenCLDeviceIdT DeviceId);
 #endif
 
   /// Constructs a SYCL device instance using the device selected
@@ -101,10 +101,19 @@ public:
   explicit device(const DeviceSelector &deviceSelector)
       : device(detail::select_device(deviceSelector)) {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const device &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const device &lhs, const device &rhs) {
+    return rhs.impl == lhs.impl;
+  }
 
+  friend bool operator!=(const device &lhs, const device &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   device(const device &rhs);
 
   device(device &&rhs);
@@ -125,7 +134,7 @@ public:
   /// \return a valid cl_device_id instance in accordance with the requirements
   /// described in 4.3.1.
 #ifdef __SYCL_INTERNAL_API
-  cl_device_id get() const;
+  OpenCLDeviceIdT get() const;
 #endif
 
   /// Check if device is a CPU device

@@ -11,6 +11,7 @@
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
+#include <CL/cl.h>
 #include <iostream>
 
 #include <sycl/detail/core.hpp>

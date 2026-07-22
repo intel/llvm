@@ -57,7 +57,7 @@ public:
   /// \param ClEvent is a valid instance of OpenCL cl_event.
   /// \param SyclContext is an instance of SYCL context.
 #ifdef __SYCL_INTERNAL_API
-  event(cl_event ClEvent, const context &SyclContext);
+  event(OpenCLEventT ClEvent, const context &SyclContext);
 #endif
 
   event(const event &rhs) = default;
@@ -68,9 +68,19 @@ public:
 
   event &operator=(event &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const event &rhs) const;
 
   bool operator!=(const event &rhs) const;
+#else
+  friend bool operator==(const event &lhs, const event &rhs) {
+    return rhs.impl == lhs.impl;
+  }
+
+  friend bool operator!=(const event &lhs, const event &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Return the list of events that this event waits for.
   ///
@@ -136,6 +146,10 @@ public:
   ///
   /// \return the backend associated with this platform
   backend get_backend() const noexcept;
+
+  /// Returns true if the event was created with inter-process sharing
+  /// enabled.
+  bool ext_oneapi_ipc_enabled() const noexcept;
 
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);

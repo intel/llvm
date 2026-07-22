@@ -2206,6 +2206,24 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
   case UR_RESULT_ERROR_INVALID_GRAPH:
     os << "UR_RESULT_ERROR_INVALID_GRAPH";
     break;
+  case UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED:
+    os << "UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED";
+    break;
+  case UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED:
+    os << "UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED";
+    break;
+  case UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT:
+    os << "UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT";
+    break;
+  case UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING:
+    os << "UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING";
+    break;
+  case UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS:
+    os << "UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS";
+    break;
+  case UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT:
+    os << "UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT";
+    break;
   case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
     os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
     break;
@@ -3399,6 +3417,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
@@ -5782,6 +5803,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
