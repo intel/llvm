@@ -3,6 +3,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <algorithm>
 #include <array>
 #include <unordered_map>
 
@@ -2696,10 +2697,10 @@ TEST_P(urDeviceGetInfoTest, SuccessLuid) {
   ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
                                  property_value.data(), nullptr));
 
-  std::array<unsigned char, 8> returned_value{};
-  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
-                                 returned_value.data(), nullptr));
-  ASSERT_EQ(property_value, returned_value);
+  const bool is_all_zeros =
+      std::all_of(property_value.begin(), property_value.end(),
+                  [](unsigned char value) { return value == 0; });
+  ASSERT_FALSE(is_all_zeros);
 }
 
 TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
@@ -2712,10 +2713,9 @@ TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
   ASSERT_EQ(property_size, sizeof(uint32_t));
 
   uint32_t property_value = 0;
-  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
-                                             property_size, &property_value,
-                                             nullptr),
-                             property_value);
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+  ASSERT_NE(property_value, 0u);
 }
 
 TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
