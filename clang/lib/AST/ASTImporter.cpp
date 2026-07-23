@@ -1854,6 +1854,11 @@ ASTNodeImporter::VisitCountAttributedType(const CountAttributedType *T) {
       ArrayRef(CoupledDecls));
 }
 
+ExpectedType
+ASTNodeImporter::VisitLateParsedAttrType(const LateParsedAttrType *T) {
+  llvm_unreachable("should be replaced with a concrete type before AST import");
+}
+
 ExpectedType ASTNodeImporter::VisitTemplateTypeParmType(
     const TemplateTypeParmType *T) {
   Expected<TemplateTypeParmDecl *> ToDeclOrErr = import(T->getDecl());

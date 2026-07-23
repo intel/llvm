@@ -2621,8 +2621,7 @@ def ffp_builtin_accuracy_EQ : Joined<["-"], "ffp-builtin-accuracy=">, Group<f_Gr
 defm fast_math : BoolFOption<"fast-math",
   LangOpts<"FastMath">, Default<hlsl.KeyPath>,
   PosFlag<SetTrue, [], [ClangOption, CC1Option, ClangOption, CLOption, DXCOption, FC1Option, FlangOption],
-          "Allow aggressive, lossy floating-point optimizations",
-          [cl_fast_relaxed_math.KeyPath]>,
+          "Allow aggressive, lossy floating-point optimizations">,
   NegFlag<SetFalse, [], [ClangOption, CC1Option, FC1Option, FlangOption]>>;
 defm math_errno : BoolFOption<"math-errno",
   LangOpts<"MathErrno">, DefaultFalse,
@@ -3572,6 +3571,11 @@ def clangir_enable_idiom_recognizer : Flag<["-"], "clangir-enable-idiom-recogniz
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"ClangIR: Enable Idiom Recognizer pass">,
   MarshallingInfoFlag<FrontendOpts<"ClangIREnableIdiomRecognizer">>;
+
+def clangir_enable_call_conv_lowering : Flag<["-"], "clangir-enable-call-conv-lowering">,
+  Visibility<[ClangOption, CC1Option]>,
+  HelpText<"ClangIR: Enable calling-convention lowering pass (x86_64 only)">,
+  MarshallingInfoFlag<FrontendOpts<"ClangIREnableCallConvLowering">>;
 
 def clangir_lib_opt_EQ : Joined<["-"], "clangir-lib-opt=">,
   Visibility<[ClangOption, CC1Option]>, Group<f_Group>, Values<"all">,
@@ -10435,6 +10439,9 @@ def dxc_gis : DXCFlag<"Gis">,
 def : Option<["/", "-"], "Qembed_debug", KIND_FLAG>, Group<dxc_Group>,
   Flags<[Ignored]>, Visibility<[DXCOption]>,
   HelpText<"Embed PDB in shader container (ignored)">;
+def dxc_Qpdb_in_private : DXCFlag<"Qpdb_in_private">,
+                          Flags<[HelpHidden]>,
+                          HelpText<"Store PDB in private user data">;
 def spirv : DXCFlag<"spirv">,
   HelpText<"Generate SPIR-V code">;
 def metal : DXCFlag<"metal">, HelpText<"Generate Metal library">;
