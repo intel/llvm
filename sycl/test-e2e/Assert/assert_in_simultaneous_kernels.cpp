@@ -1,7 +1,5 @@
 // REQUIRES: linux
-// FIXME: Flaky on HIP and cuda
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
+// FIXME: Flaky on cuda
 // UNSUPPORTED: cuda
 // RUN: %{build} -o %t.out %threads_lib
 //

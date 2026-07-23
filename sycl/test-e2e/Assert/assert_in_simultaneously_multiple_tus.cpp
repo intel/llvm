@@ -1,8 +1,5 @@
-// FIXME flaky fail on CUDA and HIP
+// FIXME flaky fail on CUDA
 // UNSUPPORTED: cuda
-//
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 //
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
