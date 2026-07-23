@@ -210,7 +210,7 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
     }
     NewCB->setCallingConv(CB->getCallingConv());
     NewCB->setAttributes(PAL);
-    NewCB->copyMetadata(*CB, {LLVMContext::MD_prof, LLVMContext::MD_dbg});
+    NewCB->copyProfileAndDebugMetadata(*CB);
 
     Args.clear();
 
@@ -1035,7 +1035,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
     }
     NewCB->setCallingConv(CB.getCallingConv());
     NewCB->setAttributes(NewCallPAL);
-    NewCB->copyMetadata(CB, {LLVMContext::MD_prof, LLVMContext::MD_dbg});
+    NewCB->copyProfileAndDebugMetadata(CB);
     Args.clear();
     ArgAttrVec.clear();
 
