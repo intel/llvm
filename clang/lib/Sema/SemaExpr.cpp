@@ -237,6 +237,27 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
           ExprEvalContexts.empty() ||
           (!isUnevaluatedContext() && !isConstantEvaluatedContext());
       bool IsEsimdPrivateGlobal = SYCL().isSYCLEsimdPrivateGlobal(VD);
+      // Allowlist reads of specific MSVC STL runtime globals from device
+      // code. The MSVC STL reads globals like `std::__isa_available` from
+      // inline functions in <bit>, <vector>, <complex>, etc., which get
+      // pulled into SYCL device TUs. Without this exception, the
+      // non-const-global check below would reject those reads. SYCL's
+      // stl_wrappers provide device-side definitions of these globals.
+      // Mirrors the `isMsvcMathFn` allowlist below, which does the same for
+      // MSVC STL runtime function calls.
+      auto isMsvcSTLGlobalVar = [&](const VarDecl *VD) {
+        auto *AuxInfo = Context.getAuxTargetInfo();
+        if (!AuxInfo || !AuxInfo->getTriple().isWindowsMSVCEnvironment())
+          return false;
+        if (!VD->isInStdNamespace())
+          return false;
+        const IdentifierInfo *Id = VD->getIdentifier();
+        if (!Id)
+          return false;
+        return llvm::StringSwitch<bool>(Id->getName())
+            .Case("__isa_available", true)
+            .Default(false);
+      };
       // Non-const statics are not allowed in SYCL except for ESIMD or with the
       // SYCLGlobalVar or SYCLGlobalVariableAllowed attribute.
       if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&
@@ -255,7 +276,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                !SemaSYCL::isTypeDecoratedWithDeclAttribute<
                    SYCLGlobalVariableAllowedAttr>(VD->getType()) &&
                !SemaSYCL::isTypeDecoratedWithDeclAttribute<SYCLScopeAttr>(
-                   VD->getType()))
+                   VD->getType()) &&
+               !isMsvcSTLGlobalVar(VD))
         SYCL().DiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << SemaSYCL::KernelGlobalVariable;
       // ESIMD globals cannot be used in a SYCL context.
