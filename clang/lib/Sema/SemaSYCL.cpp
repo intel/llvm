@@ -5320,10 +5320,14 @@ buildFreeFunctionPropertyAttr(SemaSYCL &S,
   llvm::SmallVector<Expr *, 4> KeptNames;
   llvm::SmallVector<Expr *, 4> KeptValues;
   for (size_t I = 0; I < NumPairs; ++I) {
+    std::optional<std::string> PropName =
+        SYCLAddIRAttributesFunctionAttr::getValidAttributeNameAsString(Names[I],
+                                                                       Context);
     // Keep pairs whose name cannot be evaluated as-is; only filter out the
-    // known free-function-kernel-kind markers.
-    if (PropName && (*PropName == "sycl-nd-range-kernel" ||
-                     *PropName == "sycl-single-task-kernel"))
+    // known free-function-kernel-kind markers. Comparing the optional directly
+    // yields false when the name could not be evaluated (nullopt).
+    if (PropName == "sycl-nd-range-kernel" ||
+        PropName == "sycl-single-task-kernel")
       continue;
     KeptNames.push_back(Names[I]);
     KeptValues.push_back(Values[I]);
