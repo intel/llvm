@@ -999,6 +999,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP: {
+    int MemPoolsSupported =
+        getAttribute(hDevice, hipDeviceAttributeMemoryPoolsSupported);
+    return ReturnValue(static_cast<ur_bool_t>(MemPoolsSupported));
+  }
   case UR_DEVICE_INFO_IL_VERSION:
     return ReturnValue("");
 
