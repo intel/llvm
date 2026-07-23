@@ -83,6 +83,11 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 8, 32, 4)
 
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 16, 4, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 32, 2, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 2, 32, 1)
+
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 16, 1)
 
@@ -90,6 +95,13 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 8, 32, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
+
+// gfx942 (CDNA3) int8 MFMA uses larger K dimensions with packed operands:
+// 16x16x32 and 32x32x16. Each work-item holds 8 int8 values (one i64).
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 32, 8)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
@@ -117,8 +129,11 @@ void load_accumulator_layoutT(
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
-  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                   sg.get_local_linear_id();
+  // The fragment lane index is the work-item's position within its own
+  // sub-group (0 .. sub_group_size-1). It must NOT include the sub-group's
+  // index within the work-group, otherwise kernels that launch more than one
+  // sub-group per work-group compute out-of-range element offsets.
+  const auto idx = sg.get_local_linear_id();
 
   if constexpr (std::is_same_v<S, double>) {
     const auto thread_x = idx % N;
@@ -211,33 +226,52 @@ template <
 void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
                            multi_ptr<T, Space, IsDecorated> src, size_t stride,
                            Group &sg) {
-  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                   sg.get_local_linear_id();
+  // The fragment lane index is the work-item's position within its own
+  // sub-group (0 .. sub_group_size-1). It must NOT include the sub-group's
+  // index within the work-group, otherwise kernels that launch more than one
+  // sub-group per work-group compute out-of-range element offsets.
+  const auto idx = sg.get_local_linear_id();
 
-  if constexpr (std::is_same_v<S, double>) {
-    if constexpr (Layout ==
-                  sycl::ext::oneapi::experimental::matrix::layout::row_major) {
-      res.wi_marray[0] = src[idx];
-    } else {
-      res.wi_marray[0] = src[(idx % M) * stride + idx / M];
+  // The AMD MFMA fragment layout is described in terms of the matrix's "free"
+  // dimension (rows M for the A multiplicand, columns N for the B multiplicand)
+  // and the shared contraction dimension K. Whether the free dimension is the
+  // strided one in memory depends on BOTH the use and the layout:
+  //   - A row_major: element (m,k) at m*stride + k -> free dim (m) is strided.
+  //   - A col_major: element (m,k) at k*stride + m -> free dim (m) is contiguous.
+  //   - B row_major: element (k,n) at k*stride + n -> free dim (n) is contiguous.
+  //   - B col_major: element (k,n) at n*stride + k -> free dim (n) is strided.
+  // So the strided-free-dim access pattern applies to (A, row_major) and
+  // (B, col_major); the contiguous-free-dim pattern applies to (A, col_major)
+  // and (B, row_major). Selecting the pattern from this combined condition
+  // (rather than from the layout alone) makes both layouts behave correctly for
+  // the A multiplicand, which previously loaded A transposed for row_major.
+  constexpr bool StridedFreeDim =
+      (Use == sycl::ext::oneapi::experimental::matrix::use::a)
+          ? (Layout ==
+             sycl::ext::oneapi::experimental::matrix::layout::row_major)
+          : (Layout ==
+             sycl::ext::oneapi::experimental::matrix::layout::col_major);
+
+  // Free dimension: M for the A multiplicand, N for the B multiplicand. The
+  // wavefront is split into (WAVEFRONT_SIZE / FreeDim) groups along the
+  // contraction dimension K, and each work-item holds one contiguous K-block of
+  // `Size` elements (Size == 1 for the double shapes).
+  constexpr int FreeDim =
+      (Use == sycl::ext::oneapi::experimental::matrix::use::a) ? M : N;
+  constexpr int Size = (M * N) / WAVEFRONT_SIZE;
+
+  const auto thread_x = idx % FreeDim;
+  const auto thread_y = idx / FreeDim;
+
+  if constexpr (StridedFreeDim) {
+    for (int i = 0; i < Size; ++i) {
+      const int c_idx = thread_x * stride + i + thread_y * Size;
+      res.wi_marray[i] = src[c_idx];
     }
   } else {
-    constexpr int Dim = (M == 16) ? 16 : 32;
-
-    const auto thread_x = idx % Dim;
-    const auto thread_y = idx / Dim;
-
-    if constexpr (Layout ==
-                  sycl::ext::oneapi::experimental::matrix::layout::col_major) {
-      for (int i = 0; i < 4; ++i) {
-        const int c_idx = thread_x * stride + i + thread_y * 4;
-        res.wi_marray[i] = src[c_idx];
-      }
-    } else {
-      for (int i = 0; i < 4; ++i) {
-        const int r_idx = thread_x + i * stride + thread_y * stride * 4;
-        res.wi_marray[i] = src[r_idx];
-      }
+    for (int i = 0; i < Size; ++i) {
+      const int r_idx = thread_x + i * stride + thread_y * stride * Size;
+      res.wi_marray[i] = src[r_idx];
     }
   }
 }
@@ -251,8 +285,11 @@ void store_layoutT(
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group &sg) {
-  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                   sg.get_local_linear_id();
+  // The fragment lane index is the work-item's position within its own
+  // sub-group (0 .. sub_group_size-1). It must NOT include the sub-group's
+  // index within the work-group, otherwise kernels that launch more than one
+  // sub-group per work-group compute out-of-range element offsets.
+  const auto idx = sg.get_local_linear_id();
 
   if constexpr (std::is_same_v<T, double>) {
     const auto thread_x = idx % N;
@@ -345,8 +382,23 @@ void joint_matrix_mad_hip(
     const joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
-#ifdef __gfx90a__
-  if constexpr (std::is_same_v<Tm, sycl::half>) {
+#if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||       \
+    defined(__gfx942__)
+  if constexpr (std::is_same_v<Tm, float>) {
+    // The one-block F32 MFMA shapes (16x16x4 and 32x32x2) are available on all
+    // supported CDNA parts (gfx90a/CDNA2 and gfx94x/CDNA3).
+    if constexpr (M == 16 && N == 16) {
+      auto result = __builtin_amdgcn_mfma_f32_16x16x4f32(
+          A.wi_marray[0], B.wi_marray[0],
+          *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
+    } else if constexpr (M == 32 && N == 32) {
+      auto result = __builtin_amdgcn_mfma_f32_32x32x2f32(
+          A.wi_marray[0], B.wi_marray[0],
+          *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
+    }
+  } else if constexpr (std::is_same_v<Tm, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
           *reinterpret_cast<const float16x4 *>(&A.wi_marray),
@@ -382,6 +434,25 @@ void joint_matrix_mad_hip(
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(double));
     }
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    // CDNA3 (gfx942) int8 MFMA: 16x16x32 / 32x32x16 with packed i64 operands
+    // (8 int8 values per work-item).
+    if constexpr (M == 16 && N == 16) {
+      auto result = __builtin_amdgcn_mfma_i32_16x16x32_i8(
+          *reinterpret_cast<const int64_t *>(&A.wi_marray),
+          *reinterpret_cast<const int64_t *>(&B.wi_marray),
+          *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(int32_t));
+    } else if constexpr (M == 32 && N == 32) {
+      auto result = __builtin_amdgcn_mfma_i32_32x32x16_i8(
+          *reinterpret_cast<const int64_t *>(&A.wi_marray),
+          *reinterpret_cast<const int64_t *>(&B.wi_marray),
+          *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
+    }
+#else
+    // CDNA2 (gfx90a) int8 MFMA: 16x16x16 / 32x32x8 with i32 operands
+    // (4 int8 values per work-item).
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_i32_16x16x16i8(
           *reinterpret_cast<const Tc *>(&A.wi_marray),
@@ -395,8 +466,9 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
     }
+#endif
   }
-#endif // __gfx90a__
+#endif // __gfx90a__ || __gfx942__
 }
 
 } // namespace detail
