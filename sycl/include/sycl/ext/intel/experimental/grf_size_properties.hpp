@@ -53,21 +53,6 @@ struct PropertyMetaInfo<
   static constexpr unsigned int value = 0;
 };
 
-template <unsigned int Size>
-struct FunctionPropertyMetaInfo<
-    sycl::ext::intel::experimental::grf_size_key::value_t<Size>> {
-  static_assert(Size == 128 || Size == 256 || Size == 512,
-                "Unsupported GRF size");
-  static constexpr const char *name = "sycl-grf-size";
-  static constexpr unsigned int value = Size;
-};
-template <>
-struct FunctionPropertyMetaInfo<
-    sycl::ext::intel::experimental::grf_size_automatic_key::value_t> {
-  static constexpr const char *name = "sycl-grf-size";
-  static constexpr unsigned int value = 0;
-};
-
 template <typename Properties>
 struct ConflictingProperties<sycl::ext::intel::experimental::grf_size_key,
                              Properties>
