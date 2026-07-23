@@ -65,13 +65,13 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
   void TearDown() override {
     if (queue) {
-      EXPECT_SUCCESS(urQueueRelease(queue));
+      ASSERT_SUCCESS(urQueueRelease(queue));
     }
     if (kernel) {
-      EXPECT_SUCCESS(urKernelRelease(kernel));
+      ASSERT_SUCCESS(urKernelRelease(kernel));
     }
     if (program) {
-      EXPECT_SUCCESS(urProgramRelease(program));
+      ASSERT_SUCCESS(urProgramRelease(program));
     }
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urContextTestWithParam<ur_queue_flag_t>::TearDown());
@@ -129,9 +129,9 @@ struct urEnqueueUSMOperationsOrderingIOQTest
                               allocation_size, ptr);
     };
 
-    ASSERT_SUCCESS(alloc_one(&values1));
-    ASSERT_SUCCESS(alloc_one(&values2));
-    ASSERT_SUCCESS(alloc_one(&values3));
+    EXPECT_SUCCESS(alloc_one(&values1));
+    EXPECT_SUCCESS(alloc_one(&values2));
+    EXPECT_SUCCESS(alloc_one(&values3));
 
     std::vector<uint32_t> input(array_size);
     std::iota(input.begin(), input.end(), 0u);
@@ -144,16 +144,16 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     const uint8_t zero_pattern = 0;
     const uint8_t one_pattern = 0x01;
 
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values1, input.data(),
-                                      allocation_size, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2, values1,
-                                      allocation_size, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, values2,
-                                      allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values1, input.data(),
+                      allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2, values1,
+                      allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, values2,
+                      allocation_size, 0, nullptr, nullptr));
 
-    ASSERT_SUCCESS(urEnqueueUSMFill(queue, values1, sizeof(zero_pattern),
-                                    &zero_pattern, allocation_size, 0, nullptr,
-                                    nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMFill(queue, values1, sizeof(zero_pattern),
+                    &zero_pattern, allocation_size, 0,
+                    nullptr, nullptr));
 
     auto ptr_arg = [](const void *ptr, uint32_t index) {
       ur_exp_kernel_arg_value_t val = {};
@@ -169,63 +169,64 @@ struct urEnqueueUSMOperationsOrderingIOQTest
       return arg;
     };
 
-    const size_t global_offset = 0;
+    const size_t global_offset[] = {0};
+    const size_t global_size[] = {array_size};
 
     {
       ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values3, 0),
                                                ptr_arg(values1, 1)};
-      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, &global_offset, &array_size, nullptr, 2, args,
+        EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
           nullptr, 0, nullptr, nullptr));
     }
 
     {
       ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1, 0),
                                                ptr_arg(values2, 1)};
-      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, &global_offset, &array_size, nullptr, 2, args,
+      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
           nullptr, 0, nullptr, nullptr));
     }
 
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values2,
-                                      allocation_size, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, tmp.data(),
-                                      allocation_size, 0, nullptr, nullptr));
+        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values2,
+                  allocation_size, 0, nullptr, nullptr));
+        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, tmp.data(),
+                  allocation_size, 0, nullptr, nullptr));
 
     {
       ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values3, 0),
                                                ptr_arg(values1, 1)};
-      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, &global_offset, &array_size, nullptr, 2, args,
+      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
           nullptr, 0, nullptr, nullptr));
     }
 
-    ASSERT_SUCCESS(urEnqueueUSMFill(queue, values2, sizeof(one_pattern),
-                                    &one_pattern, allocation_size, 0, nullptr,
-                                    nullptr));
+        EXPECT_SUCCESS(urEnqueueUSMFill(queue, values2, sizeof(one_pattern),
+                &one_pattern, allocation_size, 0,
+                nullptr, nullptr));
 
     {
       ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1, 0),
                                                ptr_arg(values2, 1)};
-      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, &global_offset, &array_size, nullptr, 2, args,
+      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
           nullptr, 0, nullptr, nullptr));
     }
 
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out1.data(), values1,
-                                      allocation_size, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out2.data(), values2,
-                                      allocation_size, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out3.data(), values3,
-                                      allocation_size, 0, nullptr, nullptr));
+        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out1.data(), values1,
+                  allocation_size, 0, nullptr, nullptr));
+        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out2.data(), values2,
+                  allocation_size, 0, nullptr, nullptr));
+        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out3.data(), values3,
+                  allocation_size, 0, nullptr, nullptr));
 
-    ASSERT_SUCCESS(urQueueFinish(queue));
+        EXPECT_SUCCESS(urQueueFinish(queue));
 
     for (size_t i = 0; i < array_size; ++i) {
       const uint32_t base = static_cast<uint32_t>(i);
-      ASSERT_EQ(out1[i], base * 8u);
-      ASSERT_EQ(out2[i], base * 16u);
-      ASSERT_EQ(out3[i], base * 4u);
+      EXPECT_EQ(out1[i], base * 8u);
+      EXPECT_EQ(out2[i], base * 16u);
+      EXPECT_EQ(out3[i], base * 4u);
     }
 
     EXPECT_SUCCESS(urUSMFree(context, values1));
