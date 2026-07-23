@@ -13,30 +13,47 @@ extern void varargs_simple(int, ...);
 // CHECK-NEXT:    [[F:%.*]] = alloca float, align 4
 // CHECK-NEXT:    [[D:%.*]] = alloca double, align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_ANON:%.*]], align 4
+// CHECK-NEXT:    [[BYVAL_TEMP:%.*]] = alloca [[STRUCT_ANON]], align 4
 // CHECK-NEXT:    [[V:%.*]] = alloca <4 x i32>, align 16
 // CHECK-NEXT:    [[T:%.*]] = alloca [[STRUCT_ANON_0:%.*]], align 1
-// CHECK-NEXT:    store i8 1, ptr [[C]], align 1
-// CHECK-NEXT:    store i16 1, ptr [[S]], align 2
-// CHECK-NEXT:    store i32 1, ptr [[I]], align 4
-// CHECK-NEXT:    store i64 1, ptr [[L]], align 8
-// CHECK-NEXT:    store float 1.000000e+00, ptr [[F]], align 4
-// CHECK-NEXT:    store double 1.000000e+00, ptr [[D]], align 8
-// CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[C]], align 1
+// CHECK-NEXT:    [[BYVAL_TEMP3:%.*]] = alloca [[STRUCT_ANON_0]], align 1
+// CHECK-NEXT:    [[BYVAL_TEMP4:%.*]] = alloca [[STRUCT_ANON_0]], align 1
+// CHECK-NEXT:    [[BYVAL_TEMP5:%.*]] = alloca [[STRUCT_ANON_0]], align 1
+// CHECK-NEXT:    [[C_ASCAST:%.*]] = addrspacecast ptr [[C]] to ptr addrspace(4)
+// CHECK-NEXT:    [[S_ASCAST:%.*]] = addrspacecast ptr [[S]] to ptr addrspace(4)
+// CHECK-NEXT:    [[I_ASCAST:%.*]] = addrspacecast ptr [[I]] to ptr addrspace(4)
+// CHECK-NEXT:    [[L_ASCAST:%.*]] = addrspacecast ptr [[L]] to ptr addrspace(4)
+// CHECK-NEXT:    [[F_ASCAST:%.*]] = addrspacecast ptr [[F]] to ptr addrspace(4)
+// CHECK-NEXT:    [[D_ASCAST:%.*]] = addrspacecast ptr [[D]] to ptr addrspace(4)
+// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
+// CHECK-NEXT:    [[V_ASCAST:%.*]] = addrspacecast ptr [[V]] to ptr addrspace(4)
+// CHECK-NEXT:    [[T_ASCAST:%.*]] = addrspacecast ptr [[T]] to ptr addrspace(4)
+// CHECK-NEXT:    store i8 1, ptr addrspace(4) [[C_ASCAST]], align 1
+// CHECK-NEXT:    store i16 1, ptr addrspace(4) [[S_ASCAST]], align 2
+// CHECK-NEXT:    store i32 1, ptr addrspace(4) [[I_ASCAST]], align 4
+// CHECK-NEXT:    store i64 1, ptr addrspace(4) [[L_ASCAST]], align 8
+// CHECK-NEXT:    store float 1.000000e+00, ptr addrspace(4) [[F_ASCAST]], align 4
+// CHECK-NEXT:    store double 1.000000e+00, ptr addrspace(4) [[D_ASCAST]], align 8
+// CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr addrspace(4) [[C_ASCAST]], align 1
 // CHECK-NEXT:    [[CONV:%.*]] = sext i8 [[TMP0]] to i32
-// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[S]], align 2
+// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr addrspace(4) [[S_ASCAST]], align 2
 // CHECK-NEXT:    [[CONV1:%.*]] = sext i16 [[TMP1]] to i32
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[I]], align 4
-// CHECK-NEXT:    [[TMP3:%.*]] = load i64, ptr [[L]], align 8
-// CHECK-NEXT:    [[TMP4:%.*]] = load float, ptr [[F]], align 4
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[I_ASCAST]], align 4
+// CHECK-NEXT:    [[TMP3:%.*]] = load i64, ptr addrspace(4) [[L_ASCAST]], align 8
+// CHECK-NEXT:    [[TMP4:%.*]] = load float, ptr addrspace(4) [[F_ASCAST]], align 4
 // CHECK-NEXT:    [[CONV2:%.*]] = fpext float [[TMP4]] to double
-// CHECK-NEXT:    [[TMP5:%.*]] = load double, ptr [[D]], align 8
+// CHECK-NEXT:    [[TMP5:%.*]] = load double, ptr addrspace(4) [[D_ASCAST]], align 8
 // CHECK-NEXT:    call spir_func void (i32, ...) @varargs_simple(i32 noundef 0, i32 noundef [[CONV]], i32 noundef [[CONV1]], i32 noundef [[TMP2]], i64 noundef [[TMP3]], double noundef [[CONV2]], double noundef [[TMP5]])
-// CHECK-NEXT:    call void @llvm.memcpy.p0.p1.i64(ptr align 4 [[A]], ptr addrspace(1) align 4 @__const.foo.a, i64 12, i1 false)
-// CHECK-NEXT:    call spir_func void (i32, ...) @varargs_simple(i32 noundef 0, ptr noundef byval([[STRUCT_ANON]]) align 4 [[A]])
-// CHECK-NEXT:    store <4 x i32> splat (i32 1), ptr [[V]], align 16
-// CHECK-NEXT:    [[TMP6:%.*]] = load <4 x i32>, ptr [[V]], align 16
+// CHECK-NEXT:    call void @llvm.memcpy.p4.p1.i64(ptr addrspace(4) align 4 [[A_ASCAST]], ptr addrspace(1) align 4 @__const.foo.a, i64 12, i1 false)
+// CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr align 4 [[BYVAL_TEMP]], ptr addrspace(4) align 4 [[A_ASCAST]], i64 12, i1 false)
+// CHECK-NEXT:    call spir_func void (i32, ...) @varargs_simple(i32 noundef 0, ptr noundef byval([[STRUCT_ANON]]) align 4 [[BYVAL_TEMP]])
+// CHECK-NEXT:    store <4 x i32> splat (i32 1), ptr addrspace(4) [[V_ASCAST]], align 16
+// CHECK-NEXT:    [[TMP6:%.*]] = load <4 x i32>, ptr addrspace(4) [[V_ASCAST]], align 16
 // CHECK-NEXT:    call spir_func void (i32, ...) @varargs_simple(i32 noundef 0, <4 x i32> noundef [[TMP6]])
-// CHECK-NEXT:    call spir_func void (i32, ...) @varargs_simple(i32 noundef 0, ptr noundef byval([[STRUCT_ANON_0]]) align 1 [[T]], ptr noundef byval([[STRUCT_ANON_0]]) align 1 [[T]], i32 noundef 0, ptr noundef byval([[STRUCT_ANON_0]]) align 1 [[T]])
+// CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr align 1 [[BYVAL_TEMP3]], ptr addrspace(4) align 1 [[T_ASCAST]], i64 2, i1 false)
+// CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr align 1 [[BYVAL_TEMP4]], ptr addrspace(4) align 1 [[T_ASCAST]], i64 2, i1 false)
+// CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr align 1 [[BYVAL_TEMP5]], ptr addrspace(4) align 1 [[T_ASCAST]], i64 2, i1 false)
+// CHECK-NEXT:    call spir_func void (i32, ...) @varargs_simple(i32 noundef 0, ptr noundef byval([[STRUCT_ANON_0]]) align 1 [[BYVAL_TEMP3]], ptr noundef byval([[STRUCT_ANON_0]]) align 1 [[BYVAL_TEMP4]], i32 noundef 0, ptr noundef byval([[STRUCT_ANON_0]]) align 1 [[BYVAL_TEMP5]])
 // CHECK-NEXT:    ret void
 //
 void foo() {
@@ -66,8 +83,13 @@ extern void varargs_complex(S, S, ...);
 // CHECK-SAME: ) #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[S:%.*]] = alloca [[STRUCT_S:%.*]], align 8
-// CHECK-NEXT:    call void @llvm.memcpy.p0.p1.i64(ptr align 8 [[S]], ptr addrspace(1) align 8 @__const.bar.s, i64 16, i1 false)
-// CHECK-NEXT:    call spir_func void (ptr, ptr, ...) @varargs_complex(ptr noundef byval([[STRUCT_S]]) align 8 [[S]], ptr noundef byval([[STRUCT_S]]) align 8 [[S]], i32 noundef 1, i64 noundef 1, double noundef 1.000000e+00)
+// CHECK-NEXT:    [[BYVAL_TEMP:%.*]] = alloca [[STRUCT_S]], align 8
+// CHECK-NEXT:    [[BYVAL_TEMP1:%.*]] = alloca [[STRUCT_S]], align 8
+// CHECK-NEXT:    [[S_ASCAST:%.*]] = addrspacecast ptr [[S]] to ptr addrspace(4)
+// CHECK-NEXT:    call void @llvm.memcpy.p4.p1.i64(ptr addrspace(4) align 8 [[S_ASCAST]], ptr addrspace(1) align 8 @__const.bar.s, i64 16, i1 false)
+// CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr align 8 [[BYVAL_TEMP]], ptr addrspace(4) align 8 [[S_ASCAST]], i64 16, i1 false)
+// CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr align 8 [[BYVAL_TEMP1]], ptr addrspace(4) align 8 [[S_ASCAST]], i64 16, i1 false)
+// CHECK-NEXT:    call spir_func void (ptr, ptr, ...) @varargs_complex(ptr noundef byval([[STRUCT_S]]) align 8 [[BYVAL_TEMP]], ptr noundef byval([[STRUCT_S]]) align 8 [[BYVAL_TEMP1]], i32 noundef 1, i64 noundef 1, double noundef 1.000000e+00)
 // CHECK-NEXT:    ret void
 //
 void bar() {

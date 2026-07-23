@@ -35,10 +35,10 @@ void user() {
 // LINUX: declare void @_Z3foov()
 
 // SPIR: define{{.*}} spir_func void @_Z4userv()
-// SPIR: call spir_func noalias noundef nonnull ptr @_Znwj
+// SPIR: call spir_func noalias noundef nonnull ptr addrspace(4) @_Znwj
 // SPIR: call spir_func float @erff
 // SPIR: call spir_func void @_Z3foov
-// SPIR: declare spir_func noundef nonnull ptr @_Znwj(i32 noundef)
+// SPIR: declare spir_func noundef nonnull ptr addrspace(4) @_Znwj(i32 noundef)
 // SPIR: declare spir_func float @erff(float noundef)
 // SPIR: declare spir_func void @_Z3foov()
 

@@ -150,88 +150,88 @@ void foo() {
 
 // CHECK: call spir_func noundef zeroext i1 @_Z28__spirv_AtomicFlagTestAndSetPU3AS1iii(
 // CHECK: call spir_func noundef zeroext i1 @_Z28__spirv_AtomicFlagTestAndSetPU3AS3iii(
-// CHECK: call spir_func noundef zeroext i1 @_Z28__spirv_AtomicFlagTestAndSetPiii(
+// CHECK: call spir_func noundef zeroext i1 @_Z28__spirv_AtomicFlagTestAndSetPU3AS0iii(
 // CHECK: call spir_func noundef zeroext i1 @_Z28__spirv_AtomicFlagTestAndSetPU3AS4iii(
 // CHECK: call spir_func void @_Z23__spirv_AtomicFlagClearPU3AS1iii(
 // CHECK: call spir_func void @_Z23__spirv_AtomicFlagClearPU3AS3iii(
-// CHECK: call spir_func void @_Z23__spirv_AtomicFlagClearPiii(
+// CHECK: call spir_func void @_Z23__spirv_AtomicFlagClearPU3AS0iii(
 // CHECK: call spir_func void @_Z23__spirv_AtomicFlagClearPU3AS4iii(
 
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicLoadPU3AS1iii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicLoadPU3AS3iii(
-// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicLoadPiii(
+// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicLoadPU3AS0iii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicLoadPU3AS4iii(
 // CHECK: call spir_func void @_Z19__spirv_AtomicStorePU3AS1iiii(
 // CHECK: call spir_func void @_Z19__spirv_AtomicStorePU3AS3iiii(
-// CHECK: call spir_func void @_Z19__spirv_AtomicStorePiiii(
+// CHECK: call spir_func void @_Z19__spirv_AtomicStorePU3AS0iiii(
 // CHECK: call spir_func void @_Z19__spirv_AtomicStorePU3AS4iiii(
 // CHECK: call spir_func noundef i32 @_Z22__spirv_AtomicExchangePU3AS1iiii(
 // CHECK: call spir_func noundef i32 @_Z22__spirv_AtomicExchangePU3AS3iiii(
-// CHECK: call spir_func noundef i32 @_Z22__spirv_AtomicExchangePiiii(
+// CHECK: call spir_func noundef i32 @_Z22__spirv_AtomicExchangePU3AS0iiii(
 // CHECK: call spir_func noundef i32 @_Z22__spirv_AtomicExchangePU3AS4iiii(
 // CHECK: call spir_func noundef i32 @_Z29__spirv_AtomicCompareExchangePU3AS1iiiiii(
 // CHECK: call spir_func noundef i32 @_Z29__spirv_AtomicCompareExchangePU3AS3iiiiii(
-// CHECK: call spir_func noundef i32 @_Z29__spirv_AtomicCompareExchangePiiiiii(
+// CHECK: call spir_func noundef i32 @_Z29__spirv_AtomicCompareExchangePU3AS0iiiiii(
 // CHECK: call spir_func noundef i32 @_Z29__spirv_AtomicCompareExchangePU3AS4iiiiii(
 // CHECK: call spir_func noundef i32 @_Z33__spirv_AtomicCompareExchangeWeakPU3AS1iiiiii(
 // CHECK: call spir_func noundef i32 @_Z33__spirv_AtomicCompareExchangeWeakPU3AS3iiiiii(
-// CHECK: call spir_func noundef i32 @_Z33__spirv_AtomicCompareExchangeWeakPiiiiii(
+// CHECK: call spir_func noundef i32 @_Z33__spirv_AtomicCompareExchangeWeakPU3AS0iiiiii(
 // CHECK: call spir_func noundef i32 @_Z33__spirv_AtomicCompareExchangeWeakPU3AS4iiiiii(
 // CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIIncrementPU3AS1iii(
 // CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIIncrementPU3AS3iii(
-// CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIIncrementPiii(
+// CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIIncrementPU3AS0iii(
 // CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIIncrementPU3AS4iii(
 // CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIDecrementPU3AS1iii(
 // CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIDecrementPU3AS3iii(
-// CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIDecrementPiii(
+// CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIDecrementPU3AS0iii(
 // CHECK: call spir_func noundef i32 @_Z24__spirv_AtomicIDecrementPU3AS4iii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMinPU3AS1iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMinPU3AS3iiii(
-// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMinPiiii(
+// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMinPU3AS0iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMinPU3AS4iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMaxPU3AS1iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMaxPU3AS3iiii(
-// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMaxPiiii(
+// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMaxPU3AS0iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicSMaxPU3AS4iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicIAddPU3AS1iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicIAddPU3AS3iiii(
-// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicIAddPiiii(
+// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicIAddPU3AS0iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicIAddPU3AS4iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicISubPU3AS1iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicISubPU3AS3iiii(
-// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicISubPiiii(
+// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicISubPU3AS0iiii(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicISubPU3AS4iiii(
 // CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicAndPU3AS1iiii(
 // CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicAndPU3AS3iiii(
-// CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicAndPiiii(
+// CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicAndPU3AS0iiii(
 // CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicAndPU3AS4iiii(
 // CHECK: call spir_func noundef i32 @_Z16__spirv_AtomicOrPU3AS1iiii(
 // CHECK: call spir_func noundef i32 @_Z16__spirv_AtomicOrPU3AS3iiii(
-// CHECK: call spir_func noundef i32 @_Z16__spirv_AtomicOrPiiii(
+// CHECK: call spir_func noundef i32 @_Z16__spirv_AtomicOrPU3AS0iiii(
 // CHECK: call spir_func noundef i32 @_Z16__spirv_AtomicOrPU3AS4iiii(
 // CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicXorPU3AS1iiii(
 // CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicXorPU3AS3iiii(
-// CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicXorPiiii(
+// CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicXorPU3AS0iiii(
 // CHECK: call spir_func noundef i32 @_Z17__spirv_AtomicXorPU3AS4iiii(
 
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMinPU3AS1jiij(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMinPU3AS3jiij(
-// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMinPjiij(
+// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMinPU3AS0jiij(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMinPU3AS4jiij(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMaxPU3AS1jiij(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMaxPU3AS3jiij(
-// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMaxPjiij(
+// CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMaxPU3AS0jiij(
 // CHECK: call spir_func noundef i32 @_Z18__spirv_AtomicUMaxPU3AS4jiij(
 
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMaxEXTPU3AS1fiif(
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMaxEXTPU3AS3fiif(
-// CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMaxEXTPfiif(
+// CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMaxEXTPU3AS0fiif(
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMaxEXTPU3AS4fiif(
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMinEXTPU3AS1fiif(
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMinEXTPU3AS3fiif(
-// CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMinEXTPfiif(
+// CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMinEXTPU3AS0fiif(
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFMinEXTPU3AS4fiif(
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFAddEXTPU3AS1fiif(
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFAddEXTPU3AS3fiif(
-// CHECK: call spir_func noundef float @_Z21__spirv_AtomicFAddEXTPfiif(
+// CHECK: call spir_func noundef float @_Z21__spirv_AtomicFAddEXTPU3AS0fiif(
 // CHECK: call spir_func noundef float @_Z21__spirv_AtomicFAddEXTPU3AS4fiif(

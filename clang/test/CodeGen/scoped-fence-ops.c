@@ -91,8 +91,9 @@ void fe1a() {
 // SPIRV-SAME: i32 noundef [[ORD:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[ORD_ADDR:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i32 [[ORD]], ptr [[ORD_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ORD_ADDR]], align 4
+// SPIRV-NEXT:    [[ORD_ADDR_ASCAST:%.*]] = addrspacecast ptr [[ORD_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i32 [[ORD]], ptr addrspace(4) [[ORD_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(4) [[ORD_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    switch i32 [[TMP0]], label %[[ATOMIC_SCOPE_CONTINUE:.*]] [
 // SPIRV-NEXT:      i32 1, label %[[ACQUIRE:.*]]
 // SPIRV-NEXT:      i32 2, label %[[ACQUIRE]]
@@ -222,8 +223,9 @@ void fe1b(int ord) {
 // SPIRV-SAME: i32 noundef [[SCOPE:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
 // SPIRV-NEXT:    [[SCOPE_ADDR:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store i32 [[SCOPE]], ptr [[SCOPE_ADDR]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[SCOPE_ADDR]], align 4
+// SPIRV-NEXT:    [[SCOPE_ADDR_ASCAST:%.*]] = addrspacecast ptr [[SCOPE_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store i32 [[SCOPE]], ptr addrspace(4) [[SCOPE_ADDR_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(4) [[SCOPE_ADDR_ASCAST]], align 4
 // SPIRV-NEXT:    switch i32 [[TMP0]], label %[[ATOMIC_SCOPE_CONTINUE:.*]] [
 // SPIRV-NEXT:      i32 0, label %[[SYSTEM_SCOPE:.*]]
 // SPIRV-NEXT:      i32 1, label %[[DEVICE_SCOPE:.*]]

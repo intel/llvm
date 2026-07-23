@@ -92,30 +92,32 @@
 // NVPTX-NEXT:    ret i32 [[TMP12]]
 //
 // SPIRV-LABEL: define hidden spir_func i32 @fi1a(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0:[0-9]+]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0:[0-9]+]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[V:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load atomic i32, ptr [[TMP0]] monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP1]], ptr [[V]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP3:%.*]] = load atomic i32, ptr [[TMP2]] syncscope("device") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[V]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP5:%.*]] = load atomic i32, ptr [[TMP4]] syncscope("workgroup") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP5]], ptr [[V]], align 4
-// SPIRV-NEXT:    [[TMP6:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP7:%.*]] = load atomic i32, ptr [[TMP6]] syncscope("workgroup") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP7]], ptr [[V]], align 4
-// SPIRV-NEXT:    [[TMP8:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP9:%.*]] = load atomic i32, ptr [[TMP8]] syncscope("subgroup") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP9]], ptr [[V]], align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP11:%.*]] = load atomic i32, ptr [[TMP10]] syncscope("singlethread") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP11]], ptr [[V]], align 4
-// SPIRV-NEXT:    [[TMP12:%.*]] = load i32, ptr [[V]], align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[V_ASCAST:%.*]] = addrspacecast ptr [[V]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load atomic i32, ptr addrspace(4) [[TMP0]] monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP1]], ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP3:%.*]] = load atomic i32, ptr addrspace(4) [[TMP2]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP5:%.*]] = load atomic i32, ptr addrspace(4) [[TMP4]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP5]], ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP7:%.*]] = load atomic i32, ptr addrspace(4) [[TMP6]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP7]], ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP8:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load atomic i32, ptr addrspace(4) [[TMP8]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP9]], ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP11:%.*]] = load atomic i32, ptr addrspace(4) [[TMP10]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP11]], ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP12:%.*]] = load i32, ptr addrspace(4) [[V_ASCAST]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP12]]
 //
 int fi1a(int *i) {
@@ -284,54 +286,55 @@ int fi1a(int *i) {
 // NVPTX-NEXT:    ret i32 [[TMP25]]
 //
 // SPIRV-LABEL: define hidden spir_func i32 @fi1b(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP1:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP2:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP3:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP4:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP5:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load atomic i32, ptr [[TMP0]] monotonic, align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load atomic i32, ptr addrspace(4) [[TMP0]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP1]], ptr [[ATOMIC_TEMP]], align 4
 // SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ATOMIC_TEMP]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP2]], ptr [[TMP3]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP5:%.*]] = load atomic i32, ptr [[TMP4]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP2]], ptr addrspace(4) [[TMP3]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP5:%.*]] = load atomic i32, ptr addrspace(4) [[TMP4]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP5]], ptr [[ATOMIC_TEMP1]], align 4
 // SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[ATOMIC_TEMP1]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP6]], ptr [[TMP7]], align 4
-// SPIRV-NEXT:    [[TMP8:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP9:%.*]] = load atomic i32, ptr [[TMP8]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP6]], ptr addrspace(4) [[TMP7]], align 4
+// SPIRV-NEXT:    [[TMP8:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load atomic i32, ptr addrspace(4) [[TMP8]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP9]], ptr [[ATOMIC_TEMP2]], align 4
 // SPIRV-NEXT:    [[TMP10:%.*]] = load i32, ptr [[ATOMIC_TEMP2]], align 4
-// SPIRV-NEXT:    [[TMP11:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP10]], ptr [[TMP11]], align 4
-// SPIRV-NEXT:    [[TMP12:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP13:%.*]] = load atomic i32, ptr [[TMP12]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP11:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP10]], ptr addrspace(4) [[TMP11]], align 4
+// SPIRV-NEXT:    [[TMP12:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP13:%.*]] = load atomic i32, ptr addrspace(4) [[TMP12]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP13]], ptr [[ATOMIC_TEMP3]], align 4
 // SPIRV-NEXT:    [[TMP14:%.*]] = load i32, ptr [[ATOMIC_TEMP3]], align 4
-// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP14]], ptr [[TMP15]], align 4
-// SPIRV-NEXT:    [[TMP16:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP17:%.*]] = load atomic i32, ptr [[TMP16]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP14]], ptr addrspace(4) [[TMP15]], align 4
+// SPIRV-NEXT:    [[TMP16:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP17:%.*]] = load atomic i32, ptr addrspace(4) [[TMP16]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP17]], ptr [[ATOMIC_TEMP4]], align 4
 // SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr [[ATOMIC_TEMP4]], align 4
-// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP18]], ptr [[TMP19]], align 4
-// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP21:%.*]] = load atomic i32, ptr [[TMP20]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP18]], ptr addrspace(4) [[TMP19]], align 4
+// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP21:%.*]] = load atomic i32, ptr addrspace(4) [[TMP20]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP21]], ptr [[ATOMIC_TEMP5]], align 4
 // SPIRV-NEXT:    [[TMP22:%.*]] = load i32, ptr [[ATOMIC_TEMP5]], align 4
-// SPIRV-NEXT:    [[TMP23:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP22]], ptr [[TMP23]], align 4
-// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP25:%.*]] = load i32, ptr [[TMP24]], align 4
+// SPIRV-NEXT:    [[TMP23:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP22]], ptr addrspace(4) [[TMP23]], align 4
+// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP25:%.*]] = load i32, ptr addrspace(4) [[TMP24]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP25]]
 //
 int fi1b(int *i) {
@@ -434,30 +437,32 @@ int fi1b(int *i) {
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi2a(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[V:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 1, ptr [[V]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[V]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP1]], ptr [[TMP0]] monotonic, align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[V]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP3]], ptr [[TMP2]] syncscope("device") monotonic, align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP5:%.*]] = load i32, ptr [[V]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP5]], ptr [[TMP4]] syncscope("workgroup") monotonic, align 4
-// SPIRV-NEXT:    [[TMP6:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP7:%.*]] = load i32, ptr [[V]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP7]], ptr [[TMP6]] syncscope("workgroup") monotonic, align 4
-// SPIRV-NEXT:    [[TMP8:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP9:%.*]] = load i32, ptr [[V]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP9]], ptr [[TMP8]] syncscope("subgroup") monotonic, align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[V]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP11]], ptr [[TMP10]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[V_ASCAST:%.*]] = addrspacecast ptr [[V]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 1, ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    store atomic i32 [[TMP1]], ptr addrspace(4) [[TMP0]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    store atomic i32 [[TMP3]], ptr addrspace(4) [[TMP2]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    store atomic i32 [[TMP5]], ptr addrspace(4) [[TMP4]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP7:%.*]] = load i32, ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    store atomic i32 [[TMP7]], ptr addrspace(4) [[TMP6]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP8:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load i32, ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    store atomic i32 [[TMP9]], ptr addrspace(4) [[TMP8]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr addrspace(4) [[V_ASCAST]], align 4
+// SPIRV-NEXT:    store atomic i32 [[TMP11]], ptr addrspace(4) [[TMP10]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    ret void
 //
 void fi2a(int *i) {
@@ -583,40 +588,41 @@ void fi2a(int *i) {
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi2b(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP1:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP2:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP3:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP4:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP5:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP1]], ptr [[TMP0]] monotonic, align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    store atomic i32 [[TMP1]], ptr addrspace(4) [[TMP0]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP1]], align 4
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[DOTATOMICTMP1]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP3]], ptr [[TMP2]] syncscope("device") monotonic, align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    store atomic i32 [[TMP3]], ptr addrspace(4) [[TMP2]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP2]], align 4
 // SPIRV-NEXT:    [[TMP5:%.*]] = load i32, ptr [[DOTATOMICTMP2]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP5]], ptr [[TMP4]] syncscope("workgroup") monotonic, align 4
-// SPIRV-NEXT:    [[TMP6:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    store atomic i32 [[TMP5]], ptr addrspace(4) [[TMP4]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP3]], align 4
 // SPIRV-NEXT:    [[TMP7:%.*]] = load i32, ptr [[DOTATOMICTMP3]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP7]], ptr [[TMP6]] syncscope("workgroup") monotonic, align 4
-// SPIRV-NEXT:    [[TMP8:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    store atomic i32 [[TMP7]], ptr addrspace(4) [[TMP6]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP8:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP4]], align 4
 // SPIRV-NEXT:    [[TMP9:%.*]] = load i32, ptr [[DOTATOMICTMP4]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP9]], ptr [[TMP8]] syncscope("subgroup") monotonic, align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    store atomic i32 [[TMP9]], ptr addrspace(4) [[TMP8]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP5]], align 4
 // SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[DOTATOMICTMP5]], align 4
-// SPIRV-NEXT:    store atomic i32 [[TMP11]], ptr [[TMP10]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    store atomic i32 [[TMP11]], ptr addrspace(4) [[TMP10]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    ret void
 //
 void fi2b(int *i) {
@@ -940,16 +946,16 @@ void fi2b(int *i) {
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi3a(
-// SPIRV-SAME: ptr noundef [[A:%.*]], ptr noundef [[B:%.*]], ptr noundef [[C:%.*]], ptr noundef [[D:%.*]], ptr noundef [[E:%.*]], ptr noundef [[F:%.*]], ptr noundef [[G:%.*]], ptr noundef [[H:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[A:%.*]], ptr addrspace(4) noundef [[B:%.*]], ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]], ptr addrspace(4) noundef [[E:%.*]], ptr addrspace(4) noundef [[F:%.*]], ptr addrspace(4) noundef [[G:%.*]], ptr addrspace(4) noundef [[H:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP1:%.*]] = alloca i32, align 4
@@ -966,78 +972,86 @@ void fi2b(int *i) {
 // SPIRV-NEXT:    [[ATOMIC_TEMP12:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP13:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP14:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[A]], ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[B]], ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[E]], ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[F]], ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[G]], ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[H]], ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[A_ADDR]], align 8
+// SPIRV-NEXT:    [[A_ADDR_ASCAST:%.*]] = addrspacecast ptr [[A_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[B_ADDR_ASCAST:%.*]] = addrspacecast ptr [[B_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[E_ADDR_ASCAST:%.*]] = addrspacecast ptr [[E_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[F_ADDR_ASCAST:%.*]] = addrspacecast ptr [[F_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[G_ADDR_ASCAST:%.*]] = addrspacecast ptr [[G_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[H_ADDR_ASCAST:%.*]] = addrspacecast ptr [[H_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[A]], ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[B]], ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[E]], ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[F]], ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[G]], ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[H]], ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr [[TMP0]], i32 [[TMP1]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr addrspace(4) [[TMP0]], i32 [[TMP1]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP2]], ptr [[ATOMIC_TEMP]], align 4
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ATOMIC_TEMP]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[TMP4]], align 4
-// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr, ptr [[B_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[TMP4]], align 4
+// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP1]], align 4
 // SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[DOTATOMICTMP1]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr [[TMP5]], i32 [[TMP6]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr addrspace(4) [[TMP5]], i32 [[TMP6]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP7]], ptr [[ATOMIC_TEMP2]], align 4
 // SPIRV-NEXT:    [[TMP8:%.*]] = load i32, ptr [[ATOMIC_TEMP2]], align 4
-// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP8]], ptr [[TMP9]], align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP8]], ptr addrspace(4) [[TMP9]], align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP3]], align 4
 // SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[DOTATOMICTMP3]], align 4
-// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr [[TMP10]], i32 [[TMP11]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr addrspace(4) [[TMP10]], i32 [[TMP11]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP12]], ptr [[ATOMIC_TEMP4]], align 4
 // SPIRV-NEXT:    [[TMP13:%.*]] = load i32, ptr [[ATOMIC_TEMP4]], align 4
-// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP13]], ptr [[TMP14]], align 4
-// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr, ptr [[D_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP13]], ptr addrspace(4) [[TMP14]], align 4
+// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP5]], align 4
 // SPIRV-NEXT:    [[TMP16:%.*]] = load i32, ptr [[DOTATOMICTMP5]], align 4
-// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr [[TMP15]], i32 [[TMP16]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr addrspace(4) [[TMP15]], i32 [[TMP16]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP17]], ptr [[ATOMIC_TEMP6]], align 4
 // SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr [[ATOMIC_TEMP6]], align 4
-// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP18]], ptr [[TMP19]], align 4
-// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr, ptr [[E_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP18]], ptr addrspace(4) [[TMP19]], align 4
+// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP7]], align 4
 // SPIRV-NEXT:    [[TMP21:%.*]] = load i32, ptr [[DOTATOMICTMP7]], align 4
-// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr [[TMP20]], i32 [[TMP21]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr addrspace(4) [[TMP20]], i32 [[TMP21]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP22]], ptr [[ATOMIC_TEMP8]], align 4
 // SPIRV-NEXT:    [[TMP23:%.*]] = load i32, ptr [[ATOMIC_TEMP8]], align 4
-// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr, ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP23]], ptr [[TMP24]], align 4
-// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr, ptr [[F_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP23]], ptr addrspace(4) [[TMP24]], align 4
+// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP9]], align 4
 // SPIRV-NEXT:    [[TMP26:%.*]] = load i32, ptr [[DOTATOMICTMP9]], align 4
-// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr [[TMP25]], i32 [[TMP26]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr addrspace(4) [[TMP25]], i32 [[TMP26]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP27]], ptr [[ATOMIC_TEMP10]], align 4
 // SPIRV-NEXT:    [[TMP28:%.*]] = load i32, ptr [[ATOMIC_TEMP10]], align 4
-// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr, ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP28]], ptr [[TMP29]], align 4
-// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr, ptr [[G_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP28]], ptr addrspace(4) [[TMP29]], align 4
+// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP11]], align 4
 // SPIRV-NEXT:    [[TMP31:%.*]] = load i32, ptr [[DOTATOMICTMP11]], align 4
-// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr [[TMP30]], i32 [[TMP31]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr addrspace(4) [[TMP30]], i32 [[TMP31]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP32]], ptr [[ATOMIC_TEMP12]], align 4
 // SPIRV-NEXT:    [[TMP33:%.*]] = load i32, ptr [[ATOMIC_TEMP12]], align 4
-// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr, ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP33]], ptr [[TMP34]], align 4
-// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr, ptr [[H_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP33]], ptr addrspace(4) [[TMP34]], align 4
+// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP13]], align 4
 // SPIRV-NEXT:    [[TMP36:%.*]] = load i32, ptr [[DOTATOMICTMP13]], align 4
-// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr [[TMP35]], i32 [[TMP36]] monotonic, align 4
+// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr addrspace(4) [[TMP35]], i32 [[TMP36]] monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP37]], ptr [[ATOMIC_TEMP14]], align 4
 // SPIRV-NEXT:    [[TMP38:%.*]] = load i32, ptr [[ATOMIC_TEMP14]], align 4
-// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr, ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP38]], ptr [[TMP39]], align 4
+// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP38]], ptr addrspace(4) [[TMP39]], align 4
 // SPIRV-NEXT:    ret void
 //
 void fi3a(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
@@ -1363,16 +1377,16 @@ void fi3a(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi3b(
-// SPIRV-SAME: ptr noundef [[A:%.*]], ptr noundef [[B:%.*]], ptr noundef [[C:%.*]], ptr noundef [[D:%.*]], ptr noundef [[E:%.*]], ptr noundef [[F:%.*]], ptr noundef [[G:%.*]], ptr noundef [[H:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[A:%.*]], ptr addrspace(4) noundef [[B:%.*]], ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]], ptr addrspace(4) noundef [[E:%.*]], ptr addrspace(4) noundef [[F:%.*]], ptr addrspace(4) noundef [[G:%.*]], ptr addrspace(4) noundef [[H:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP1:%.*]] = alloca i32, align 4
@@ -1389,78 +1403,86 @@ void fi3a(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // SPIRV-NEXT:    [[ATOMIC_TEMP12:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP13:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP14:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[A]], ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[B]], ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[E]], ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[F]], ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[G]], ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[H]], ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[A_ADDR]], align 8
+// SPIRV-NEXT:    [[A_ADDR_ASCAST:%.*]] = addrspacecast ptr [[A_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[B_ADDR_ASCAST:%.*]] = addrspacecast ptr [[B_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[E_ADDR_ASCAST:%.*]] = addrspacecast ptr [[E_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[F_ADDR_ASCAST:%.*]] = addrspacecast ptr [[F_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[G_ADDR_ASCAST:%.*]] = addrspacecast ptr [[G_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[H_ADDR_ASCAST:%.*]] = addrspacecast ptr [[H_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[A]], ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[B]], ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[E]], ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[F]], ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[G]], ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[H]], ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr [[TMP0]], i32 [[TMP1]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr addrspace(4) [[TMP0]], i32 [[TMP1]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP2]], ptr [[ATOMIC_TEMP]], align 4
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ATOMIC_TEMP]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[TMP4]], align 4
-// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr, ptr [[B_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[TMP4]], align 4
+// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP1]], align 4
 // SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[DOTATOMICTMP1]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr [[TMP5]], i32 [[TMP6]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr addrspace(4) [[TMP5]], i32 [[TMP6]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP7]], ptr [[ATOMIC_TEMP2]], align 4
 // SPIRV-NEXT:    [[TMP8:%.*]] = load i32, ptr [[ATOMIC_TEMP2]], align 4
-// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP8]], ptr [[TMP9]], align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP8]], ptr addrspace(4) [[TMP9]], align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP3]], align 4
 // SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[DOTATOMICTMP3]], align 4
-// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr [[TMP10]], i32 [[TMP11]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr addrspace(4) [[TMP10]], i32 [[TMP11]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP12]], ptr [[ATOMIC_TEMP4]], align 4
 // SPIRV-NEXT:    [[TMP13:%.*]] = load i32, ptr [[ATOMIC_TEMP4]], align 4
-// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP13]], ptr [[TMP14]], align 4
-// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr, ptr [[D_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP13]], ptr addrspace(4) [[TMP14]], align 4
+// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP5]], align 4
 // SPIRV-NEXT:    [[TMP16:%.*]] = load i32, ptr [[DOTATOMICTMP5]], align 4
-// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr [[TMP15]], i32 [[TMP16]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr addrspace(4) [[TMP15]], i32 [[TMP16]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP17]], ptr [[ATOMIC_TEMP6]], align 4
 // SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr [[ATOMIC_TEMP6]], align 4
-// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP18]], ptr [[TMP19]], align 4
-// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr, ptr [[E_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP18]], ptr addrspace(4) [[TMP19]], align 4
+// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP7]], align 4
 // SPIRV-NEXT:    [[TMP21:%.*]] = load i32, ptr [[DOTATOMICTMP7]], align 4
-// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr [[TMP20]], i32 [[TMP21]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr addrspace(4) [[TMP20]], i32 [[TMP21]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP22]], ptr [[ATOMIC_TEMP8]], align 4
 // SPIRV-NEXT:    [[TMP23:%.*]] = load i32, ptr [[ATOMIC_TEMP8]], align 4
-// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr, ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP23]], ptr [[TMP24]], align 4
-// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr, ptr [[F_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP23]], ptr addrspace(4) [[TMP24]], align 4
+// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP9]], align 4
 // SPIRV-NEXT:    [[TMP26:%.*]] = load i32, ptr [[DOTATOMICTMP9]], align 4
-// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr [[TMP25]], i32 [[TMP26]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr addrspace(4) [[TMP25]], i32 [[TMP26]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP27]], ptr [[ATOMIC_TEMP10]], align 4
 // SPIRV-NEXT:    [[TMP28:%.*]] = load i32, ptr [[ATOMIC_TEMP10]], align 4
-// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr, ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP28]], ptr [[TMP29]], align 4
-// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr, ptr [[G_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP28]], ptr addrspace(4) [[TMP29]], align 4
+// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP11]], align 4
 // SPIRV-NEXT:    [[TMP31:%.*]] = load i32, ptr [[DOTATOMICTMP11]], align 4
-// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr [[TMP30]], i32 [[TMP31]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr addrspace(4) [[TMP30]], i32 [[TMP31]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP32]], ptr [[ATOMIC_TEMP12]], align 4
 // SPIRV-NEXT:    [[TMP33:%.*]] = load i32, ptr [[ATOMIC_TEMP12]], align 4
-// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr, ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP33]], ptr [[TMP34]], align 4
-// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr, ptr [[H_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP33]], ptr addrspace(4) [[TMP34]], align 4
+// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP13]], align 4
 // SPIRV-NEXT:    [[TMP36:%.*]] = load i32, ptr [[DOTATOMICTMP13]], align 4
-// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr [[TMP35]], i32 [[TMP36]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr addrspace(4) [[TMP35]], i32 [[TMP36]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP37]], ptr [[ATOMIC_TEMP14]], align 4
 // SPIRV-NEXT:    [[TMP38:%.*]] = load i32, ptr [[ATOMIC_TEMP14]], align 4
-// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr, ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP38]], ptr [[TMP39]], align 4
+// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP38]], ptr addrspace(4) [[TMP39]], align 4
 // SPIRV-NEXT:    ret void
 //
 void fi3b(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
@@ -1786,16 +1808,16 @@ void fi3b(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi3c(
-// SPIRV-SAME: ptr noundef [[A:%.*]], ptr noundef [[B:%.*]], ptr noundef [[C:%.*]], ptr noundef [[D:%.*]], ptr noundef [[E:%.*]], ptr noundef [[F:%.*]], ptr noundef [[G:%.*]], ptr noundef [[H:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[A:%.*]], ptr addrspace(4) noundef [[B:%.*]], ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]], ptr addrspace(4) noundef [[E:%.*]], ptr addrspace(4) noundef [[F:%.*]], ptr addrspace(4) noundef [[G:%.*]], ptr addrspace(4) noundef [[H:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP1:%.*]] = alloca i32, align 4
@@ -1812,78 +1834,86 @@ void fi3b(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // SPIRV-NEXT:    [[ATOMIC_TEMP12:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP13:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP14:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[A]], ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[B]], ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[E]], ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[F]], ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[G]], ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[H]], ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[A_ADDR]], align 8
+// SPIRV-NEXT:    [[A_ADDR_ASCAST:%.*]] = addrspacecast ptr [[A_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[B_ADDR_ASCAST:%.*]] = addrspacecast ptr [[B_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[E_ADDR_ASCAST:%.*]] = addrspacecast ptr [[E_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[F_ADDR_ASCAST:%.*]] = addrspacecast ptr [[F_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[G_ADDR_ASCAST:%.*]] = addrspacecast ptr [[G_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[H_ADDR_ASCAST:%.*]] = addrspacecast ptr [[H_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[A]], ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[B]], ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[E]], ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[F]], ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[G]], ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[H]], ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr [[TMP0]], i32 [[TMP1]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr addrspace(4) [[TMP0]], i32 [[TMP1]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP2]], ptr [[ATOMIC_TEMP]], align 4
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ATOMIC_TEMP]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[TMP4]], align 4
-// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr, ptr [[B_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[TMP4]], align 4
+// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP1]], align 4
 // SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[DOTATOMICTMP1]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr [[TMP5]], i32 [[TMP6]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr addrspace(4) [[TMP5]], i32 [[TMP6]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP7]], ptr [[ATOMIC_TEMP2]], align 4
 // SPIRV-NEXT:    [[TMP8:%.*]] = load i32, ptr [[ATOMIC_TEMP2]], align 4
-// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP8]], ptr [[TMP9]], align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP8]], ptr addrspace(4) [[TMP9]], align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP3]], align 4
 // SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[DOTATOMICTMP3]], align 4
-// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr [[TMP10]], i32 [[TMP11]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr addrspace(4) [[TMP10]], i32 [[TMP11]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP12]], ptr [[ATOMIC_TEMP4]], align 4
 // SPIRV-NEXT:    [[TMP13:%.*]] = load i32, ptr [[ATOMIC_TEMP4]], align 4
-// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP13]], ptr [[TMP14]], align 4
-// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr, ptr [[D_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP13]], ptr addrspace(4) [[TMP14]], align 4
+// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP5]], align 4
 // SPIRV-NEXT:    [[TMP16:%.*]] = load i32, ptr [[DOTATOMICTMP5]], align 4
-// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr [[TMP15]], i32 [[TMP16]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr addrspace(4) [[TMP15]], i32 [[TMP16]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP17]], ptr [[ATOMIC_TEMP6]], align 4
 // SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr [[ATOMIC_TEMP6]], align 4
-// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP18]], ptr [[TMP19]], align 4
-// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr, ptr [[E_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP18]], ptr addrspace(4) [[TMP19]], align 4
+// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP7]], align 4
 // SPIRV-NEXT:    [[TMP21:%.*]] = load i32, ptr [[DOTATOMICTMP7]], align 4
-// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr [[TMP20]], i32 [[TMP21]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr addrspace(4) [[TMP20]], i32 [[TMP21]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP22]], ptr [[ATOMIC_TEMP8]], align 4
 // SPIRV-NEXT:    [[TMP23:%.*]] = load i32, ptr [[ATOMIC_TEMP8]], align 4
-// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr, ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP23]], ptr [[TMP24]], align 4
-// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr, ptr [[F_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP23]], ptr addrspace(4) [[TMP24]], align 4
+// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP9]], align 4
 // SPIRV-NEXT:    [[TMP26:%.*]] = load i32, ptr [[DOTATOMICTMP9]], align 4
-// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr [[TMP25]], i32 [[TMP26]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr addrspace(4) [[TMP25]], i32 [[TMP26]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP27]], ptr [[ATOMIC_TEMP10]], align 4
 // SPIRV-NEXT:    [[TMP28:%.*]] = load i32, ptr [[ATOMIC_TEMP10]], align 4
-// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr, ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP28]], ptr [[TMP29]], align 4
-// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr, ptr [[G_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP28]], ptr addrspace(4) [[TMP29]], align 4
+// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP11]], align 4
 // SPIRV-NEXT:    [[TMP31:%.*]] = load i32, ptr [[DOTATOMICTMP11]], align 4
-// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr [[TMP30]], i32 [[TMP31]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr addrspace(4) [[TMP30]], i32 [[TMP31]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP32]], ptr [[ATOMIC_TEMP12]], align 4
 // SPIRV-NEXT:    [[TMP33:%.*]] = load i32, ptr [[ATOMIC_TEMP12]], align 4
-// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr, ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP33]], ptr [[TMP34]], align 4
-// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr, ptr [[H_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP33]], ptr addrspace(4) [[TMP34]], align 4
+// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP13]], align 4
 // SPIRV-NEXT:    [[TMP36:%.*]] = load i32, ptr [[DOTATOMICTMP13]], align 4
-// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr [[TMP35]], i32 [[TMP36]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr addrspace(4) [[TMP35]], i32 [[TMP36]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP37]], ptr [[ATOMIC_TEMP14]], align 4
 // SPIRV-NEXT:    [[TMP38:%.*]] = load i32, ptr [[ATOMIC_TEMP14]], align 4
-// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr, ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP38]], ptr [[TMP39]], align 4
+// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP38]], ptr addrspace(4) [[TMP39]], align 4
 // SPIRV-NEXT:    ret void
 //
 void fi3c(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
@@ -2209,16 +2239,16 @@ void fi3c(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi3_clustr(
-// SPIRV-SAME: ptr noundef [[A:%.*]], ptr noundef [[B:%.*]], ptr noundef [[C:%.*]], ptr noundef [[D:%.*]], ptr noundef [[E:%.*]], ptr noundef [[F:%.*]], ptr noundef [[G:%.*]], ptr noundef [[H:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[A:%.*]], ptr addrspace(4) noundef [[B:%.*]], ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]], ptr addrspace(4) noundef [[E:%.*]], ptr addrspace(4) noundef [[F:%.*]], ptr addrspace(4) noundef [[G:%.*]], ptr addrspace(4) noundef [[H:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP1:%.*]] = alloca i32, align 4
@@ -2235,78 +2265,86 @@ void fi3c(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // SPIRV-NEXT:    [[ATOMIC_TEMP12:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP13:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP14:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[A]], ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[B]], ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[E]], ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[F]], ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[G]], ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[H]], ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[A_ADDR]], align 8
+// SPIRV-NEXT:    [[A_ADDR_ASCAST:%.*]] = addrspacecast ptr [[A_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[B_ADDR_ASCAST:%.*]] = addrspacecast ptr [[B_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[E_ADDR_ASCAST:%.*]] = addrspacecast ptr [[E_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[F_ADDR_ASCAST:%.*]] = addrspacecast ptr [[F_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[G_ADDR_ASCAST:%.*]] = addrspacecast ptr [[G_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[H_ADDR_ASCAST:%.*]] = addrspacecast ptr [[H_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[A]], ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[B]], ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[E]], ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[F]], ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[G]], ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[H]], ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr [[TMP0]], i32 [[TMP1]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr addrspace(4) [[TMP0]], i32 [[TMP1]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP2]], ptr [[ATOMIC_TEMP]], align 4
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ATOMIC_TEMP]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[TMP4]], align 4
-// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr, ptr [[B_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[TMP4]], align 4
+// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP1]], align 4
 // SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[DOTATOMICTMP1]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr [[TMP5]], i32 [[TMP6]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr addrspace(4) [[TMP5]], i32 [[TMP6]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP7]], ptr [[ATOMIC_TEMP2]], align 4
 // SPIRV-NEXT:    [[TMP8:%.*]] = load i32, ptr [[ATOMIC_TEMP2]], align 4
-// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP8]], ptr [[TMP9]], align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP8]], ptr addrspace(4) [[TMP9]], align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP3]], align 4
 // SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[DOTATOMICTMP3]], align 4
-// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr [[TMP10]], i32 [[TMP11]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr addrspace(4) [[TMP10]], i32 [[TMP11]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP12]], ptr [[ATOMIC_TEMP4]], align 4
 // SPIRV-NEXT:    [[TMP13:%.*]] = load i32, ptr [[ATOMIC_TEMP4]], align 4
-// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP13]], ptr [[TMP14]], align 4
-// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr, ptr [[D_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP13]], ptr addrspace(4) [[TMP14]], align 4
+// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP5]], align 4
 // SPIRV-NEXT:    [[TMP16:%.*]] = load i32, ptr [[DOTATOMICTMP5]], align 4
-// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr [[TMP15]], i32 [[TMP16]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr addrspace(4) [[TMP15]], i32 [[TMP16]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP17]], ptr [[ATOMIC_TEMP6]], align 4
 // SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr [[ATOMIC_TEMP6]], align 4
-// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP18]], ptr [[TMP19]], align 4
-// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr, ptr [[E_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP18]], ptr addrspace(4) [[TMP19]], align 4
+// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP7]], align 4
 // SPIRV-NEXT:    [[TMP21:%.*]] = load i32, ptr [[DOTATOMICTMP7]], align 4
-// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr [[TMP20]], i32 [[TMP21]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr addrspace(4) [[TMP20]], i32 [[TMP21]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP22]], ptr [[ATOMIC_TEMP8]], align 4
 // SPIRV-NEXT:    [[TMP23:%.*]] = load i32, ptr [[ATOMIC_TEMP8]], align 4
-// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr, ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP23]], ptr [[TMP24]], align 4
-// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr, ptr [[F_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP23]], ptr addrspace(4) [[TMP24]], align 4
+// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP9]], align 4
 // SPIRV-NEXT:    [[TMP26:%.*]] = load i32, ptr [[DOTATOMICTMP9]], align 4
-// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr [[TMP25]], i32 [[TMP26]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr addrspace(4) [[TMP25]], i32 [[TMP26]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP27]], ptr [[ATOMIC_TEMP10]], align 4
 // SPIRV-NEXT:    [[TMP28:%.*]] = load i32, ptr [[ATOMIC_TEMP10]], align 4
-// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr, ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP28]], ptr [[TMP29]], align 4
-// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr, ptr [[G_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP28]], ptr addrspace(4) [[TMP29]], align 4
+// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP11]], align 4
 // SPIRV-NEXT:    [[TMP31:%.*]] = load i32, ptr [[DOTATOMICTMP11]], align 4
-// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr [[TMP30]], i32 [[TMP31]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr addrspace(4) [[TMP30]], i32 [[TMP31]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP32]], ptr [[ATOMIC_TEMP12]], align 4
 // SPIRV-NEXT:    [[TMP33:%.*]] = load i32, ptr [[ATOMIC_TEMP12]], align 4
-// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr, ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP33]], ptr [[TMP34]], align 4
-// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr, ptr [[H_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP33]], ptr addrspace(4) [[TMP34]], align 4
+// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP13]], align 4
 // SPIRV-NEXT:    [[TMP36:%.*]] = load i32, ptr [[DOTATOMICTMP13]], align 4
-// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr [[TMP35]], i32 [[TMP36]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr addrspace(4) [[TMP35]], i32 [[TMP36]] syncscope("workgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP37]], ptr [[ATOMIC_TEMP14]], align 4
 // SPIRV-NEXT:    [[TMP38:%.*]] = load i32, ptr [[ATOMIC_TEMP14]], align 4
-// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr, ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP38]], ptr [[TMP39]], align 4
+// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP38]], ptr addrspace(4) [[TMP39]], align 4
 // SPIRV-NEXT:    ret void
 //
 void fi3_clustr(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
@@ -2632,16 +2670,16 @@ void fi3_clustr(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) 
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi3d(
-// SPIRV-SAME: ptr noundef [[A:%.*]], ptr noundef [[B:%.*]], ptr noundef [[C:%.*]], ptr noundef [[D:%.*]], ptr noundef [[E:%.*]], ptr noundef [[F:%.*]], ptr noundef [[G:%.*]], ptr noundef [[H:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[A:%.*]], ptr addrspace(4) noundef [[B:%.*]], ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]], ptr addrspace(4) noundef [[E:%.*]], ptr addrspace(4) noundef [[F:%.*]], ptr addrspace(4) noundef [[G:%.*]], ptr addrspace(4) noundef [[H:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP1:%.*]] = alloca i32, align 4
@@ -2658,78 +2696,86 @@ void fi3_clustr(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) 
 // SPIRV-NEXT:    [[ATOMIC_TEMP12:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP13:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP14:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[A]], ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[B]], ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[E]], ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[F]], ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[G]], ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[H]], ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[A_ADDR]], align 8
+// SPIRV-NEXT:    [[A_ADDR_ASCAST:%.*]] = addrspacecast ptr [[A_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[B_ADDR_ASCAST:%.*]] = addrspacecast ptr [[B_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[E_ADDR_ASCAST:%.*]] = addrspacecast ptr [[E_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[F_ADDR_ASCAST:%.*]] = addrspacecast ptr [[F_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[G_ADDR_ASCAST:%.*]] = addrspacecast ptr [[G_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[H_ADDR_ASCAST:%.*]] = addrspacecast ptr [[H_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[A]], ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[B]], ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[E]], ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[F]], ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[G]], ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[H]], ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr [[TMP0]], i32 [[TMP1]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr addrspace(4) [[TMP0]], i32 [[TMP1]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP2]], ptr [[ATOMIC_TEMP]], align 4
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ATOMIC_TEMP]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[TMP4]], align 4
-// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr, ptr [[B_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[TMP4]], align 4
+// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP1]], align 4
 // SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[DOTATOMICTMP1]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr [[TMP5]], i32 [[TMP6]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr addrspace(4) [[TMP5]], i32 [[TMP6]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP7]], ptr [[ATOMIC_TEMP2]], align 4
 // SPIRV-NEXT:    [[TMP8:%.*]] = load i32, ptr [[ATOMIC_TEMP2]], align 4
-// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP8]], ptr [[TMP9]], align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP8]], ptr addrspace(4) [[TMP9]], align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP3]], align 4
 // SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[DOTATOMICTMP3]], align 4
-// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr [[TMP10]], i32 [[TMP11]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr addrspace(4) [[TMP10]], i32 [[TMP11]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP12]], ptr [[ATOMIC_TEMP4]], align 4
 // SPIRV-NEXT:    [[TMP13:%.*]] = load i32, ptr [[ATOMIC_TEMP4]], align 4
-// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP13]], ptr [[TMP14]], align 4
-// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr, ptr [[D_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP13]], ptr addrspace(4) [[TMP14]], align 4
+// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP5]], align 4
 // SPIRV-NEXT:    [[TMP16:%.*]] = load i32, ptr [[DOTATOMICTMP5]], align 4
-// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr [[TMP15]], i32 [[TMP16]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr addrspace(4) [[TMP15]], i32 [[TMP16]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP17]], ptr [[ATOMIC_TEMP6]], align 4
 // SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr [[ATOMIC_TEMP6]], align 4
-// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP18]], ptr [[TMP19]], align 4
-// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr, ptr [[E_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP18]], ptr addrspace(4) [[TMP19]], align 4
+// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP7]], align 4
 // SPIRV-NEXT:    [[TMP21:%.*]] = load i32, ptr [[DOTATOMICTMP7]], align 4
-// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr [[TMP20]], i32 [[TMP21]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr addrspace(4) [[TMP20]], i32 [[TMP21]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP22]], ptr [[ATOMIC_TEMP8]], align 4
 // SPIRV-NEXT:    [[TMP23:%.*]] = load i32, ptr [[ATOMIC_TEMP8]], align 4
-// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr, ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP23]], ptr [[TMP24]], align 4
-// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr, ptr [[F_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP23]], ptr addrspace(4) [[TMP24]], align 4
+// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP9]], align 4
 // SPIRV-NEXT:    [[TMP26:%.*]] = load i32, ptr [[DOTATOMICTMP9]], align 4
-// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr [[TMP25]], i32 [[TMP26]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr addrspace(4) [[TMP25]], i32 [[TMP26]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP27]], ptr [[ATOMIC_TEMP10]], align 4
 // SPIRV-NEXT:    [[TMP28:%.*]] = load i32, ptr [[ATOMIC_TEMP10]], align 4
-// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr, ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP28]], ptr [[TMP29]], align 4
-// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr, ptr [[G_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP28]], ptr addrspace(4) [[TMP29]], align 4
+// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP11]], align 4
 // SPIRV-NEXT:    [[TMP31:%.*]] = load i32, ptr [[DOTATOMICTMP11]], align 4
-// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr [[TMP30]], i32 [[TMP31]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr addrspace(4) [[TMP30]], i32 [[TMP31]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP32]], ptr [[ATOMIC_TEMP12]], align 4
 // SPIRV-NEXT:    [[TMP33:%.*]] = load i32, ptr [[ATOMIC_TEMP12]], align 4
-// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr, ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP33]], ptr [[TMP34]], align 4
-// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr, ptr [[H_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP33]], ptr addrspace(4) [[TMP34]], align 4
+// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP13]], align 4
 // SPIRV-NEXT:    [[TMP36:%.*]] = load i32, ptr [[DOTATOMICTMP13]], align 4
-// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr [[TMP35]], i32 [[TMP36]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr addrspace(4) [[TMP35]], i32 [[TMP36]] syncscope("subgroup") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP37]], ptr [[ATOMIC_TEMP14]], align 4
 // SPIRV-NEXT:    [[TMP38:%.*]] = load i32, ptr [[ATOMIC_TEMP14]], align 4
-// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr, ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP38]], ptr [[TMP39]], align 4
+// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP38]], ptr addrspace(4) [[TMP39]], align 4
 // SPIRV-NEXT:    ret void
 //
 void fi3d(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
@@ -3055,16 +3101,16 @@ void fi3d(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi3e(
-// SPIRV-SAME: ptr noundef [[A:%.*]], ptr noundef [[B:%.*]], ptr noundef [[C:%.*]], ptr noundef [[D:%.*]], ptr noundef [[E:%.*]], ptr noundef [[F:%.*]], ptr noundef [[G:%.*]], ptr noundef [[H:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[A:%.*]], ptr addrspace(4) noundef [[B:%.*]], ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]], ptr addrspace(4) noundef [[E:%.*]], ptr addrspace(4) noundef [[F:%.*]], ptr addrspace(4) noundef [[G:%.*]], ptr addrspace(4) noundef [[H:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[E_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[F_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[G_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[H_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP1:%.*]] = alloca i32, align 4
@@ -3081,78 +3127,86 @@ void fi3d(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // SPIRV-NEXT:    [[ATOMIC_TEMP12:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP13:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP14:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[A]], ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[B]], ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[E]], ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[F]], ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[G]], ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[H]], ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[A_ADDR]], align 8
+// SPIRV-NEXT:    [[A_ADDR_ASCAST:%.*]] = addrspacecast ptr [[A_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[B_ADDR_ASCAST:%.*]] = addrspacecast ptr [[B_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[E_ADDR_ASCAST:%.*]] = addrspacecast ptr [[E_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[F_ADDR_ASCAST:%.*]] = addrspacecast ptr [[F_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[G_ADDR_ASCAST:%.*]] = addrspacecast ptr [[G_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[H_ADDR_ASCAST:%.*]] = addrspacecast ptr [[H_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[A]], ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[B]], ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[E]], ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[F]], ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[G]], ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[H]], ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr [[TMP0]], i32 [[TMP1]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw add ptr addrspace(4) [[TMP0]], i32 [[TMP1]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP2]], ptr [[ATOMIC_TEMP]], align 4
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ATOMIC_TEMP]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[TMP4]], align 4
-// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr, ptr [[B_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[TMP4]], align 4
+// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP1]], align 4
 // SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[DOTATOMICTMP1]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr [[TMP5]], i32 [[TMP6]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw sub ptr addrspace(4) [[TMP5]], i32 [[TMP6]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP7]], ptr [[ATOMIC_TEMP2]], align 4
 // SPIRV-NEXT:    [[TMP8:%.*]] = load i32, ptr [[ATOMIC_TEMP2]], align 4
-// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP8]], ptr [[TMP9]], align 4
-// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP8]], ptr addrspace(4) [[TMP9]], align 4
+// SPIRV-NEXT:    [[TMP10:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP3]], align 4
 // SPIRV-NEXT:    [[TMP11:%.*]] = load i32, ptr [[DOTATOMICTMP3]], align 4
-// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr [[TMP10]], i32 [[TMP11]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP12:%.*]] = atomicrmw and ptr addrspace(4) [[TMP10]], i32 [[TMP11]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP12]], ptr [[ATOMIC_TEMP4]], align 4
 // SPIRV-NEXT:    [[TMP13:%.*]] = load i32, ptr [[ATOMIC_TEMP4]], align 4
-// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP13]], ptr [[TMP14]], align 4
-// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr, ptr [[D_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP14:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP13]], ptr addrspace(4) [[TMP14]], align 4
+// SPIRV-NEXT:    [[TMP15:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP5]], align 4
 // SPIRV-NEXT:    [[TMP16:%.*]] = load i32, ptr [[DOTATOMICTMP5]], align 4
-// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr [[TMP15]], i32 [[TMP16]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP17:%.*]] = atomicrmw or ptr addrspace(4) [[TMP15]], i32 [[TMP16]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP17]], ptr [[ATOMIC_TEMP6]], align 4
 // SPIRV-NEXT:    [[TMP18:%.*]] = load i32, ptr [[ATOMIC_TEMP6]], align 4
-// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP18]], ptr [[TMP19]], align 4
-// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr, ptr [[E_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP19:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP18]], ptr addrspace(4) [[TMP19]], align 4
+// SPIRV-NEXT:    [[TMP20:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP7]], align 4
 // SPIRV-NEXT:    [[TMP21:%.*]] = load i32, ptr [[DOTATOMICTMP7]], align 4
-// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr [[TMP20]], i32 [[TMP21]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP22:%.*]] = atomicrmw xor ptr addrspace(4) [[TMP20]], i32 [[TMP21]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP22]], ptr [[ATOMIC_TEMP8]], align 4
 // SPIRV-NEXT:    [[TMP23:%.*]] = load i32, ptr [[ATOMIC_TEMP8]], align 4
-// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr, ptr [[E_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP23]], ptr [[TMP24]], align 4
-// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr, ptr [[F_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP24:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[E_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP23]], ptr addrspace(4) [[TMP24]], align 4
+// SPIRV-NEXT:    [[TMP25:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP9]], align 4
 // SPIRV-NEXT:    [[TMP26:%.*]] = load i32, ptr [[DOTATOMICTMP9]], align 4
-// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr [[TMP25]], i32 [[TMP26]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP27:%.*]] = atomicrmw nand ptr addrspace(4) [[TMP25]], i32 [[TMP26]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP27]], ptr [[ATOMIC_TEMP10]], align 4
 // SPIRV-NEXT:    [[TMP28:%.*]] = load i32, ptr [[ATOMIC_TEMP10]], align 4
-// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr, ptr [[F_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP28]], ptr [[TMP29]], align 4
-// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr, ptr [[G_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP29:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP28]], ptr addrspace(4) [[TMP29]], align 4
+// SPIRV-NEXT:    [[TMP30:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP11]], align 4
 // SPIRV-NEXT:    [[TMP31:%.*]] = load i32, ptr [[DOTATOMICTMP11]], align 4
-// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr [[TMP30]], i32 [[TMP31]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP32:%.*]] = atomicrmw min ptr addrspace(4) [[TMP30]], i32 [[TMP31]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP32]], ptr [[ATOMIC_TEMP12]], align 4
 // SPIRV-NEXT:    [[TMP33:%.*]] = load i32, ptr [[ATOMIC_TEMP12]], align 4
-// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr, ptr [[G_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP33]], ptr [[TMP34]], align 4
-// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr, ptr [[H_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP34:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[G_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP33]], ptr addrspace(4) [[TMP34]], align 4
+// SPIRV-NEXT:    [[TMP35:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP13]], align 4
 // SPIRV-NEXT:    [[TMP36:%.*]] = load i32, ptr [[DOTATOMICTMP13]], align 4
-// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr [[TMP35]], i32 [[TMP36]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    [[TMP37:%.*]] = atomicrmw max ptr addrspace(4) [[TMP35]], i32 [[TMP36]] syncscope("singlethread") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP37]], ptr [[ATOMIC_TEMP14]], align 4
 // SPIRV-NEXT:    [[TMP38:%.*]] = load i32, ptr [[ATOMIC_TEMP14]], align 4
-// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr, ptr [[H_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP38]], ptr [[TMP39]], align 4
+// SPIRV-NEXT:    [[TMP39:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP38]], ptr addrspace(4) [[TMP39]], align 4
 // SPIRV-NEXT:    ret void
 //
 void fi3e(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
@@ -3252,24 +3306,27 @@ void fi3e(int *a, int *b, int *c, int *d, int *e, int *f, int *g, int *h) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi4a(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DESIRED:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    store i32 1, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] acquire acquire, align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[DESIRED_ASCAST:%.*]] = addrspacecast ptr [[DESIRED]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 1, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -3372,24 +3429,27 @@ _Bool fi4a(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi4b(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DESIRED:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    store i32 1, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("device") acquire acquire, align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[DESIRED_ASCAST:%.*]] = addrspacecast ptr [[DESIRED]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 1, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("device") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -3492,24 +3552,27 @@ _Bool fi4b(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi4c(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DESIRED:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    store i32 1, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("workgroup") acquire acquire, align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[DESIRED_ASCAST:%.*]] = addrspacecast ptr [[DESIRED]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 1, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("workgroup") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -3612,24 +3675,27 @@ _Bool fi4c(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi4_clustr(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DESIRED:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    store i32 1, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("workgroup") acquire acquire, align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[DESIRED_ASCAST:%.*]] = addrspacecast ptr [[DESIRED]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 1, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("workgroup") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -3732,24 +3798,27 @@ _Bool fi4_clustr(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi4d(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DESIRED:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    store i32 1, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("subgroup") acquire acquire, align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[DESIRED_ASCAST:%.*]] = addrspacecast ptr [[DESIRED]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 1, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("subgroup") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -3852,24 +3921,27 @@ _Bool fi4d(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi4e(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DESIRED:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    store i32 1, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DESIRED]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("singlethread") acquire acquire, align 4
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[DESIRED_ASCAST:%.*]] = addrspacecast ptr [[DESIRED]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    store i32 1, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[DESIRED_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("singlethread") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -3970,24 +4042,26 @@ _Bool fi4e(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi5a(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] acquire acquire, align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -4087,24 +4161,26 @@ _Bool fi5a(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi5b(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("device") acquire acquire, align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("device") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -4204,24 +4280,26 @@ _Bool fi5b(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi5c(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("workgroup") acquire acquire, align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("workgroup") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -4320,24 +4398,26 @@ _Bool fi5c(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi5_clustr(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("workgroup") acquire acquire, align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("workgroup") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -4436,24 +4516,26 @@ _Bool fi5_clustr(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi5d(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("subgroup") acquire acquire, align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("subgroup") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -4552,24 +4634,26 @@ _Bool fi5d(int *i) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi5e(
-// SPIRV-SAME: ptr noundef [[I:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[I:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[I_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[CMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[CMPXCHG_BOOL:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[I]], ptr [[I_ADDR]], align 8
-// SPIRV-NEXT:    store i32 0, ptr [[CMP]], align 4
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[I_ADDR]], align 8
+// SPIRV-NEXT:    [[I_ADDR_ASCAST:%.*]] = addrspacecast ptr [[I_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[CMP_ASCAST:%.*]] = addrspacecast ptr [[CMP]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[I]], ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 0, ptr addrspace(4) [[CMP_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[I_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 1, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[CMP]], align 4
+// SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("singlethread") acquire acquire, align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = cmpxchg weak ptr addrspace(4) [[TMP0]], i32 [[TMP1]], i32 [[TMP2]] syncscope("singlethread") acquire acquire, align 4
 // SPIRV-NEXT:    [[TMP4:%.*]] = extractvalue { i32, i1 } [[TMP3]], 0
 // SPIRV-NEXT:    [[TMP5:%.*]] = extractvalue { i32, i1 } [[TMP3]], 1
 // SPIRV-NEXT:    br i1 [[TMP5]], label %[[CMPXCHG_CONTINUE:.*]], label %[[CMPXCHG_STORE_EXPECTED:.*]]
 // SPIRV:       [[CMPXCHG_STORE_EXPECTED]]:
-// SPIRV-NEXT:    store i32 [[TMP4]], ptr [[CMP]], align 4
+// SPIRV-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[CMP_ASCAST]], align 4
 // SPIRV-NEXT:    br label %[[CMPXCHG_CONTINUE]]
 // SPIRV:       [[CMPXCHG_CONTINUE]]:
 // SPIRV-NEXT:    [[STOREDV:%.*]] = zext i1 [[TMP5]] to i8
@@ -4637,19 +4721,22 @@ _Bool fi5e(int *i) {
 // NVPTX-NEXT:    ret i32 [[TMP4]]
 //
 // SPIRV-LABEL: define hidden spir_func i32 @fi6a(
-// SPIRV-SAME: ptr noundef [[C:%.*]], ptr noundef [[D:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[RET:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr [[TMP0]], i32 [[TMP2]] monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[RET]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr [[RET]], align 4
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[RET_ASCAST:%.*]] = addrspacecast ptr [[RET]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[TMP1]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i32 [[TMP2]] monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[RET_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[RET_ASCAST]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP4]]
 //
 int fi6a(int *c, int *d) {
@@ -4711,19 +4798,22 @@ int fi6a(int *c, int *d) {
 // NVPTX-NEXT:    ret i32 [[TMP4]]
 //
 // SPIRV-LABEL: define hidden spir_func i32 @fi6b(
-// SPIRV-SAME: ptr noundef [[C:%.*]], ptr noundef [[D:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[RET:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr [[TMP0]], i32 [[TMP2]] syncscope("device") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[RET]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr [[RET]], align 4
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[RET_ASCAST:%.*]] = addrspacecast ptr [[RET]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[TMP1]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i32 [[TMP2]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[RET_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[RET_ASCAST]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP4]]
 //
 int fi6b(int *c, int *d) {
@@ -4785,19 +4875,22 @@ int fi6b(int *c, int *d) {
 // NVPTX-NEXT:    ret i32 [[TMP4]]
 //
 // SPIRV-LABEL: define hidden spir_func i32 @fi6c(
-// SPIRV-SAME: ptr noundef [[C:%.*]], ptr noundef [[D:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[RET:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr [[TMP0]], i32 [[TMP2]] syncscope("workgroup") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[RET]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr [[RET]], align 4
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[RET_ASCAST:%.*]] = addrspacecast ptr [[RET]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[TMP1]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i32 [[TMP2]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[RET_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[RET_ASCAST]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP4]]
 //
 int fi6c(int *c, int *d) {
@@ -4859,19 +4952,22 @@ int fi6c(int *c, int *d) {
 // NVPTX-NEXT:    ret i32 [[TMP4]]
 //
 // SPIRV-LABEL: define hidden spir_func i32 @fi6_clustr(
-// SPIRV-SAME: ptr noundef [[C:%.*]], ptr noundef [[D:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[RET:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr [[TMP0]], i32 [[TMP2]] syncscope("workgroup") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[RET]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr [[RET]], align 4
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[RET_ASCAST:%.*]] = addrspacecast ptr [[RET]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[TMP1]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i32 [[TMP2]] syncscope("workgroup") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[RET_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[RET_ASCAST]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP4]]
 //
 int fi6_clustr(int *c, int *d) {
@@ -4933,19 +5029,22 @@ int fi6_clustr(int *c, int *d) {
 // NVPTX-NEXT:    ret i32 [[TMP4]]
 //
 // SPIRV-LABEL: define hidden spir_func i32 @fi6d(
-// SPIRV-SAME: ptr noundef [[C:%.*]], ptr noundef [[D:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[RET:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr [[TMP0]], i32 [[TMP2]] syncscope("subgroup") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[RET]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr [[RET]], align 4
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[RET_ASCAST:%.*]] = addrspacecast ptr [[RET]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[TMP1]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i32 [[TMP2]] syncscope("subgroup") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[RET_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[RET_ASCAST]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP4]]
 //
 int fi6d(int *c, int *d) {
@@ -5007,19 +5106,22 @@ int fi6d(int *c, int *d) {
 // NVPTX-NEXT:    ret i32 [[TMP4]]
 //
 // SPIRV-LABEL: define hidden spir_func i32 @fi6e(
-// SPIRV-SAME: ptr noundef [[C:%.*]], ptr noundef [[D:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]], ptr addrspace(4) noundef [[D:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[D_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[RET:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[D]], ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[D_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
-// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr [[TMP0]], i32 [[TMP2]] syncscope("singlethread") monotonic, align 4
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[RET]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr [[RET]], align 4
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[D_ADDR_ASCAST:%.*]] = addrspacecast ptr [[D_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[RET_ASCAST:%.*]] = addrspacecast ptr [[RET]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[D]], ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP1:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[D_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[TMP1]], align 4
+// SPIRV-NEXT:    [[TMP3:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i32 [[TMP2]] syncscope("singlethread") monotonic, align 4
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[RET_ASCAST]], align 4
+// SPIRV-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[RET_ASCAST]], align 4
 // SPIRV-NEXT:    ret i32 [[TMP4]]
 //
 int fi6e(int *c, int *d) {
@@ -5078,16 +5180,17 @@ int fi6e(int *c, int *d) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi7a(
-// SPIRV-SAME: ptr noundef [[C:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i8, align 1
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i8 1, ptr [[DOTATOMICTMP]], align 1
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i8, ptr [[DOTATOMICTMP]], align 1
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr [[TMP0]], i8 [[TMP1]] monotonic, align 1
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i8 [[TMP1]] monotonic, align 1
 // SPIRV-NEXT:    store i8 [[TMP2]], ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP3]], 0
@@ -5148,16 +5251,17 @@ _Bool fi7a(_Bool *c) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi7b(
-// SPIRV-SAME: ptr noundef [[C:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i8, align 1
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i8 1, ptr [[DOTATOMICTMP]], align 1
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i8, ptr [[DOTATOMICTMP]], align 1
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr [[TMP0]], i8 [[TMP1]] syncscope("device") monotonic, align 1
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i8 [[TMP1]] syncscope("device") monotonic, align 1
 // SPIRV-NEXT:    store i8 [[TMP2]], ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP3]], 0
@@ -5218,16 +5322,17 @@ _Bool fi7b(_Bool *c) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi7c(
-// SPIRV-SAME: ptr noundef [[C:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i8, align 1
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i8 1, ptr [[DOTATOMICTMP]], align 1
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i8, ptr [[DOTATOMICTMP]], align 1
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr [[TMP0]], i8 [[TMP1]] syncscope("workgroup") monotonic, align 1
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i8 [[TMP1]] syncscope("workgroup") monotonic, align 1
 // SPIRV-NEXT:    store i8 [[TMP2]], ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP3]], 0
@@ -5288,16 +5393,17 @@ _Bool fi7c(_Bool *c) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi7_clustr(
-// SPIRV-SAME: ptr noundef [[C:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i8, align 1
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i8 1, ptr [[DOTATOMICTMP]], align 1
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i8, ptr [[DOTATOMICTMP]], align 1
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr [[TMP0]], i8 [[TMP1]] syncscope("workgroup") monotonic, align 1
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i8 [[TMP1]] syncscope("workgroup") monotonic, align 1
 // SPIRV-NEXT:    store i8 [[TMP2]], ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP3]], 0
@@ -5358,16 +5464,17 @@ _Bool fi7_clustr(_Bool *c) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi7d(
-// SPIRV-SAME: ptr noundef [[C:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i8, align 1
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i8 1, ptr [[DOTATOMICTMP]], align 1
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i8, ptr [[DOTATOMICTMP]], align 1
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr [[TMP0]], i8 [[TMP1]] syncscope("subgroup") monotonic, align 1
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i8 [[TMP1]] syncscope("subgroup") monotonic, align 1
 // SPIRV-NEXT:    store i8 [[TMP2]], ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP3]], 0
@@ -5428,16 +5535,17 @@ _Bool fi7d(_Bool *c) {
 // NVPTX-NEXT:    ret i1 [[LOADEDV]]
 //
 // SPIRV-LABEL: define hidden spir_func zeroext i1 @fi7e(
-// SPIRV-SAME: ptr noundef [[C:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[C:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[C_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i8, align 1
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i8, align 1
-// SPIRV-NEXT:    store ptr [[C]], ptr [[C_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[C_ADDR]], align 8
+// SPIRV-NEXT:    [[C_ADDR_ASCAST:%.*]] = addrspacecast ptr [[C_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[C]], ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[C_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i8 1, ptr [[DOTATOMICTMP]], align 1
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i8, ptr [[DOTATOMICTMP]], align 1
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr [[TMP0]], i8 [[TMP1]] syncscope("singlethread") monotonic, align 1
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw xchg ptr addrspace(4) [[TMP0]], i8 [[TMP1]] syncscope("singlethread") monotonic, align 1
 // SPIRV-NEXT:    store i8 [[TMP2]], ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ATOMIC_TEMP]], align 1
 // SPIRV-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP3]], 0
@@ -5538,32 +5646,34 @@ _Bool fi7e(_Bool *c) {
 // NVPTX-NEXT:    ret void
 //
 // SPIRV-LABEL: define hidden spir_func void @fi8a(
-// SPIRV-SAME: ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR0]] {
+// SPIRV-SAME: ptr addrspace(4) noundef [[A:%.*]], ptr addrspace(4) noundef [[B:%.*]]) #[[ATTR0]] {
 // SPIRV-NEXT:  [[ENTRY:.*:]]
-// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr, align 8
-// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr, align 8
+// SPIRV-NEXT:    [[A_ADDR:%.*]] = alloca ptr addrspace(4), align 8
+// SPIRV-NEXT:    [[B_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // SPIRV-NEXT:    [[DOTATOMICTMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[DOTATOMICTMP1:%.*]] = alloca i32, align 4
 // SPIRV-NEXT:    [[ATOMIC_TEMP2:%.*]] = alloca i32, align 4
-// SPIRV-NEXT:    store ptr [[A]], ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store ptr [[B]], ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[B_ADDR]], align 8
+// SPIRV-NEXT:    [[A_ADDR_ASCAST:%.*]] = addrspacecast ptr [[A_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    [[B_ADDR_ASCAST:%.*]] = addrspacecast ptr [[B_ADDR]] to ptr addrspace(4)
+// SPIRV-NEXT:    store ptr addrspace(4) [[A]], ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store ptr addrspace(4) [[B]], ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 -1, ptr [[DOTATOMICTMP]], align 4
 // SPIRV-NEXT:    [[TMP1:%.*]] = load i32, ptr [[DOTATOMICTMP]], align 4
-// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw uinc_wrap ptr [[TMP0]], i32 [[TMP1]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP2:%.*]] = atomicrmw uinc_wrap ptr addrspace(4) [[TMP0]], i32 [[TMP1]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP2]], ptr [[ATOMIC_TEMP]], align 4
 // SPIRV-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ATOMIC_TEMP]], align 4
-// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP3]], ptr [[TMP4]], align 4
-// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr, ptr [[A_ADDR]], align 8
+// SPIRV-NEXT:    [[TMP4:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[B_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[TMP4]], align 4
+// SPIRV-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
 // SPIRV-NEXT:    store i32 -1, ptr [[DOTATOMICTMP1]], align 4
 // SPIRV-NEXT:    [[TMP6:%.*]] = load i32, ptr [[DOTATOMICTMP1]], align 4
-// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw udec_wrap ptr [[TMP5]], i32 [[TMP6]] syncscope("device") monotonic, align 4
+// SPIRV-NEXT:    [[TMP7:%.*]] = atomicrmw udec_wrap ptr addrspace(4) [[TMP5]], i32 [[TMP6]] syncscope("device") monotonic, align 4
 // SPIRV-NEXT:    store i32 [[TMP7]], ptr [[ATOMIC_TEMP2]], align 4
 // SPIRV-NEXT:    [[TMP8:%.*]] = load i32, ptr [[ATOMIC_TEMP2]], align 4
-// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr, ptr [[A_ADDR]], align 8
-// SPIRV-NEXT:    store i32 [[TMP8]], ptr [[TMP9]], align 4
+// SPIRV-NEXT:    [[TMP9:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[A_ADDR_ASCAST]], align 8
+// SPIRV-NEXT:    store i32 [[TMP8]], ptr addrspace(4) [[TMP9]], align 4
 // SPIRV-NEXT:    ret void
 //
 void fi8a(unsigned int *a, unsigned int *b) {

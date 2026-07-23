@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -emit-llvm -o - -triple x86_64-linux-pc -target-feature +avx512fp16 %s | FileCheck %s
-// RUN: %clang_cc1 -emit-llvm -o - -triple spir-unknown-unknown %s | FileCheck %s
+// RUN: %clang_cc1 -emit-llvm -o - -triple spir-unknown-unknown %s | FileCheck --check-prefix=SPIR %s
 // RUN: %clang_cc1 -emit-llvm -o - -triple armv7a--none-eabi %s | FileCheck %s
 // RUN: %clang_cc1 -emit-llvm -o - -triple aarch64-linux-gnu %s | FileCheck %s
 
@@ -7,11 +7,15 @@ void test_float16_builtins(void) {
   volatile _Float16 res;
 
   // CHECK: store volatile half +inf, ptr %res, align 2
+  // SPIR: store volatile half +inf, ptr addrspace(4) %res.ascast, align 2
   res = __builtin_huge_valf16();
   // CHECK: store volatile half +inf, ptr %res, align 2
+  // SPIR: store volatile half +inf, ptr addrspace(4) %res.ascast, align 2
   res = __builtin_inff16();
   // CHECK: store volatile half +qnan, ptr %res, align 2
+  // SPIR: store volatile half +qnan, ptr addrspace(4) %res.ascast, align 2
   res = __builtin_nanf16("");
   // CHECK: store volatile half +snan(0x100), ptr %res, align 2
+  // SPIR: store volatile half +snan(0x100), ptr addrspace(4) %res.ascast, align 2
   res = __builtin_nansf16("");
 }
