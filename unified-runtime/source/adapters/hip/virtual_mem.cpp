@@ -51,8 +51,8 @@ urVirtualMemReserve(ur_context_handle_t hContext, const void *pStart,
                     size_t size, void **ppStart) {
   // Reserve the virtual mem. Only need to do once for arbitrary device
   ScopedDevice Active(hContext->getDevices()[0]);
-  UR_CHECK_ERROR(hipMemAddressReserve(ppStart, size, 0,
-                                      const_cast<void *>(pStart), 0));
+  UR_CHECK_ERROR(
+      hipMemAddressReserve(ppStart, size, 0, const_cast<void *>(pStart), 0));
   return UR_RESULT_SUCCESS;
 }
 
@@ -78,8 +78,8 @@ urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
     AccessDesc.location.type = hipMemLocationTypeDevice;
     AccessDesc.location.id = Device->getIndex();
     ScopedDevice Active(Device);
-    UR_CHECK_ERROR(hipMemSetAccess(const_cast<void *>(pStart), size,
-                                   &AccessDesc, 1));
+    UR_CHECK_ERROR(
+        hipMemSetAccess(const_cast<void *>(pStart), size, &AccessDesc, 1));
   }
   return UR_RESULT_SUCCESS;
 }
