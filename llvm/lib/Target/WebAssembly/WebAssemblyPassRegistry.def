@@ -43,6 +43,7 @@ MACHINE_FUNCTION_PASS("wasm-cfg-sort", WebAssemblyCFGSortPass())
 MACHINE_FUNCTION_PASS("wasm-cfg-stackify", WebAssemblyCFGStackifyPass())
 MACHINE_FUNCTION_PASS("wasm-clean-code-after-trap",
                       WebAssemblyCleanCodeAfterTrapPass())
+MACHINE_FUNCTION_PASS("wasm-explicit-locals", WebAssemblyExplicitLocalsPass())
 MACHINE_FUNCTION_PASS("wasm-isel", WebAssemblyISelDAGToDAGPass(*this, getOptLevel()))
 MACHINE_FUNCTION_PASS("wasm-fix-br-table-defaults",
                       WebAssemblyFixBrTableDefaultsPass())

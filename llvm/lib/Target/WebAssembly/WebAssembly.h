@@ -255,7 +255,15 @@ public:
 };
 
 FunctionPass *createWebAssemblyCFGStackifyLegacyPass();
-FunctionPass *createWebAssemblyExplicitLocals();
+
+class WebAssemblyExplicitLocalsPass
+    : public RequiredPassInfoMixin<WebAssemblyExplicitLocalsPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyExplicitLocalsLegacyPass();
 FunctionPass *createWebAssemblyLowerBrUnless();
 FunctionPass *createWebAssemblyRegNumbering();
 FunctionPass *createWebAssemblyVecReduce();
@@ -275,7 +283,7 @@ void initializeWebAssemblyCFGStackifyLegacyPass(PassRegistry &);
 void initializeWebAssemblyDAGToDAGISelLegacyPass(PassRegistry &);
 void initializeWebAssemblyDebugFixupPass(PassRegistry &);
 void initializeWebAssemblyExceptionInfoWrapperPassPass(PassRegistry &);
-void initializeWebAssemblyExplicitLocalsPass(PassRegistry &);
+void initializeWebAssemblyExplicitLocalsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixBrTableDefaultsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixFunctionBitcastsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PassRegistry &);

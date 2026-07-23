@@ -223,9 +223,8 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
   addMachineFunctionPass(WebAssemblyCFGStackifyPass(), PMW);
 
   // Insert explicit local.get and local.set operators.
-  if (!WasmDisableExplicitLocals) {
-    // TODO(boomanaiden154): WebAssemblyExplicitLocals
-  }
+  if (!WasmDisableExplicitLocals)
+    addMachineFunctionPass(WebAssemblyExplicitLocalsPass(), PMW);
 
   // Lower br_unless into br_if.
   // TODO(boomanaiden154): WebAssemblyLowerBrUnless
