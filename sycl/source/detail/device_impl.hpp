@@ -1508,7 +1508,8 @@ public:
           arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
           arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
           arch::intel_gpu_ptl_u,   arch::intel_gpu_wcl,
-          arch::intel_gpu_cri};
+          arch::intel_gpu_nvl_s,   arch::intel_gpu_nvl_u,
+          arch::intel_gpu_nvl_p,   arch::intel_gpu_cri};
       try {
         return std::any_of(
             std::begin(supported_archs), std::end(supported_archs),
@@ -1979,7 +1980,7 @@ public:
           .value_or(ext::oneapi::experimental::architecture::unknown);
     } else if (is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
                             backend::ext_oneapi_hip == CurrentBackend)) {
-      auto MapArchIDToArchName = [&](const char *arch) {
+      auto MapArchIDToArchName = [&](std::string_view arch) {
         for (const auto &Item : NvidiaAmdGPUArchitectures) {
           if (std::string_view(Item.first) == arch)
             return Item.second;
@@ -1990,7 +1991,7 @@ public:
           get_info_impl<UrInfoCode<info::device::version>::value>();
       std::string_view DeviceArchSubstr =
           std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
-      return MapArchIDToArchName(DeviceArchSubstr.data());
+      return MapArchIDToArchName(DeviceArchSubstr);
     } else if (is_cpu() && backend::opencl == CurrentBackend) {
       return LookupIPVersion(IntelCPUArchitectures)
           .value_or(ext::oneapi::experimental::architecture::x86_64);
@@ -2075,6 +2076,9 @@ public:
              (architecture::intel_gpu_ptl_h == DeviceArch) ||
              (architecture::intel_gpu_ptl_u == DeviceArch) ||
              (architecture::intel_gpu_wcl == DeviceArch) ||
+             (architecture::intel_gpu_nvl_s == DeviceArch) ||
+             (architecture::intel_gpu_nvl_u == DeviceArch) ||
+             (architecture::intel_gpu_nvl_p == DeviceArch) ||
              (architecture::intel_gpu_cri == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,

@@ -222,6 +222,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::SYCLBuiltinNumBasesExprClass:
   case Expr::SYCLBuiltinBaseTypeExprClass:
   case Expr::CXXReflectExprClass:
+  case Expr::CXXExpansionSelectExprClass:
     return Cl::CL_PRValue;
 
   case Expr::EmbedExprClass:

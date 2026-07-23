@@ -61,6 +61,7 @@
 #include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 #include <cctype>
+#include <iterator>
 
 #include "clang/Basic/LangStandard.h"
 #include "llvm/Support/Casting.h"
@@ -145,6 +146,7 @@ shouldUseExceptionTablesForObjCExceptions(const ObjCRuntime &runtime,
 /// disable C++ exceptions but enable Objective-C exceptions.
 static bool addExceptionArgs(const ArgList &Args, types::ID InputType,
                              const ToolChain &TC, bool KernelOrKext,
+                             bool IsDeviceOffloadAction,
                              const ObjCRuntime &objcRuntime,
                              ArgStringList &CmdArgs) {
   const llvm::Triple &Triple = TC.getTriple();
@@ -188,9 +190,10 @@ static bool addExceptionArgs(const ArgList &Args, types::ID InputType,
   }
 
   if (types::isCXX(InputType)) {
-    // Disable C++ EH by default on XCore and PS4/PS5.
+    // Disable C++ EH by default on XCore, PS4/PS5 and GPU targets.
     bool CXXExceptionsEnabled = Triple.getArch() != llvm::Triple::xcore &&
-                                !Triple.isPS() && !Triple.isDriverKit();
+                                !Triple.isPS() && !Triple.isDriverKit() &&
+                                !(Triple.isGPU() && !IsDeviceOffloadAction);
     Arg *ExceptionArg = Args.getLastArg(
         options::OPT_fcxx_exceptions, options::OPT_fno_cxx_exceptions,
         options::OPT_fexceptions, options::OPT_fno_exceptions);
@@ -1521,7 +1524,8 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
       auto isPAuthLR = [](const char *member) {
         llvm::AArch64::ExtensionInfo pauthlr_extension =
             llvm::AArch64::getExtensionByID(llvm::AArch64::AEK_PAUTHLR);
-        return pauthlr_extension.PosTargetFeature == member;
+        return llvm::AArch64::StrTab[pauthlr_extension.PosTargetFeature] ==
+               member;
       };
 
       if (llvm::any_of(CmdArgs, isPAuthLR))
@@ -2250,6 +2254,10 @@ void Clang::AddSystemZTargetArgs(const ArgList &Args,
     CmdArgs.push_back("-mfloat-abi");
     CmdArgs.push_back("soft");
   }
+
+  if (Triple.isOSzOS())
+    Args.AddLastArg(CmdArgs, options::OPT_mzos_ppa1_name,
+                    options::OPT_mno_zos_ppa1_name);
 }
 
 void Clang::AddX86TargetArgs(const ArgList &Args,
@@ -2332,6 +2340,119 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
   }
 }
 
+static StringRef getOptionName(StringRef Option, const char Delimiter = '=') {
+  size_t Index = Option.find(Delimiter);
+  if (Index != StringRef::npos)
+    Option = Option.substr(0, Index);
+  return Option;
+}
+
+static void checkAndRemoveLLVMArg(ArgStringList &CmdArgs, StringRef Opt) {
+  Opt = getOptionName(Opt);
+  if (CmdArgs.size() < 2)
+    return;
+
+  for (auto It = std::next(CmdArgs.begin()); It != CmdArgs.end(); ++It) {
+    StringRef Option = *It;
+    if (!Option.starts_with(Opt))
+      continue;
+    Option = getOptionName(Option);
+    if (Option != Opt)
+      continue;
+    if (StringRef(*(It - 1)) != "-mllvm")
+      continue;
+
+    It = CmdArgs.erase(It);
+    CmdArgs.erase(It - 1);
+    return;
+  }
+}
+
+static void pushBackLLVMArg(ArgStringList &CmdArgs, const char *A) {
+  checkAndRemoveLLVMArg(CmdArgs, A);
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back(A);
+}
+
+static void addQFloatLossyFastMathArgs(ArgStringList &CmdArgs) {
+  for (auto It = CmdArgs.begin(), Ie = CmdArgs.end(); It != Ie;) {
+    StringRef Option = *It;
+    if (Option == "-fmath-errno" || Option == "-ffp-contract=on") {
+      It = CmdArgs.erase(It);
+      Ie = CmdArgs.end();
+    } else {
+      ++It;
+    }
+  }
+
+  CmdArgs.push_back("-menable-no-infs");
+  CmdArgs.push_back("-menable-no-nans");
+  CmdArgs.push_back("-fapprox-func");
+  CmdArgs.push_back("-funsafe-math-optimizations");
+  CmdArgs.push_back("-fno-signed-zeros");
+  CmdArgs.push_back("-mreassociate");
+  CmdArgs.push_back("-freciprocal-math");
+  CmdArgs.push_back("-ffp-contract=fast");
+  CmdArgs.push_back("-ffast-math");
+  CmdArgs.push_back("-ffinite-math-only");
+  CmdArgs.push_back("-D__FAST_MATH__");
+  pushBackLLVMArg(CmdArgs, "-fast-math=true");
+}
+
+static void addQFloatBackendArg(const Driver &D, const ArgList &Args,
+                                ArgStringList &CmdArgs) {
+  auto HvxVerOpt = toolchains::HexagonToolChain::GetHVXVersion(Args);
+  bool HasHVX = HvxVerOpt.has_value();
+  std::string HvxVer = HasHVX ? *HvxVerOpt : std::string();
+  if (!Args.hasArg(options::OPT_mhexagon_hvx, options::OPT_mhexagon_hvx_EQ,
+                   options::OPT_mhexagon_hvx_ieee_fp) ||
+      !HasHVX)
+    return;
+  unsigned HvxVerNum = 0;
+  if (StringRef(HvxVer).drop_front(1).getAsInteger(10, HvxVerNum))
+    HvxVerNum = 0;
+
+  if (Arg *A = Args.getLastArg(options::OPT_mhexagon_hvx_qfloat,
+                               options::OPT_mhexagon_hvx_qfloat_EQ,
+                               options::OPT_mhexagon_hvx_ieee_fp)) {
+    if (HvxVerNum >= 79) {
+      if (A->getOption().matches(options::OPT_mhexagon_hvx_qfloat_EQ)) {
+        const char *Mode =
+            llvm::StringSwitch<const char *>(StringRef(A->getValue()).lower())
+                .Case("strict-ieee", "-hexagon-qfloat-mode=strict-ieee")
+                .Case("ieee", "-hexagon-qfloat-mode=ieee")
+                .Case("lossy", "-hexagon-qfloat-mode=lossy")
+                .Case("legacy", "-hexagon-qfloat-mode=legacy")
+                .Default(nullptr);
+        if (!Mode) {
+          D.Diag(diag::err_drv_invalid_value)
+              << A->getAsString(Args) << A->getValue();
+          return;
+        }
+        pushBackLLVMArg(CmdArgs, Mode);
+        if (strcmp(Mode, "-hexagon-qfloat-mode=lossy") == 0)
+          addQFloatLossyFastMathArgs(CmdArgs);
+      } else if (A->getOption().matches(options::OPT_mhexagon_hvx_qfloat)) {
+        pushBackLLVMArg(CmdArgs, "-hexagon-qfloat-mode=lossy");
+        addQFloatLossyFastMathArgs(CmdArgs);
+      } else {
+        pushBackLLVMArg(CmdArgs, "-hexagon-qfloat-mode=ieee");
+      }
+    } else {
+      if (Arg *QFloatArg = Args.getLastArg(options::OPT_mhexagon_hvx_qfloat,
+                                           options::OPT_mhexagon_hvx_qfloat_EQ,
+                                           options::OPT_mno_hexagon_hvx_qfloat);
+          QFloatArg &&
+          QFloatArg->getOption().matches(options::OPT_mhexagon_hvx_qfloat_EQ)) {
+        D.Diag(diag::warn_drv_unsupported_option_part_for_target)
+            << QFloatArg->getValue() << QFloatArg->getAsString(Args)
+            << (std::string("HVX ") + HvxVer +
+                "; falling back to legacy qfloat mode");
+      }
+    }
+  }
+}
+
 void Clang::AddHexagonTargetArgs(const ArgList &Args,
                                  ArgStringList &CmdArgs) const {
   CmdArgs.push_back("-mqdsp6-compat");
@@ -2351,6 +2472,8 @@ void Clang::AddHexagonTargetArgs(const ArgList &Args,
   }
   CmdArgs.push_back("-mllvm");
   CmdArgs.push_back("-machine-sink-split=0");
+
+  addQFloatBackendArg(getToolChain().getDriver(), Args, CmdArgs);
 }
 
 void Clang::AddLanaiTargetArgs(const ArgList &Args,
@@ -3703,6 +3826,12 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
         !EffectiveTriple.isSystemZ())
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
+    // z/OS only supports the tls mode.
+    if (EffectiveTriple.isOSzOS() && GuardValue != "tls") {
+      D.Diag(diag::err_drv_invalid_value_with_suggestion)
+          << A->getOption().getName() << GuardValue << "tls";
+      return;
+    }
     if ((EffectiveTriple.isX86() || EffectiveTriple.isARM() ||
          EffectiveTriple.isThumb() || EffectiveTriple.isSystemZ()) &&
         GuardValue != "tls" && GuardValue != "global") {
@@ -8429,9 +8558,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                              // TransferableCommand::tryParseStdArg() in
                              // lib/Tooling/InterpolatingCompilationDatabase.cpp
                              // to match.
-                             // TODO add c++23 and c++26 when MSVC supports it.
+                             // TODO add c++23, c++26, c++29 when MSVC supports
+                             // it.
                              .Case("c++23preview", "-std=c++23")
-                             .Case("c++latest", "-std=c++26")
+                             .Case("c++26preview", "-std=c++26")
+                             .Case("c++latest", "-std=c++2d")
                              .Default("");
       if (IsSYCL) {
         const LangStandard *LangStd =
@@ -8521,8 +8652,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
        Std->containsValue("c++23") || Std->containsValue("gnu++23") ||
        Std->containsValue("c++23preview") || Std->containsValue("c++2c") ||
        Std->containsValue("gnu++2c") || Std->containsValue("c++26") ||
-       Std->containsValue("gnu++26") || Std->containsValue("c++latest") ||
-       Std->containsValue("gnu++latest"));
+       Std->containsValue("gnu++26") || Std->containsValue("c++26preview") ||
+       Std->containsValue("c++2d") || Std->containsValue("gnu++2d") ||
+       Std->containsValue("c++latest") || Std->containsValue("gnu++latest"));
   bool HaveModules =
       RenderModulesOptions(C, D, Args, Input, Output, HaveCxx20, CmdArgs);
 
@@ -8576,7 +8708,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Handle GCC-style exception args.
   bool EH = false;
   if (!C.getDriver().IsCLMode())
-    EH = addExceptionArgs(Args, InputType, TC, KernelOrKext, Runtime, CmdArgs);
+    EH = addExceptionArgs(Args, InputType, TC, KernelOrKext,
+                          IsDeviceOffloadAction, Runtime, CmdArgs);
 
   // Handle exception personalities
   Arg *A = Args.getLastArg(
@@ -8808,6 +8941,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT__ssaf_extract_summaries);
   Args.AddLastArg(CmdArgs, options::OPT__ssaf_tu_summary_file);
   Args.AddLastArg(CmdArgs, options::OPT__ssaf_compilation_unit_id);
+  Args.AddLastArg(CmdArgs, options::OPT__ssaf_include_local_entities);
 
   // Handle serialized diagnostics.
   if (Arg *A = Args.getLastArg(options::OPT__serialize_diags)) {
@@ -10316,12 +10450,9 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     } else {
       llvm::Triple EffTriple(CurTC->ComputeEffectiveClangTriple(
           TCArgs, CurDep->getOffloadingArch()));
-      // SYCL old-model bundler uses 3-component triples for SPIR-V, NVPTX,
-      // and NativeCPU targets to match the triple format used during
-      // unbundling.
-      if (CurKind == Action::OFK_SYCL &&
-          (EffTriple.isSPIROrSPIRV() || EffTriple.isNVPTX() ||
-           EffTriple.isNativeCPU()))
+      // SYCL old-model bundler uses 3-component triples to match the triple
+      // format used during unbundling.
+      if (CurKind == Action::OFK_SYCL)
         Triples += EffTriple.normalize();
       else
         Triples += EffTriple.normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
@@ -10522,6 +10653,17 @@ static void addRunTimeWrapperOpts(Compilation &C,
   // Grab any Target specific options that need to be added to the wrapper
   // information.
   ArgStringList BuildArgs;
+  // FIXME: BuildArgs is joined with spaces below into a single
+  // -compile-opts=/-link-opts= string embedded in the image descriptor, then
+  // later re-split on spaces by clang-linker-wrapper for AOT triples (see
+  // addOclocOptions/runAOTCompileIntelCPU in
+  // clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp). Any individual
+  // token containing an embedded space is corrupted by this round trip
+  // unless it happens to fall inside the pre-existing "-options \"...\""
+  // wrapper convention. Forwarding these as individual tokens instead of a
+  // joined string (as is already done for the CLI-supplied
+  // --device-compiler=/--device-linker= counterpart via AOTDeviceArgs) would
+  // avoid this.
   auto createArgString = [&](const char *Opt) {
     if (BuildArgs.empty())
       return;
@@ -10840,6 +10982,17 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // compilers and the clang-offload-wrapper in the case of SYCL offloading.
     if (OffloadAction->getOffloadingDeviceKind() == Action::OFK_SYCL) {
       ArgStringList BuildArgs;
+      // FIXME: BuildArgs is joined with spaces into a single compile-opts=/
+      // link-opts= string below, then later re-split on spaces by
+      // clang-linker-wrapper (see addOclocOptions/runAOTCompileIntelCPU in
+      // clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp). Any
+      // individual token containing an embedded space (e.g. from
+      // -Xsycl-target-backend "-abc 'multi word'") is corrupted by this
+      // round trip unless it happens to fall inside the pre-existing
+      // "-options \"...\"" wrapper convention. The CLI-supplied counterpart
+      // of these options (--device-compiler=/--device-linker=) avoids this
+      // by forwarding individual tokens (AOTDeviceArgs); the image-embedded
+      // path here still does not.
       auto createArgString = [&](const char *Opt) {
         if (BuildArgs.empty())
           return;
@@ -10976,7 +11129,7 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
       Targets += '-';
-      Targets += Dep.DependentBoundArch;
+      Targets += Dep.DependentBoundArch.ArchName;
     }
   }
   CmdArgs.push_back(TCArgs.MakeArgString(Targets));
@@ -11814,7 +11967,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_fsanitize_trap_EQ,
       OPT_fno_sanitize_trap_EQ,
       OPT_fslp_vectorize,
-      OPT_fno_slp_vectorize};
+      OPT_fno_slp_vectorize,
+      OPT_hipstdpar};
   const llvm::DenseSet<unsigned> LinkerOptions{OPT_mllvm, OPT_Zlinker_input};
   auto ToolChainHasRT = [&](const ToolChain &TC, StringRef Name) {
     return TC.getVFS().exists(
@@ -11917,6 +12071,23 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         LinkerArgs.emplace_back("--create-library");
       }
 
+      // Forward the SYCL device image split option to clang-sycl-linker.
+      // The driver and clang-sycl-linker share the same value vocabulary, so
+      // the value is passed through verbatim after validation.
+      if (Kind == Action::OFK_SYCL) {
+        if (Arg *A =
+                ToolChainArgs.getLastArg(OPT_fsycl_device_image_split_EQ)) {
+          StringRef Mode = A->getValue();
+          if (Mode != "kernel" && Mode != "translation_unit" &&
+              Mode != "link_unit")
+            C.getDriver().Diag(clang::diag::err_drv_invalid_value)
+                << A->getSpelling() << Mode;
+          else
+            LinkerArgs.emplace_back(
+                Args.MakeArgString("--module-split-mode=" + Mode));
+        }
+      }
+
       // Forward all of these to the appropriate toolchain.
       for (StringRef Arg : CompilerArgs)
         CmdArgs.push_back(Args.MakeArgString(
@@ -11949,19 +12120,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                    "=-plugin-opt=-amdgpu-internalize-symbols"));
           }
         }
-      }
-
-      if (JA.getType() == types::TY_HIP_FATBIN && Kind == Action::OFK_HIP) {
-        // Non-RDC HIP uses the conventional non-LTO pipeline unless the user
-        // opts into offload LTO.
-        bool UsesProfileGenerate = Args.hasArg(
-            options::OPT_fprofile_generate, options::OPT_fprofile_generate_EQ,
-            options::OPT_fprofile_instr_generate,
-            options::OPT_fprofile_instr_generate_EQ);
-        if (!Args.hasArg(options::OPT_foffload_lto_EQ,
-                         options::OPT_fno_offload_lto) &&
-            !UsesProfileGenerate && !TC->getTriple().isSPIRV())
-          CmdArgs.push_back("--no-lto");
       }
     }
   }
@@ -12008,7 +12166,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                               Args);
     SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
     SmallString<128> LibName("libsycl-crt.bc");
-    bool IsNewOffload = D.getUseNewOffloadingDriver();
     for (const auto &LibLoc : LibLocCandidates) {
       SmallString<128> FullLibName(LibLoc);
       llvm::sys::path::append(FullLibName, LibName);
@@ -12027,12 +12184,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -mlink-builtin-bitcode, so they are not passed here. Only non-SPIR
     // targets (NVPTX, AMD) pass device libraries to clang-linker-wrapper.
     SmallVector<std::string, 4> BCLibList;
-
-    auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
-      if (List.size() > 0)
-        List += ",";
-      List += Arg.str();
-    };
 
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (const auto &[Kind, TC] :
@@ -12078,25 +12229,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           Args.MakeArgString(Twine("-sycl-dump-device-code=") + DumpDir));
     }
 
-    auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
-      if (!OptString.empty())
-        OptString += " ";
-      OptString += AddOpt.str();
-    };
-    // --sycl-post-link-options="options" provides a string of options to be
-    // passed along to the sycl-post-link tool during device link.
-    SmallString<128> PostLinkOptString;
+    // --sycl-post-link-options="options" provides options to be passed along to
+    // the sycl-post-link tool during device link. Each token is forwarded as
+    // its own occurrence so that values are not re-split on spaces in the
+    // clang-linker-wrapper. -Xdevice-post-link is processed separately later.
     ArgStringList PostLinkArgs;
     getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
     for (const auto &A : PostLinkArgs)
-      appendOption(PostLinkOptString, A);
-    if (Args.hasArg(options::OPT_Xdevice_post_link)) {
-      for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
-        appendOption(PostLinkOptString, A);
-    }
-    if (!PostLinkOptString.empty())
       CmdArgs.push_back(
-          Args.MakeArgString("--sycl-post-link-options=" + PostLinkOptString));
+          Args.MakeArgString(Twine("--sycl-post-link-options=") + A));
 
     if (Args.hasArg(options::OPT_fsycl_remove_unused_external_funcs))
       CmdArgs.push_back(
@@ -12115,18 +12256,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-no-sycl-add-default-spec-consts-image"));
 
-    // --llvm-spirv-options="options" provides a string of options to be passed
-    // along to the llvm-spirv (translation) step during device link.
-    SmallString<128> OptString;
-    if (Args.hasArg(options::OPT_Xspirv_translator)) {
-      for (const auto &A : Args.getAllArgValues(options::OPT_Xspirv_translator))
-        appendOption(OptString, A);
-    }
+    // --llvm-spirv-options="options" provides options to be passed along to the
+    // llvm-spirv (translation) step during device link. Each token is forwarded
+    // as its own occurrence so that values are not re-split on spaces in the
+    // clang-linker-wrapper. -Xspirv-translator is processed separately later.
     ArgStringList TranslatorArgs;
     getNonTripleBasedSPIRVTransOpts(C, Args, TranslatorArgs);
     for (const auto &A : TranslatorArgs)
-      appendOption(OptString, A);
-    CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
+      CmdArgs.push_back(Args.MakeArgString(Twine("--llvm-spirv-options=") + A));
 
     if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
       CmdArgs.push_back("-sycl-is-windows-msvc-env");
@@ -12178,10 +12315,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Pass backend compiler and linker options specified at link time to
-    // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend
-    // are forwarded using --device-compiler, while options passed via
-    // -Xsycl-target-linker are forwarded using --device-linker.
+    // Pass backend compiler, linker, sycl-post-link,
+    // llvm-spirv, and spirv-to-ir-wrapper options specified at link
+    // time to clang-linker-wrapper, using the following mapping:
+    // -Xsycl-target-backend  -> --device-compiler
+    // -Xsycl-target-linker -> --device-linker
+    // -Xdevice-post-link -> --sycl-post-link-options
+    // -Xspirv-translator -> --llvm-spirv-options
+    // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
@@ -12190,33 +12331,49 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
-      SmallString<128> BackendOptString;
-      SmallString<128> LinkOptString;
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs)
-        appendOption(BackendOptString, A);
+        CmdArgs.push_back(
+            Args.MakeArgString("--device-compiler=" +
+                               Action::GetOffloadKindName(Action::OFK_SYCL) +
+                               ":" + TC->getTripleString() + "=" + A));
 
       BuildArgs.clear();
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs) {
-        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
-          appendOption(LinkOptString, A);
-        else
-          // For AOT, combine the Backend and Linker strings into one.
-          appendOption(BackendOptString, A);
-      }
-
-      if (!BackendOptString.empty()) {
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" +
-            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + BackendOptString));
-      }
-      if (!LinkOptString.empty()) {
+      for (const auto &A : BuildArgs)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
-            ":" + TC->getTripleString() + "=" + LinkOptString));
-      }
+            ":" + TC->getTripleString() + "=" + A));
+
+      BuildArgs.clear();
+      SYCLTC.TranslateTargetOpt(
+          TC->getTriple(), Args, BuildArgs, options::OPT_Xdevice_post_link,
+          options::OPT_Xdevice_post_link_EQ, /*Device=*/StringRef());
+      for (const auto &A : BuildArgs)
+        CmdArgs.push_back(
+            Args.MakeArgString("--sycl-post-link-options=" +
+                               Action::GetOffloadKindName(Action::OFK_SYCL) +
+                               ":" + TC->getTripleString() + "=" + A));
+
+      BuildArgs.clear();
+      SYCLTC.TranslateTargetOpt(
+          TC->getTriple(), Args, BuildArgs, options::OPT_Xspirv_translator,
+          options::OPT_Xspirv_translator_EQ, /*Device=*/StringRef());
+      for (const auto &A : BuildArgs)
+        CmdArgs.push_back(
+            Args.MakeArgString("--llvm-spirv-options=" +
+                               Action::GetOffloadKindName(Action::OFK_SYCL) +
+                               ":" + TC->getTripleString() + "=" + A));
+
+      BuildArgs.clear();
+      SYCLTC.TranslateTargetOpt(
+          TC->getTriple(), Args, BuildArgs, options::OPT_Xspirv_to_ir_wrapper,
+          options::OPT_Xspirv_to_ir_wrapper_EQ, /*Device=*/StringRef());
+      for (const auto &A : BuildArgs)
+        CmdArgs.push_back(
+            Args.MakeArgString("--spirv-to-ir-wrapper-options=" +
+                               Action::GetOffloadKindName(Action::OFK_SYCL) +
+                               ":" + TC->getTripleString() + "=" + A));
     }
 
     // Add option to enable creating of the .syclbin file.
@@ -12317,28 +12474,18 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   addOffloadCompressArgs(Args, CmdArgs);
 
-  if (Arg *A = Args.getLastArg(options::OPT_offload_jobs_EQ)) {
-    StringRef Val = A->getValue();
-
-    if (Val.equals_insensitive("jobserver"))
+  OffloadJobsOpt OffloadJobs = parseOffloadJobs(Args);
+  if (OffloadJobs.A) {
+    if (OffloadJobs.K == OffloadJobsOpt::Kind::Jobserver) {
       CmdArgs.push_back(Args.MakeArgString("--wrapper-jobs=jobserver"));
-    else {
-      int NumThreads;
-      if (Val.getAsInteger(10, NumThreads) || NumThreads <= 0) {
-        C.getDriver().Diag(diag::err_drv_invalid_int_value)
-            << A->getAsString(Args) << Val;
-      } else {
-        CmdArgs.push_back(
-            Args.MakeArgString("--wrapper-jobs=" + Twine(NumThreads)));
-      }
+    } else if (OffloadJobs.K == OffloadJobsOpt::Kind::Fixed) {
+      CmdArgs.push_back(Args.MakeArgString("--wrapper-jobs=" +
+                                           Twine(OffloadJobs.NumThreads)));
+    } else if (!OffloadJobs.A->isClaimed()) {
+      C.getDriver().Diag(diag::err_drv_invalid_int_value)
+          << OffloadJobs.A->getAsString(Args) << OffloadJobs.Value;
     }
   }
-
-  // Enable preview breaking changes in clang-linker-wrapper,
-  // in case it needs to introduce any ABI breaking changes.
-  // For example, changes in offload binary descriptor format.
-  if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-    CmdArgs.push_back("-fpreview-breaking-changes");
 
   // Propagate -no-canonical-prefixes.
   if (Args.hasArg(options::OPT_no_canonical_prefixes))

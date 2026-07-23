@@ -2473,6 +2473,15 @@ static SPIRVEntry *parseAndCreateSPIRVEntry(SPIRVWord &WordCount, Op &OpCode,
   if (Scope && !isModuleScopeAllowedOpCode(OpCode)) {
     Entry->setScope(Scope);
   }
+  // Reject a WordCount below the instruction's minimum before setWordCount().
+  if (!M.getErrorLog().checkError(WordCount >= Entry->getFixedWordCount(),
+                                  SPIRVEC_InvalidWordCount,
+                                  "WordCount is smaller than the instruction's "
+                                  "minimum word count")) {
+    M.setInvalid();
+    delete Entry;
+    return nullptr;
+  }
   Entry->setWordCount(WordCount);
   if (OpCode != OpLine)
     Entry->setLine(M.getCurrentLine());

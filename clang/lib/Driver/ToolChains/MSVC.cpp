@@ -108,9 +108,21 @@ class DeviceImageDepForcer {
   }
 
   bool isSystemLib(StringRef LibPath) const {
+    std::string Norm = collapseSeps(LibPath);
+    // A .lib living under any standard Microsoft toolchain directory (the
+    // Windows SDK / UCRT / NETFXSDK under "Windows Kits", or the VC and ATLMFC
+    // libs under "Microsoft Visual Studio") is a system library and must not be
+    // force-loaded. Match on the directory marker rather than one exact version
+    // dir: clang computes only the highest-installed SDK version, but the
+    // linker may resolve a lib against a different version listed earlier on
+    // the LIB env var, and both share the same marker.
+    for (StringRef Marker : {"\\Windows Kits\\", "\\Microsoft Visual Studio\\",
+                             "\\Microsoft SDKs\\"})
+      if (StringRef(Norm).contains_insensitive(Marker))
+        return true;
+    // Also exclude clang's own resource lib dir, which carries no such marker.
     // Compare against the dir plus a trailing '\' (SystemLibDirs are stored
     // that way) so "C:\sdk\lib" doesn't spuriously match "C:\sdk\library\...".
-    std::string Norm = collapseSeps(LibPath);
     for (const auto &Dir : SystemLibDirs)
       if (StringRef(Norm).starts_with_insensitive(Dir))
         return true;
@@ -791,6 +803,31 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::move(LinkCmd));
 }
 
+void tools::ARM64XObjcopy::ConstructJob(Compilation &C, const JobAction &JA,
+                                        const InputInfo &Output,
+                                        const InputInfoList &Inputs,
+                                        const ArgList &Args,
+                                        const char *LinkingOutput) const {
+  // Assume llvm-objcopy is only used for hybrid ARM64X object files.
+  if (Inputs.size() != 2)
+    return;
+
+  std::string ObjcopyPath = getToolChain().GetProgramPath("llvm-objcopy");
+  const char *Exec = Args.MakeArgString(ObjcopyPath);
+
+  // Embed the hybrid object in the .obj.arm64ec section.
+  ArgStringList CmdArgs;
+  CmdArgs.push_back(Args.MakeArgString("--add-section=.obj.arm64ec=" +
+                                       Twine(Inputs[1].getFilename())));
+  // Mark the .obj.arm64ec section as discardable.
+  CmdArgs.push_back("--set-section-flags=.obj.arm64ec=exclude");
+  CmdArgs.push_back(Inputs[0].getFilename());
+  CmdArgs.push_back(Output.getFilename());
+
+  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
+                                         Exec, CmdArgs, Inputs, Output));
+}
+
 MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ArgList &Args)
     : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args),
@@ -822,6 +859,17 @@ MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
       llvm::findVCToolChainViaRegistry(VCToolChainPath, VSLayout);
 
   loadMultilibsFromYAML(Args, D);
+}
+
+Tool *MSVCToolChain::getTool(Action::ActionClass AC) const {
+  switch (AC) {
+  case Action::ObjcopyJobClass:
+    if (!Objcopy)
+      Objcopy.reset(new tools::ARM64XObjcopy(*this));
+    return Objcopy.get();
+  default:
+    return ToolChain::getTool(AC);
+  }
 }
 
 Tool *MSVCToolChain::buildLinker() const {
@@ -1201,7 +1249,7 @@ VersionTuple MSVCToolChain::computeMSVCVersion(const Driver *D,
                    IsWindowsMSVC)) {
     // -fms-compatibility-version=19.33 is default, aka 2022, 17.3
     // NOTE: when changing this value, also update
-    // clang/docs/CommandGuide/clang.rst and clang/docs/UsersManual.rst
+    // clang/docs/CommandGuide/clang.rst and clang/docs/UsersManual.md
     // accordingly.
     MSVT = VersionTuple(19, 33);
   }

@@ -596,15 +596,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
 
-      if (Args.hasArg(options::OPT_fsycl) &&
-          !Args.hasArg(options::OPT_nolibsycl)) {
-        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("-lsycl-preview");
-        else
-          CmdArgs.push_back("-lsycl");
-        CmdArgs.push_back("-lsycl-devicelib-host");
-      }
-
       // LLVM support for atomics on 32-bit SPARC V8+ is incomplete, so
       // forcibly link with libatomic as a workaround.
       // TODO: Issue #41880 and D118021.
@@ -3160,7 +3151,7 @@ Generic_GCC::getDefaultUnwindTableLevel(const ArgList &Args) const {
   switch (getArch()) {
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_be:
-  case llvm::Triple::amdgcn:
+  case llvm::Triple::amdgpu:
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
