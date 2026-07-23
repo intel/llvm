@@ -898,6 +898,11 @@ void handler::extractArgsAndReqs() {
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
 
+void handler::extractFreeFunctionArgsAndReqs() {
+  assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
+  impl->MKernelData.extractArgsAndReqs(/*IsKernelCreatedFromSource=*/false);
+}
+
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
   detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
