@@ -68,9 +68,9 @@ static void loadOCLLibraryImpl() {
     if (!OCLLibHandle) {
       DWORD dirError = GetLastError();
       UR_LOG(ERR,
-             "Failed to load OpenCL.dll from system directory (error code: "
-             "{}) or from the module directory (error code: {})",
-             sysError, dirError);
+             "Failed to load OpenCL.dll from the module directory (error code: "
+             "{})",
+             dirError);
       return;
     }
     UR_LOG(DEBUG, "Successfully loaded OpenCL.dll from the module directory");
