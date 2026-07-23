@@ -220,7 +220,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
   addMachineFunctionPass(WebAssemblyCFGSortPass(), PMW);
 
   // Insert BLOCK and LOOP markers.
-  // TODO(boomanaiden154): WebAssemblyCFGStackify
+  addMachineFunctionPass(WebAssemblyCFGStackifyPass(), PMW);
 
   // Insert explicit local.get and local.set operators.
   if (!WasmDisableExplicitLocals) {

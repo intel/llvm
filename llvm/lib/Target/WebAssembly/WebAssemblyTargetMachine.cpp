@@ -112,7 +112,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyLateEHPrepareLegacyPass(PR);
   initializeWebAssemblyExceptionInfoWrapperPassPass(PR);
   initializeWebAssemblyCFGSortLegacyPass(PR);
-  initializeWebAssemblyCFGStackifyPass(PR);
+  initializeWebAssemblyCFGStackifyLegacyPass(PR);
   initializeWebAssemblyExplicitLocalsPass(PR);
   initializeWebAssemblyLowerBrUnlessPass(PR);
   initializeWebAssemblyRegNumberingPass(PR);
@@ -486,7 +486,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
   addPass(createWebAssemblyCFGSortLegacyPass());
 
   // Insert BLOCK and LOOP markers.
-  addPass(createWebAssemblyCFGStackify());
+  addPass(createWebAssemblyCFGStackifyLegacyPass());
 
   // Insert explicit local.get and local.set operators.
   if (!WasmDisableExplicitLocals)
