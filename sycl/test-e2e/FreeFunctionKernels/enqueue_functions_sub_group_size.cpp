@@ -2,9 +2,6 @@
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: Device incompatible error
 
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
