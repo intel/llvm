@@ -17,8 +17,8 @@
 std::mutex ur::level_zero::ZeCall::GlobalLock;
 
 namespace umf {
-ur_result_t getProviderNativeError(const char *providerName,
-                                   int32_t nativeError) {
+__urdlllocal ur_result_t getProviderNativeError(const char *providerName,
+                                                int32_t nativeError) {
   if (strcmp(providerName, "LEVEL_ZERO") == 0) {
     auto zeResult = static_cast<ze_result_t>(nativeError);
     if (zeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
