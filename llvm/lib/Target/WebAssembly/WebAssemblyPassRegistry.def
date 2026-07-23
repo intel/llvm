@@ -29,6 +29,12 @@ FUNCTION_PASS("wasm-reduce-to-any-all-true", WebAssemblyReduceToAnyAllTruePass(*
 FUNCTION_PASS("wasm-ref-type-mem2local", WebAssemblyRefTypeMem2LocalPass())
 #undef FUNCTION_PASS
 
+#ifndef MACHINE_FUNCTION_ANALYSIS
+#define MACHINE_FUNCTION_ANALYSIS(NAME, CREATE_PASS)
+#endif
+MACHINE_FUNCTION_ANALYSIS("wasm-exception-info", WebAssemblyExceptionAnalysis())
+#undef MACHINE_FUNCTION_ANALYSIS
+
 #ifndef MACHINE_FUNCTION_PASS
 #define MACHINE_FUNCTION_PASS(NAME, CREATE_PASS)
 #endif

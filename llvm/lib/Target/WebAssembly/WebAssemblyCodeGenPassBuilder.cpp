@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "WebAssembly.h"
+#include "WebAssemblyExceptionInfo.h"
 #include "WebAssemblyTargetMachine.h"
 #include "llvm/CodeGen/AtomicExpand.h"
 #include "llvm/CodeGen/IndirectBrExpand.h"

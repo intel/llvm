@@ -16,7 +16,10 @@
 
 #include "WebAssembly.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/CodeGen/MachineFunctionAnalysisManager.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/IR/Analysis.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
@@ -135,6 +138,7 @@ public:
   WebAssemblyExceptionInfo() {}
   ~WebAssemblyExceptionInfo() { releaseMemory(); }
   WebAssemblyExceptionInfo(const WebAssemblyExceptionInfo &) = delete;
+  WebAssemblyExceptionInfo(WebAssemblyExceptionInfo &&) = default;
   WebAssemblyExceptionInfo &
   operator=(const WebAssemblyExceptionInfo &) = delete;
 
@@ -165,6 +169,9 @@ public:
   }
 
   void print(raw_ostream &OS, const Module *M) const;
+
+  bool invalidate(MachineFunction &MF, const PreservedAnalyses &PA,
+                  MachineFunctionAnalysisManager::Invalidator &);
 };
 
 class WebAssemblyExceptionInfoWrapperPass : public MachineFunctionPass {
@@ -183,6 +190,18 @@ public:
 
   WebAssemblyExceptionInfo &getWEI() { return WasmExceptionInfo; }
   const WebAssemblyExceptionInfo &getWEI() const { return WasmExceptionInfo; }
+};
+
+class WebAssemblyExceptionAnalysis
+    : public AnalysisInfoMixin<WebAssemblyExceptionAnalysis> {
+  friend AnalysisInfoMixin<WebAssemblyExceptionAnalysis>;
+  static AnalysisKey Key;
+
+public:
+  using Result = WebAssemblyExceptionInfo;
+
+  LLVM_ABI Result run(MachineFunction &MF,
+                      MachineFunctionAnalysisManager &MFAM);
 };
 
 } // end namespace llvm
