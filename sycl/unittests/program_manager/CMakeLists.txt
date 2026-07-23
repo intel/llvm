@@ -11,6 +11,9 @@ add_sycl_unittest(ProgramManagerTests OBJECT
   Cleanup.cpp
   MultipleDevsKernelBundle.cpp
   AOTBinaryTarget.cpp
+  LibraryCompilation.cpp
+  SYCLBINSelector.cpp
+  SYCLBINAOTLink.cpp
 )
 endif()
 
