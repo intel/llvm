@@ -274,6 +274,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       ${LLVM_BINARY_DIR}/lib/ur_loaderd.lib
       ${LLVM_BINARY_DIR}/lib/ur_commond.lib
       dbghelp)
+    set(_urd_static_l0 FALSE)
     # Link static adapters into the loader
     foreach(adapter ${SYCL_ENABLE_BACKENDS})
       ur_adapter_is_static(${adapter} adapter_is_static)
@@ -290,8 +291,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
         target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
           ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
+        if(build_var STREQUAL "UR_BUILD_ADAPTER_L0" OR
+           build_var STREQUAL "UR_BUILD_ADAPTER_L0_V2")
+          set(_urd_static_l0 TRUE)
+        endif()
       endif()
     endforeach()
+    # umfd is copied below; ze_loader only when a static L0 adapter is present.
+    target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+      ${LLVM_BINARY_DIR}/lib/umfd.lib)
+    if(_urd_static_l0)
+      # ze_loader has no debug postfix and is already built to lib/ by the
+      # in-tree UR build, so link it directly rather than copying it.
+      target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+        ${LLVM_BINARY_DIR}/lib/ze_loader.lib)
+    endif()
   endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
     ur_adapter_is_static(${adapter} adapter_is_static)
