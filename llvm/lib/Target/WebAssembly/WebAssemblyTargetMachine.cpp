@@ -117,7 +117,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyLowerBrUnlessLegacyPass(PR);
   initializeWebAssemblyRegNumberingPass(PR);
   initializeWebAssemblyDebugFixupPass(PR);
-  initializeWebAssemblyPeepholePass(PR);
+  initializeWebAssemblyPeepholeLegacyPass(PR);
   initializeWebAssemblyMCLowerPrePassPass(PR);
   initializeWebAssemblyFixBrTableDefaultsLegacyPass(PR);
   initializeWebAssemblyDAGToDAGISelLegacyPass(PR);
@@ -497,7 +497,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
 
   // Perform the very last peephole optimizations on the code.
   if (getOptLevel() != CodeGenOptLevel::None)
-    addPass(createWebAssemblyPeephole());
+    addPass(createWebAssemblyPeepholeLegacyPass());
 
   // Create a mapping from LLVM CodeGen virtual registers to wasm registers.
   addPass(createWebAssemblyRegNumbering());

@@ -230,9 +230,8 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
   addMachineFunctionPass(WebAssemblyLowerBrUnlessPass(), PMW);
 
   // Perform the very last peephole optimizations on the code.
-  if (getOptLevel() != CodeGenOptLevel::None) {
-    // TODO(boomanaiden154): WebAssemblyPeephole
-  }
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addMachineFunctionPass(WebAssemblyPeepholePass(), PMW);
 
   // Create a mapping from LLVM CodeGen virtual registers to wasm registers.
   // TODO(boomanaiden154): WebAssemblyRegNumbering

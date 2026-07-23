@@ -276,7 +276,15 @@ FunctionPass *createWebAssemblyLowerBrUnlessLegacyPass();
 FunctionPass *createWebAssemblyRegNumbering();
 FunctionPass *createWebAssemblyVecReduce();
 FunctionPass *createWebAssemblyDebugFixup();
-FunctionPass *createWebAssemblyPeephole();
+
+class WebAssemblyPeepholePass
+    : public RequiredPassInfoMixin<WebAssemblyPeepholePass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyPeepholeLegacyPass();
 ModulePass *createWebAssemblyMCLowerPrePass();
 
 // PassRegistry initialization declarations.
@@ -302,7 +310,7 @@ void initializeWebAssemblyMCLowerPrePassPass(PassRegistry &);
 void initializeWebAssemblyMemIntrinsicResultsLegacyPass(PassRegistry &);
 void initializeWebAssemblyNullifyDebugValueListsLegacyPass(PassRegistry &);
 void initializeWebAssemblyOptimizeLiveIntervalsLegacyPass(PassRegistry &);
-void initializeWebAssemblyPeepholePass(PassRegistry &);
+void initializeWebAssemblyPeepholeLegacyPass(PassRegistry &);
 void initializeWebAssemblyRegColoringLegacyPass(PassRegistry &);
 void initializeWebAssemblyRegNumberingPass(PassRegistry &);
 void initializeWebAssemblyRegStackifyLegacyPass(PassRegistry &);
