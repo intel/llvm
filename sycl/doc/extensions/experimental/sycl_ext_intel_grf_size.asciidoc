@@ -69,15 +69,12 @@ is not able to issue a diagnostic to warn you if this happens.
 This extension adds new kernel properties which allow an application to choose
 the size of the general register file (GRF) that the compiler uses when
 generating device code for a kernel.
-Advanced users may want to increase this size if the kernel is known to need
-many registers.
-However, increasing this size also has negative effects, so be sure to read the
-details below carefully before using these properties.
 
-The properties described in this extension are advanced features that most
-applications should not need to use.
-In most cases, applications get the best performance without using these
-properties.
+These properties are intended for advanced performance tuning.
+Increasing the GRF size may improve performance for kernels with high register
+requirements, but it can also introduce trade-offs that reduce performance.
+Applications should generally rely on the compiler's default selection unless
+profiling demonstrates a benefit from specifying a different GRF size.
 
 
 == Specification
