@@ -21,8 +21,7 @@ template SYCL_EXTERNAL double
 sycl::ext::oneapi::experimental::cuda::ldg(const double *);
 // CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL sycl::ext::oneapi::bfloat16
-sycl::ext::oneapi::experimental::cuda::ldg(
-    const sycl::ext::oneapi::bfloat16 *);
+sycl::ext::oneapi::experimental::cuda::ldg(const sycl::ext::oneapi::bfloat16 *);
 
 // CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
 // CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}

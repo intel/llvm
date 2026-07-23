@@ -401,9 +401,8 @@ ldg(const T *ptr) {
     ret.z() = rv2[0];
     ret.w() = rv2[1];
     return ret;
-  } else if constexpr (std::is_same_v<T,
-                                      sycl::vec<sycl::ext::oneapi::bfloat16,
-                                                2>>) {
+  } else if constexpr (std::is_same_v<
+                           T, sycl::vec<sycl::ext::oneapi::bfloat16, 2>>) {
     // bfloat16 is a 16-bit type stored as unsigned short; load the raw bits
     // and bit-cast each element back to bfloat16.
     typedef unsigned short us2 ATTRIBUTE_EXT_VEC_TYPE(2);
@@ -412,9 +411,8 @@ ldg(const T *ptr) {
     ret.x() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv[0]);
     ret.y() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv[1]);
     return ret;
-  } else if constexpr (std::is_same_v<T,
-                                      sycl::vec<sycl::ext::oneapi::bfloat16,
-                                                3>>) {
+  } else if constexpr (std::is_same_v<
+                           T, sycl::vec<sycl::ext::oneapi::bfloat16, 3>>) {
     typedef unsigned short us2 ATTRIBUTE_EXT_VEC_TYPE(2);
     us2 rv_2 = __nvvm_ldg_us2(reinterpret_cast<const us2 *>(ptr));
     unsigned short rv = __nvvm_ldg_us(reinterpret_cast<const unsigned short *>(
@@ -424,9 +422,8 @@ ldg(const T *ptr) {
     ret.y() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv_2[1]);
     ret.z() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv);
     return ret;
-  } else if constexpr (std::is_same_v<T,
-                                      sycl::vec<sycl::ext::oneapi::bfloat16,
-                                                4>>) {
+  } else if constexpr (std::is_same_v<
+                           T, sycl::vec<sycl::ext::oneapi::bfloat16, 4>>) {
     typedef unsigned short us4 ATTRIBUTE_EXT_VEC_TYPE(4);
     us4 rv = __nvvm_ldg_us4(reinterpret_cast<const us4 *>(ptr));
     T ret;
