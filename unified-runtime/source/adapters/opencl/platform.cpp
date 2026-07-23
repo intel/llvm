@@ -127,12 +127,9 @@ ur_result_t urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   }
 
   auto Adapter = cast(AdapterHandle);
-  if (Adapter->NumPlatforms == 0) {
+  {
     std::lock_guard guard{adapterPopulationMutex};
 
-    // It's possible for urPlatformGet, if ran on multiple threads, to enter
-    // this branch simultaneously. This check ensures that only one sees that
-    // Adapter->NumPlatforms is zero.
     if (Adapter->NumPlatforms == 0) {
       uint32_t NumPlatforms = 0;
       cl_int Res = clGetPlatformIDs(0, nullptr, &NumPlatforms);

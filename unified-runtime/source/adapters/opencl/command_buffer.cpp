@@ -17,6 +17,8 @@
 #include "queue.hpp"
 #include "sampler.hpp"
 
+#include <memory>
+
 namespace ur::opencl {
 
 /// The ur_exp_command_buffer_handle_t_ destructor calls CL release
@@ -29,15 +31,21 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 
   cl_context CLContext = hContext->CLContext;
   cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
-  cl_int Res =
-      cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
-          CLContext,
-          cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
-          cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
-  assert(Res == CL_SUCCESS);
-  (void)Res;
+  try {
+    cl_int Res =
+        cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
+            CLContext,
+            cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
+            cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
+    assert(Res == CL_SUCCESS);
+    (void)Res;
+  } catch (...) {
+    assert(false && "Failed to look up clReleaseCommandBufferKHR");
+  }
 
-  clReleaseCommandBufferKHR(CLCommandBuffer);
+  if (clReleaseCommandBufferKHR) {
+    clReleaseCommandBufferKHR(CLCommandBuffer);
+  }
 }
 
 ur_result_t
@@ -793,7 +801,8 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
           cast(ur::cl::getAdapter())->fnCache.clUpdateMutableCommandsKHRCache,
           cl_ext::UpdateMutableCommandsName, &clUpdateMutableCommandsKHR));
 
-  std::vector<cl_mutable_dispatch_config_khr> ConfigList(numKernelUpdates);
+  std::vector<std::unique_ptr<cl_mutable_dispatch_config_khr>> ConfigList(
+      numKernelUpdates);
   std::vector<std::vector<cl_mutable_dispatch_arg_khr>> CLUSMArgsList(
       numKernelUpdates);
   std::vector<std::vector<cl_mutable_dispatch_arg_khr>> CLArgsList(
@@ -812,7 +821,8 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
   };
 
   for (uint32_t i = 0; i < numKernelUpdates; i++) {
-    cl_mutable_dispatch_config_khr &Config = ConfigList[i];
+    ConfigList[i] = std::make_unique<cl_mutable_dispatch_config_khr>();
+    cl_mutable_dispatch_config_khr &Config = *ConfigList[i];
     std::vector<cl_mutable_dispatch_arg_khr> &CLUSMArgs = CLUSMArgsList[i];
     std::vector<cl_mutable_dispatch_arg_khr> &CLArgs = CLArgsList[i];
     std::vector<size_t> &CLGlobalWorkOffset = CLGlobalWorkOffsetList[i];
@@ -863,7 +873,7 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
       NumConfigs, CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR);
   std::vector<const void *> ConfigPtrs(NumConfigs);
   for (cl_uint i = 0; i < NumConfigs; i++) {
-    ConfigPtrs[i] = &ConfigList[i];
+    ConfigPtrs[i] = ConfigList[i].get();
   }
   CL_RETURN_ON_FAILURE(clUpdateMutableCommandsKHR(
       CommandBuffer->CLCommandBuffer, NumConfigs, ConfigTypes.data(),
