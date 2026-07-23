@@ -1457,18 +1457,17 @@ ur_result_t urDeviceGetInfo(
     if (FanCount == 0)
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
-    if (!ParamValue) {
-      // If ParamValue is nullptr, then we are only interested in the size of
-      // the value.
-      return ReturnValue(int32_t{0});
-    }
-
     std::vector<zes_fan_handle_t> ZeFanHandles(FanCount);
     ZE2UR_CALL(zesDeviceEnumFans, (ZesDevice, &FanCount, ZeFanHandles.data()));
     int32_t Speed = -1;
     for (auto Fan : ZeFanHandles) {
       int32_t CurSpeed;
-      ZE2UR_CALL(zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed));
+      auto result = ze2urResult(ZE_CALL_NOCHECK(
+          zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed)));
+      if (result != UR_RESULT_SUCCESS)
+        return result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+                   ? UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+                   : result;
       Speed = std::max(Speed, CurSpeed);
     }
     return ReturnValue(Speed);
@@ -1785,7 +1784,8 @@ ur_result_t urDeviceCreateWithNativeHandle(
 
   ur_device_handle_t Dev = nullptr;
   for (const auto &p : common_cast(AdapterOpque)->Platforms) {
-    Dev = p->getDeviceFromNativeHandle(ZeDevice);
+    if (auto devHandle = p->getDeviceFromNativeHandle(ZeDevice); devHandle)
+      Dev = devHandle;
   }
 
   if (Dev == nullptr)
