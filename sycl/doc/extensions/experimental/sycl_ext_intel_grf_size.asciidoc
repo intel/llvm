@@ -101,12 +101,12 @@ supports.
 
 === Properties
 
-This extension add the properties listed below, which applications can use
+This extension adds the properties listed below, which applications can use
 when defining a kernel to select the kernel's GRF size.
-When a kernel is defined without any of these properties, the compiler is free
-to choose any GRF size.
-However, for devices with two GRF sizes, compilers typically choose the smaller
-size.
+When a kernel is defined without either property, the GRF size is
+implementation-defined.
+On devices that support two GRF sizes, implementations typically select the
+smaller size by default.
 
 A kernel may be defined with at most one of these GRF-setting properties.
 
