@@ -223,6 +223,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUR_BUILD_ADAPTER_HIP:BOOL=${UR_BUILD_ADAPTER_HIP}
       -DUR_BUILD_ADAPTER_NATIVE_CPU:BOOL=${UR_BUILD_ADAPTER_NATIVE_CPU}
       -DUR_STATIC_LOADER:BOOL=${UR_STATIC_LOADER}
+      -DUR_STATIC_ADAPTER_L0:BOOL=${UR_STATIC_ADAPTER_L0}
+      -DUR_STATIC_ADAPTER_L0_V2:BOOL=${UR_STATIC_ADAPTER_L0_V2}
       -DUR_STATIC_ADAPTER_OPENCL:BOOL=${UR_STATIC_ADAPTER_OPENCL}
       -DUMF_BUILD_EXAMPLES:BOOL=${UMF_BUILD_EXAMPLES}
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
@@ -275,8 +277,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     # Link static adapters into the loader
     foreach(adapter ${SYCL_ENABLE_BACKENDS})
       ur_adapter_is_static(${adapter} adapter_is_static)
-      set(build_var "UR_BUILD_ADAPTER_${adapter}")
-      string(TOUPPER "${build_var}" build_var)
+      # The Level Zero adapters use the abbreviated build flags
+      # UR_BUILD_ADAPTER_L0 / _L0_V2 rather than the backend name.
+      string(TOUPPER "${adapter}" adapter_upper)
+      if(adapter_upper STREQUAL "LEVEL_ZERO")
+        set(build_var "UR_BUILD_ADAPTER_L0")
+      elseif(adapter_upper STREQUAL "LEVEL_ZERO_V2")
+        set(build_var "UR_BUILD_ADAPTER_L0_V2")
+      else()
+        set(build_var "UR_BUILD_ADAPTER_${adapter_upper}")
+      endif()
       if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
         target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
           ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
