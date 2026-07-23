@@ -17,7 +17,6 @@
 // (BIF_Compressed).
 // RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
-// RUN:   -sycl-post-link-options="-split=auto -symbols -properties" \
 // RUN:   --compress --compression-level=9 --wrapper-verbose \
 // RUN:   %t.o -o %t.out --linker-path=/usr/bin/ld 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-COMPRESS
@@ -42,7 +41,6 @@
 // no [Compression] verbose lines are emitted.
 // RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
-// RUN:   -sycl-post-link-options="-split=auto -symbols -properties" \
 // RUN:   --wrapper-verbose \
 // RUN:   %t.o -o %t.out --linker-path=/usr/bin/ld 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-NO-COMPRESS
@@ -53,7 +51,6 @@
 // A non-integer --compression-level= is diagnosed.
 // RUN: not clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
-// RUN:   -sycl-post-link-options="-split=auto -symbols -properties" \
 // RUN:   --compress --compression-level=notanumber \
 // RUN:   %t.o -o %t.out --linker-path=/usr/bin/ld 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK-BAD-LEVEL
