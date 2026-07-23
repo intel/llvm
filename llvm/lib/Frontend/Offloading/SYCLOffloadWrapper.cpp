@@ -397,7 +397,8 @@ struct Wrapper {
           addStringToModule(*LI, "__sycl_offload_entry_name"),
           I64Zero,
           I64Zero,
-          NullPtr};
+          NullPtr,
+          I64Zero};
 
       EntriesInits.push_back(ConstantStruct::get(EntryTy, EntryData));
     }
