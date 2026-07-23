@@ -264,7 +264,15 @@ public:
 };
 
 FunctionPass *createWebAssemblyExplicitLocalsLegacyPass();
-FunctionPass *createWebAssemblyLowerBrUnless();
+
+class WebAssemblyLowerBrUnlessPass
+    : public RequiredPassInfoMixin<WebAssemblyLowerBrUnlessPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyLowerBrUnlessLegacyPass();
 FunctionPass *createWebAssemblyRegNumbering();
 FunctionPass *createWebAssemblyVecReduce();
 FunctionPass *createWebAssemblyDebugFixup();
@@ -288,7 +296,7 @@ void initializeWebAssemblyFixBrTableDefaultsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixFunctionBitcastsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PassRegistry &);
 void initializeWebAssemblyLateEHPrepareLegacyPass(PassRegistry &);
-void initializeWebAssemblyLowerBrUnlessPass(PassRegistry &);
+void initializeWebAssemblyLowerBrUnlessLegacyPass(PassRegistry &);
 void initializeWebAssemblyLowerEmscriptenEHSjLjLegacyPass(PassRegistry &);
 void initializeWebAssemblyMCLowerPrePassPass(PassRegistry &);
 void initializeWebAssemblyMemIntrinsicResultsLegacyPass(PassRegistry &);

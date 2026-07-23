@@ -227,7 +227,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
     addMachineFunctionPass(WebAssemblyExplicitLocalsPass(), PMW);
 
   // Lower br_unless into br_if.
-  // TODO(boomanaiden154): WebAssemblyLowerBrUnless
+  addMachineFunctionPass(WebAssemblyLowerBrUnlessPass(), PMW);
 
   // Perform the very last peephole optimizations on the code.
   if (getOptLevel() != CodeGenOptLevel::None) {

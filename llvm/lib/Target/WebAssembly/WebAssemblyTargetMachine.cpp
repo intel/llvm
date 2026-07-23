@@ -114,7 +114,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyCFGSortLegacyPass(PR);
   initializeWebAssemblyCFGStackifyLegacyPass(PR);
   initializeWebAssemblyExplicitLocalsLegacyPass(PR);
-  initializeWebAssemblyLowerBrUnlessPass(PR);
+  initializeWebAssemblyLowerBrUnlessLegacyPass(PR);
   initializeWebAssemblyRegNumberingPass(PR);
   initializeWebAssemblyDebugFixupPass(PR);
   initializeWebAssemblyPeepholePass(PR);
@@ -493,7 +493,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
     addPass(createWebAssemblyExplicitLocalsLegacyPass());
 
   // Lower br_unless into br_if.
-  addPass(createWebAssemblyLowerBrUnless());
+  addPass(createWebAssemblyLowerBrUnlessLegacyPass());
 
   // Perform the very last peephole optimizations on the code.
   if (getOptLevel() != CodeGenOptLevel::None)
