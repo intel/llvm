@@ -942,7 +942,10 @@ handle get(const physical_mem &phys_mem)
 _Returns:_ An IPC "handle" to this physical memory object. The bytes of this
 handle can be transferred to another process on the same system, and the other
 process can use the handle to get a physical memory object representing the
-same memory allocation through a call to the `open` function.
+same memory allocation through a call to the `open` function. For a given
+platform, the size of the handle data (returned by `handle::data()` or
+`handle::data_view()`) is the same for all handles associated with physical_mem
+object type.
 
 _Throws:_ An exception with the `errc::invalid` error code if `phys_mem` was
 not created with inter-process sharing enabled via the `enable_ipc` property.
