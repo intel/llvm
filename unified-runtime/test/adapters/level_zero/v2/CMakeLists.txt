@@ -66,6 +66,22 @@ add_l0_v2_devices_test(memory_residency
     ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.cpp
 )
 
+add_l0_v2_devices_test(urIPCGetPhysMemHandleExp
+    urIPCGetPhysMemHandleExp.cpp
+)
+
+add_l0_v2_devices_test(urIPCPutPhysMemHandleExp
+    urIPCPutPhysMemHandleExp.cpp
+)
+
+add_l0_v2_devices_test(urIPCOpenPhysMemHandleExp
+    urIPCOpenPhysMemHandleExp.cpp
+)
+
+add_l0_v2_devices_test(urIPCClosePhysMemHandleExp
+    urIPCClosePhysMemHandleExp.cpp
+)
+
 add_l0_v2_devices_test(batched_queue
     batched_queue_test.cpp
    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/adapter.cpp

@@ -3,6 +3,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v2 ./urIPCOpenPhysMemHandleExp-test
+// REQUIRES: v2
+
 #include "urIPCPhysMemHandleExpFixtures.hpp"
 
 #include <cstdint>
