@@ -79,7 +79,7 @@ target_link_libraries(ur_loader PRIVATE
     ${PROJECT_NAME}::headers
 )
 
-if(UR_STATIC_ADAPTER_L0)
+if(UR_STATIC_ADAPTER_L0 AND (UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL))
     target_link_libraries(ur_loader PRIVATE
         ur_adapter_level_zero
     )
@@ -91,7 +91,7 @@ if(UR_STATIC_ADAPTER_OPENCL AND (UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL
     target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_OPENCL)
 endif()
 
-if(UR_STATIC_ADAPTER_L0_V2)
+if(UR_STATIC_ADAPTER_L0_V2 AND (UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_ALL))
     target_link_libraries(ur_loader PRIVATE
         ur_adapter_level_zero_v2
     )
