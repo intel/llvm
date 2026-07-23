@@ -203,7 +203,7 @@ deserializeSummary(const llvm::json::Object &Data, EntityIdTable &,
       std::make_unique<OperatorNewDeletePointersEntitySummary>();
 
   Sum->Entities = std::move(*EntityIDSet);
-  return Sum;
+  return std::unique_ptr<EntitySummary>(std::move(Sum));
 }
 
 struct OperatorNewDeletePointersJSONFormatInfo final : JSONFormat::FormatInfo {
@@ -237,7 +237,7 @@ deserializeAnalysisResult(const llvm::json::Object &Data,
       std::make_unique<OperatorNewDeletePointersAnalysisResult>();
 
   AR->Entities = std::move(*EntityIDSet);
-  return AR;
+  return std::unique_ptr<AnalysisResult>(std::move(AR));
 }
 
 JSONFormat::AnalysisResultRegistry::Add<OperatorNewDeletePointersAnalysisResult>
