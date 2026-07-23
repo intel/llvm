@@ -15,10 +15,10 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+    - uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
       if: runner.os == 'Windows'
       with:
-        arch: amd64
+        arch: x64
 
     - name: Checkout Embree
       uses: ./devops/actions/cached_checkout
