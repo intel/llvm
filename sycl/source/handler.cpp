@@ -803,12 +803,12 @@ detail::EventImplPtr handler::finalize() {
   // rather than submitted to the scheduler. The submitting queue may already be
   // recording, or it may join an in-progress capture by depending on an event
   // from a recording queue (a fork).
-  std::shared_ptr<detail::queue_impl> RecordingQueue;
+  std::shared_ptr<detail::queue_impl> HTRecordingQueue;
   if (type == detail::CGType::NativeHostTask)
-    RecordingQueue = detail::getNativeRecordingPrimaryQueue(
+    HTRecordingQueue = detail::getNativeRecordingPrimaryQueue(
         *Queue, CommandGroup->getEvents());
-  if (RecordingQueue) {
-    auto GraphImpl = detail::getNativeGraphImpl(*RecordingQueue);
+  if (HTRecordingQueue) {
+    auto GraphImpl = detail::getNativeGraphImpl(*HTRecordingQueue);
     assert(GraphImpl && "Native graph handle expired while recording");
 
     auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
