@@ -106,7 +106,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyOptimizeLiveIntervalsLegacyPass(PR);
   initializeWebAssemblyMemIntrinsicResultsLegacyPass(PR);
   initializeWebAssemblyRegStackifyLegacyPass(PR);
-  initializeWebAssemblyRegColoringPass(PR);
+  initializeWebAssemblyRegColoringLegacyPass(PR);
   initializeWebAssemblyNullifyDebugValueListsLegacyPass(PR);
   initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PR);
   initializeWebAssemblyLateEHPrepareLegacyPass(PR);
@@ -478,7 +478,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
     // Run the register coloring pass to reduce the total number of registers.
     // This runs after stackification so that it doesn't consider registers
     // that become stackified.
-    addPass(createWebAssemblyRegColoring());
+    addPass(createWebAssemblyRegColoringLegacyPass());
   }
 
   // Sort the blocks of the CFG into topological order, a prerequisite for

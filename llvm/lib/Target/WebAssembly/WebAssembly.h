@@ -201,7 +201,15 @@ public:
 };
 
 FunctionPass *createWebAssemblyRegStackifyLegacyPass(CodeGenOptLevel OptLevel);
-FunctionPass *createWebAssemblyRegColoring();
+
+class WebAssemblyRegColoringPass
+    : public RequiredPassInfoMixin<WebAssemblyRegColoringPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyRegColoringLegacyPass();
 
 class WebAssemblyFixBrTableDefaultsPass
     : public RequiredPassInfoMixin<WebAssemblyFixBrTableDefaultsPass> {
@@ -263,7 +271,7 @@ void initializeWebAssemblyMemIntrinsicResultsLegacyPass(PassRegistry &);
 void initializeWebAssemblyNullifyDebugValueListsLegacyPass(PassRegistry &);
 void initializeWebAssemblyOptimizeLiveIntervalsLegacyPass(PassRegistry &);
 void initializeWebAssemblyPeepholePass(PassRegistry &);
-void initializeWebAssemblyRegColoringPass(PassRegistry &);
+void initializeWebAssemblyRegColoringLegacyPass(PassRegistry &);
 void initializeWebAssemblyRegNumberingPass(PassRegistry &);
 void initializeWebAssemblyRegStackifyLegacyPass(PassRegistry &);
 void initializeWebAssemblyReplacePhysRegsLegacyPass(PassRegistry &);

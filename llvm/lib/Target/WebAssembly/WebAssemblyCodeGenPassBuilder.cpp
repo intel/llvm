@@ -211,7 +211,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
     // Run the register coloring pass to reduce the total number of registers.
     // This runs after stackification so that it doesn't consider registers
     // that become stackified.
-    // TODO(boomanaiden154): WebAssemblyRegColoring
+    addMachineFunctionPass(WebAssemblyRegColoringPass(), PMW);
   }
 
   // Sort the blocks of the CFG into topological order, a prerequisite for
