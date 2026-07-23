@@ -282,7 +282,6 @@ public:
 };
 
 FunctionPass *createWebAssemblyRegNumberingLegacyPass();
-FunctionPass *createWebAssemblyVecReduce();
 FunctionPass *createWebAssemblyDebugFixup();
 
 class WebAssemblyPeepholePass
