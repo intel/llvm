@@ -115,7 +115,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyCFGStackifyLegacyPass(PR);
   initializeWebAssemblyExplicitLocalsLegacyPass(PR);
   initializeWebAssemblyLowerBrUnlessLegacyPass(PR);
-  initializeWebAssemblyRegNumberingPass(PR);
+  initializeWebAssemblyRegNumberingLegacyPass(PR);
   initializeWebAssemblyDebugFixupPass(PR);
   initializeWebAssemblyPeepholeLegacyPass(PR);
   initializeWebAssemblyMCLowerPrePassPass(PR);
@@ -500,7 +500,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
     addPass(createWebAssemblyPeepholeLegacyPass());
 
   // Create a mapping from LLVM CodeGen virtual registers to wasm registers.
-  addPass(createWebAssemblyRegNumbering());
+  addPass(createWebAssemblyRegNumberingLegacyPass());
 
   // Fix debug_values whose defs have been stackified.
   if (!WasmDisableExplicitLocals)

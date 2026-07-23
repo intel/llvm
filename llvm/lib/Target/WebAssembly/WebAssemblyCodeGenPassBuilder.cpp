@@ -234,7 +234,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
     addMachineFunctionPass(WebAssemblyPeepholePass(), PMW);
 
   // Create a mapping from LLVM CodeGen virtual registers to wasm registers.
-  // TODO(boomanaiden154): WebAssemblyRegNumbering
+  addMachineFunctionPass(WebAssemblyRegNumberingPass(), PMW);
 
   // Fix debug_values whose defs have been stackified.
   if (!WasmDisableExplicitLocals) {

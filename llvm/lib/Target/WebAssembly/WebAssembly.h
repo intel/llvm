@@ -273,7 +273,15 @@ public:
 };
 
 FunctionPass *createWebAssemblyLowerBrUnlessLegacyPass();
-FunctionPass *createWebAssemblyRegNumbering();
+
+class WebAssemblyRegNumberingPass
+    : public RequiredPassInfoMixin<WebAssemblyRegNumberingPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyRegNumberingLegacyPass();
 FunctionPass *createWebAssemblyVecReduce();
 FunctionPass *createWebAssemblyDebugFixup();
 
@@ -312,7 +320,7 @@ void initializeWebAssemblyNullifyDebugValueListsLegacyPass(PassRegistry &);
 void initializeWebAssemblyOptimizeLiveIntervalsLegacyPass(PassRegistry &);
 void initializeWebAssemblyPeepholeLegacyPass(PassRegistry &);
 void initializeWebAssemblyRegColoringLegacyPass(PassRegistry &);
-void initializeWebAssemblyRegNumberingPass(PassRegistry &);
+void initializeWebAssemblyRegNumberingLegacyPass(PassRegistry &);
 void initializeWebAssemblyRegStackifyLegacyPass(PassRegistry &);
 void initializeWebAssemblyReplacePhysRegsLegacyPass(PassRegistry &);
 void initializeWebAssemblySetP2AlignOperandsLegacyPass(PassRegistry &);
