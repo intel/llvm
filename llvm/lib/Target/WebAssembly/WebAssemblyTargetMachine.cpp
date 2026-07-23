@@ -105,7 +105,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyReplacePhysRegsLegacyPass(PR);
   initializeWebAssemblyOptimizeLiveIntervalsLegacyPass(PR);
   initializeWebAssemblyMemIntrinsicResultsLegacyPass(PR);
-  initializeWebAssemblyRegStackifyPass(PR);
+  initializeWebAssemblyRegStackifyLegacyPass(PR);
   initializeWebAssemblyRegColoringPass(PR);
   initializeWebAssemblyNullifyDebugValueListsLegacyPass(PR);
   initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PR);
@@ -472,7 +472,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
   // MemIntrinsicResults above) very late, so that it sees as much code as
   // possible, including code emitted by PEI and expanded by late tail
   // duplication.
-  addPass(createWebAssemblyRegStackify(getOptLevel()));
+  addPass(createWebAssemblyRegStackifyLegacyPass(getOptLevel()));
 
   if (getOptLevel() != CodeGenOptLevel::None) {
     // Run the register coloring pass to reduce the total number of registers.

@@ -205,7 +205,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
   // MemIntrinsicResults above) very late, so that it sees as much code as
   // possible, including code emitted by PEI and expanded by late tail
   // duplication.
-  // TODO(boomanaiden154): WebAssemblyRegStackify
+  addMachineFunctionPass(WebAssemblyRegStackifyPass(getOptLevel()), PMW);
 
   if (getOptLevel() != CodeGenOptLevel::None) {
     // Run the register coloring pass to reduce the total number of registers.
