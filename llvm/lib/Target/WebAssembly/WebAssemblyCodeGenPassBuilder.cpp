@@ -237,9 +237,8 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
   addMachineFunctionPass(WebAssemblyRegNumberingPass(), PMW);
 
   // Fix debug_values whose defs have been stackified.
-  if (!WasmDisableExplicitLocals) {
-    // TODO(boomanaiden154): WebAssemblyDebugFixup
-  }
+  if (!WasmDisableExplicitLocals)
+    addMachineFunctionPass(WebAssemblyDebugFixupPass(), PMW);
 
   // Collect information to prepare for MC lowering / asm printing.
   // TODO(boomanaiden154): WebAssemblyMCLowerPrePass

@@ -116,7 +116,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyExplicitLocalsLegacyPass(PR);
   initializeWebAssemblyLowerBrUnlessLegacyPass(PR);
   initializeWebAssemblyRegNumberingLegacyPass(PR);
-  initializeWebAssemblyDebugFixupPass(PR);
+  initializeWebAssemblyDebugFixupLegacyPass(PR);
   initializeWebAssemblyPeepholeLegacyPass(PR);
   initializeWebAssemblyMCLowerPrePassPass(PR);
   initializeWebAssemblyFixBrTableDefaultsLegacyPass(PR);
@@ -504,7 +504,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
 
   // Fix debug_values whose defs have been stackified.
   if (!WasmDisableExplicitLocals)
-    addPass(createWebAssemblyDebugFixup());
+    addPass(createWebAssemblyDebugFixupLegacyPass());
 
   // Collect information to prepare for MC lowering / asm printing.
   addPass(createWebAssemblyMCLowerPrePass());

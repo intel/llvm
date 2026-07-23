@@ -282,7 +282,15 @@ public:
 };
 
 FunctionPass *createWebAssemblyRegNumberingLegacyPass();
-FunctionPass *createWebAssemblyDebugFixup();
+
+class WebAssemblyDebugFixupPass
+    : public RequiredPassInfoMixin<WebAssemblyDebugFixupPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyDebugFixupLegacyPass();
 
 class WebAssemblyPeepholePass
     : public RequiredPassInfoMixin<WebAssemblyPeepholePass> {
@@ -304,7 +312,7 @@ void initializeWebAssemblyCleanCodeAfterTrapLegacyPass(PassRegistry &);
 void initializeWebAssemblyCFGSortLegacyPass(PassRegistry &);
 void initializeWebAssemblyCFGStackifyLegacyPass(PassRegistry &);
 void initializeWebAssemblyDAGToDAGISelLegacyPass(PassRegistry &);
-void initializeWebAssemblyDebugFixupPass(PassRegistry &);
+void initializeWebAssemblyDebugFixupLegacyPass(PassRegistry &);
 void initializeWebAssemblyExceptionInfoWrapperPassPass(PassRegistry &);
 void initializeWebAssemblyExplicitLocalsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixBrTableDefaultsLegacyPass(PassRegistry &);
