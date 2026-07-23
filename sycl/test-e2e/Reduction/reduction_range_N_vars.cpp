@@ -3,6 +3,7 @@
 
 // This test checks handling of parallel_for() accepting range and
 // two or more reductions.
+#include <iostream>
 
 #include "reduction_utils.hpp"
 

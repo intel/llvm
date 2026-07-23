@@ -186,6 +186,14 @@ static void DefineTypeSize(const Twine &MacroName, TargetInfo::IntType Ty,
                  TI.isTypeSigned(Ty), Builder);
 }
 
+static void DefineTypeMin(const Twine &Prefix, TargetInfo::IntType Ty,
+                          const TargetInfo &TI, MacroBuilder &Builder) {
+  Builder.defineMacro(Prefix + "_MIN__",
+                      TI.isTypeSigned(Ty)
+                          ? Twine("(-") + Prefix + "_MAX__ - 1)"
+                          : Twine("0") + TI.getTypeConstantSuffix(Ty));
+}
+
 static void DefineFmt(const LangOptions &LangOpts, const Twine &Prefix,
                       TargetInfo::IntType Ty, const TargetInfo &TI,
                       MacroBuilder &Builder) {
@@ -545,6 +553,9 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       case 300:
         Builder.defineMacro("__OPENCL_C_VERSION__", "300");
         break;
+      case 310:
+        Builder.defineMacro("__OPENCL_C_VERSION__", "310");
+        break;
       default:
         llvm_unreachable("Unsupported OpenCL version");
       }
@@ -554,6 +565,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("CL_VERSION_1_2", "120");
     Builder.defineMacro("CL_VERSION_2_0", "200");
     Builder.defineMacro("CL_VERSION_3_0", "300");
+    Builder.defineMacro("CL_VERSION_3_1", "310");
 
     if (TI.isLittleEndian())
       Builder.defineMacro("__ENDIAN_LITTLE__");
@@ -568,8 +580,18 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
          getSYCLVersionMacros(LangOpts))
       Builder.defineMacro(Macro.first, Macro.second);
 
-    if (LangOpts.SYCLValueFitInMaxInt)
+    // Define macros based on SYCL ID queries range assumption
+    switch (LangOpts.getSYCLIdQueriesRange()) {
+    case LangOptions::SYCLIdQueriesRangeKind::Int:
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__");
+      break;
+    case LangOptions::SYCLIdQueriesRangeKind::UInt:
+      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_UINT__");
+      break;
+    case LangOptions::SYCLIdQueriesRangeKind::SizeT:
+      // No macro defined - queries fit in size_t per SYCL spec
+      break;
+    }
 
     // Set __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
     // both host and device compilations if -fsycl-disable-range-rounding
@@ -626,6 +648,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     }
     if (LangOpts.CUDAIsDevice) {
       Builder.defineMacro("__HIP_DEVICE_COMPILE__");
+      if (TI.getTriple().getEnvironment() == llvm::Triple::LLVM)
+        Builder.defineMacro("__HIP_LLVM__");
       if (!TI.hasHIPImageSupport()) {
         Builder.defineMacro("__HIP_NO_IMAGE_SUPPORT__", "1");
         // Deprecated.
@@ -654,7 +678,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
 /// Initialize the predefined C++ language feature test macros defined in
 /// ISO/IEC JTC1/SC22/WG21 (C++) SD-6: "SG10 Feature Test Recommendations".
 static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
-                                                 MacroBuilder &Builder) {
+                                                 MacroBuilder &Builder,
+                                                 const TargetInfo &TI) {
   // C++98 features.
   if (LangOpts.RTTI)
     Builder.defineMacro("__cpp_rtti", "199711L");
@@ -747,7 +772,12 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_consteval", "202211L");
     Builder.defineMacro("__cpp_constexpr_dynamic_alloc", "201907L");
     Builder.defineMacro("__cpp_constinit", "201907L");
-    Builder.defineMacro("__cpp_impl_coroutine", "201902L");
+
+    // Support for coroutines on 32-bit x86 Microsoft platforms is
+    // incomplete, do not advertise it.
+    if (!(TI.getCXXABI().isMicrosoft() && TI.getTriple().isX86_32()))
+      Builder.defineMacro("__cpp_impl_coroutine", "201902L");
+
     Builder.defineMacro("__cpp_designated_initializers", "201707L");
     Builder.defineMacro("__cpp_impl_three_way_comparison", "201907L");
     // Intentionally to set __cpp_modules to 1.
@@ -770,7 +800,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   // we also define their feature test macros.
   if (LangOpts.CPlusPlus11)
     Builder.defineMacro("__cpp_static_call_operator", "202207L");
-  Builder.defineMacro("__cpp_named_character_escapes", "202207L");
+  Builder.defineMacro("__cpp_named_character_escapes", "202606L");
   Builder.defineMacro("__cpp_placeholder_variables", "202306L");
 
   // C++26 features supported in earlier language modes.
@@ -875,11 +905,17 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   Builder.defineMacro("__clang_major__", TOSTR(CLANG_VERSION_MAJOR));
   Builder.defineMacro("__clang_minor__", TOSTR(CLANG_VERSION_MINOR));
   Builder.defineMacro("__clang_patchlevel__", TOSTR(CLANG_VERSION_PATCHLEVEL));
-#undef TOSTR
-#undef TOSTR2
   Builder.defineMacro("__clang_version__",
                       "\"" CLANG_VERSION_STRING " "
                       + getClangFullRepositoryVersion() + "\"");
+
+  // DPC++ version macros - Intel's SYCL compiler
+  Builder.defineMacro("__DPCPP__", "1");
+  Builder.defineMacro("__dpcpp_major__", TOSTR(DPCPP_VERSION_MAJOR));
+  Builder.defineMacro("__dpcpp_minor__", TOSTR(DPCPP_VERSION_MINOR));
+  Builder.defineMacro("__dpcpp_patchlevel__", TOSTR(DPCPP_VERSION_PATCH));
+#undef TOSTR
+#undef TOSTR2
 
   if (LangOpts.GNUCVersion != 0) {
     // Major, minor, patch, are given two decimal places each, so 4.2.1 becomes
@@ -944,9 +980,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   Builder.defineMacro("__PRAGMA_REDEFINE_EXTNAME", "1");
 
   // Previously this macro was set to a string aiming to achieve compatibility
-  // with GCC 4.2.1. Now, just return the full Clang version
-  Builder.defineMacro("__VERSION__", "\"" +
-                      Twine(getClangFullCPPVersion()) + "\"");
+  // with GCC 4.2.1. Now, just return the full DPC++ version
+  Builder.defineMacro("__VERSION__",
+                      "\"" + Twine(getDPCPPFullCPPVersion()) + "\"");
 
   // Initialize language-specific preprocessor defines.
 
@@ -1013,7 +1049,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
                       Twine(TI.useSignedCharForObjCBool() ? "0" : "1"));
 
   if (LangOpts.CPlusPlus)
-    InitializeCPlusPlusFeatureTestMacros(LangOpts, Builder);
+    InitializeCPlusPlusFeatureTestMacros(LangOpts, Builder, TI);
 
   // darwin_constant_cfstrings controls this. This is also dependent
   // on other things like the runtime I believe.  This is set even for C code.
@@ -1060,10 +1096,16 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     }
   }
 
-  // Macros to help identify the narrow and wide character sets
-  // FIXME: clang currently ignores -fexec-charset=. If this changes,
-  // then this may need to be updated.
-  Builder.defineMacro("__clang_literal_encoding__", "\"UTF-8\"");
+  // Macros to help identify the narrow and wide character sets. This is set
+  // to fexec-charset. If fexec-charset is not specified, the default is the
+  // system charset.
+  Builder.defineMacro("__clang_literal_encoding__",
+                      Twine("\"" +
+                            (LangOpts.LiteralEncoding.empty()
+                                 ? TI.getDefaultOrdinaryLiteralEncoding()
+                                 : LangOpts.LiteralEncoding) +
+                            "\""));
+
   if (TI.getTypeWidth(TI.getWCharType()) >= 32) {
     // FIXME: 32-bit wchar_t signals UTF-32. This may change
     // if -fwide-exec-charset= is ever supported.
@@ -1144,7 +1186,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineTypeSize("__LONG_MAX__", TargetInfo::SignedLong, TI, Builder);
   DefineTypeSize("__LONG_LONG_MAX__", TargetInfo::SignedLongLong, TI, Builder);
   DefineTypeSizeAndWidth("__WCHAR", TI.getWCharType(), TI, Builder);
+  DefineTypeMin("__WCHAR", TI.getWCharType(), TI, Builder);
   DefineTypeSizeAndWidth("__WINT", TI.getWIntType(), TI, Builder);
+  DefineTypeMin("__WINT", TI.getWIntType(), TI, Builder);
   DefineTypeSizeAndWidth("__INTMAX", TI.getIntMaxType(), TI, Builder);
   DefineTypeSizeAndWidth("__SIZE", TI.getSizeType(), TI, Builder);
 
@@ -1197,6 +1241,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineType("__WCHAR_TYPE__", TI.getWCharType(), Builder);
   DefineType("__WINT_TYPE__", TI.getWIntType(), Builder);
   DefineTypeSizeAndWidth("__SIG_ATOMIC", TI.getSigAtomicType(), TI, Builder);
+  DefineTypeMin("__SIG_ATOMIC", TI.getSigAtomicType(), TI, Builder);
   if (LangOpts.C23)
     DefineType("__CHAR8_TYPE__", TI.UnsignedChar, Builder);
   DefineType("__CHAR16_TYPE__", TI.getChar16Type(), Builder);
@@ -1576,6 +1621,11 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.Sanitize.has(SanitizerKind::AllocToken))
     Builder.defineMacro("__SANITIZE_ALLOC_TOKEN__");
 
+  if (LangOpts.PointerFieldProtectionABI)
+    Builder.defineMacro("__POINTER_FIELD_PROTECTION_ABI__");
+  if (LangOpts.PointerFieldProtectionTagged)
+    Builder.defineMacro("__POINTER_FIELD_PROTECTION_TAGGED__");
+
   // Target OS macro definitions.
   if (PPOpts.DefineTargetOSMacros) {
     const llvm::Triple &Triple = TI.getTriple();
@@ -1715,5 +1765,12 @@ void clang::InitializePreprocessor(Preprocessor &PP,
   if (FEOpts.DashX.isPreprocessed()) {
     PP.getDiagnostics().setSeverity(diag::ext_pp_gnu_line_directive,
                                     diag::Severity::Ignored, SourceLocation());
+
+    // Compiling with -xc++-cpp-output should suppress module directive
+    // recognition. __preprocessed_module can either get the directive treatment
+    // or be accepted directly by phase 7 in a module declaration. In the latter
+    // case, __preprocessed_module will work even if there are preprocessing
+    // tokens on the same line that precede it.
+    PP.markMainFileAsPreprocessedModuleFile();
   }
 }

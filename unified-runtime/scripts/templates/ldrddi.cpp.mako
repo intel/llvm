@@ -9,11 +9,10 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -60,10 +59,25 @@ namespace ur_loader
             if (*${th.make_pfn_name(n, tags, obj)} == nullptr)
                 return ${X}_RESULT_ERROR_UNINITIALIZED;
 
-            uint32_t adapter;
-            ur_adapter_handle_t *adapterHandle = numAdapters < NumEntries ? &${obj['params'][1]['name']}[numAdapters] : nullptr;
-            ${th.make_pfn_name(n, tags, obj)}( 1, adapterHandle, &adapter );
+            // Count adapters without writing handles when the caller did not request
+            // them or its output array is already full.
+            if (${obj['params'][1]['name']} == nullptr || numAdapters >= NumEntries) {
+                uint32_t adapter = 0;
+                auto result = ${th.make_pfn_name(n, tags, obj)}( 0, nullptr, &adapter );
+                if (result == ${X}_RESULT_SUCCESS)
+                    numAdapters += adapter;
+                continue;
+            }
 
+            // Query single adapter into a temporary handle and copy it to output array
+            // if the query was successful.
+            uint32_t adapter = 0;
+            ur_adapter_handle_t adapterHandle = nullptr;
+            auto result = ${th.make_pfn_name(n, tags, obj)}( 1, &adapterHandle, &adapter );
+            if (result != ${X}_RESULT_SUCCESS || adapterHandle == nullptr)
+                continue;
+
+            ${obj['params'][1]['name']}[numAdapters] = adapterHandle;
             numAdapters += adapter;
         }
 

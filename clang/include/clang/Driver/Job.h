@@ -10,6 +10,7 @@
 #define LLVM_CLANG_DRIVER_JOB_H
 
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OffloadArch.h"
 #include "clang/Driver/InputInfo.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -173,6 +174,13 @@ private:
   /// Information on executable run provided by OS.
   mutable std::optional<llvm::sys::ProcessStatistics> ProcStat;
 
+  /// The bound architecture for this command (e.g. "arm64", "gfx90a").
+  std::string BoundArchStr;
+
+  /// Non-empty when this command may run in parallel with adjacent offload
+  /// device commands from the same group.
+  std::string OffloadDeviceParallelJobGroup;
+
   /// When a response file is needed, we try to put most arguments in an
   /// exclusive file, while others remains as regular command line arguments.
   /// This functions fills a vector with the regular command line arguments,
@@ -229,6 +237,17 @@ public:
 
   /// getCreator - Return the Tool which caused the creation of this job.
   const Tool &getCreator() const { return Creator; }
+
+  /// Return the bound architecture for this command, if any.
+  BoundArch getBoundArch() const { return BoundArch(BoundArchStr); }
+  void setBoundArch(BoundArch BA) { BoundArchStr = BA.ArchName.str(); }
+
+  StringRef getOffloadDeviceParallelJobGroup() const {
+    return OffloadDeviceParallelJobGroup;
+  }
+  void setOffloadDeviceParallelJobGroup(StringRef Group) {
+    OffloadDeviceParallelJobGroup = Group.str();
+  }
 
   /// Returns the kind of response file supported by the current invocation.
   const ResponseFileSupport &getResponseFileSupport() {
@@ -320,6 +339,9 @@ public:
   /// Return a mutable list of Jobs for llvm-foreach wrapping.
   list_type &getJobsForOverride() { return Jobs; }
   const list_type &getJobs() const { return Jobs; }
+
+  // Returns and transfers ownership of all jobs, leaving this list empty.
+  list_type takeJobs() { return std::exchange(Jobs, {}); };
 
   bool empty() const { return Jobs.empty(); }
   size_type size() const { return Jobs.size(); }

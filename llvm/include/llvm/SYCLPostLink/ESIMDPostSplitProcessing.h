@@ -20,7 +20,7 @@
 #include <memory>
 
 namespace llvm {
-namespace sycl {
+namespace sycl_post_link {
 
 struct ESIMDProcessingOptions {
   llvm::module_split::IRSplitMode SplitMode =
@@ -32,6 +32,9 @@ struct ESIMDProcessingOptions {
   unsigned OptLevel = 0;
   bool ForceDisableESIMDOpt = false;
 };
+
+SmallString<0>
+convertESIMDOptionsToString(const ESIMDProcessingOptions &Options);
 
 /// Lowers ESIMD constructs after separation from regular SYCL code.
 /// \p Options.SplitESIMD identifies that ESIMD splitting is requested in the
@@ -61,7 +64,7 @@ handleESIMD(std::unique_ptr<llvm::module_split::ModuleDesc> MDesc,
             const ESIMDProcessingOptions &Options, bool &Modified,
             bool &SplitOccurred);
 
-} // namespace sycl
+} // namespace sycl_post_link
 } // namespace llvm
 
 #endif // LLVM_SYCL_POST_LINK_ESIMD_POST_SPLIT_PROCESSING_H

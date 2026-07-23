@@ -12,14 +12,15 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
-#include <sycl/detail/iostream_proxy.hpp>
+#include <iostream>
 
 #include <atomic>
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <string_view>
 
 namespace sycl {
 inline namespace _V1 {
@@ -75,6 +76,7 @@ public:
   uint32_t asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
+  std::string_view asStringView() const;
 
 protected:
   friend std::ostream &operator<<(std::ostream &Out,
@@ -216,6 +218,14 @@ public:
   const PropertyRange &getSpecConstantsDefaultValues() const {
     return SpecConstDefaultValuesMap;
   }
+  // Optional property set, only present in SYCLBIN produced by
+  // ext_oneapi_get_content when a spec constant was user-set. Records the
+  // runtime-effective blob of user-set spec constant values so the reader can
+  // restore the per-descriptor IsSet state on reload. Absent for ordinary
+  // (compiler-produced) images.
+  const PropertyRange &getSpecConstantsSetValues() const {
+    return SpecConstSetValuesMap;
+  }
   const PropertyRange &getDeviceLibMetadata() const {
     return DeviceLibMetadata;
   }
@@ -235,6 +245,9 @@ public:
   }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
   const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
+  const PropertyRange &getWorkGroupDynamicLocalMem() const {
+    return WorkGroupDynamicLocalMem;
+  }
   const PropertyRange &getRegisteredKernels() const {
     return RegisteredKernels;
   }
@@ -245,6 +258,17 @@ public:
     return ImageId;
   }
 
+  uint32_t getIdQueriesRangeProperties() const {
+    std::call_once(*MIdQueriesRangeFlag, [this]() {
+      if (auto Prop = this->getProperty("idQueriesRange")) {
+        MIdQueriesRange = DeviceBinaryProperty(Prop).asUint32();
+      } else {
+        MIdQueriesRange = 0; // Default value is "int" range.
+      }
+    });
+    return MIdQueriesRange;
+  }
+
 protected:
   sycl_device_binary get() const { return Bin; }
 
@@ -253,6 +277,7 @@ protected:
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
+  RTDeviceBinaryImage::PropertyRange SpecConstSetValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
@@ -263,6 +288,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
   RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
+  RTDeviceBinaryImage::PropertyRange WorkGroupDynamicLocalMem;
   RTDeviceBinaryImage::PropertyRange RegisteredKernels;
   RTDeviceBinaryImage::PropertyRange Misc;
 
@@ -271,6 +297,12 @@ protected:
 private:
   static std::atomic<uintptr_t> ImageCounter;
   uintptr_t ImageId = 0;
+  // Wrap MIdQueriesRangeFlag in a std::unique_ptr<std::once_flag>,
+  // which is movable (unlike std::once_flag itself).
+  // This allows the defaulted = operator to compile.
+  mutable std::unique_ptr<std::once_flag> MIdQueriesRangeFlag =
+      std::make_unique<std::once_flag>();
+  mutable uint32_t MIdQueriesRange = 0;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary

@@ -68,10 +68,6 @@ jobs:
       e2e_binaries_preview_artifact: e2e_bin_preview
       e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
 
-  clang-tidy:
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
-    uses: ./.github/workflows/sycl-clang-tidy.yml
-
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
@@ -82,14 +78,14 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
             devops/
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
@@ -104,7 +100,7 @@ jobs:
           ref: ${{ github.ref || github.sha }}
           testing_mode: full
           target_devices: native_cpu:cpu
-          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
           extra_lit_opts: --param sycl_build_targets="native_cpu"
           extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
 
@@ -132,7 +128,7 @@ jobs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         sparse-checkout: |
           devops/
@@ -178,6 +174,7 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
+            skip_run: ${{ startsWith(github.base_ref, 'sycl-rel-') }}
           - name: Intel / ARL with L0 v2
             runner: '["Linux", "arl"]'
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u

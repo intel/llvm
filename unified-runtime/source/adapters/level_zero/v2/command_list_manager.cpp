@@ -1,9 +1,8 @@
 //===--------- command_list_manager.cpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -743,15 +742,15 @@ ur_result_t ur_command_list_manager::appendMemBufferMap(
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_BUFFER_MAP);
 
+  if (waitListView) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (getZeCommandList(), waitListView.num, waitListView.handles));
+    waitListView.clear();
+  }
+
   auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
       mapFlags, offset, size, zeCommandList.get(), waitListView));
   *ppRetMap = pDst;
-
-  if (waitListView) {
-    // If memory was not migrated, we need to wait on the events here.
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (getZeCommandList(), waitListView.num, waitListView.handles));
-  }
 
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
@@ -778,9 +777,11 @@ ur_command_list_manager::appendMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
   // TODO: currently unmapHostPtr deallocates memory immediately,
   // since the memory might be used by the user, we need to make sure
   // all dependencies are completed.
-  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-             (getZeCommandList(), waitListView.num, waitListView.handles));
-  waitListView.clear();
+  if (waitListView) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (getZeCommandList(), waitListView.num, waitListView.handles));
+    waitListView.clear();
+  }
 
   hBuffer->unmapHostPtr(pMappedPtr, zeCommandList.get(), waitListView);
   if (zeSignalEvent) {
@@ -1319,7 +1320,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
   } else {
     // We cannot pass cooperativeKernelLaunchRequested to
     // appendKernelLaunchWithArgsExpOld() because appendKernelLaunch() must
-    // check it on its own since it is called also from enqueueKernelLaunch().
+    // check it on its own since it is called from other kernel launch paths.
     return appendKernelLaunchWithArgsExpOld(
         hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
         numArgs, pArgs, launchPropList, waitListView, phEvent);
@@ -1364,14 +1365,20 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   }
 
   ze_graph_handle_t zeGraph = nullptr;
-  ZE2UR_CALL(
-      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListEndGraphCaptureExp,
-      (getZeCommandList(), &zeGraph, nullptr));
+  ZE2UR_CALL(hContext.get()->getPlatform()->ZeGraphExt.endGraphCapture,
+             (getZeCommandList(), nullptr, &zeGraph));
   auto graph = graphCapture.getGraph();
   graphCapture.disableCapture();
 
-  *phGraph =
-      graph ? graph : new ur_exp_graph_handle_t_(hContext.get(), zeGraph);
+  if (!graph) {
+    std::scoped_lock<ur_shared_mutex> lock(hContext.get()->GraphMapMutex);
+    graph = hContext.get()->getGraphFromZeHandle(zeGraph);
+    if (!graph) {
+      graph = new ur_exp_graph_handle_t_(hContext.get(), zeGraph);
+      hContext.get()->registerGraph(zeGraph, graph);
+    }
+  }
+  *phGraph = graph;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1393,18 +1400,56 @@ ur_command_list_manager::appendGraph(ur_exp_executable_graph_handle_t hGraph,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
+ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
   if (!checkGraphExtensionSupport(hContext.get())) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(hContext.get()
-                          ->getPlatform()
-                          ->ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp,
-                      (getZeCommandList()));
+  auto &ZeGraphExt = hContext.get()->getPlatform()->ZeGraphExt;
+  ze_result_t ZeResult = ZeGraphExt.normalizeGraphQueryResult(ZE_CALL_NOCHECK(
+      ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp, (getZeCommandList())));
 
   *pResult = (ZeResult == ZE_RESULT_QUERY_TRUE);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::getGraph(ur_exp_graph_handle_t *phGraph) {
+  auto zeGetGraph =
+      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListGetGraphExp;
+  if (!checkGraphExtensionSupport(hContext.get()) || !zeGetGraph) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto hCachedGraph = graphCapture.getGraph();
+  if (hCachedGraph) {
+    *phGraph = hCachedGraph;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Fork-join and implicit capture scenarios
+  ze_graph_handle_t hZeGraph = nullptr;
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeGetGraph, (getZeCommandList(), &hZeGraph));
+
+  if (ZeResult != ZE_RESULT_SUCCESS || !hZeGraph) {
+    *phGraph = nullptr;
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  ur_exp_graph_handle_t hUrGraph = nullptr;
+  {
+    std::scoped_lock<ur_shared_mutex> lock(hContext.get()->GraphMapMutex);
+    hUrGraph = hContext.get()->getGraphFromZeHandle(hZeGraph);
+    if (!hUrGraph) {
+      hUrGraph = new ur_exp_graph_handle_t_(hContext.get(), hZeGraph);
+      hContext.get()->registerGraph(hZeGraph, hUrGraph);
+      if (graphCapture.isActive()) {
+        graphCapture.enableCapture(hUrGraph);
+      }
+    }
+  }
+  *phGraph = hUrGraph;
 
   return UR_RESULT_SUCCESS;
 }

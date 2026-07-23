@@ -9,11 +9,10 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -29,7 +28,7 @@ from templates import helper as th
 
 %if n != x:
 // 'core' API headers
-#include "${x}_api.h"
+#include "unified-runtime/${x}_api.h"
 %else:
 // standard headers
 #include <stdint.h>

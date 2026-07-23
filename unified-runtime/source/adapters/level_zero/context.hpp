@@ -1,9 +1,8 @@
 //===--------- context.hpp - Level Zero Adapter ---------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -17,8 +16,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 

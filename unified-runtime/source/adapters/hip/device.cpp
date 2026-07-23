@@ -1,9 +1,8 @@
 //===--------- device.cpp - HIP Adapter -----------------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -118,6 +117,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(return_sizes);
   }
 
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    int MaxX = 0, MaxY = 0, MaxZ = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxX, hipDeviceAttributeMaxGridDimX,
+                                         hDevice->get()));
+    assert(MaxX >= 0);
+
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxY, hipDeviceAttributeMaxGridDimY,
+                                         hDevice->get()));
+    assert(MaxY >= 0);
+
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxZ, hipDeviceAttributeMaxGridDimZ,
+                                         hDevice->get()));
+    assert(MaxZ >= 0);
+
+    return ReturnValue(multiplyWithOverflowCheck(static_cast<size_t>(MaxX),
+                                                 static_cast<size_t>(MaxY),
+                                                 static_cast<size_t>(MaxZ)));
+  }
+
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int MaxWorkGroupSize = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxWorkGroupSize,
@@ -137,7 +155,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT: {
     return ReturnValue(1u);
   }
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG: {
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT: {
@@ -158,7 +177,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT: {
     return ReturnValue(1u);
   }
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG: {
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT: {
@@ -964,6 +984,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(ur_bool_t{true});
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // HIP supports enqueueing native work through the urNativeEnqueueExp
     return ReturnValue(ur_bool_t{true});
@@ -1001,6 +1023,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     int RuntimeVersion = 0;
     UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
@@ -1037,6 +1061,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
@@ -1056,8 +1082,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
     return ReturnValue(false);
   default:
-    break;
+    UR_LOG(ERR, "Unsupported ParamName in urDeviceGetInfo");
+    UR_LOG(ERR, "ParamName={}(0x{})", propName, logger::toHex(propName));
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+
+  // Unreachable - all cases return, but compiler needs this
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 

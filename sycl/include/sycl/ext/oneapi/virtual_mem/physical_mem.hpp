@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/detail/ipc_common.hpp>
 #include <sycl/queue.hpp>
 
 namespace sycl {
@@ -31,6 +32,22 @@ class __SYCL_EXPORT physical_mem
   friend sycl::detail::ImplUtils;
 
 public:
+  template <typename PropertyListT = empty_properties_t>
+  physical_mem(const device &SyclDevice, const context &SyclContext,
+               size_t NumBytes,
+               const PropertyListT &PropList = empty_properties_t{}) {
+
+    bool EnableIPC = PropList.template has_property<enable_ipc_key>();
+
+    create(SyclDevice, SyclContext, NumBytes, EnableIPC);
+  }
+
+  template <typename PropertyListT = empty_properties_t>
+  physical_mem(const queue &SyclQueue, size_t NumBytes,
+               const PropertyListT &PropList = empty_properties_t{})
+      : physical_mem(SyclQueue.get_device(), SyclQueue.get_context(), NumBytes,
+                     PropList) {}
+
   physical_mem(const device &SyclDevice, const context &SyclContext,
                size_t NumBytes);
 
@@ -57,9 +74,18 @@ public:
 
   size_t size() const noexcept;
 
+  bool ipc_enabled() const noexcept;
+
 private:
   std::shared_ptr<sycl::detail::physical_mem_impl> impl;
+  void create(const device &SyclDevice, const context &SyclContext,
+              size_t NumBytes, bool EnableIPC);
+  physical_mem(std::shared_ptr<sycl::detail::physical_mem_impl> Impl)
+      : impl(std::move(Impl)) {}
 };
+
+template <>
+struct is_property_key_of<enable_ipc_key, physical_mem> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

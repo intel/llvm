@@ -8,8 +8,8 @@
 
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <cstring>
 #include <sstream>
@@ -272,7 +272,11 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
 }
 
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
-  Out << Target.Backend;
+  if (Target.Backend) {
+    Out << Target.Backend.value();
+  } else {
+    Out << "not set ";
+  }
   if (Target.DeviceType) {
     auto DeviceTypeMap = getSyclDeviceTypeMap();
     auto Match = std::find_if(

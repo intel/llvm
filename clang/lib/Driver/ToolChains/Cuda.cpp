@@ -15,6 +15,7 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Options/Options.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h" // for LLVM_HOST_TRIPLE
 #include "llvm/Option/ArgList.h"
@@ -90,6 +91,12 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_128;
   if (raw_version < 13000)
     return CudaVersion::CUDA_129;
+  if (raw_version < 13010)
+    return CudaVersion::CUDA_130;
+  if (raw_version < 13020)
+    return CudaVersion::CUDA_131;
+  if (raw_version < 13030)
+    return CudaVersion::CUDA_132;
   return CudaVersion::NEW;
 }
 
@@ -326,7 +333,7 @@ void CudaInstallationDetector::AddCudaIncludeArgs(
 
 void CudaInstallationDetector::CheckCudaVersionSupportsArch(
     OffloadArch Arch) const {
-  if (Arch == OffloadArch::UNKNOWN || Version == CudaVersion::UNKNOWN ||
+  if (Arch == OffloadArch::Unknown || Version == CudaVersion::UNKNOWN ||
       ArchsWithBadVersion[(int)Arch])
     return;
 
@@ -397,16 +404,16 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
       static_cast<const toolchains::NVPTXToolChain &>(getToolChain());
   assert(TC.getTriple().isNVPTX() && "Wrong platform");
 
-  StringRef GPUArchName;
+  BoundArch GPUArch;
   // If this is a CUDA action we need to extract the device architecture
   // from the Job's associated architecture, otherwise use the -march=arch
   // option. This option may come from -Xopenmp-target flag or the default
   // value.
   if (JA.isDeviceOffloading(Action::OFK_Cuda)) {
-    GPUArchName = JA.getOffloadingArch();
+    GPUArch = JA.getOffloadingArch();
   } else {
-    GPUArchName = Args.getLastArgValue(options::OPT_march_EQ);
-    if (GPUArchName.empty()) {
+    GPUArch = BoundArch(Args.getLastArgValue(options::OPT_march_EQ));
+    if (GPUArch.empty()) {
       C.getDriver().Diag(diag::err_drv_offload_missing_gpu_arch)
           << getToolChain().getArchName() << getShortName();
       return;
@@ -414,13 +421,12 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Obtain architecture from the action.
-  OffloadArch gpu_arch = StringToOffloadArch(GPUArchName);
-  assert(gpu_arch != OffloadArch::UNKNOWN &&
+  assert(GPUArch.Arch != OffloadArch::Unknown &&
          "Device action expected to have an architecture.");
 
   // Check that our installation's ptxas supports gpu_arch.
   if (!Args.hasArg(options::OPT_no_cuda_version_check)) {
-    TC.CudaInstallation.CheckCudaVersionSupportsArch(gpu_arch);
+    TC.CudaInstallation.CheckCudaVersionSupportsArch(GPUArch.Arch);
   }
 
   ArgStringList CmdArgs;
@@ -467,7 +473,7 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-v");
 
   CmdArgs.push_back("--gpu-name");
-  CmdArgs.push_back(Args.MakeArgString(OffloadArchToString(gpu_arch)));
+  CmdArgs.push_back(Args.MakeArgString(GPUArch.ArchName));
   CmdArgs.push_back("--output-file");
   std::string OutputFileName = TC.getInputFilename(Output);
 
@@ -558,15 +564,16 @@ void NVPTX::FatBinary::ConstructJob(Compilation &C, const JobAction &JA,
     auto *A = II.getAction();
     assert(A->getInputs().size() == 1 &&
            "Device offload action is expected to have a single input");
-    StringRef GpuArch = A->getOffloadingArch();
+    BoundArch GpuArch = A->getOffloadingArch();
     assert(!GpuArch.empty() &&
            "Device action expected to have associated a GPU architecture!");
 
-    if (II.getType() == types::TY_PP_Asm && !shouldIncludePTX(Args, GpuArch))
+    if (II.getType() == types::TY_PP_Asm &&
+        !shouldIncludePTX(Args, GpuArch.ArchName))
       continue;
     StringRef Kind = (II.getType() == types::TY_PP_Asm) ? "ptx" : "elf";
     CmdArgs.push_back(Args.MakeArgString(
-        "--image3=kind=" + Kind + ",sm=" + GpuArch.drop_front(3) +
+        "--image3=kind=" + Kind + ",sm=" + GpuArch.ArchName.drop_front(3) +
         ",file=" + getToolChain().getInputFilename(II)));
   }
 
@@ -684,7 +691,7 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-v");
 
   StringRef GPUArch = Args.getLastArgValue(options::OPT_march_EQ);
-  if (GPUArch.empty() && !C.getDriver().isUsingLTO()) {
+  if (GPUArch.empty() && !getToolChain().isUsingLTO(Args)) {
     C.getDriver().Diag(diag::err_drv_offload_missing_gpu_arch)
         << getToolChain().getArchName() << getShortName();
     return;
@@ -714,9 +721,9 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   getToolChain().AddFilePathLibArgs(Args, CmdArgs);
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
 
-  if (C.getDriver().isUsingLTO())
+  if (auto LTO = getToolChain().getLTOMode(Args); LTO != LTOK_None)
     addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs,
-                  C.getDriver().getLTOMode() == LTOK_Thin);
+                  LTO == LTOK_Thin);
 
   // Forward the PTX features if the nvlink-wrapper needs it.
   std::vector<StringRef> Features;
@@ -730,6 +737,9 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       llvm::sys::path::parent_path(TC.getDriver().Dir);
   llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
   CmdArgs.push_back(Args.MakeArgString(Twine("-L") + DefaultLibPath));
+
+  getToolChain().addProfileRTLibs(Args, CmdArgs);
+  addSanitizerRuntimes(getToolChain(), Args, CmdArgs);
 
   if (Args.hasArg(options::OPT_stdlib))
     CmdArgs.append({"-lc", "-lm"});
@@ -754,8 +764,7 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                                    const llvm::opt::ArgList &Args,
                                    std::vector<StringRef> &Features) {
   if (Args.hasArg(options::OPT_cuda_feature_EQ)) {
-    StringRef PtxFeature =
-        Args.getLastArgValue(options::OPT_cuda_feature_EQ, "+ptx42");
+    StringRef PtxFeature = Args.getLastArgValue(options::OPT_cuda_feature_EQ);
     Features.push_back(Args.MakeArgString(PtxFeature));
     return;
   }
@@ -770,6 +779,9 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case CudaVersion::CUDA_##CUDA_VER:                                           \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
+    CASE_CUDA_VERSION(132, 92);
+    CASE_CUDA_VERSION(131, 91);
+    CASE_CUDA_VERSION(130, 90);
     CASE_CUDA_VERSION(129, 88);
     CASE_CUDA_VERSION(128, 87);
     CASE_CUDA_VERSION(126, 85);
@@ -794,15 +806,20 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     CASE_CUDA_VERSION(92, 61);
     CASE_CUDA_VERSION(91, 61);
     CASE_CUDA_VERSION(90, 60);
+    CASE_CUDA_VERSION(80, 50);
+    CASE_CUDA_VERSION(75, 43);
+    CASE_CUDA_VERSION(70, 42);
 #undef CASE_CUDA_VERSION
   // TODO: Use specific CUDA version once it's public.
   case clang::CudaVersion::NEW:
     PtxFeature = "+ptx86";
     break;
   default:
-    PtxFeature = "+ptx42";
+    // No PTX feature specified; let the backend choose based on the target SM.
+    break;
   }
-  Features.push_back(PtxFeature);
+  if (PtxFeature)
+    Features.push_back(PtxFeature);
 }
 
 /// NVPTX toolchain. Our assembler is ptxas, and our linker is nvlink. This
@@ -823,13 +840,15 @@ NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
 /// system's default triple if not provided.
 NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
                                const ArgList &Args)
-    : NVPTXToolChain(D, Triple, llvm::Triple(LLVM_HOST_TRIPLE), Args) {}
+    : NVPTXToolChain(D, Triple, llvm::Triple(LLVM_HOST_TRIPLE), Args) {
+  loadMultilibsFromYAML(Args, D);
+}
 
 llvm::opt::DerivedArgList *
 NVPTXToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
-                              StringRef BoundArch,
+                              BoundArch BA,
                               Action::OffloadKind OffloadKind) const {
-  DerivedArgList *DAL = ToolChain::TranslateArgs(Args, BoundArch, OffloadKind);
+  DerivedArgList *DAL = ToolChain::TranslateArgs(Args, BA, OffloadKind);
   if (!DAL)
     DAL = new DerivedArgList(Args.getBaseArgs());
 
@@ -851,11 +870,12 @@ NVPTXToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       getDriver().Diag(diag::err_drv_undetermined_gpu_arch)
           << getArchName() << llvm::toString(GPUsOrErr.takeError()) << "-march";
     } else {
-      if (GPUsOrErr->size() > 1)
+      auto &GPUs = *GPUsOrErr;
+      if (llvm::SmallSet<std::string, 1>(GPUs.begin(), GPUs.end()).size() > 1)
         getDriver().Diag(diag::warn_drv_multi_gpu_arch)
-            << getArchName() << llvm::join(*GPUsOrErr, ", ") << "-march";
+            << getArchName() << llvm::join(GPUs, ", ") << "-march";
       DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ),
-                        Args.MakeArgString(GPUsOrErr->front()));
+                        Args.MakeArgString(GPUs.front()));
     }
   }
 
@@ -864,13 +884,25 @@ NVPTXToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 
 void NVPTXToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
-    Action::OffloadKind DeviceOffloadingKind) const {}
+    BoundArch BA, Action::OffloadKind DeviceOffloadingKind) const {}
 
 void NVPTXToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                                ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_nostdinc) ||
       DriverArgs.hasArg(options::OPT_nostdlibinc))
     return;
+
+  // Add multilib variant include paths in priority order.
+  for (const Multilib &M : getOrderedMultilibs()) {
+    if (M.isDefault())
+      continue;
+    if (std::optional<std::string> StdlibIncDir = getStdlibIncludePath()) {
+      SmallString<128> Dir(*StdlibIncDir);
+      llvm::sys::path::append(Dir, M.includeSuffix());
+      if (getDriver().getVFS().exists(Dir))
+        addSystemInclude(DriverArgs, CC1Args, Dir);
+    }
+  }
 
   if (std::optional<std::string> Path = getStdlibIncludePath())
     addSystemInclude(DriverArgs, CC1Args, *Path);
@@ -937,12 +969,12 @@ CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args,
                              const Action::OffloadKind OK)
     : NVPTXToolChain(D, Triple, HostTC.getTriple(), Args), HostTC(HostTC),
-      SYCLInstallation(D), OK(OK) {}
+      SYCLInstallation(D, HostTC.getTriple(), Args), OK(OK) {}
 
 void CudaToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
-    Action::OffloadKind DeviceOffloadingKind) const {
-  HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
+    BoundArch BA, Action::OffloadKind DeviceOffloadingKind) const {
+  HostTC.addClangTargetOptions(DriverArgs, CC1Args, BA, DeviceOffloadingKind);
 
   StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
   assert((DeviceOffloadingKind == Action::OFK_OpenMP ||
@@ -969,10 +1001,17 @@ void CudaToolChain::addClangTargetOptions(
 
     CC1Args.append({"-mllvm", "-enable-memcpyopt-without-libcalls"});
 
-    if (DriverArgs.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
-                           options::OPT_fno_sycl_id_queries_fit_in_int, false))
-      CC1Args.append(
-          {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
+    // Add NVVM reflect flags based on SYCL ID queries range assumption.
+    if (DriverArgs.hasArg(options::OPT_fsycl_id_queries_range_EQ)) {
+      StringRef RangeValue =
+          DriverArgs.getLastArgValue(options::OPT_fsycl_id_queries_range_EQ);
+      if (RangeValue == "int")
+        CC1Args.append(
+            {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
+      else if (RangeValue == "uint")
+        CC1Args.append(
+            {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_UINT=1"});
+    }
 
     SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
                                          HostTC.getTriple(), CC1Args);
@@ -980,13 +1019,6 @@ void CudaToolChain::addClangTargetOptions(
     CC1Args.append({"-fcuda-is-device", "-mllvm",
                     "-enable-memcpyopt-without-libcalls",
                     "-fno-threadsafe-statics"});
-
-    // Unsized function arguments used for variadics were introduced in CUDA-9.0
-    // We still do not support generating code that actually uses variadic
-    // arguments yet, but we do need to allow parsing them as recent CUDA
-    // headers rely on that. https://github.com/llvm/llvm-project/issues/58410
-    if (CudaInstallation.version() >= CudaVersion::CUDA_90)
-      CC1Args.push_back("-fcuda-allow-variadic-functions");
 
     // Add these flags for .cu SYCL compilation.
     if (DeviceOffloadingKind == Action::OFK_Cuda &&
@@ -1038,7 +1070,7 @@ void CudaToolChain::addClangTargetOptions(
     }
 
     // Link the bitcode library late if we're using device LTO.
-    if (getDriver().isUsingOffloadLTO())
+    if (isUsingLTO(DriverArgs, DeviceOffloadingKind))
       return;
 
     addOpenMPDeviceRTL(getDriver(), DriverArgs, CC1Args, GpuArch.str(),
@@ -1087,10 +1119,9 @@ std::string CudaToolChain::getInputFilename(const InputInfo &Input) const {
 
 llvm::opt::DerivedArgList *
 CudaToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
-                             StringRef BoundArch,
+                             BoundArch BA,
                              Action::OffloadKind DeviceOffloadKind) const {
-  DerivedArgList *DAL =
-      HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
+  DerivedArgList *DAL = HostTC.TranslateArgs(Args, BA, DeviceOffloadKind);
   if (!DAL)
     DAL = new DerivedArgList(Args.getBaseArgs());
 
@@ -1103,10 +1134,10 @@ CudaToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     }
   }
 
-  if (!BoundArch.empty()) {
+  if (BA) {
     DAL->eraseArg(options::OPT_march_EQ);
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ),
-                      BoundArch);
+                      BA.ArchName);
   }
   return DAL;
 }
@@ -1178,7 +1209,7 @@ void CudaToolChain::AddIAMCUIncludeArgs(const ArgList &Args,
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 CudaToolChain::getDeviceLibs(
-    const llvm::opt::ArgList &DriverArgs,
+    const llvm::opt::ArgList &DriverArgs, BoundArch BA,
     const Action::OffloadKind DeviceOffloadingKind) const {
   StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
   std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(GpuArch);
@@ -1190,7 +1221,8 @@ CudaToolChain::getDeviceLibs(
   return {BitCodeLibraryInfo{LibDeviceFile}};
 }
 
-SanitizerMask CudaToolChain::getSupportedSanitizers() const {
+SanitizerMask CudaToolChain::getSupportedSanitizers(
+    BoundArch BA, Action::OffloadKind DeviceOffloadKind) const {
   // The CudaToolChain only supports sanitizers in the sense that it allows
   // sanitizer arguments on the command line if they are supported by the host
   // toolchain. The CudaToolChain will actually ignore any command line
@@ -1200,7 +1232,9 @@ SanitizerMask CudaToolChain::getSupportedSanitizers() const {
   // This behavior is necessary because the host and device toolchains
   // invocations often share the command line, so the device toolchain must
   // tolerate flags meant only for the host toolchain.
-  return HostTC.getSupportedSanitizers();
+
+  // FIXME: Be accurate and use DeviceOffloadKind.
+  return HostTC.getSupportedSanitizers(BA, DeviceOffloadKind);
 }
 
 VersionTuple CudaToolChain::computeMSVCVersion(const Driver *D,

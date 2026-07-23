@@ -240,11 +240,12 @@ public:
   static std::shared_ptr<queue_impl> create(Ts &&...args) {
     auto ImplPtr =
         std::make_shared<queue_impl>(std::forward<Ts>(args)..., private_tag{});
-    ImplPtr->getDeviceImpl().registerQueue(ImplPtr);
+    ImplPtr->getDeviceImpl().registerQueue(ImplPtr.get());
     return ImplPtr;
   }
 
   ~queue_impl() {
+    getDeviceImpl().unregisterQueue(this);
     try {
 #if XPTI_ENABLE_INSTRUMENTATION
       // The trace event created in the constructor should be active through the
@@ -270,13 +271,12 @@ public:
 
   /// \return an OpenCL interoperability queue handle.
 
-  cl_command_queue get() {
+  OpenCLCommandQueueT get() {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                          &nativeHandle);
-    __SYCL_OCL_CALL(clRetainCommandQueue,
-                    ur::cast<cl_command_queue>(nativeHandle));
-    return ur::cast<cl_command_queue>(nativeHandle);
+    detail::retainOpenCLCommandQueue(nativeHandle);
+    return ur::cast<OpenCLCommandQueueT>(nativeHandle);
   }
 
   /// \return an associated SYCL context.
@@ -376,10 +376,19 @@ public:
   }
 
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
+                                         detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
     detail::EventImplPtr EventImpl =
-        submit_barrier_direct_impl(DepEvents, CodeLoc);
+        submit_barrier_direct_impl(DepEvents, BarrierType, CodeLoc);
     return createSyclObjFromImpl<event>(std::move(EventImpl));
+  }
+
+  void submit_barrier_direct_without_event(
+      sycl::span<const event> DepEvents, detail::CGType BarrierType,
+      const detail::code_location &CodeLoc,
+      const EventImplPtr &EventForReuse = nullptr) {
+    submit_barrier_direct_impl(DepEvents, BarrierType, CodeLoc, false,
+                               EventForReuse);
   }
 
   void submit_graph_direct_without_event(
@@ -424,6 +433,11 @@ public:
       bool EventNeeded, detail::kernel_impl *KernelImplPtr,
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  EventImplPtr submit_barrier_scheduler_bypass(
+      std::vector<detail::EventImplPtr> &BarrierDepEvents,
+      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
+      bool EventNeeded, const EventImplPtr &EventForReuse);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -515,10 +529,6 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice.getHandleRef();
-    /*
-        sycl::detail::pi::PiQueueProperties Properties[] = {
-            PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
-        */
     ur_queue_properties_t Properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
                                         nullptr, 0};
     Properties.flags = createUrQueueFlags(MPropList, Order);
@@ -561,9 +571,11 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing fill operation.
-  event memset(void *Ptr, int Value, size_t Count,
-               const std::vector<event> &DepEvents, bool CallerNeedsEvent);
+  /// \return an event representing the fill operation if requested, nullptr
+  /// otherwise.
+  EventImplPtr memset(void *Ptr, int Value, size_t Count,
+                      const std::vector<event> &DepEvents,
+                      bool CallerNeedsEvent);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
@@ -573,10 +585,11 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing copy operation.
-  event memcpy(void *Dest, const void *Src, size_t Count,
-               const std::vector<event> &DepEvents, bool CallerNeedsEvent,
-               const code_location &CodeLoc);
+  /// \return an event representing the fill operation if requested, nullptr
+  /// otherwise.
+  EventImplPtr memcpy(void *Dest, const void *Src, size_t Count,
+                      const std::vector<event> &DepEvents,
+                      bool CallerNeedsEvent, const code_location &CodeLoc);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -586,9 +599,12 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing advise operation.
-  event mem_advise(const void *Ptr, size_t Length, ur_usm_advice_flags_t Advice,
-                   const std::vector<event> &DepEvents, bool CallerNeedsEvent);
+  /// \return an event representing the advise operation if requested, nullptr
+  /// otherwise.
+  EventImplPtr mem_advise(const void *Ptr, size_t Length,
+                          ur_usm_advice_flags_t Advice,
+                          const std::vector<event> &DepEvents,
+                          bool CallerNeedsEvent);
 
   static ThreadPool &getThreadPool() {
     return GlobalHandler::instance().getHostTaskThreadPool();
@@ -606,15 +622,18 @@ public:
 
   bool queue_empty() const;
 
-  event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
-                             bool IsDeviceImageScope, size_t NumBytes,
-                             size_t Offset, const std::vector<event> &DepEvents,
-                             bool CallerNeedsEvent);
-  event memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
-                               bool IsDeviceImageScope, size_t NumBytes,
-                               size_t Offset,
-                               const std::vector<event> &DepEvents,
-                               bool CallerNeedsEvent);
+  void queue_flush() const;
+
+  EventImplPtr memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
+                                    bool IsDeviceImageScope, size_t NumBytes,
+                                    size_t Offset,
+                                    const std::vector<event> &DepEvents,
+                                    bool CallerNeedsEvent);
+  EventImplPtr memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                      bool IsDeviceImageScope, size_t NumBytes,
+                                      size_t Offset,
+                                      const std::vector<event> &DepEvents,
+                                      bool CallerNeedsEvent);
 
   void setCommandGraphUnlocked(
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -642,6 +661,23 @@ public:
   }
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
+
+  bool isNativeRecording() const;
+
+  struct NativeRecordingResult {
+    ur_exp_graph_handle_t CapturedGraph = nullptr;
+    bool RecordingActive = false;
+    ur_result_t Result = UR_RESULT_SUCCESS;
+  };
+
+  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph);
+
+  NativeRecordingResult endNativeRecording();
+
+  ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
+
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  ext_oneapi_get_graph_impl() const;
 
   EventImplPtr submit_command_to_graph(
       ext::oneapi::experimental::detail::graph_impl &GraphImpl,
@@ -952,16 +988,21 @@ protected:
   /// \param CodeLoc is the code location of the submit call
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
-  EventImplPtr submit_barrier_direct_impl(sycl::span<const event> DepEvents,
-                                          const detail::code_location &CodeLoc);
+  EventImplPtr submit_barrier_direct_impl(
+      sycl::span<const event> DepEvents, detail::CGType BarrierType,
+      const detail::code_location &CodeLoc, bool CallerNeedsEvent = true,
+      const EventImplPtr &EventForReuse = nullptr);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a
   ///        handler.
+  /// \return an event representing the submitted command group if requested,
+  /// nullptr otherwise.
   template <typename HandlerFuncT>
-  event submitWithHandler(const std::vector<event> &DepEvents,
-                          bool CallerNeedsEvent, HandlerFuncT HandlerFunc);
+  EventImplPtr submitWithHandler(const std::vector<event> &DepEvents,
+                                 bool CallerNeedsEvent,
+                                 HandlerFuncT HandlerFunc);
 
   /// Performs submission of a memory operation directly if scheduler can be
   /// bypassed, or with a handler otherwise.
@@ -976,13 +1017,14 @@ protected:
   /// \param MemMngrArgs are all the arguments that need to be passed to memory
   ///        manager except the last three: dependencies, UR event and
   ///        EventImplPtr are filled out by this helper.
-  /// \return an event representing the submitted operation.
+  /// \return an event representing the submitted operation if requested,
+  /// nullptr otherwise.
   template <typename HandlerFuncT, typename MemMngrFuncT,
             typename... MemMngrArgTs>
-  event submitMemOpHelper(const std::vector<event> &DepEvents,
-                          bool CallerNeedsEvent, HandlerFuncT HandlerFunc,
-                          MemMngrFuncT MemMngrFunc,
-                          MemMngrArgTs &&...MemOpArgs);
+  EventImplPtr
+  submitMemOpHelper(const std::vector<event> &DepEvents, bool CallerNeedsEvent,
+                    HandlerFuncT HandlerFunc, MemMngrFuncT MemMngrFunc,
+                    MemMngrArgTs &&...MemOpArgs);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // When instrumentation is enabled emits trace event for wait begin and

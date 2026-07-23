@@ -1,4 +1,4 @@
-// RUN: %{build} -DENABLE_64_BIT=false -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60 %}
+// RUN: %{build} -DENABLE_64_BIT=false -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_75 %}
 // RUN: %{run} %t.out
 
 #include "reduction_utils.hpp"
@@ -46,10 +46,10 @@ int main() {
   tests<class B7, int>(Q, 0, 0x3400, std::bit_or<>{}, MaxWGSize * 4);
   if constexpr (Enable64Bit)
     tests<class B8, uint64_t>(Q, 1, 2, std::multiplies<>{}, 31);
-  tests<class B9, int>(Q, (std::numeric_limits<int>::max)(), -99,
-                       ext::oneapi::minimum<>{}, MaxWGSize * 2);
-  tests<class B10, int>(Q, (std::numeric_limits<int>::min)(), 99,
-                        ext::oneapi::maximum<>{}, 8);
+  tests<class B9, int>(Q, (std::numeric_limits<int>::max)(), -99, minimum<>{},
+                       MaxWGSize * 2);
+  tests<class B10, int>(Q, (std::numeric_limits<int>::min)(), 99, maximum<>{},
+                        8);
   tests<class B11, float>(Q, 1, 99, std::multiplies<>{}, 10);
 
   // Check with CUSTOM type.

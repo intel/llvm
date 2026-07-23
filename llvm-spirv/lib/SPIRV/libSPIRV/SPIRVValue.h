@@ -174,6 +174,7 @@ public:
   double getDoubleValue() const { return getValue<double>(); }
   unsigned getNumWords() const { return NumWords; }
   const std::vector<SPIRVWord> &getSPIRVWords() { return Words; }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   constexpr static SPIRVWord FixedWC = 3;
@@ -210,6 +211,7 @@ protected:
   }
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVValue::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     NumWords = WordCount - FixedWC;
   }
   void decode(std::istream &I) override {
@@ -300,6 +302,26 @@ protected:
   void validate() const override { SPIRVConstantEmpty::validate(); }
 };
 
+class SPIRVPoisonKHR : public SPIRVConstantEmpty<OpPoisonKHR> {
+public:
+  SPIRVPoisonKHR(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId)
+      : SPIRVConstantEmpty(M, TheType, TheId) {
+    validate();
+  }
+  SPIRVPoisonKHR() {}
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityPoisonFreezeKHR);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_poison_freeze;
+  }
+
+protected:
+  void validate() const override { SPIRVConstantEmpty::validate(); }
+};
+
 template <spv::Op OC> class SPIRVConstantCompositeBase : public SPIRVValue {
 public:
   // There are always 3 words in this instruction except constituents:
@@ -338,6 +360,7 @@ public:
     for (auto &I : ContinuedInstructions)
       O << *I;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   void validate() const override {
@@ -348,6 +371,7 @@ protected:
 
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     Elements.resize(WordCount - FixedWC);
   }
 

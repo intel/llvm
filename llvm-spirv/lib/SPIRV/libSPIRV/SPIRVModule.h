@@ -142,6 +142,8 @@ public:
                               const std::string &) = 0;
   void setInvalid() { IsValid = false; }
   bool isModuleValid() { return IsValid; }
+  void setVectorCompute(bool E) { IsVectorCompute = E; }
+  bool isVectorCompute() const { return IsVectorCompute; }
 
   // Module query functions
   virtual SPIRVAddressingModelKind getAddressingModel() = 0;
@@ -526,6 +528,12 @@ public:
                                       llvm::MDNode *MD) = 0;
   virtual SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
                                                  SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addAbortKHRInst(SPIRVValue *Message,
+                                            SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVValue *addPoisonKHR(SPIRVType *TheType) = 0;
+  virtual SPIRVInstruction *addFreezeKHRInst(SPIRVType *TheType,
+                                             SPIRVValue *Value,
+                                             SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy,
                                              SPIRVValue *Value,
                                              SPIRVValue *ExpectedValue,
@@ -598,6 +606,18 @@ public:
     return TranslationOpts.shouldEmitFunctionPtrAddrSpace();
   }
 
+  unsigned mapAddrSpace(unsigned SPIRAS) const noexcept {
+    return TranslationOpts.mapAddrSpace(SPIRAS);
+  }
+
+  const SPIRV::AddrSpaceMap *getAddrSpaceMap() const noexcept {
+    return TranslationOpts.getAddrSpaceMap();
+  }
+
+  unsigned getFunctionProgramAddrSpace() const noexcept {
+    return TranslationOpts.getFunctionProgramAddrSpace();
+  }
+
   bool preserveAuxData() const noexcept {
     return TranslationOpts.preserveAuxData();
   }
@@ -663,6 +683,7 @@ protected:
 
 private:
   bool IsValid;
+  bool IsVectorCompute = false;
 };
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT

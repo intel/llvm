@@ -62,14 +62,24 @@ struct ReplacementItem {
   StringRef Options;
 };
 
+#if 1 // INTEL_CUSTOMIZATION
+// FIXME CMPLRLLVM-76802: icpx -O3 loopopt miscompiles formatv_object
+// construction/formatting, corrupting the substituted values and producing
+// garbage output. Disable optimization for the whole formatv_object machinery
+// so every caller is covered without needing a per-callsite workaround.
+#if defined(__INTEL_LLVM_COMPILER)
+#pragma clang optimize off
+#endif
+#endif // INTEL_CUSTOMIZATION
+
 class formatv_object_base {
 protected:
   StringRef Fmt;
-  ArrayRef<support::detail::format_adapter *> Adapters;
+  ArrayRef<support::detail::FormatFunctorRef> Adapters;
   bool Validate;
 
   formatv_object_base(StringRef Fmt,
-                      ArrayRef<support::detail::format_adapter *> Adapters,
+                      ArrayRef<support::detail::FormatFunctorRef> Adapters,
                       bool Validate)
       : Fmt(Fmt), Adapters(Adapters), Validate(Validate) {}
 
@@ -89,9 +99,9 @@ public:
         continue;
       }
 
-      auto *W = Adapters[R.Index];
+      auto &W = Adapters[R.Index];
 
-      FmtAlign Align(*W, R.Where, R.Width, R.Pad);
+      FmtAlign Align(W, R.Where, R.Width, R.Pad);
       Align.format(S, R.Options);
     }
   }
@@ -102,16 +112,13 @@ public:
 
   std::string str() const {
     std::string Result;
-    raw_string_ostream Stream(Result);
-    Stream << *this;
-    Stream.flush();
+    raw_string_ostream(Result) << *this;
     return Result;
   }
 
   template <unsigned N> SmallString<N> sstr() const {
     SmallString<N> Result;
-    raw_svector_ostream Stream(Result);
-    Stream << *this;
+    raw_svector_ostream(Result) << *this;
     return Result;
   }
 
@@ -125,21 +132,19 @@ template <typename Tuple> class formatv_object : public formatv_object_base {
   // of the parameters, we have to own the storage for the parameters here, and
   // have the base class store type-erased pointers into this tuple.
   Tuple Parameters;
-  std::array<support::detail::format_adapter *, std::tuple_size<Tuple>::value>
+  std::array<support::detail::FormatFunctorRef, std::tuple_size<Tuple>::value>
       ParameterPointers;
 
   // The parameters are stored in a std::tuple, which does not provide runtime
   // indexing capabilities.  In order to enable runtime indexing, we use this
   // structure to put the parameters into a std::array.  Since the parameters
   // are not all the same type, we use some type-erasure by wrapping the
-  // parameters in a template class that derives from a non-template superclass.
-  // Essentially, we are converting a std::tuple<Derived<Ts...>> to a
-  // std::array<Base*>.
+  // parameters in a template class and refer to them using function_refs.
   struct create_adapters {
     template <typename... Ts>
-    std::array<support::detail::format_adapter *, std::tuple_size<Tuple>::value>
+    std::array<support::detail::FormatFunctorRef, std::tuple_size<Tuple>::value>
     operator()(Ts &...Items) {
-      return {{&Items...}};
+      return {{Items...}};
     }
   };
 
@@ -251,7 +256,7 @@ public:
 template <typename... Ts>
 inline auto formatv(bool Validate, const char *Fmt, Ts &&...Vals) {
   auto Params = std::make_tuple(
-      support::detail::build_format_adapter(std::forward<Ts>(Vals))...);
+      support::detail::FormatFunctor(std::forward<Ts>(Vals))...);
   return formatv_object<decltype(Params)>(Fmt, std::move(Params), Validate);
 }
 
@@ -259,6 +264,12 @@ inline auto formatv(bool Validate, const char *Fmt, Ts &&...Vals) {
 template <typename... Ts> inline auto formatv(const char *Fmt, Ts &&...Vals) {
   return formatv<Ts...>(true, Fmt, std::forward<Ts>(Vals)...);
 }
+
+#if 1 // INTEL_CUSTOMIZATION
+#if defined(__INTEL_LLVM_COMPILER)
+#pragma clang optimize on
+#endif
+#endif // INTEL_CUSTOMIZATION
 
 } // end namespace llvm
 

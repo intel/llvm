@@ -1,5 +1,5 @@
 ; RUN: sycl-post-link -properties -split=auto -split-esimd -lower-esimd -O0 -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll
+; RUN: FileCheck %s -input-file=%t_0.esimd.ll
 
 ; This test checks that unreferenced functions with sycl-module-id
 ; attribute are not dropped from the module and ESIMD lowering

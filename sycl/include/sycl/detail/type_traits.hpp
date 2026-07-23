@@ -8,11 +8,11 @@
 
 #pragma once
 
+#include <sycl/detail/type_traits/bool_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 
 #include <sycl/detail/fwd/multi_ptr.hpp>
 
-#include <array>
 #include <cstddef>
 #include <type_traits>
 
@@ -121,12 +121,6 @@ inline constexpr bool is_group_helper_v =
 } // namespace ext::oneapi::experimental
 
 namespace detail {
-// Types for Intel's device UUID and device LUID extension.
-// For details about this extension, see
-// sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
-using uuid_type = std::array<unsigned char, 16>;
-using luid_type = std::array<unsigned char, 8>;
-
 template <typename T, typename R> struct copy_cv_qualifiers;
 
 template <typename T, typename R>
@@ -199,16 +193,7 @@ struct get_elem_type : get_elem_type_unqual<std::remove_cv_t<T>> {};
 template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
 
 // change_base_type_t
-template <typename T, typename B> struct change_base_type {
-  using type = B;
-};
-
-template <typename T, int N, typename B> struct change_base_type<vec<T, N>, B> {
-  using type = vec<B, N>;
-};
-
-template <typename T, typename B>
-using change_base_type_t = typename change_base_type<T, B>::type;
+// (defined in bool_traits.hpp, included above)
 
 // Applies the same the cv-qualifiers from T type to R type
 template <typename T, typename R> struct copy_cv_qualifiers_impl {
@@ -303,19 +288,8 @@ struct is_nonscalar_arithmetic
                           is_marray_v<T>) &&
                          is_arithmetic<T>::value> {};
 
-// is_bool
-template <typename T>
-struct is_scalar_bool
-    : std::bool_constant<std::is_same_v<std::remove_cv_t<T>, bool>> {};
-
-template <typename T>
-struct is_vector_bool
-    : std::bool_constant<is_vec<T>::value &&
-                         is_scalar_bool<vector_element_t<T>>::value> {};
-
-template <typename T>
-struct is_bool
-    : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+// is_bool: is_scalar_bool, is_vector_bool, is_bool
+// (defined in bool_traits.hpp, included above)
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};

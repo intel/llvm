@@ -125,6 +125,7 @@ class SPIRVDecorate : public SPIRVDecorateGeneric {
 public:
   static const Op OC = OpDecorate;
   static const SPIRVWord FixedWC = 3;
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   // Complete constructor for decorations without literals
   SPIRVDecorate(Decoration TheDec, SPIRVEntry *TheTarget)
       : SPIRVDecorateGeneric(OC, 3, TheDec, TheTarget) {}
@@ -240,6 +241,7 @@ class SPIRVDecorateId : public SPIRVDecorateGeneric {
 public:
   static const Op OC = OpDecorateId;
   static const SPIRVWord FixedWC = 3;
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   // Complete constructor for decorations with one id operand
   SPIRVDecorateId(Decoration TheDec, SPIRVEntry *TheTarget, SPIRVId V)
       : SPIRVDecorateGeneric(OC, 4, TheDec, TheTarget, V) {}
@@ -314,7 +316,15 @@ public:
   std::optional<ExtensionID> getRequiredExtension() const override {
     if (getLinkageType() == SPIRVLinkageTypeKind::LinkageTypeLinkOnceODR)
       return ExtensionID::SPV_KHR_linkonce_odr;
+    if (getLinkageType() == SPIRVLinkageTypeKind::LinkageTypeWeakAMD)
+      return ExtensionID::SPV_AMD_weak_linkage;
     return {};
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    if (getLinkageType() == SPIRVLinkageTypeKind::LinkageTypeWeakAMD)
+      return getVec(CapabilityLinkage, CapabilityWeakLinkageAMD);
+    return SPIRVDecorate::getRequiredCapability();
   }
 };
 
@@ -322,6 +332,7 @@ class SPIRVMemberDecorate : public SPIRVDecorateGeneric {
 public:
   static const Op OC = OpMemberDecorate;
   static const SPIRVWord FixedWC = 4;
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   // Complete constructor for decorations without literals
   SPIRVMemberDecorate(Decoration TheDec, SPIRVWord Member,
                       SPIRVEntry *TheTarget)
@@ -436,8 +447,11 @@ public:
 
   void setWordCount(SPIRVWord WC) override {
     SPIRVEntryNoIdGeneric::setWordCount(WC);
-    Targets.resize(WC - FixedWC);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
+    Targets.resize(WordCount - FixedWC);
   }
+
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   virtual void decorateTargets() = 0;
   _SPIRV_DCL_ENCDEC
 protected:

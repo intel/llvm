@@ -128,6 +128,13 @@ public:
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
 
+  /// This constructor takes a pre-built event and can be used for commands,
+  /// which require custom logic related to how the event is created.
+  Command(
+      CommandType Type, queue_impl *Queue, EventImplPtr Event,
+      ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
+
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return an optional connection cmd to enqueue
@@ -228,7 +235,7 @@ public:
   virtual context_impl *getWorkerContext() const;
 
   /// Returns true iff the command produces a UR event on non-host devices.
-  virtual bool producesPiEvent() const;
+  virtual bool producesUrEvent() const;
 
   /// Returns true iff this command can be freed by post enqueue cleanup.
   virtual bool supportsPostEnqueueCleanup() const;
@@ -413,7 +420,7 @@ public:
 
   void emitInstrumentationData() override;
 
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -432,7 +439,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
   bool readyForCleanup() const final;
 
@@ -459,7 +466,7 @@ public:
 
   void emitInstrumentationData() override;
 
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
 
@@ -555,7 +562,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() override;
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -577,7 +584,7 @@ public:
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   context_impl *getWorkerContext() const final;
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -653,7 +660,7 @@ public:
   // is false.
   bool MEventNeeded = true;
 
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
 
@@ -665,6 +672,8 @@ private:
   ur_result_t enqueueImpQueue();
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
+
+  static EventImplPtr makeEvent(const detail::CG &CG, queue_impl *Queue);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 
@@ -709,7 +718,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -718,6 +727,9 @@ private:
   std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
       MNodes;
 };
+
+void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
+                                const uint32_t IdQueriesRange);
 
 // Enqueues a given kernel to a ur_exp_command_buffer_handle_t
 ur_result_t enqueueImpCommandBufferKernel(

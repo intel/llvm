@@ -1,16 +1,15 @@
 //===----------- enqueue.cpp - LLVM Offload Adapter  ----------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include <OffloadAPI.h>
 #include <assert.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include "context.hpp"
 #include "event.hpp"
@@ -42,7 +41,8 @@ ol_result_t makeEvent(ur_command_t Type, ol_queue_handle_t OlQueue,
                       ur_queue_handle_t UrQueue, ur_event_handle_t *UrEvent) {
   if (UrEvent) {
     auto *Event = new ur_event_handle_t_(Type, UrQueue);
-    if (auto Res = olCreateEvent(OlQueue, &Event->OffloadEvent)) {
+    if (auto Res =
+            olCreateEvent(OlQueue, OL_EVENT_FLAGS_NONE, &Event->OffloadEvent)) {
       delete Event;
       return Res;
     };
@@ -85,7 +85,8 @@ ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
       if (Q == TargetQueue) {
         continue;
       }
-      OL_RETURN_ON_ERR(olCreateEvent(Q, &OffloadHandles.emplace_back()));
+      OL_RETURN_ON_ERR(olCreateEvent(Q, OL_EVENT_FLAGS_NONE,
+                                     &OffloadHandles.emplace_back()));
     }
     OL_RETURN_ON_ERR(olWaitEvents(TargetQueue, OffloadHandles.data(),
                                   OffloadHandles.size()));
@@ -151,7 +152,7 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
                                         phEventWaitList, phEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
+static ur_result_t urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, const ur_kernel_launch_ext_properties_t *,
@@ -202,8 +203,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   LaunchArgs.DynSharedMemory = 0;
 
   OL_RETURN_ON_ERR(olLaunchKernel(
-      Queue, hQueue->OffloadDevice, hKernel->OffloadKernel,
-      hKernel->Args.getStorage(), hKernel->Args.getStorageSize(), &LaunchArgs));
+      Queue, hQueue->OffloadDevice, hKernel->OffloadKernel, &LaunchArgs,
+      /*Properties=*/nullptr, hKernel->Args.Pointers.size(),
+      hKernel->Args.Pointers.data(), hKernel->Args.ParamSizes.data()));
 
   OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_KERNEL_LAUNCH, Queue, hQueue, phEvent));
   return UR_RESULT_SUCCESS;
@@ -262,7 +264,8 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
       olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(Command, hQueue);
-    if (auto Res = olCreateEvent(Queue, &Event->OffloadEvent)) {
+    if (auto Res =
+            olCreateEvent(Queue, OL_EVENT_FLAGS_NONE, &Event->OffloadEvent)) {
       delete Event;
       return offloadResultToUR(Res);
     };

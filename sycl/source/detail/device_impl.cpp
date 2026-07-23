@@ -54,10 +54,10 @@ bool device_impl::is_affinity_supported(
                    AffinityDomain) != SupportedDomains.end();
 }
 
-cl_device_id device_impl::get() const {
+OpenCLDeviceIdT device_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(getNative()));
-  return ur::cast<cl_device_id>(getNative());
+  retainOpenCLDevice(getNative());
+  return ur::cast<OpenCLDeviceIdT>(getNative());
 }
 
 platform device_impl::get_platform() const {
@@ -304,66 +304,16 @@ ur_native_handle_t device_impl::getNative() const {
   ur_native_handle_t Handle;
   Adapter.call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
+    retainOpenCLDevice(Handle);
   }
   return Handle;
 }
 
-// On the first call this function queries for device timestamp
-// along with host synchronized timestamp and stores it in member variable
-// MDeviceHostBaseTime. Subsequent calls to this function would just retrieve
-// the host timestamp, compute difference against the host timestamp in
-// MDeviceHostBaseTime and calculate the device timestamp based on the
-// difference.
-//
-// The MDeviceHostBaseTime is refreshed with new device and host timestamp
-// after a certain interval (determined by TimeTillRefresh) to account for
-// clock drift between host and device.
-//
 uint64_t device_impl::getCurrentDeviceTime() {
-  auto GetGlobalTimestamps = [this](ur_device_handle_t Device,
-                                    uint64_t *DeviceTime, uint64_t *HostTime) {
-    auto Result =
-        getAdapter().call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
-            Device, DeviceTime, HostTime);
-    if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
-      // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
-      // be calling it after ERROR_INVALID_OPERATION: there is no
-      // adapter-specific error.
-      throw detail::set_ur_error(
-          sycl::exception(
-              make_error_code(errc::feature_not_supported),
-              "Device and/or backend does not support querying timestamp."),
-          UR_RESULT_ERROR_INVALID_OPERATION);
-    } else {
-      getAdapter().checkUrResult<errc::feature_not_supported>(Result);
-    }
-  };
-
-  uint64_t HostTime = 0;
-  uint64_t Diff = 0;
-  // To account for potential clock drift between host clock and device clock.
-  // The value set is arbitrary: 200 seconds
-  constexpr uint64_t TimeTillRefresh = 200e9;
-  // If getCurrentDeviceTime is called for the first time or we have to refresh.
-  std::shared_lock<std::shared_mutex> ReadLock(MDeviceHostBaseTimeMutex);
-  if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
-    ReadLock.unlock();
-    std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
-    // Recheck the condition after acquiring the write lock.
-    if (MDeviceHostBaseTime.second && Diff <= TimeTillRefresh) {
-      // If we are here, it means that another thread has already updated
-      // MDeviceHostBaseTime, so we can just return the current device time.
-      return MDeviceHostBaseTime.first + Diff;
-    }
-    GetGlobalTimestamps(MDevice, &MDeviceHostBaseTime.first,
-                        &MDeviceHostBaseTime.second);
-  } else {
-    GetGlobalTimestamps(MDevice, nullptr, &HostTime);
-    assert(HostTime >= MDeviceHostBaseTime.second);
-    Diff = HostTime - MDeviceHostBaseTime.second;
-  }
-  return MDeviceHostBaseTime.first + Diff;
+  uint64_t DeviceTime = 0;
+  getAdapter().call<UrApiKind::urDeviceGetGlobalTimestamps>(
+      MDevice, &DeviceTime, nullptr);
+  return DeviceTime;
 }
 
 bool device_impl::extOneapiCanBuild(
@@ -482,10 +432,7 @@ void device_impl::wait() {
   // not-yet-enqueued commands and host_task.
   {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
-      std::shared_ptr<queue_impl> Queue = WQueue.lock();
-      assert(Queue && "Queue should never be dangling in the list of queues "
-                      "associated with the device!");
+    for (queue_impl *Queue : MQueues) {
       Queue->waitForRuntimeLevelCmdsAndClear();
     }
   }

@@ -6,13 +6,27 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
+
+#include <iostream>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+// Always defined regardless of the runtime's NDEBUG state: the header gates the
+// *call* on NDEBUG (user build mode), but the symbol must exist in libsycl.so
+// whichever mode the library itself was built in, otherwise a debug user TU
+// links against a release library and gets an undefined reference. The
+// fail-fast (assert) lives in the calling macro so it follows the *user's*
+// NDEBUG, not the build mode of libsycl.
+void reportExceptionToStream(const char *Prefix, const char *What) {
+  std::cerr << Prefix << " " << What << std::endl;
+}
+
 /// @brief CodeLocation information slot in thread local storage
 /// @details This structure is maintained by the SYCL runtime to manage the
 /// propagation of the code_location data down the stack without breaking ABI

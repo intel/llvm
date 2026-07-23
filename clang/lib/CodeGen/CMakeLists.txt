@@ -1,8 +1,10 @@
 set(LLVM_LINK_COMPONENTS
+  ABI
   AggressiveInstCombine
   Analysis
   BitReader
   BitWriter
+  CodeGen
   CodeGenTypes
   Core
   Coroutines
@@ -117,11 +119,14 @@ add_clang_library(clangCodeGen
   MacroPPCallbacks.cpp
   MicrosoftCXXABI.cpp
   ModuleBuilder.cpp
+  ModuleLinker.cpp
   ObjectFilePCHContainerWriter.cpp
   PatternInit.cpp
+  QualTypeMapper.cpp
   SanitizerMetadata.cpp
   SwiftCallingConv.cpp
   TargetBuiltins/ARM.cpp
+  TargetBuiltins/AVR.cpp
   TargetBuiltins/AMDGPU.cpp
   TargetBuiltins/DirectX.cpp
   TargetBuiltins/Hexagon.cpp
@@ -161,6 +166,10 @@ add_clang_library(clangCodeGen
   Targets/XCore.cpp
   TrapReasonBuilder.cpp
   VarBypassDetector.cpp
+
+  DISABLE_PCH_REUSE # PCH contains private headers
+  PRECOMPILE_HEADERS
+  [["pch.h"]]
 
   DEPENDS
   ${codegen_deps}

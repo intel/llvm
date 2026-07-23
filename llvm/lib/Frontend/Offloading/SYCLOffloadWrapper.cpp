@@ -46,9 +46,6 @@ using namespace llvm::util;
 
 namespace {
 
-/// Enable preview breaking changes.
-static bool PreviewBreakingChanges = false;
-
 /// Note: Returned values are a part of ABI. If you want to change them
 /// then coordinate it with SYCL Runtime.
 int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
@@ -226,7 +223,7 @@ struct Wrapper {
     else
       FTy = NativeCPUFuncTy;
     auto FCalle = M.getOrInsertFunction(
-        sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
+        llvm::sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
     Function *F = dyn_cast<Function>(FCalle.getCallee());
     if (F == nullptr)
       report_fatal_error("Unexpected callee");
@@ -774,9 +771,7 @@ struct Wrapper {
 
 Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          const SmallVector<SYCLImage> &Images,
-                                         SYCLWrappingOptions Options,
-                                         bool _PreviewBreakingChanges) {
-  PreviewBreakingChanges = _PreviewBreakingChanges;
+                                         SYCLWrappingOptions Options) {
   Wrapper W(M, Options);
   GlobalVariable *Desc = W.createFatbinDesc(Images);
   if (!Desc)

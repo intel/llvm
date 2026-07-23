@@ -1,10 +1,9 @@
 //===----------------------------------------------------------------------===//
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -30,7 +29,9 @@ MsanInterceptor::~MsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    DeviceInfo->Shadow->Destory();
+    [[maybe_unused]] ur_result_t Result = DeviceInfo->Shadow->Destory();
+    assert(Result == UR_RESULT_SUCCESS && "Failed to destroy shadow memory");
+    DeviceInfo->Shadow = nullptr;
   }
 
   m_MemBufferMap.clear();
@@ -44,15 +45,15 @@ MsanInterceptor::~MsanInterceptor() {
 
 ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
-                                            const ur_usm_desc_t *Properties,
-                                            ur_usm_pool_handle_t Pool,
+                                            const AllocMemoryParams &Params,
                                             size_t Size, AllocType Type,
                                             void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
   std::shared_ptr<DeviceInfo> DI = Device ? getDeviceInfo(Device) : nullptr;
 
-  uint32_t Alignment = Properties ? Properties->align : MSAN_ORIGIN_GRANULARITY;
+  uint32_t Alignment =
+      Params.USMDesc ? Params.USMDesc->align : Params.Alignment;
   // Alignment must be zero or a power-of-two
   if (0 != (Alignment & (Alignment - 1))) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -61,18 +62,29 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     Alignment = MSAN_ORIGIN_GRANULARITY;
   }
 
-  ur_usm_desc_t NewProperties;
-  if (Properties) {
-    NewProperties = *Properties;
-    NewProperties.align = Alignment;
-  } else {
-    NewProperties = {UR_STRUCTURE_TYPE_USM_DESC, nullptr,
-                     UR_USM_ADVICE_FLAG_DEFAULT, Alignment};
-  }
-
   void *Allocated = nullptr;
-  UR_CALL(
-      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
+  if (Type != AllocType::EXPORTABLE_MEM) {
+    ur_usm_desc_t NewProperties;
+    if (Params.USMDesc) {
+      NewProperties = *Params.USMDesc;
+      NewProperties.align = Alignment;
+    } else {
+      NewProperties = {UR_STRUCTURE_TYPE_USM_DESC, nullptr,
+                       UR_USM_ADVICE_FLAG_DEFAULT, Alignment};
+    }
+    UR_CALL(SafeAllocate(Context, Device, Size, &NewProperties, Params.Pool,
+                         Type, &Allocated));
+  } else {
+    // Check if the device is not NULL as AllocExportableMemoryExp requires it
+    if (!Device) {
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    UR_CALL(
+        getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp(
+            Context, Device, Alignment, Size, Params.HandleTypeToExport,
+            &Allocated));
+  }
 
   *ResultPtr = Allocated;
 
@@ -94,6 +106,9 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     break;
   case AllocType::SHARED_USM:
     HeapType = HeapType::SharedUSM;
+    break;
+  case AllocType::EXPORTABLE_MEM:
+    HeapType = HeapType::ExportableMem;
     break;
   default:
     UR_LOG_L(getContext()->logger, ERR, "Unknown heap type");
@@ -137,7 +152,7 @@ ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
 ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                              ur_queue_handle_t Queue,
-                                             USMLaunchInfo &LaunchInfo) {
+                                             LaunchInfo &LaunchInfo) {
   auto Context = GetContext(Queue);
   auto Device = GetDevice(Queue);
   auto ContextInfo = getContextInfo(Context);
@@ -156,7 +171,7 @@ ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
 ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                               ur_queue_handle_t Queue,
-                                              USMLaunchInfo &LaunchInfo) {
+                                              LaunchInfo &LaunchInfo) {
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
@@ -458,7 +473,7 @@ MsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
 
 ur_result_t MsanInterceptor::prepareLaunch(
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
-    ur_kernel_handle_t Kernel, USMLaunchInfo &LaunchInfo) {
+    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
   auto Program = GetProgram(Kernel);
 
   // Set membuffer arguments
@@ -471,19 +486,6 @@ ur_result_t MsanInterceptor::prepareLaunch(
            KernelInfo.IsTrackOrigins);
 
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-
-  for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-    char *ArgPointer = nullptr;
-    UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-    ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-        Kernel, ArgIndex, nullptr, ArgPointer);
-    if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR,
-               "Failed to set buffer {} as the {} arg to kernel {}: {}",
-               ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-               URes);
-    }
-  }
 
   if (!KernelInfo.IsInstrumented) {
     return UR_RESULT_SUCCESS;
@@ -509,9 +511,13 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto ArgNums = GetKernelNumArgs(Kernel);
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;
@@ -648,15 +654,10 @@ ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
 }
 
 ContextInfo::~ContextInfo() {
+  DeferredEvents.releaseAll();
   [[maybe_unused]] auto Result =
       getContext()->urDdiTable.Context.pfnRelease(Handle);
   assert(Result == UR_RESULT_SUCCESS);
-}
-
-ur_result_t USMLaunchInfo::initialize() {
-  UR_CALL(getContext()->urDdiTable.Context.pfnRetain(Context));
-  UR_CALL(getContext()->urDdiTable.Device.pfnRetain(Device));
-  return UR_RESULT_SUCCESS;
 }
 
 MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
@@ -670,14 +671,6 @@ MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
         getContext()->urDdiTable.USM.pfnFree(Context, (void *)DevicePtr);
     assert(Result == UR_RESULT_SUCCESS);
   }
-}
-
-USMLaunchInfo::~USMLaunchInfo() {
-  [[maybe_unused]] ur_result_t Result;
-  Result = getContext()->urDdiTable.Context.pfnRelease(Context);
-  assert(Result == UR_RESULT_SUCCESS);
-  Result = getContext()->urDdiTable.Device.pfnRelease(Device);
-  assert(Result == UR_RESULT_SUCCESS);
 }
 
 } // namespace msan

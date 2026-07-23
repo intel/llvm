@@ -169,6 +169,23 @@ static cl::opt<bool> SPIRVEmitFunctionPtrAddrSpace(
     "spirv-emit-function-ptr-addr-space", cl::init(false),
     cl::desc("Emit and consume CodeSectionINTEL for function pointers"));
 
+static cl::opt<std::string> SPIRVAddrSpaceMap(
+    "spirv-addrspace-map",
+    cl::desc("Remap SPIR-V address spaces when translating SPIR-V to LLVM IR.\n"
+             "Comma-separated list of from:to pairs, e.g. \"0:4,4:0\".\n"
+             "from is a SPIRAddressSpace index (0-9); to is the LLVM IR "
+             "address space number to emit.\n"
+             "Unmapped entries keep their original SPIRAS value."),
+    cl::value_desc("from1:to1,from2:to2,..."));
+
+static cl::opt<unsigned> SPIRVFunctionProgramAddrSpace(
+    "spirv-function-program-addrspace",
+    cl::desc("Address space to assign to function definitions when translating "
+             "SPIR-V to LLVM IR (used for OpConstantFunctionPointerINTEL). "
+             "Defaults to 0 (SPIRAS_Private). Please note that this flag is not"
+             "supported by SPIR-V generator (writer). "),
+    cl::value_desc("address-space"));
+
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
@@ -202,11 +219,6 @@ static cl::opt<bool>
     SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                   cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
-static cl::opt<bool>
-    SPIRVPreserveAuxData("spirv-preserve-auxdata", cl::init(false),
-                         cl::desc("Preserve all auxiliary data, such as "
-                                  "function attributes and metadata"));
-
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
     cl::desc("Display id of constants available for specializaion and their "
@@ -217,19 +229,6 @@ static cl::opt<bool>
                      cl::desc("Display general information about the module "
                               "(capabilities, extensions, version, memory model"
                               " and addressing model)"));
-
-static cl::opt<SPIRV::FPContractMode> FPCMode(
-    "spirv-fp-contract", cl::desc("Set FP Contraction mode:"),
-    cl::init(SPIRV::FPContractMode::On),
-    cl::values(
-        clEnumValN(SPIRV::FPContractMode::On, "on",
-                   "choose a mode according to presence of llvm.fmuladd "
-                   "intrinsic or `contract' flag on fp operations"),
-        clEnumValN(SPIRV::FPContractMode::Off, "off",
-                   "disable FP contraction for all entry points"),
-        clEnumValN(
-            SPIRV::FPContractMode::Fast, "fast",
-            "allow all operations to be contracted for all entry points")));
 
 static cl::opt<bool> SPIRVAllowExtraDIExpressions(
     "spirv-allow-extra-diexpressions", cl::init(false),
@@ -578,7 +577,7 @@ static int parseSPVExtOption(
     cl::list<std::string> &SPVExtList,
     SPIRV::TranslatorOpts::ExtensionsStatusMap &ExtensionsStatus) {
   // Map name -> id for known extensions
-  std::map<std::string, ExtensionID> ExtensionNamesMap;
+  DenseMap<StringRef, ExtensionID> ExtensionNamesMap;
 #define _STRINGIFY(X) #X
 #define STRINGIFY(X) _STRINGIFY(X)
 #define EXT(X) ExtensionNamesMap[STRINGIFY(X)] = ExtensionID::X;
@@ -602,7 +601,7 @@ static int parseSPVExtOption(
     return 0; // Nothing to do
 
   for (unsigned i = 0; i < SPVExtList.size(); ++i) {
-    const std::string &ExtString = SPVExtList[i];
+    StringRef ExtString = SPVExtList[i];
     if (ExtString.empty() ||
         ('+' != ExtString.front() && '-' != ExtString.front())) {
       errs() << "Invalid value of --spirv-ext, expected format is:\n"
@@ -610,7 +609,7 @@ static int parseSPVExtOption(
       return -1;
     }
 
-    auto ExtName = ExtString.substr(1);
+    StringRef ExtName = ExtString.drop_front();
 
     if (ExtName.empty()) {
       errs() << "Invalid value of --spirv-ext, expected format is:\n"
@@ -758,6 +757,40 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
   return false;
 }
 
+// Returns true on error.
+static bool parseAddrSpaceMapOpt(SPIRV::TranslatorOpts &Opts) {
+  SPIRV::AddrSpaceMap ParsedMap;
+  for (unsigned I = 0; I < SPIRV::SPIRAS_Count; ++I)
+    ParsedMap[I] = I;
+
+  SmallVector<StringRef, 16> Pairs;
+  StringRef(SPIRVAddrSpaceMap).split(Pairs, ',', -1, false);
+  for (StringRef Pair : Pairs) {
+    SmallVector<StringRef, 2> KV;
+    Pair.split(KV, ':', 1);
+    if (KV.size() != 2) {
+      errs() << "Error: Invalid format for --spirv-addrspace-map entry \""
+             << Pair << "\". Expected \"from:to\".\n";
+      return true;
+    }
+    unsigned From, To;
+    if (KV[0].getAsInteger(10, From) || From >= SPIRV::SPIRAS_Count) {
+      errs() << "Error: --spirv-addrspace-map: \"" << KV[0]
+             << "\" is not a valid SPIRAddressSpace index (0-"
+             << (SPIRV::SPIRAS_Count - 1) << ").\n";
+      return true;
+    }
+    if (KV[1].getAsInteger(10, To)) {
+      errs() << "Error: --spirv-addrspace-map: \"" << KV[1]
+             << "\" is not a valid unsigned address space number.\n";
+      return true;
+    }
+    ParsedMap[From] = To;
+  }
+  Opts.setAddrSpaceMap(ParsedMap);
+  return false;
+}
+
 static void parseAllowUnknownIntrinsicsOpt(SPIRV::TranslatorOpts &Opts) {
   SPIRV::TranslatorOpts::ArgList PrefixList;
   for (const auto &Prefix : SPIRVAllowUnknownIntrinsics) {
@@ -785,12 +818,39 @@ int main(int Ac, char **Av) {
     OptToDisable->setArgStr("spirv-ext-coming-from-spirv-backend");
     OptToDisable->setHiddenFlag(cl::Hidden);
   }
+  if (RegisteredOptions.count("spirv-preserve-auxdata") == 1) {
+    llvm::cl::Option *OptToDisable =
+        RegisteredOptions["spirv-preserve-auxdata"];
+    OptToDisable->setArgStr("spirv-preserve-auxdata-coming-from-spirv-backend");
+    OptToDisable->setHiddenFlag(cl::Hidden);
+  }
+  if (RegisteredOptions.count("spirv-fp-contract") == 1) {
+    llvm::cl::Option *OptToDisable = RegisteredOptions["spirv-fp-contract"];
+    OptToDisable->setArgStr("spirv-fp-contract-coming-from-spirv-backend");
+    OptToDisable->setHiddenFlag(cl::Hidden);
+  }
 #endif
   cl::list<std::string> SPVExt(
       "spirv-ext", cl::CommaSeparated,
       cl::desc("Specify list of allowed/disallowed extensions"),
       cl::value_desc("+SPV_extenstion1_name,-SPV_extension2_name"),
       cl::ValueRequired);
+  cl::opt<bool> SPIRVPreserveAuxData(
+      "spirv-preserve-auxdata", cl::init(false),
+      cl::desc("Preserve all auxiliary data, such as function attributes and "
+               "metadata"));
+  cl::opt<SPIRV::FPContractMode> FPCMode(
+      "spirv-fp-contract", cl::desc("Set FP Contraction mode:"),
+      cl::init(SPIRV::FPContractMode::On),
+      cl::values(
+          clEnumValN(SPIRV::FPContractMode::On, "on",
+                     "choose a mode according to presence of llvm.fmuladd "
+                     "intrinsic or `contract' flag on fp operations"),
+          clEnumValN(SPIRV::FPContractMode::Off, "off",
+                     "disable FP contraction for all entry points"),
+          clEnumValN(
+              SPIRV::FPContractMode::Fast, "fast",
+              "allow all operations to be contracted for all entry points")));
 
   cl::ParseCommandLineOptions(Ac, Av, "LLVM/SPIR-V translator");
 
@@ -911,6 +971,24 @@ int main(int Ac, char **Av) {
 
   if (SPIRVEmitFunctionPtrAddrSpace.getNumOccurrences() != 0)
     Opts.setEmitFunctionPtrAddrSpace(true);
+
+  if (SPIRVAddrSpaceMap.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-addrspace-map option ignored as it only "
+                "affects translation from SPIR-V to LLVM IR";
+    } else if (parseAddrSpaceMapOpt(Opts)) {
+      return -1;
+    }
+  }
+
+  if (SPIRVFunctionProgramAddrSpace.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-function-program-addrspace option ignored as it "
+                "only affects translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setFunctionProgramAddrSpace(SPIRVFunctionProgramAddrSpace);
+    }
+  }
 
   Opts.setFnVarSpecEnable(FnVarSpecEnable);
 

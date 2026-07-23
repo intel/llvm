@@ -1,9 +1,8 @@
 //===--------- command_list_cache.hpp - Level Zero Adapter ---------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -13,9 +12,9 @@
 #include <mutex>
 #include <stack>
 
+#include <unified-runtime/ur_api.h>
 #include <unordered_map>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 #include <vector>
 #include <ze_api.h>
 
@@ -25,8 +24,15 @@ using event_flags_t = uint32_t;
 enum event_flag_t {
   EVENT_FLAGS_COUNTER = UR_BIT(0),
   EVENT_FLAGS_PROFILING_ENABLED = UR_BIT(1),
+  // IPC-shareable producer event.
+  EVENT_FLAGS_IPC = UR_BIT(2),
+  // Event opened from an IPC handle.
+  EVENT_FLAGS_IPC_IMPORTED = UR_BIT(3),
 };
-static constexpr size_t EVENT_FLAGS_USED_BITS = 2;
+// Number of flag bits that index into event_pool_cache.
+// EVENT_FLAGS_IPC_IMPORTED is excluded because imported events are created
+// directly.
+static constexpr size_t EVENT_FLAGS_USED_BITS = 3;
 
 enum queue_type {
   QUEUE_REGULAR,

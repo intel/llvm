@@ -20,13 +20,13 @@ tablegen(LLVM AMDGPUGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM AMDGPUGenSubtargetInfo.inc -gen-subtarget)
 
 set(LLVM_TARGET_DEFINITIONS AMDGPUGISel.td)
-tablegen(LLVM AMDGPUGenGlobalISel.inc -gen-global-isel)
+tablegen(LLVM AMDGPUGenGlobalISel.inc -gen-global-isel -gisel-extended-llt)
 tablegen(LLVM AMDGPUGenPreLegalizeGICombiner.inc -gen-global-isel-combiner
-              -combiners="AMDGPUPreLegalizerCombiner")
+              -combiners="AMDGPUPreLegalizerCombiner" -gisel-extended-llt)
 tablegen(LLVM AMDGPUGenPostLegalizeGICombiner.inc -gen-global-isel-combiner
-              -combiners="AMDGPUPostLegalizerCombiner")
+              -combiners="AMDGPUPostLegalizerCombiner" -gisel-extended-llt)
 tablegen(LLVM AMDGPUGenRegBankGICombiner.inc -gen-global-isel-combiner
-              -combiners="AMDGPURegBankCombiner")
+              -combiners="AMDGPURegBankCombiner" -gisel-extended-llt)
 
 set(LLVM_TARGET_DEFINITIONS R600.td)
 tablegen(LLVM R600GenAsmWriter.inc -gen-asm-writer)
@@ -59,7 +59,9 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUFrameLowering.cpp
   AMDGPUGlobalISelDivergenceLowering.cpp
   AMDGPUGlobalISelUtils.cpp
+  AMDGPUHazardLatency.cpp
   AMDGPUHSAMetadataStreamer.cpp
+  AMDGPUHWEvents.cpp
   AMDGPUInsertDelayAlu.cpp
   AMDGPUInstCombineIntrinsic.cpp
   AMDGPUUniformIntrinsicCombine.cpp
@@ -80,17 +82,19 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUPrepareAGPRAlloc.cpp
   AMDGPULowerExecSync.cpp
   AMDGPUSwLowerLDS.cpp
-  AMDGPUMachineFunction.cpp
+  AMDGPUMachineFunctionInfo.cpp
   AMDGPUMachineModuleInfo.cpp
   AMDGPUMacroFusion.cpp
   AMDGPUMCInstLower.cpp
   AMDGPUMemoryUtils.cpp
+  AMDGPUCoExecSchedStrategy.cpp
   AMDGPUIGroupLP.cpp
   AMDGPULowerVGPREncoding.cpp
   AMDGPUMCResourceInfo.cpp
   AMDGPUMarkLastScratchLoad.cpp
   AMDGPUMIRFormatter.cpp
   AMDGPUOclcReflect.cpp
+  AMDGPUNextUseAnalysis.cpp
   AMDGPUPerfHintAnalysis.cpp
   AMDGPUPostLegalizerCombiner.cpp
   AMDGPUPreLegalizerCombiner.cpp
@@ -118,6 +122,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUTargetMachine.cpp
   AMDGPUTargetObjectFile.cpp
   AMDGPUTargetTransformInfo.cpp
+  AMDGPUWaitcntUtils.cpp
   AMDGPUWaitSGPRHazards.cpp
   AMDGPUUnifyDivergentExitNodes.cpp
   R600MachineCFGStructurizer.cpp
@@ -171,6 +176,7 @@ add_llvm_target(AMDGPUCodeGen
   SILowerWWMCopies.cpp
   SILowerSGPRSpills.cpp
   SIMachineFunctionInfo.cpp
+  SISpillUtils.cpp
   SIMachineScheduler.cpp
   SIMemoryLegalizer.cpp
   SIModeRegister.cpp

@@ -5,6 +5,7 @@ clang/ @intel/dpcpp-cfe-reviewers
 
 # Clang driver
 clang/**/Driver/ @intel/dpcpp-clang-driver-reviewers
+clang/include/clang/Basic/DiagnosticDriverKinds.td  @intel/dpcpp-clang-driver-reviewers
 
 # Clang tools
 clang-tools-extra/ @intel/dpcpp-cfe-reviewers
@@ -19,7 +20,7 @@ opencl/ @intel/llvm-reviewers-runtime
 opencl/opencl-aot/ @intel/dpcpp-tools-reviewers
 
 # libclc library
-libclc/ @intel/llvm-reviewers-cuda
+libclc/ @intel/llvm-reviewers-cuda @wenju-he @Maetveis
 
 # Device library
 libdevice/ @intel/llvm-reviewers-runtime
@@ -100,8 +101,10 @@ llvm/test/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
 # Clang offload tools
 clang/**/OffloadBundler.h @intel/dpcpp-tools-reviewers
 clang/**/OffloadBundler.cpp @intel/dpcpp-tools-reviewers
+clang/test/OffloadTools/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-linker-wrapper/ @intel/dpcpp-tools-reviewers
+clang/tools/clang-sycl-linker/ @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
 ESIMD/ @intel/dpcpp-esimd-reviewers
@@ -183,6 +186,7 @@ sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
 sycl/source/detail/bindless* @intel/bindless-images-reviewers
 sycl/test/check_device_code/extensions/bindless_images.cpp @intel/bindless-images-reviewers
 sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
+sycl/unittests/Extensions/BindlessImages/ @intel/bindless-images-reviewers
 
 # Miscellaneous sycl e2e tests
 sycl/test-e2e/BFloat16/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime

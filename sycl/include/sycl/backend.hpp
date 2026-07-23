@@ -26,7 +26,7 @@
 #include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
 #include <sycl/platform.hpp>                  // for platform, get_n...
 #include <sycl/queue.hpp>                     // for queue, get_native
-#include <ur_api.h>                           // for ur_native_handle_t
+#include <unified-runtime/ur_api.h>           // for ur_native_handle_t
 
 #if SYCL_BACKEND_OPENCL
 #include <sycl/detail/backend_traits_opencl.hpp> // for interop
@@ -108,9 +108,8 @@ struct BufferInterop<backend::opencl, DataT, Dimensions, AllocatorT> {
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 template <backend BackendName, typename DataT, int Dimensions,
           typename AllocatorT>
-auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
-    -> backend_return_t<BackendName,
-                        buffer<DataT, Dimensions, AllocatorT, void>> {
+auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT> &Obj)
+    -> backend_return_t<BackendName, buffer<DataT, Dimensions, AllocatorT>> {
   // No check for backend mismatch because buffer can be allocated on different
   // backends
   if (BackendName == backend::ext_oneapi_level_zero)

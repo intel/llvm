@@ -69,87 +69,6 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-static unsigned getAddressSpaceFromType(const Type *Ty) {
-  assert(Ty && "Can't deduce pointer AS");
-  if (auto *TypedPtr = dyn_cast<TypedPointerType>(Ty))
-    return TypedPtr->getAddressSpace();
-  if (auto *Ptr = dyn_cast<PointerType>(Ty))
-    return Ptr->getAddressSpace();
-  llvm_unreachable("Can't deduce pointer AS");
-}
-
-// Performs an address space inference analysis.
-static unsigned getAddressSpaceFromValue(const Value *Ptr) {
-  assert(Ptr && "Can't deduce pointer AS");
-
-  SmallPtrSet<const Value *, 8> Visited;
-  SmallVector<const Value *, 8> Worklist;
-  Worklist.push_back(Ptr);
-  unsigned AS = SPIRAS_Generic;
-
-  while (!Worklist.empty()) {
-    const Value *Current = Worklist.pop_back_val();
-    if (!Visited.insert(Current).second)
-      continue;
-
-    unsigned DeducedAS = getAddressSpaceFromType(Current->getType());
-    if (DeducedAS != SPIRAS_Generic)
-      return DeducedAS;
-    AS = DeducedAS;
-
-    // Find origins of the pointer and add to the worklist.
-    if (auto *Op = dyn_cast<Operator>(Current)) {
-      switch (Op->getOpcode()) {
-      case Instruction::AddrSpaceCast:
-      case Instruction::BitCast:
-      case Instruction::GetElementPtr:
-        Worklist.push_back(Op->getOperand(0));
-        break;
-      case Instruction::Select:
-        Worklist.push_back(Op->getOperand(1));
-        Worklist.push_back(Op->getOperand(2));
-        break;
-      case Instruction::PHI: {
-        auto *Phi = cast<PHINode>(Op);
-        for (Value *Incoming : Phi->incoming_values())
-          Worklist.push_back(Incoming);
-        break;
-      }
-      default:
-        break;
-      }
-    }
-  }
-
-  return AS;
-}
-
-// Sets memory semantic mask of an atomic depending on a pointer argument
-// address space.
-static unsigned
-getAtomicPointerMemorySemanticsMemoryMask(const Value *Ptr,
-                                          const Type *RecordedType) {
-  assert((Ptr && RecordedType) &&
-         "Can't evaluate atomic builtin's memory semantic");
-  unsigned AddrSpace = getAddressSpaceFromType(RecordedType);
-  if (AddrSpace == SPIRAS_Generic)
-    AddrSpace = getAddressSpaceFromValue(Ptr);
-
-  switch (AddrSpace) {
-  case SPIRAS_Global:
-  case SPIRAS_GlobalDevice:
-  case SPIRAS_GlobalHost:
-    return MemorySemanticsCrossWorkgroupMemoryMask;
-  case SPIRAS_Local:
-    return MemorySemanticsWorkgroupMemoryMask;
-  case SPIRAS_Generic:
-    return MemorySemanticsCrossWorkgroupMemoryMask |
-           MemorySemanticsWorkgroupMemoryMask;
-  default:
-    return MemorySemanticsMaskNone;
-  }
-}
-
 static size_t getOCLCpp11AtomicMaxNumOps(StringRef Name) {
   return StringSwitch<size_t>(Name)
       .Cases({"load", "flag_test_and_set", "flag_clear"}, 3)
@@ -700,7 +619,7 @@ void OCLToSPIRVBase::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
     PostOps.push_back(OCLLegacyAtomicMemOrder);
   PostOps.push_back(OCLLegacyAtomicMemScope);
 
-  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
+  Info.PostProc = [this, PostOps](BuiltinCallMutator &Mutator) {
     for (auto &I : PostOps) {
       Mutator.appendArg(addInt32(I));
     }
@@ -744,7 +663,7 @@ void OCLToSPIRVBase::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
 
   OCLBuiltinTransInfo Info;
   Info.UniqName = std::string("atomic_") + NewStem;
-  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
+  Info.PostProc = [this, PostOps](BuiltinCallMutator &Mutator) {
     for (auto &I : PostOps) {
       Mutator.appendArg(addInt32(I));
     }
@@ -790,8 +709,8 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
 
   unsigned PtrMemSemantics = MemorySemanticsMaskNone;
   if (Mutator.arg_size() > 0)
-    PtrMemSemantics = getAtomicPointerMemorySemanticsMemoryMask(
-        Mutator.getArg(0), Mutator.getType(0));
+    PtrMemSemantics = getAtomicPointerMemorySemanticsMask(Mutator.getArg(0),
+                                                          Mutator.getType(0));
 
   if (NeedsNegate) {
     Mutator.mapArg(1, [=](Value *V) {
@@ -1125,7 +1044,7 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
   // SPIR-V instruction always returns 4-element vector
   if (IsRetScalar)
     Mutator.changeReturnType(FixedVectorType::get(Ret, 4),
-                             [=](IRBuilder<> &Builder, CallInst *NewCI) {
+                             [this](IRBuilder<> &Builder, CallInst *NewCI) {
                                return Builder.CreateExtractElement(
                                    NewCI, getSizet(M, 0));
                              });
@@ -1279,7 +1198,7 @@ void OCLToSPIRVBase::visitCallRelational(CallInst *CI,
   // i1 or <i1 x N>, depending on whether it returns a vector type.
   Type *BoolTy = CI->getType()->getWithNewType(Type::getInt1Ty(*Ctx));
   mutateCallInst(CI, OC).changeReturnType(
-      BoolTy, [=](IRBuilder<> &Builder, CallInst *NewCI) {
+      BoolTy, [this, CI](IRBuilder<> &Builder, CallInst *NewCI) {
         Value *TrueOp = CI->getType()->isVectorTy()
                             ? Constant::getAllOnesValue(CI->getType())
                             : getInt32(M, 1);
@@ -1697,7 +1616,8 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   ::mutateCallInst(
       M, CI,
-      [=](CallInst *CI, std::vector<Value *> &Args) {
+      [this, DemangledName, DL, BlockFIdx, BlockF](CallInst *CI,
+                                                   std::vector<Value *> &Args) {
         Value *Param = *Args.rbegin();
         Type *ParamType = getBlockStructType(Param);
         // Last arg corresponds to SPIRV Param operand.

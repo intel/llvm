@@ -1,9 +1,8 @@
 //===--------- common.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -11,6 +10,7 @@
 #include "common.hpp"
 #include "logger/ur_logger.hpp"
 #include "usm.hpp"
+#include <level_zero/ze_api.h>
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -62,6 +62,20 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   case ZE_RESULT_ERROR_MODULE_LINK_FAILURE:
     return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+  case ZE_RESULT_ERROR_INVALID_GRAPH:
+    return UR_RESULT_ERROR_INVALID_GRAPH;
+  case ZE_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED:
+    return UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED;
+  case ZE_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED:
+    return UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED;
+  case ZE_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT:
+    return UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT;
+  case ZE_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING:
+    return UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING;
+  case ZE_RESULT_ERROR_GRAPH_UNJOINED_FORKS:
+    return UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS;
+  case ZE_RESULT_ERROR_GRAPH_INTERNAL_EVENT:
+    return UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -273,6 +287,13 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_EXT_PROPERTIES;
 }
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+template <>
+ze_structure_type_t
+getZeStructureType<ze_device_usablemem_size_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_USABLEMEM_SIZE_EXT_PROPERTIES;
+}
+#endif
 template <>
 ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
@@ -337,6 +358,28 @@ getZexStructureType<ze_intel_device_block_array_exp_properties_t>() {
   return ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
 }
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+
+template <>
+ze_structure_type_ext_t
+getZexStructureType<ze_intel_xe_device_exp_properties_t>() {
+  return ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+}
+template <>
+ze_structure_type_t
+getZeStructureType<ze_device_pitched_alloc_exp_properties_t>() {
+  return ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+}
+
+template <>
+ze_structure_type_t
+getZeStructureType<ze_pitched_alloc_2dimage_linear_pitch_exp_info_t>() {
+  return ZE_STRUCTURE_TYPE_PITCHED_ALLOC_2DIMAGE_LINEAR_PITCH_EXP_INFO;
+}
+template <>
+ze_structure_type_ext_t
+getZexStructureType<ze_record_replay_graph_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
+}
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local int32_t ErrorMessageCode = 0;

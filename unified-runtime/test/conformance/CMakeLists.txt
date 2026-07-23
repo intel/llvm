@@ -1,6 +1,5 @@
-# Copyright (C) 2022-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 add_ur_lit_testsuite(conformance DEPENDS urinfo)
@@ -71,6 +70,8 @@ add_subdirectory(sampler)
 add_subdirectory(virtual_memory)
 add_subdirectory(exp_usm_context_memcpy)
 add_subdirectory(exp_graph)
+add_subdirectory(exp_usm_host_mem_register)
+add_subdirectory(exp_reusable_events)
 
 set(TEST_SUBDIRECTORIES_DPCXX
     "device_code"

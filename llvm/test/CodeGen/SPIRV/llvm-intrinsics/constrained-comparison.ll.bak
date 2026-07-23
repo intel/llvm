@@ -19,7 +19,7 @@
 ; CHECK: OpUnordered
 
 ; Function Attrs: norecurse nounwind strictfp
-define dso_local spir_kernel void @test(float %a) local_unnamed_addr #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !7 !kernel_arg_type_qual !8 !kernel_arg_buffer_location !9 {
+define dso_local spir_kernel void @test(float %a) local_unnamed_addr #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !7 !kernel_arg_type_qual !8 {
 entry:
   %cmp = tail call i1 @llvm.experimental.constrained.fcmps.f32(float %a, float %a, metadata !"oeq", metadata !"fpexcept.strict") #2
   %cmp1 = tail call i1 @llvm.experimental.constrained.fcmps.f32(float %a, float %a, metadata !"ogt", metadata !"fpexcept.strict") #2
@@ -44,7 +44,7 @@ declare i1 @llvm.experimental.constrained.fcmps.f32(float, float, metadata, meta
 ; Function Attrs: inaccessiblememonly nounwind willreturn
 declare i1 @llvm.experimental.constrained.fcmp.f32(float, float, metadata, metadata) #1
 
-attributes #0 = { norecurse nounwind strictfp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test2.cl" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind strictfp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test2.cl" "uniform-work-group-size" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { inaccessiblememonly nounwind willreturn }
 attributes #2 = { strictfp }
 
@@ -63,4 +63,3 @@ attributes #2 = { strictfp }
 !6 = !{!"none"}
 !7 = !{!"float"}
 !8 = !{!""}
-!9 = !{i32 -1}

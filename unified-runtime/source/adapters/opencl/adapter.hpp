@@ -1,9 +1,8 @@
 //===-------------- adapter.hpp - OpenCL Adapter ---------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -18,7 +17,9 @@
 #include "common/ur_ref_count.hpp"
 #include "logger/ur_logger.hpp"
 
-struct ur_adapter_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_adapter_handle_t_ : handle_base {
   ur_adapter_handle_t_();
   ~ur_adapter_handle_t_();
 
@@ -36,10 +37,12 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   // Function pointers to core OpenCL entry points which may not exist in older
   // versions of the OpenCL-ICD-Loader are tracked here and initialized by
   // dynamically loading the symbol by name.
-#define CL_CORE_FUNCTION(FUNC) decltype(::FUNC) *FUNC = nullptr;
+#define CL_CORE_FUNCTION(FUNC, FIELD) decltype(::FUNC) *FIELD = nullptr;
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 };
+
+} // namespace ur::opencl
 
 namespace ur {
 namespace cl {

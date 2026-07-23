@@ -173,6 +173,7 @@ The following table lists the legal GRF sizes for some Intel devices.
 |GPU |Supported Values
 | PVC | 128 (small register file), 256 (large register file)
 | DG2 | 128 (small register file), 256 (large register file)
+| CRI | 128, 256, 512
 |===
 
 Providing a GRF size that is not consistent with the supported values results in

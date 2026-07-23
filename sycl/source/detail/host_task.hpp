@@ -15,6 +15,7 @@
 #include <detail/cg.hpp>
 #include <detail/global_handler.hpp>
 #include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/interop_handle.hpp>
 
@@ -28,8 +29,9 @@ class HostTask {
 
 public:
   HostTask() : MHostTask([]() {}) {}
-  HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
-  HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
+  HostTask(std::function<void()> &&Func) : MHostTask(std::move(Func)) {}
+  HostTask(std::function<void(interop_handle)> &&Func)
+      : MInteropTask(std::move(Func)) {}
 
   bool isInteropTask() const { return !!MInteropTask; }
 
@@ -59,7 +61,30 @@ public:
 
   friend class DispatchHostTask;
   friend class ExecCGCommand;
+  friend class sycl::detail::HandlerAccess;
 };
+
+inline std::function<void()> HandlerAccess::getHostTaskFunc(HostTask &HT) {
+  return std::move(HT.MHostTask);
+}
+
+struct EnqueueHostTaskData {
+  explicit EnqueueHostTaskData(std::function<void()> HostTask)
+      : Func(std::move(HostTask)) {}
+
+  std::function<void()> Func;
+};
+
+template <bool OwnsData> inline void NativeHostTask(void *Data) {
+  auto *HostTaskData = static_cast<EnqueueHostTaskData *>(Data);
+  if constexpr (OwnsData) {
+    // so it's freed if the user function throws
+    std::unique_ptr<EnqueueHostTaskData> Owner(HostTaskData);
+    Owner->Func();
+  } else {
+    HostTaskData->Func();
+  }
+}
 
 } // namespace detail
 } // namespace _V1

@@ -15,6 +15,7 @@
 // reference matrix multiplication on host and that is very slow at O0.
 // RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "common.hpp"
 #include "joint_matrix_out_bounds_impl.hpp"

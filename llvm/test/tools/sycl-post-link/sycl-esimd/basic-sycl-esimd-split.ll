@@ -1,9 +1,9 @@
 ; RUN: sycl-post-link -properties -split-esimd -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-IR
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-IR
+; RUN: FileCheck %s -input-file=%t_0.esimd.ll --check-prefixes CHECK-ESIMD-IR
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-SYCL-PROP
-; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-PROP
+; RUN: FileCheck %s -input-file=%t_0.esimd.prop --check-prefixes CHECK-ESIMD-PROP
 
 ; This is basic test of splitting SYCL and ESIMD kernels into separate modules.
 ; ESIMD module should have isEsimdImage=1 property set after splitting.
@@ -38,7 +38,7 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 
 ; CHECK: [Code|Properties]
 ; CHECK-DAG: {{.*}}tmp_0.ll|{{.*}}_0.prop
-; CHECK-DAG: {{.*}}tmp_esimd_0.ll|{{.*}}_esimd_0.prop
+; CHECK-DAG: {{.*}}tmp_0.esimd.ll|{{.*}}_0.esimd.prop
 
 ; CHECK-SYCL-IR-DAG: define dso_local spir_kernel void @SYCL_kernel()
 ; CHECK-SYCL-IR-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()

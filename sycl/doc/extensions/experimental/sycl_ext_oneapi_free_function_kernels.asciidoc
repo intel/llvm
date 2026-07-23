@@ -112,6 +112,27 @@ supports.
  feature-test macro always has this value.
 |===
 
+=== Headers
+
+The APIs defined in this extension are provided by either of the following header files:
+
+* `<sycl/sycl.hpp>`
+* `<sycl/ext/oneapi/kernel_properties.hpp>`
+
+In addition, the following lightweight header provides a subset of the APIs from this extension:
+
+* `<sycl/ext/oneapi/free_function_kernel_properties.hpp>`
+
+This lightweight header provides `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`, and the
+properties `nd_range_kernel<Dims>` and `single_task_kernel`.  See
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+sycl_ext_oneapi_kernel_properties] for other APIs that are provided by this
+header.
+
+[_Note:_ The lightweight header is intended for cases where fast compilation 
+time is a priority.
+_{endnote}_]
+
 === Defining a free function kernel
 
 A free function kernel is a normal C++ function definition, where the function
@@ -626,7 +647,7 @@ which can be used by the `kernel::get_info()` overload.
 
 _Returns:_ The same value `ret` that would be computed by:
 
-[source,c++]
+[source,c++,indent=2]
 ----
 auto bundle =
   sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
@@ -664,7 +685,7 @@ The kernel `Func` must be compatible with the device `dev` as defined by
 
 _Returns:_ The same value `ret` that would be computed by:
 
-[source,c++]
+[source,c++,indent=2]
 ----
 auto bundle =
   sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
@@ -683,7 +704,7 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template<typename Func, typename Param>
+template<auto *Func, typename Param>
 typename Param::return_type get_kernel_info(const queue& q);
 
 } // namespace sycl::ext::oneapi::experimental
@@ -699,7 +720,7 @@ with `q` as defined by `is_compatible`.
 
 _Returns:_ The same value `ret` that would be computed by:
 
-[source,c++]
+[source,c++,indent=2]
 ----
 sycl::context ctxt = q.get_context();
 sycl::device dev = q.get_device();
@@ -710,6 +731,106 @@ auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
 
 _Remarks:_ Each information descriptor may specify additional preconditions,
 exceptions that are thrown, etc.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, typename Param,                                       (1)
+         typename LaunchProperties = empty_properties_t>
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<1> r,
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param,                                       (2)
+         typename LaunchProperties = empty_properties_t>
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<2> r,
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param,                                       (3)
+         typename LaunchProperties = empty_properties_t>
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<3> r,
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param,                                       (4)
+         typename LaunchProperties = empty_properties_t>
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<1> r,
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param,                                       (5)
+         typename LaunchProperties = empty_properties_t>
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<2> r,
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param,                                       (6)
+         typename LaunchProperties = empty_properties_t>
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<3> r,
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if:
+
+* `is_kernel_v<Func>` is `true`,
+* `Param` is
+  `ext::oneapi::experimental::info::kernel::max_num_work_groups_sync`, and
+* `LaunchProperties` is a property list that contains only kernel launch
+  properties.
+
+_Preconditions_ (1) - (3): The device `dev` must be one of the devices contained
+by `ctxt` or must be a descendent device of some device in `ctxt`.
+The kernel `Func` must be compatible with the device `dev` as defined by
+`is_compatible`.
+
+_Preconditions_ (4) - (6): The kernel `Func` must be compatible with the device
+associated with `q` as defined by `is_compatible`.
+
+_Returns_ (1) - (3): The same value `ret` that would be computed by:
+
+[source,c++,indent=2]
+----
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+sycl::kernel k = bundle.ext_oneapi_get_kernel<Func>();
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+----
+
+_Returns_ (4) - (6): The same value `ret` that would be computed by:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = q.get_context();
+sycl::device dev = q.get_device();
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+sycl::kernel k = bundle.ext_oneapi_get_kernel<Func>();
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+----
+
+_Remarks:_ An implementation provides these functions only if it also implements
+the link:../experimental/sycl_ext_oneapi_root_group.asciidoc[
+sycl_ext_oneapi_root_group] extension.
 
 === Behavior with kernel bundle functions in the core SYCL specification
 
@@ -804,6 +925,8 @@ sycl_ext_oneapi_kernel_properties] by applying the properties to the function
 declaration as illustrated below.
 
 ```
+#include <sycl/ext/oneapi/kernel_properties.hpp>
+
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<32>))
 void iota(float start, float *ptr) {
@@ -953,6 +1076,9 @@ cases.
 #include <sycl/sycl.hpp>
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+const size_t NUM = 1024;
+const size_t WGSIZE = 256;
+
 template<typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void iota(T start, T *ptr) {
@@ -984,8 +1110,8 @@ int main() {
 
   // When there are multiple overloads of a free function kernel, use a cast
   // to disambiguate.
-  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(float))ping>, fptr);
-  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(int))ping>, iptr);
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(float*))ping>, fptr);
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(int*))ping>, iptr);
 
   q.wait();
 }

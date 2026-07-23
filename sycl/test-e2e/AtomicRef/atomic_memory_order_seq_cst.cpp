@@ -1,4 +1,4 @@
-// RUN: %{build} -O3 -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
+// RUN: %{build} -O3 -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_75 %}
 // RUN: %{run} %t.out
 
 #include "atomic_memory_order.h"
@@ -6,6 +6,8 @@
 #include <iostream>
 #include <numeric>
 #include <sycl/aspects.hpp>
+#include <sycl/ext/intel/info/device.hpp>
+#include <sycl/group_barrier.hpp>
 using namespace sycl;
 
 constexpr size_t N_items = 128;
@@ -37,7 +39,7 @@ void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
     auto checked =
         checked_buf.template get_access<access::mode::discard_write>(cgh);
     cgh.parallel_for(nd_range<1>(N_items, 32), [=](nd_item<1> it) {
-      for (int i = it.get_global_id(0); i < N_items / 2 * N_iters;
+      for (int i = it.get_global_id(0); i < N_items / 2 * N_iters + 1;
            i += N_items) {
         for (int j = 0; j < N_items / 2 * N_iters + 1; j++) {
           checked[i][j] = 0;
@@ -125,7 +127,7 @@ template <memory_order order> void test_local(size_t N_iters) {
      local_accessor<int, 1> val(2, cgh);
      cgh.parallel_for(nd_range<1>(N_items, N_items), [=](nd_item<1> it) {
        val[0] = 0;
-       it.barrier(access::fence_space::local_space);
+       group_barrier(it.get_group());
        auto atm = atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                              access::address_space::local_space>(val[0]);
        size_t id = it.get_global_id(0);

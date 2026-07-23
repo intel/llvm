@@ -13,19 +13,22 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include <memory>
 
 namespace llvm {
 
 class ModulePass;
 class PassRegistry;
 
-/// This pass operates on SYCL kernels that target AMDGPU or NVVM. It looks for
-/// uses of the `llvm.{amdgcn|nvvm}.implicit.offset` intrinsic and replaces it
-/// with an offset parameter which will be threaded through from the kernel
+/// This pass operates on SYCL kernels and looks for calls to the
+/// `__spirv_BuiltInGlobalOffset` builtin (mangled as
+/// `_Z27__spirv_BuiltInGlobalOffseti`). These uses are replaced with an
+/// explicit offset parameter which is threaded through from the kernel
 /// entry point.
 class GlobalOffsetPass : public PassInfoMixin<GlobalOffsetPass> {
 public:
-  explicit GlobalOffsetPass() {}
+  explicit GlobalOffsetPass()
+      : GlobalVMap(std::make_unique<llvm::ValueToValueMapTy>()) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
   static StringRef getPassName() { return "Add implicit SYCL global offset"; }
@@ -104,15 +107,15 @@ private:
   /// Keep track of all cloned offset functions to avoid processing them.
   llvm::SmallPtrSet<Function *, 8> Clones;
   /// Save clone mappings to obtain pointers to CallInsts during processing.
-  llvm::ValueToValueMapTy GlobalVMap;
+  std::unique_ptr<llvm::ValueToValueMapTy> GlobalVMap;
   /// Keep track of which non-offset functions have been processed to avoid
   /// processing twice.
   llvm::DenseMap<Function *, Value *> ProcessedFunctions;
   /// A type of implicit argument added to the kernel signature.
-  llvm::Type *KernelImplicitArgumentType = nullptr;
+  llvm::ArrayType *KernelImplicitArgumentType = nullptr;
   /// A type used for the alloca holding the values of global offsets.
   llvm::Type *ImplicitOffsetPtrType = nullptr;
-  /// Track newly created DISUbprograms (that are attached to cloned
+  /// Track newly created DISubprograms (that are attached to cloned
   /// functions), for ease of mapping, use the old function's name as the key.
   llvm::DenseMap<StringRef, DISubprogram *> DISubprogramMap;
 

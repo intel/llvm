@@ -18,7 +18,7 @@
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
 #include <sycl/ext/oneapi/experimental/graph.hpp>     // for command_graph
 #include <sycl/image.hpp>                             // for image
-#include <ur_api.h> // for ur_mem_handle_t, ur...
+#include <unified-runtime/ur_api.h> // for ur_mem_handle_t, ur...
 
 #include <memory>      // for shared_ptr
 #include <stdint.h>    // for int32_t

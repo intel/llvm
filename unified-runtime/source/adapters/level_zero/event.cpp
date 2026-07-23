@@ -1,9 +1,8 @@
 //===--------- event.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -199,9 +198,10 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
       [&Queue](ur_command_list_ptr_t CmdList, ur_ze_event_list_t &EventWaitList,
                ur_event_handle_t &Event, bool IsInternal,
                bool InterruptBasedEventsEnabled) {
+        (void)InterruptBasedEventsEnabled;
         UR_CALL(createEventAndAssociateQueue(
             Queue, &Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, CmdList,
-            IsInternal, InterruptBasedEventsEnabled));
+            IsInternal, /* IsMultiDevice */ false));
 
         Event->WaitList = EventWaitList;
 
@@ -894,15 +894,11 @@ urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
   UR_CALL(urEventReleaseInternal(Event, &isEventDeleted));
   // If this is a Completed Event Wait Out Event, then we need to cleanup the
   // event at user release and not at the time of completion.
-  // If the event is labelled as completed and no additional references are
-  // removed, then we still need to decrement the event, but not mark as
-  // completed.
+  // Use CleanupCompletedEvent which is a no-op if the event was already
+  // cleaned up (e.g. by CleanupEventListFromResetCmdList), preventing a
+  // double-release of the internal reference count.
   if (isEventsWaitCompleted & !isEventDeleted) {
-    if (Event->CleanedUp) {
-      UR_CALL(urEventReleaseInternal(Event));
-    } else {
-      UR_CALL(CleanupCompletedEvent((Event), false, false));
-    }
+    UR_CALL(CleanupCompletedEvent((Event), false, false));
   }
 
   return UR_RESULT_SUCCESS;
@@ -1017,12 +1013,39 @@ ur_result_t urEventSetCallback(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
+                             ur_device_handle_t /*hDevice*/,
+                             const ur_exp_event_desc_t * /*pEventDesc*/,
+                             ur_event_handle_t * /*phEvent*/) {
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urIPCGetEventHandleExp(ur_event_handle_t /*hEvent*/,
+                                   void ** /*ppIPCEventHandleData*/,
+                                   size_t * /*pIPCEventHandleDataSizeRet*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urIPCPutEventHandleExp(ur_context_handle_t /*hContext*/,
+                                   void * /*pIPCEventHandleData*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t /*hContext*/,
+                                    const void * /*pIPCEventHandleData*/,
+                                    size_t /*ipcEventHandleDataSize*/,
+                                    ur_event_handle_t * /*phEvent*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
 
 ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
     ze_event_handle_t &ZeHostVisibleEvent) {
   auto UrQueue = this->UrQueue;
-
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(UrQueue->Mutex,
                                                           this->Mutex);
 

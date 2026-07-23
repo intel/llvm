@@ -380,6 +380,10 @@ public:
   /// its variable sized member before decoding the remaining words.
   virtual void setWordCount(SPIRVWord TheWordCount);
 
+  /// Return the minimum valid WordCount (1, the OpCode). Other entries will
+  /// override to return their respective fixed word counts.
+  virtual SPIRVWord getFixedWordCount() const { return 1; }
+
   /// Create an empty SPIRV object by op code, e.g. OpTypeInt creates
   /// SPIRVTypeInt.
   static SPIRVEntry *create(Op);
@@ -541,6 +545,7 @@ public:
 class SPIRVEntryPoint : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 4;
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);
@@ -668,6 +673,17 @@ public:
     WordLiterals.push_back(Z);
     updateModuleVersion();
   }
+  // Complete constructor for FPFastMathDefault.
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode, SPIRVWord TargetType,
+                     SPIRVWord FastMathMode)
+      : SPIRVAnnotation(OC, TheTarget, 5), ExecMode(TheExecMode) {
+    assert(OC == OpExecutionModeId);
+    assert(TheExecMode == ExecutionModeFPFastMathDefault);
+    WordLiterals.push_back(TargetType);
+    WordLiterals.push_back(FastMathMode);
+    updateModuleVersion();
+  }
   // Complete constructor for VecTypeHint, SubgroupSize, SubgroupsPerWorkgroup
   SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
                      SPIRVExecutionModeKind TheExecMode, SPIRVWord Code)
@@ -708,6 +724,8 @@ public:
     case ExecutionModeMaximumRegistersIdINTEL:
     case ExecutionModeNamedMaximumRegistersINTEL:
       return ExtensionID::SPV_INTEL_maximum_registers;
+    case ExecutionModeArithmeticPoisonKHR:
+      return ExtensionID::SPV_KHR_poison_freeze;
     default:
       return {};
     }
@@ -726,6 +744,15 @@ public:
                        SPIRVExecutionModeKind TheExecMode, SPIRVWord X,
                        SPIRVWord Y, SPIRVWord Z)
       : SPIRVExecutionMode(OpExecutionModeId, TheTarget, TheExecMode, X, Y, Z) {
+    updateModuleVersion();
+  }
+  // Complete constructor for FPFastMathDefault.
+  SPIRVExecutionModeId(SPIRVEntry *TheTarget,
+                       SPIRVExecutionModeKind TheExecMode, SPIRVWord TargetType,
+                       SPIRVWord FastMathMode)
+      : SPIRVExecutionMode(OpExecutionModeId, TheTarget, TheExecMode,
+                           TargetType, FastMathMode) {
+    assert(TheExecMode == ExecutionModeFPFastMathDefault);
     updateModuleVersion();
   }
   // Complete constructor for SubgroupsPerWorkgroupId
@@ -770,9 +797,12 @@ public:
     auto IsOtherFP = [](auto EMK) {
       return EMK == ExecutionModeSignedZeroInfNanPreserve;
     };
+    auto IsFastMathDefault = [](auto EMK) {
+      return EMK == ExecutionModeFPFastMathDefault;
+    };
     auto IsFloatControl = [&](auto EMK) {
       return IsDenorm(EMK) || IsRoundingMode(EMK) || IsFPMode(EMK) ||
-             IsOtherFP(EMK);
+             IsOtherFP(EMK) || IsFastMathDefault(EMK);
     };
     auto IsMaxRegisters = [&](auto EMK) {
       return EMK == ExecutionModeMaximumRegistersINTEL ||
@@ -893,6 +923,9 @@ public:
     case CapabilityGroupNonUniformClustered:
       return VersionNumber::SPIRV_1_3;
 
+    case CapabilityFloatControls2:
+      return VersionNumber::SPIRV_1_2;
+
     case CapabilityNamedBarrier:
     case CapabilitySubgroupDispatch:
     case CapabilityPipeStorage:
@@ -921,8 +954,16 @@ public:
       return ExtensionID::SPV_INTEL_function_variants;
     case internal::CapabilityBFloat16ArithmeticINTEL:
       return ExtensionID::SPV_INTEL_bfloat16_arithmetic;
+    case CapabilityRoundedDivideSqrtINTEL:
+      return ExtensionID::SPV_INTEL_rounded_divide_sqrt;
     case internal::CapabilityDeviceBarrierINTEL:
       return ExtensionID::SPV_INTEL_device_barrier;
+    case CapabilityFloatControls2:
+      return ExtensionID::SPV_KHR_float_controls2;
+    case CapabilityInt64ImageEXT:
+      return ExtensionID::SPV_EXT_shader_image_int64;
+    case CapabilityLongVectorEXT:
+      return ExtensionID::SPV_EXT_long_vector;
     default:
       return {};
     }
@@ -984,6 +1025,7 @@ protected:
   void validate() const override;
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    this->SPIRVCK(WordCount, InvalidWordCount, "");
     Elements.resize(WordCount - 1);
   }
   _SPIRV_DCL_ENCDEC

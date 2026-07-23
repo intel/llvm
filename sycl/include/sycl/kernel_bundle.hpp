@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>          // for backend, backend_return_t
+#include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
@@ -20,10 +21,10 @@
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
 #include <sycl/sycl_span.hpp>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
+#include <sycl/ext/oneapi/properties.hpp>                // PropertyT
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
@@ -245,6 +246,8 @@ public:
   size_t ext_oneapi_get_device_global_size(const std::string &name) {
     return ext_oneapi_get_device_global_size(detail::string_view{name});
   }
+
+  std::vector<char> ext_oneapi_get_content() const;
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -548,6 +551,18 @@ public:
     return detail::kernel_bundle_plain::ext_oneapi_get_device_global_size(name);
   }
 
+  /////////////////////////
+  // ext_oneapi_get_content
+  //  Serializes the kernel_bundle into the SYCLBIN binary format. See
+  //  sycl_ext_oneapi_syclbin for details. Available for any non-source state.
+  /////////////////////////
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
+  std::vector<char> ext_oneapi_get_content() const {
+    return detail::kernel_bundle_plain::ext_oneapi_get_content();
+  }
+
 private:
   kernel_bundle(detail::KernelBundleImplPtr Impl)
       : kernel_bundle_plain(std::move(Impl)) {}
@@ -587,10 +602,8 @@ __SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
 
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
-  // FIXME: This must fail at link-time if KernelName not in any available
-  // translation units.
   return detail::get_kernel_id_impl(
-      detail::CompileTimeKernelInfo<KernelName>.Name);
+      std::string_view(detail::KernelRegistry<KernelName>::getKernelName()));
 }
 
 /// \returns a vector with all kernel_id's defined in the application
@@ -1012,12 +1025,12 @@ struct include_files
     record.emplace_back(name, content);
   }
   void add(const std::string &name, const std::string &content) {
-    if (std::find_if(record.begin(), record.end(), [&name](auto &p) {
-          return p.first == name;
-        }) != record.end()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Include file '" + name +
-                                "' is already registered");
+    for (auto &p : record) {
+      if (p.first == name) {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Include file '" + name +
+                                  "' is already registered");
+      }
     }
     record.emplace_back(name, content);
   }

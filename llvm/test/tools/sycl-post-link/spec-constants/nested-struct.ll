@@ -52,7 +52,7 @@ target triple = "spir64-unknown-unknown"
 @_ZL8spec_id3 = internal addrspace(1) constant %"class.sycl::_V1::specialization_id.24" { %struct.user_defined_type3 { i8 120, %struct.anon { i8 121, i32 122, i8 97 }, i8 98 } }, align 4
 
 ; Function Attrs: convergent norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE2_clES2_EUlNS0_14kernel_handlerEE_(ptr addrspace(1) noundef align 4 %_arg_acc, ptr noundef byval(%"class.sycl::_V1::id") align 8 %_arg_acc3) local_unnamed_addr #0 !srcloc !78 !kernel_arg_buffer_location !63 !kernel_arg_runtime_aligned !64 !kernel_arg_exclusive_ptr !64 !sycl_fixed_targets !65 !sycl_kernel_omit_args !66 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE2_clES2_EUlNS0_14kernel_handlerEE_(ptr addrspace(1) noundef align 4 %_arg_acc, ptr noundef byval(%"class.sycl::_V1::id") align 8 %_arg_acc3) local_unnamed_addr #0 !srcloc !78 !kernel_arg_runtime_aligned !64 !kernel_arg_exclusive_ptr !64 !sycl_fixed_targets !65 !sycl_kernel_omit_args !66 {
 entry:
   %ref.tmp.i = alloca %struct.user_defined_type3, align 4
   %0 = load i64, ptr %_arg_acc3, align 8
@@ -145,7 +145,6 @@ attributes #5 = { convergent nounwind }
 !60 = !{!"host", i32 0}
 !61 = !{!"clang version 18.0.0 (https://github.com/intel/llvm.git c92b6b0c266b6a0d5bca1d61a63f06e2bce37904)"}
 !62 = !{i32 2091}
-!63 = !{i32 -1, i32 -1}
 !64 = !{i1 true, i1 false}
 !65 = !{}
 !66 = !{i1 false, i1 true, i1 true, i1 false, i1 true}

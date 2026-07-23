@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -11,7 +10,7 @@
  *
  */
 #include "ur_tracing_layer.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_util.hpp"
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
@@ -32,9 +31,20 @@ constexpr auto STREAM_VER_MINOR = UR_MINOR_VERSION(UR_API_VERSION_CURRENT);
 // Unfortunately this doesn't match the semantics of XPTI, which can be
 // initialized and finalized exactly once. To workaround this, XPTI is globally
 // initialized on first use and finalized in the destructor.
+//
+// If the loader is linked statically, it's the SYCL's responsibility to
+// initialize and teardown XPTI.
 struct XptiContextManager {
-  XptiContextManager() { xptiFrameworkInitialize(); }
-  ~XptiContextManager() { xptiFrameworkFinalize(); }
+  XptiContextManager() {
+#if !UR_STATIC_LOADER
+    xptiFrameworkInitialize();
+#endif
+  }
+  ~XptiContextManager() {
+#if !UR_STATIC_LOADER
+    xptiFrameworkFinalize();
+#endif
+  }
 };
 
 static std::shared_ptr<XptiContextManager> xptiContextManagerGet() {

@@ -4,6 +4,8 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -fno-sycl-unnamed-lambda -o %t.out
+// RUN: %{run} %t.out
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
@@ -45,6 +47,18 @@ void square(int *src, int *dst) {
   dst[Lid] = src[Lid] * src[Lid];
 }
 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<2>))
+void square2D(int *src, int *dst) {
+  size_t Gid = syclext::this_work_item::get_nd_item<2>().get_global_linear_id();
+  dst[Gid] = src[Gid] * src[Gid];
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<3>))
+void square3D(int *src, int *dst) {
+  size_t Gid = syclext::this_work_item::get_nd_item<3>().get_global_linear_id();
+  dst[Gid] = src[Gid] * src[Gid];
+}
+
 template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void squareWithScratchMemoryTemplated(T *src, T *dst) {
@@ -60,7 +74,7 @@ void squareWithAccessor(accType src, accType dst) {
   dst[Lid] = src[Lid] * src[Lid];
 }
 
-constexpr int SIZE = 16;
+constexpr int SIZE = 8;
 
 int main() {
   sycl::queue Q;
@@ -173,6 +187,34 @@ int main() {
 
   for (int I = 0; I < SIZE; I++) {
     assert(Dst[I] == Src[I] * Src[I]);
+  }
+
+  int *Src2D = sycl::malloc_shared<int>(SIZE * SIZE, Q);
+  int *Dst2D = sycl::malloc_shared<int>(SIZE * SIZE, Q);
+
+  Q.submit([&](sycl::handler &CGH) {
+     syclexp::nd_launch(CGH,
+                        ::sycl::nd_range<2>(::sycl::range<2>(SIZE, SIZE),
+                                            ::sycl::range<2>(SIZE, SIZE)),
+                        syclexp::kernel_function<square2D>, Src2D, Dst2D);
+   }).wait();
+
+  for (int I = 0; I < SIZE * SIZE; I++) {
+    assert(Dst2D[I] == Src2D[I] * Src2D[I]);
+  }
+
+  int *Src3D = sycl::malloc_shared<int>(SIZE * SIZE * SIZE, Q);
+  int *Dst3D = sycl::malloc_shared<int>(SIZE * SIZE * SIZE, Q);
+
+  Q.submit([&](sycl::handler &CGH) {
+     syclexp::nd_launch(CGH,
+                        ::sycl::nd_range<3>(::sycl::range<3>(SIZE, SIZE, SIZE),
+                                            ::sycl::range<3>(SIZE, SIZE, SIZE)),
+                        syclexp::kernel_function<square3D>, Src3D, Dst3D);
+   }).wait();
+
+  for (int I = 0; I < SIZE * SIZE * SIZE; I++) {
+    assert(Dst3D[I] == Src3D[I] * Src3D[I]);
   }
 
   Q.submit([&](sycl::handler &CGH) {

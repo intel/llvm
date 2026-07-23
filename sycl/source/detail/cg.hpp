@@ -188,6 +188,9 @@ public:
   std::string_view getKernelName() const {
     return static_cast<std::string_view>(MDeviceKernelInfo.Name);
   }
+  std::string_view getDemangledKernelName() const {
+    return MDeviceKernelInfo.getDemangledName();
+  }
   const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }

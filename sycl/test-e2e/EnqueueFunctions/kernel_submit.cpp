@@ -226,5 +226,21 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 54, I, "3D nd_launch with launch config");
 
+  // host_task
+  {
+    sycl::buffer<int, 1> MemBuf{Memory, sycl::range<1>{N}};
+    {
+      oneapiext::submit(Q, [&](sycl::handler &CGH) {
+        sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
+        oneapiext::host_task(CGH, [=]() {
+          for (size_t I = 0; I < N; ++I)
+            MemAcc[I] = 55;
+        });
+      });
+    }
+  }
+  for (size_t I = 0; I < N; ++I)
+    Failed += Check(Memory, 55, I, "host_task");
+
   return Failed;
 }

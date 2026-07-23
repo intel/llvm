@@ -11,12 +11,13 @@
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/array.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/fwd/accessor.hpp>
+#include <sycl/detail/fwd/buffer.hpp>
 #include <sycl/detail/helpers.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/property_helper.hpp>
@@ -24,9 +25,10 @@
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/id.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
-#include <ur_api.h> // for ur_native_handle_t
+#include <unified-runtime/ur_api.h> // for ur_native_handle_t
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -52,9 +54,6 @@ template <int dimensions> class range;
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
 
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
-
 namespace ext::oneapi {
 template <typename SYCLObjT> class weak_object;
 } // namespace ext::oneapi
@@ -74,18 +73,16 @@ inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
 class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
-buffer<T, Dimensions, AllocatorT, void>
+buffer<T, Dimensions, AllocatorT>
 make_buffer_helper(ur_native_handle_t Handle, const context &Ctx,
                    const event &Evt, bool OwnNativeHandle = true) {
-  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
-                                                 Evt);
+  return buffer<T, Dimensions, AllocatorT>(Handle, Ctx, OwnNativeHandle, Evt);
 }
 
 template <backend BackendName, typename DataT, int Dimensions,
           typename Allocator>
-auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
-    -> backend_return_t<BackendName,
-                        buffer<DataT, Dimensions, Allocator, void>>;
+auto get_native_buffer(const buffer<DataT, Dimensions, Allocator> &Obj)
+    -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
 
 template <backend Backend, typename DataT, int Dimensions,
           typename AllocatorT = buffer_allocator<std::remove_const_t<DataT>>>
@@ -171,12 +168,11 @@ protected:
 /// \sa sycl_api_acc
 ///
 /// \ingroup sycl_api
-template <typename T, int dimensions = 1,
-          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
-          typename __Enabled =
-              typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
+template <typename T, int dimensions, typename AllocatorT, typename __Enabled>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
+  static_assert((dimensions > 0) && (dimensions <= 3),
+                "buffer dimensions must be 1, 2, or 3");
   static_assert(is_device_copyable_v<T>,
                 "Underlying type of a buffer must be device copyable!");
 
@@ -734,7 +730,7 @@ private:
             access::placeholder isPlaceholder, typename PropertyListT>
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
-  friend buffer<HT, HDims, HAllocT, void>
+  friend buffer<HT, HDims, HAllocT>
   detail::make_buffer_helper(ur_native_handle_t, const context &, const event &,
                              bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
@@ -819,10 +815,9 @@ private:
 
   template <backend BackendName, typename DataT, int Dimensions,
             typename Allocator>
-  friend auto detail::get_native_buffer(
-      const buffer<DataT, Dimensions, Allocator, void> &Obj)
-      -> backend_return_t<BackendName,
-                          buffer<DataT, Dimensions, Allocator, void>>;
+  friend auto
+  detail::get_native_buffer(const buffer<DataT, Dimensions, Allocator> &Obj)
+      -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
 
   template <backend BackendName>
   backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>

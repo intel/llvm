@@ -1,4 +1,4 @@
-; RUN: opt -bugpoint-enable-legacy-pm -globaloffset %s -S -o - | FileCheck %s
+; RUN: opt -passes=globaloffset %s -S -o - | FileCheck %s
 ; ModuleID = 'multiple-entry-points.bc'
 source_filename = "multiple-entry-points.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
@@ -6,8 +6,7 @@ target triple = "nvptx64-nvidia-cuda"
 
 ; This test checks that the pass works with multiple entry points.
 
-declare ptr @llvm.nvvm.implicit.offset()
-; CHECK-NOT: declare ptr @llvm.nvvm.implicit.offset()
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
 ; This function is a kernel entry point that does not use global offset. It will
 ; not get a clone with a global offset parameter.
@@ -18,17 +17,13 @@ entry:
 
 define i64 @_ZTS15common_function() {
 ; CHECK: define i64 @_ZTS15common_function() {
-  %1 = tail call ptr @llvm.nvvm.implicit.offset()
-; CHECK-NOT: tail call ptr @llvm.nvvm.implicit.offset()
-  %2 = getelementptr inbounds i32, ptr %1, i64 2
-  %3 = load i32, ptr %2, align 4
-  %4 = zext i32 %3 to i64
-; CHECK: %1 = zext i32 0 to i64
-  ret i64 %4
+  %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+; CHECK-NOT: tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+  ret i64 %1
 }
 
 ; CHECK: define i64 @_ZTS15common_function_with_offset(ptr %0) {  
-; CHECK: %2 = getelementptr inbounds i32, ptr %0, i64 2
+; CHECK: %2 = getelementptr inbounds i32, ptr %0, i32 2
 ; CHECK: %3 = load i32, ptr %2, align 4
 ; CHECK: %4 = zext i32 %3 to i64
 ; CHECK: ret i64 %4
@@ -85,17 +80,14 @@ entry:
 ; This function doesn't get called by a kernel entry point.
 define i64 @_ZTS15no_entry_point() {
 ; CHECK: define i64 @_ZTS15no_entry_point() {
-  %1 = tail call ptr @llvm.nvvm.implicit.offset()
-; CHECK-NOT: tail call ptr @llvm.nvvm.implicit.offset()
-  %2 = getelementptr inbounds i32, ptr %1, i64 2
-  %3 = load i32, ptr %2, align 4
-  %4 = zext i32 %3 to i64
-; CHECK: %1 = zext i32 0 to i64
-  ret i64 %4
+  %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+; CHECK-NOT: tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+; CHECK: ret i64 0
+  ret i64 %1
 }
 
 ; CHECK: define i64 @_ZTS15no_entry_point_with_offset(ptr %0) {
-; CHECK: %2 = getelementptr inbounds i32, ptr %0, i64 2
+; CHECK: %2 = getelementptr inbounds i32, ptr %0, i32 2
 ; CHECK: %3 = load i32, ptr %2, align 4
 ; CHECK: %4 = zext i32 %3 to i64
 ; CHECK: ret i64 %4

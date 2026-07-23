@@ -1,9 +1,8 @@
 //===--------------- queue_batched.cpp - Level Zero Adapter ---------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -25,8 +24,8 @@
 
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
+#include "unified-runtime/ur_api.h"
 #include "ur.hpp"
-#include "ur_api.h"
 #include "ze_api.h"
 #include <cstddef>
 #include <cstdint>
@@ -89,18 +88,14 @@ ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
   return (*phEvent);
 }
 
-ur_event_handle_t ur_queue_batched_t::createEventAndRetainRegular(
-    ur_event_handle_t *phEvent, ur_event_generation_t batch_generation) {
-  auto hEvent = eventPoolRegular->allocate();
-  hEvent->setQueue(this);
-  hEvent->setBatch(batch_generation);
-
-  if (phEvent) {
-    (*phEvent) = hEvent;
-    hEvent->retain();
+ur_event_handle_t
+ur_queue_batched_t::getEvent(locked<batch_manager> &batchLocked,
+                             ur_event_handle_t *phEvent) {
+  if (batchLocked->isGraphCaptureActive()) {
+    return createEventIfRequested(eventPoolImmediate.get(), phEvent, this);
   }
-
-  return hEvent;
+  return createEventIfRequestedRegular(phEvent,
+                                       batchLocked->getCurrentGeneration());
 }
 
 ur_result_t batch_manager::renewRegularUnlocked(
@@ -125,6 +120,7 @@ ur_queue_batched_t::renewBatchUnlocked(locked<batch_manager> &batchLocked) {
   if (batchLocked->isLimitOfUsedCommandListsReached()) {
     return queueFinishUnlocked(batchLocked);
   } else {
+    UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
     return batchLocked->renewRegularUnlocked(getNewRegularCmdList());
   }
 }
@@ -157,7 +153,7 @@ ur_queue_batched_t::onEventWaitListUse(ur_event_generation_t batch_generation) {
 
   auto batchLocked = currentCmdLists.lock();
   if (batchLocked->isCurrentGeneration(batch_generation)) {
-    return queueFlushUnlocked(batchLocked);
+    return renewBatchUnlocked(batchLocked);
   } else {
     return UR_RESULT_SUCCESS;
   }
@@ -165,6 +161,12 @@ ur_queue_batched_t::onEventWaitListUse(ur_event_generation_t batch_generation) {
 
 ur_result_t ur_queue_batched_t::markIssuedCommandInBatch(
     locked<batch_manager> &batchLocked) {
+  // During graph capture, commands are appended to an immediate command list,
+  // not to the batch. Skip batch tracking in this case.
+  if (batchLocked->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
   if (batchLocked->isLimitOfEnqueuedCommandsReached()) {
     UR_CALL(queueFinishUnlocked(batchLocked));
 
@@ -172,31 +174,6 @@ ur_result_t ur_queue_batched_t::markIssuedCommandInBatch(
   }
 
   batchLocked->markNextIssuedCommand();
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t ur_queue_batched_t::enqueueKernelLaunch(
-    ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize,
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-
-  wait_list_view waitListView =
-      wait_list_view(phEventWaitList, numEventsInWaitList, this);
-
-  TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueKernelLaunch");
-  auto currentRegular = currentCmdLists.lock();
-
-  markIssuedCommandInBatch(currentRegular);
-
-  UR_CALL(currentRegular->getActiveBatch().appendKernelLaunch(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      launchPropList, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    currentRegular->getCurrentGeneration())));
 
   return UR_RESULT_SUCCESS;
 }
@@ -228,7 +205,9 @@ ur_result_t batch_manager::batchFinish() {
   UR_CALL(activeBatch.releaseSubmittedKernels());
 
   if (!isActiveBatchEmpty()) {
-    // Should have been enqueued as part of queueFinishUnlocked
+    // The active batch was already submitted to the immediate command list
+    // by queueFinishUnlocked. Reset it here so it is ready to record new
+    // commands.
     TRACK_SCOPE_LATENCY("ur_queue_batched_t::resetRegCmdlist");
     ZE2UR_CALL(zeCommandListReset, (activeBatch.getZeCommandList()));
 
@@ -243,6 +222,12 @@ ur_result_t batch_manager::batchFinish() {
 
 ur_result_t
 ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
+  // During graph capture, operations are recorded to the immediate list.
+  // Synchronization doesn't apply to graph recording - return early.
+  if (batchLocked->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
   if (!batchLocked->isActiveBatchEmpty()) {
     UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
   }
@@ -288,10 +273,9 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferRead(
 
     markIssuedCommandInBatch(lockedBatches);
 
-    UR_CALL(lockedBatches->getActiveBatch().appendMemBufferRead(
+    UR_CALL(lockedBatches->getListManager().appendMemBufferRead(
         hBuffer, false, offset, size, pDst, waitListView,
-        createEventIfRequestedRegular(phEvent,
-                                      lockedBatches->getCurrentGeneration())));
+        getEvent(lockedBatches, phEvent)));
 
     if (blockingRead) {
       UR_CALL(queueFinishUnlocked(lockedBatches));
@@ -313,13 +297,11 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferWrite(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatches = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatches);
 
-  UR_CALL(lockedBatches->getActiveBatch().appendMemBufferWrite(
+  UR_CALL(lockedBatches->getListManager().appendMemBufferWrite(
       hBuffer, false, offset, size, pSrc, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatches->getCurrentGeneration())));
+      getEvent(lockedBatches, phEvent)));
 
   if (blockingWrite) {
     UR_CALL(queueFinishUnlocked(lockedBatches));
@@ -338,13 +320,11 @@ ur_result_t ur_queue_batched_t::enqueueDeviceGlobalVariableWrite(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendDeviceGlobalVariableWrite(
+  UR_CALL(lockedBatch->getListManager().appendDeviceGlobalVariableWrite(
       hProgram, name, false, count, offset, pSrc, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blockingWrite) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -360,13 +340,11 @@ ur_result_t ur_queue_batched_t::enqueueDeviceGlobalVariableRead(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendDeviceGlobalVariableRead(
+  UR_CALL(lockedBatch->getListManager().appendDeviceGlobalVariableRead(
       hProgram, name, false, count, offset, pDst, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blockingRead) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -384,13 +362,11 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferFill(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemBufferFill(
+  return lockedBatch->getListManager().appendMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -403,13 +379,10 @@ ur_result_t ur_queue_batched_t::enqueueUSMMemcpy(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMMemcpy(
-      false, pDst, pSrc, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+  UR_CALL(lockedBatch->getListManager().appendUSMMemcpy(
+      false, pDst, pSrc, size, waitListView, getEvent(lockedBatch, phEvent)));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -424,15 +397,12 @@ ur_result_t ur_queue_batched_t::enqueueUSMFreeExp(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMFreeExp(
-      this, pPool, pMem, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+  UR_CALL(lockedBatch->getListManager().appendUSMFreeExp(
+      this, pPool, pMem, waitListView, getEvent(lockedBatch, phEvent)));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferMap(
@@ -444,14 +414,11 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferMap(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemBufferMap(
+  UR_CALL(lockedBatch->getListManager().appendMemBufferMap(
       hBuffer, false, mapFlags, offset, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()),
-      ppRetMap));
+      getEvent(lockedBatch, phEvent), ppRetMap));
 
   if (blockingMap) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -466,13 +433,10 @@ ur_result_t ur_queue_batched_t::enqueueMemUnmap(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemUnmap(
-      hMem, pMappedPtr, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+  return lockedBatch->getListManager().appendMemUnmap(
+      hMem, pMappedPtr, waitListView, getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferReadRect(
@@ -484,14 +448,12 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferReadRect(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemBufferReadRect(
+  UR_CALL(lockedBatch->getListManager().appendMemBufferReadRect(
       hBuffer, false, bufferOrigin, hostOrigin, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blockingRead) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -510,14 +472,12 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferWriteRect(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemBufferWriteRect(
+  UR_CALL(lockedBatch->getListManager().appendMemBufferWriteRect(
       hBuffer, false, bufferOrigin, hostOrigin, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blockingWrite) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -532,13 +492,10 @@ ur_result_t ur_queue_batched_t::enqueueUSMAdvise(const void *pMem, size_t size,
   wait_list_view emptyWaitList = wait_list_view(nullptr, 0, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendUSMAdvise(
-      pMem, size, advice, emptyWaitList,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+  return lockedBatch->getListManager().appendUSMAdvise(
+      pMem, size, advice, emptyWaitList, getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMMemcpy2D(
@@ -548,13 +505,11 @@ ur_result_t ur_queue_batched_t::enqueueUSMMemcpy2D(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMMemcpy2D(
+  UR_CALL(lockedBatch->getListManager().appendUSMMemcpy2D(
       false, pDst, dstPitch, pSrc, srcPitch, width, height, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -570,13 +525,11 @@ ur_result_t ur_queue_batched_t::enqueueUSMFill2D(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendUSMFill2D(
+  return lockedBatch->getListManager().appendUSMFill2D(
       pMem, pitch, patternSize, pPattern, width, height, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMPrefetch(
@@ -586,13 +539,10 @@ ur_result_t ur_queue_batched_t::enqueueUSMPrefetch(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendUSMPrefetch(
-      pMem, size, flags, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+  return lockedBatch->getListManager().appendUSMPrefetch(
+      pMem, size, flags, waitListView, getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferCopyRect(
@@ -605,36 +555,57 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferCopyRect(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemBufferCopyRect(
+  return lockedBatch->getListManager().appendMemBufferCopyRect(
       hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrier(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueEventsWaitWithBarrier");
+  if (phEvent)
+    *phEvent = nullptr;
+  return enqueueEventsWaitWithBarrierExt(nullptr, numEventsInWaitList,
+                                         phEventWaitList, phEvent);
+}
+
+ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrierExt(
+    const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  if (phEvent && *phEvent && !(*phEvent)->isCounter())
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
+
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
-  auto lockedBatch = currentCmdLists.lock();
 
+  auto lockedBatch = currentCmdLists.lock();
   markIssuedCommandInBatch(lockedBatch);
 
-  if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
-    UR_CALL(lockedBatch->getActiveBatch().appendEventsWaitWithBarrier(
-        waitListView, createEventIfRequestedRegular(
-                          phEvent, lockedBatch->getCurrentGeneration())));
-  } else {
-    UR_CALL(lockedBatch->getActiveBatch().appendEventsWait(
-        waitListView, createEventIfRequestedRegular(
-                          phEvent, lockedBatch->getCurrentGeneration())));
+  ur_event_handle_t event{};
+  if (phEvent && *phEvent) {
+    event = *phEvent;
+    event->setQueue(this);
+    if (!lockedBatch->isGraphCaptureActive())
+      event->setBatch(lockedBatch->getCurrentGeneration());
   }
 
-  return queueFlushUnlocked(lockedBatch);
+  if (!event)
+    event = getEvent(lockedBatch, phEvent);
+
+  if (flags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+    UR_CALL(lockedBatch->getListManager().appendEventsWaitWithBarrier(
+        waitListView, event));
+  } else {
+    UR_CALL(
+        lockedBatch->getListManager().appendEventsWait(waitListView, event));
+  }
+
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t
@@ -645,14 +616,12 @@ ur_queue_batched_t::enqueueEventsWait(uint32_t numEventsInWaitList,
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendEventsWait(
-      waitListView, createEventIfRequestedRegular(
-                        phEvent, lockedBatch->getCurrentGeneration())));
+  UR_CALL(lockedBatch->getListManager().appendEventsWait(
+      waitListView, getEvent(lockedBatch, phEvent)));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferCopy(
@@ -663,13 +632,11 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferCopy(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemBufferCopy(
+  return lockedBatch->getListManager().appendMemBufferCopy(
       hBufferSrc, hBufferDst, srcOffset, dstOffset, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMFill(
@@ -680,13 +647,11 @@ ur_result_t ur_queue_batched_t::enqueueUSMFill(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendUSMFill(
+  return lockedBatch->getListManager().appendUSMFill(
       pMem, patternSize, pPattern, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemImageRead(
@@ -698,13 +663,11 @@ ur_result_t ur_queue_batched_t::enqueueMemImageRead(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemImageRead(
+  UR_CALL(lockedBatch->getListManager().appendMemImageRead(
       hImage, false, origin, region, rowPitch, slicePitch, pDst, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blockingRead) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -722,13 +685,11 @@ ur_result_t ur_queue_batched_t::enqueueMemImageWrite(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemImageWrite(
+  UR_CALL(lockedBatch->getListManager().appendMemImageWrite(
       hImage, false, origin, region, rowPitch, slicePitch, pSrc, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blockingWrite) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -745,13 +706,11 @@ ur_result_t ur_queue_batched_t::enqueueMemImageCopy(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemImageCopy(
+  return lockedBatch->getListManager().appendMemImageCopy(
       hImageSrc, hImageDst, srcOrigin, dstOrigin, region, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueReadHostPipe(
@@ -762,13 +721,11 @@ ur_result_t ur_queue_batched_t::enqueueReadHostPipe(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendReadHostPipe(
+  UR_CALL(lockedBatch->getListManager().appendReadHostPipe(
       hProgram, pipe_symbol, false, pDst, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -785,13 +742,11 @@ ur_result_t ur_queue_batched_t::enqueueWriteHostPipe(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendWriteHostPipe(
+  UR_CALL(lockedBatch->getListManager().appendWriteHostPipe(
       hProgram, pipe_symbol, false, pSrc, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      getEvent(lockedBatch, phEvent)));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -809,16 +764,13 @@ ur_result_t ur_queue_batched_t::enqueueUSMDeviceAllocExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  UR_CALL(lockedBatch->getListManager().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_DEVICE));
+      getEvent(lockedBatch, phEvent), UR_USM_TYPE_DEVICE));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
@@ -831,16 +783,13 @@ ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  UR_CALL(lockedBatch->getListManager().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_SHARED));
+      getEvent(lockedBatch, phEvent), UR_USM_TYPE_SHARED));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
@@ -852,16 +801,13 @@ ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  UR_CALL(lockedBatch->getListManager().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_HOST));
+      getEvent(lockedBatch, phEvent), UR_USM_TYPE_HOST));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesImageCopyExp(
@@ -879,15 +825,12 @@ ur_result_t ur_queue_batched_t::bindlessImagesImageCopyExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().bindlessImagesImageCopyExp(
+  return lockedBatch->getListManager().bindlessImagesImageCopyExp(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
       pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
-      waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      waitListView, getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
@@ -898,13 +841,11 @@ ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().bindlessImagesWaitExternalSemaphoreExp(
+  return lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
       hSemaphore, hasWaitValue, waitValue, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
@@ -915,13 +856,11 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().bindlessImagesSignalExternalSemaphoreExp(
+  return lockedBatch->getListManager().bindlessImagesSignalExternalSemaphoreExp(
       hSemaphore, hasSignalValue, signalValue, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 }
 
 // In case of queues with batched submissions, which use regular command lists
@@ -942,13 +881,10 @@ ur_result_t ur_queue_batched_t::enqueueTimestampRecordingExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendTimestampRecordingExp(
-      false, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+  UR_CALL(lockedBatch->getListManager().appendTimestampRecordingExp(
+      false, waitListView, getEvent(lockedBatch, phEvent)));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -969,7 +905,7 @@ ur_result_t ur_queue_batched_t::enqueueCommandBufferExp(
   // command buffer batch (also a regular list) to preserve the order of
   // operations
   if (!lockedBatch->isActiveBatchEmpty()) {
-    UR_CALL(queueFlushUnlocked(lockedBatch));
+    UR_CALL(renewBatchUnlocked(lockedBatch));
   }
 
   // Regular lists cannot be appended to other regular lists for execution, only
@@ -989,14 +925,11 @@ ur_result_t ur_queue_batched_t::enqueueNativeCommandExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendNativeCommandExp(
+  return lockedBatch->getListManager().appendNativeCommandExp(
       pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
-      waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      waitListView, getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueKernelLaunchWithArgsExp(
@@ -1012,14 +945,12 @@ ur_result_t ur_queue_batched_t::enqueueKernelLaunchWithArgsExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
-
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendKernelLaunchWithArgsExp(
+  return lockedBatch->getListManager().appendKernelLaunchWithArgsExp(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       numArgs, pArgs, launchPropList, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::queueGetInfo(ur_queue_info_t propName,
@@ -1075,21 +1006,100 @@ ur_queue_batched_t::queueGetNativeHandle(ur_queue_native_desc_t * /*pDesc*/,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-ur_queue_batched_t::queueFlushUnlocked(locked<batch_manager> &batchLocked) {
-  UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
-
-  return renewBatchUnlocked(batchLocked);
-}
-
 ur_result_t ur_queue_batched_t::queueFlush() {
   auto batchLocked = currentCmdLists.lock();
+
+  // During graph capture, operations are recorded to the immediate list.
+  // Flushing doesn't apply to graph recording - return early.
+  if (batchLocked->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
 
   if (batchLocked->isActiveBatchEmpty()) {
     return UR_RESULT_SUCCESS;
   } else {
-    return queueFlushUnlocked(batchLocked);
+    return renewBatchUnlocked(batchLocked);
   }
+}
+
+ur_result_t ur_queue_batched_t::enqueueGraphExp(
+    ur_exp_executable_graph_handle_t hGraph, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList, this);
+
+  auto lockedBatch = currentCmdLists.lock();
+
+  // Flush the current batch to preserve order of operations
+  if (!lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
+  // Graph execution must use immediate command list, similar to command buffer
+  // execution. Level Zero requires graphs to be executed on the same type of
+  // list used during capture.
+  return lockedBatch->getImmediateManager().appendGraph(
+      hGraph, waitListView,
+      createEventAndRetain(eventPoolImmediate.get(), phEvent, this));
+}
+
+ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
+  auto lockedBatch = currentCmdLists.lock();
+
+  // Firstly, enqueue the current batch (a regular list) to preserve the order
+  // of operations before switching to immediate list mode for graph capture
+  if (!lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
+  lockedBatch->setGraphCapture(true);
+  return lockedBatch->getListManager().beginGraphCapture();
+}
+
+ur_result_t
+ur_queue_batched_t::queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) {
+  auto lockedBatch = currentCmdLists.lock();
+
+  // Firstly, enqueue the current batch (a regular list) to preserve the order
+  // of operations before switching to immediate list mode for graph capture
+  if (!lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
+  lockedBatch->setGraphCapture(true);
+  return lockedBatch->getListManager().beginCaptureIntoGraph(hGraph);
+}
+
+ur_result_t
+ur_queue_batched_t::queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) {
+  auto lockedBatch = currentCmdLists.lock();
+  ur_result_t result = lockedBatch->getListManager().endGraphCapture(phGraph);
+  if (result == UR_RESULT_SUCCESS) {
+    lockedBatch->setGraphCapture(false);
+  }
+  return result;
+}
+
+ur_result_t ur_queue_batched_t::queueIsGraphCapteEnabledExp(bool *pResult) {
+  // The returned command list doesn't matter, because they share the same
+  // context which is retrieved and checked in the queryGraphCaptureActive.
+  return currentCmdLists.lock()->getListManager().queryGraphCaptureActive(
+      pResult);
+}
+
+ur_result_t ur_queue_batched_t::enqueueHostTaskExp(
+    ur_exp_host_task_function_t pfnHostTask, void *data,
+    const ur_exp_host_task_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList, this);
+
+  auto batchLocked = currentCmdLists.lock();
+
+  return batchLocked->getListManager().appendHostTaskExp(
+      pfnHostTask, data, pProperties, waitListView,
+      this->getEvent(batchLocked, phEvent));
 }
 
 } // namespace v2

@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -triple arm64-apple-ios11 -std=c++11 -fcxx-exceptions -fexceptions -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple arm64-apple-ios11 -std=c++11 -fcxx-exceptions -fexceptions -fclang-abi-compat=4.0 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple arm64-apple-ios11 -std=c++11 -fcxx-exceptions -fexceptions -fclang-abi-compat=4.0 -emit-llvm -o - %s | FileCheck -check-prefix=ABI40 %s
 
 // CHECK: %[[STRUCT_SMALL:.*]] = type { ptr }
 // CHECK: %[[STRUCT_LARGE:.*]] = type { ptr, [128 x i32] }
@@ -140,7 +140,7 @@ void testIgnoredSmall() {
   testReturnSmall();
 }
 
-// CHECK: define{{.*}} void @_Z14testParamLarge5Large(ptr dead_on_return noundef %[[A:.*]])
+// CHECK: define{{.*}} void @_Z14testParamLarge5Large(ptr noundef align 8 dead_on_return %[[A:.*]])
 // CHECK: %[[CALL:.*]] = call noundef ptr @_ZN5LargeD1Ev(ptr {{[^,]*}} %[[A]])
 // CHECK: ret void
 // CHECK: }
@@ -163,7 +163,7 @@ Large testReturnLarge() {
 // CHECK: %[[AGG_TMP:.*]] = alloca %[[STRUCT_LARGE]], align 8
 // CHECK: %[[CALL:.*]] = call noundef ptr @_ZN5LargeC1Ev(ptr {{[^,]*}} %[[T]])
 // CHECK: %[[CALL1:.*]] = call noundef ptr @_ZN5LargeC1ERKS_(ptr {{[^,]*}} %[[AGG_TMP]], ptr noundef nonnull align 8 dereferenceable(520) %[[T]])
-// CHECK: call void @_Z14testParamLarge5Large(ptr dead_on_return noundef %[[AGG_TMP]])
+// CHECK: call void @_Z14testParamLarge5Large(ptr noundef align 8 dead_on_return %[[AGG_TMP]])
 // CHECK: %[[CALL2:.*]] = call noundef ptr @_ZN5LargeD1Ev(ptr {{[^,]*}} %[[T]])
 // CHECK: ret void
 // CHECK: }
@@ -176,7 +176,7 @@ void testCallLarge0() {
 // CHECK: define{{.*}} void @_Z14testCallLarge1v()
 // CHECK: %[[AGG_TMP:.*]] = alloca %[[STRUCT_LARGE:.*]], align 8
 // CHECK: call void @_Z15testReturnLargev(ptr dead_on_unwind writable sret(%[[STRUCT_LARGE]]) align 8 %[[AGG_TMP]])
-// CHECK: call void @_Z14testParamLarge5Large(ptr dead_on_return noundef %[[AGG_TMP]])
+// CHECK: call void @_Z14testParamLarge5Large(ptr noundef align 8 dead_on_return %[[AGG_TMP]])
 // CHECK: ret void
 // CHECK: }
 
@@ -244,7 +244,7 @@ void testExceptionSmall() {
 // CHECK: call noundef ptr @_ZN5LargeC1Ev(ptr {{[^,]*}} %[[AGG_TMP]])
 // CHECK: invoke noundef ptr @_ZN5LargeC1Ev(ptr {{[^,]*}} %[[AGG_TMP1]])
 
-// CHECK: call void @_Z20calleeExceptionLarge5LargeS_(ptr dead_on_return noundef %[[AGG_TMP]], ptr dead_on_return noundef %[[AGG_TMP1]])
+// CHECK: call void @_Z20calleeExceptionLarge5LargeS_(ptr noundef align 8 dead_on_return %[[AGG_TMP]], ptr noundef align 8 dead_on_return %[[AGG_TMP1]])
 // CHECK-NEXT: ret void
 
 // CHECK: landingpad { ptr, i32 }
@@ -281,10 +281,11 @@ static_assert(sizeof(S) == 8 && sizeof(S2) == 8, "");
 
 // PR42961
 
-// CHECK: define{{.*}} @"_ZN3$_08__invokeEv"()
+// CHECK: define{{.*}} @"_ZN2fpM3$_08__invokeEv"
+// ABI40: define{{.*}} @"_ZN3$_08__invokeEv"
 // CHECK: %[[RETVAL:.*]] = alloca %[[STRUCT_SMALL]], align 8
 // CHECK: %[[COERCE:.*]] = alloca %[[STRUCT_SMALL]], align 8
-// CHECK: %[[CALL:.*]] = call{{.*}} @"_ZNK3$_0clEv"
+// CHECK: %[[CALL:.*]] = call{{.*}} @"_ZNK2fpM3$_0clEv"
 // CHECK: %[[COERCEDIVE:.*]] = getelementptr{{.*}} %[[COERCE]]
 // CHECK: %[[COERCEVALIP:.*]] = inttoptr{{.*}} %[[CALL]]
 // CHECK: call {{.*}}memcpy{{.*}} %[[RETVAL]]{{.*}} %[[COERCE]]

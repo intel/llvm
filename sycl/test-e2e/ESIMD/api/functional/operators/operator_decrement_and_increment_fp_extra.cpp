@@ -17,6 +17,7 @@
 // The test creates source simd instance and call increment or decrement
 // operator opera with reference data. The test verifies that in the output data
 // contained correctness data according to chosen operator.
+#include <iostream>
 
 #include "operator_decrement_and_increment.hpp"
 

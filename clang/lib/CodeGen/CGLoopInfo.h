@@ -114,16 +114,6 @@ struct LoopAttributes {
   /// Value for llvm.loop.max_concurrency.count metadata.
   std::optional<unsigned> SYCLMaxConcurrencyNThreads;
 
-  /// Value for count variant (min/max/avg) and count metadata.
-  llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
-      SYCLIntelFPGAVariantCount;
-
-  /// Flag for llvm.loop.coalesce metadata.
-  bool SYCLLoopCoalesceEnable;
-
-  /// Value for llvm.loop.coalesce.count metadata.
-  unsigned SYCLLoopCoalesceNLevels;
-
   /// Flag for llvm.loop.intel.pipelining.enable, i32 0 metadata.
   bool SYCLLoopPipeliningDisable;
 
@@ -151,11 +141,11 @@ struct LoopAttributes {
   /// Value for llvm.loop.pipeline.disable metadata.
   bool PipelineDisabled;
 
+  /// Value for llvm.licm.disable metadata.
+  bool LICMDisabled;
+
   /// Value for llvm.loop.pipeline.iicount metadata.
   unsigned PipelineInitiationInterval;
-
-  /// Flag for llvm.loop.fusion.disable metatdata.
-  bool SYCLNofusionEnable;
 
   /// Value for 'llvm.loop.align' metadata.
   unsigned CodeAlign;
@@ -335,6 +325,11 @@ public:
         Enable ? LoopAttributes::Enable : LoopAttributes::Disable;
   }
 
+  /// Set the next pushed loop LICM disable state.
+  void setLICMDisabled(bool Disabled = true) {
+    StagedAttrs.LICMDisabled = Disabled;
+  }
+
   /// Set the next pushed loop unroll state.
   void setUnrollState(const LoopAttributes::LVEnableState &State) {
     StagedAttrs.UnrollEnable = State;
@@ -374,16 +369,6 @@ public:
     StagedAttrs.SYCLMaxConcurrencyNThreads = C;
   }
 
-  /// Set flag of loop_coalesce for the next loop pushed.
-  void setSYCLLoopCoalesceEnable() {
-    StagedAttrs.SYCLLoopCoalesceEnable = true;
-  }
-
-  /// Set value of coalesced levels for the next loop pushed.
-  void setSYCLLoopCoalesceNLevels(unsigned C) {
-    StagedAttrs.SYCLLoopCoalesceNLevels = C;
-  }
-
   /// Set flag of disable_loop_pipelining for the next loop pushed.
   void setSYCLLoopPipeliningDisable() {
     StagedAttrs.SYCLLoopPipeliningDisable = true;
@@ -399,11 +384,6 @@ public:
     StagedAttrs.SYCLSpeculatedIterationsNIterations = C;
   }
 
-  /// Set value of variant and loop count for the next loop pushed.
-  void setSYCLIntelFPGAVariantCount(const char *Var, unsigned int Count) {
-    StagedAttrs.SYCLIntelFPGAVariantCount.push_back({Var, Count});
-  }
-
   /// Set the unroll count for the next loop pushed.
   void setUnrollCount(unsigned C) { StagedAttrs.UnrollCount = C; }
 
@@ -417,9 +397,6 @@ public:
   void setPipelineInitiationInterval(unsigned C) {
     StagedAttrs.PipelineInitiationInterval = C;
   }
-
-  /// Set flag of nofusion for the next loop pushed.
-  void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
 
   /// Set value of code align for the next loop pushed.
   void setCodeAlign(unsigned C) { StagedAttrs.CodeAlign = C; }
