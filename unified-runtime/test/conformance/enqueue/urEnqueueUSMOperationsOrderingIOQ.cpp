@@ -145,15 +145,15 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     const uint8_t one_pattern = 0x01;
 
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values1, input.data(),
-                      allocation_size, 0, nullptr, nullptr));
+                                      allocation_size, 0, nullptr, nullptr));
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2, values1,
-                      allocation_size, 0, nullptr, nullptr));
+                                      allocation_size, 0, nullptr, nullptr));
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, values2,
-                      allocation_size, 0, nullptr, nullptr));
+                                      allocation_size, 0, nullptr, nullptr));
 
     EXPECT_SUCCESS(urEnqueueUSMFill(queue, values1, sizeof(zero_pattern),
-                    &zero_pattern, allocation_size, 0,
-                    nullptr, nullptr));
+                                    &zero_pattern, allocation_size, 0, nullptr,
+                                    nullptr));
 
     auto ptr_arg = [](const void *ptr, uint32_t index) {
       ur_exp_kernel_arg_value_t val = {};
@@ -175,7 +175,7 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     {
       ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values3, 0),
                                                ptr_arg(values1, 1)};
-        EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
           queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
           nullptr, 0, nullptr, nullptr));
     }
@@ -188,10 +188,10 @@ struct urEnqueueUSMOperationsOrderingIOQTest
           nullptr, 0, nullptr, nullptr));
     }
 
-        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values2,
-                  allocation_size, 0, nullptr, nullptr));
-        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, tmp.data(),
-                  allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values2,
+                                      allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, tmp.data(),
+                                      allocation_size, 0, nullptr, nullptr));
 
     {
       ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values3, 0),
@@ -201,9 +201,9 @@ struct urEnqueueUSMOperationsOrderingIOQTest
           nullptr, 0, nullptr, nullptr));
     }
 
-        EXPECT_SUCCESS(urEnqueueUSMFill(queue, values2, sizeof(one_pattern),
-                &one_pattern, allocation_size, 0,
-                nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMFill(queue, values2, sizeof(one_pattern),
+                                    &one_pattern, allocation_size, 0, nullptr,
+                                    nullptr));
 
     {
       ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1, 0),
@@ -213,14 +213,14 @@ struct urEnqueueUSMOperationsOrderingIOQTest
           nullptr, 0, nullptr, nullptr));
     }
 
-        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out1.data(), values1,
-                  allocation_size, 0, nullptr, nullptr));
-        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out2.data(), values2,
-                  allocation_size, 0, nullptr, nullptr));
-        EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out3.data(), values3,
-                  allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out1.data(), values1,
+                                      allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out2.data(), values2,
+                                      allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out3.data(), values3,
+                                      allocation_size, 0, nullptr, nullptr));
 
-        EXPECT_SUCCESS(urQueueFinish(queue));
+    EXPECT_SUCCESS(urQueueFinish(queue));
 
     for (size_t i = 0; i < array_size; ++i) {
       const uint32_t base = static_cast<uint32_t>(i);
