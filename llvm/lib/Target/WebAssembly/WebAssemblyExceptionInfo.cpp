@@ -25,16 +25,17 @@ using namespace llvm;
 
 #define DEBUG_TYPE "wasm-exception-info"
 
-char WebAssemblyExceptionInfo::ID = 0;
+char WebAssemblyExceptionInfoWrapperPass::ID = 0;
 
-INITIALIZE_PASS_BEGIN(WebAssemblyExceptionInfo, DEBUG_TYPE,
+INITIALIZE_PASS_BEGIN(WebAssemblyExceptionInfoWrapperPass, DEBUG_TYPE,
                       "WebAssembly Exception Information", true, true)
 INITIALIZE_PASS_DEPENDENCY(MachineDominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(MachineDominanceFrontierWrapperPass)
-INITIALIZE_PASS_END(WebAssemblyExceptionInfo, DEBUG_TYPE,
+INITIALIZE_PASS_END(WebAssemblyExceptionInfoWrapperPass, DEBUG_TYPE,
                     "WebAssembly Exception Information", true, true)
 
-bool WebAssemblyExceptionInfo::runOnMachineFunction(MachineFunction &MF) {
+bool WebAssemblyExceptionInfoWrapperPass::runOnMachineFunction(
+    MachineFunction &MF) {
   LLVM_DEBUG(dbgs() << "********** Exception Info Calculation **********\n"
                        "********** Function: "
                     << MF.getName() << '\n');
@@ -45,7 +46,7 @@ bool WebAssemblyExceptionInfo::runOnMachineFunction(MachineFunction &MF) {
     return false;
   auto &MDT = getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
   auto &MDF = getAnalysis<MachineDominanceFrontierWrapperPass>().getMDF();
-  recalculate(MF, MDT, MDF);
+  WasmExceptionInfo.recalculate(MF, MDT, MDF);
   LLVM_DEBUG(dump());
   return false;
 }
@@ -107,7 +108,8 @@ void WebAssemblyExceptionInfo::releaseMemory() {
   TopLevelExceptions.clear();
 }
 
-void WebAssemblyExceptionInfo::getAnalysisUsage(AnalysisUsage &AU) const {
+void WebAssemblyExceptionInfoWrapperPass::getAnalysisUsage(
+    AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<MachineDominatorTreeWrapperPass>();
   AU.addRequired<MachineDominanceFrontierWrapperPass>();

@@ -258,7 +258,7 @@ void initializeWebAssemblyCFGSortPass(PassRegistry &);
 void initializeWebAssemblyCFGStackifyPass(PassRegistry &);
 void initializeWebAssemblyDAGToDAGISelLegacyPass(PassRegistry &);
 void initializeWebAssemblyDebugFixupPass(PassRegistry &);
-void initializeWebAssemblyExceptionInfoPass(PassRegistry &);
+void initializeWebAssemblyExceptionInfoWrapperPassPass(PassRegistry &);
 void initializeWebAssemblyExplicitLocalsPass(PassRegistry &);
 void initializeWebAssemblyFixBrTableDefaultsLegacyPass(PassRegistry &);
 void initializeWebAssemblyFixFunctionBitcastsLegacyPass(PassRegistry &);

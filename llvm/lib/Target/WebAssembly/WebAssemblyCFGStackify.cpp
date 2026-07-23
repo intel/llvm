@@ -54,7 +54,7 @@ class WebAssemblyCFGStackify final : public MachineFunctionPass {
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<MachineDominatorTreeWrapperPass>();
     AU.addRequired<MachineLoopInfoWrapperPass>();
-    AU.addRequired<WebAssemblyExceptionInfo>();
+    AU.addRequired<WebAssemblyExceptionInfoWrapperPass>();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
@@ -434,7 +434,7 @@ void WebAssemblyCFGStackify::placeBlockMarker(MachineBasicBlock &MBB) {
 void WebAssemblyCFGStackify::placeLoopMarker(MachineBasicBlock &MBB) {
   MachineFunction &MF = *MBB.getParent();
   const auto &MLI = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
-  const auto &WEI = getAnalysis<WebAssemblyExceptionInfo>();
+  const auto &WEI = getAnalysis<WebAssemblyExceptionInfoWrapperPass>().getWEI();
   SortRegionInfo SRI(MLI, WEI);
   const auto &TII = *MF.getSubtarget<WebAssemblySubtarget>().getInstrInfo();
 
@@ -504,7 +504,7 @@ void WebAssemblyCFGStackify::placeTryMarker(MachineBasicBlock &MBB) {
   auto &MDT = getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
   const auto &TII = *MF.getSubtarget<WebAssemblySubtarget>().getInstrInfo();
   const auto &MLI = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
-  const auto &WEI = getAnalysis<WebAssemblyExceptionInfo>();
+  const auto &WEI = getAnalysis<WebAssemblyExceptionInfoWrapperPass>().getWEI();
   SortRegionInfo SRI(MLI, WEI);
   const auto &MFI = *MF.getInfo<WebAssemblyFunctionInfo>();
 
@@ -698,7 +698,7 @@ void WebAssemblyCFGStackify::placeTryTableMarker(MachineBasicBlock &MBB) {
   auto &MDT = getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
   const auto &TII = *MF.getSubtarget<WebAssemblySubtarget>().getInstrInfo();
   const auto &MLI = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
-  const auto &WEI = getAnalysis<WebAssemblyExceptionInfo>();
+  const auto &WEI = getAnalysis<WebAssemblyExceptionInfoWrapperPass>().getWEI();
   SortRegionInfo SRI(MLI, WEI);
   const auto &MFI = *MF.getInfo<WebAssemblyFunctionInfo>();
 

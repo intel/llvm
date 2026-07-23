@@ -110,7 +110,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyNullifyDebugValueListsLegacyPass(PR);
   initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PR);
   initializeWebAssemblyLateEHPrepareLegacyPass(PR);
-  initializeWebAssemblyExceptionInfoPass(PR);
+  initializeWebAssemblyExceptionInfoWrapperPassPass(PR);
   initializeWebAssemblyCFGSortPass(PR);
   initializeWebAssemblyCFGStackifyPass(PR);
   initializeWebAssemblyExplicitLocalsPass(PR);
