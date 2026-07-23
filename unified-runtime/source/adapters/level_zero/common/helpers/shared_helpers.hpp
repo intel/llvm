@@ -318,3 +318,28 @@ inline size_t getHostPageSize() {
 }
 
 } // namespace ur::level_zero
+
+// Per-adapter translator for umf2urResult's provider-specific error path.
+namespace umf {
+namespace {
+[[maybe_unused]] inline ur_result_t
+levelZeroGetProviderNativeError(const char *providerName, int32_t nativeError) {
+  if (strcmp(providerName, "LEVEL_ZERO") == 0) {
+    auto zeResult = static_cast<ze_result_t>(nativeError);
+    if (zeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    return ur::level_zero::ze2urResult(zeResult);
+  }
+  if (strcmp(providerName, "Level Zero") == 0) {
+    return static_cast<ur_result_t>(nativeError);
+  }
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace
+} // namespace umf
+
+#define UMF_GET_PROVIDER_NATIVE_ERROR ::umf::levelZeroGetProviderNativeError
+
+#include <cstring>
+#include <umf_helpers.hpp>

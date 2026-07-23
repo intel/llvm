@@ -8,11 +8,15 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+// Pulls in the L0 umf2urResult customization point (defines
+// UMF_GET_PROVIDER_NATIVE_ERROR) and <umf_helpers.hpp> itself. Must precede any
+// other include that reaches <umf_helpers.hpp>.
+#include "helpers/shared_helpers.hpp"
+
 #include "unified-runtime/ur_api.h"
 #include <functional>
 #include <optional>
 #include <set>
-#include <umf_helpers.hpp>
 
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
