@@ -1112,12 +1112,24 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerOptimizerLastEPCallback([this](ModulePassManager &MPM,
                                             OptimizationLevel Level,
                                             ThinOrFullLTOPhase Phase) {
-    if (Level != OptimizationLevel::O0) {
-      if (!isLTOPreLink(Phase)) {
-        if (EnableAMDGPUAttributor && getTargetTriple().isAMDGCN()) {
-          AMDGPUAttributorOptions Opts;
-          MPM.addPass(AMDGPUAttributorPass(*this, Opts, Phase));
-        }
+    if (Level != OptimizationLevel::O0 && getTargetTriple().isAMDGCN()) {
+      // Resolve the SYCL implicit global offset builtin (the pass self-gates
+      // to SYCL device modules) before running the attributor, so the
+      // attributor does not see an unresolved `__spirv_BuiltInGlobalOffset`
+      // callee and can prove that the conservative hidden kernel arguments
+      // (hostcall, default queue, completion action, heap) are unused.
+      //
+      // This must also run in the LTO prelink phase: for AMDGPU, SYCL AOT
+      // emits the device image with `clang -cc1 -flto=full -S`, i.e. the LTO
+      // prelink optimization pipeline immediately followed by codegen with no
+      // post-link step. If the attributor is skipped here (as it used to be
+      // for prelink), it never runs before codegen and the kernels keep the
+      // default hidden arguments, which HIP rejects at launch with
+      // hipErrorIllegalState on some GPUs (e.g. gfx1200). See intel/llvm#22606.
+      MPM.addPass(GlobalOffsetPass());
+      if (EnableAMDGPUAttributor) {
+        AMDGPUAttributorOptions Opts;
+        MPM.addPass(AMDGPUAttributorPass(*this, Opts, Phase));
       }
     }
   });
@@ -1141,6 +1153,11 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           PM.addPass(AMDGPUSwLowerLDSPass());
         if (EnableLowerModuleLDS)
           PM.addPass(AMDGPULowerModuleLDSPass(*this));
+        // Also resolve the SYCL implicit global offset builtin before the
+        // post-link AMDGPUAttributor, for flows that defer codegen to the LTO
+        // link (self-gated to SYCL device modules). See intel/llvm#22606.
+        if (getTargetTriple().isAMDGCN())
+          PM.addPass(GlobalOffsetPass());
         if (Level != OptimizationLevel::O0) {
           // We only want to run this with O2 or higher since inliner and SROA
           // don't run in O1.
