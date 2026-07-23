@@ -104,7 +104,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblySetP2AlignOperandsLegacyPass(PR);
   initializeWebAssemblyReplacePhysRegsLegacyPass(PR);
   initializeWebAssemblyOptimizeLiveIntervalsLegacyPass(PR);
-  initializeWebAssemblyMemIntrinsicResultsPass(PR);
+  initializeWebAssemblyMemIntrinsicResultsLegacyPass(PR);
   initializeWebAssemblyRegStackifyPass(PR);
   initializeWebAssemblyRegColoringPass(PR);
   initializeWebAssemblyNullifyDebugValueListsLegacyPass(PR);
@@ -464,7 +464,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
     addPass(createWebAssemblyOptimizeLiveIntervalsLegacyPass());
 
     // Prepare memory intrinsic calls for register stackifying.
-    addPass(createWebAssemblyMemIntrinsicResults());
+    addPass(createWebAssemblyMemIntrinsicResultsLegacyPass());
   }
 
   // Mark registers as representing wasm's value stack. This is a key

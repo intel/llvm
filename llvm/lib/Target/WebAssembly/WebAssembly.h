@@ -178,7 +178,15 @@ public:
 };
 
 FunctionPass *createWebAssemblyOptimizeLiveIntervalsLegacyPass();
-FunctionPass *createWebAssemblyMemIntrinsicResults();
+
+class WebAssemblyMemIntrinsicResultsPass
+    : public RequiredPassInfoMixin<WebAssemblyMemIntrinsicResultsPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyMemIntrinsicResultsLegacyPass();
 FunctionPass *createWebAssemblyRegStackify(CodeGenOptLevel OptLevel);
 FunctionPass *createWebAssemblyRegColoring();
 
@@ -238,7 +246,7 @@ void initializeWebAssemblyLateEHPrepareLegacyPass(PassRegistry &);
 void initializeWebAssemblyLowerBrUnlessPass(PassRegistry &);
 void initializeWebAssemblyLowerEmscriptenEHSjLjLegacyPass(PassRegistry &);
 void initializeWebAssemblyMCLowerPrePassPass(PassRegistry &);
-void initializeWebAssemblyMemIntrinsicResultsPass(PassRegistry &);
+void initializeWebAssemblyMemIntrinsicResultsLegacyPass(PassRegistry &);
 void initializeWebAssemblyNullifyDebugValueListsLegacyPass(PassRegistry &);
 void initializeWebAssemblyOptimizeLiveIntervalsLegacyPass(PassRegistry &);
 void initializeWebAssemblyPeepholePass(PassRegistry &);

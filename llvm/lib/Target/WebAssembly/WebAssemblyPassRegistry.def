@@ -41,6 +41,7 @@ MACHINE_FUNCTION_PASS("wasm-fix-br-table-defaults",
 MACHINE_FUNCTION_PASS("wasm-fix-irreducible-control-flow",
                       WebAssemblyFixIrreducibleControlFlowPass())
 MACHINE_FUNCTION_PASS("wasm-late-eh-prepare", WebAssemblyLateEHPreparePass())
+MACHINE_FUNCTION_PASS("wasm-mem-intrinsic-results", WebAssemblyMemIntrinsicResultsPass())
 MACHINE_FUNCTION_PASS("wasm-nullify-dbg-value-lists",
                       WebAssemblyNullifyDebugValueListsPass())
 MACHINE_FUNCTION_PASS("wasm-optimize-live-intervals",

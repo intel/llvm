@@ -197,7 +197,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
     addMachineFunctionPass(WebAssemblyOptimizeLiveIntervalsPass(), PMW);
 
     // Prepare memory intrinsic calls for register stackifying.
-    // TODO(boomanaiden154): WebAssemblyMemIntrinsicResults
+    addMachineFunctionPass(WebAssemblyMemIntrinsicResultsPass(), PMW);
   }
 
   // Mark registers as representing wasm's value stack. This is a key
