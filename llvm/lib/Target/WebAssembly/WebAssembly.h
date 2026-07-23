@@ -237,7 +237,15 @@ public:
 };
 
 FunctionPass *createWebAssemblyLateEHPrepareLegacyPass();
-FunctionPass *createWebAssemblyCFGSort();
+
+class WebAssemblyCFGSortPass
+    : public RequiredPassInfoMixin<WebAssemblyCFGSortPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
+FunctionPass *createWebAssemblyCFGSortLegacyPass();
 FunctionPass *createWebAssemblyCFGStackify();
 FunctionPass *createWebAssemblyExplicitLocals();
 FunctionPass *createWebAssemblyLowerBrUnless();
@@ -254,7 +262,7 @@ void initializeWebAssemblyAddMissingPrototypesLegacyPass(PassRegistry &);
 void initializeWebAssemblyArgumentMoveLegacyPass(PassRegistry &);
 void initializeWebAssemblyAsmPrinterPass(PassRegistry &);
 void initializeWebAssemblyCleanCodeAfterTrapLegacyPass(PassRegistry &);
-void initializeWebAssemblyCFGSortPass(PassRegistry &);
+void initializeWebAssemblyCFGSortLegacyPass(PassRegistry &);
 void initializeWebAssemblyCFGStackifyPass(PassRegistry &);
 void initializeWebAssemblyDAGToDAGISelLegacyPass(PassRegistry &);
 void initializeWebAssemblyDebugFixupPass(PassRegistry &);

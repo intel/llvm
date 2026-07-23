@@ -111,7 +111,7 @@ LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyFixIrreducibleControlFlowLegacyPass(PR);
   initializeWebAssemblyLateEHPrepareLegacyPass(PR);
   initializeWebAssemblyExceptionInfoWrapperPassPass(PR);
-  initializeWebAssemblyCFGSortPass(PR);
+  initializeWebAssemblyCFGSortLegacyPass(PR);
   initializeWebAssemblyCFGStackifyPass(PR);
   initializeWebAssemblyExplicitLocalsPass(PR);
   initializeWebAssemblyLowerBrUnlessPass(PR);
@@ -483,7 +483,7 @@ void WebAssemblyPassConfig::addPreEmitPass() {
 
   // Sort the blocks of the CFG into topological order, a prerequisite for
   // BLOCK and LOOP markers.
-  addPass(createWebAssemblyCFGSort());
+  addPass(createWebAssemblyCFGSortLegacyPass());
 
   // Insert BLOCK and LOOP markers.
   addPass(createWebAssemblyCFGStackify());

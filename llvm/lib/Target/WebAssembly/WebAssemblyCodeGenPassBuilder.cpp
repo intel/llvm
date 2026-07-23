@@ -217,7 +217,7 @@ void WebAssemblyCodeGenPassBuilder::addPreEmitPass(
 
   // Sort the blocks of the CFG into topological order, a prerequisite for
   // BLOCK and LOOP markers.
-  // TODO(boomanaiden154): WebAssemblyCFGSort
+  addMachineFunctionPass(WebAssemblyCFGSortPass(), PMW);
 
   // Insert BLOCK and LOOP markers.
   // TODO(boomanaiden154): WebAssemblyCFGStackify
