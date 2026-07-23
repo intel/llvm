@@ -30,7 +30,7 @@ class Builder;
 /// \ingroup sycl_api
 
 template <int Dimensions>
-class __SYCL_DEPRECATED("Deprecated in SYCL 2020") h_item {
+class __SYCL2020_DEPRECATED("Deprecated in SYCL 2020") h_item {
 public:
   static constexpr int dimensions = Dimensions;
 
