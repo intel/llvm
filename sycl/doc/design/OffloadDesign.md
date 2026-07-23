@@ -243,6 +243,26 @@ are needed to pass along this information.
 
 *Table: Ahead of Time Info*
 
+### NoRDC Mode support
+
+For the Old Offload Model support of NoRDC Mode see [NonRelocatableDeviceCode.md](NonRelocatableDeviceCode.md).
+
+The default compiler behavior is -fsycl-rdc, which incorporates linking of device code. If -fno-sycl-rdc is specified, the compiler skips linking of device code and performs offload processing on every module individually.
+
+The usage scenario for the old offload model is:
+```
+clang++ --no-offload-old-driver -fsycl -fsycl-targets=T1,T2 input1.cpp -fno-sycl-rdc -c -o object1.o    # -fno-sycl-rdc is specified
+clang++ --no-offload-old-driver -fsycl -fsycl-targets=T1,T2 input2.cpp -fno-sycl-rdc -c -o object2.o    # -fno-sycl-rdc is specified
+clang++ --no-offload-old-driver -fsycl -fsycl-targets=T1,T2 object1.o object2.o -o a.out                # -fno-sycl-rdc is NOT specified
+```
+
+Currently, SYCL offload processing resides in clang-linker-wrapper. That leads to the following usage scenario, which is inverted compared to the old offload model:
+```
+clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 input1.cpp -c -o object1.o                   # -fno-sycl-rdc is NOT specified
+clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 input2.cpp -c -o object2.o                   # -fno-sycl-rdc is NOT specified
+clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 -fno-sycl-rdc object1.o object2.o -o a.out   # -fno-sycl-rdc is specified
+```
+
 #### Format of the --device-compiler Option
 The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:
 - `<kind>` : specifies the offloading kind (e.g., sycl, hip, openmp) and is optional.
