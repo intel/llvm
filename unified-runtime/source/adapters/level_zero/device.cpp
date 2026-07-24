@@ -1561,12 +1561,30 @@ ur_result_t urDeviceGetInfo(
       LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
       DeviceProp.pNext = (void *)&LuidDesc;
 
-      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+      const auto ZeResult = zeDeviceGetProperties(ZeDevice, &DeviceProp);
+      if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return ze2urResult(ZeResult);
+      }
 
       const auto &LUID = LuidDesc.luid.id;
+      // If the LUID is all zeros the extension is present but not usable
+      // on this platform (e.g. Linux).
+      bool isAllZeros = true;
+      for (auto byte : LUID) {
+        if (byte != 0) {
+          isAllZeros = false;
+          break;
+        }
+      }
+      if (isAllZeros) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
       return ReturnValue(LUID, sizeof(LUID));
     } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
   case UR_DEVICE_INFO_NODE_MASK: {
@@ -1584,11 +1602,22 @@ ur_result_t urDeviceGetInfo(
       LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
       DeviceProp.pNext = (void *)&LuidDesc;
 
-      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+      const auto ZeResult = zeDeviceGetProperties(ZeDevice, &DeviceProp);
+      if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return ze2urResult(ZeResult);
+      }
 
+      // If the node mask is zero the extension is present but not usable
+      // on this platform (e.g. Linux).
+      if (LuidDesc.nodeMask == 0) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
       return ReturnValue(LuidDesc.nodeMask);
     } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
   case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
