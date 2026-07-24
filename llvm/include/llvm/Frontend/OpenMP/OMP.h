@@ -135,7 +135,8 @@ struct EnumSet : public llvm::Bitset<Size> {
 namespace detail {
 template <typename Enum, size_t Size>
 constexpr Enum EnumSetIterator<Enum, Size>::operator*() const {
-  assert(Set.Base::test(At));
+  // Older gcc doesn't like assert(Set.Base::test(At));
+  assert((static_cast<const llvm::Bitset<Size> &>(Set).test(At)));
   return static_cast<Enum>(At);
 }
 
