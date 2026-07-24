@@ -1,11 +1,7 @@
-// BiasAdd GPU benchmark v3: all integer ops in i32, no index types in kernel
-// Shape: tot=1048576, chw=65536, hw=4096, 256 threads × 4096 blocks
-// Kernel: c = (i % chw) / hw — RUNTIME division by i32 scalar args
-// 
-// This version is optimized for the scalar hoisting pass:
-// all division ops are on i32 types, no index casts needed in kernel body.
-// Hot: magic/shift precomputed on HOST (before gpu.launch_func),
-//      added as extra kernel args, kernel uses mului_extended+add+shift.
+// BiasAdd GPU benchmark: dst[i] = src[i] + bias[c], c = (i % chw) / hw
+// Shape: tot=1048576, C=16, chw=65536, hw=4096
+// 256 threads × 4096 blocks, each thread does: urem+udiv+load+fadd+store
+// All values are f32 compute
 
 module @bias_add attributes {gpu.container_module} {
   gpu.module @bias_add_kernel attributes {spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Addresses, Int64, Kernel], []>, api=OpenCL, #spirv.resource_limits<>>} {
@@ -20,7 +16,7 @@ module @bias_add attributes {gpu.container_module} {
       %i = arith.index_castui %gid : index to i32
       %is_in = arith.cmpi ult, %i, %tot : i32
       scf.if %is_in {
-        // === TARGET: division by RUNTIME scalar kernel args (i32) ===
+        // === TARGET: runtime division by uniform scalar args ===
         %rem = arith.remui %i, %chw : i32
         %ch = arith.divui %rem, %hw : i32
         %ci = arith.index_castui %ch : i32 to index
@@ -50,7 +46,6 @@ module @bias_add attributes {gpu.container_module} {
     %v1 = arith.constant 1.0 : f32
     memref.store %v1, %mem_bias[%c0] : memref<16xf32>
 
-    // WARMUP: 5 iterations
     %c5 = arith.constant 5 : index
     scf.for %w = %c0 to %c5 step %c1 {
       gpu.launch_func @bias_add_kernel::@bias_add_kernel blocks in (%blocks, %c1, %c1) threads in (%c256, %c1, %c1)
@@ -58,7 +53,6 @@ module @bias_add attributes {gpu.container_module} {
              %tot : i32, %chw : i32, %hw : i32)
     }
 
-    // BENCHMARK: 100 iterations
     %c100 = arith.constant 100 : index
     scf.for %b = %c0 to %c100 step %c1 {
       gpu.launch_func @bias_add_kernel::@bias_add_kernel blocks in (%blocks, %c1, %c1) threads in (%c256, %c1, %c1)
