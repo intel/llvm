@@ -171,12 +171,14 @@ For a description of parallel for range rounding in DPC++ see
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE` | Integer | Specifies the maximum size of a local memory allocation in bytes. If the value exceeds the device's capabilities then a `sycl::runtime_error` is thrown. In order for the full error message to be printed, `SYCL_RT_WARNING_LEVEL=2` must be set. The default value for `SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE` is determined by the hardware. |
+| `UR_CUDA_STACK_SIZE` | Integer | Specifies the per-thread stack size limit in bytes, applied to each CUDA device at initialization via `cuCtxSetLimit(CU_LIMIT_STACK_SIZE, ...)` (the driver-level equivalent of `cudaDeviceSetLimit(cudaLimitStackSize, ...)`). This is useful for kernels with deep recursion or large per-thread private data that would otherwise overflow the small default stack. If the value is not a positive integer, or the driver rejects it, an error is reported (set `SYCL_RT_WARNING_LEVEL=2` to see the full message). The default is determined by the CUDA driver. |
 
 ## Controlling DPC++ HIP Adapter
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE` | Integer | Specifies the maximum size of a local memory allocation in bytes. If the value exceeds the device's capabilities then a `sycl::runtime_error` is thrown. In order for the full error message to be printed, `SYCL_RT_WARNING_LEVEL=2` must be set. The default value for `SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE` is determined by the hardware. |
+| `UR_HIP_STACK_SIZE` | Integer | Specifies the per-thread stack size limit in bytes, applied to each HIP device at initialization via `hipDeviceSetLimit(hipLimitStackSize, ...)` (the equivalent of `cudaDeviceSetLimit(cudaLimitStackSize, ...)`). This is useful for kernels with deep recursion or large per-thread private data that would otherwise overflow the small default stack. If the value is not a positive integer, or the runtime does not support setting this limit, an error is reported (set `SYCL_RT_WARNING_LEVEL=2` to see the full message). The default is determined by the HIP runtime. |
 
 ## Tools variables
 

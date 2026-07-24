@@ -155,6 +155,12 @@ Other Notes
   order to exceed the default max dynamic local memory size. More information
   can be found
   `here <https://intel.github.io/llvm-docs/EnvironmentVariables.html#controlling-dpc-cuda-plugin>`_.
+- The environment variable ``UR_CUDA_STACK_SIZE`` can be set to a positive
+  integer to configure the per-thread stack size limit (in bytes) applied to
+  each device at initialization via ``cuCtxSetLimit(CU_LIMIT_STACK_SIZE, ...)``,
+  the driver-level equivalent of ``cudaDeviceSetLimit(cudaLimitStackSize, ...)``.
+  This is useful for kernels with deep recursion or large per-thread private
+  data that would otherwise overflow the small default stack.
 - The size of primitive datatypes may differ in host and device code. For
   instance, NVCC treats ``long double`` as 8 bytes for device and 16 bytes for
   host.
