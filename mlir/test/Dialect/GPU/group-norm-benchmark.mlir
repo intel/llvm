@@ -1,7 +1,7 @@
-// GroupNorm benchmark v2: simplified with real fp32 compute + runtime division
-// Shape: D=192, S=784, DS=150528, 1024 threads (32 SIMD × 32 subgroups)
-// Each thread does: load 4xf16→f32, compute stats, apply normalize with c=j/S division
-// All compute in f32
+// GroupNorm benchmark: D=192, S=784, DS=150528 per group, 64 groups
+// Each group launch: 1024 threads (32 SIMD × 32 subgroups)
+// Total: 64 kernel launches per iteration
+// Each thread: f16→f32 Welford scan + runtime int division c=j/S by scalar arg S
 
 module @group_norm attributes {gpu.container_module} {
   gpu.module @gn_kernel attributes {spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Addresses, Int16, Int64, Kernel], []>, api=OpenCL, #spirv.resource_limits<>>} {
@@ -112,20 +112,26 @@ module @group_norm attributes {gpu.container_module} {
     %S = arith.constant 784 : i32
     %DS = arith.constant 150528 : i32
 
+    // 64 groups per iteration
+    %c64 = arith.constant 64 : index
     %c5 = arith.constant 5 : index
     scf.for %w = %c0 to %c5 step %c1 {
-      gpu.launch_func @gn_kernel::@gn_kernel blocks in (%c1, %c1, %c1) threads in (%c1024, %c1, %c1)
-        args(%X : memref<150528xf16>, %Y : memref<150528xf16>,
-             %gamma : memref<192xf16>, %beta : memref<192xf16>,
-             %eps : f32, %D : i32, %S : i32, %DS : i32)
+      scf.for %g = %c0 to %c64 step %c1 {
+        gpu.launch_func @gn_kernel::@gn_kernel blocks in (%c1, %c1, %c1) threads in (%c1024, %c1, %c1)
+          args(%X : memref<150528xf16>, %Y : memref<150528xf16>,
+               %gamma : memref<192xf16>, %beta : memref<192xf16>,
+               %eps : f32, %D : i32, %S : i32, %DS : i32)
+      }
     }
 
     %c20 = arith.constant 20 : index
     scf.for %b = %c0 to %c20 step %c1 {
-      gpu.launch_func @gn_kernel::@gn_kernel blocks in (%c1, %c1, %c1) threads in (%c1024, %c1, %c1)
-        args(%X : memref<150528xf16>, %Y : memref<150528xf16>,
-             %gamma : memref<192xf16>, %beta : memref<192xf16>,
-             %eps : f32, %D : i32, %S : i32, %DS : i32)
+      scf.for %g = %c0 to %c64 step %c1 {
+        gpu.launch_func @gn_kernel::@gn_kernel blocks in (%c1, %c1, %c1) threads in (%c1024, %c1, %c1)
+          args(%X : memref<150528xf16>, %Y : memref<150528xf16>,
+               %gamma : memref<192xf16>, %beta : memref<192xf16>,
+               %eps : f32, %D : i32, %S : i32, %DS : i32)
+      }
     }
 
     return
