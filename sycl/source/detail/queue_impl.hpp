@@ -375,6 +375,32 @@ public:
                               CodeLoc, IsTopCodeLoc);
   }
 
+  event submit_free_function_direct_with_event(
+      const detail::nd_range_view &RangeView,
+      detail::FreeFunctionArgsStorage *ArgsStorage,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      sycl::span<const event> DepEvents,
+      const detail::KernelPropertyHolderStructTy &Props,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl = submit_free_function_direct_impl(
+        NDRDescT(RangeView), ArgsStorage, DeviceKernelInfo,
+        /*CallerNeedsEvent*/ true, DepEvents, Props, CodeLoc, IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(std::move(EventImpl));
+  }
+
+  void submit_free_function_direct_without_event(
+      const detail::nd_range_view &RangeView,
+      detail::FreeFunctionArgsStorage *ArgsStorage,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      sycl::span<const event> DepEvents,
+      const detail::KernelPropertyHolderStructTy &Props,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    submit_free_function_direct_impl(NDRDescT(RangeView), ArgsStorage,
+                                     DeviceKernelInfo,
+                                     /*CallerNeedsEvent*/ false, DepEvents,
+                                     Props, CodeLoc, IsTopCodeLoc);
+  }
+
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
                                          detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
@@ -954,6 +980,19 @@ protected:
   /// \return a SYCL event representing submitted command group or nullptr.
   EventImplPtr submit_kernel_direct_impl(
       const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+      sycl::span<const event> DepEvents,
+      const detail::KernelPropertyHolderStructTy &Props,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  /// Submits a free function kernel directly to the queue, bypassing the
+  /// handler. The explicit kernel arguments have already been collected into
+  /// ArgsStorage (ownership of which is taken over here); the kernel is
+  /// launched from those arguments with no host kernel function.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  EventImplPtr submit_free_function_direct_impl(
+      const NDRDescT &NDRDesc, detail::FreeFunctionArgsStorage *ArgsStorage,
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
       sycl::span<const event> DepEvents,
       const detail::KernelPropertyHolderStructTy &Props,

@@ -43,6 +43,23 @@ private:
 };
 
 } // namespace detail
+
+namespace ext::oneapi::experimental {
+template <typename DataT, typename PropertyListT>
+class work_group_memory;
+} // namespace ext::oneapi::experimental
+
+namespace detail {
+class FreeFunctionArgCollector;
+// Forward declaration so work_group_memory can befriend the free function
+// argument setter, allowing it to slice out the private work_group_memory_impl
+// base (mirroring the friendship granted to sycl::handler).
+template <typename DataT, typename PropertyListT>
+void setFreeFunctionArg(
+    FreeFunctionArgCollector &, int,
+    ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &);
+} // namespace detail
+
 namespace ext::oneapi::experimental {
 
 struct indeterminate_t {};
@@ -117,6 +134,13 @@ private:
   friend class sycl::handler; // needed in order for handler class to be aware
                               // of the private inheritance with
                               // work_group_memory_impl as base class
+
+  // Needed so the free function kernel direct submission path can slice out the
+  // work_group_memory_impl base class, just like sycl::handler does.
+  template <typename DataT_, typename PropertyListT_>
+  friend void sycl::_V1::detail::setFreeFunctionArg(
+      sycl::_V1::detail::FreeFunctionArgCollector &, int,
+      work_group_memory<DataT_, PropertyListT_> &);
 
   template <typename, typename> friend class dynamic_work_group_memory;
 

@@ -18,6 +18,8 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/free_function_kernel_args.hpp> // for collectFreeFunc...
+#include <sycl/detail/get_device_kernel_info.hpp>    // for getDeviceKernel...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/optional.hpp>
@@ -61,6 +63,10 @@ class device;
 class event;
 class queue;
 
+namespace detail {
+class FreeFunctionArgsStorage;
+} // namespace detail
+
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -76,6 +82,27 @@ event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
     detail::HostKernelRefBase &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
+    const detail::KernelPropertyHolderStructTy &Props,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+// Direct submission of a free function kernel, bypassing the handler. Unlike
+// the lambda path above there is no host kernel: the kernel is launched from
+// its explicit arguments, which are collected into ArgsStorage on the header
+// side (see sycl/detail/free_function_kernel_args.hpp). Ownership of
+// ArgsStorage is transferred to the runtime.
+event __SYCL_EXPORT submit_free_function_direct_with_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    detail::FreeFunctionArgsStorage *ArgsStorage,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
+    const detail::KernelPropertyHolderStructTy &Props,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+void __SYCL_EXPORT submit_free_function_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    detail::FreeFunctionArgsStorage *ArgsStorage,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
@@ -4111,6 +4138,46 @@ auto submit_kernel_direct_single_task(const queue &Queue,
       Queue, detail::nd_range_view(),
       std::forward<KernelTypeUniversalRef>(KernelFunc), DepEvents, Props,
       CodeLoc);
+}
+
+// Core submission of a free function kernel directly to a queue, bypassing the
+// handler. Unlike submit_kernel_direct above, the kernel is not wrapped in a
+// lambda: its identity comes from the free function Func itself, and its
+// explicit arguments Args... are collected and passed to the kernel directly.
+// This is the free-function analogue of submit_kernel_direct.
+template <auto *Func, bool EventNeeded, typename PropertiesT,
+          typename... ArgsT>
+auto submit_free_function_direct(const queue &Queue,
+                                 const detail::nd_range_view &RangeView,
+                                 sycl::span<const event> DepEvents,
+                                 const PropertiesT &Props,
+                                 const detail::code_location &CodeLoc,
+                                 ArgsT &&...Args) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+  detail::DeviceKernelInfo *DeviceKernelInfoPtr =
+      &detail::getDeviceKernelInfo<Func>();
+
+  detail::KernelPropertyHolderStructTy ParsedProperties =
+      extractKernelProperties(Props);
+
+  // Collect the explicit kernel arguments into source-owned storage. Ownership
+  // of the storage is transferred to the runtime via release().
+  detail::FreeFunctionArgCollector Collector =
+      detail::collectFreeFunctionArgs(std::forward<ArgsT>(Args)...);
+  detail::FreeFunctionArgsStorage *ArgsStorage = Collector.release();
+
+  if constexpr (EventNeeded) {
+    return submit_free_function_direct_with_event_impl(
+        Queue, RangeView, ArgsStorage, DeviceKernelInfoPtr, DepEvents,
+        ParsedProperties, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  } else {
+    submit_free_function_direct_without_event_impl(
+        Queue, RangeView, ArgsStorage, DeviceKernelInfoPtr, DepEvents,
+        ParsedProperties, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  }
 }
 } // namespace detail
 

@@ -189,13 +189,15 @@ struct SingleTaskFreeFunctionKernelWrapper;
 template <auto *Func, typename... ArgsT>
 void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
-  // Here and in the next function, we use the
-  // SingleTaskFreeFunctionKernelWrapper declared above to generate unique
-  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
-  // problems with other host compilers
-  detail::submit_kernel_direct_single_task<
-      detail::SingleTaskFreeFunctionKernelWrapper<Func, 1, ArgsT...>>(
-      std::move(Q), [Args...]() { Func(Args...); });
+  // Launch the free function kernel directly, bypassing the handler: its
+  // identity comes from Func and its arguments are passed explicitly, rather
+  // than wrapping Func in a lambda.
+  sycl::detail::submit_free_function_direct<
+      Func, /*EventNeeded=*/false,
+      sycl::ext::oneapi::experimental::empty_properties_t>(
+      Q, sycl::detail::nd_range_view(), {},
+      sycl::ext::oneapi::experimental::empty_properties_t{},
+      sycl::detail::code_location::current(), std::forward<ArgsT>(Args)...);
 }
 
 template <auto *Func, typename... ArgsT>
@@ -451,14 +453,15 @@ template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range,
                [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                ArgsT &&...Args) {
-  // Here and in the next 3 functions, we use the
-  // NdRangeFreeFunctionKernelWrapper declared above to generate unique
-  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
-  // problems with other host compilers
-  detail::submit_kernel_direct_parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 1, ArgsT...>>(
-      std::move(Q), Range,
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+  // Launch the free function kernel directly, bypassing the handler: its
+  // identity comes from Func and its arguments are passed explicitly, rather
+  // than wrapping Func in a lambda.
+  sycl::detail::submit_free_function_direct<
+      Func, /*EventNeeded=*/false,
+      sycl::ext::oneapi::experimental::empty_properties_t>(
+      Q, sycl::detail::nd_range_view(Range), {},
+      sycl::ext::oneapi::experimental::empty_properties_t{},
+      sycl::detail::code_location::current(), std::forward<ArgsT>(Args)...);
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
@@ -478,11 +481,16 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  detail::submit_kernel_direct_parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 3, ArgsT...>>(
-      std::move(Q), ConfigAccess.getRange(),
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); }, {},
-      ConfigAccess.getProperties());
+  // nd_range_view refers into a non-const nd_range, so copy the config's range
+  // into a local before constructing the view.
+  nd_range<Dimensions> Range = ConfigAccess.getRange();
+  // Launch the free function kernel directly, bypassing the handler: its
+  // identity comes from Func and its arguments are passed explicitly, rather
+  // than wrapping Func in a lambda.
+  sycl::detail::submit_free_function_direct<Func, /*EventNeeded=*/false,
+                                            Properties>(
+      Q, sycl::detail::nd_range_view(Range), {}, ConfigAccess.getProperties(),
+      sycl::detail::code_location::current(), std::forward<ArgsT>(Args)...);
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>

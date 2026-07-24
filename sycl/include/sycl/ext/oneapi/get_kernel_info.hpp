@@ -18,6 +18,7 @@
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
+#include <sycl/kernel.hpp>
 
 #include <vector>
 
@@ -55,6 +56,7 @@ get_kernel_info(const context &Ctx, const device &Dev) {
       sycl::detail::getDeviceKernelInfo<KernelName>();
   return sycl::detail::get_kernel_info_impl<Param>(CtxImpl, DevImpl, DKI);
 }
+
 
 // Queue variant - delegates to context+device
 template <typename KernelName, typename Param>

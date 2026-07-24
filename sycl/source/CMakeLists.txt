@@ -306,6 +306,7 @@ set(SYCL_COMMON_SOURCES
     "detail/error_handling/error_handling.cpp"
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
+    "detail/free_function_kernel_args.cpp"
     "detail/global_handler.cpp"
     "detail/graph/graph_impl.cpp"
     "detail/graph/dynamic_impl.cpp"

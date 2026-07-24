@@ -14,6 +14,19 @@ namespace sycl {
 inline namespace _V1 {
 
 class handler;
+
+namespace ext::oneapi::experimental {
+class raw_kernel_arg;
+} // namespace ext::oneapi::experimental
+
+namespace detail {
+class FreeFunctionArgCollector;
+// Forward declaration of the free function argument setter overload for
+// raw_kernel_arg so that raw_kernel_arg can befriend it below.
+void setFreeFunctionArg(FreeFunctionArgCollector &, int,
+                        ext::oneapi::experimental::raw_kernel_arg &&);
+} // namespace detail
+
 namespace ext::oneapi::experimental {
 
 namespace detail {
@@ -32,6 +45,9 @@ private:
   friend class sycl::handler;
   // For sycl_ext_oneapi_graph integration
   friend class detail::dynamic_parameter_impl;
+  // For free function kernel direct submission.
+  friend void sycl::_V1::detail::setFreeFunctionArg(
+      sycl::_V1::detail::FreeFunctionArgCollector &, int, raw_kernel_arg &&);
 };
 
 } // namespace ext::oneapi::experimental

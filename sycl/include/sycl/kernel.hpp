@@ -40,6 +40,11 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class kernel_impl;
 
+template <int Dimensions, typename LaunchProperties>
+size_t queryMaxNumWorkGroupsWithProps(
+    kernel_impl &impl, const device &Dev, sycl::range<Dimensions> Range,
+    LaunchProperties Props, size_t Bytes);
+
 /// This class is the default KernelName template parameter type for kernel
 /// invocation APIs such as single_task.
 class auto_name {};
