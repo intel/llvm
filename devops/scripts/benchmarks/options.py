@@ -55,6 +55,17 @@ class Options:
     pytorch_root: str = None
     offline: bool = False
     redownload: bool = False
+    # Use an existing compute-benchmarks source dir instead of cloning. When the
+    # dir is not a git repository, the benchmarks are always rebuilt.
+    benchmarks_source_dir: str = None
+    # liboffload library dir (-> OFFLOAD_INSTALL_DIR) and header dir
+    # (-> OFFLOAD_INCLUDE_DIR). When both are set, the OL SubmitKernel benchmark
+    # is built (via -DBUILD_OL=ON) and enabled.
+    offload_install_dir: str = None
+    offload_include_dir: str = None
+    # Backend name (e.g. level_zero/cuda/amdgpu/host) exported as
+    # FORCE_OFFLOAD_PLUGIN for the benchmark executable process.
+    force_offload_plugin: str = None
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3

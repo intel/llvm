@@ -124,8 +124,10 @@ class ComputeBenchmark(Benchmark):
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
         """Base runtimes supported by this benchmark, can be overridden."""
-        # By default, support all runtimes except SYCL_PREVIEW
-        return [r for r in RUNTIMES if r != RUNTIMES.SYCL_PREVIEW]
+        # By default, support all runtimes except SYCL_PREVIEW and OL.
+        # OL (liboffload) only provides a SubmitKernel binary, so it is opted
+        # into explicitly by that benchmark rather than supported by default.
+        return [r for r in RUNTIMES if r not in (RUNTIMES.SYCL_PREVIEW, RUNTIMES.OL)]
 
     def _extra_env_vars(self) -> dict:
         return {}

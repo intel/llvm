@@ -2,6 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import json
 import os
 from pathlib import Path
 import shutil
@@ -9,6 +10,10 @@ import shutil
 from utils.logger import log
 from utils.utils import run
 from options import options
+
+# Marker file written into build_dir after a successful build. Records a
+# fingerprint of the source tree so reruns can skip rebuilding.
+BUILD_COMPLETE_MARKER = "benchmark_build_complete.json"
 
 
 class GitProject:
@@ -21,6 +26,7 @@ class GitProject:
         use_installdir: bool = True,
         no_suffix_src: bool = False,
         shallow_clone: bool = True,
+        src_dir_override: Path | None = None,
     ) -> None:
         self._url = url
         self._ref = ref
@@ -29,6 +35,7 @@ class GitProject:
         self._use_installdir = use_installdir
         self._no_suffix_src = no_suffix_src
         self._shallow_clone = shallow_clone
+        self._src_dir_override = src_dir_override
         self._rebuild_needed = self._setup_repo()
 
     @property
@@ -37,6 +44,8 @@ class GitProject:
 
     @property
     def src_dir(self) -> Path:
+        if self._src_dir_override is not None:
+            return self._src_dir_override
         suffix = "" if self._no_suffix_src else "-src"
         return self._directory / f"{self._name}{suffix}"
 
@@ -48,15 +57,56 @@ class GitProject:
     def install_dir(self) -> Path:
         return self._directory / f"{self._name}-install"
 
+    @property
+    def _build_marker_path(self) -> Path:
+        return self.build_dir / BUILD_COMPLETE_MARKER
+
+    def _source_fingerprint(self) -> dict | None:
+        """Fingerprint the source tree for build-completion tracking.
+
+        Returns a dict with the current commit and `git status --porcelain`
+        output, or None if src_dir is not a git repository (in which case the
+        caller should always rebuild).
+        """
+        try:
+            commit = run("git rev-parse HEAD", cwd=self.src_dir).stdout.decode().strip()
+            status = (
+                run("git status --porcelain", cwd=self.src_dir).stdout.decode().strip()
+            )
+        except Exception as e:
+            log.debug(
+                f"Could not fingerprint source for {self._name} at {self.src_dir}: {e}"
+            )
+            return None
+        return {"commit": commit, "status": status}
+
+    def mark_build_complete(self) -> None:
+        """Record a build-complete marker so reruns can skip rebuilding.
+
+        No-op when the source is not a git repository (nothing to fingerprint).
+        """
+        fingerprint = self._source_fingerprint()
+        if fingerprint is None:
+            return
+        try:
+            self.build_dir.mkdir(parents=True, exist_ok=True)
+            with open(self._build_marker_path, "w") as f:
+                json.dump(fingerprint, f)
+            log.debug(f"Wrote build-complete marker to {self._build_marker_path}")
+        except Exception as e:
+            log.debug(f"Failed to write build-complete marker for {self._name}: {e}")
+
+    def _read_build_marker(self) -> dict | None:
+        try:
+            with open(self._build_marker_path) as f:
+                return json.load(f)
+        except Exception:
+            return None
+
     def needs_rebuild(self) -> bool:
         if options.offline:
             log.debug("Rebuild is disabled due to --offline option.")
             return False
-        if self._rebuild_needed:
-            log.debug(
-                f"Rebuild needed because new sources were detected for project {self._name}."
-            )
-            return True
 
         dir_to_check = self.install_dir if self._use_installdir else self.build_dir
 
@@ -68,8 +118,25 @@ class GitProject:
                 f"{dir_to_check} does not exist or does not contain any file, rebuild needed."
             )
             return True
-        log.debug(f"{dir_to_check} exists and is not empty, no rebuild needed.")
-        return False
+
+        fingerprint = self._source_fingerprint()
+        if fingerprint is None:
+            log.debug(
+                f"Source for {self._name} is not a git repository, rebuild needed."
+            )
+            return True
+
+        marker = self._read_build_marker()
+        if marker == fingerprint:
+            log.debug(
+                f"Build-complete marker matches current source for {self._name}, no rebuild needed."
+            )
+            return False
+
+        log.debug(
+            f"Build-complete marker missing or stale for {self._name}, rebuild needed."
+        )
+        return True
 
     def configure(
         self,
@@ -109,6 +176,9 @@ class GitProject:
             ld_library=ld_library,
             timeout=timeout,
         )
+        # run() raises on non-zero exit, so reaching here means the build
+        # succeeded. Record a marker so identical reruns can skip rebuilding.
+        self.mark_build_complete()
 
     def install(self) -> None:
         """Installs the project."""
@@ -179,6 +249,11 @@ class GitProject:
         Returns:
             bool: True if the repository was cloned or updated, False if it was already up-to-date.
         """
+        if self._src_dir_override is not None:
+            log.debug(
+                f"Using provided source directory {self.src_dir} for {self._name}, skipping git operations."
+            )
+            return False
         if os.environ.get("LLVM_BENCHMARKS_UNIT_TESTING") == "1":
             log.debug(
                 f"Skipping git operations during unit testing of {self._name} (LLVM_BENCHMARKS_UNIT_TESTING=1)."
