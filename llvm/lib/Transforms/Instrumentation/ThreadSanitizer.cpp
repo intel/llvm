@@ -552,11 +552,13 @@ void ThreadSanitizerOnSpirv::instrumentGlobalVariables() {
   ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
-  GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__TsanDeviceGlobalMetadata", nullptr,
+  std::string TsanDeviceGlobalMetadataName =
+      ("__TsanDeviceGlobalMetadata_" + computeMetadataUniqueId(M)).str();
+  GlobalVariable *TsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, TsanDeviceGlobalMetadataName, nullptr,
       GlobalValue::NotThreadLocal, 1);
-  MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  TsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
 }
 
 void ThreadSanitizerOnSpirv::instrumentStaticLocalMemory() {
@@ -695,7 +697,6 @@ void ThreadSanitizerOnSpirv::initializeKernelCallerMap(Function *F) {
 
 void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
-  SmallVector<uint8_t, 256> KernelNamesBytes;
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
   // following structure:
@@ -710,7 +711,6 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
 
       if (isSupportedSPIRKernel(F)) {
         auto KernelName = F.getName();
-        KernelNamesBytes.append(KernelName.begin(), KernelName.end());
         auto *KernelNameGV = GetOrCreateGlobalString(
             "__tsan_kernel", KernelName, kSpirOffloadConstantAS);
         SpirKernelsMetadata.emplace_back(ConstantStruct::get(
@@ -723,9 +723,11 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  std::string TsanKernelMetadataName =
+      ("__TsanKernelMetadata_" + computeMetadataUniqueId(M)).str();
   GlobalVariable *TsanSpirKernelMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__TsanKernelMetadata", nullptr,
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, TsanKernelMetadataName, nullptr,
       GlobalValue::NotThreadLocal, 1);
   TsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
   // Add device global attributes
@@ -733,9 +735,8 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   TsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   TsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
-  TsanSpirKernelMetadata->addAttribute(
-      "sycl-unique-id",
-      computeKernelMetadataUniqueId("__TsanKernelMetadata", KernelNamesBytes));
+  TsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       TsanKernelMetadataName);
   TsanSpirKernelMetadata->setDSOLocal(true);
 }
 

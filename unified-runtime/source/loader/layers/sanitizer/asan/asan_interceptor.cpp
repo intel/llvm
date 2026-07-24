@@ -527,65 +527,81 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
   auto CI = getContextInfo(Context);
   std::vector<ur_device_handle_t> Devices = GetDevices(Program);
 
-  for (auto Device : Devices) {
-    size_t MetadataSize;
-    void *MetadataPtr;
-    ur_result_t Result =
-        getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
-            Device, Program, kSPIR_AsanSpirKernelMetadata, &MetadataSize,
-            &MetadataPtr);
-    if (Result != UR_RESULT_SUCCESS) {
-      continue;
-    }
+  // Query all kernel names from the program and check whether any of them
+  // starts with "__sanitizerModule". If none does, the program was not
+  // instrumented by ASan and we can skip the rest of this function.
+  // The kernel name is "__sanitizerModule_<uniqueId>" and the corresponding
+  // metadata global is "__AsanKernelMetadata_<uniqueId>"; we extract the
+  // unique-id suffix here so we can look up the right global below.
+  std::vector<std::string> AsanKernelMetadataNames;
+  UR_CALL(GetProgramMetadataNames(Program, kSPIR_AsanSpirKernelMetadataPrefix,
+                                  AsanKernelMetadataNames));
+  if (AsanKernelMetadataNames.empty()) {
+    UR_LOG_L(getContext()->logger, INFO, "Program is not sanitized");
+    return UR_RESULT_SUCCESS;
+  }
 
-    const uint64_t NumOfSpirKernel = MetadataSize / sizeof(SpirKernelInfo);
-    assert((MetadataSize % sizeof(SpirKernelInfo) == 0) &&
-           "SpirKernelMetadata size is not correct");
-
-    ur_queue_handle_t InternalQueue = CI->getInternalQueue(Device);
-
-    std::vector<SpirKernelInfo> SKInfo(NumOfSpirKernel);
-    Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-        InternalQueue, true, &SKInfo[0], MetadataPtr,
-        sizeof(SpirKernelInfo) * NumOfSpirKernel, 0, nullptr, nullptr);
-    if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR, "Can't read the value of <{}>: {}",
-               kSPIR_AsanSpirKernelMetadata, Result);
-      return Result;
-    }
-
-    auto PI = getProgramInfo(Program);
-    assert(PI != nullptr && "unregistered program!");
-    for (const auto &SKI : SKInfo) {
-      if (SKI.Size == 0) {
+  auto PI = getProgramInfo(Program);
+  assert(PI != nullptr && "unregistered program!");
+  for (auto Device : Devices)
+    for (const auto &AsanKernelMetadataName : AsanKernelMetadataNames) {
+      size_t MetadataSize;
+      void *MetadataPtr;
+      ur_result_t Result =
+          getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
+              Device, Program, AsanKernelMetadataName.c_str(), &MetadataSize,
+              &MetadataPtr);
+      if (Result != UR_RESULT_SUCCESS) {
         continue;
       }
-      std::vector<char> KernelNameV(SKI.Size);
+
+      const uint64_t NumOfSpirKernel = MetadataSize / sizeof(SpirKernelInfo);
+      assert((MetadataSize % sizeof(SpirKernelInfo) == 0) &&
+             "SpirKernelMetadata size is not correct");
+
+      ur_queue_handle_t InternalQueue = CI->getInternalQueue(Device);
+
+      std::vector<SpirKernelInfo> SKInfo(NumOfSpirKernel);
       Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-          InternalQueue, true, KernelNameV.data(), (void *)SKI.KernelName,
-          sizeof(char) * SKI.Size, 0, nullptr, nullptr);
+          InternalQueue, true, &SKInfo[0], MetadataPtr,
+          sizeof(SpirKernelInfo) * NumOfSpirKernel, 0, nullptr, nullptr);
       if (Result != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, ERR, "Can't read kernel name: {}",
-                 Result);
+        UR_LOG_L(getContext()->logger, ERR, "Can't read the value of <{}>: {}",
+                 AsanKernelMetadataName, Result);
         return Result;
       }
 
-      std::string KernelName =
-          std::string(KernelNameV.begin(), KernelNameV.end());
-      bool CheckShadowBounds =
-          SKI.Flags & SanitizedKernelFlags::ASAN_CHECK_SHADOW_BOUNDS;
+      for (const auto &SKI : SKInfo) {
+        if (SKI.Size == 0) {
+          continue;
+        }
+        std::vector<char> KernelNameV(SKI.Size);
+        Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            InternalQueue, true, KernelNameV.data(), (void *)SKI.KernelName,
+            sizeof(char) * SKI.Size, 0, nullptr, nullptr);
+        if (Result != UR_RESULT_SUCCESS) {
+          UR_LOG_L(getContext()->logger, ERR, "Can't read kernel name: {}",
+                   Result);
+          return Result;
+        }
 
-      UR_LOG_L(getContext()->logger, INFO,
-               "SpirKernel(name='{}', isInstrumented={}, checkShadowBounds={})",
-               KernelName, true, CheckShadowBounds);
+        std::string KernelName =
+            std::string(KernelNameV.begin(), KernelNameV.end());
+        bool CheckShadowBounds =
+            SKI.Flags & SanitizedKernelFlags::ASAN_CHECK_SHADOW_BOUNDS;
 
-      PI->KernelMetadataMap[KernelName] =
-          ProgramInfo::KernelMetadata{CheckShadowBounds};
+        UR_LOG_L(
+            getContext()->logger, INFO,
+            "SpirKernel(name='{}', isInstrumented={}, checkShadowBounds={})",
+            KernelName, true, CheckShadowBounds);
+
+        PI->KernelMetadataMap[KernelName] =
+            ProgramInfo::KernelMetadata{CheckShadowBounds};
+      }
     }
-    UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
-             PI->KernelMetadataMap.size());
-  }
 
+  UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
+           PI->KernelMetadataMap.size());
   return UR_RESULT_SUCCESS;
 }
 
@@ -598,51 +614,67 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   auto ProgramInfo = getProgramInfo(Program);
   assert(ProgramInfo != nullptr && "unregistered program!");
 
+  std::vector<std::string> AsanDeviceGlobalMetadataNames;
+  UR_CALL(GetProgramMetadataNames(Program, kSPIR_AsanDeviceGlobalMetadataPrefix,
+                                  AsanDeviceGlobalMetadataNames));
+  if (AsanDeviceGlobalMetadataNames.empty())
+    return UR_RESULT_SUCCESS;
+
   for (auto Device : Devices) {
     ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
+    for (const auto &AsanDeviceGlobalMetadataName :
+         AsanDeviceGlobalMetadataNames) {
 
-    size_t MetadataSize;
-    void *MetadataPtr;
-    auto Result = getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
-        Device, Program, kSPIR_AsanDeviceGlobalMetadata, &MetadataSize,
-        &MetadataPtr);
-    if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, INFO, "No device globals");
-      continue;
+      size_t MetadataSize;
+      void *MetadataPtr;
+      auto Result =
+          getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
+              Device, Program, AsanDeviceGlobalMetadataName.c_str(),
+              &MetadataSize, &MetadataPtr);
+      if (Result != UR_RESULT_SUCCESS)
+        continue;
+
+      const uint64_t NumOfDeviceGlobal =
+          MetadataSize / sizeof(DeviceGlobalInfo);
+      assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
+             "DeviceGlobal metadata size is not correct");
+      std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
+      Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+          InternalQueue, true, &GVInfos[0], MetadataPtr,
+          sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
+      if (Result != UR_RESULT_SUCCESS) {
+        UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
+                 AsanDeviceGlobalMetadataName, Result);
+        return Result;
+      }
+
+      for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
+        auto AI = std::make_shared<AllocInfo>(
+            AllocInfo{GVInfos[i].Addr,
+                      GVInfos[i].Addr,
+                      GVInfos[i].Addr + GVInfos[i].Size,
+                      GVInfos[i].SizeWithRedZone,
+                      AllocType::DEVICE_GLOBAL,
+                      false,
+                      Context,
+                      Device,
+                      GetCurrentBacktrace(),
+                      {}});
+
+        getDeviceInfo(Device)->insertAllocInfo(AI);
+        ProgramInfo->AllocInfoForGlobals.emplace(AI);
+
+        std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+        m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
+      }
     }
+  }
 
-    const uint64_t NumOfDeviceGlobal = MetadataSize / sizeof(DeviceGlobalInfo);
-    assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
-           "DeviceGlobal metadata size is not correct");
-    std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
-    Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-        InternalQueue, true, &GVInfos[0], MetadataPtr,
-        sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
-    if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
-               kSPIR_AsanDeviceGlobalMetadata, Result);
-      return Result;
-    }
-
-    for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
-      auto AI = std::make_shared<AllocInfo>(
-          AllocInfo{GVInfos[i].Addr,
-                    GVInfos[i].Addr,
-                    GVInfos[i].Addr + GVInfos[i].Size,
-                    GVInfos[i].SizeWithRedZone,
-                    AllocType::DEVICE_GLOBAL,
-                    false,
-                    Context,
-                    Device,
-                    GetCurrentBacktrace(),
-                    {}});
-
-      getDeviceInfo(Device)->insertAllocInfo(AI);
-      ProgramInfo->AllocInfoForGlobals.emplace(AI);
-
-      std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-      m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
-    }
+  if (ProgramInfo->AllocInfoForGlobals.empty()) {
+    UR_LOG_L(getContext()->logger, INFO, "No device global");
+  } else {
+    UR_LOG_L(getContext()->logger, INFO, "Number of device globals: {}",
+             ProgramInfo->AllocInfoForGlobals.size());
   }
 
   return UR_RESULT_SUCCESS;

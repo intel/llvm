@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
+#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
@@ -41,10 +42,12 @@ struct EliminateDeadCheck : public InstVisitor<EliminateDeadCheck> {
       InstToErase.push_back(&CI);
   }
 
-  void eraseDeadCheck() {
+  bool eraseDeadCheck() {
+    bool Changed = !InstToErase.empty();
     for (auto *CI : InstToErase)
       CI->eraseFromParent();
     InstToErase.clear();
+    return Changed;
   }
 
 private:
@@ -52,22 +55,24 @@ private:
 };
 
 static bool FixSanitizerKernelMetadata(Module &M) {
-  auto *KernelMetadata = M.getNamedGlobal("__AsanKernelMetadata");
+  SmallVector<GlobalVariable *, 4> KernelMetadatas;
+  for (GlobalVariable &GV : M.globals()) {
+    auto GVName = GV.getName();
+    if (GVName.starts_with("__AsanKernelMetadata") ||
+        GVName.starts_with("__MsanKernelMetadata") ||
+        GVName.starts_with("__TsanKernelMetadata")) {
+      KernelMetadatas.push_back(&GV);
+    }
+  }
 
-  if (!KernelMetadata)
-    KernelMetadata = M.getNamedGlobal("__MsanKernelMetadata");
-
-  if (!KernelMetadata)
-    KernelMetadata = M.getNamedGlobal("__TsanKernelMetadata");
-
-  if (!KernelMetadata)
+  if (KernelMetadatas.empty())
     return false;
 
   auto &DL = M.getDataLayout();
   auto &Ctx = M.getContext();
 
   // Fix device global type, by wrapping a structure type
-  {
+  for (GlobalVariable *KernelMetadata : KernelMetadatas) {
     assert(KernelMetadata->getValueType()->isArrayTy());
 
     auto *KernelMetadataOld = KernelMetadata;
@@ -84,33 +89,41 @@ static bool FixSanitizerKernelMetadata(Module &M) {
     KernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
     KernelMetadata->setDSOLocal(true);
     KernelMetadata->copyAttributesFrom(KernelMetadataOld);
-
     KernelMetadataOld->eraseFromParent();
+
+    // Fix attributes
+    KernelMetadata->addAttribute(
+        "sycl-device-global-size",
+        std::to_string(DL.getTypeAllocSize(KernelMetadata->getValueType())));
+
+    // Fix metadata
+    unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
+
+    SmallVector<Metadata *, 1> MDOps;
+
+    SmallVector<Metadata *, 3> MD;
+    auto *Ty = Type::getInt32Ty(Ctx);
+    MD.push_back(ConstantAsMetadata::get(
+        Constant::getIntegerValue(Ty, APInt(32, SPIRV_HOST_ACCESS_DECOR))));
+    MD.push_back(
+        ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, 0))));
+    MD.push_back(MDString::get(Ctx, "_Z20__SanitizerKernelMetadata"));
+
+    MDOps.push_back(MDNode::get(Ctx, MD));
+
+    KernelMetadata->addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
   }
 
-  // Fix attributes
-  KernelMetadata->addAttribute(
-      "sycl-device-global-size",
-      std::to_string(DL.getTypeAllocSize(KernelMetadata->getValueType())));
-
-  // Fix metadata
-  unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
-
-  SmallVector<Metadata *, 1> MDOps;
-
-  SmallVector<Metadata *, 3> MD;
-  auto *Ty = Type::getInt32Ty(Ctx);
-  MD.push_back(ConstantAsMetadata::get(
-      Constant::getIntegerValue(Ty, APInt(32, SPIRV_HOST_ACCESS_DECOR))));
-  MD.push_back(
-      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, 0))));
-  MD.push_back(MDString::get(Ctx, "_Z20__SanitizerKernelMetadata"));
-
-  MDOps.push_back(MDNode::get(Ctx, MD));
-
-  KernelMetadata->addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
-
   return true;
+}
+
+// SPIR-V does not support weak_odr linkage. Change sanitizer configuration
+// globals to linkonce_odr (requires SPV_KHR_linkonce_odr).
+static void FixWeakGlobalVariables(Module &M) {
+  if (GlobalVariable *GV = M.getNamedGlobal("__asan_check_shadow_bounds"))
+    GV->setLinkage(GlobalVariable::LinkOnceODRLinkage);
+  if (GlobalVariable *GV = M.getNamedGlobal("__msan_track_origins"))
+    GV->setLinkage(GlobalVariable::LinkOnceODRLinkage);
 }
 
 PreservedAnalyses SanitizerPostOptimizerPass::run(Module &M,
@@ -118,11 +131,13 @@ PreservedAnalyses SanitizerPostOptimizerPass::run(Module &M,
   if (!FixSanitizerKernelMetadata(M))
     return PreservedAnalyses::all();
 
-  if (M.getNamedGlobal("__MsanKernelMetadata")) {
+  if (sycl::isModuleUsingMsan(M)) {
     EliminateDeadCheck V;
     V.visit(M);
     V.eraseDeadCheck();
   }
+
+  FixWeakGlobalVariables(M);
 
   return PreservedAnalyses::none();
 }

@@ -24,6 +24,7 @@
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SanitizerPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/SpecializationConstants.h"
 #include "llvm/SYCLPostLink/Utils.h"
 #include "llvm/Support/CommandLine.h"
@@ -472,6 +473,7 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
     SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2> &MMs =
         *ModulesOrErr;
     assert(MMs.size() && "at least one module is expected after ESIMD split");
+    Modified |= llvm::sycl_post_link::handleSanitizers(MMs);
     SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2>
         MMsWithDefaultSpecConsts;
     Modified |= llvm::sycl_post_link::handleSpecializationConstants(
