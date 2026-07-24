@@ -41,8 +41,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     // NOTE: Only checks for LLVMSYCL.lib existence (release variant).
     // Debug vs release library selection happens at link time based on CRT
     // flags.
-    if (DriverDir.starts_with(SysRoot) &&
-        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
       SmallString<128> LibDir(DriverDir);
       llvm::sys::path::append(LibDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
 
@@ -62,8 +61,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     SmallString<128> FlatLibPath(DriverDir);
     llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME, "libsycl.so");
 
-    if (DriverDir.starts_with(SysRoot) &&
-        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
       // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
       if (D.getVFS().exists(LibPath))
         llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME, HostTriple.str());

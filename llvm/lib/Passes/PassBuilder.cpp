@@ -2887,7 +2887,7 @@ PassBuilder::parseRegAllocFilter(StringRef FilterName) {
 
 LLVM_ATTRIBUTE_NOINLINE static void printPassNameList(StringTable PassNames,
                                                       raw_ostream &OS) {
-  for (StringRef PassName : drop_begin(PassNames))
+  for (StringRef PassName : PassNames)
     OS << "  " << PassName << '\n';
 }
 
@@ -2895,7 +2895,6 @@ LLVM_ATTRIBUTE_NOINLINE static void
 printPassNameListWithParams(StringTable PassNames, raw_ostream &OS) {
   auto I = PassNames.begin();
   auto End = PassNames.end();
-  ++I;
   while (I != End) {
     StringRef Name = *I;
     ++I;
