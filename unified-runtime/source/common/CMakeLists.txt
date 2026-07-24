@@ -80,12 +80,12 @@ if(umf_FOUND)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-  # commit a190c7c07858b1668c9204d169ce47b78574769d
-  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Wed Jul 8 13:45:13 2026 +0200
-  # Merge pull request #1585 from wenju-he/hwloc-external-project-add
-  # Build hwloc via ExternalProject_Add instead of raw add_custom_command
-  set(UMF_TAG v1.2.0-dev2)
+  # commit a12247bc1f59494ad9f08ac42886043cbcfe5b76
+  # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
+  # Date:   Thu Jul 23 12:32:00 2026 +0200
+  # Merge pull request #1594 from bratpiorka/rrudnick_ze_relaxed_alloc
+  # Always use relaxed allocation limits for L0 host mem
+  set(UMF_TAG v1.2.0-dev3)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

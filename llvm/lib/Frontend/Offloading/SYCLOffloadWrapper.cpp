@@ -58,6 +58,8 @@ int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
     return 2;
   case SYCLBinaryImageFormat::BIF_LLVMBC:
     return 3;
+  case SYCLBinaryImageFormat::BIF_Compressed:
+    return 4;
   default:
     llvm_unreachable("unexpected SYCLBinaryImageFormat");
   }
