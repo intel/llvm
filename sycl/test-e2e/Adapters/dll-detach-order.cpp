@@ -8,6 +8,7 @@
 
 // whatever adapter THIS is
 // CHECK: ---> urAdapterRelease
-// CHECK: <LOADER>[INFO]: unloaded adapter
+// Statically-linked adapters have no library to unload, so the loader's
+// "unloaded adapter" message is only emitted for dynamically-loaded adapters.
 
 // CHECK: ---> urLoaderTearDown

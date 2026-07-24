@@ -8,26 +8,36 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
+// Pulls in the L0 umf2urResult customization point (defines
+// UMF_GET_PROVIDER_NATIVE_ERROR) and <umf_helpers.hpp> itself. Must precede any
+// other include that reaches <umf_helpers.hpp>.
+#include "helpers/shared_helpers.hpp"
 
 #include "unified-runtime/ur_api.h"
-#include "ur_pool_manager.hpp"
+#include <functional>
+#include <optional>
 #include <set>
-#include <umf_helpers.hpp>
+
+#include <umf_pools/disjoint_pool_config_parser.hpp>
+
+#include "ur_pool_manager.hpp"
+#include <ur/ur.hpp>
+
+namespace ur::level_zero {
 
 class EnqueuedPool {
 public:
   struct Allocation {
     void *Ptr;
     size_t Size;
-    ur_event_handle_t Event;
+    ::ur_event_handle_t Event;
     // Queue handle, used as an identifier for the associated queue.
     // This can either be a `ur_queue_handle_t` or a pointer to a v2 queue
     // object.
     void *Queue;
   };
 
-  using event_release_callback_t = ur_result_t (*)(ur_event_handle_t);
+  using event_release_callback_t = ur_result_t (*)(::ur_event_handle_t);
   using memory_free_callback_t = std::function<ur_result_t(void *)>;
 
   EnqueuedPool(event_release_callback_t EventReleaseFn,
@@ -37,7 +47,7 @@ public:
 
   ~EnqueuedPool();
   std::optional<Allocation> getBestFit(size_t Size, void *Queue);
-  void insert(void *Ptr, size_t Size, ur_event_handle_t Event, void *Queue);
+  void insert(void *Ptr, size_t Size, ::ur_event_handle_t Event, void *Queue);
   bool cleanup();
   bool cleanupForQueue(void *Queue);
 
@@ -60,3 +70,5 @@ private:
   event_release_callback_t EventReleaseFn;
   memory_free_callback_t MemFreeFn;
 };
+
+} // namespace ur::level_zero

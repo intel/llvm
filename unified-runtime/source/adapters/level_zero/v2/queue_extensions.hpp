@@ -7,6 +7,8 @@
 
 #include "unified-runtime/ur_api.h"
 
+namespace ur::level_zero::v2 {
+
 struct ur_queue_extensions {
   // Non-batched queues don't need to perform any action
   //
@@ -21,3 +23,5 @@ struct ur_queue_extensions {
 
   virtual bool isInOrder() = 0;
 };
+
+} // namespace ur::level_zero::v2

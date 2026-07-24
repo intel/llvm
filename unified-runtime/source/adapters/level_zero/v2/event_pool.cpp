@@ -12,7 +12,7 @@
 #include "queue_api.hpp"
 #include "unified-runtime/ur_api.h"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 static constexpr size_t EVENTS_BURST = 64;
 
@@ -69,4 +69,4 @@ event_flags_t event_pool::getFlags() const {
   return getProvider()->eventFlags();
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

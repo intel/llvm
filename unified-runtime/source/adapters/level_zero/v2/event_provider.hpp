@@ -18,7 +18,7 @@
 #include <vector>
 #include <ze_api.h>
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 using event_flags_t = uint32_t;
 enum event_flag_t {
@@ -54,4 +54,4 @@ public:
   virtual event_flags_t eventFlags() const = 0;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

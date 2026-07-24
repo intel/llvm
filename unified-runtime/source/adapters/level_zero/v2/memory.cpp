@@ -8,12 +8,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory.hpp"
-
-#include "../ur_interface_loader.hpp"
 #include "context.hpp"
+#include "ur_interface_loader.hpp"
 
-#include "../helpers/memory_helpers.hpp"
-#include "../image_common.hpp"
+#include "../common/helpers/memory_helpers.hpp"
+#include "../common/image_common.hpp"
+#include "../common/platform.hpp"
+
+namespace ur::level_zero::v2 {
 
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {
@@ -507,11 +509,11 @@ ur_mem_sub_buffer_t::ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset,
                                          device_access_mode_t accessMode)
     : ur_mem_buffer_t(hParent->getBuffer()->getContext(), size, accessMode),
       hParent(hParent), offset(offset) {
-  ur::level_zero::urMemRetain(hParent);
+  ur::level_zero::v2::urMemRetain(v2_cast(hParent));
 }
 
 ur_mem_sub_buffer_t::~ur_mem_sub_buffer_t() {
-  ur::level_zero::urMemRelease(hParent);
+  ur::level_zero::v2::urMemRelease(v2_cast(hParent));
 }
 
 void *ur_mem_sub_buffer_t::getDevicePtr(ur_device_handle_t hDevice,
@@ -622,11 +624,12 @@ ur_mem_image_t::copy_desc_t ur_mem_image_t::getCopyRegions(
   return {{src.zeImage.get(), zeSrcRegion}, {src.zeImage.get(), zeDstRegion}};
 }
 
-namespace ur::level_zero {
-ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
+ur_result_t urMemBufferCreate(::ur_context_handle_t hContextOpque,
                               ur_mem_flags_t flags, size_t size,
                               const ur_buffer_properties_t *pProperties,
-                              ur_mem_handle_t *phBuffer) try {
+                              ::ur_mem_handle_t *phBufferOpque) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto phBuffer = v2_cast(phBufferOpque);
   if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
     // TODO:
     // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
@@ -662,10 +665,12 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
+ur_result_t urMemBufferPartition(::ur_mem_handle_t hMemOpque,
+                                 ur_mem_flags_t flags,
                                  ur_buffer_create_type_t bufferCreateType,
                                  const ur_buffer_region_t *pRegion,
-                                 ur_mem_handle_t *phMem) try {
+                                 ::ur_mem_handle_t *phMemOpque) try {
+  auto hMem = v2_cast(hMemOpque);
   auto hBuffer = hMem->getBuffer();
 
   UR_ASSERT(bufferCreateType == UR_BUFFER_CREATE_TYPE_REGION,
@@ -679,7 +684,7 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
   UR_ASSERT(isAccessCompatible(accessMode, hBuffer->getDeviceAccessMode()),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  *phMem = ur_mem_handle_t_::create<ur_mem_sub_buffer_t>(
+  *v2_cast(phMemOpque) = ur_mem_handle_t_::create<ur_mem_sub_buffer_t>(
       hMem, pRegion->origin, pRegion->size, accessMode);
 
   return UR_RESULT_SUCCESS;
@@ -687,9 +692,13 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) try {
+ur_result_t
+urMemBufferCreateWithNativeHandle(::ur_native_handle_t hNativeMem,
+                                  ::ur_context_handle_t hContextOpque,
+                                  const ur_mem_native_properties_t *pProperties,
+                                  ::ur_mem_handle_t *phMemOpque) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto phMem = v2_cast(phMemOpque);
   auto ptr = reinterpret_cast<void *>(hNativeMem);
   bool ownNativeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
@@ -747,9 +756,10 @@ ur_result_t urMemBufferCreateWithNativeHandle(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
+ur_result_t urMemGetInfo(::ur_mem_handle_t hMemOpque, ur_mem_info_t propName,
                          size_t propSize, void *pPropValue,
                          size_t *pPropSizeRet) try {
+  auto hMem = v2_cast(hMemOpque);
   // No locking needed here, we only read const members
 
   UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
@@ -784,14 +794,16 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
+ur_result_t urMemRetain(::ur_mem_handle_t hMemOpque) try {
+  auto hMem = v2_cast(hMemOpque);
   hMem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
+ur_result_t urMemRelease(::ur_mem_handle_t hMemOpque) try {
+  auto hMem = v2_cast(hMemOpque);
   if (!hMem->RefCount.release())
     return UR_RESULT_SUCCESS;
 
@@ -801,9 +813,10 @@ ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemGetNativeHandle(ur_mem_handle_t hMem,
-                                 ur_device_handle_t hDevice,
-                                 ur_native_handle_t *phNativeMem) try {
+ur_result_t urMemGetNativeHandle(::ur_mem_handle_t hMemOpque,
+                                 ::ur_device_handle_t hDeviceOpque,
+                                 ::ur_native_handle_t *phNativeMem) try {
+  auto hMem = v2_cast(hMemOpque);
   if (hMem->isImage()) {
     auto hImage = hMem->getImage();
     *phNativeMem = reinterpret_cast<ur_native_handle_t>(hImage->getZeImage());
@@ -815,26 +828,29 @@ ur_result_t urMemGetNativeHandle(ur_mem_handle_t hMem,
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
   wait_list_view emptyWaitListView(nullptr, 0);
-  auto ptr = hBuffer->getDevicePtr(
-      hDevice, ur_mem_buffer_t::device_access_mode_t::read_write, 0,
-      hBuffer->getSize(), nullptr, emptyWaitListView);
+  auto ptr =
+      hBuffer->getDevicePtr(common_cast(hDeviceOpque),
+                            ur_mem_buffer_t::device_access_mode_t::read_write,
+                            0, hBuffer->getSize(), nullptr, emptyWaitListView);
   *phNativeMem = reinterpret_cast<ur_native_handle_t>(ptr);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemImageCreate(ur_context_handle_t hContext, ur_mem_flags_t flags,
+ur_result_t urMemImageCreate(::ur_context_handle_t hContextOpque,
+                             ur_mem_flags_t flags,
                              const ur_image_format_t *pImageFormat,
                              const ur_image_desc_t *pImageDesc, void *pHost,
-                             ur_mem_handle_t *phMem) try {
+                             ::ur_mem_handle_t *phMemOpque) try {
+  auto hContext = v2_cast(hContextOpque);
   // TODO: implement read-only, write-only
   if ((flags & UR_MEM_FLAG_READ_WRITE) == 0) {
     die("urMemImageCreate: Level-Zero implements only read-write buffer,"
         "no read-only or write-only yet.");
   }
 
-  *phMem = ur_mem_handle_t_::create<ur_mem_image_t>(
+  *v2_cast(phMemOpque) = ur_mem_handle_t_::create<ur_mem_image_t>(
       hContext, flags, pImageFormat, pImageDesc, pHost);
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -842,20 +858,22 @@ ur_result_t urMemImageCreate(ur_context_handle_t hContext, ur_mem_flags_t flags,
 }
 
 ur_result_t urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
+    ::ur_native_handle_t hNativeMem, ::ur_context_handle_t hContextOpque,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) try {
+    const ur_mem_native_properties_t *pProperties,
+    ::ur_mem_handle_t *phMemOpque) try {
+  auto hContext = v2_cast(hContextOpque);
   auto zeImage = reinterpret_cast<ze_image_handle_t>(hNativeMem);
   bool ownNativeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
-  *phMem = ur_mem_handle_t_::create<ur_mem_image_t>(
+  *v2_cast(phMemOpque) = ur_mem_handle_t_::create<ur_mem_image_t>(
       hContext, pImageFormat, pImageDesc, zeImage, ownNativeHandle);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
+ur_result_t urMemImageGetInfo(::ur_mem_handle_t /*hMemory*/,
                               ur_image_info_t /*propName*/, size_t /*propSize*/,
                               void * /*pPropValue*/,
                               size_t * /*pPropSizeRet*/) {
@@ -864,7 +882,7 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
+ur_result_t urIPCGetMemHandleExp(::ur_context_handle_t, void *pMem,
                                  void **ppIPCMemHandleData,
                                  size_t *pIPCMemHandleDataSizeRet) {
   umf_memory_pool_handle_t umfPool;
@@ -886,18 +904,20 @@ ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
       umfHandleSize));
 }
 
-ur_result_t urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {
+ur_result_t urIPCPutMemHandleExp(::ur_context_handle_t,
+                                 void *pIPCMemHandleData) {
   return umf::umf2urResult(
       umfPutIPCHandle(reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData)));
 }
 
-ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
-                                  ur_device_handle_t hDevice,
+ur_result_t urIPCOpenMemHandleExp(::ur_context_handle_t hContextOpque,
+                                  ::ur_device_handle_t hDeviceOpque,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem) {
-  auto *pool = hContext->getDefaultUSMPool()->getPool(
-      usm::pool_descriptor{hContext->getDefaultUSMPool(), hContext, hDevice,
-                           UR_USM_TYPE_DEVICE, false});
+  auto hContext = v2_cast(hContextOpque);
+  auto *pool = hContext->getDefaultUSMPool()->getPool(usm::pool_descriptor{
+      v2_cast(hContext->getDefaultUSMPool()), hContextOpque, hDeviceOpque,
+      UR_USM_TYPE_DEVICE, false});
   if (!pool)
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   umf_memory_pool_handle_t umfPool = pool->umfPool.get();
@@ -921,8 +941,8 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
       ppMem));
 }
 
-ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
+ur_result_t urIPCCloseMemHandleExp(::ur_context_handle_t, void *pMem) {
   return umf::umf2urResult(umfCloseIPCHandle(pMem));
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

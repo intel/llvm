@@ -14,9 +14,12 @@
 #include <utility>
 
 #include "../command_buffer_command.hpp"
-#include "../common.hpp"
+#include "../device.hpp"
+#include "../platform.hpp"
 #include "logger/ur_logger.hpp"
 #include <ur/ur.hpp>
+
+namespace ur::level_zero {
 
 using device_ptr_storage_t = std::vector<std::unique_ptr<char *>>;
 
@@ -45,4 +48,9 @@ ur_result_t createCommandHandleUnlocked(
     ur_platform_handle_t Platform,
     ur_result_t (*getZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
                                ur_device_handle_t),
+    kernel_command_handle *(*CreateCommandHandle)(
+        ur_exp_command_buffer_handle_t, ur_kernel_handle_t, uint64_t, uint32_t,
+        uint32_t, ur_kernel_handle_t *),
     ur_device_handle_t Device, std::unique_ptr<kernel_command_handle> &Command);
+
+} // namespace ur::level_zero

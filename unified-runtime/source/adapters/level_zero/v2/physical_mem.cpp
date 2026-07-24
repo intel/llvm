@@ -9,7 +9,7 @@
 
 #include "physical_mem.hpp"
 #include "../common.hpp"
-#include "../device.hpp"
+#include "../common/device.hpp"
 
 #ifdef __linux__
 #include <cerrno>
@@ -21,12 +21,15 @@
 
 #include "context.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::v2 {
 
-ur_result_t urPhysicalMemCreate(ur_context_handle_t hContext,
-                                ur_device_handle_t hDevice, size_t size,
+ur_result_t urPhysicalMemCreate(::ur_context_handle_t hContextOpque,
+                                ::ur_device_handle_t hDeviceOpque, size_t size,
                                 const ur_physical_mem_properties_t *pProperties,
-                                ur_physical_mem_handle_t *phPhysicalMem) {
+                                ::ur_physical_mem_handle_t *phPhysicalMem) {
+  auto hContext = v2_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
+
   ZeStruct<ze_physical_mem_desc_t> PhysicalMemDesc;
   PhysicalMemDesc.flags = 0;
   PhysicalMemDesc.size = size;
@@ -48,8 +51,8 @@ ur_result_t urPhysicalMemCreate(ur_context_handle_t hContext,
   ZE2UR_CALL(zePhysicalMemCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
                                    &PhysicalMemDesc, &ZePhysicalMem));
   try {
-    *phPhysicalMem = new ur_physical_mem_handle_t_(ZePhysicalMem, hContext,
-                                                   hDevice, size, EnableIpc);
+    *phPhysicalMem = common_cast(new ur_physical_mem_handle_t_(
+        ZePhysicalMem, hContextOpque, hDevice, size, EnableIpc));
   } catch (const std::bad_alloc &) {
     zePhysicalMemDestroy(hContext->getZeHandle(), ZePhysicalMem);
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -60,36 +63,39 @@ ur_result_t urPhysicalMemCreate(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urPhysicalMemRetain(ur_physical_mem_handle_t hPhysicalMem) {
-  hPhysicalMem->RefCount.retain();
+ur_result_t urPhysicalMemRetain(::ur_physical_mem_handle_t hPhysicalMemOpque) {
+  common_cast(hPhysicalMemOpque)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
+ur_result_t urPhysicalMemRelease(::ur_physical_mem_handle_t hPhysicalMemOpque) {
+  auto hPhysicalMem = common_cast(hPhysicalMemOpque);
   if (!hPhysicalMem->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (checkL0LoaderTeardown()) {
-    ZE2UR_CALL(zePhysicalMemDestroy, (hPhysicalMem->Context->getZeHandle(),
-                                      hPhysicalMem->ZePhysicalMem));
+    ZE2UR_CALL(zePhysicalMemDestroy,
+               (v2_cast(hPhysicalMem->Context)->getZeHandle(),
+                hPhysicalMem->ZePhysicalMem));
   }
   delete hPhysicalMem;
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urPhysicalMemGetInfo(ur_physical_mem_handle_t hPhysicalMem,
+ur_result_t urPhysicalMemGetInfo(::ur_physical_mem_handle_t hPhysicalMemOpque,
                                  ur_physical_mem_info_t propName,
                                  size_t propSize, void *pPropValue,
                                  size_t *pPropSizeRet) {
-
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  auto hPhysicalMem = common_cast(hPhysicalMemOpque);
 
   switch (propName) {
   case UR_PHYSICAL_MEM_INFO_CONTEXT:
     return ReturnValue(hPhysicalMem->Context);
   case UR_PHYSICAL_MEM_INFO_DEVICE:
-    return ReturnValue(hPhysicalMem->Device);
+    return ReturnValue(common_cast(hPhysicalMem->Device));
   case UR_PHYSICAL_MEM_INFO_SIZE:
     return ReturnValue(hPhysicalMem->Size);
   case UR_PHYSICAL_MEM_INFO_PROPERTIES: {
@@ -108,11 +114,12 @@ ur_result_t urPhysicalMemGetInfo(ur_physical_mem_handle_t hPhysicalMem,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t,
-                                     ur_physical_mem_handle_t hPhysMem,
+ur_result_t urIPCGetPhysMemHandleExp(::ur_context_handle_t,
+                                     ::ur_physical_mem_handle_t hPhysMemOpque,
                                      void **ppIPCPhysMemHandleData,
                                      size_t *pIPCPhysMemHandleDataSizeRet) {
 #ifdef __linux__
+  auto hPhysMem = common_cast(hPhysMemOpque);
   if (!hPhysMem->EnableIpc)
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
 
@@ -135,8 +142,8 @@ ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t,
   // hContext: zePhysicalMemGetProperties requires the same context that was
   // used to create the object.
   ze_result_t ZeRes = ZE_CALL_NOCHECK(
-      zePhysicalMemGetProperties,
-      (hPhysMem->Context->getZeHandle(), hPhysMem->ZePhysicalMem, &Props));
+      zePhysicalMemGetProperties, (v2_cast(hPhysMem->Context)->getZeHandle(),
+                                   hPhysMem->ZePhysicalMem, &Props));
   if (ZeRes != ZE_RESULT_SUCCESS) {
     if (ExportFd.fd >= 0)
       close(ExportFd.fd);
@@ -163,14 +170,14 @@ ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t,
   *pIPCPhysMemHandleDataSizeRet = sizeof(ZeIPCPhysMemHandleData);
   return UR_RESULT_SUCCESS;
 #else
-  (void)hPhysMem;
+  (void)hPhysMemOpque;
   (void)ppIPCPhysMemHandleData;
   (void)pIPCPhysMemHandleDataSizeRet;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif // __linux__
 }
 
-ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t,
+ur_result_t urIPCPutPhysMemHandleExp(::ur_context_handle_t,
                                      const void *pIPCPhysMemHandleData) {
 #ifdef __linux__
   auto *HandleData =
@@ -184,12 +191,15 @@ ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t,
 #endif // __linux__
 }
 
-ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
-                                      ur_device_handle_t hDevice,
+ur_result_t urIPCOpenPhysMemHandleExp(::ur_context_handle_t hContextOpque,
+                                      ::ur_device_handle_t hDeviceOpque,
                                       const void *pIPCPhysMemHandleData,
                                       size_t ipcPhysMemHandleDataSize,
-                                      ur_physical_mem_handle_t *phPhysMem) {
+                                      ::ur_physical_mem_handle_t *phPhysMem) {
 #ifdef __linux__
+  auto hContext = v2_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
+
   if (ipcPhysMemHandleDataSize != sizeof(ZeIPCPhysMemHandleData))
     return UR_RESULT_ERROR_INVALID_VALUE;
 
@@ -237,9 +247,9 @@ ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
     return ze2urResult(ZeRes);
 
   try {
-    *phPhysMem = new ur_physical_mem_handle_t_(ZePhysMem, hContext, hDevice,
-                                               HandleData->Size,
-                                               /*EnableIpc=*/true);
+    *phPhysMem = common_cast(
+        new ur_physical_mem_handle_t_(ZePhysMem, hContextOpque, hDevice,
+                                      HandleData->Size, /*EnableIpc=*/true));
   } catch (const std::bad_alloc &) {
     zePhysicalMemDestroy(hContext->getZeHandle(), ZePhysMem);
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -249,8 +259,8 @@ ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
   }
   return UR_RESULT_SUCCESS;
 #else
-  (void)hContext;
-  (void)hDevice;
+  (void)hContextOpque;
+  (void)hDeviceOpque;
   (void)pIPCPhysMemHandleData;
   (void)ipcPhysMemHandleDataSize;
   (void)phPhysMem;
@@ -258,12 +268,13 @@ ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
 #endif // __linux__
 }
 
-ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t,
-                                       ur_physical_mem_handle_t hPhysMem) {
+ur_result_t urIPCClosePhysMemHandleExp(::ur_context_handle_t hContextOpque,
+                                       ::ur_physical_mem_handle_t hPhysMem) {
   // Delegate to urPhysicalMemRelease so the refcount is respected: if the
   // handle has been retained (refcount > 1) it will not be destroyed until
   // all references are released.
-  return ur::level_zero::urPhysicalMemRelease(hPhysMem);
+  (void)hContextOpque;
+  return v2::urPhysicalMemRelease(hPhysMem);
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

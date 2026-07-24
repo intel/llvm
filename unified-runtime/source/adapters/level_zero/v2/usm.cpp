@@ -9,13 +9,16 @@
 
 #include "unified-runtime/ur_api.h"
 
-#include "../device.hpp"
+#include "../common/device.hpp"
+#include "../common/platform.hpp"
 #include "context.hpp"
 #include "umf_pools/disjoint_pool_config_parser.hpp"
 #include "usm.hpp"
 
 #include <umf/experimental/ctl.h>
 #include <umf/providers/provider_level_zero.h>
+
+namespace ur::level_zero::v2 {
 
 static inline void UMF_CALL_THROWS(umf_result_t res) {
   if (res != UMF_RESULT_SUCCESS) {
@@ -24,21 +27,6 @@ static inline void UMF_CALL_THROWS(umf_result_t res) {
     throw res;
   }
 }
-
-namespace umf {
-ur_result_t getProviderNativeError(const char *providerName,
-                                   int32_t nativeError) {
-  if (strcmp(providerName, "LEVEL_ZERO") == 0) {
-    auto zeResult = static_cast<ze_result_t>(nativeError);
-    if (zeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
-      return UR_RESULT_ERROR_INVALID_USM_SIZE;
-    }
-    return ze2urResult(zeResult);
-  }
-
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
 
 static std::optional<usm::DisjointPoolAllConfigs>
 initializeDisjointPoolConfig() {
@@ -100,11 +88,13 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
                   decltype(&umfLevelZeroMemoryProviderParamsDestroy)>
       params(hParams, &umfLevelZeroMemoryProviderParamsDestroy);
 
+  auto hContext = v2_cast(poolDescriptor.hContext);
   UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetContext(
-      hParams, poolDescriptor.hContext->getZeHandle()));
+      hParams, hContext->getZeHandle()));
 
+  auto hDevice = common_cast(poolDescriptor.hDevice);
   ze_device_handle_t level_zero_device_handle =
-      poolDescriptor.hDevice ? poolDescriptor.hDevice->ZeDevice : nullptr;
+      poolDescriptor.hDevice ? hDevice->ZeDevice : nullptr;
 
   UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetDevice(
       hParams, level_zero_device_handle));
@@ -121,9 +111,9 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
     // Make memory resident on the source device itself plus all peer devices
     // that have explicitly enabled peer access to it.
     zeDeviceHandles.push_back(level_zero_device_handle);
-    for (auto dev :
-         poolDescriptor.hContext->getDevicesWhichCanAccessAllocationsPresentOn(
-             poolDescriptor.hDevice)) {
+    for (auto dev : v2_cast(poolDescriptor.hContext)
+                        ->getDevicesWhichCanAccessAllocationsPresentOn(
+                            common_cast(poolDescriptor.hDevice))) {
       zeDeviceHandles.push_back(dev->ZeDevice);
     }
 
@@ -174,7 +164,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
   auto devicesAndSubDevices =
       CollectDevicesForUsmPoolCreation(hContext->getDevices());
   auto descriptors = usm::pool_descriptor::createFromDevices(
-      this, hContext, devicesAndSubDevices);
+      v2_cast(this), v2_cast(hContext), common_cast(devicesAndSubDevices));
   for (auto &desc : descriptors) {
     std::unique_ptr<UsmPool> usmPool;
     if (disjointPoolConfigs.has_value()) {
@@ -212,27 +202,30 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
   }
 
   // Create pool descriptor for single device provided
+  auto selfOpque = v2_cast(this);
+  auto hContextOpque = v2_cast(hContext);
+  auto hDeviceOpque = common_cast(hDevice);
   std::vector<usm::pool_descriptor> descriptors;
   {
     auto &desc = descriptors.emplace_back();
-    desc.poolHandle = this;
-    desc.hContext = hContext;
-    desc.hDevice = hDevice;
+    desc.poolHandle = selfOpque;
+    desc.hContext = hContextOpque;
+    desc.hDevice = hDeviceOpque;
     desc.type = UR_USM_TYPE_DEVICE;
   }
   {
     auto &desc = descriptors.emplace_back();
-    desc.poolHandle = this;
-    desc.hContext = hContext;
-    desc.hDevice = hDevice;
+    desc.poolHandle = selfOpque;
+    desc.hContext = hContextOpque;
+    desc.hDevice = hDeviceOpque;
     desc.type = UR_USM_TYPE_SHARED;
     desc.deviceReadOnly = false;
   }
   {
     auto &desc = descriptors.emplace_back();
-    desc.poolHandle = this;
-    desc.hContext = hContext;
-    desc.hDevice = hDevice;
+    desc.poolHandle = selfOpque;
+    desc.hContext = hContextOpque;
+    desc.hDevice = hDeviceOpque;
     desc.type = UR_USM_TYPE_SHARED;
     desc.deviceReadOnly = true;
   }
@@ -287,7 +280,7 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
   auto deviceFlags = getDeviceFlags(pUSMDesc);
 
   auto pool = getPool(usm::pool_descriptor{
-      this, hContext, hDevice, type,
+      v2_cast(this), v2_cast(hContext), common_cast(hDevice), type,
       bool(deviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY)});
   if (!pool) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -357,8 +350,8 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
                                         void *hQueue, bool isInOrderQueue,
                                         ur_device_handle_t hDevice,
                                         ur_usm_type_t type, size_t size) {
-  auto umfPool =
-      getPool(usm::pool_descriptor{this, hContext, hDevice, type, false});
+  auto umfPool = getPool(usm::pool_descriptor{
+      v2_cast(this), v2_cast(hContext), common_cast(hDevice), type, false});
   if (!umfPool) {
     return std::nullopt;
   }
@@ -368,12 +361,13 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
     return std::nullopt;
   }
 
+  auto hEvent = v2_cast(allocation->Event);
   if (allocation->Queue == hQueue && isInOrderQueue) {
-    if (allocation->Event)
-      allocation->Event->release();
+    if (hEvent)
+      hEvent->release();
     return std::make_pair(allocation->Ptr, nullptr);
   } else {
-    return std::make_pair(allocation->Ptr, allocation->Event);
+    return std::make_pair(allocation->Ptr, hEvent);
   }
 }
 
@@ -450,10 +444,11 @@ void ur_usm_pool_handle_t_::changeResidentDevice(ur_device_handle_t hDevice,
                                                  bool isAdding) {
   poolManager.forEachPoolWithDesc([=](const auto &desc, auto pool) {
     if (desc.supportsResidentDevices() && desc.hDevice &&
-        desc.hDevice->ZeDevice == hDevice->ZeDevice) {
+        common_cast(desc.hDevice)->ZeDevice == hDevice->ZeDevice) {
       UR_LOG(INFO, "found {} of srcDevice:{} valid to {} peerDevice:{}",
-             logger::makeStringFromStreamable(desc), desc.hDevice->Id.value(),
-             isAdding ? "add" : "remove", peerDevice->Id.value());
+             logger::makeStringFromStreamable(desc),
+             common_cast(desc.hDevice)->Id.value(), isAdding ? "add" : "remove",
+             peerDevice->Id.value());
       umf_memory_provider_handle_t hProvider;
       umf_result_t getProviderResult =
           umfPoolGetMemoryProvider(pool->umfPool.get(), &hProvider);
@@ -489,17 +484,18 @@ void ur_usm_pool_handle_t_::changeResidentDevice(ur_device_handle_t hDevice,
   });
 }
 
-namespace ur::level_zero {
 ur_result_t urUSMPoolCreate(
     /// [in] handle of the context object
-    ur_context_handle_t hContext,
+    ::ur_context_handle_t hContextOpque,
     /// [in] pointer to USM pool descriptor. Can be chained with
     /// ::ur_usm_pool_limits_desc_t
     ur_usm_pool_desc_t *pPoolDesc,
     /// [out] pointer to USM memory pool
-    ur_usm_pool_handle_t *hPool) try {
-  *hPool = new ur_usm_pool_handle_t_(hContext, pPoolDesc);
-  hContext->addUsmPool(*hPool);
+    ::ur_usm_pool_handle_t *hPoolOpque) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto hPool = new ur_usm_pool_handle_t_(hContext, pPoolDesc);
+  *hPoolOpque = v2_cast(hPool);
+  hContext->addUsmPool(hPool);
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);
@@ -509,8 +505,8 @@ ur_result_t urUSMPoolCreate(
 
 ur_result_t
 /// [in] pointer to USM memory pool
-urUSMPoolRetain(ur_usm_pool_handle_t hPool) try {
-  hPool->RefCount.retain();
+urUSMPoolRetain(::ur_usm_pool_handle_t hPoolOpque) try {
+  v2_cast(hPoolOpque)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);
@@ -520,7 +516,8 @@ urUSMPoolRetain(ur_usm_pool_handle_t hPool) try {
 
 ur_result_t
 /// [in] pointer to USM memory pool
-urUSMPoolRelease(ur_usm_pool_handle_t hPool) try {
+urUSMPoolRelease(::ur_usm_pool_handle_t hPoolOpque) try {
+  auto hPool = v2_cast(hPoolOpque);
   if (hPool->RefCount.release()) {
     hPool->getContextHandle()->removeUsmPool(hPool);
     delete hPool;
@@ -534,7 +531,7 @@ urUSMPoolRelease(ur_usm_pool_handle_t hPool) try {
 
 ur_result_t urUSMPoolGetInfo(
     /// [in] handle of the USM memory pool
-    ur_usm_pool_handle_t hPool,
+    ::ur_usm_pool_handle_t hPoolOpque,
     /// [in] name of the pool property to query
     ur_usm_pool_info_t propName,
     /// [in] size in bytes of the pool property value provided
@@ -543,6 +540,7 @@ ur_result_t urUSMPoolGetInfo(
     void *pPropValue,
     /// [out] size in bytes returned in pool property value
     size_t *pPropSizeRet) try {
+  auto hPool = v2_cast(hPoolOpque);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -562,11 +560,14 @@ ur_result_t urUSMPoolGetInfo(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urUSMPoolCreateExp(ur_context_handle_t hContext,
-                               ur_device_handle_t hDevice,
+ur_result_t urUSMPoolCreateExp(::ur_context_handle_t hContextOpque,
+                               ::ur_device_handle_t hDeviceOpque,
                                ur_usm_pool_desc_t *pPoolDesc,
-                               ur_usm_pool_handle_t *pPool) try {
-  *pPool = new ur_usm_pool_handle_t_(hContext, hDevice, pPoolDesc);
+                               ::ur_usm_pool_handle_t *pPoolOpque) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
+  auto pPool = v2_cast(pPoolOpque);
+  *pPool = new v2::ur_usm_pool_handle_t_(hContext, hDevice, pPoolDesc);
   hContext->addUsmPool(*pPool);
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
@@ -575,8 +576,9 @@ ur_result_t urUSMPoolCreateExp(ur_context_handle_t hContext,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urUSMPoolDestroyExp(ur_context_handle_t, ur_device_handle_t,
-                                ur_usm_pool_handle_t hPool) try {
+ur_result_t urUSMPoolDestroyExp(::ur_context_handle_t, ::ur_device_handle_t,
+                                ::ur_usm_pool_handle_t hPoolOpque) try {
+  auto hPool = v2_cast(hPoolOpque);
   if (hPool->RefCount.release()) {
     hPool->getContextHandle()->removeUsmPool(hPool);
     delete hPool;
@@ -588,9 +590,10 @@ ur_result_t urUSMPoolDestroyExp(ur_context_handle_t, ur_device_handle_t,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
+ur_result_t urUSMPoolGetInfoExp(::ur_usm_pool_handle_t hPoolOpque,
                                 ur_usm_pool_info_t propName, void *pPropValue,
                                 size_t *pPropSizeRet) {
+  auto hPool = v2_cast(hPoolOpque);
   size_t value = 0;
   switch (propName) {
   case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
@@ -625,7 +628,7 @@ ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUSMPoolSetInfoExp(ur_usm_pool_handle_t /*hPool*/,
+ur_result_t urUSMPoolSetInfoExp(::ur_usm_pool_handle_t /*hPoolOpque*/,
                                 ur_usm_pool_info_t propName,
                                 void * /*pPropValue*/, size_t propSize) {
   if (propSize < sizeof(size_t)) {
@@ -647,29 +650,34 @@ ur_result_t urUSMPoolSetInfoExp(ur_usm_pool_handle_t /*hPool*/,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUSMPoolGetDefaultDevicePoolExp(ur_context_handle_t hContext,
-                                             ur_device_handle_t,
-                                             ur_usm_pool_handle_t *pPool) {
+ur_result_t
+urUSMPoolGetDefaultDevicePoolExp(::ur_context_handle_t hContextOpque,
+                                 ::ur_device_handle_t,
+                                 ::ur_usm_pool_handle_t *pPoolOpque) {
+  auto hContext = v2_cast(hContextOpque);
   // Default async pool should contain an internal pool for all detected
   // devices.
-  *pPool = hContext->getAsyncPool();
+  *pPoolOpque = v2_cast(hContext->getAsyncPool());
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urUSMDeviceAlloc(
     /// [in] handle of the context object
-    ur_context_handle_t hContext,
+    ::ur_context_handle_t hContextOpque,
     /// [in] handle of the device object
-    ur_device_handle_t hDevice,
+    ::ur_device_handle_t hDeviceOpque,
     /// [in][optional] USM memory allocation descriptor
     const ur_usm_desc_t *pUSMDesc,
     /// [in][optional] Pointer to a pool created using urUSMPoolCreate
-    ur_usm_pool_handle_t hPool,
+    ::ur_usm_pool_handle_t hPoolOpque,
     /// [in] size in bytes of the USM memory object to be allocated
     size_t size,
     /// [out] pointer to USM device memory object
     void **ppRetMem) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
+  auto hPool = v2_cast(hPoolOpque);
   if (!hPool) {
     hPool = hContext->getDefaultUSMPool();
   }
@@ -684,17 +692,20 @@ ur_result_t urUSMDeviceAlloc(
 
 ur_result_t urUSMSharedAlloc(
     /// [in] handle of the context object
-    ur_context_handle_t hContext,
+    ::ur_context_handle_t hContextOpque,
     /// [in] handle of the device object
-    ur_device_handle_t hDevice,
+    ::ur_device_handle_t hDeviceOpque,
     /// [in][optional] USM memory allocation descriptor
     const ur_usm_desc_t *pUSMDesc,
     /// [in][optional] Pointer to a pool created using urUSMPoolCreate
-    ur_usm_pool_handle_t hPool,
+    ::ur_usm_pool_handle_t hPoolOpque,
     /// [in] size in bytes of the USM memory object to be allocated
     size_t size,
     /// [out] pointer to USM shared memory object
     void **ppRetMem) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
+  auto hPool = v2_cast(hPoolOpque);
   if (!hPool) {
     hPool = hContext->getDefaultUSMPool();
   }
@@ -709,15 +720,17 @@ ur_result_t urUSMSharedAlloc(
 
 ur_result_t urUSMHostAlloc(
     /// [in] handle of the context object
-    ur_context_handle_t hContext,
+    ::ur_context_handle_t hContextOpque,
     /// [in][optional] USM memory allocation descriptor
     const ur_usm_desc_t *pUSMDesc,
     /// [in][optional] Pointer to a pool created using urUSMPoolCreate
-    ur_usm_pool_handle_t hPool,
+    ::ur_usm_pool_handle_t hPoolOpque,
     /// [in] size in bytes of the USM memory object to be allocated
     size_t size,
     /// [out] pointer to USM host memory object
     void **ppRetMem) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto hPool = v2_cast(hPoolOpque);
   if (!hPool) {
     hPool = hContext->getDefaultUSMPool();
   }
@@ -732,7 +745,7 @@ ur_result_t urUSMHostAlloc(
 
 ur_result_t urUSMFree(
     /// [in] handle of the context object
-    ur_context_handle_t /*hContext*/,
+    ::ur_context_handle_t /*hContext*/,
     /// [in] pointer to USM memory object
     void *pMem) try {
   umf_memory_pool_handle_t umfPool = nullptr;
@@ -741,7 +754,7 @@ ur_result_t urUSMFree(
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
 
-  UsmPool *usmPool = nullptr;
+  v2::UsmPool *usmPool = nullptr;
   umfRet = umfPoolGetTag(umfPool, (void **)&usmPool);
   if (umfRet != UMF_RESULT_SUCCESS || !usmPool) {
     // This should never happen
@@ -757,7 +770,7 @@ ur_result_t urUSMFree(
 
 ur_result_t urUSMGetMemAllocInfo(
     /// [in] handle of the context object
-    ur_context_handle_t hContext,
+    ::ur_context_handle_t hContextOpque,
     /// [in] pointer to USM memory object
     const void *ptr,
     /// [in] the name of the USM allocation property to query
@@ -775,8 +788,9 @@ ur_result_t urUSMGetMemAllocInfo(
   // https://github.com/oneapi-src/unified-memory-framework/issues/686
   // https://github.com/oneapi-src/unified-memory-framework/issues/687
   // are implemented
+  auto ctx = v2_cast(hContextOpque);
   ZE2UR_CALL(zeMemGetAllocProperties,
-             (hContext->getZeHandle(), ptr, &zeMemoryAllocationProperties,
+             (ctx->getZeHandle(), ptr, &zeMemoryAllocationProperties,
               &zeDeviceHandle));
 
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
@@ -804,7 +818,7 @@ ur_result_t urUSMGetMemAllocInfo(
   }
   case UR_USM_ALLOC_INFO_DEVICE:
     if (zeDeviceHandle) {
-      auto Platform = hContext->getPlatform();
+      auto Platform = ctx->getPlatform();
       auto Device = Platform->getDeviceFromNativeHandle(zeDeviceHandle);
       return Device ? ReturnValue(Device) : UR_RESULT_ERROR_INVALID_VALUE;
     } else {
@@ -812,14 +826,12 @@ ur_result_t urUSMGetMemAllocInfo(
     }
   case UR_USM_ALLOC_INFO_BASE_PTR: {
     void *base;
-    ZE2UR_CALL(zeMemGetAddressRange,
-               (hContext->getZeHandle(), ptr, &base, nullptr));
+    ZE2UR_CALL(zeMemGetAddressRange, (ctx->getZeHandle(), ptr, &base, nullptr));
     return ReturnValue(base);
   }
   case UR_USM_ALLOC_INFO_SIZE: {
     size_t size;
-    ZE2UR_CALL(zeMemGetAddressRange,
-               (hContext->getZeHandle(), ptr, nullptr, &size));
+    ZE2UR_CALL(zeMemGetAddressRange, (ctx->getZeHandle(), ptr, nullptr, &size));
     return ReturnValue(size);
   }
   case UR_USM_ALLOC_INFO_POOL: {
@@ -830,7 +842,7 @@ ur_result_t urUSMGetMemAllocInfo(
     }
 
     ur_result_t ret = UR_RESULT_ERROR_INVALID_VALUE;
-    hContext->forEachUsmPool([&](ur_usm_pool_handle_t hPool) {
+    ctx->forEachUsmPool([&](ur_usm_pool_handle_t hPool) {
       if (hPool->hasPool(umfPool)) {
         ret = ReturnValue(hPool);
         return false; // break;
@@ -850,8 +862,9 @@ ur_result_t urUSMGetMemAllocInfo(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *hostPtr,
+ur_result_t urUSMImportExp(::ur_context_handle_t hContextOpque, void *hostPtr,
                            size_t size) {
+  auto hContext = v2_cast(hContextOpque);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_CONTEXT);
 
   // Promote the host ptr to USM host memory.
@@ -874,7 +887,9 @@ ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *hostPtr,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *hostPtr) {
+ur_result_t urUSMReleaseExp(::ur_context_handle_t hContextOpque,
+                            void *hostPtr) {
+  auto hContext = v2_cast(hContextOpque);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_CONTEXT);
 
   // Release the imported memory.
@@ -884,15 +899,16 @@ ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *hostPtr) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
-                                             void *pDst, const void *pSrc,
-                                             size_t size) {
-  ur_device_handle_t hDevice = hContext->getDevices()[0];
+ur_result_t UR_APICALL
+urUSMContextMemcpyExp(::ur_context_handle_t hContextOpque, void *pDst,
+                      const void *pSrc, size_t size) {
+  auto ctx = v2_cast(hContextOpque);
+  ur_device_handle_t hDevice = ctx->getDevices()[0];
   auto Ordinal = static_cast<uint32_t>(
       hDevice
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
           .ZeOrdinal);
-  auto commandList = hContext->getCommandListCache().getImmediateCommandList(
+  auto commandList = ctx->getCommandListCache().getImmediateCommandList(
       hDevice->ZeDevice, {true, Ordinal, true},
       ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
       std::nullopt);
@@ -902,8 +918,9 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
 }
 
 ur_result_t urUSMHostAllocRegisterExp(
-    ur_context_handle_t hContext, void *pHostMem, size_t size,
+    ::ur_context_handle_t hContextOpque, void *pHostMem, size_t size,
     const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  auto hContext = v2_cast(hContextOpque);
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
@@ -946,8 +963,9 @@ ur_result_t urUSMHostAllocRegisterExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
+ur_result_t urUSMHostAllocUnregisterExp(::ur_context_handle_t hContextOpque,
                                         void *pHostMem) {
+  auto hContext = v2_cast(hContextOpque);
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
@@ -958,4 +976,4 @@ ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

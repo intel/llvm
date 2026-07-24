@@ -16,11 +16,10 @@
 #include "event_provider.hpp"
 #include "event_provider_normal.hpp"
 
+#include "../common.hpp"
 #include "../common/latency_tracker.hpp"
 
-#include "../common.hpp"
-
-namespace v2 {
+namespace ur::level_zero::v2 {
 static constexpr int EVENTS_BURST = 64;
 
 provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
@@ -118,4 +117,4 @@ raii::cache_borrowed_event provider_normal::allocate() {
 
 event_flags_t provider_normal::eventFlags() const { return flags; }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

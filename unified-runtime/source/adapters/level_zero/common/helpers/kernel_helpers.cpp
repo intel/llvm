@@ -10,14 +10,11 @@
 #include "kernel_helpers.hpp"
 #include "logger/ur_logger.hpp"
 
-#include "../common.hpp"
 #include "../device.hpp"
+#include "../interfaces.hpp"
+#include "../platform.hpp"
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "../v2/context.hpp"
-#else
-#include "../context.hpp"
-#endif
+namespace ur::level_zero {
 
 ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
                                       ze_kernel_handle_t hZeKernel,
@@ -68,7 +65,9 @@ ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
 ur_result_t setKernelGlobalOffset(ur_context_handle_t Context,
                                   ze_kernel_handle_t Kernel, uint32_t WorkDim,
                                   const size_t *GlobalWorkOffset) {
-  if (!Context->getPlatform()->ZeDriverGlobalOffsetExtensionFound) {
+  if (!common_cast(Context)
+           ->getPlatform()
+           ->ZeDriverGlobalOffsetExtensionFound) {
     UR_LOG(DEBUG, "No global offset extension found on this driver");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -170,3 +169,5 @@ ur_result_t setArgValueOnZeKernel(ze_kernel_handle_t hZeKernel,
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
   return ze2urResult(ZeResult);
 }
+
+} // namespace ur::level_zero

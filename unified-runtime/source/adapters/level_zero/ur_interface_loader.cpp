@@ -26,8 +26,9 @@ static ur_result_t validateProcInputs(ur_api_version_t version,
   return UR_RESULT_SUCCESS;
 }
 
+#include "ur_interface_loader_common_forwarders.hpp"
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
-namespace ur::level_zero {
+namespace ur::level_zero::v1 {
 #else
 extern "C" {
 #endif
@@ -39,14 +40,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnGet = ur::level_zero::urAdapterGet;
-  pDdiTable->pfnRelease = ur::level_zero::urAdapterRelease;
-  pDdiTable->pfnRetain = ur::level_zero::urAdapterRetain;
-  pDdiTable->pfnGetLastError = ur::level_zero::urAdapterGetLastError;
-  pDdiTable->pfnGetInfo = ur::level_zero::urAdapterGetInfo;
-  pDdiTable->pfnSetLoggerCallback = ur::level_zero::urAdapterSetLoggerCallback;
+  pDdiTable->pfnGet = ur::level_zero::v1::urAdapterGet;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urAdapterRelease;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urAdapterRetain;
+  pDdiTable->pfnGetLastError = ur::level_zero::v1::urAdapterGetLastError;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urAdapterGetInfo;
+  pDdiTable->pfnSetLoggerCallback =
+      ur::level_zero::v1::urAdapterSetLoggerCallback;
   pDdiTable->pfnSetLoggerCallbackLevel =
-      ur::level_zero::urAdapterSetLoggerCallbackLevel;
+      ur::level_zero::v1::urAdapterSetLoggerCallbackLevel;
 
   return result;
 }
@@ -59,48 +61,49 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   }
 
   pDdiTable->pfnUnsampledImageHandleDestroyExp =
-      ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp;
+      ur::level_zero::v1::urBindlessImagesUnsampledImageHandleDestroyExp;
   pDdiTable->pfnSampledImageHandleDestroyExp =
-      ur::level_zero::urBindlessImagesSampledImageHandleDestroyExp;
+      ur::level_zero::v1::urBindlessImagesSampledImageHandleDestroyExp;
   pDdiTable->pfnImageAllocateExp =
-      ur::level_zero::urBindlessImagesImageAllocateExp;
-  pDdiTable->pfnImageFreeExp = ur::level_zero::urBindlessImagesImageFreeExp;
+      ur::level_zero::v1::urBindlessImagesImageAllocateExp;
+  pDdiTable->pfnImageFreeExp = ur::level_zero::v1::urBindlessImagesImageFreeExp;
   pDdiTable->pfnUnsampledImageCreateExp =
-      ur::level_zero::urBindlessImagesUnsampledImageCreateExp;
+      ur::level_zero::v1::urBindlessImagesUnsampledImageCreateExp;
   pDdiTable->pfnSampledImageCreateExp =
-      ur::level_zero::urBindlessImagesSampledImageCreateExp;
-  pDdiTable->pfnImageCopyExp = ur::level_zero::urBindlessImagesImageCopyExp;
+      ur::level_zero::v1::urBindlessImagesSampledImageCreateExp;
+  pDdiTable->pfnImageCopyExp = ur::level_zero::v1::urBindlessImagesImageCopyExp;
   pDdiTable->pfnImageGetInfoExp =
-      ur::level_zero::urBindlessImagesImageGetInfoExp;
+      ur::level_zero::v1::urBindlessImagesImageGetInfoExp;
   pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
-      ur::level_zero::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+      ur::level_zero::v1::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
   pDdiTable->pfnGetImageUnsampledHandleSupportExp =
-      ur::level_zero::urBindlessImagesGetImageUnsampledHandleSupportExp;
+      ur::level_zero::v1::urBindlessImagesGetImageUnsampledHandleSupportExp;
   pDdiTable->pfnGetImageSampledHandleSupportExp =
-      ur::level_zero::urBindlessImagesGetImageSampledHandleSupportExp;
+      ur::level_zero::v1::urBindlessImagesGetImageSampledHandleSupportExp;
   pDdiTable->pfnMipmapGetLevelExp =
-      ur::level_zero::urBindlessImagesMipmapGetLevelExp;
-  pDdiTable->pfnMipmapFreeExp = ur::level_zero::urBindlessImagesMipmapFreeExp;
+      ur::level_zero::v1::urBindlessImagesMipmapGetLevelExp;
+  pDdiTable->pfnMipmapFreeExp =
+      ur::level_zero::v1::urBindlessImagesMipmapFreeExp;
   pDdiTable->pfnImportExternalMemoryExp =
-      ur::level_zero::urBindlessImagesImportExternalMemoryExp;
+      ur::level_zero::v1::urBindlessImagesImportExternalMemoryExp;
   pDdiTable->pfnMapExternalArrayExp =
-      ur::level_zero::urBindlessImagesMapExternalArrayExp;
+      ur::level_zero::v1::urBindlessImagesMapExternalArrayExp;
   pDdiTable->pfnMapExternalLinearMemoryExp =
-      ur::level_zero::urBindlessImagesMapExternalLinearMemoryExp;
+      ur::level_zero::v1::urBindlessImagesMapExternalLinearMemoryExp;
   pDdiTable->pfnReleaseExternalMemoryExp =
-      ur::level_zero::urBindlessImagesReleaseExternalMemoryExp;
+      ur::level_zero::v1::urBindlessImagesReleaseExternalMemoryExp;
   pDdiTable->pfnFreeMappedLinearMemoryExp =
-      ur::level_zero::urBindlessImagesFreeMappedLinearMemoryExp;
+      ur::level_zero::v1::urBindlessImagesFreeMappedLinearMemoryExp;
   pDdiTable->pfnSupportsImportingHandleTypeExp =
-      ur::level_zero::urBindlessImagesSupportsImportingHandleTypeExp;
+      ur::level_zero::v1::urBindlessImagesSupportsImportingHandleTypeExp;
   pDdiTable->pfnImportExternalSemaphoreExp =
-      ur::level_zero::urBindlessImagesImportExternalSemaphoreExp;
+      ur::level_zero::v1::urBindlessImagesImportExternalSemaphoreExp;
   pDdiTable->pfnReleaseExternalSemaphoreExp =
-      ur::level_zero::urBindlessImagesReleaseExternalSemaphoreExp;
+      ur::level_zero::v1::urBindlessImagesReleaseExternalSemaphoreExp;
   pDdiTable->pfnWaitExternalSemaphoreExp =
-      ur::level_zero::urBindlessImagesWaitExternalSemaphoreExp;
+      ur::level_zero::v1::urBindlessImagesWaitExternalSemaphoreExp;
   pDdiTable->pfnSignalExternalSemaphoreExp =
-      ur::level_zero::urBindlessImagesSignalExternalSemaphoreExp;
+      ur::level_zero::v1::urBindlessImagesSignalExternalSemaphoreExp;
 
   return result;
 }
@@ -112,47 +115,47 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCreateExp = ur::level_zero::urCommandBufferCreateExp;
-  pDdiTable->pfnRetainExp = ur::level_zero::urCommandBufferRetainExp;
-  pDdiTable->pfnReleaseExp = ur::level_zero::urCommandBufferReleaseExp;
-  pDdiTable->pfnFinalizeExp = ur::level_zero::urCommandBufferFinalizeExp;
+  pDdiTable->pfnCreateExp = ur::level_zero::v1::urCommandBufferCreateExp;
+  pDdiTable->pfnRetainExp = ur::level_zero::v1::urCommandBufferRetainExp;
+  pDdiTable->pfnReleaseExp = ur::level_zero::v1::urCommandBufferReleaseExp;
+  pDdiTable->pfnFinalizeExp = ur::level_zero::v1::urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp =
-      ur::level_zero::urCommandBufferAppendKernelLaunchExp;
+      ur::level_zero::v1::urCommandBufferAppendKernelLaunchExp;
   pDdiTable->pfnAppendKernelLaunchWithArgsExp =
-      ur::level_zero::urCommandBufferAppendKernelLaunchWithArgsExp;
+      ur::level_zero::v1::urCommandBufferAppendKernelLaunchWithArgsExp;
   pDdiTable->pfnAppendUSMMemcpyExp =
-      ur::level_zero::urCommandBufferAppendUSMMemcpyExp;
+      ur::level_zero::v1::urCommandBufferAppendUSMMemcpyExp;
   pDdiTable->pfnAppendUSMFillExp =
-      ur::level_zero::urCommandBufferAppendUSMFillExp;
+      ur::level_zero::v1::urCommandBufferAppendUSMFillExp;
   pDdiTable->pfnAppendMemBufferCopyExp =
-      ur::level_zero::urCommandBufferAppendMemBufferCopyExp;
+      ur::level_zero::v1::urCommandBufferAppendMemBufferCopyExp;
   pDdiTable->pfnAppendMemBufferWriteExp =
-      ur::level_zero::urCommandBufferAppendMemBufferWriteExp;
+      ur::level_zero::v1::urCommandBufferAppendMemBufferWriteExp;
   pDdiTable->pfnAppendMemBufferReadExp =
-      ur::level_zero::urCommandBufferAppendMemBufferReadExp;
+      ur::level_zero::v1::urCommandBufferAppendMemBufferReadExp;
   pDdiTable->pfnAppendMemBufferCopyRectExp =
-      ur::level_zero::urCommandBufferAppendMemBufferCopyRectExp;
+      ur::level_zero::v1::urCommandBufferAppendMemBufferCopyRectExp;
   pDdiTable->pfnAppendMemBufferWriteRectExp =
-      ur::level_zero::urCommandBufferAppendMemBufferWriteRectExp;
+      ur::level_zero::v1::urCommandBufferAppendMemBufferWriteRectExp;
   pDdiTable->pfnAppendMemBufferReadRectExp =
-      ur::level_zero::urCommandBufferAppendMemBufferReadRectExp;
+      ur::level_zero::v1::urCommandBufferAppendMemBufferReadRectExp;
   pDdiTable->pfnAppendMemBufferFillExp =
-      ur::level_zero::urCommandBufferAppendMemBufferFillExp;
+      ur::level_zero::v1::urCommandBufferAppendMemBufferFillExp;
   pDdiTable->pfnAppendUSMPrefetchExp =
-      ur::level_zero::urCommandBufferAppendUSMPrefetchExp;
+      ur::level_zero::v1::urCommandBufferAppendUSMPrefetchExp;
   pDdiTable->pfnAppendUSMAdviseExp =
-      ur::level_zero::urCommandBufferAppendUSMAdviseExp;
+      ur::level_zero::v1::urCommandBufferAppendUSMAdviseExp;
   pDdiTable->pfnAppendNativeCommandExp =
-      ur::level_zero::urCommandBufferAppendNativeCommandExp;
+      ur::level_zero::v1::urCommandBufferAppendNativeCommandExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
-      ur::level_zero::urCommandBufferUpdateKernelLaunchExp;
+      ur::level_zero::v1::urCommandBufferUpdateKernelLaunchExp;
   pDdiTable->pfnUpdateSignalEventExp =
-      ur::level_zero::urCommandBufferUpdateSignalEventExp;
+      ur::level_zero::v1::urCommandBufferUpdateSignalEventExp;
   pDdiTable->pfnUpdateWaitEventsExp =
-      ur::level_zero::urCommandBufferUpdateWaitEventsExp;
-  pDdiTable->pfnGetInfoExp = ur::level_zero::urCommandBufferGetInfoExp;
+      ur::level_zero::v1::urCommandBufferUpdateWaitEventsExp;
+  pDdiTable->pfnGetInfoExp = ur::level_zero::v1::urCommandBufferGetInfoExp;
   pDdiTable->pfnGetNativeHandleExp =
-      ur::level_zero::urCommandBufferGetNativeHandleExp;
+      ur::level_zero::v1::urCommandBufferGetNativeHandleExp;
 
   return result;
 }
@@ -164,15 +167,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCreate = ur::level_zero::urContextCreate;
-  pDdiTable->pfnRetain = ur::level_zero::urContextRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urContextRelease;
-  pDdiTable->pfnGetInfo = ur::level_zero::urContextGetInfo;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urContextGetNativeHandle;
+  pDdiTable->pfnCreate = ur::level_zero::v1::urContextCreate;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urContextRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urContextRelease;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urContextGetInfo;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urContextGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
-      ur::level_zero::urContextCreateWithNativeHandle;
+      ur::level_zero::v1::urContextCreateWithNativeHandle;
   pDdiTable->pfnSetExtendedDeleter =
-      ur::level_zero::urContextSetExtendedDeleter;
+      ur::level_zero::v1::urContextSetExtendedDeleter;
 
   return result;
 }
@@ -184,36 +187,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnEventsWait = ur::level_zero::urEnqueueEventsWait;
+  pDdiTable->pfnEventsWait = ur::level_zero::v1::urEnqueueEventsWait;
   pDdiTable->pfnEventsWaitWithBarrier =
-      ur::level_zero::urEnqueueEventsWaitWithBarrier;
-  pDdiTable->pfnMemBufferRead = ur::level_zero::urEnqueueMemBufferRead;
-  pDdiTable->pfnMemBufferWrite = ur::level_zero::urEnqueueMemBufferWrite;
-  pDdiTable->pfnMemBufferReadRect = ur::level_zero::urEnqueueMemBufferReadRect;
+      ur::level_zero::v1::urEnqueueEventsWaitWithBarrier;
+  pDdiTable->pfnMemBufferRead = ur::level_zero::v1::urEnqueueMemBufferRead;
+  pDdiTable->pfnMemBufferWrite = ur::level_zero::v1::urEnqueueMemBufferWrite;
+  pDdiTable->pfnMemBufferReadRect =
+      ur::level_zero::v1::urEnqueueMemBufferReadRect;
   pDdiTable->pfnMemBufferWriteRect =
-      ur::level_zero::urEnqueueMemBufferWriteRect;
-  pDdiTable->pfnMemBufferCopy = ur::level_zero::urEnqueueMemBufferCopy;
-  pDdiTable->pfnMemBufferCopyRect = ur::level_zero::urEnqueueMemBufferCopyRect;
-  pDdiTable->pfnMemBufferFill = ur::level_zero::urEnqueueMemBufferFill;
-  pDdiTable->pfnMemImageRead = ur::level_zero::urEnqueueMemImageRead;
-  pDdiTable->pfnMemImageWrite = ur::level_zero::urEnqueueMemImageWrite;
-  pDdiTable->pfnMemImageCopy = ur::level_zero::urEnqueueMemImageCopy;
-  pDdiTable->pfnMemBufferMap = ur::level_zero::urEnqueueMemBufferMap;
-  pDdiTable->pfnMemUnmap = ur::level_zero::urEnqueueMemUnmap;
-  pDdiTable->pfnUSMFill = ur::level_zero::urEnqueueUSMFill;
-  pDdiTable->pfnUSMMemcpy = ur::level_zero::urEnqueueUSMMemcpy;
-  pDdiTable->pfnUSMPrefetch = ur::level_zero::urEnqueueUSMPrefetch;
-  pDdiTable->pfnUSMAdvise = ur::level_zero::urEnqueueUSMAdvise;
-  pDdiTable->pfnUSMFill2D = ur::level_zero::urEnqueueUSMFill2D;
-  pDdiTable->pfnUSMMemcpy2D = ur::level_zero::urEnqueueUSMMemcpy2D;
+      ur::level_zero::v1::urEnqueueMemBufferWriteRect;
+  pDdiTable->pfnMemBufferCopy = ur::level_zero::v1::urEnqueueMemBufferCopy;
+  pDdiTable->pfnMemBufferCopyRect =
+      ur::level_zero::v1::urEnqueueMemBufferCopyRect;
+  pDdiTable->pfnMemBufferFill = ur::level_zero::v1::urEnqueueMemBufferFill;
+  pDdiTable->pfnMemImageRead = ur::level_zero::v1::urEnqueueMemImageRead;
+  pDdiTable->pfnMemImageWrite = ur::level_zero::v1::urEnqueueMemImageWrite;
+  pDdiTable->pfnMemImageCopy = ur::level_zero::v1::urEnqueueMemImageCopy;
+  pDdiTable->pfnMemBufferMap = ur::level_zero::v1::urEnqueueMemBufferMap;
+  pDdiTable->pfnMemUnmap = ur::level_zero::v1::urEnqueueMemUnmap;
+  pDdiTable->pfnUSMFill = ur::level_zero::v1::urEnqueueUSMFill;
+  pDdiTable->pfnUSMMemcpy = ur::level_zero::v1::urEnqueueUSMMemcpy;
+  pDdiTable->pfnUSMPrefetch = ur::level_zero::v1::urEnqueueUSMPrefetch;
+  pDdiTable->pfnUSMAdvise = ur::level_zero::v1::urEnqueueUSMAdvise;
+  pDdiTable->pfnUSMFill2D = ur::level_zero::v1::urEnqueueUSMFill2D;
+  pDdiTable->pfnUSMMemcpy2D = ur::level_zero::v1::urEnqueueUSMMemcpy2D;
   pDdiTable->pfnDeviceGlobalVariableWrite =
-      ur::level_zero::urEnqueueDeviceGlobalVariableWrite;
+      ur::level_zero::v1::urEnqueueDeviceGlobalVariableWrite;
   pDdiTable->pfnDeviceGlobalVariableRead =
-      ur::level_zero::urEnqueueDeviceGlobalVariableRead;
-  pDdiTable->pfnReadHostPipe = ur::level_zero::urEnqueueReadHostPipe;
-  pDdiTable->pfnWriteHostPipe = ur::level_zero::urEnqueueWriteHostPipe;
+      ur::level_zero::v1::urEnqueueDeviceGlobalVariableRead;
+  pDdiTable->pfnReadHostPipe = ur::level_zero::v1::urEnqueueReadHostPipe;
+  pDdiTable->pfnWriteHostPipe = ur::level_zero::v1::urEnqueueWriteHostPipe;
   pDdiTable->pfnEventsWaitWithBarrierExt =
-      ur::level_zero::urEnqueueEventsWaitWithBarrierExt;
+      ur::level_zero::v1::urEnqueueEventsWaitWithBarrierExt;
 
   return result;
 }
@@ -226,17 +231,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   }
 
   pDdiTable->pfnKernelLaunchWithArgsExp =
-      ur::level_zero::urEnqueueKernelLaunchWithArgsExp;
-  pDdiTable->pfnUSMDeviceAllocExp = ur::level_zero::urEnqueueUSMDeviceAllocExp;
-  pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
-  pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
-  pDdiTable->pfnUSMFreeExp = ur::level_zero::urEnqueueUSMFreeExp;
+      ur::level_zero::v1::urEnqueueKernelLaunchWithArgsExp;
+  pDdiTable->pfnUSMDeviceAllocExp =
+      ur::level_zero::v1::urEnqueueUSMDeviceAllocExp;
+  pDdiTable->pfnUSMSharedAllocExp =
+      ur::level_zero::v1::urEnqueueUSMSharedAllocExp;
+  pDdiTable->pfnUSMHostAllocExp = ur::level_zero::v1::urEnqueueUSMHostAllocExp;
+  pDdiTable->pfnUSMFreeExp = ur::level_zero::v1::urEnqueueUSMFreeExp;
   pDdiTable->pfnTimestampRecordingExp =
-      ur::level_zero::urEnqueueTimestampRecordingExp;
-  pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
-  pDdiTable->pfnHostTaskExp = ur::level_zero::urEnqueueHostTaskExp;
-  pDdiTable->pfnNativeCommandExp = ur::level_zero::urEnqueueNativeCommandExp;
-  pDdiTable->pfnGraphExp = ur::level_zero::urEnqueueGraphExp;
+      ur::level_zero::v1::urEnqueueTimestampRecordingExp;
+  pDdiTable->pfnCommandBufferExp =
+      ur::level_zero::v1::urEnqueueCommandBufferExp;
+  pDdiTable->pfnHostTaskExp = ur::level_zero::v1::urEnqueueHostTaskExp;
+  pDdiTable->pfnNativeCommandExp =
+      ur::level_zero::v1::urEnqueueNativeCommandExp;
+  pDdiTable->pfnGraphExp = ur::level_zero::v1::urEnqueueGraphExp;
 
   return result;
 }
@@ -248,15 +257,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnGetInfo = ur::level_zero::urEventGetInfo;
-  pDdiTable->pfnGetProfilingInfo = ur::level_zero::urEventGetProfilingInfo;
-  pDdiTable->pfnWait = ur::level_zero::urEventWait;
-  pDdiTable->pfnRetain = ur::level_zero::urEventRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urEventRelease;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urEventGetNativeHandle;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urEventGetInfo;
+  pDdiTable->pfnGetProfilingInfo = ur::level_zero::v1::urEventGetProfilingInfo;
+  pDdiTable->pfnWait = ur::level_zero::v1::urEventWait;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urEventRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urEventRelease;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urEventGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
-      ur::level_zero::urEventCreateWithNativeHandle;
-  pDdiTable->pfnSetCallback = ur::level_zero::urEventSetCallback;
+      ur::level_zero::v1::urEventCreateWithNativeHandle;
+  pDdiTable->pfnSetCallback = ur::level_zero::v1::urEventSetCallback;
 
   return result;
 }
@@ -268,7 +277,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCreateExp = ur::level_zero::urEventCreateExp;
+  pDdiTable->pfnCreateExp = ur::level_zero::v1::urEventCreateExp;
 
   return result;
 }
@@ -280,20 +289,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCreateExp = ur::level_zero::urGraphCreateExp;
+  pDdiTable->pfnCreateExp = ur::level_zero::v1::urGraphCreateExp;
   pDdiTable->pfnInstantiateGraphExp =
-      ur::level_zero::urGraphInstantiateGraphExp;
-  pDdiTable->pfnDestroyExp = ur::level_zero::urGraphDestroyExp;
+      ur::level_zero::v1::urGraphInstantiateGraphExp;
+  pDdiTable->pfnDestroyExp = ur::level_zero::v1::urGraphDestroyExp;
   pDdiTable->pfnExecutableGraphDestroyExp =
-      ur::level_zero::urGraphExecutableGraphDestroyExp;
-  pDdiTable->pfnIsEmptyExp = ur::level_zero::urGraphIsEmptyExp;
-  pDdiTable->pfnGetIdExp = ur::level_zero::urGraphGetIdExp;
+      ur::level_zero::v1::urGraphExecutableGraphDestroyExp;
+  pDdiTable->pfnIsEmptyExp = ur::level_zero::v1::urGraphIsEmptyExp;
+  pDdiTable->pfnGetIdExp = ur::level_zero::v1::urGraphGetIdExp;
   pDdiTable->pfnSetDestructionCallbackExp =
-      ur::level_zero::urGraphSetDestructionCallbackExp;
-  pDdiTable->pfnDumpContentsExp = ur::level_zero::urGraphDumpContentsExp;
-  pDdiTable->pfnGetNativeHandleExp = ur::level_zero::urGraphGetNativeHandleExp;
+      ur::level_zero::v1::urGraphSetDestructionCallbackExp;
+  pDdiTable->pfnDumpContentsExp = ur::level_zero::v1::urGraphDumpContentsExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur::level_zero::v1::urGraphGetNativeHandleExp;
   pDdiTable->pfnExecutableGraphGetNativeHandleExp =
-      ur::level_zero::urGraphExecutableGraphGetNativeHandleExp;
+      ur::level_zero::v1::urGraphExecutableGraphGetNativeHandleExp;
 
   return result;
 }
@@ -305,19 +315,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnGetMemHandleExp = ur::level_zero::urIPCGetMemHandleExp;
-  pDdiTable->pfnPutMemHandleExp = ur::level_zero::urIPCPutMemHandleExp;
-  pDdiTable->pfnOpenMemHandleExp = ur::level_zero::urIPCOpenMemHandleExp;
-  pDdiTable->pfnCloseMemHandleExp = ur::level_zero::urIPCCloseMemHandleExp;
-  pDdiTable->pfnGetPhysMemHandleExp = ur::level_zero::urIPCGetPhysMemHandleExp;
-  pDdiTable->pfnPutPhysMemHandleExp = ur::level_zero::urIPCPutPhysMemHandleExp;
+  pDdiTable->pfnGetMemHandleExp = ur::level_zero::v1::urIPCGetMemHandleExp;
+  pDdiTable->pfnPutMemHandleExp = ur::level_zero::v1::urIPCPutMemHandleExp;
+  pDdiTable->pfnOpenMemHandleExp = ur::level_zero::v1::urIPCOpenMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp = ur::level_zero::v1::urIPCCloseMemHandleExp;
+  pDdiTable->pfnGetPhysMemHandleExp =
+      ur::level_zero::v1::urIPCGetPhysMemHandleExp;
+  pDdiTable->pfnPutPhysMemHandleExp =
+      ur::level_zero::v1::urIPCPutPhysMemHandleExp;
   pDdiTable->pfnOpenPhysMemHandleExp =
-      ur::level_zero::urIPCOpenPhysMemHandleExp;
+      ur::level_zero::v1::urIPCOpenPhysMemHandleExp;
   pDdiTable->pfnClosePhysMemHandleExp =
-      ur::level_zero::urIPCClosePhysMemHandleExp;
-  pDdiTable->pfnGetEventHandleExp = ur::level_zero::urIPCGetEventHandleExp;
-  pDdiTable->pfnPutEventHandleExp = ur::level_zero::urIPCPutEventHandleExp;
-  pDdiTable->pfnOpenEventHandleExp = ur::level_zero::urIPCOpenEventHandleExp;
+      ur::level_zero::v1::urIPCClosePhysMemHandleExp;
+  pDdiTable->pfnGetEventHandleExp = ur::level_zero::v1::urIPCGetEventHandleExp;
+  pDdiTable->pfnPutEventHandleExp = ur::level_zero::v1::urIPCPutEventHandleExp;
+  pDdiTable->pfnOpenEventHandleExp =
+      ur::level_zero::v1::urIPCOpenEventHandleExp;
 
   return result;
 }
@@ -329,24 +342,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCreate = ur::level_zero::urKernelCreate;
-  pDdiTable->pfnGetInfo = ur::level_zero::urKernelGetInfo;
-  pDdiTable->pfnGetGroupInfo = ur::level_zero::urKernelGetGroupInfo;
-  pDdiTable->pfnGetSubGroupInfo = ur::level_zero::urKernelGetSubGroupInfo;
-  pDdiTable->pfnRetain = ur::level_zero::urKernelRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urKernelRelease;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urKernelGetNativeHandle;
+  pDdiTable->pfnCreate = ur::level_zero::v1::urKernelCreate;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urKernelGetInfo;
+  pDdiTable->pfnGetGroupInfo = ur::level_zero::v1::urKernelGetGroupInfo;
+  pDdiTable->pfnGetSubGroupInfo = ur::level_zero::v1::urKernelGetSubGroupInfo;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urKernelRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urKernelRelease;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urKernelGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
-      ur::level_zero::urKernelCreateWithNativeHandle;
+      ur::level_zero::v1::urKernelCreateWithNativeHandle;
   pDdiTable->pfnGetSuggestedLocalWorkSize =
-      ur::level_zero::urKernelGetSuggestedLocalWorkSize;
+      ur::level_zero::v1::urKernelGetSuggestedLocalWorkSize;
   pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
-      ur::level_zero::urKernelGetSuggestedLocalWorkSizeWithArgs;
-  pDdiTable->pfnSetExecInfo = ur::level_zero::urKernelSetExecInfo;
+      ur::level_zero::v1::urKernelGetSuggestedLocalWorkSizeWithArgs;
+  pDdiTable->pfnSetExecInfo = ur::level_zero::v1::urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants =
-      ur::level_zero::urKernelSetSpecializationConstants;
+      ur::level_zero::v1::urKernelSetSpecializationConstants;
   pDdiTable->pfnSuggestMaxCooperativeGroupCount =
-      ur::level_zero::urKernelSuggestMaxCooperativeGroupCount;
+      ur::level_zero::v1::urKernelSuggestMaxCooperativeGroupCount;
 
   return result;
 }
@@ -358,18 +371,18 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
     return result;
   }
 
-  pDdiTable->pfnImageCreate = ur::level_zero::urMemImageCreate;
-  pDdiTable->pfnBufferCreate = ur::level_zero::urMemBufferCreate;
-  pDdiTable->pfnRetain = ur::level_zero::urMemRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urMemRelease;
-  pDdiTable->pfnBufferPartition = ur::level_zero::urMemBufferPartition;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urMemGetNativeHandle;
+  pDdiTable->pfnImageCreate = ur::level_zero::v1::urMemImageCreate;
+  pDdiTable->pfnBufferCreate = ur::level_zero::v1::urMemBufferCreate;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urMemRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urMemRelease;
+  pDdiTable->pfnBufferPartition = ur::level_zero::v1::urMemBufferPartition;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urMemGetNativeHandle;
   pDdiTable->pfnBufferCreateWithNativeHandle =
-      ur::level_zero::urMemBufferCreateWithNativeHandle;
+      ur::level_zero::v1::urMemBufferCreateWithNativeHandle;
   pDdiTable->pfnImageCreateWithNativeHandle =
-      ur::level_zero::urMemImageCreateWithNativeHandle;
-  pDdiTable->pfnGetInfo = ur::level_zero::urMemGetInfo;
-  pDdiTable->pfnImageGetInfo = ur::level_zero::urMemImageGetInfo;
+      ur::level_zero::v1::urMemImageCreateWithNativeHandle;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urMemGetInfo;
+  pDdiTable->pfnImageGetInfo = ur::level_zero::v1::urMemImageGetInfo;
 
   return result;
 }
@@ -382,11 +395,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
   }
 
   pDdiTable->pfnAllocExportableMemoryExp =
-      ur::level_zero::urMemoryExportAllocExportableMemoryExp;
+      ur::level_zero::v1::urMemoryExportAllocExportableMemoryExp;
   pDdiTable->pfnFreeExportableMemoryExp =
-      ur::level_zero::urMemoryExportFreeExportableMemoryExp;
+      ur::level_zero::v1::urMemoryExportFreeExportableMemoryExp;
   pDdiTable->pfnExportMemoryHandleExp =
-      ur::level_zero::urMemoryExportExportMemoryHandleExp;
+      ur::level_zero::v1::urMemoryExportExportMemoryHandleExp;
 
   return result;
 }
@@ -398,10 +411,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCreate = ur::level_zero::urPhysicalMemCreate;
-  pDdiTable->pfnRetain = ur::level_zero::urPhysicalMemRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urPhysicalMemRelease;
-  pDdiTable->pfnGetInfo = ur::level_zero::urPhysicalMemGetInfo;
+  pDdiTable->pfnCreate = ur::level_zero::v1::urPhysicalMemCreate;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urPhysicalMemRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urPhysicalMemRelease;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urPhysicalMemGetInfo;
 
   return result;
 }
@@ -413,13 +426,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnGet = ur::level_zero::urPlatformGet;
-  pDdiTable->pfnGetInfo = ur::level_zero::urPlatformGetInfo;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urPlatformGetNativeHandle;
+  pDdiTable->pfnGet = ur::level_zero::v1::urPlatformGet;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urPlatformGetInfo;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urPlatformGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
-      ur::level_zero::urPlatformCreateWithNativeHandle;
-  pDdiTable->pfnGetApiVersion = ur::level_zero::urPlatformGetApiVersion;
-  pDdiTable->pfnGetBackendOption = ur::level_zero::urPlatformGetBackendOption;
+      ur::level_zero::v1::urPlatformCreateWithNativeHandle;
+  pDdiTable->pfnGetApiVersion = ur::level_zero::v1::urPlatformGetApiVersion;
+  pDdiTable->pfnGetBackendOption =
+      ur::level_zero::v1::urPlatformGetBackendOption;
 
   return result;
 }
@@ -431,24 +445,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCreateWithIL = ur::level_zero::urProgramCreateWithIL;
-  pDdiTable->pfnCreateWithBinary = ur::level_zero::urProgramCreateWithBinary;
-  pDdiTable->pfnBuild = ur::level_zero::urProgramBuild;
-  pDdiTable->pfnCompile = ur::level_zero::urProgramCompile;
-  pDdiTable->pfnLink = ur::level_zero::urProgramLink;
-  pDdiTable->pfnRetain = ur::level_zero::urProgramRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urProgramRelease;
+  pDdiTable->pfnCreateWithIL = ur::level_zero::v1::urProgramCreateWithIL;
+  pDdiTable->pfnCreateWithBinary =
+      ur::level_zero::v1::urProgramCreateWithBinary;
+  pDdiTable->pfnBuild = ur::level_zero::v1::urProgramBuild;
+  pDdiTable->pfnCompile = ur::level_zero::v1::urProgramCompile;
+  pDdiTable->pfnLink = ur::level_zero::v1::urProgramLink;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urProgramRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urProgramRelease;
   pDdiTable->pfnGetFunctionPointer =
-      ur::level_zero::urProgramGetFunctionPointer;
+      ur::level_zero::v1::urProgramGetFunctionPointer;
   pDdiTable->pfnGetGlobalVariablePointer =
-      ur::level_zero::urProgramGetGlobalVariablePointer;
-  pDdiTable->pfnGetInfo = ur::level_zero::urProgramGetInfo;
-  pDdiTable->pfnGetBuildInfo = ur::level_zero::urProgramGetBuildInfo;
+      ur::level_zero::v1::urProgramGetGlobalVariablePointer;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urProgramGetInfo;
+  pDdiTable->pfnGetBuildInfo = ur::level_zero::v1::urProgramGetBuildInfo;
   pDdiTable->pfnSetSpecializationConstants =
-      ur::level_zero::urProgramSetSpecializationConstants;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urProgramGetNativeHandle;
+      ur::level_zero::v1::urProgramSetSpecializationConstants;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urProgramGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
-      ur::level_zero::urProgramCreateWithNativeHandle;
+      ur::level_zero::v1::urProgramCreateWithNativeHandle;
 
   return result;
 }
@@ -460,10 +475,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnDynamicLinkExp = ur::level_zero::urProgramDynamicLinkExp;
-  pDdiTable->pfnBuildExp = ur::level_zero::urProgramBuildExp;
-  pDdiTable->pfnCompileExp = ur::level_zero::urProgramCompileExp;
-  pDdiTable->pfnLinkExp = ur::level_zero::urProgramLinkExp;
+  pDdiTable->pfnDynamicLinkExp = ur::level_zero::v1::urProgramDynamicLinkExp;
+  pDdiTable->pfnBuildExp = ur::level_zero::v1::urProgramBuildExp;
+  pDdiTable->pfnCompileExp = ur::level_zero::v1::urProgramCompileExp;
+  pDdiTable->pfnLinkExp = ur::level_zero::v1::urProgramLinkExp;
 
   return result;
 }
@@ -475,15 +490,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnGetInfo = ur::level_zero::urQueueGetInfo;
-  pDdiTable->pfnCreate = ur::level_zero::urQueueCreate;
-  pDdiTable->pfnRetain = ur::level_zero::urQueueRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urQueueRelease;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urQueueGetNativeHandle;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urQueueGetInfo;
+  pDdiTable->pfnCreate = ur::level_zero::v1::urQueueCreate;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urQueueRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urQueueRelease;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urQueueGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
-      ur::level_zero::urQueueCreateWithNativeHandle;
-  pDdiTable->pfnFinish = ur::level_zero::urQueueFinish;
-  pDdiTable->pfnFlush = ur::level_zero::urQueueFlush;
+      ur::level_zero::v1::urQueueCreateWithNativeHandle;
+  pDdiTable->pfnFinish = ur::level_zero::v1::urQueueFinish;
+  pDdiTable->pfnFlush = ur::level_zero::v1::urQueueFlush;
 
   return result;
 }
@@ -496,13 +511,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   }
 
   pDdiTable->pfnBeginGraphCaptureExp =
-      ur::level_zero::urQueueBeginGraphCaptureExp;
+      ur::level_zero::v1::urQueueBeginGraphCaptureExp;
   pDdiTable->pfnBeginCaptureIntoGraphExp =
-      ur::level_zero::urQueueBeginCaptureIntoGraphExp;
-  pDdiTable->pfnEndGraphCaptureExp = ur::level_zero::urQueueEndGraphCaptureExp;
+      ur::level_zero::v1::urQueueBeginCaptureIntoGraphExp;
+  pDdiTable->pfnEndGraphCaptureExp =
+      ur::level_zero::v1::urQueueEndGraphCaptureExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =
-      ur::level_zero::urQueueIsGraphCaptureEnabledExp;
-  pDdiTable->pfnGetGraphExp = ur::level_zero::urQueueGetGraphExp;
+      ur::level_zero::v1::urQueueIsGraphCaptureEnabledExp;
+  pDdiTable->pfnGetGraphExp = ur::level_zero::v1::urQueueGetGraphExp;
 
   return result;
 }
@@ -514,13 +530,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCreate = ur::level_zero::urSamplerCreate;
-  pDdiTable->pfnRetain = ur::level_zero::urSamplerRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urSamplerRelease;
-  pDdiTable->pfnGetInfo = ur::level_zero::urSamplerGetInfo;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urSamplerGetNativeHandle;
+  pDdiTable->pfnCreate = ur::level_zero::v1::urSamplerCreate;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urSamplerRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urSamplerRelease;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urSamplerGetInfo;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urSamplerGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
-      ur::level_zero::urSamplerCreateWithNativeHandle;
+      ur::level_zero::v1::urSamplerCreateWithNativeHandle;
 
   return result;
 }
@@ -532,15 +548,15 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
     return result;
   }
 
-  pDdiTable->pfnHostAlloc = ur::level_zero::urUSMHostAlloc;
-  pDdiTable->pfnDeviceAlloc = ur::level_zero::urUSMDeviceAlloc;
-  pDdiTable->pfnSharedAlloc = ur::level_zero::urUSMSharedAlloc;
-  pDdiTable->pfnFree = ur::level_zero::urUSMFree;
-  pDdiTable->pfnGetMemAllocInfo = ur::level_zero::urUSMGetMemAllocInfo;
-  pDdiTable->pfnPoolCreate = ur::level_zero::urUSMPoolCreate;
-  pDdiTable->pfnPoolRetain = ur::level_zero::urUSMPoolRetain;
-  pDdiTable->pfnPoolRelease = ur::level_zero::urUSMPoolRelease;
-  pDdiTable->pfnPoolGetInfo = ur::level_zero::urUSMPoolGetInfo;
+  pDdiTable->pfnHostAlloc = ur::level_zero::v1::urUSMHostAlloc;
+  pDdiTable->pfnDeviceAlloc = ur::level_zero::v1::urUSMDeviceAlloc;
+  pDdiTable->pfnSharedAlloc = ur::level_zero::v1::urUSMSharedAlloc;
+  pDdiTable->pfnFree = ur::level_zero::v1::urUSMFree;
+  pDdiTable->pfnGetMemAllocInfo = ur::level_zero::v1::urUSMGetMemAllocInfo;
+  pDdiTable->pfnPoolCreate = ur::level_zero::v1::urUSMPoolCreate;
+  pDdiTable->pfnPoolRetain = ur::level_zero::v1::urUSMPoolRetain;
+  pDdiTable->pfnPoolRelease = ur::level_zero::v1::urUSMPoolRelease;
+  pDdiTable->pfnPoolGetInfo = ur::level_zero::v1::urUSMPoolGetInfo;
 
   return result;
 }
@@ -552,25 +568,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnPoolCreateExp = ur::level_zero::urUSMPoolCreateExp;
-  pDdiTable->pfnPoolDestroyExp = ur::level_zero::urUSMPoolDestroyExp;
+  pDdiTable->pfnPoolCreateExp = ur::level_zero::v1::urUSMPoolCreateExp;
+  pDdiTable->pfnPoolDestroyExp = ur::level_zero::v1::urUSMPoolDestroyExp;
   pDdiTable->pfnPoolGetDefaultDevicePoolExp =
-      ur::level_zero::urUSMPoolGetDefaultDevicePoolExp;
-  pDdiTable->pfnPoolGetInfoExp = ur::level_zero::urUSMPoolGetInfoExp;
-  pDdiTable->pfnPoolSetInfoExp = ur::level_zero::urUSMPoolSetInfoExp;
+      ur::level_zero::v1::urUSMPoolGetDefaultDevicePoolExp;
+  pDdiTable->pfnPoolGetInfoExp = ur::level_zero::v1::urUSMPoolGetInfoExp;
+  pDdiTable->pfnPoolSetInfoExp = ur::level_zero::v1::urUSMPoolSetInfoExp;
   pDdiTable->pfnPoolSetDevicePoolExp =
-      ur::level_zero::urUSMPoolSetDevicePoolExp;
+      ur::level_zero::v1::urUSMPoolSetDevicePoolExp;
   pDdiTable->pfnPoolGetDevicePoolExp =
-      ur::level_zero::urUSMPoolGetDevicePoolExp;
-  pDdiTable->pfnPoolTrimToExp = ur::level_zero::urUSMPoolTrimToExp;
-  pDdiTable->pfnPitchedAllocExp = ur::level_zero::urUSMPitchedAllocExp;
-  pDdiTable->pfnContextMemcpyExp = ur::level_zero::urUSMContextMemcpyExp;
+      ur::level_zero::v1::urUSMPoolGetDevicePoolExp;
+  pDdiTable->pfnPoolTrimToExp = ur::level_zero::v1::urUSMPoolTrimToExp;
+  pDdiTable->pfnPitchedAllocExp = ur::level_zero::v1::urUSMPitchedAllocExp;
+  pDdiTable->pfnContextMemcpyExp = ur::level_zero::v1::urUSMContextMemcpyExp;
   pDdiTable->pfnHostAllocUnregisterExp =
-      ur::level_zero::urUSMHostAllocUnregisterExp;
+      ur::level_zero::v1::urUSMHostAllocUnregisterExp;
   pDdiTable->pfnHostAllocRegisterExp =
-      ur::level_zero::urUSMHostAllocRegisterExp;
-  pDdiTable->pfnImportExp = ur::level_zero::urUSMImportExp;
-  pDdiTable->pfnReleaseExp = ur::level_zero::urUSMReleaseExp;
+      ur::level_zero::v1::urUSMHostAllocRegisterExp;
+  pDdiTable->pfnImportExp = ur::level_zero::v1::urUSMImportExp;
+  pDdiTable->pfnReleaseExp = ur::level_zero::v1::urUSMReleaseExp;
 
   return result;
 }
@@ -583,11 +599,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
   }
 
   pDdiTable->pfnEnablePeerAccessExp =
-      ur::level_zero::urUsmP2PEnablePeerAccessExp;
+      ur::level_zero::v1::urUsmP2PEnablePeerAccessExp;
   pDdiTable->pfnDisablePeerAccessExp =
-      ur::level_zero::urUsmP2PDisablePeerAccessExp;
+      ur::level_zero::v1::urUsmP2PDisablePeerAccessExp;
   pDdiTable->pfnPeerAccessGetInfoExp =
-      ur::level_zero::urUsmP2PPeerAccessGetInfoExp;
+      ur::level_zero::v1::urUsmP2PPeerAccessGetInfoExp;
 
   return result;
 }
@@ -600,13 +616,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
   }
 
   pDdiTable->pfnGranularityGetInfo =
-      ur::level_zero::urVirtualMemGranularityGetInfo;
-  pDdiTable->pfnReserve = ur::level_zero::urVirtualMemReserve;
-  pDdiTable->pfnFree = ur::level_zero::urVirtualMemFree;
-  pDdiTable->pfnMap = ur::level_zero::urVirtualMemMap;
-  pDdiTable->pfnUnmap = ur::level_zero::urVirtualMemUnmap;
-  pDdiTable->pfnSetAccess = ur::level_zero::urVirtualMemSetAccess;
-  pDdiTable->pfnGetInfo = ur::level_zero::urVirtualMemGetInfo;
+      ur::level_zero::v1::urVirtualMemGranularityGetInfo;
+  pDdiTable->pfnReserve = ur::level_zero::v1::urVirtualMemReserve;
+  pDdiTable->pfnFree = ur::level_zero::v1::urVirtualMemFree;
+  pDdiTable->pfnMap = ur::level_zero::v1::urVirtualMemMap;
+  pDdiTable->pfnUnmap = ur::level_zero::v1::urVirtualMemUnmap;
+  pDdiTable->pfnSetAccess = ur::level_zero::v1::urVirtualMemSetAccess;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urVirtualMemGetInfo;
 
   return result;
 }
@@ -618,17 +634,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnGet = ur::level_zero::urDeviceGet;
-  pDdiTable->pfnGetInfo = ur::level_zero::urDeviceGetInfo;
-  pDdiTable->pfnRetain = ur::level_zero::urDeviceRetain;
-  pDdiTable->pfnRelease = ur::level_zero::urDeviceRelease;
-  pDdiTable->pfnPartition = ur::level_zero::urDevicePartition;
-  pDdiTable->pfnSelectBinary = ur::level_zero::urDeviceSelectBinary;
-  pDdiTable->pfnGetNativeHandle = ur::level_zero::urDeviceGetNativeHandle;
+  pDdiTable->pfnGet = ur::level_zero::v1::urDeviceGet;
+  pDdiTable->pfnGetInfo = ur::level_zero::v1::urDeviceGetInfo;
+  pDdiTable->pfnRetain = ur::level_zero::v1::urDeviceRetain;
+  pDdiTable->pfnRelease = ur::level_zero::v1::urDeviceRelease;
+  pDdiTable->pfnPartition = ur::level_zero::v1::urDevicePartition;
+  pDdiTable->pfnSelectBinary = ur::level_zero::v1::urDeviceSelectBinary;
+  pDdiTable->pfnGetNativeHandle = ur::level_zero::v1::urDeviceGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
-      ur::level_zero::urDeviceCreateWithNativeHandle;
+      ur::level_zero::v1::urDeviceCreateWithNativeHandle;
   pDdiTable->pfnGetGlobalTimestamps =
-      ur::level_zero::urDeviceGetGlobalTimestamps;
+      ur::level_zero::v1::urDeviceGetGlobalTimestamps;
 
   return result;
 }
@@ -640,13 +656,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnWaitExp = ur::level_zero::urDeviceWaitExp;
+  pDdiTable->pfnWaitExp = ur::level_zero::v1::urDeviceWaitExp;
 
   return result;
 }
 
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v1
 #else
 } // extern "C"
 #endif
@@ -660,7 +676,7 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
   ur_result_t result;
 
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
-#define NAMESPACE_ ::ur::level_zero
+#define NAMESPACE_ ::ur::level_zero::v1
 #else
 #define NAMESPACE_
 #endif
@@ -774,7 +790,7 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
 }
 } // namespace
 
-namespace ur::level_zero {
+namespace ur::level_zero::v1 {
 const ur_dditable_t *ddi_getter::value() {
   static std::once_flag flag;
   static ur_dditable_t table;
@@ -788,4 +804,4 @@ ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
   return populateDdiTable(ddi);
 }
 #endif
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v1

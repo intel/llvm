@@ -61,10 +61,19 @@ target_include_directories(ur_common PUBLIC
 )
 
 
-if (UR_STATIC_ADAPTER_L0)
+# Only a statically-embedded Level Zero adapter that is actually built pulls UMF
+# in statically. UR_STATIC_ADAPTER_L0 defaults ON even when L0 is not built, so
+# gate on the adapter being built too; otherwise non-L0 builds (e.g. macOS)
+# would needlessly force static UMF and its hwloc dependency.
+if ((UR_STATIC_ADAPTER_L0 AND UR_BUILD_ADAPTER_L0) OR
+    (UR_STATIC_ADAPTER_L0_V2 AND UR_BUILD_ADAPTER_L0_V2))
     if (UMF_BUILD_SHARED_LIBRARY)
         message(STATUS "Static adapter is not compatible with shared UMF, switching to fully statically linked UMF")
         set(UMF_BUILD_SHARED_LIBRARY OFF)
+        # A statically-linked UMF must also link hwloc statically; otherwise it
+        # requires a system hwloc that isn't present on every platform (e.g.
+        # macOS), breaking the link.
+        set(UMF_LINK_HWLOC_STATICALLY ON)
     endif()
 endif()
   
@@ -99,6 +108,9 @@ else()
   set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
+  if(UMF_LINK_HWLOC_STATICALLY)
+    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  endif()
 
   FetchContent_MakeAvailable(unified-memory-framework)
   FetchContent_GetProperties(unified-memory-framework)
@@ -162,7 +174,7 @@ target_link_libraries(ur_umf INTERFACE
 
 # Install ur_umf when any static adapter is enabled, so install(EXPORT ...)
 # can resolve it for static consumers.
-if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_OPENCL)
+if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2 OR UR_STATIC_ADAPTER_OPENCL)
     install(TARGETS ur_umf
         EXPORT ${PROJECT_NAME}-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

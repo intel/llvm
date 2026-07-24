@@ -8,11 +8,13 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
+#include "common/device.hpp"
+#include "common/interfaces.hpp"
 #include "common/ur_ref_count.hpp"
-#include "device.hpp"
 
-struct ur_program_handle_t_ : ur_object {
+namespace ur::level_zero {
+
+struct ur_program_handle_t_ : ur_object_t {
   // ur_program_handle_t_() {}
 
   typedef enum {
@@ -271,3 +273,5 @@ private:
   // TODO: Currently interoparability UR API does not support multiple devices.
   ze_module_handle_t InteropZeModule = nullptr;
 };
+
+} // namespace ur::level_zero

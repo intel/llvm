@@ -1,4 +1,4 @@
-//===--------- platform.hpp - Level Zero Adapter --------------------------===//
+//===--------- platform.hpp - Level Zero Adapter -------------------------===//
 //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM
@@ -8,17 +8,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <level_zero/ze_api.h>
-
-#include "common.hpp"
+#include "device.hpp"
+#include "interfaces.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
 #include "zes_api.h"
 
-struct ur_device_handle_t_;
-
-typedef size_t DeviceId;
+namespace ur::level_zero {
 
 struct ur_zes_device_handle_data_t {
   zes_device_handle_t ZesDevice;
@@ -26,10 +23,12 @@ struct ur_zes_device_handle_data_t {
   ze_bool_t SubDevice = false;
 };
 
-struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
-                               public ur_platform {
+struct ur_platform_handle_t_;
+typedef struct ur_platform_handle_t_ *ur_platform_handle_t;
+
+struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   ur_platform_handle_t_(ze_driver_handle_t Driver)
-      : handle_base(), ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
+      : ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
   // Performs initialization of a newly constructed PI platform.
   ur_result_t initialize();
 
@@ -286,3 +285,5 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   // Windows. For details, see https://github.com/intel/llvm/issues/20927.
   bool ZeDeviceSynchronizeSupported{false};
 };
+
+} // namespace ur::level_zero

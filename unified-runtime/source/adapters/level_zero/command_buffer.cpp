@@ -8,14 +8,17 @@
 //
 //===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
-#include "command_buffer_command.hpp"
-#include "helpers/kernel_helpers.hpp"
-#include "helpers/mutable_helpers.hpp"
+#include "common/command_buffer_command.hpp"
+#include "common/device.hpp"
+#include "common/helpers/kernel_helpers.hpp"
+#include "common/helpers/mutable_helpers.hpp"
 #include "logger/ur_logger.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
+
+namespace ur::level_zero::v1 {
 
 /* L0 Command-buffer Extension Doc see:
 https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-zero
@@ -26,20 +29,20 @@ https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-ze
 
 namespace {
 
-ur_result_t
-getMemoryAccessType(const ur_kernel_arg_mem_obj_properties_t *Properties,
-                    ur_mem_handle_t_::access_mode_t &UrAccessMode) {
-  UrAccessMode = ur_mem_handle_t_::read_write;
+ur_result_t getMemoryAccessType(
+    const ur_kernel_arg_mem_obj_properties_t *Properties,
+    ur::level_zero::v1::ur_mem_handle_t_::access_mode_t &UrAccessMode) {
+  UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_write;
   if (Properties) {
     switch (Properties->memoryAccess) {
     case UR_MEM_FLAG_READ_WRITE:
-      UrAccessMode = ur_mem_handle_t_::read_write;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_write;
       break;
     case UR_MEM_FLAG_WRITE_ONLY:
-      UrAccessMode = ur_mem_handle_t_::write_only;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::write_only;
       break;
     case UR_MEM_FLAG_READ_ONLY:
-      UrAccessMode = ur_mem_handle_t_::read_only;
+      UrAccessMode = ur::level_zero::v1::ur_mem_handle_t_::read_only;
       break;
     default:
       return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -48,20 +51,23 @@ getMemoryAccessType(const ur_kernel_arg_mem_obj_properties_t *Properties,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getZeKernelWrapped(ur_kernel_handle_t Kernel,
+ur_result_t getZeKernelWrapped(::ur_kernel_handle_t KernelOpque,
                                ze_kernel_handle_t &ZeKernel,
-                               ur_device_handle_t Device) {
+                               ur::level_zero::ur_device_handle_t Device) {
+  auto Kernel = v1_cast(KernelOpque);
   ze_kernel_handle_t Tmp{};
   UR_CALL(getZeKernel(Device->ZeDevice, Kernel, &Tmp));
   ZeKernel = Tmp;
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getMemPtr(ur_mem_handle_t MemObj,
+ur_result_t getMemPtr(::ur_mem_handle_t MemObjOpque,
                       const ur_kernel_arg_mem_obj_properties_t *Properties,
-                      char **&ZeHandlePtr, ur_device_handle_t Device,
+                      char **&ZeHandlePtr,
+                      ur::level_zero::ur_device_handle_t Device,
                       device_ptr_storage_t *) {
-  ur_mem_handle_t_::access_mode_t UrAccessMode;
+  auto MemObj = v1_cast(MemObjOpque);
+  ur::level_zero::v1::ur_mem_handle_t_::access_mode_t UrAccessMode;
   UR_CALL(getMemoryAccessType(Properties, UrAccessMode));
 
   if (MemObj) {
@@ -464,17 +470,18 @@ ur_result_t enqueueCommandBufferFillHelper(
 }
 } // namespace
 
-ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
-    ur_context_handle_t Context, ur_device_handle_t Device,
-    ze_command_list_handle_t CommandList,
-    ze_command_list_handle_t CommandListTranslated,
-    ze_command_list_handle_t CommandListResetEvents,
-    ze_command_list_handle_t CopyCommandList,
-    ur_event_handle_t ExecutionFinishedEvent, ur_event_handle_t WaitEvent,
-    ur_event_handle_t AllResetEvent, ur_event_handle_t CopyFinishedEvent,
-    ur_event_handle_t ComputeFinishedEvent,
-    const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList,
-    const bool UseImmediateAppendPath)
+ur::level_zero::v1::ur_exp_command_buffer_handle_t_::
+    ur_exp_command_buffer_handle_t_(
+        ur_context_handle_t Context, ur_device_handle_t Device,
+        ze_command_list_handle_t CommandList,
+        ze_command_list_handle_t CommandListTranslated,
+        ze_command_list_handle_t CommandListResetEvents,
+        ze_command_list_handle_t CopyCommandList,
+        ur_event_handle_t ExecutionFinishedEvent, ur_event_handle_t WaitEvent,
+        ur_event_handle_t AllResetEvent, ur_event_handle_t CopyFinishedEvent,
+        ur_event_handle_t ComputeFinishedEvent,
+        const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList,
+        const bool UseImmediateAppendPath)
     : Context(Context), Device(Device), ZeComputeCommandList(CommandList),
       ZeComputeCommandListTranslated(CommandListTranslated),
       ZeCommandListResetEvents(CommandListResetEvents),
@@ -486,16 +493,17 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       IsUpdatable(Desc->isUpdatable), IsProfilingEnabled(Desc->enableProfiling),
       InOrderRequested(Desc->isInOrder), IsInOrderCmdList(IsInOrderCmdList),
       UseImmediateAppendPath(UseImmediateAppendPath) {
-  UR_CALL_NOCHECK(ur::level_zero::urContextRetain(Context));
-  UR_CALL_NOCHECK(ur::level_zero::urDeviceRetain(Device));
+  UR_CALL_NOCHECK(ur::level_zero::v1::urContextRetain(v1_cast(Context)));
+  UR_CALL_NOCHECK(ur::level_zero::urDeviceRetain(common_cast(Device)));
 }
 
-void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
+void ur::level_zero::v1::ur_exp_command_buffer_handle_t_::
+    cleanupCommandBufferResources() {
   // Release the memory allocated to the Context stored in the command_buffer
-  UR_CALL_NOCHECK(ur::level_zero::urContextRelease(Context));
+  UR_CALL_NOCHECK(ur::level_zero::v1::urContextRelease(v1_cast(Context)));
 
   // Release the device
-  UR_CALL_NOCHECK(ur::level_zero::urDeviceRelease(Device));
+  UR_CALL_NOCHECK(ur::level_zero::urDeviceRelease(common_cast(Device)));
 
   // Release the memory allocated to the CommandList stored in the
   // command_buffer
@@ -569,7 +577,8 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
       // some other thread) then release referenced memory allocations. As a
       // result, memory can be deallocated and context can be removed from
       // container in the platform. That's why we need to lock a mutex here.
-      ur_platform_handle_t Platform = Kernel->Program->Context->getPlatform();
+      ur_platform_handle_t Platform =
+          v1_cast(Kernel->Program->Context)->getPlatform();
       std::scoped_lock<ur_shared_mutex> ContextsLock(Platform->ContextsMutex);
 
       if (--Kernel->SubmissionsCount == 0) {
@@ -587,11 +596,12 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
 
   for (auto &AssociatedKernel : KernelsList) {
     ReleaseIndirectMem(AssociatedKernel);
-    UR_CALL_NOCHECK(ur::level_zero::urKernelRelease(AssociatedKernel));
+    UR_CALL_NOCHECK(
+        ur::level_zero::v1::urKernelRelease(v1_cast(AssociatedKernel)));
   }
 }
 
-void ur_exp_command_buffer_handle_t_::registerSyncPoint(
+void ur::level_zero::v1::ur_exp_command_buffer_handle_t_::registerSyncPoint(
     ur_exp_command_buffer_sync_point_t SyncPoint, ur_event_handle_t Event) {
   SyncPoints[SyncPoint] = Event;
   NextSyncPoint++;
@@ -599,7 +609,8 @@ void ur_exp_command_buffer_handle_t_::registerSyncPoint(
 }
 
 ze_command_list_handle_t
-ur_exp_command_buffer_handle_t_::chooseCommandList(bool PreferCopyEngine) {
+ur::level_zero::v1::ur_exp_command_buffer_handle_t_::chooseCommandList(
+    bool PreferCopyEngine) {
   if (PreferCopyEngine && useCopyEngine()) {
     // We indicate that ZeCopyCommandList contains commands to be submitted.
     MCopyCommandListEmpty = false;
@@ -608,7 +619,8 @@ ur_exp_command_buffer_handle_t_::chooseCommandList(bool PreferCopyEngine) {
   return ZeComputeCommandList;
 }
 
-ur_result_t ur_exp_command_buffer_handle_t_::getFenceForQueue(
+ur_result_t
+ur::level_zero::v1::ur_exp_command_buffer_handle_t_::getFenceForQueue(
     ze_command_queue_handle_t &ZeCommandQueue, ze_fence_handle_t &ZeFence) {
   // If we already have created a fence for this queue, first reset then reuse
   // it, otherwise create a new fence.
@@ -624,8 +636,6 @@ ur_result_t ur_exp_command_buffer_handle_t_::getFenceForQueue(
   this->ZeActiveFence = ZeFence;
   return UR_RESULT_SUCCESS;
 }
-
-namespace ur::level_zero {
 
 /**
  * Creates a L0 command list
@@ -708,8 +718,9 @@ bool canBeInOrder(ur_context_handle_t Context,
  * @param CommandBuffer The CommandBuffer
  * @return UR_RESULT_SUCCESS or an error code on failure.
  */
-ur_result_t appendExecutionWaits(ur_exp_command_buffer_handle_t CommandBuffer) {
-
+ur_result_t
+appendExecutionWaits(::ur_exp_command_buffer_handle_t CommandBufferOpque) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
   std::vector<ze_event_handle_t> PrecondEvents;
   if (CommandBuffer->ZeCommandListResetEvents) {
     PrecondEvents.push_back(CommandBuffer->AllResetEvent->ZeEvent);
@@ -732,9 +743,12 @@ ur_result_t appendExecutionWaits(ur_exp_command_buffer_handle_t CommandBuffer) {
 }
 
 ur_result_t
-urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
+urCommandBufferCreateExp(::ur_context_handle_t ContextOpque,
+                         ::ur_device_handle_t DeviceOpque,
                          const ur_exp_command_buffer_desc_t *CommandBufferDesc,
-                         ur_exp_command_buffer_handle_t *CommandBuffer) {
+                         ::ur_exp_command_buffer_handle_t *CommandBuffer) {
+  auto Context = v1_cast(ContextOpque);
+  auto Device = common_cast(DeviceOpque);
   bool IsInOrder = canBeInOrder(Context, CommandBufferDesc);
   bool EnableProfiling = CommandBufferDesc->enableProfiling && !IsInOrder;
   bool IsUpdatable = CommandBufferDesc->isUpdatable;
@@ -822,11 +836,13 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   }
 
   try {
-    *CommandBuffer = new ur_exp_command_buffer_handle_t_(
-        Context, Device, ZeComputeCommandList, ZeComputeCommandListTranslated,
-        ZeCommandListResetEvents, ZeCopyCommandList, ExecutionFinishedEvent,
-        WaitEvent, AllResetEvent, CopyFinishedEvent, ComputeFinishedEvent,
-        CommandBufferDesc, IsInOrder, ImmediateAppendPath);
+    *CommandBuffer = reinterpret_cast<::ur_exp_command_buffer_handle_t>(
+        new ur::level_zero::v1::ur_exp_command_buffer_handle_t_(
+            Context, Device, ZeComputeCommandList,
+            ZeComputeCommandListTranslated, ZeCommandListResetEvents,
+            ZeCopyCommandList, ExecutionFinishedEvent, WaitEvent, AllResetEvent,
+            CopyFinishedEvent, ComputeFinishedEvent, CommandBufferDesc,
+            IsInOrder, ImmediateAppendPath));
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -839,13 +855,15 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
 }
 
 ur_result_t
-urCommandBufferRetainExp(ur_exp_command_buffer_handle_t CommandBuffer) {
+urCommandBufferRetainExp(::ur_exp_command_buffer_handle_t CommandBufferOpque) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
   CommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
-urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
+urCommandBufferReleaseExp(::ur_exp_command_buffer_handle_t CommandBufferOpque) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
   if (!CommandBuffer->RefCount.release())
     return UR_RESULT_SUCCESS;
 
@@ -957,9 +975,10 @@ finalizeWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+ur_result_t urCommandBufferFinalizeExp(
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
+  UR_ASSERT(CommandBufferOpque, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(!CommandBuffer->IsFinalized, UR_RESULT_ERROR_INVALID_OPERATION);
 
   // It is not allowed to append to command list from multiple threads.
@@ -1000,7 +1019,8 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
  */
 ur_result_t setKernelPendingArguments(
     ur_device_handle_t Device,
-    std::vector<ur_kernel_handle_t_::ArgumentInfo> &PendingArguments,
+    std::vector<ur::level_zero::v1::ur_kernel_handle_t_::ArgumentInfo>
+        &PendingArguments,
     ze_kernel_handle_t ZeKernel) {
   // If there are any pending arguments set them now.
   for (auto &Arg : PendingArguments) {
@@ -1023,18 +1043,29 @@ ur_result_t setKernelPendingArguments(
   return UR_RESULT_SUCCESS;
 }
 
+kernel_command_handle *
+CreateCommandHandle(::ur_exp_command_buffer_handle_t commandBuffer,
+                    ::ur_kernel_handle_t kernel, uint64_t commandId,
+                    uint32_t workDim, uint32_t numKernelAlternatives,
+                    ::ur_kernel_handle_t *kernelAlternatives) {
+  return new kernel_command_handle(commandBuffer, kernel, commandId, workDim,
+                                   numKernelAlternatives, kernelAlternatives);
+}
+
 ur_result_t urCommandBufferAppendKernelLaunchExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-    uint32_t WorkDim, const size_t *GlobalWorkOffset,
-    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-    uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives,
-    uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    ::ur_kernel_handle_t KernelOpque, uint32_t WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, uint32_t NumKernelAlternatives,
+    ::ur_kernel_handle_t *KernelAlternatives, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *RetSyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t *Command) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t *Command) {
+  auto Kernel = v1_cast(KernelOpque);
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
 
   UR_ASSERT(Kernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   // Command handles can only be obtained from updatable command-buffers
@@ -1050,8 +1081,8 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   UR_CALL(getZeKernel(Device->ZeDevice, Kernel, &ZeKernel));
 
   if (GlobalWorkOffset != NULL) {
-    UR_CALL(setKernelGlobalOffset(CommandBuffer->Context, ZeKernel, WorkDim,
-                                  GlobalWorkOffset));
+    UR_CALL(setKernelGlobalOffset(v1_cast(CommandBuffer->Context), ZeKernel,
+                                  WorkDim, GlobalWorkOffset));
   }
 
   // If there are any pending arguments set them now.
@@ -1070,13 +1101,13 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
 
   CommandBuffer->KernelsList.push_back(Kernel);
   for (size_t i = 0; i < NumKernelAlternatives; i++) {
-    CommandBuffer->KernelsList.push_back(KernelAlternatives[i]);
+    CommandBuffer->KernelsList.push_back(v1_cast(KernelAlternatives[i]));
   }
 
-  UR_CALL(ur::level_zero::urKernelRetain(Kernel));
+  UR_CALL(ur::level_zero::v1::urKernelRetain(KernelOpque));
   // Retain alternative kernels if provided
   for (size_t i = 0; i < NumKernelAlternatives; i++) {
-    UR_CALL(ur::level_zero::urKernelRetain(KernelAlternatives[i]));
+    UR_CALL(ur::level_zero::v1::urKernelRetain(KernelAlternatives[i]));
   }
 
   if (Command) {
@@ -1090,10 +1121,12 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
 
     std::unique_ptr<kernel_command_handle> NewCommand;
     UR_CALL(createCommandHandleUnlocked(
-        CommandBuffer, ZeCommandList, Kernel, WorkDim, GlobalWorkSize,
+        CommandBufferOpque, ZeCommandList, KernelOpque, WorkDim, GlobalWorkSize,
         NumKernelAlternatives, KernelAlternatives, Platform, getZeKernelWrapped,
-        Device, NewCommand));
-    *Command = NewCommand.get();
+        CreateCommandHandle, Device, NewCommand));
+    *Command =
+        common_cast(reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+            NewCommand.get()));
     CommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   }
   std::vector<ze_event_handle_t> ZeEventList;
@@ -1112,26 +1145,29 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
 }
 
 ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
-    uint32_t workDim, const size_t *pGlobalWorkOffset,
-    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_kernel_handle_t hKernelOpque, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs, uint32_t numKernelAlternatives,
+    ::ur_kernel_handle_t *phKernelAlternatives,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     uint32_t /* numEventsInWaitList */,
-    const ur_event_handle_t * /* phEventWaitList */,
+    const ::ur_event_handle_t * /* phEventWaitList */,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_event_handle_t * /* phEvent */,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
+    ::ur_event_handle_t * /* phEvent */,
+    ::ur_exp_command_buffer_command_handle_t *phCommand) {
 
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hKernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(hKernelOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  auto Kernel = v1_cast(hKernelOpque);
+  auto CmdBuf = v1_cast(hCommandBufferOpque);
+  UR_ASSERT(Kernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   // Command handles can only be obtained from updatable command-buffers
-  UR_ASSERT(!(phCommand && !hCommandBuffer->IsUpdatable),
+  UR_ASSERT(!(phCommand && !CmdBuf->IsUpdatable),
             UR_RESULT_ERROR_INVALID_OPERATION);
 
-  if (numArgs != hKernel->ZeKernelProperties->numKernelArgs) {
+  if (numArgs != Kernel->ZeKernelProperties->numKernelArgs) {
     setErrorMessage("Wrong number of kernel arguments",
                     UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
                     static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
@@ -1140,7 +1176,7 @@ ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
 
   {
     std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
-        hKernel->Mutex, hKernel->Program->Mutex, hCommandBuffer->Mutex);
+        Kernel->Mutex, Kernel->Program->Mutex, CmdBuf->Mutex);
 
     for (uint32_t i = 0; i < numArgs; i++) {
       if (pArgs[i].index != i) {
@@ -1152,29 +1188,30 @@ ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
 
       switch (pArgs[i].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(urKernelSetArgValueHelper(hKernel, pArgs[i].index,
-                                          pArgs[i].size, nullptr));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, pArgs[i].index, pArgs[i].size,
+                                          nullptr));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(urKernelSetArgValueHelper(hKernel, pArgs[i].index,
-                                          pArgs[i].size, pArgs[i].value.value));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, pArgs[i].index, pArgs[i].size,
+                                          pArgs[i].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(urKernelSetArgValueHelper(
-            hKernel, pArgs[i].index, pArgs[i].size, &pArgs[i].value.pointer));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, pArgs[i].index, pArgs[i].size,
+                                          &pArgs[i].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
         ur_kernel_arg_mem_obj_properties_t Properties = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
             pArgs[i].value.memObjTuple.flags};
-        UR_CALL(urKernelSetArgMemObjHelper(hKernel, pArgs[i].index, &Properties,
-                                           pArgs[i].value.memObjTuple.hMem));
+        UR_CALL(urKernelSetArgMemObjHelper(
+            Kernel, pArgs[i].index, &Properties,
+            v1_cast(pArgs[i].value.memObjTuple.hMem)));
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(urKernelSetArgValueHelper(hKernel, pArgs[i].index,
-                                          pArgs[i].size,
-                                          &pArgs[i].value.sampler->ZeSampler));
+        UR_CALL(urKernelSetArgValueHelper(
+            Kernel, pArgs[i].index, pArgs[i].size,
+            &ur::level_zero::common_cast(pArgs[i].value.sampler)->ZeSampler));
         break;
       }
       default:
@@ -1183,30 +1220,32 @@ ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
     }
   }
 
-  return ur::level_zero::urCommandBufferAppendKernelLaunchExp(
-      hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numKernelAlternatives, phKernelAlternatives,
-      numSyncPointsInWaitList, pSyncPointWaitList, 0 /*numEventsInWaitList*/,
-      nullptr /*phEventWaitList*/, pSyncPoint, nullptr /*phEvent*/, phCommand);
+  return ur::level_zero::v1::urCommandBufferAppendKernelLaunchExp(
+      hCommandBufferOpque, hKernelOpque, workDim, pGlobalWorkOffset,
+      pGlobalWorkSize, pLocalWorkSize, numKernelAlternatives,
+      phKernelAlternatives, numSyncPointsInWaitList, pSyncPointWaitList,
+      0 /*numEventsInWaitList*/, nullptr /*phEventWaitList*/, pSyncPoint,
+      nullptr /*phEvent*/, phCommand);
 }
 
 ur_result_t urCommandBufferAppendUSMMemcpyExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, void *Dst, const void *Src,
-    size_t Size, uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque, void *Dst,
+    const void *Src, size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
 
-  bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
-                          !IsDevicePointer(CommandBuffer->Context, Dst);
+  auto Context = CommandBuffer->Context;
+  bool PreferCopyEngine =
+      !IsDevicePointer(Context, Src) || !IsDevicePointer(Context, Dst);
   // For better performance, Copy Engines are not preferred given Shared
   // pointers on DG2.
   if (CommandBuffer->Device->isDG2() &&
-      (IsSharedPointer(CommandBuffer->Context, Src) ||
-       IsSharedPointer(CommandBuffer->Context, Dst))) {
+      (IsSharedPointer(Context, Src) || IsSharedPointer(Context, Dst))) {
     PreferCopyEngine = false;
   }
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
@@ -1217,15 +1256,16 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferCopyExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t SrcMem,
-    ur_mem_handle_t DstMem, size_t SrcOffset, size_t DstOffset, size_t Size,
-    uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    ::ur_mem_handle_t SrcMem, ::ur_mem_handle_t DstMem, size_t SrcOffset,
+    size_t DstOffset, size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
   auto SrcBuffer = ur_cast<ur_buffer *>(SrcMem);
   auto DstBuffer = ur_cast<ur_buffer *>(DstMem);
 
@@ -1234,11 +1274,13 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
       SrcLock, DstBuffer->Mutex);
 
   char *ZeHandleSrc;
-  UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                 CommandBuffer->Device, nullptr, 0u));
+  UR_CALL(SrcBuffer->getZeHandle(
+      ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
+      CommandBuffer->Device, nullptr, 0u));
   char *ZeHandleDst;
-  UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                 CommandBuffer->Device, nullptr, 0u));
+  UR_CALL(DstBuffer->getZeHandle(
+      ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+      CommandBuffer->Device, nullptr, 0u));
 
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
 
@@ -1251,17 +1293,18 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t SrcMem,
-    ur_mem_handle_t DstMem, ur_rect_offset_t SrcOrigin,
-    ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
-    size_t SrcSlicePitch, size_t DstRowPitch, size_t DstSlicePitch,
-    uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    ::ur_mem_handle_t SrcMem, ::ur_mem_handle_t DstMem,
+    ur_rect_offset_t SrcOrigin, ur_rect_offset_t DstOrigin,
+    ur_rect_region_t Region, size_t SrcRowPitch, size_t SrcSlicePitch,
+    size_t DstRowPitch, size_t DstSlicePitch, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
   auto SrcBuffer = ur_cast<ur_buffer *>(SrcMem);
   auto DstBuffer = ur_cast<ur_buffer *>(DstMem);
 
@@ -1270,11 +1313,13 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
       SrcLock, DstBuffer->Mutex);
 
   char *ZeHandleSrc;
-  UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                 CommandBuffer->Device, nullptr, 0u));
+  UR_CALL(SrcBuffer->getZeHandle(
+      ZeHandleSrc, ur::level_zero::v1::ur_mem_handle_t_::read_only,
+      CommandBuffer->Device, nullptr, 0u));
   char *ZeHandleDst;
-  UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                 CommandBuffer->Device, nullptr, 0u));
+  UR_CALL(DstBuffer->getZeHandle(
+      ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+      CommandBuffer->Device, nullptr, 0u));
 
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
 
@@ -1288,19 +1333,22 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferWriteExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
-    size_t Offset, size_t Size, const void *Src,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    ::ur_mem_handle_t BufferOpque, size_t Offset, size_t Size, const void *Src,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
+  auto Buffer = v1_cast(BufferOpque);
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
-  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+  UR_CALL(Buffer->getZeHandle(ZeHandleDst,
+                              ur::level_zero::v1::ur_mem_handle_t_::write_only,
                               CommandBuffer->Device, nullptr, 0u));
   // Always prefer copy engine for writes
   bool PreferCopyEngine = true;
@@ -1314,21 +1362,24 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
-    ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
-    ur_rect_region_t Region, size_t BufferRowPitch, size_t BufferSlicePitch,
-    size_t HostRowPitch, size_t HostSlicePitch, void *Src,
-    uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    ::ur_mem_handle_t BufferOpque, ur_rect_offset_t BufferOffset,
+    ur_rect_offset_t HostOffset, ur_rect_region_t Region, size_t BufferRowPitch,
+    size_t BufferSlicePitch, size_t HostRowPitch, size_t HostSlicePitch,
+    void *Src, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
+  auto Buffer = v1_cast(BufferOpque);
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
-  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+  UR_CALL(Buffer->getZeHandle(ZeHandleDst,
+                              ur::level_zero::v1::ur_mem_handle_t_::write_only,
                               CommandBuffer->Device, nullptr, 0u));
 
   // Always prefer copy engine for writes
@@ -1343,18 +1394,22 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferReadExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
-    size_t Offset, size_t Size, void *Dst, uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    ::ur_mem_handle_t BufferOpque, size_t Offset, size_t Size, void *Dst,
+    uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
+  auto Buffer = v1_cast(BufferOpque);
   std::scoped_lock<ur_shared_mutex> SrcLock(Buffer->Mutex);
 
   char *ZeHandleSrc = nullptr;
-  UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
+  UR_CALL(Buffer->getZeHandle(ZeHandleSrc,
+                              ur::level_zero::v1::ur_mem_handle_t_::read_only,
                               CommandBuffer->Device, nullptr, 0u));
 
   // Always prefer copy engine for reads
@@ -1367,21 +1422,24 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferReadRectExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
-    ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
-    ur_rect_region_t Region, size_t BufferRowPitch, size_t BufferSlicePitch,
-    size_t HostRowPitch, size_t HostSlicePitch, void *Dst,
-    uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    ::ur_mem_handle_t BufferOpque, ur_rect_offset_t BufferOffset,
+    ur_rect_offset_t HostOffset, ur_rect_region_t Region, size_t BufferRowPitch,
+    size_t BufferSlicePitch, size_t HostRowPitch, size_t HostSlicePitch,
+    void *Dst, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
+  auto Buffer = v1_cast(BufferOpque);
   std::scoped_lock<ur_shared_mutex> SrcLock(Buffer->Mutex);
 
   char *ZeHandleSrc;
-  UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
+  UR_CALL(Buffer->getZeHandle(ZeHandleSrc,
+                              ur::level_zero::v1::ur_mem_handle_t_::read_only,
                               CommandBuffer->Device, nullptr, 0u));
 
   // Always prefer copy engine for reads
@@ -1395,14 +1453,16 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
 }
 
 ur_result_t urCommandBufferAppendUSMPrefetchExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
-    ur_usm_migration_flags_t Flags, uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque, const void *Mem,
+    size_t Size, ur_usm_migration_flags_t Flags,
+    uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *RetSyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
 
   std::vector<ze_event_handle_t> ZeEventList;
   ze_event_handle_t ZeLaunchEvent = nullptr;
@@ -1446,14 +1506,15 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
 }
 
 ur_result_t urCommandBufferAppendUSMAdviseExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
-    ur_usm_advice_flags_t Advice, uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque, const void *Mem,
+    size_t Size, ur_usm_advice_flags_t Advice, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *RetSyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
   // A memory chunk can be advised with muliple memory advices
   // We therefore prefer if statements to switch cases to combine all potential
   // flags
@@ -1509,22 +1570,25 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
 }
 
 ur_result_t urCommandBufferAppendMemBufferFillExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
-    const void *Pattern, size_t PatternSize, size_t Offset, size_t Size,
-    uint32_t NumSyncPointsInWaitList,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    ::ur_mem_handle_t BufferOpque, const void *Pattern, size_t PatternSize,
+    size_t Offset, size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
+  auto Buffer = v1_cast(BufferOpque);
 
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
-  ur_buffer *UrBuffer = reinterpret_cast<ur_buffer *>(Buffer);
-  UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                CommandBuffer->Device, nullptr, 0u));
+  ur_buffer *UrBuffer = static_cast<ur_buffer *>(Buffer);
+  UR_CALL(UrBuffer->getZeHandle(
+      ZeHandleDst, ur::level_zero::v1::ur_mem_handle_t_::write_only,
+      CommandBuffer->Device, nullptr, 0u));
 
   return enqueueCommandBufferFillHelper(
       UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, ZeHandleDst + Offset,
@@ -1534,15 +1598,16 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
 }
 
 ur_result_t urCommandBufferAppendUSMFillExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, void *Ptr,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque, void *Ptr,
     const void *Pattern, size_t PatternSize, size_t Size,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ::ur_event_handle_t * /*EventWaitList*/,
     ur_exp_command_buffer_sync_point_t *SyncPoint,
-    ur_event_handle_t * /*Event*/,
-    ur_exp_command_buffer_command_handle_t * /*Command*/) {
+    ::ur_event_handle_t * /*Event*/,
+    ::ur_exp_command_buffer_command_handle_t * /*Command*/) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
 
   return enqueueCommandBufferFillHelper(
       UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, Ptr,
@@ -1829,27 +1894,33 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urEnqueueCommandBufferExp(
-    ur_queue_handle_t UrQueue, ur_exp_command_buffer_handle_t CommandBuffer,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *Event) {
+ur_result_t
+urEnqueueCommandBufferExp(::ur_queue_handle_t UrQueueOpque,
+                          ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+                          uint32_t NumEventsInWaitList,
+                          const ::ur_event_handle_t *EventWaitList,
+                          ::ur_event_handle_t *Event) {
+  auto UrQueue = v1_cast(UrQueueOpque);
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
+  auto EventWaitListInternal = v1_cast(EventWaitList);
+  auto EventInternal = v1_cast(Event);
 
   std::scoped_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
 
   UR_CALL(waitForOngoingExecution(CommandBuffer));
 
-  const bool IsInternal = (Event == nullptr);
+  const bool IsInternal = (EventInternal == nullptr);
   const bool DoProfiling =
       (UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) &&
       (!CommandBuffer->IsInOrderCmdList) &&
-      (CommandBuffer->IsProfilingEnabled) && Event;
+      (CommandBuffer->IsProfilingEnabled) && EventInternal;
   ur_event_handle_t InternalEvent;
-  ur_event_handle_t *OutEvent = Event ? Event : &InternalEvent;
+  ur_event_handle_t *OutEvent = EventInternal ? EventInternal : &InternalEvent;
 
   ur_command_list_ptr_t ZeCommandListHelper{};
   UR_CALL(UrQueue->Context->getAvailableCommandList(
       UrQueue, ZeCommandListHelper, false /*UseCopyEngine*/,
-      NumEventsInWaitList, EventWaitList, false /*AllowBatching*/,
+      NumEventsInWaitList, EventWaitListInternal, false /*AllowBatching*/,
       nullptr /*ForcedCmdQueue*/));
 
   UR_CALL(createEventAndAssociateQueue(
@@ -1858,12 +1929,12 @@ ur_result_t urEnqueueCommandBufferExp(
 
   if (CommandBuffer->UseImmediateAppendPath) {
     UR_CALL(enqueueImmediateAppendPath(
-        CommandBuffer, UrQueue, NumEventsInWaitList, EventWaitList, OutEvent,
-        ZeCommandListHelper, DoProfiling));
+        CommandBuffer, UrQueue, NumEventsInWaitList, EventWaitListInternal,
+        OutEvent, ZeCommandListHelper, DoProfiling));
   } else {
     UR_CALL(enqueueWaitEventPath(CommandBuffer, UrQueue, NumEventsInWaitList,
-                                 EventWaitList, OutEvent, ZeCommandListHelper,
-                                 DoProfiling));
+                                 EventWaitListInternal, OutEvent,
+                                 ZeCommandListHelper, DoProfiling));
   }
 
   return UR_RESULT_SUCCESS;
@@ -1902,14 +1973,16 @@ ur_result_t updateCommandBuffer(
 } // namespace
 
 ur_result_t urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, uint32_t numKernelUpdates,
+    ::ur_exp_command_buffer_handle_t CommandBufferOpque,
+    uint32_t numKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
+  auto CommandBuffer = v1_cast(CommandBufferOpque);
   UR_ASSERT(CommandBuffer->IsUpdatable && CommandBuffer->IsFinalized,
             UR_RESULT_ERROR_INVALID_OPERATION);
   {
     std::scoped_lock<ur_shared_mutex> Guard(CommandBuffer->Mutex);
     UR_CALL(
-        validateCommandDescUnlocked(CommandBuffer, CommandBuffer->Device,
+        validateCommandDescUnlocked(CommandBufferOpque, CommandBuffer->Device,
                                     CommandBuffer->Context->getPlatform()
                                         ->ZeDriverGlobalOffsetExtensionFound,
                                     numKernelUpdates, CommandDesc));
@@ -1923,23 +1996,24 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
 }
 
 ur_result_t urCommandBufferUpdateSignalEventExp(
-    ur_exp_command_buffer_command_handle_t /*Command*/,
-    ur_event_handle_t * /*Event*/) {
+    ::ur_exp_command_buffer_command_handle_t /*Command*/,
+    ::ur_event_handle_t * /*Event*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t urCommandBufferUpdateWaitEventsExp(
-    ur_exp_command_buffer_command_handle_t /*Command*/,
+    ::ur_exp_command_buffer_command_handle_t /*Command*/,
     uint32_t /*NumEventsInWaitList*/,
-    const ur_event_handle_t * /*EventWaitList*/) {
+    const ::ur_event_handle_t * /*EventWaitList*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t
-urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+urCommandBufferGetInfoExp(::ur_exp_command_buffer_handle_t hCommandBufferOpque,
                           ur_exp_command_buffer_info_t propName,
                           size_t propSize, void *pPropValue,
                           size_t *pPropSizeRet) {
+  auto hCommandBuffer = v1_cast(hCommandBufferOpque);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -1963,12 +2037,13 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 }
 
 ur_result_t urCommandBufferAppendNativeCommandExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
     ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
-    void *pData, ur_exp_command_buffer_handle_t,
+    void *pData, ::ur_exp_command_buffer_handle_t,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  auto hCommandBuffer = v1_cast(hCommandBufferOpque);
   // Use Compute command-list as we don't know the types of commands the
   // user will choose to append.
   ze_command_list_handle_t ZeCommandList = hCommandBuffer->ZeComputeCommandList;
@@ -1995,12 +2070,13 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
-                                  ur_native_handle_t *phNativeCommandBuffer) {
+ur_result_t urCommandBufferGetNativeHandleExp(
+    ::ur_exp_command_buffer_handle_t hCommandBufferOpque,
+    ::ur_native_handle_t *phNativeCommandBuffer) {
+  auto hCommandBuffer = v1_cast(hCommandBufferOpque);
   // Return Compute command-list as it is guaranteed to always exist
   ze_command_list_handle_t ZeCommandList = hCommandBuffer->ZeComputeCommandList;
   *phNativeCommandBuffer = reinterpret_cast<ur_native_handle_t>(ZeCommandList);
   return UR_RESULT_SUCCESS;
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v1
