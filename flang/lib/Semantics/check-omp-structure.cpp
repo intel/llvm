@@ -633,7 +633,8 @@ void OmpStructureChecker::ClearLabels() {
   targetLabels_.clear();
 }
 
-bool OmpStructureChecker::IsCloselyNestedRegion(const OmpDirectiveSet &set) {
+bool OmpStructureChecker::IsCloselyNestedRegion(
+    const llvm::omp::DirectiveSet &set) {
   // Definition of close nesting:
   //
   // `A region nested inside another region with no parallel region nested
@@ -1168,7 +1169,7 @@ bool OmpStructureChecker::IsCombinedParallelWorksharing(
 }
 
 bool OmpStructureChecker::HasInvalidWorksharingNesting(
-    const parser::OmpDirectiveName &name, const OmpDirectiveSet &set) {
+    const parser::OmpDirectiveName &name, const llvm::omp::DirectiveSet &set) {
   // set contains all the invalid closely nested directives
   // for the given directive (`source` here)
   if (IsCombinedParallelWorksharing(name.v)) {
@@ -4579,7 +4580,7 @@ void OmpStructureChecker::Enter(const parser::OmpClause::If &x) {
           "%s is not a constituent of the %s directive"_err_en_US, subName,
           dirName);
     } else {
-      static OmpDirectiveSet valid45{
+      static llvm::omp::DirectiveSet valid45{
           llvm::omp::Directive::OMPD_cancel, //
           llvm::omp::Directive::OMPD_parallel, //
           llvm::omp::Directive::OMPD_target, //
@@ -4590,13 +4591,13 @@ void OmpStructureChecker::Enter(const parser::OmpClause::If &x) {
           llvm::omp::Directive::OMPD_task, //
           llvm::omp::Directive::OMPD_taskloop, //
       };
-      static OmpDirectiveSet valid50{
-          valid45 | OmpDirectiveSet{llvm::omp::Directive::OMPD_simd}};
+      static llvm::omp::DirectiveSet valid50{
+          valid45 | llvm::omp::DirectiveSet{llvm::omp::Directive::OMPD_simd}};
       // 5.1 is the same as 5.0.
-      static OmpDirectiveSet valid52{
-          valid50 | OmpDirectiveSet{llvm::omp::Directive::OMPD_teams}};
-      static OmpDirectiveSet valid60{valid52 |
-          OmpDirectiveSet{llvm::omp::Directive::OMPD_taskgraph,
+      static llvm::omp::DirectiveSet valid52{
+          valid50 | llvm::omp::DirectiveSet{llvm::omp::Directive::OMPD_teams}};
+      static llvm::omp::DirectiveSet valid60{valid52 |
+          llvm::omp::DirectiveSet{llvm::omp::Directive::OMPD_taskgraph,
               /*TODO llvm::omp::Directive::OMPD_task_iteration*/}};
 
       static auto minVersion{[&](llvm::omp::Directive d) {

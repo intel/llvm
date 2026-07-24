@@ -354,9 +354,9 @@ private:
   void CheckStructureComponent(
       const parser::OmpObjectList &objects, llvm::omp::Clause clauseId);
   bool HasInvalidWorksharingNesting(
-      const parser::OmpDirectiveName &name, const OmpDirectiveSet &);
+      const parser::OmpDirectiveName &name, const llvm::omp::DirectiveSet &);
 
-  bool IsCloselyNestedRegion(const OmpDirectiveSet &set);
+  bool IsCloselyNestedRegion(const llvm::omp::DirectiveSet &set);
   bool IsNestedInDirective(llvm::omp::Directive directive);
   bool IsCombinedParallelWorksharing(llvm::omp::Directive directive) const;
   bool InTargetRegion();
