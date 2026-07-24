@@ -92,6 +92,14 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
     $<$<IN_LIST:$<CXX_COMPILER_ID>,GNU;Clang;Intel;IntelLLVM>:-Wno-error>
     $<$<CXX_COMPILER_ID:MSVC>:/WX- /UUNICODE /GL->
     )
+  # Neutralize the dllexport macros so a consuming DLL doesn't re-export the
+  # ze*/zes*/zel* symbols from this statically-linked loader.
+  if(WIN32 AND (UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2))
+    target_compile_definitions(ze_loader PRIVATE
+      ZE_APIEXPORT=
+      ZE_DLLEXPORT=
+    )
+  endif()
 endif()
 
 add_library(LevelZeroLoader INTERFACE)
