@@ -1,8 +1,22 @@
 //===- ScalarHoist.cpp - Hoist int division magic/shift from GPU to host --===//
 //
-// Identifies arith.divui/remui by scalar kernel args in gpu.func bodies.
-// Hoists magic/shift precomputation to the host side (before gpu.launch_func).
-// Adds magic/shift as new kernel arguments and replaces division in kernel.
+// Implements the patent's Phase 1 (Dependency Classification) and the
+// cost-driven hoisting of scalar integer division.
+//
+// Phase 1: Forward dataflow analysis tags each SSA value in the GPU kernel
+// as SCALAR_ONLY (uniform across work-items), INDEX_ONLY (varies per
+// work-item), MIXED (depends on both), or CONSTANT (compile-time known).
+//
+// Hoisting: For each arith.divui / arith.remui where the divisor (or a
+// scalar operand of a MIXED divisor) is SCALAR_ONLY, the pass:
+//   - Precomputes magic/shift on the HOST side (before gpu.launch_func)
+//   - Adds magic/shift as extra kernel arguments
+//   - Replaces division in the kernel with magic multiply.
+//
+// The cost model is simple: all integer divisions by scalar values are
+// hoisted (integer division is expensive, ~20-80 cycles on GPU vs ~6-8
+// for the replacement).
+//
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
@@ -19,15 +33,147 @@ namespace mlir {
 
 using namespace mlir;
 
-// Trace back through index_cast to find the original block argument.
-// Returns the gpu.func block argument or nullptr.
-static BlockArgument getKernelArg(Value val) {
-  auto arg = dyn_cast<BlockArgument>(val);
-  if (!arg) return nullptr;
-  return arg;
+//===----------------------------------------------------------------------===//
+// Phase 1: Dependency Classification
+//===----------------------------------------------------------------------===//
+
+enum class DepClass : uint8_t { SCALAR_ONLY, INDEX_ONLY, MIXED, CONSTANT };
+
+/// Classify every SSA value in the gpu.func body.
+/// For OUTLINED kernels (gpu.module/gpu.func), the block arguments are the
+/// actual kernel parameters (memrefs + scalars). GPU index values are
+/// generated inside the body via gpu.thread_id / gpu.block_id ops.
+static void classifyValues(gpu::GPUFuncOp kernel,
+                           DenseMap<Value, DepClass> &depMap) {
+  Block &entry = kernel.getBody().front();
+
+  // For outlined kernels: all block args are kernel params.
+  // MemRef → INDEX_ONLY (data buffers), scalars → SCALAR_ONLY.
+  for (auto arg : entry.getArguments()) {
+    Type t = arg.getType();
+    if (isa<MemRefType>(t))
+      depMap[arg] = DepClass::INDEX_ONLY;
+    else
+      depMap[arg] = DepClass::SCALAR_ONLY;
+  }
+
+  // --- Forward propagation: iterate to fixed point ---
+  SmallVector<Operation *> allOps;
+  kernel.walk([&](Operation *op) {
+    if (!op->getResults().empty())
+      allOps.push_back(op);
+  });
+
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (Operation *op : allOps) {
+      // GPU index queries → INDEX_ONLY
+      if (isa<gpu::BlockIdOp, gpu::ThreadIdOp, gpu::LaneIdOp, gpu::GlobalIdOp,
+              gpu::SubgroupIdOp>(op)) {
+        for (Value r : op->getResults()) {
+          if (depMap.lookup(r) != DepClass::INDEX_ONLY) {
+            depMap[r] = DepClass::INDEX_ONLY;
+            changed = true;
+          }
+        }
+        continue;
+      }
+
+      // gpu.block_dim / gpu.grid_dim → SCALAR_ONLY (uniform per launch)
+      if (isa<gpu::BlockDimOp, gpu::GridDimOp>(op)) {
+        for (Value r : op->getResults()) {
+          if (depMap.lookup(r) != DepClass::SCALAR_ONLY) {
+            depMap[r] = DepClass::SCALAR_ONLY;
+            changed = true;
+          }
+        }
+        continue;
+      }
+
+      // Memory loads → INDEX_ONLY
+      if (isa<memref::LoadOp>(op)) {
+        for (Value r : op->getResults()) {
+          if (depMap.lookup(r) != DepClass::INDEX_ONLY) {
+            depMap[r] = DepClass::INDEX_ONLY;
+            changed = true;
+          }
+        }
+        continue;
+      }
+
+      // Only classify arithmetic / math operations
+      if (!isa<arith::ArithDialect, math::MathDialect>(op->getDialect()))
+        continue;
+
+      // --- Lattice join ---
+      bool hasScalar = false, hasIndex = false;
+      for (Value operand : op->getOperands()) {
+        auto it = depMap.find(operand);
+        if (it == depMap.end()) continue;
+        DepClass dc = it->second;
+        if (dc == DepClass::SCALAR_ONLY || dc == DepClass::CONSTANT)
+          hasScalar = true;
+        if (dc == DepClass::INDEX_ONLY || dc == DepClass::MIXED)
+          hasIndex = true;
+      }
+
+      DepClass newClass;
+      if (!hasScalar && !hasIndex)
+        newClass = DepClass::CONSTANT;
+      else if (hasScalar && !hasIndex)
+        newClass = DepClass::SCALAR_ONLY;
+      else if (!hasScalar && hasIndex)
+        newClass = DepClass::INDEX_ONLY;
+      else
+        newClass = DepClass::MIXED;
+
+      for (Value r : op->getResults()) {
+        if (depMap.lookup(r) != newClass) {
+          depMap[r] = newClass;
+          changed = true;
+        }
+      }
+    }
+  }
 }
 
+/// Check whether a value is SCALAR_ONLY by looking it up in the depMap.
+static bool isScalarOnly(Value val, const DenseMap<Value, DepClass> &depMap) {
+  auto it = depMap.find(val);
+  return it != depMap.end() && it->second == DepClass::SCALAR_ONLY;
+}
+
+/// Return the SCALAR_ONLY operand of a MIXED value if exactly one operand
+/// is SCALAR_ONLY and the other is INDEX_ONLY. This is useful for MIXED
+/// decomposition: arith.divui(n, scalar_op) where scalar_op may itself be
+/// a SCALAR_ONLY computation chain (not necessarily a block argument).
+/// Returns nullptr if no usable scalar operand.
+static Value getScalarOperand(Value val,
+                               const DenseMap<Value, DepClass> &depMap) {
+  if (isScalarOnly(val, depMap))
+    return val;                                    // directly SCALAR_ONLY
+
+  // Check if this is a MIXED binary op with one SCALAR_ONLY operand
+  Operation *defOp = val.getDefiningOp();
+  if (!defOp || defOp->getNumOperands() < 1)
+    return nullptr;
+
+  for (Value operand : defOp->getOperands()) {
+    if (isScalarOnly(operand, depMap))
+      return operand;                              // found scalar operand
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Utility: check if type is integer or index (for magic/shift computation).
+//===----------------------------------------------------------------------===//
 static bool isIntOrIndex(Type t) { return isa<IntegerType, IndexType>(t); }
+
+//===----------------------------------------------------------------------===//
+// The Pass
+//===----------------------------------------------------------------------===//
 
 namespace {
 
@@ -36,9 +182,12 @@ struct GpuScalarHoistPass
 
   void runOnOperation() override {
     ModuleOp module = getOperation();
-    SmallVector<std::tuple<func::FuncOp, gpu::LaunchFuncOp, gpu::GPUFuncOp>> work;
+
+    SmallVector<std::tuple<func::FuncOp, gpu::LaunchFuncOp, gpu::GPUFuncOp>>
+        work;
     module.walk([&](gpu::LaunchFuncOp launch) {
-      auto gm = module.lookupSymbol<gpu::GPUModuleOp>(launch.getKernelModuleName());
+      auto gm =
+          module.lookupSymbol<gpu::GPUModuleOp>(launch.getKernelModuleName());
       if (!gm) return;
       auto gf = gm.lookupSymbol<gpu::GPUFuncOp>(launch.getKernelName());
       if (!gf) return;
@@ -48,32 +197,36 @@ struct GpuScalarHoistPass
     });
 
     for (auto &[hostFunc, launch, gpuFunc] : work) {
-      // Find divisors that are scalar kernel args and need hoisting
-      DenseMap<unsigned, Operation *> divOps;
-      DenseMap<unsigned, Operation *> remOps;
+
+      // ---- Phase 1: classify all values in the kernel ----
+      DenseMap<Value, DepClass> depMap;
+      classifyValues(gpuFunc, depMap);
+
+      // ---- Phase 2: find divisions by SCALAR_ONLY operands ----
+      struct HoistCandidate {
+        Operation *op;
+        Value scalarOperand; // the SCALAR_ONLY value to hoist
+        Value divisor;       // the actual divisor in the operation
+      };
+      SmallVector<HoistCandidate> candidates;
 
       gpuFunc.walk([&](arith::DivUIOp op) {
-        BlockArgument arg = getKernelArg(op.getRhs());
-        if (arg && isIntOrIndex(arg.getType()))
-          divOps[arg.getArgNumber()] = op;
+        Value divisor = op.getRhs();
+        Value scalarOp = getScalarOperand(divisor, depMap);
+        if (scalarOp && isIntOrIndex(divisor.getType()))
+          candidates.push_back({op, scalarOp, divisor});
       });
       gpuFunc.walk([&](arith::RemUIOp op) {
-        BlockArgument arg = getKernelArg(op.getRhs());
-        if (arg && isIntOrIndex(arg.getType()))
-          remOps[arg.getArgNumber()] = op;
+        Value divisor = op.getRhs();
+        Value scalarOp = getScalarOperand(divisor, depMap);
+        if (scalarOp && isIntOrIndex(divisor.getType()))
+          candidates.push_back({op, scalarOp, divisor});
       });
 
-      // Combine: any divisor used in div or rem
-      DenseSet<unsigned> hoistArgs;
-      for (auto &kv : divOps) hoistArgs.insert(kv.first);
-      for (auto &kv : remOps) hoistArgs.insert(kv.first);
+      if (candidates.empty()) continue;
 
-      if (hoistArgs.empty()) return;
-
-      // HOST side: compute magic/shift for each scalar divisor
-      // Insert before the first gpu.launch_func (which is inside scf.for).
-      // Need to insert BEFORE scf.for — find the insertion point:
-      // last arith.constant or memref.store before the first scf.for.
+      // ---- Phase 3+4: Hoist to host & replace in kernel ----
+      // Insertion point: before the first scf.for loop
       Block &entry = hostFunc.getBody().front();
       Operation *insertPt = &entry.front();
       for (auto &op : entry.getOperations()) {
@@ -84,56 +237,81 @@ struct GpuScalarHoistPass
       Type i32Ty = hostB.getI32Type();
       Type i64Ty = hostB.getI64Type();
       Location loc = launch.getLoc();
-      DenseMap<unsigned, std::pair<Value, Value>> magicShift; // argIdx → (magic, shift)
 
-      for (unsigned argIdx : hoistArgs) {
-        Value hostDivisor = launch.getKernelOperand(argIdx);
+      // Deduplicate: same scalar operand → same magic/shift
+      DenseMap<Value, std::pair<Value, Value>> scalarMagicShift;
+      SmallVector<Value> orderedScalars;
+
+      for (auto &c : candidates) {
+        if (scalarMagicShift.count(c.scalarOperand)) continue;
+        orderedScalars.push_back(c.scalarOperand);
+
+        // Get the host-side value corresponding to this kernel arg
+        Value hostDivisor;
+        // Check if it's a block argument — then get launch operand
+        if (auto arg = dyn_cast<BlockArgument>(c.scalarOperand)) {
+          hostDivisor = launch.getKernelOperand(arg.getArgNumber());
+        } else {
+          // SCALAR_ONLY but not a block arg → compute in kernel?
+          // For pure block-arg SCALAR_ONLY patterns, this shouldn't happen.
+          // If the scalar is defined inside the kernel (e.g., arith.add of
+          // two scalar args), we can't easily get its host equivalent.
+          // Skip for now.
+          continue;
+        }
+
         if (!isIntOrIndex(hostDivisor.getType()))
           hostDivisor = hostB.create<arith::IndexCastUIOp>(loc, i32Ty, hostDivisor);
 
-        // shift = 32 - ctlz(divisor - 1)
-        Value one = hostB.create<arith::ConstantIntOp>(loc, 1, 32);
-        Value dm1 = hostB.create<arith::SubIOp>(loc, hostDivisor, one);
-        Value clz = hostB.create<math::CountLeadingZerosOp>(loc, dm1);
-        Value c32 = hostB.create<arith::ConstantIntOp>(loc, 32, 32);
+        // --- Magic/shift computation (host side) ---
+        Value one   = hostB.create<arith::ConstantIntOp>(loc, 1, 32);
+        Value dm1   = hostB.create<arith::SubIOp>(loc, hostDivisor, one);
+        Value clz   = hostB.create<math::CountLeadingZerosOp>(loc, dm1);
+        Value c32   = hostB.create<arith::ConstantIntOp>(loc, 32, 32);
         Value shift = hostB.create<arith::SubIOp>(loc, c32, clz);
 
-        // magic64 = ((1 << (32+shift)) / d + 1), adjusted
-        Value d64 = hostB.create<arith::ExtUIOp>(loc, i64Ty, hostDivisor);
-        Value s64 = hostB.create<arith::ExtUIOp>(loc, i64Ty, shift);
-        Value c32_64 = hostB.create<arith::ConstantIntOp>(loc, 32, 64);
-        Value ts = hostB.create<arith::AddIOp>(loc, s64, c32_64);
-        Value one64 = hostB.create<arith::ConstantIntOp>(loc, 1, 64);
-        Value p2 = hostB.create<arith::ShLIOp>(loc, one64, ts);
-        Value m0 = hostB.create<arith::DivUIOp>(loc, p2, d64);
-        Value m1 = hostB.create<arith::AddIOp>(loc, m0, one64);
-        Value pr = hostB.create<arith::MulIOp>(loc, m1, d64);
-        Value ov = hostB.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt, pr, p2);
-        Value m64 = hostB.create<arith::SelectOp>(loc, ov, m0, m1);
-        Value magic = hostB.create<arith::TruncIOp>(loc, i32Ty, m64);
+        Value d64     = hostB.create<arith::ExtUIOp>(loc, i64Ty, hostDivisor);
+        Value s64     = hostB.create<arith::ExtUIOp>(loc, i64Ty, shift);
+        Value c32_64  = hostB.create<arith::ConstantIntOp>(loc, 32, 64);
+        Value ts      = hostB.create<arith::AddIOp>(loc, s64, c32_64);
+        Value one64   = hostB.create<arith::ConstantIntOp>(loc, 1, 64);
+        Value p2      = hostB.create<arith::ShLIOp>(loc, one64, ts);
+        Value m0      = hostB.create<arith::DivUIOp>(loc, p2, d64);
+        Value m1      = hostB.create<arith::AddIOp>(loc, m0, one64);
+        Value pr      = hostB.create<arith::MulIOp>(loc, m1, d64);
+        Value ov      = hostB.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt, pr, p2);
+        Value m64     = hostB.create<arith::SelectOp>(loc, ov, m0, m1);
+        Value magic   = hostB.create<arith::TruncIOp>(loc, i32Ty, m64);
 
-        magicShift[argIdx] = {magic, shift};
+        scalarMagicShift[c.scalarOperand] = {magic, shift};
       }
 
-      // Add magic/shift as new kernel args + launch operands
-      for (unsigned argIdx : hoistArgs) {
-        auto [magic, shift] = magicShift[argIdx];
+      if (orderedScalars.empty()) continue;
+
+      // --- Add magic/shift as kernel args & launch operands ---
+      SmallVector<std::pair<unsigned, std::pair<Value, Value>>> newArgs;
+      unsigned newArgIdx = gpuFunc.getNumArguments();
+      for (Value sv : orderedScalars) {
+        auto [magic, shift] = scalarMagicShift[sv];
         gpuFunc.getBody().front().addArgument(i32Ty, loc);
         gpuFunc.getBody().front().addArgument(i32Ty, loc);
         launch.getKernelOperandsMutable().append(magic);
         launch.getKernelOperandsMutable().append(shift);
+        newArgs.push_back({newArgIdx, {magic, shift}});
+        newArgIdx += 2;
       }
 
       // Update ALL gpu.launch_func ops calling this kernel
-      auto gpuMod = launch->getParentOfType<ModuleOp>().lookupSymbol<gpu::GPUModuleOp>(
+      auto gpuMod = module.lookupSymbol<gpu::GPUModuleOp>(
           launch.getKernelModuleName());
       if (gpuMod) {
         hostFunc.walk([&](gpu::LaunchFuncOp otherLaunch) {
           if (otherLaunch.getKernelName() != launch.getKernelName()) return;
-          if (otherLaunch == launch) return; // already updated
-          for (unsigned argIdx : hoistArgs) {
-            otherLaunch.getKernelOperandsMutable().append(magicShift[argIdx].first);
-            otherLaunch.getKernelOperandsMutable().append(magicShift[argIdx].second);
+          if (otherLaunch == launch) return;
+          for (unsigned i = 0; i < orderedScalars.size(); ++i) {
+            auto [magic, shift] = scalarMagicShift[orderedScalars[i]];
+            otherLaunch.getKernelOperandsMutable().append(magic);
+            otherLaunch.getKernelOperandsMutable().append(shift);
           }
         });
       }
@@ -142,57 +320,53 @@ struct GpuScalarHoistPass
       SmallVector<Type> newArgTypes;
       for (auto arg : gpuFunc.getBody().getArguments())
         newArgTypes.push_back(arg.getType());
-      auto newFnTy = FunctionType::get(gpuFunc.getContext(), newArgTypes, {});
-      gpuFunc.setFunctionType(newFnTy);
+      gpuFunc.setFunctionType(
+          FunctionType::get(gpuFunc.getContext(), newArgTypes, {}));
 
-      // KERNEL side: replace div/rem using new magic/shift block args
-      unsigned oldNumArgs = gpuFunc.getNumArguments() - 2 * hoistArgs.size();
-      SmallVector<unsigned, 8> hoistOrder(hoistArgs.begin(), hoistArgs.end());
-      llvm::sort(hoistOrder);
+      // --- Replace division ops in kernel body ---
+      for (auto &c : candidates) {
+        // Find the corresponding new block args
+        unsigned idx = llvm::find(orderedScalars, c.scalarOperand) -
+                       orderedScalars.begin();
+        if (idx >= orderedScalars.size()) continue;
 
-      for (auto &[argIdx, divOp] : divOps) {
-        auto dOp = cast<arith::DivUIOp>(divOp);
-        unsigned pos = llvm::find(hoistOrder, argIdx) - hoistOrder.begin();
-        BlockArgument magicArg = gpuFunc.getBody().getArgument(oldNumArgs + 2 * pos);
-        BlockArgument shiftArg = gpuFunc.getBody().getArgument(oldNumArgs + 2 * pos + 1);
+        unsigned oldCount = gpuFunc.getNumArguments() -
+                            2 * orderedScalars.size();
+        BlockArgument magicArg =
+            gpuFunc.getBody().getArgument(oldCount + 2 * idx);
+        BlockArgument shiftArg =
+            gpuFunc.getBody().getArgument(oldCount + 2 * idx + 1);
 
-        OpBuilder b(dOp);
-        Value n = dOp.getLhs();
-        // mul_hi via explicit i64 multiply: (zext(magic)*zext(n)) >> 32
-        auto i64Ty = b.getI64Type();
-        Value m64 = b.create<arith::ExtUIOp>(loc, i64Ty, magicArg);
-        Value n64 = b.create<arith::ExtUIOp>(loc, i64Ty, n);
-        Value full = b.create<arith::MulIOp>(loc, m64, n64);
-        Value c32 = b.create<arith::ConstantIntOp>(loc, 32, 64);
-        Value hi = b.create<arith::ShRUIOp>(loc, full, c32);
-        Value hi32 = b.create<arith::TruncIOp>(loc, b.getI32Type(), hi);
-        Value sum = b.create<arith::AddIOp>(loc, hi32, n);
-        Value res = b.create<arith::ShRUIOp>(loc, sum, shiftArg);
-        dOp->getResult(0).replaceAllUsesWith(res);
-        dOp->erase();
-      }
+        OpBuilder b(c.op);
+        Value n;
+        if (auto dOp = dyn_cast<arith::DivUIOp>(c.op))
+          n = dOp.getLhs();
+        else if (auto rOp = dyn_cast<arith::RemUIOp>(c.op))
+          n = rOp.getLhs();
+        else
+          continue;
 
-      for (auto &[argIdx, remOp] : remOps) {
-        auto rOp = cast<arith::RemUIOp>(remOp);
-        unsigned pos = llvm::find(hoistOrder, argIdx) - hoistOrder.begin();
-        BlockArgument magicArg = gpuFunc.getBody().getArgument(oldNumArgs + 2 * pos);
-        BlockArgument shiftArg = gpuFunc.getBody().getArgument(oldNumArgs + 2 * pos + 1);
-
-        OpBuilder b(rOp);
-        Value n2 = rOp.getLhs();
-        auto i64Ty = b.getI64Type();
+        // mul_hi(magic, n) → zext both to i64, mul, lshr 32
         Value m64_2 = b.create<arith::ExtUIOp>(loc, i64Ty, magicArg);
-        Value n64_2 = b.create<arith::ExtUIOp>(loc, i64Ty, n2);
-        Value full2 = b.create<arith::MulIOp>(loc, m64_2, n64_2);
-        Value c32_2 = b.create<arith::ConstantIntOp>(loc, 32, 64);
-        Value hi2 = b.create<arith::ShRUIOp>(loc, full2, c32_2);
-        Value hi32_2 = b.create<arith::TruncIOp>(loc, b.getI32Type(), hi2);
-        Value sum2 = b.create<arith::AddIOp>(loc, hi32_2, n2);
-        Value quot = b.create<arith::ShRUIOp>(loc, sum2, shiftArg);
-        Value prod = b.create<arith::MulIOp>(loc, quot, rOp.getRhs());
-        Value res = b.create<arith::SubIOp>(loc, n2, prod);
-        rOp->getResult(0).replaceAllUsesWith(res);
-        rOp->erase();
+        Value n64_2 = b.create<arith::ExtUIOp>(loc, i64Ty, n);
+        Value full   = b.create<arith::MulIOp>(loc, m64_2, n64_2);
+        Value c32_2  = b.create<arith::ConstantIntOp>(loc, 32, 64);
+        Value hi     = b.create<arith::ShRUIOp>(loc, full, c32_2);
+        Value hi32   = b.create<arith::TruncIOp>(loc, i32Ty, hi);
+        Value sum    = b.create<arith::AddIOp>(loc, hi32, n);
+
+        if (isa<arith::DivUIOp>(c.op)) {
+          Value res = b.create<arith::ShRUIOp>(loc, sum, shiftArg);
+          c.op->getResult(0).replaceAllUsesWith(res);
+        } else {
+          // rem: n - (quot * divisor)
+          Value quot = b.create<arith::ShRUIOp>(loc, sum, shiftArg);
+          Value divVal = cast<arith::RemUIOp>(c.op).getRhs();
+          Value prod = b.create<arith::MulIOp>(loc, quot, divVal);
+          Value res  = b.create<arith::SubIOp>(loc, n, prod);
+          c.op->getResult(0).replaceAllUsesWith(res);
+        }
+        c.op->erase();
       }
     }
   }
