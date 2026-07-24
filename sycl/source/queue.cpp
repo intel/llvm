@@ -316,6 +316,30 @@ void submit_kernel_direct_without_event_impl(
       IsTopCodeLoc);
 }
 
+event submit_free_function_direct_with_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    detail::FreeFunctionArgsStorage *ArgsStorage,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
+    const detail::KernelPropertyHolderStructTy &Props,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  return getSyclObjImpl(Queue)->submit_free_function_direct_with_event(
+      RangeView, ArgsStorage, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
+}
+
+void submit_free_function_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    detail::FreeFunctionArgsStorage *ArgsStorage,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents,
+    const detail::KernelPropertyHolderStructTy &Props,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  getSyclObjImpl(Queue)->submit_free_function_direct_without_event(
+      RangeView, ArgsStorage, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
+}
+
 event submit_graph_direct_with_event_impl(
     const queue &Queue,
     ext::oneapi::experimental::command_graph<

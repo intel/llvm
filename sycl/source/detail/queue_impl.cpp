@@ -8,6 +8,7 @@
 
 #include <detail/event_deps.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/free_function_kernel_args_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -774,6 +775,101 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
     CommandGroup.reset(new detail::CGExecKernel(
         KData.getNDRDesc(), std::move(HostKernelPtr),
+        nullptr, // Kernel
+        nullptr, // KernelBundle
+        std::move(CGData), std::move(KData).getArgs(),
+        *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
+        std::move(AuxiliaryResources), detail::CGType::Kernel,
+        KernelCacheConfig, IsCooperative, UsesClusterLaunch,
+        KernelWorkGroupMemorySize, CodeLoc));
+    CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+    if (auto GraphImpl = getCommandGraph(); GraphImpl) {
+      return {submit_command_to_graph(*GraphImpl, std::move(CommandGroup),
+                                      detail::CGType::Kernel),
+              /*SchedulerBypass*/ false};
+    }
+
+    return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                   *this, true),
+            /*SchedulerBypass*/ false};
+  };
+
+  return submit_direct(CallerNeedsEvent, DepEvents, SubmitKernelFunc,
+                       detail::CGType::Kernel,
+                       /*InsertBarrierForInOrderCommand*/ false);
+}
+
+EventImplPtr queue_impl::submit_free_function_direct_impl(
+    const NDRDescT &NDRDesc, detail::FreeFunctionArgsStorage *ArgsStorage,
+    detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+    sycl::span<const event> DepEvents,
+    const detail::KernelPropertyHolderStructTy &Props,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+
+  // Take ownership of the collected arguments and their backing storage.
+  std::unique_ptr<detail::FreeFunctionArgsStorage> Args(ArgsStorage);
+
+  KernelData KData;
+
+  KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
+  KData.setNDRDesc(NDRDesc);
+
+  // Validate and set kernel launch properties.
+  KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
+                                             getDeviceImpl());
+
+  if (!Props.get<sycl::ext::oneapi::experimental::work_group_scratch_size>()
+           ->MProperty &&
+      DeviceKernelInfo->getWorkGroupDynamicLocalMem())
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::memory_allocation),
+        "Kernel allocates work group scratch memory but an allocation size "
+        "has not been specified through the work_group_scratch_size property!");
+
+  // Prepare the explicit arguments: extractArgsAndReqs expands and reorders the
+  // collected arguments (e.g. work_group_memory) exactly as the handler does
+  // for arguments set via set_arg. The kernel is launched from these arguments,
+  // so the function pointer is left null.
+  KData.setArgs(Args->MArgs);
+  KData.extractArgsAndReqs(/*IsKernelCreatedFromSource=*/false);
+
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData)
+      -> std::pair<EventImplPtr, bool> {
+    bool SchedulerBypass =
+        (CGData.MEvents.size() > 0
+             ? detail::Scheduler::areEventsSafeForSchedulerBypass(
+                   CGData.MEvents, getContextImpl())
+             : true) &&
+        !hasCommandGraph();
+    if (SchedulerBypass) {
+      // The argument data lives in Args, which outlives this synchronous
+      // enqueue, so no copy of the storage is needed on the fast path.
+      return {submit_kernel_scheduler_bypass(KData, CGData.MEvents,
+                                             CallerNeedsEvent, nullptr, nullptr,
+                                             CodeLoc, IsTopCodeLoc),
+              /*SchedulerBypass*/ true};
+    }
+
+    // On the scheduler path the kernel may be executed after this call returns,
+    // so the argument storage must outlive it. Move it into the command group's
+    // storage so the argument pointers stay valid.
+    CGData.MArgsStorage = std::move(Args->MArgsStorage);
+    CGData.MSharedPtrStorage = std::move(Args->MSharedPtrStorage);
+
+    std::unique_ptr<detail::CG> CommandGroup;
+    std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+    std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+    // Extract data to move KData
+    ur_kernel_cache_config_t KernelCacheConfig = KData.getKernelCacheConfig();
+    bool IsCooperative = KData.isCooperative();
+    bool UsesClusterLaunch = KData.usesClusterLaunch();
+    size_t KernelWorkGroupMemorySize = KData.getKernelWorkGroupMemorySize();
+
+    CommandGroup.reset(new detail::CGExecKernel(
+        KData.getNDRDesc(),
+        nullptr, // HostKernel
         nullptr, // Kernel
         nullptr, // KernelBundle
         std::move(CGData), std::move(KData).getArgs(),
