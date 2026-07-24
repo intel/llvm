@@ -75,12 +75,12 @@ public:
   /// an exception with errc::invalid error code will be thrown.
   ///
   /// \return a valid cl_kernel instance
-  cl_kernel get() const {
+  OpenCLKernelT get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                           &nativeHandle);
-    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
-    return ur::cast<cl_kernel>(nativeHandle);
+    retainOpenCLKernel(nativeHandle);
+    return ur::cast<OpenCLKernelT>(nativeHandle);
   }
 
   adapter_impl &getAdapter() const { return MContext->getAdapter(); }
@@ -216,7 +216,7 @@ public:
     Adapter.call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     if (MContext->getBackend() == backend::opencl)
-      __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
+      retainOpenCLKernel(NativeKernel);
 
     return NativeKernel;
   }

@@ -238,7 +238,7 @@ protected:
               uint8_t Dimensions, const property_list &PropList);
 
 #ifdef __SYCL_INTERNAL_API
-  image_plain(cl_mem ClMemObject, const context &SyclContext,
+  image_plain(OpenCLMemT ClMemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions);
@@ -583,7 +583,7 @@ public:
             Dimensions, PropList, /*IsConstPtr*/ false) {}
 
 #ifdef __SYCL_INTERNAL_API
-  image(cl_mem ClMemObject, const context &SyclContext,
+  image(OpenCLMemT ClMemObject, const context &SyclContext,
         event AvailableEvent = {})
       : common_base(ClMemObject, SyclContext, AvailableEvent,
                     std::make_unique<

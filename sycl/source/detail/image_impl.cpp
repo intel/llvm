@@ -262,7 +262,7 @@ static void getImageInfo(context_impl &Context, ur_image_info_t Info, T &Dest,
                                              &Dest, nullptr);
 }
 
-image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
+image_impl::image_impl(OpenCLMemT MemObject, const context &SyclContext,
                        event AvailableEvent,
                        std::unique_ptr<SYCLMemObjAllocator> Allocator,
                        uint8_t Dimensions)

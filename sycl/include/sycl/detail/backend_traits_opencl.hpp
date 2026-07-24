@@ -42,103 +42,98 @@ namespace detail {
 // may be removed after removing the deprecated 'get_native()' methods
 // from the corresponding classes.
 template <> struct interop<backend::opencl, context> {
-  using type = cl_context;
+  using type = OpenCLContextT;
 };
 
 template <> struct interop<backend::opencl, device> {
-  using type = cl_device_id;
+  using type = OpenCLDeviceIdT;
 };
 
 template <> struct interop<backend::opencl, queue> {
-  using type = cl_command_queue;
+  using type = OpenCLCommandQueueT;
 };
 
 template <> struct interop<backend::opencl, platform> {
-  using type = cl_platform_id;
+  using type = OpenCLPlatformT;
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendInput<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
-  using type = cl_mem;
+  using type = OpenCLMemT;
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
-  using type = std::vector<cl_mem>;
+  using type = std::vector<OpenCLMemT>;
 };
 
 template <> struct BackendInput<backend::opencl, context> {
-  using type = cl_context;
+  using type = OpenCLContextT;
 };
 
 template <> struct BackendReturn<backend::opencl, context> {
-  using type = cl_context;
+  using type = OpenCLContextT;
 };
 
 template <> struct BackendInput<backend::opencl, device> {
-  using type = cl_device_id;
+  using type = OpenCLDeviceIdT;
 };
 
 template <> struct BackendReturn<backend::opencl, device> {
-  using type = cl_device_id;
+  using type = OpenCLDeviceIdT;
 };
 
 template <> struct interop<backend::opencl, event> {
-  using type = std::vector<cl_event>;
-  using value_type = cl_event;
+  using type = std::vector<OpenCLEventT>;
+  using value_type = OpenCLEventT;
 };
 template <> struct BackendInput<backend::opencl, event> {
-  using type = std::vector<cl_event>;
-  using value_type = cl_event;
+  using type = std::vector<OpenCLEventT>;
+  using value_type = OpenCLEventT;
 };
 template <> struct BackendReturn<backend::opencl, event> {
-  using type = std::vector<cl_event>;
-  using value_type = cl_event;
+  using type = std::vector<OpenCLEventT>;
+  using value_type = OpenCLEventT;
 };
 
 template <> struct BackendInput<backend::opencl, queue> {
-  using type = cl_command_queue;
+  using type = OpenCLCommandQueueT;
 };
 
 template <> struct BackendReturn<backend::opencl, queue> {
-  using type = cl_command_queue;
+  using type = OpenCLCommandQueueT;
 };
 
 template <> struct BackendInput<backend::opencl, platform> {
-  using type = cl_platform_id;
+  using type = OpenCLPlatformT;
 };
 
 template <> struct BackendReturn<backend::opencl, platform> {
-  using type = cl_platform_id;
+  using type = OpenCLPlatformT;
 };
 
 template <bundle_state State>
 struct BackendInput<backend::opencl, kernel_bundle<State>> {
-  using type = cl_program;
+  using type = OpenCLProgramT;
 };
 
 template <bundle_state State>
 struct BackendReturn<backend::opencl, kernel_bundle<State>> {
-  using type = std::vector<cl_program>;
+  using type = std::vector<OpenCLProgramT>;
 };
 
 template <> struct BackendInput<backend::opencl, kernel> {
-  using type = cl_kernel;
+  using type = OpenCLKernelT;
 };
 
 template <> struct BackendReturn<backend::opencl, kernel> {
-  using type = cl_kernel;
+  using type = OpenCLKernelT;
 };
 
 using graph = ext::oneapi::experimental::command_graph<
     ext::oneapi::experimental::graph_state::executable>;
 template <> struct BackendReturn<backend::opencl, graph> {
-#ifndef cl_khr_command_buffer
-  // Old cl_ext.h OpenCL-Header files might not have the command-buffer
-  // extension defined.
-  typedef struct _cl_command_buffer_khr *cl_command_buffer_khr;
-#endif
-  using type = cl_command_buffer_khr;
+  using type = OpenCLExtCommandBufferKHRT;
 };
 
 template <> struct InteropFeatureSupportMap<backend::opencl> {
@@ -156,7 +151,7 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
 namespace ur {
 // Cast for std::vector<cl_event>, according to the spec, make_event
 // should create one(?) event from a vector of cl_event
-template <class To> inline To cast(std::vector<cl_event> value) {
+template <class To> inline To cast(std::vector<OpenCLEventT> value) {
   assert(value.size() == 1 &&
          "Temporary workaround requires that the "
          "size of the input vector for make_event be equal to one.");
@@ -166,11 +161,11 @@ template <class To> inline To cast(std::vector<cl_event> value) {
 // These conversions should use UR interop API.
 template <>
 inline ur_program_handle_t
-    cast(cl_program) = delete; // Use urProgramCreateWithNativeHandle
+    cast(OpenCLProgramT) = delete; // Use urProgramCreateWithNativeHandle
 
 template <>
 inline ur_device_handle_t
-    cast(cl_device_id) = delete; // Use urDeviceCreateWithNativeHandle
+    cast(OpenCLDeviceIdT) = delete; // Use urDeviceCreateWithNativeHandle
 } // namespace ur
 } // namespace detail
 } // namespace _V1

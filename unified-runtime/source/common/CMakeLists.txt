@@ -80,12 +80,12 @@ if(umf_FOUND)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-  # commit 5a986843a2469d3e04771c1f27314ba6cc3c62f6
-  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Wed May 13 15:04:31 2026 +0200
-  # Merge pull request #1573 from ldorau/L0_Fix_incorrect_log_messages_in_provider_level_zero.c
-  # [L0] Fix incorrect log messages in provider_level_zero.c
-  set(UMF_TAG v1.2.0-dev1)
+  # commit a12247bc1f59494ad9f08ac42886043cbcfe5b76
+  # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
+  # Date:   Thu Jul 23 12:32:00 2026 +0200
+  # Merge pull request #1594 from bratpiorka/rrudnick_ze_relaxed_alloc
+  # Always use relaxed allocation limits for L0 host mem
+  set(UMF_TAG v1.2.0-dev3)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -159,3 +159,14 @@ target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
 )
+
+# Install ur_umf when any static adapter is enabled, so install(EXPORT ...)
+# can resolve it for static consumers.
+if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_OPENCL)
+    install(TARGETS ur_umf
+        EXPORT ${PROJECT_NAME}-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()

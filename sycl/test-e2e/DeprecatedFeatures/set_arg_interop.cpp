@@ -6,6 +6,7 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib -O3
 // RUN: %{run} %t.out
 
+#include <CL/cl.h>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

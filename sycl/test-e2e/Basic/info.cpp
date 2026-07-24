@@ -386,12 +386,12 @@ int main() {
   print_info<info::device::partition_type_affinity_domain,
              info::partition_affinity_domain>(dev,
                                               "Partition type affinity domain");
-  print_info<info::device::reference_count, sycl::opencl::cl_uint>(
-      dev, "Reference count");
 
   std::cout << separator << "Platform information\n" << separator;
   platform plt(dev.get_platform());
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   print_info<info::platform::profile, std::string>(plt, "Profile");
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   print_info<info::platform::version, std::string>(plt, "Version");
   print_info<info::platform::name, std::string>(plt, "Name");
   print_info<info::platform::vendor, std::string>(plt, "Vendor");
