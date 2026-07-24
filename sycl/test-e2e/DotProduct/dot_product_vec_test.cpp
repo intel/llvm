@@ -1,5 +1,7 @@
-// This test checks dp4a support with vec<> arguments
-// For now we only check fallback support because DG1 hardware is not widespread
+// This test checks dp4a support with vec<> arguments.
+// On NVPTX (sm_61+) and AMDGCN (gfx906+/CDNA/RDNA2+) targets dot_acc lowers to
+// the hardware dp4a instruction; other targets use the scalar fallback. The
+// numerical result is identical, so this test validates both paths.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
