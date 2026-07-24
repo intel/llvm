@@ -275,6 +275,21 @@ def GpuSPIRVAttachTarget: Pass<"spirv-attach-target", ""> {
   ];
 }
 
+def GpuScalarHoistPass : Pass<"gpu-scalar-hoist", "ModuleOp"> {
+  let summary = "Hoist scalar integer division from GPU kernel to host CPU";
+  let description = [{
+    Finds arith.divui/arith.remui operations in gpu.func where the divisor
+    is a uniform scalar kernel argument. Hoists magic/shift precomputation
+    to the host (before gpu.launch_func) and replaces kernel division with
+    magic multiply (mului_extended + add + shift).
+  }];
+  let dependentDialects = [
+    "mlir::gpu::GPUDialect", "mlir::arith::ArithDialect",
+    "mlir::math::MathDialect", "mlir::memref::MemRefDialect",
+    "mlir::func::FuncDialect", "mlir::scf::SCFDialect"
+  ];
+}
+
 def GpuXeVMAttachTarget : Pass<"xevm-attach-target", ""> {
   let summary = "Attaches a XeVM target attribute to a GPU Module.";
   let description = [{
