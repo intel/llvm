@@ -23,6 +23,13 @@ struct num_compute_units
   using return_type = size_t;
 };
 
+struct max_threads_per_compute_unit
+    : sycl::detail::ur_traits_base<
+          sycl::detail::info_class::device,
+          UR_DEVICE_INFO_MAX_THREADS_PER_COMPUTE_UNIT> {
+  using return_type = size_t;
+};
+
 } // namespace ext::oneapi::info::device
 } // namespace _V1
 } // namespace sycl

@@ -391,6 +391,8 @@ __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
 __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
                           composite_device, sycl::device)
 __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::info::device, num_compute_units, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::info::device,
+                          max_threads_per_compute_unit, size_t)
 #undef __SYCL_ONEAPI_DEVICE_INST
 
 #define __SYCL_ONEAPI_PROGRESS_INST(NAME, SCOPE)                               \
