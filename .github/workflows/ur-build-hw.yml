@@ -125,10 +125,6 @@ jobs:
       run: |
         sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --igfx
 
-    - name: Check NVML version compatibility
-      if: ${{ inputs.adapter_name == 'CUDA' }}
-      run: python3 devops/scripts/check_nvml_version.py
-
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
@@ -157,21 +153,42 @@ jobs:
       # This is to check that install command does not fail
       run: cmake --install build
 
-    - name: Test adapter specific
+    - name: Build artifact name suffix
+      id: artifact_suffix
+      shell: bash
       env:
-        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "--timeout 120 -j 50"
-        # These tests cause timeouts on CI
-        LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
-      run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-adapter
+        RUNNER_NAME: ${{ inputs.runner_name }}
+        STATIC_LOADER: ${{ matrix.adapter.static_Loader }}
+        OTHER_NAME: ${{ matrix.adapter.other_name }}
+      run: |
+        RUNNER_SUFFIX=$(echo "${RUNNER_NAME}" | sed 's/^UR_//')
+        SUFFIX="${RUNNER_SUFFIX}"
+        
+        if [ "${STATIC_LOADER}" = "ON" ]; then
+          SUFFIX="${SUFFIX}-static"
+        fi
+        
+        if [ -n "${OTHER_NAME}" ]; then
+          SUFFIX="${SUFFIX}-${OTHER_NAME}"
+        fi
+        
+        echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
+
+    - name: Test adapter specific
+      uses: ./devops/actions/run-tests/ur
+      with:
+        test_type: 'adapter-specific'
+        build_dir: build
+        artifact_name: 'ur-${{matrix.adapter.name}}-${{steps.artifact_suffix.outputs.suffix}}-adapter-specific'
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
-      env:
-        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "--timeout 120 -j 50"
-      run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance
+      uses: ./devops/actions/run-tests/ur
+      with:
+        test_type: 'conformance'
+        build_dir: build
+        artifact_name: 'ur-${{matrix.adapter.name}}-${{steps.artifact_suffix.outputs.suffix}}-conformance'
 
     - name: Debug CI platform information
       if: ${{ always() }}
