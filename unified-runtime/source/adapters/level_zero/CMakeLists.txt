@@ -72,11 +72,14 @@ if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2)
     if(TARGET ze_loader)
         list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL ze_loader)
     endif()
+    # Use the 'unified-runtime' component so a component-scoped install (the
+    # Windows debug sub-build) captures the debug-CRT ze_loader: a static
+    # adapter doesn't absorb its PRIVATE ze_loader dep, so the consumer links it.
     install(TARGETS ${ADAPTER_L0_TARGETS_TO_INSTALL}
         EXPORT ${PROJECT_NAME}-targets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT unified-runtime
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
     )
 
     install(TARGETS ur_adapter_level_zero_common

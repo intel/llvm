@@ -297,14 +297,26 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         endif()
       endif()
     endforeach()
-    # umfd is copied below; ze_loader only when a static L0 adapter is present.
+    # A static umfd.lib does not absorb its private helper archives, so link
+    # them too. umfd and the helpers are copied below.
     target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
-      ${LLVM_BINARY_DIR}/lib/umfd.lib)
+      ${LLVM_BINARY_DIR}/lib/umfd.lib
+      ${LLVM_BINARY_DIR}/lib/umf_bad.lib
+      ${LLVM_BINARY_DIR}/lib/umf_utilsd.lib
+      ${LLVM_BINARY_DIR}/lib/umf_coarsed.lib)
     if(_urd_static_l0)
-      # ze_loader has no debug postfix and is already built to lib/ by the
-      # in-tree UR build, so link it directly rather than copying it.
+      # The static L0 adapters need ze_loader. Copy the debug-CRT ze_loader
+      # from the debug sub-build under a 'd' name (it has no debug postfix, so
+      # copying it as-is would collide with the release in-tree ze_loader.lib).
+      list(APPEND URD_COPY_FILES ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib)
+      add_custom_command(
+        OUTPUT ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib
+        COMMAND ${CMAKE_COMMAND} -E copy
+          ${URD_INSTALL_DIR}/lib/ze_loader.lib
+          ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib
+      )
       target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
-        ${LLVM_BINARY_DIR}/lib/ze_loader.lib)
+        ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib)
     endif()
   endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
@@ -318,6 +330,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endforeach()
   # Also copy umfd.dll/umfd.lib
   urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
+  # A static umfd.lib doesn't absorb its private helper archives (umf_ba /
+  # umf_utils / umf_coarse), so a consumer linking umfd.lib must link them too.
+  # They aren't installed, but the debug sub-build produces them (debug CRT) at
+  # ${URD_BINARY_DIR}/lib without a 'd' postfix, so copy them under a 'd' name.
+  if(NOT UMF_BUILD_SHARED_LIBRARY)
+    foreach(_umfd_helper umf_ba umf_utils umf_coarse)
+      list(APPEND URD_COPY_FILES ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib)
+      add_custom_command(
+        OUTPUT ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib
+        COMMAND ${CMAKE_COMMAND} -E copy
+          ${URD_BINARY_DIR}/lib/${_umfd_helper}.lib
+          ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib
+        DEPENDS unified-runtimed
+      )
+    endforeach()
+  endif()
 
   add_custom_target(unified-runtimed-build ALL DEPENDS ${URD_COPY_FILES})
   add_dependencies(unified-runtimed-build unified-runtimed)

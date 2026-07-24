@@ -90,7 +90,7 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
 
   target_compile_options(ze_loader PRIVATE
     $<$<IN_LIST:$<CXX_COMPILER_ID>,GNU;Clang;Intel;IntelLLVM>:-Wno-error>
-    $<$<CXX_COMPILER_ID:MSVC>:/WX- /UUNICODE>
+    $<$<CXX_COMPILER_ID:MSVC>:/WX- /UUNICODE /GL->
     )
 endif()
 
