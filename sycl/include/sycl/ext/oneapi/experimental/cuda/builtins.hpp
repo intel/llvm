@@ -10,7 +10,10 @@
 
 #define SYCL_EXT_ONEAPI_CUDA_TEX_CACHE_READ 1
 
+#include <sycl/bit_cast.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/marray.hpp>
 #include <sycl/vector.hpp>
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -34,10 +37,10 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     detail::check_type_in_v<detail::element_type_t<T>, char, signed char, short,
                             int, long, long long, unsigned char, unsigned short,
                             unsigned int, unsigned long, unsigned long long,
-                            half, float, double> &&
+                            half, sycl::ext::oneapi::bfloat16, float, double> &&
         (std::is_same_v<detail::element_type_t<T>, T> ||
-         (detail::is_vec_v<T> && detail::num_elements_v<T> >= 2 &&
-          detail::num_elements_v<T> <= 4)),
+         ((detail::is_vec_v<T> || detail::is_marray_v<T>) &&
+          detail::num_elements_v<T> >= 2 && detail::num_elements_v<T> <= 4)),
     T>
 ldg(const T *ptr) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -67,6 +70,12 @@ ldg(const T *ptr) {
   } else if constexpr (std::is_same_v<T, half>) {
     auto native = reinterpret_cast<const __fp16 *>(ptr);
     return __nvvm_ldg_h(native);
+  } else if constexpr (std::is_same_v<T, sycl::ext::oneapi::bfloat16>) {
+    // bfloat16 has no dedicated __nvvm_ldg builtin. It is a 16-bit type stored
+    // as an unsigned short, so load the raw bits and bit-cast them back.
+    unsigned short native =
+        __nvvm_ldg_us(reinterpret_cast<const unsigned short *>(ptr));
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16>(native);
   } else if constexpr (std::is_same_v<T, float>) {
     return __nvvm_ldg_f(ptr);
   } else if constexpr (std::is_same_v<T, double>) {
@@ -392,6 +401,37 @@ ldg(const T *ptr) {
     ret.z() = rv2[0];
     ret.w() = rv2[1];
     return ret;
+  } else if constexpr (std::is_same_v<
+                           T, sycl::vec<sycl::ext::oneapi::bfloat16, 2>>) {
+    // bfloat16 is a 16-bit type stored as unsigned short; load the raw bits
+    // and bit-cast each element back to bfloat16.
+    typedef unsigned short us2 ATTRIBUTE_EXT_VEC_TYPE(2);
+    us2 rv = __nvvm_ldg_us2(reinterpret_cast<const us2 *>(ptr));
+    T ret;
+    ret.x() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv[0]);
+    ret.y() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv[1]);
+    return ret;
+  } else if constexpr (std::is_same_v<
+                           T, sycl::vec<sycl::ext::oneapi::bfloat16, 3>>) {
+    typedef unsigned short us2 ATTRIBUTE_EXT_VEC_TYPE(2);
+    us2 rv_2 = __nvvm_ldg_us2(reinterpret_cast<const us2 *>(ptr));
+    unsigned short rv = __nvvm_ldg_us(reinterpret_cast<const unsigned short *>(
+        std::next(reinterpret_cast<const us2 *>(ptr))));
+    T ret;
+    ret.x() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv_2[0]);
+    ret.y() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv_2[1]);
+    ret.z() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv);
+    return ret;
+  } else if constexpr (std::is_same_v<
+                           T, sycl::vec<sycl::ext::oneapi::bfloat16, 4>>) {
+    typedef unsigned short us4 ATTRIBUTE_EXT_VEC_TYPE(4);
+    us4 rv = __nvvm_ldg_us4(reinterpret_cast<const us4 *>(ptr));
+    T ret;
+    ret.x() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv[0]);
+    ret.y() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv[1]);
+    ret.z() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv[2]);
+    ret.w() = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(rv[3]);
+    return ret;
   } else if constexpr (std::is_same_v<T, sycl::vec<float, 2>>) {
     typedef float f2 ATTRIBUTE_EXT_VEC_TYPE(2);
     f2 rv = __nvvm_ldg_f2(reinterpret_cast<const f2 *>(ptr));
@@ -444,6 +484,17 @@ ldg(const T *ptr) {
     ret.y() = rv1[1];
     ret.z() = rv2[0];
     ret.w() = rv2[1];
+    return ret;
+  } else if constexpr (detail::is_marray_v<T>) {
+    // marray<E, N> has the same storage layout as E[N], so reuse the
+    // vec<E, N> loads above (which read exactly N elements) and repack. This
+    // gives marray the same read-only-cache / vectorized loads as vec.
+    using E = detail::element_type_t<T>;
+    constexpr std::size_t N = detail::num_elements_v<T>;
+    auto rv = ldg(reinterpret_cast<const sycl::vec<E, N> *>(ptr));
+    T ret;
+    for (std::size_t i = 0; i < N; ++i)
+      ret[i] = rv[i];
     return ret;
   }
 #else
