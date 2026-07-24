@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
+// RUN: %clangxx -fsycl -Wno-error=deprecated-declarations -fsyntax-only %s -o %t.out
 #include <sycl/sycl.hpp>
 
 template <int N> void check_dim_member() {
