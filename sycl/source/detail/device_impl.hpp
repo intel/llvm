@@ -1885,7 +1885,7 @@ public:
             {"gfx1151", oneapi_exp_arch::amd_gpu_gfx1151},
             {"gfx1200", oneapi_exp_arch::amd_gpu_gfx1200},
             {"gfx1201", oneapi_exp_arch::amd_gpu_gfx1201},
-    };
+        };
 
     // Only for Intel GPU architectures
     constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
