@@ -26,9 +26,18 @@ enum class clock_scope : int {
 namespace detail {
 template <clock_scope Scope> inline uint64_t clock_impl() {
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__) || defined(__AMDGCN__)
-  // Currently clock() is not supported on NVPTX and AMDGCN.
-  return 0;
+// here note that __builtin_readcyclecounter is used as fallback.
+// this is due to potential higher overhead compared to a native API call
+// see : https://github.com/ROCm/ROCm/issues/1288
+#if defined(__NVPTX__)
+  if constexpr (Scope == work_group || Scope == sub_group) {
+    return __nvvm_read_ptx_sreg_clock64();
+  } else {
+    return __builtin_readcyclecounter();
+  }
+#elif defined(__AMDGCN__)
+  // No direct variant of clock() is currently implemented for AMDGCN
+  return __builtin_readcyclecounter();
 #else
   return __spirv_ReadClockKHR(static_cast<int>(Scope));
 #endif // defined(__NVPTX__) || defined(__AMDGCN__)
