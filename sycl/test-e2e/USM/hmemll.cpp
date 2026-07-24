@@ -29,7 +29,7 @@ int main() {
   auto ctxt = q.get_context();
   auto dev = q.get_device();
 
-  if (!dev.get_info<info::device::usm_host_allocations>())
+  if (!dev.has(aspect::usm_host_allocations))
     return 0;
 
   Node *h_head = (Node *)malloc_host(sizeof(Node), ctxt);

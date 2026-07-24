@@ -159,7 +159,7 @@ int main() {
 
   size_t GSize = 16;
   size_t WGSize = 16;
-  if (Dev.get_info<info::device::usm_shared_allocations>())
+  if (Dev.has(aspect::usm_shared_allocations))
     Error += test<class Case1>(
         Q, GSize, WGSize,
         RedFactory<UseBuf>{}.get<float>(Q, GSize, 0, 1000, std::plus<>{},
@@ -172,7 +172,7 @@ int main() {
   GSize = 5 * (256 + 1);
   WGSize = 5;
   auto Add = [](auto x, auto y) { return (x + y); };
-  if (Dev.get_info<info::device::usm_device_allocations>())
+  if (Dev.has(aspect::usm_device_allocations))
     Error += test<class Case2>(
         Q, GSize, WGSize,
         RedFactory<UseBuf>{}.get<float>(Q, GSize, 0, 1000, std::plus<>{}),

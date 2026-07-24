@@ -822,6 +822,7 @@ public:
       return false;
     }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(info::device::usm_device_allocations) {
       return static_cast<bool>(
           get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
@@ -857,7 +858,7 @@ public:
                             "some time already");
       return std::string{}; // for return type deduction.
     }
-
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(ext::intel::info::device::max_mem_bandwidth) {
       if (!has(aspect::ext_intel_max_mem_bandwidth))
         throw exception(
@@ -865,7 +866,7 @@ public:
             "The device does not have the ext_intel_max_mem_bandwidth aspect");
       return get_info_impl<UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH>();
     }
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
       return get_info<
@@ -890,6 +891,7 @@ public:
           ext::oneapi::experimental::info::device::max_work_groups<3>,
           DependentFalse>();
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
       auto SupportFlags =
@@ -1261,11 +1263,16 @@ public:
       return get_info<info::device::is_linker_available>();
     }
     CASE(queue_profiling) { return get_info<info::device::queue_profiling>(); }
+
     CASE(usm_device_allocations) {
-      return get_info<info::device::usm_device_allocations>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(usm_host_allocations) {
-      return get_info<info::device::usm_host_allocations>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(ext_oneapi_cuda_cluster_group) {
       return get_info<info::device::ext_oneapi_cuda_cluster_group>();
@@ -1275,7 +1282,9 @@ public:
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
     }
     CASE(usm_shared_allocations) {
-      return get_info<info::device::usm_shared_allocations>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(usm_atomic_shared_allocations) {
       return (get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
@@ -1283,11 +1292,18 @@ public:
     }
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_restricted_shared_allocations) {
-      return get_info<info::device::usm_restricted_shared_allocations>();
+      ur_device_usm_access_capability_flags_t cap_flags =
+          get_info_impl<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
+      // Check that we don't support any cross device sharing
+      return !(cap_flags &
+               (UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
+                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
     }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_system_allocations) {
-      return get_info<info::device::usm_system_allocations>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(ext_intel_device_id) {
       return has_info_desc(UR_DEVICE_INFO_DEVICE_ID);

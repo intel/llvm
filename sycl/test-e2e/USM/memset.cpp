@@ -25,7 +25,7 @@ int main() {
   auto ctxt = q.get_context();
   char *array;
 
-  if (dev.get_info<info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     // Test memset on host
     array = (char *)malloc_host(N * sizeof(char), q);
     q.submit([&](handler &h) {
@@ -48,7 +48,7 @@ int main() {
     free(array, ctxt);
   }
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     // Test memset on shared
     array = (char *)malloc_shared(N * sizeof(char), q);
     q.submit([&](handler &h) {
@@ -71,7 +71,7 @@ int main() {
     free(array, ctxt);
   }
 
-  if (dev.get_info<info::device::usm_device_allocations>()) {
+  if (dev.has(aspect::usm_device_allocations)) {
     std::vector<char> out;
     out.resize(N);
 
