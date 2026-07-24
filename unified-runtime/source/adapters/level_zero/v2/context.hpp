@@ -88,10 +88,6 @@ struct ur_context_handle_t_ : ur_context_common_t {
 
 private:
   const raii::ze_context_handle_t hContext;
-  const std::vector<ur_device_handle_t>
-      hDevices; // possibly without subdevices, only what was passed to ctor,
-                // context may have user-defined, limited subset of available
-                // devices
   command_list_cache_t commandListCache;
   event_pool_cache eventPoolCacheImmediate;
   event_pool_cache eventPoolCacheRegular;
