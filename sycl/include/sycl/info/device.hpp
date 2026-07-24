@@ -76,10 +76,11 @@ enum class fp_config : uint32_t {
 
 enum class global_mem_cache_type : int { none, read_only, read_write };
 
-enum class execution_capability : unsigned int {
-  exec_kernel,
-  exec_native_kernel
-};
+enum class __SYCL2020_DEPRECATED("deprecated in SYCL 2020")
+    execution_capability : unsigned int {
+      exec_kernel,
+      exec_native_kernel
+    };
 
 namespace device {
 
@@ -323,7 +324,7 @@ struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
     is_linker_available : device_traits<UR_DEVICE_INFO_LINKER_AVAILABLE> {
   using return_type = bool;
 };
-struct execution_capabilities
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") execution_capabilities
     : device_traits<UR_DEVICE_INFO_EXECUTION_CAPABILITIES> {
   using return_type = std::vector<info::execution_capability>;
 };
