@@ -3738,7 +3738,7 @@ void OmpStructureChecker::Leave(const parser::OmpClauseList &x) {
   };
 
   // [5.1] 2.21.2 Threadprivate Directive Restriction
-  OmpClauseSet threadprivateAllowedSet{llvm::omp::Clause::OMPC_copyin,
+  llvm::omp::ClauseSet threadprivateAllowedSet{llvm::omp::Clause::OMPC_copyin,
       llvm::omp::Clause::OMPC_copyprivate, llvm::omp::Clause::OMPC_schedule,
       llvm::omp::Clause::OMPC_num_threads, llvm::omp::Clause::OMPC_thread_limit,
       llvm::omp::Clause::OMPC_if};
@@ -4443,10 +4443,10 @@ void OmpStructureChecker::Enter(const parser::OmpClause::Firstprivate &x) {
   // Check firstprivate variables in task and taskloop constructs
   dirClauseTriple.emplace(llvm::omp::Directive::OMPD_task,
       std::make_pair(llvm::omp::Directive::OMPD_parallel,
-          OmpClauseSet{llvm::omp::Clause::OMPC_reduction}));
+          llvm::omp::ClauseSet{llvm::omp::Clause::OMPC_reduction}));
   dirClauseTriple.emplace(llvm::omp::Directive::OMPD_taskloop,
       std::make_pair(llvm::omp::Directive::OMPD_parallel,
-          OmpClauseSet{llvm::omp::Clause::OMPC_reduction}));
+          llvm::omp::ClauseSet{llvm::omp::Clause::OMPC_reduction}));
 
   CheckPrivateSymbolsInOuterCxt(
       currSymbols, dirClauseTriple, llvm::omp::Clause::OMPC_firstprivate);

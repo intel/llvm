@@ -58,6 +58,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Frontend/OpenMP/OMP.h"
 
 using namespace Fortran::lower::omp;
 using namespace Fortran::common::openmp;
@@ -6944,7 +6945,7 @@ void Fortran::lower::genOpenMPRequires(mlir::Operation *mod,
 
   if (auto offloadMod =
           llvm::dyn_cast<mlir::omp::OffloadModuleInterface>(mod)) {
-    semantics::WithOmpDeclarative::OmpClauseSet reqs;
+    llvm::omp::ClauseSet reqs;
     if (symbol) {
       common::visit(
           [&](const auto &details) {

@@ -21,21 +21,22 @@
 #include "flang/Semantics/semantics.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Frontend/OpenMP/OMP.h"
 
+namespace Fortran::semantics {
 using OmpClauseSet =
-    Fortran::common::EnumSet<llvm::omp::Clause, llvm::omp::Clause_enumSize>;
+    common::EnumSet<llvm::omp::Clause, llvm::omp::Clause_enumSize>;
+}
 
 #define GEN_FLANG_DIRECTIVE_CLAUSE_SETS
 #include "llvm/Frontend/OpenMP/OMP.inc"
 
-namespace llvm {
-namespace omp {
-static OmpClauseSet privateSet{
+namespace llvm::omp {
+static ClauseSet privateSet{
     Clause::OMPC_private, Clause::OMPC_firstprivate, Clause::OMPC_lastprivate};
-static OmpClauseSet privateReductionSet{
-    OmpClauseSet{Clause::OMPC_reduction} | privateSet};
-} // namespace omp
-} // namespace llvm
+static ClauseSet privateReductionSet{
+    ClauseSet{Clause::OMPC_reduction} | privateSet};
+} // namespace llvm::omp
 
 namespace Fortran::semantics {
 struct AnalyzedCondStmt;
@@ -49,7 +50,7 @@ struct LoopSequence;
 using SymbolSourceMap = std::multimap<const Symbol *, parser::CharBlock>;
 // Multimap to check the triple <current_dir, enclosing_dir, enclosing_clause>
 using DirectivesClauseTriple = std::multimap<llvm::omp::Directive,
-    std::pair<llvm::omp::Directive, const OmpClauseSet>>;
+    std::pair<llvm::omp::Directive, const llvm::omp::ClauseSet>>;
 
 using OmpStructureCheckerBase = DirectiveStructureChecker<llvm::omp::Directive,
     llvm::omp::Clause, parser::OmpClause, llvm::omp::Clause_enumSize>;
