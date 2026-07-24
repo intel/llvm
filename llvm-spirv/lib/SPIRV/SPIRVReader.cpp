@@ -1138,7 +1138,11 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
           LookupOC = OpFConvert;
         else if (OC == internal::OpClampStochasticRoundFToFINTEL)
           LookupOC = internal::OpStochasticRoundFToFINTEL;
-        FPConversionDesc FPDesc = {SrcEnc, DstEnc, LookupOC,
+        FPEncodingWrap LookupDstEnc = DstEnc;
+        if (LookupOC == internal::OpStochasticRoundFToFINTEL &&
+            DstEnc == FPEncodingWrap::E2M1INTEL)
+          LookupDstEnc = FPEncodingWrap::E2M1;
+        FPConversionDesc FPDesc = {SrcEnc, LookupDstEnc, LookupOC,
                                    /*Saturate=*/IsSaturatedFP8};
         auto Conv = SPIRV::FPConvertToEncodingMap::rmap(FPDesc);
         std::vector<Value *> Ops = {Src};
