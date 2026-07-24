@@ -18,6 +18,7 @@
 #include <functional>   // for function
 #include <list>         // for list
 #include <memory>       // for shared_ptr
+#include <mutex>        // for mutex
 #include <optional>     // for optional
 #include <set>          // for set
 #include <shared_mutex> // for shared_mutex
