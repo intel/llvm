@@ -1610,7 +1610,7 @@ void AMDGPUPassConfig::addIRPasses() {
   if (isPassEnabled(EnableScalarIRPasses))
     addEarlyCSEOrGVNPass();
 
-  if (TM.getTargetTriple().getArch() == Triple::amdgpu &&
+  if (TM.getTargetTriple().isAMDGCN() &&
       TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA) {
     addPass(createLocalAccessorToSharedMemoryPassLegacy());
     addPass(createGlobalOffsetPassLegacy());
