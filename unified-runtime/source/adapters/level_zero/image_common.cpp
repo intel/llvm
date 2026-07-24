@@ -296,6 +296,11 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
 
+  ze_srgb_ext_desc_t ZeSrgbDesc{};
+  ZeSrgbDesc.stype = ZE_STRUCTURE_TYPE_SRGB_EXT_DESC;
+  ZeSrgbDesc.pNext = nullptr;
+  ZeSrgbDesc.sRGB = true;
+
   ZeStruct<ze_image_bindless_exp_desc_t> BindlessDesc;
   BindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &BindlessDesc;
@@ -305,8 +310,15 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   if (Sampled) {
     ze_api_version_t ZeApiVersion = hContext->getPlatform()->ZeApiVersion;
     UR_CALL(ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc, ZeSamplerDesc));
-    BindlessDesc.pNext = &ZeSamplerDesc;
+    if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
+      ZeSrgbDesc.pNext = static_cast<void *>(&ZeSamplerDesc);
+      BindlessDesc.pNext = &ZeSrgbDesc;
+    } else {
+      BindlessDesc.pNext = &ZeSamplerDesc;
+    }
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
+  } else if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
+    BindlessDesc.pNext = &ZeSrgbDesc;
   }
 
   v2::raii::ze_image_handle_t ZeImage;
@@ -535,6 +547,16 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
   }
 
+  // The Level Zero sRGB decode extension is only defined for 8-bit unorm,
+  // 4-channel images.
+  if (ImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA &&
+      (ZeImageFormatType != ZE_IMAGE_FORMAT_TYPE_UNORM ||
+       ZeImageFormatTypeSize != 8)) {
+    UR_LOG(ERR, "ur2zeImageDesc: SRGBA channel order requires an 8-bit unorm "
+                "channel type");
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
+
   // TODO: populate the layout mapping
   ze_image_format_layout_t ZeImageFormatLayout;
   switch (ImageFormat->channelOrder) {
@@ -597,7 +619,8 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   case UR_IMAGE_CHANNEL_ORDER_RGBX:
   case UR_IMAGE_CHANNEL_ORDER_BGRA:
   case UR_IMAGE_CHANNEL_ORDER_ARGB:
-  case UR_IMAGE_CHANNEL_ORDER_ABGR: {
+  case UR_IMAGE_CHANNEL_ORDER_ABGR:
+  case UR_IMAGE_CHANNEL_ORDER_SRGBA: {
     switch (ZeImageFormatTypeSize) {
     case 8:
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8;
@@ -658,6 +681,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                     ZE_IMAGE_FORMAT_SWIZZLE_X, ZE_IMAGE_FORMAT_SWIZZLE_1};
     break;
   case UR_IMAGE_CHANNEL_ORDER_RGBA:
+  case UR_IMAGE_CHANNEL_ORDER_SRGBA:
     ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
                     ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
                     ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
@@ -1105,10 +1129,16 @@ ur_result_t urBindlessImagesImageAllocateExp(
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
+  ze_srgb_ext_desc_t ZeSrgbDesc{};
+  ZeSrgbDesc.stype = ZE_STRUCTURE_TYPE_SRGB_EXT_DESC;
+  ZeSrgbDesc.pNext = nullptr;
+  ZeSrgbDesc.sRGB = true;
 
-  ze_image_bindless_exp_desc_t ZeImageBindlessDesc;
-  ZeImageBindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
-  ZeImageBindlessDesc.pNext = nullptr;
+  ZeStruct<ze_image_bindless_exp_desc_t> ZeImageBindlessDesc;
+  ZeImageBindlessDesc.pNext =
+      (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA)
+          ? static_cast<void *>(&ZeSrgbDesc)
+          : nullptr;
   ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &ZeImageBindlessDesc;
 

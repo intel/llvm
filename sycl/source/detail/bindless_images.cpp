@@ -50,9 +50,16 @@ void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
 
   urFormat = {};
   urFormat.channelType = sycl::detail::convertChannelType(desc.channel_type);
-  urFormat.channelOrder = sycl::detail::convertChannelOrder(
+  const auto channelOrder = sycl::detail::convertChannelOrder(
       sycl::ext::oneapi::experimental::detail::get_image_default_channel_order(
           desc.num_channels));
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  urFormat.channelOrder = (desc.color_space == image_color_space::srgb)
+                              ? UR_IMAGE_CHANNEL_ORDER_SRGBA
+                              : channelOrder;
+#else
+  urFormat.channelOrder = channelOrder;
+#endif
 }
 
 detail::image_mem_impl::image_mem_impl(const image_descriptor &desc,

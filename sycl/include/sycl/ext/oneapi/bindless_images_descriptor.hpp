@@ -49,7 +49,11 @@ enum class image_type : unsigned int {
   cubemap = 3,
   gather = 4,
 };
-
+/// image color space enum
+enum class image_color_space : uint32_t {
+  linear = 0,
+  srgb = 1,
+};
 /// A struct to describe the properties of an image.
 struct image_descriptor {
   size_t width{0};
@@ -57,12 +61,50 @@ struct image_descriptor {
   size_t depth{0};
   unsigned int num_channels{4};
   image_channel_type channel_type{image_channel_type::fp32};
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  image_color_space color_space{image_color_space::linear};
+#endif
   image_type type{image_type::standard};
   unsigned int num_levels{1};
   unsigned int array_size{1};
 
   image_descriptor() = default;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
+  image_descriptor(range<1> dims, unsigned int num_channels,
+                   image_channel_type channel_type,
+                   image_color_space color_space = image_color_space::linear,
+                   image_type type = image_type::standard,
+                   unsigned int num_levels = 1, unsigned int array_size = 1)
+      : width(dims[0]), height(0), depth(0), num_channels(num_channels),
+        channel_type(channel_type), color_space(color_space), type(type),
+        num_levels(num_levels), array_size(array_size) {
+    verify();
+  }
+
+  image_descriptor(range<2> dims, unsigned int num_channels,
+                   image_channel_type channel_type,
+                   image_color_space color_space = image_color_space::linear,
+                   image_type type = image_type::standard,
+                   unsigned int num_levels = 1, unsigned int array_size = 1)
+      : width(dims[0]), height(dims[1]), depth(0), num_channels(num_channels),
+        channel_type(channel_type), color_space(color_space), type(type),
+        num_levels(num_levels), array_size(array_size) {
+    verify();
+  }
+
+  image_descriptor(range<3> dims, unsigned int num_channels,
+                   image_channel_type channel_type,
+                   image_color_space color_space = image_color_space::linear,
+                   image_type type = image_type::standard,
+                   unsigned int num_levels = 1, unsigned int array_size = 1)
+      : width(dims[0]), height(dims[1]), depth(dims[2]),
+        num_channels(num_channels), channel_type(channel_type),
+        color_space(color_space), type(type), num_levels(num_levels),
+        array_size(array_size) {
+    verify();
+  };
+#else
   image_descriptor(range<1> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
@@ -92,7 +134,7 @@ struct image_descriptor {
         num_levels(num_levels), array_size(array_size) {
     verify();
   };
-
+#endif
   /// Get the descriptor for a mipmap level
   image_descriptor get_mip_level_desc(unsigned int level) const {
     // Check that this descriptor describes a mipmap - otherwise throw
@@ -116,8 +158,13 @@ struct image_descriptor {
 
     // This will generate the new descriptor with image_type standard
     // since individual mip levels are standard images
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    image_descriptor levelDesc({width, height, depth}, this->num_channels,
+                               this->channel_type, this->color_space);
+#else
     image_descriptor levelDesc({width, height, depth}, this->num_channels,
                                this->channel_type);
+#endif
 
     levelDesc.verify();
     return levelDesc;
@@ -128,7 +175,20 @@ struct image_descriptor {
       throw sycl::exception(sycl::errc::invalid,
                             "Images must have 1, 2, 3, or 4 channels.");
     }
-
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    if (color_space == image_color_space::srgb) {
+      if (num_channels != 4) {
+        throw sycl::exception(
+            sycl::errc::invalid,
+            "sRGB color space requires num_channels to be 4.");
+      }
+      if (channel_type != image_channel_type::unorm_int8) {
+        throw sycl::exception(
+            sycl::errc::invalid,
+            "sRGB color space requires channel_type to be unorm_int8.");
+      }
+    }
+#endif
     switch (this->type) {
     case image_type::standard:
       if (this->array_size > 1) {
