@@ -63,9 +63,11 @@ using namespace Fortran::semantics::omp;
 using namespace Fortran::parser::omp;
 
 template <>
-void IterateOverMembers(
-    const OmpClauseSet &set, std::function<void(llvm::omp::Clause)> visitor) {
-  set.IterateOverMembers(visitor);
+void IterateOverMembers(const llvm::omp::ClauseSet &set,
+    std::function<void(llvm::omp::Clause)> visitor) {
+  for (llvm::omp::Clause c : set) {
+    visitor(c);
+  }
 }
 
 OmpStructureChecker::OmpStructureChecker(SemanticsContext &context)
@@ -944,7 +946,8 @@ void OmpStructureChecker::CheckDirectiveDeprecation(
 }
 
 std::pair<const parser::OmpClause *, const parser::OmpClause *>
-OmpStructureChecker::FindMutuallyExclusiveClauses(OmpClauseSet exclusive,
+OmpStructureChecker::FindMutuallyExclusiveClauses(
+    llvm::omp::ClauseSet exclusive,
     const std::vector<const parser::OmpClause *> &clauses) {
   const parser::OmpClause *first{nullptr};
   for (const parser::OmpClause *clause : clauses) {
@@ -995,7 +998,7 @@ void OmpStructureChecker::CheckClauses(parser::OmpDirectiveName dirName,
     }
   }
 
-  OmpClauseSet notAllowed;
+  llvm::omp::ClauseSet notAllowed;
 
   for (const parser::OmpClause *clause : allClauses) {
     llvm::omp::Clause clauseId{clause->Id()};
@@ -1020,7 +1023,7 @@ void OmpStructureChecker::CheckClauses(parser::OmpDirectiveName dirName,
   // Exclusive clauses aren't necessarily unique, but there is no way
   // to specify a clause in both sets right now, and all clauses currently
   // listed as exclusive also happen to be unique.
-  OmpClauseSet uniqueSet{//
+  llvm::omp::ClauseSet uniqueSet{//
       directiveClausesMap_[dirId].allowedOnce |
       directiveClausesMap_[dirId].allowedExclusive};
 
@@ -1048,19 +1051,17 @@ void OmpStructureChecker::CheckClauses(parser::OmpDirectiveName dirName,
 
   bool requiredPresent{false};
   // Prepare the requiredSet relevant to the current OpenMP version.
-  OmpClauseSet requiredSet;
-  directiveClausesMap_[dirId].requiredOneOf.IterateOverMembers( //
-      [&](llvm::omp::Clause id) {
-        if (IsAllowedClause(id)) {
-          requiredSet.set(id);
-        }
-      });
-  requiredSet.IterateOverMembers( //
-      [&](llvm::omp::Clause id) {
-        if (!requiredPresent && present.count(id) != 0) {
-          requiredPresent = true;
-        }
-      });
+  llvm::omp::ClauseSet requiredSet;
+  for (llvm::omp::Clause id : directiveClausesMap_[dirId].requiredOneOf) {
+    if (IsAllowedClause(id)) {
+      requiredSet.set(id);
+    }
+  }
+  for (llvm::omp::Clause id : requiredSet) {
+    if (!requiredPresent && present.count(id) != 0) {
+      requiredPresent = true;
+    }
+  }
 
   if (!requiredPresent && !requiredSet.empty()) {
     context_.Say(dirName.source,

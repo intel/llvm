@@ -23,11 +23,6 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Frontend/OpenMP/OMP.h"
 
-namespace Fortran::semantics {
-using OmpClauseSet =
-    common::EnumSet<llvm::omp::Clause, llvm::omp::Clause_enumSize>;
-}
-
 #define GEN_FLANG_DIRECTIVE_CLAUSE_SETS
 #include "llvm/Frontend/OpenMP/OMP.inc"
 
@@ -53,11 +48,11 @@ using DirectivesClauseTriple = std::multimap<llvm::omp::Directive,
     std::pair<llvm::omp::Directive, const llvm::omp::ClauseSet>>;
 
 using OmpStructureCheckerBase = DirectiveStructureChecker<llvm::omp::Directive,
-    llvm::omp::Clause, parser::OmpClause, OmpClauseSet>;
+    llvm::omp::Clause, parser::OmpClause, llvm::omp::ClauseSet>;
 
 template <>
-void IterateOverMembers(
-    const OmpClauseSet &set, std::function<void(llvm::omp::Clause)> func);
+void IterateOverMembers(const llvm::omp::ClauseSet &set,
+    std::function<void(llvm::omp::Clause)> func);
 
 class OmpStructureChecker : public OmpStructureCheckerBase {
 public:
@@ -341,7 +336,7 @@ private:
       llvm::iterator_range<ClauseIterator> endClauses);
   void AnalyzeObject(const parser::OmpObject &object);
   std::pair<const parser::OmpClause *, const parser::OmpClause *>
-  FindMutuallyExclusiveClauses(OmpClauseSet exclusive,
+  FindMutuallyExclusiveClauses(llvm::omp::ClauseSet exclusive,
       const std::vector<const parser::OmpClause *> &clauses);
 
   const parser::OpenMPConstruct *GetCurrentConstruct() const;
