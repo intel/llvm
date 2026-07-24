@@ -62,6 +62,12 @@ namespace Fortran::semantics {
 using namespace Fortran::semantics::omp;
 using namespace Fortran::parser::omp;
 
+template <>
+void IterateOverMembers(
+    const OmpClauseSet &set, std::function<void(llvm::omp::Clause)> visitor) {
+  set.IterateOverMembers(visitor);
+}
+
 OmpStructureChecker::OmpStructureChecker(SemanticsContext &context)
     : DirectiveStructureChecker(context,
 #define GEN_FLANG_DIRECTIVE_CLAUSE_MAP

@@ -53,7 +53,11 @@ using DirectivesClauseTriple = std::multimap<llvm::omp::Directive,
     std::pair<llvm::omp::Directive, const llvm::omp::ClauseSet>>;
 
 using OmpStructureCheckerBase = DirectiveStructureChecker<llvm::omp::Directive,
-    llvm::omp::Clause, parser::OmpClause, llvm::omp::Clause_enumSize>;
+    llvm::omp::Clause, parser::OmpClause, OmpClauseSet>;
+
+template <>
+void IterateOverMembers(
+    const OmpClauseSet &set, std::function<void(llvm::omp::Clause)> func);
 
 class OmpStructureChecker : public OmpStructureCheckerBase {
 public:
