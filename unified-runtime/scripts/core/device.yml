@@ -318,7 +318,7 @@ etors:
     - name: LINKER_AVAILABLE
       desc: "[$x_bool_t] device linker is available"
     - name: EXECUTION_CAPABILITIES
-      desc: "[$x_device_exec_capability_flags_t] device kernel execution capability bit-field"
+      desc: "[$x_device_exec_capability_flags_t][deprecated-value] device kernel execution capability bit-field"
     - name: QUEUE_ON_DEVICE_PROPERTIES
       desc: "[$x_queue_flags_t] device command queue property bit-field"
     - name: QUEUE_ON_HOST_PROPERTIES
