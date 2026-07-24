@@ -7,6 +7,7 @@ libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   group/group_ballot.cl
   group/collectives.cl
   group/collectives_helpers.cl
+  group/group_shuffle.cl
   conversion/GenericCastToPtrExplicit.cl
   synchronization/barrier.cl
   images/image_common.cl
