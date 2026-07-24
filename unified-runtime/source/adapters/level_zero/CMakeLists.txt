@@ -135,6 +135,15 @@ if(UR_BUILD_ADAPTER_L0)
     target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_LEVEL_ZERO)
     if(UR_STATIC_ADAPTER_L0)
         target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO)
+        # Neutralize dllexport/dllimport annotations on MSVC: the generated .cpp
+        # files use UR_APIEXPORT/UR_APICALL but a static library must not have
+        # __declspec(dllimport) on definitions (causes C2375) and does not need
+        # __declspec(dllexport) either.
+        target_compile_definitions(ur_adapter_level_zero PRIVATE
+            UR_APIEXPORT=
+            UR_APICALL=
+            UR_DLLEXPORT=
+        )
     endif()
 
     # Ensure UR flags are propagated to level zero
@@ -247,6 +256,15 @@ if(UR_BUILD_ADAPTER_L0_V2)
     target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_LEVEL_ZERO)
     if(UR_STATIC_ADAPTER_L0_V2)
         target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO_V2)
+        # Neutralize dllexport/dllimport annotations on MSVC: the generated .cpp
+        # files use UR_APIEXPORT/UR_APICALL but a static library must not have
+        # __declspec(dllimport) on definitions (causes C2375) and does not need
+        # __declspec(dllexport) either.
+        target_compile_definitions(ur_adapter_level_zero_v2 PRIVATE
+            UR_APIEXPORT=
+            UR_APICALL=
+            UR_DLLEXPORT=
+        )
     endif()
 
     # TODO: fix level_zero adapter conversion warnings
