@@ -105,7 +105,7 @@ int main() {
   int *inArray;
   int *outArray;
 
-  if (dev.get_info<info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     // Test host to host
     USM_MALLOC(inArray, host)
     USM_MALLOC(outArray, host)
@@ -135,7 +135,7 @@ int main() {
     TEST_MEMCPY_TO_NULLPTR(inArray)
   }
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     // Test shared to shared
     USM_MALLOC(inArray, shared)
     USM_MALLOC(outArray, shared)
@@ -165,7 +165,7 @@ int main() {
     TEST_MEMCPY_TO_NULLPTR(inArray)
   }
 
-  if (dev.get_info<info::device::usm_device_allocations>()) {
+  if (dev.has(aspect::usm_device_allocations)) {
     // Test device to device
     USM_MALLOC(inArray, device)
     USM_MALLOC(outArray, device)
@@ -195,8 +195,8 @@ int main() {
     TEST_MEMCPY_TO_NULLPTR(inArray)
   }
 
-  if (dev.get_info<info::device::usm_host_allocations>() &&
-      dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations) &&
+      dev.has(aspect::usm_shared_allocations)) {
     // Test host to shared
     USM_MALLOC(inArray, host)
     USM_MALLOC(outArray, shared)
@@ -238,8 +238,8 @@ int main() {
     TEST_MEMCPY(inArray, init_on_host, outArray, check_on_host)
   }
 
-  if (dev.get_info<info::device::usm_host_allocations>() &&
-      dev.get_info<info::device::usm_device_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations) &&
+      dev.has(aspect::usm_device_allocations)) {
     // Test host to device
     USM_MALLOC(inArray, host)
     USM_MALLOC(outArray, device)
@@ -281,8 +281,8 @@ int main() {
     TEST_MEMCPY(inArray, init_on_host, outArray, check_on_device)
   }
 
-  if (dev.get_info<info::device::usm_shared_allocations>() &&
-      dev.get_info<info::device::usm_device_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations) &&
+      dev.has(aspect::usm_device_allocations)) {
     // Test shared to device
     USM_MALLOC(inArray, shared)
     USM_MALLOC(outArray, device)

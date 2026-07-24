@@ -60,7 +60,7 @@ int main() {
   test(q, nestedSubmitParallelFor);
   // All shortcut functions has a common part where nested call detection
   // happens. Testing only one of them is enough.
-  if (q.get_device().get_info<sycl::info::device::usm_device_allocations>())
+  if (q.get_device().has(sycl::aspect::usm_device_allocations))
     test(q, nestedSubmitMemset);
 
   return EXIT_SUCCESS;
