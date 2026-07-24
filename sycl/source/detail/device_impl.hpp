@@ -1841,8 +1841,15 @@ public:
             {"8.0", oneapi_exp_arch::nvidia_gpu_sm_80},
             {"8.6", oneapi_exp_arch::nvidia_gpu_sm_86},
             {"8.7", oneapi_exp_arch::nvidia_gpu_sm_87},
+            {"8.8", oneapi_exp_arch::nvidia_gpu_sm_88},
             {"8.9", oneapi_exp_arch::nvidia_gpu_sm_89},
             {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
+            {"10.0", oneapi_exp_arch::nvidia_gpu_sm_100},
+            {"10.1", oneapi_exp_arch::nvidia_gpu_sm_101},
+            {"10.3", oneapi_exp_arch::nvidia_gpu_sm_103},
+            {"11.0", oneapi_exp_arch::nvidia_gpu_sm_110},
+            {"12.0", oneapi_exp_arch::nvidia_gpu_sm_120},
+            {"12.1", oneapi_exp_arch::nvidia_gpu_sm_121},
             {"gfx701", oneapi_exp_arch::amd_gpu_gfx701},
             {"gfx702", oneapi_exp_arch::amd_gpu_gfx702},
             {"gfx703", oneapi_exp_arch::amd_gpu_gfx703},
@@ -2227,32 +2234,9 @@ public:
            matrix_type::fp64, matrix_type::fp64},
       };
     else if (backend::ext_oneapi_cuda == CurrentBackend) {
-      // TODO: Tho following can be simplified when comparison of
-      // architectures using < and > will be implemented
-      using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
-      constexpr std::pair<float, oneapi_exp_arch> NvidiaArchNumbs[] = {
-          {5.0, oneapi_exp_arch::nvidia_gpu_sm_50},
-          {5.2, oneapi_exp_arch::nvidia_gpu_sm_52},
-          {5.3, oneapi_exp_arch::nvidia_gpu_sm_53},
-          {6.0, oneapi_exp_arch::nvidia_gpu_sm_60},
-          {6.1, oneapi_exp_arch::nvidia_gpu_sm_61},
-          {6.2, oneapi_exp_arch::nvidia_gpu_sm_62},
-          {7.0, oneapi_exp_arch::nvidia_gpu_sm_70},
-          {7.2, oneapi_exp_arch::nvidia_gpu_sm_72},
-          {7.5, oneapi_exp_arch::nvidia_gpu_sm_75},
-          {8.0, oneapi_exp_arch::nvidia_gpu_sm_80},
-          {8.6, oneapi_exp_arch::nvidia_gpu_sm_86},
-          {8.7, oneapi_exp_arch::nvidia_gpu_sm_87},
-          {8.9, oneapi_exp_arch::nvidia_gpu_sm_89},
-          {9.0, oneapi_exp_arch::nvidia_gpu_sm_90},
-      };
-      auto GetArchNum = [&](const architecture &arch) {
-        for (const auto &Item : NvidiaArchNumbs)
-          if (Item.second == arch)
-            return Item.first;
-        return 0.f;
-      };
-      float ComputeCapability = GetArchNum(DeviceArch);
+      if (get_device_architecture_category(DeviceArch) !=
+          arch_category::nvidia_gpu)
+        return {};
       std::vector<combination> sm_70_combinations = {
           {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
@@ -2302,7 +2286,7 @@ public:
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
            matrix_type::fp64, matrix_type::fp64}};
-      if (ComputeCapability >= 8.0) {
+      if (DeviceArch >= architecture::nvidia_gpu_sm_80) {
         sm_80_combinations.insert(sm_80_combinations.end(),
                                   sm_72_combinations.begin(),
                                   sm_72_combinations.end());
@@ -2310,12 +2294,12 @@ public:
                                   sm_70_combinations.begin(),
                                   sm_70_combinations.end());
         return sm_80_combinations;
-      } else if (ComputeCapability >= 7.2) {
+      } else if (DeviceArch >= architecture::nvidia_gpu_sm_72) {
         sm_72_combinations.insert(sm_72_combinations.end(),
                                   sm_70_combinations.begin(),
                                   sm_70_combinations.end());
         return sm_72_combinations;
-      } else if (ComputeCapability >= 7.0)
+      } else if (DeviceArch >= architecture::nvidia_gpu_sm_70)
         return sm_70_combinations;
     }
     return {};

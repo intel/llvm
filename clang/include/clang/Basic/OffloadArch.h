@@ -236,7 +236,7 @@ static inline bool IsSYCLSupportedAMDGPUArch(OffloadArch Arch) {
 
 // Check if the given Arch value is a valid SYCL supported NVidia GPU.
 static inline bool IsSYCLSupportedNVidiaGPUArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::SM_50 && Arch <= OffloadArch::SM_90a;
+  return Arch >= OffloadArch::SM_50 && Arch <= OffloadArch::SM_121f;
 }
 
 const char *OffloadArchToString(OffloadArch A);

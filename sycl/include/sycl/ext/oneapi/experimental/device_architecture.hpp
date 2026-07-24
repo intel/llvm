@@ -90,7 +90,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;
 static constexpr ext::oneapi::experimental::architecture
     max_nvidia_gpu_architecture =
-        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90a;
+        ext::oneapi::experimental::architecture::nvidia_gpu_sm_121;
 
 static constexpr ext::oneapi::experimental::architecture
     min_amd_gpu_architecture =
@@ -243,11 +243,71 @@ static constexpr ext::oneapi::experimental::architecture
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM_87__
 #define __SYCL_TARGET_NVIDIA_GPU_SM_87__ 0
 #endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_88__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_88__ 0
+#endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM_89__
 #define __SYCL_TARGET_NVIDIA_GPU_SM_89__ 0
 #endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM_90__
 #define __SYCL_TARGET_NVIDIA_GPU_SM_90__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_90A__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_90A__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_100__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_100__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_100A__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_100A__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_100F__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_100F__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_101__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_101__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_101A__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_101A__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_101F__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_101F__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_103__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_103__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_103A__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_103A__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_103F__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_103F__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_110__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_110__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_110A__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_110A__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_110F__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_110F__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_120__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_120__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_120A__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_120A__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_120F__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_120F__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_121__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_121__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_121A__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_121A__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_121F__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_121F__ 0
 #endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX700__
 #define __SYCL_TARGET_AMD_GPU_GFX700__ 0
@@ -427,8 +487,28 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_NVIDIA_GPU_SM_80__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_86__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_87__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_88__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_89__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_90__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_90A__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_100__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_100A__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_100F__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_101__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_101A__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_101F__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_103__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_103A__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_103F__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_110__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_110A__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_110F__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_120__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_120A__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_120F__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_121__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_121A__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_121F__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX700__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX701__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX702__ == 1) ||
@@ -622,11 +702,41 @@ get_current_architecture_aot() {
 #if __SYCL_TARGET_NVIDIA_GPU_SM_87__
   return ext::oneapi::experimental::architecture::nvidia_gpu_sm_87;
 #endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_88__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_88;
+#endif
 #if __SYCL_TARGET_NVIDIA_GPU_SM_89__
   return ext::oneapi::experimental::architecture::nvidia_gpu_sm_89;
 #endif
 #if __SYCL_TARGET_NVIDIA_GPU_SM_90__
   return ext::oneapi::experimental::architecture::nvidia_gpu_sm_90;
+#endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_90A__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_90a;
+#endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_100__ || __SYCL_TARGET_NVIDIA_GPU_SM_100A__ || \
+    __SYCL_TARGET_NVIDIA_GPU_SM_100F__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_100;
+#endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_101__ || __SYCL_TARGET_NVIDIA_GPU_SM_101A__ || \
+    __SYCL_TARGET_NVIDIA_GPU_SM_101F__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_101;
+#endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_103__ || __SYCL_TARGET_NVIDIA_GPU_SM_103A__ || \
+    __SYCL_TARGET_NVIDIA_GPU_SM_103F__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_103;
+#endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_110__ || __SYCL_TARGET_NVIDIA_GPU_SM_110A__ || \
+    __SYCL_TARGET_NVIDIA_GPU_SM_110F__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_110;
+#endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_120__ || __SYCL_TARGET_NVIDIA_GPU_SM_120A__ || \
+    __SYCL_TARGET_NVIDIA_GPU_SM_120F__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_120;
+#endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_121__ || __SYCL_TARGET_NVIDIA_GPU_SM_121A__ || \
+    __SYCL_TARGET_NVIDIA_GPU_SM_121F__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_121;
 #endif
 #if __SYCL_TARGET_AMD_GPU_GFX700__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx700;
