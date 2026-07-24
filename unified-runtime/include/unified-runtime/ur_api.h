@@ -532,6 +532,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP = 324,
   /// Enumerator for ::urIPCOpenEventHandleExp
   UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP = 325,
+  /// Enumerator for ::urGraphGetIdExp
+  UR_FUNCTION_GRAPH_GET_ID_EXP = 326,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -959,6 +961,19 @@ typedef enum ur_result_t {
   UR_RESULT_ERROR_INVALID_SPEC_ID = 70,
   /// A graph object is not valid.
   UR_RESULT_ERROR_INVALID_GRAPH = 71,
+  /// An operation is not supported during graph capture.
+  UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED = 72,
+  /// An operation failed and invalidated the graph capture session.
+  UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED = 73,
+  /// An operation failed because it would merge two graph capture sessions.
+  UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT = 74,
+  /// The command list is not in graph capture mode.
+  UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING = 75,
+  /// The graph contains unjoined forks.
+  UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS = 76,
+  /// An operation failed because it uses a graph-internal counter-based
+  /// event outside of the graph.
+  UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT = 77,
   /// Invalid Command-Buffer
   UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,
   /// Sync point is not valid for the command-buffer
@@ -2558,6 +2573,10 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports registering host
   /// memory ranges.
   UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP = 0x2090,
+  /// [::ur_bool_t] returns true if the device can produce profiling
+  /// information for individual events without the whole queue being
+  /// created with ::UR_QUEUE_FLAG_PROFILING_ENABLE.
+  UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP = 0x20A0,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -14253,6 +14272,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
     bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Returns a process-unique identifier that increases monotonically per
+///        graph.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGraphId`
+UR_APIEXPORT ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function invoked when a graph is destroyed.
 typedef void (*ur_exp_graph_destruction_callback_t)(
     /// [in] pointer to user data to be passed to the callback
@@ -16878,6 +16916,15 @@ typedef struct ur_graph_is_empty_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
   bool **ppResult;
 } ur_graph_is_empty_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphGetIdExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_get_id_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  uint64_t **ppGraphId;
+} ur_graph_get_id_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urGraphSetDestructionCallbackExp

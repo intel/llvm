@@ -12102,6 +12102,32 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetIdExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) {
+  auto pfnGetIdExp = getContext()->urDdiTable.GraphExp.pfnGetIdExp;
+
+  if (nullptr == pfnGetIdExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pGraphId)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnGetIdExp(hGraph, pGraphId);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphSetDestructionCallbackExp
 __urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
     /// [in] Handle of the graph to register the callback for.
@@ -12879,6 +12905,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 
   dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
   pDdiTable->pfnIsEmptyExp = ur_validation_layer::urGraphIsEmptyExp;
+
+  dditable.pfnGetIdExp = pDdiTable->pfnGetIdExp;
+  pDdiTable->pfnGetIdExp = ur_validation_layer::urGraphGetIdExp;
 
   dditable.pfnSetDestructionCallbackExp =
       pDdiTable->pfnSetDestructionCallbackExp;

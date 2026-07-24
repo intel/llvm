@@ -208,22 +208,22 @@ class HostTask;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
+Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg));
+Arg member_ptr_helper(RetType (Func::*)(Arg));
 
 // Version with two arguments to handle the case when kernel_handler is passed
 // to a lambda
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
+Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
+Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
@@ -257,7 +257,7 @@ using sycl::detail::queue_impl;
 // Returns true if x*y will overflow in T;
 // otherwise, returns false and stores x*y in dst.
 template <typename T>
-static std::enable_if_t<std::is_unsigned_v<T>, bool>
+std::enable_if_t<std::is_unsigned_v<T>, bool>
 multiply_with_overflow_check(T &dst, T x, T y) {
   dst = x * y;
   return (y != 0) && (x > (std::numeric_limits<T>::max)() / y);
@@ -419,7 +419,7 @@ private:
   template <typename T, int Dimensions, typename AllocatorT>
   void addReduction(
       const std::shared_ptr<buffer<T, Dimensions, AllocatorT>> &ReduBuf) {
-    detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
+    detail::markBufferAsInternal(detail::getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
 
@@ -505,7 +505,7 @@ private:
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
 
-    if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
+    if (!std::is_same<OpenCLMemT, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
     } else if (ext::oneapi::experimental::detail::is_struct_with_special_type<
@@ -799,7 +799,8 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
-
+    detail::KernelRegistrar<NameT,
+                            detail::KernelInfo<NameT>>::registerKernelName();
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     throwOnKernelParameterMisuse(Info);
@@ -961,6 +962,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+    detail::KernelRegistrar<NameT,
+                            detail::KernelInfo<NameT>>::registerKernelName();
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
 
@@ -1147,9 +1150,9 @@ public:
             && std::is_standard_layout<std::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
-        || (!is_same_type<cl_mem, T>::value &&
+        || (!is_same_type<OpenCLMemT, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<OpenCLMemT, T>::value      // Interop
         || is_same_type<stream, T>::value          // Stream
         || sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
   };
@@ -3004,6 +3007,8 @@ public:
   static void internalProfilingTagImpl(handler &Handler) {
     Handler.internalProfilingTagImpl();
   }
+
+  static std::function<void()> getHostTaskFunc(detail::HostTask &HT);
 
   template <typename FuncT>
   static std::enable_if_t<

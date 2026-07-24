@@ -219,11 +219,6 @@ static cl::opt<bool>
     SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                   cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
-static cl::opt<bool>
-    SPIRVPreserveAuxData("spirv-preserve-auxdata", cl::init(false),
-                         cl::desc("Preserve all auxiliary data, such as "
-                                  "function attributes and metadata"));
-
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
     cl::desc("Display id of constants available for specializaion and their "
@@ -234,19 +229,6 @@ static cl::opt<bool>
                      cl::desc("Display general information about the module "
                               "(capabilities, extensions, version, memory model"
                               " and addressing model)"));
-
-static cl::opt<SPIRV::FPContractMode> FPCMode(
-    "spirv-fp-contract", cl::desc("Set FP Contraction mode:"),
-    cl::init(SPIRV::FPContractMode::On),
-    cl::values(
-        clEnumValN(SPIRV::FPContractMode::On, "on",
-                   "choose a mode according to presence of llvm.fmuladd "
-                   "intrinsic or `contract' flag on fp operations"),
-        clEnumValN(SPIRV::FPContractMode::Off, "off",
-                   "disable FP contraction for all entry points"),
-        clEnumValN(
-            SPIRV::FPContractMode::Fast, "fast",
-            "allow all operations to be contracted for all entry points")));
 
 static cl::opt<bool> SPIRVAllowExtraDIExpressions(
     "spirv-allow-extra-diexpressions", cl::init(false),
@@ -836,12 +818,39 @@ int main(int Ac, char **Av) {
     OptToDisable->setArgStr("spirv-ext-coming-from-spirv-backend");
     OptToDisable->setHiddenFlag(cl::Hidden);
   }
+  if (RegisteredOptions.count("spirv-preserve-auxdata") == 1) {
+    llvm::cl::Option *OptToDisable =
+        RegisteredOptions["spirv-preserve-auxdata"];
+    OptToDisable->setArgStr("spirv-preserve-auxdata-coming-from-spirv-backend");
+    OptToDisable->setHiddenFlag(cl::Hidden);
+  }
+  if (RegisteredOptions.count("spirv-fp-contract") == 1) {
+    llvm::cl::Option *OptToDisable = RegisteredOptions["spirv-fp-contract"];
+    OptToDisable->setArgStr("spirv-fp-contract-coming-from-spirv-backend");
+    OptToDisable->setHiddenFlag(cl::Hidden);
+  }
 #endif
   cl::list<std::string> SPVExt(
       "spirv-ext", cl::CommaSeparated,
       cl::desc("Specify list of allowed/disallowed extensions"),
       cl::value_desc("+SPV_extenstion1_name,-SPV_extension2_name"),
       cl::ValueRequired);
+  cl::opt<bool> SPIRVPreserveAuxData(
+      "spirv-preserve-auxdata", cl::init(false),
+      cl::desc("Preserve all auxiliary data, such as function attributes and "
+               "metadata"));
+  cl::opt<SPIRV::FPContractMode> FPCMode(
+      "spirv-fp-contract", cl::desc("Set FP Contraction mode:"),
+      cl::init(SPIRV::FPContractMode::On),
+      cl::values(
+          clEnumValN(SPIRV::FPContractMode::On, "on",
+                     "choose a mode according to presence of llvm.fmuladd "
+                     "intrinsic or `contract' flag on fp operations"),
+          clEnumValN(SPIRV::FPContractMode::Off, "off",
+                     "disable FP contraction for all entry points"),
+          clEnumValN(
+              SPIRV::FPContractMode::Fast, "fast",
+              "allow all operations to be contracted for all entry points")));
 
   cl::ParseCommandLineOptions(Ac, Av, "LLVM/SPIR-V translator");
 

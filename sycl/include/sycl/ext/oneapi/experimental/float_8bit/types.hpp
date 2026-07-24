@@ -13,11 +13,11 @@
 #include <sycl/multi_ptr.hpp>
 
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/detail/fp_conversion_common.hpp>
 #include <sycl/khr/static_addrspace_cast.hpp>
 #include <sycl/marray.hpp>
 
 #include <cassert>
-#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -27,11 +27,13 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 namespace sycl {
+inline namespace _V1 {
 namespace detail {
 using float16_vec2 = _Float16 __attribute__((ext_vector_type(2)));
 using uint8_vec2 = uint8_t __attribute__((ext_vector_type(2)));
 using bfloat16_vec2 = __bf16 __attribute__((ext_vector_type(2)));
 } // namespace detail
+} // namespace _V1
 } // namespace sycl
 // FP8 builtins
 
@@ -104,27 +106,10 @@ namespace ext::oneapi::experimental {
 
 enum class saturation { none, finite };
 
-enum class rounding {
-  to_even,
-  upward,
-  toward_zero,
-};
-
-struct stochastic_seed {
-  explicit stochastic_seed(uint32_t *pseed) : pseed(pseed) {}
-  uint32_t *const pseed;
-};
+// `rounding`, `stochastic_seed`, and `detail::BitWidth` are shared with the
+// other narrow-FP conversion extensions; see fp_conversion_common.hpp.
 
 namespace detail {
-
-template <typename T> static inline int BitWidth(T x) noexcept {
-  int width = 0;
-  while (x != 0u) {
-    ++width;
-    x >>= 1;
-  }
-  return width;
-}
 
 template <typename ToT> struct DirectBinary16Traits;
 
@@ -778,10 +763,10 @@ static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
 
     if (isInf) {
       if constexpr (Traits::IsSigned) {
-        return negative ? std::numeric_limits<ToT>::min()
-                        : std::numeric_limits<ToT>::max();
+        return negative ? (std::numeric_limits<ToT>::min)()
+                        : (std::numeric_limits<ToT>::max)();
       } else {
-        return negative ? ToT{0} : std::numeric_limits<ToT>::max();
+        return negative ? ToT{0} : (std::numeric_limits<ToT>::max)();
       }
     }
 
@@ -795,9 +780,9 @@ static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
       if (shift >= 64) {
         // Value is too large - saturate to max
         if constexpr (Traits::IsSigned)
-          return std::numeric_limits<ToT>::max();
+          return (std::numeric_limits<ToT>::max)();
         else
-          return std::numeric_limits<ToT>::max();
+          return (std::numeric_limits<ToT>::max)();
       }
       magnitude = static_cast<uint64_t>(significand) << shift;
     } else {
@@ -831,10 +816,10 @@ static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
 
     if (BitWidth(magnitude) > Traits::ValueBits) {
       if constexpr (Traits::IsSigned)
-        return negative ? std::numeric_limits<ToT>::min()
-                        : std::numeric_limits<ToT>::max();
+        return negative ? (std::numeric_limits<ToT>::min)()
+                        : (std::numeric_limits<ToT>::max)();
       else
-        return negative ? ToT{0} : std::numeric_limits<ToT>::max();
+        return negative ? ToT{0} : (std::numeric_limits<ToT>::max)();
     }
 
     const UnsignedT narrowed = static_cast<UnsignedT>(magnitude);
@@ -866,7 +851,7 @@ static inline ToT ConvertFromE8M0_CPU(uint8_t code, rounding R) noexcept {
 
 } // namespace detail
 
-template <size_t N> class fp8_e4m3_x {
+template <size_t N> class alignas(N == 2 ? 2 : 1) fp8_e4m3_x {
   static constexpr size_t NExpBits = 4;
   static constexpr size_t NFracBits = 3;
 
@@ -1299,11 +1284,11 @@ public:
   }
 
   // Intentionally public to allow access to the raw values.
-  alignas(N == 2 ? 2 : alignof(uint8_t)) uint8_t vals[N];
+  uint8_t vals[N];
 #undef CONVERT_TO_FP8
 };
 
-template <size_t N> class fp8_e5m2_x {
+template <size_t N> class alignas(N == 2 ? 2 : 1) fp8_e5m2_x {
   static constexpr size_t NExpBits = 5;
   static constexpr size_t NFracBits = 2;
 
@@ -1883,7 +1868,7 @@ public:
   }
 
   // Intentionally public to allow access to the raw values.
-  alignas(N == 2 ? 2 : alignof(uint8_t)) uint8_t vals[N];
+  uint8_t vals[N];
 #undef CONVERT_TO_FP8
 };
 

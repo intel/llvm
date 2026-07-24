@@ -247,6 +247,8 @@ public:
     return ext_oneapi_get_device_global_size(detail::string_view{name});
   }
 
+  std::vector<char> ext_oneapi_get_content() const;
+
 protected:
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
@@ -549,6 +551,18 @@ public:
     return detail::kernel_bundle_plain::ext_oneapi_get_device_global_size(name);
   }
 
+  /////////////////////////
+  // ext_oneapi_get_content
+  //  Serializes the kernel_bundle into the SYCLBIN binary format. See
+  //  sycl_ext_oneapi_syclbin for details. Available for any non-source state.
+  /////////////////////////
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
+  std::vector<char> ext_oneapi_get_content() const {
+    return detail::kernel_bundle_plain::ext_oneapi_get_content();
+  }
+
 private:
   kernel_bundle(detail::KernelBundleImplPtr Impl)
       : kernel_bundle_plain(std::move(Impl)) {}
@@ -588,10 +602,8 @@ __SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
 
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
-  // FIXME: This must fail at link-time if KernelName not in any available
-  // translation units.
   return detail::get_kernel_id_impl(
-      detail::CompileTimeKernelInfo<KernelName>.Name);
+      std::string_view(detail::KernelRegistry<KernelName>::getKernelName()));
 }
 
 /// \returns a vector with all kernel_id's defined in the application

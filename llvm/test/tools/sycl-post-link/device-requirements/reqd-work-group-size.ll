@@ -59,7 +59,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC = comdat any
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE_clES4_E7KernelAEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
+define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE_clES4_E7KernelAEE() local_unnamed_addr #0 comdat !srcloc !46 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !51
   %1 = extractelement <3 x i64> %0, i64 0
@@ -72,13 +72,13 @@ entry:
 declare void @llvm.assume(i1 noundef) #1
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !60 !kernel_arg_buffer_location !49 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !60 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE0_clES4_E7KernelBEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
+define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE0_clES4_E7KernelBEE() local_unnamed_addr #0 comdat !srcloc !46 !reqd_work_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !62
   %1 = extractelement <3 x i64> %0, i64 0
@@ -88,13 +88,13 @@ entry:
 }
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !71 !kernel_arg_buffer_location !49 !reqd_work_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !71 !reqd_work_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE1_clES4_E7KernelCEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
+define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE1_clES4_E7KernelCEE() local_unnamed_addr #0 comdat !srcloc !46 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !72
   %1 = extractelement <3 x i64> %0, i64 0
@@ -104,7 +104,7 @@ entry:
 }
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !81 !kernel_arg_buffer_location !49 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !81 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
@@ -165,10 +165,9 @@ attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessib
 !44 = !{i32 1, !"wchar_size", i32 4}
 !45 = !{i32 7, !"frame-pointer", i32 2}
 !46 = !{i32 8347054}
-!47 = !{i32 -1, i32 -1}
 !48 = !{i32 32}
 !49 = !{}
-!50 = !{i1 true, i1 true}
+!50 =!{i1 true, i1 true}
 !51 = !{!52, !54, !56, !58}
 !52 = distinct !{!52, !53, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN4sycl3_V12idILi1EEEE8initSizeEv: %agg.result"}
 !53 = distinct !{!53, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN4sycl3_V12idILi1EEEE8initSizeEv"}

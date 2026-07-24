@@ -67,53 +67,57 @@ get_kernel_info(const queue &Q) {
 
 namespace experimental {
 
-// Param must be info::kernel::max_num_work_groups_sync.
+// Param must be max_num_work_groups_sync.
 template <typename KernelName, typename Param,
           typename LaunchProperties = empty_properties_t>
 typename std::enable_if_t<
-    std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+    std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                              max_num_work_groups_sync>,
     typename Param::return_type>
 get_kernel_info(const context &ctxt, const device &dev, sycl::range<1> r,
                 LaunchProperties props = {}, size_t bytes = 0) {
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
-// Param must be info::kernel::max_num_work_groups_sync.
+// Param must be max_num_work_groups_sync.
 template <typename KernelName, typename Param,
           typename LaunchProperties = empty_properties_t>
 typename std::enable_if_t<
-    std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+    std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                              max_num_work_groups_sync>,
     typename Param::return_type>
 get_kernel_info(const context &ctxt, const device &dev, sycl::range<2> r,
                 LaunchProperties props = {}, size_t bytes = 0) {
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
-// Param must be info::kernel::max_num_work_groups_sync.
+// Param must be max_num_work_groups_sync.
 template <typename KernelName, typename Param,
           typename LaunchProperties = empty_properties_t>
 typename std::enable_if_t<
-    std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+    std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                              max_num_work_groups_sync>,
     typename Param::return_type>
 get_kernel_info(const context &ctxt, const device &dev, sycl::range<3> r,
                 LaunchProperties props = {}, size_t bytes = 0) {
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
-// Param must be info::kernel::max_num_work_groups_sync.
+// Param must be max_num_work_groups_sync.
 template <typename KernelName, typename Param,
           typename LaunchProperties = empty_properties_t>
 typename std::enable_if_t<
-    std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+    std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                              max_num_work_groups_sync>,
     typename Param::return_type>
 
 get_kernel_info(const queue &q, sycl::range<1> r,
@@ -124,14 +128,15 @@ get_kernel_info(const queue &q, sycl::range<1> r,
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
-// Param must be info::kernel::max_num_work_groups_sync.
+// Param must be max_num_work_groups_sync.
 template <typename KernelName, typename Param,
           typename LaunchProperties = empty_properties_t>
 typename std::enable_if_t<
-    std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+    std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                              max_num_work_groups_sync>,
     typename Param::return_type>
 
 get_kernel_info(const queue &q, sycl::range<2> r, LaunchProperties props = {},
@@ -141,14 +146,15 @@ get_kernel_info(const queue &q, sycl::range<2> r, LaunchProperties props = {},
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
-// Param must be info::kernel::max_num_work_groups_sync.
+// Param must be max_num_work_groups_sync.
 template <typename KernelName, typename Param,
           typename LaunchProperties = empty_properties_t>
 typename std::enable_if_t<
-    std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+    std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                              max_num_work_groups_sync>,
     typename Param::return_type>
 
 get_kernel_info(const queue &q, sycl::range<3> r, LaunchProperties props = {},
@@ -158,7 +164,7 @@ get_kernel_info(const queue &q, sycl::range<3> r, LaunchProperties props = {},
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template get_kernel<KernelName>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // For free functions.
@@ -207,14 +213,15 @@ template <auto *Func, typename Param,
           typename LaunchProperties = empty_properties_t>
 std::enable_if_t<
     sycl::ext::oneapi::experimental::is_kernel_v<Func> &&
-        std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+        std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                  max_num_work_groups_sync>,
     typename Param::return_type>
 get_kernel_info(const context &ctxt, const device &dev, sycl::range<1> r,
                 LaunchProperties props = {}, size_t bytes = 0) {
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -222,7 +229,8 @@ template <auto *Func, typename Param,
           typename LaunchProperties = empty_properties_t>
 std::enable_if_t<
     sycl::ext::oneapi::experimental::is_kernel_v<Func> &&
-        std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+        std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                  max_num_work_groups_sync>,
     typename Param::return_type>
 
 get_kernel_info(const context &ctxt, const device &dev, sycl::range<2> r,
@@ -230,7 +238,7 @@ get_kernel_info(const context &ctxt, const device &dev, sycl::range<2> r,
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -238,7 +246,8 @@ template <auto *Func, typename Param,
           typename LaunchProperties = empty_properties_t>
 std::enable_if_t<
     sycl::ext::oneapi::experimental::is_kernel_v<Func> &&
-        std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+        std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                  max_num_work_groups_sync>,
     typename Param::return_type>
 
 get_kernel_info(const context &ctxt, const device &dev, sycl::range<3> r,
@@ -246,7 +255,7 @@ get_kernel_info(const context &ctxt, const device &dev, sycl::range<3> r,
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -254,7 +263,8 @@ template <auto *Func, typename Param,
           typename LaunchProperties = empty_properties_t>
 std::enable_if_t<
     sycl::ext::oneapi::experimental::is_kernel_v<Func> &&
-        std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+        std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                  max_num_work_groups_sync>,
     typename Param::return_type>
 get_kernel_info(const queue &q, sycl::range<1> r, LaunchProperties props = {},
                 size_t bytes = 0) {
@@ -263,7 +273,7 @@ get_kernel_info(const queue &q, sycl::range<1> r, LaunchProperties props = {},
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -271,7 +281,8 @@ template <auto *Func, typename Param,
           typename LaunchProperties = empty_properties_t>
 std::enable_if_t<
     sycl::ext::oneapi::experimental::is_kernel_v<Func> &&
-        std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+        std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                  max_num_work_groups_sync>,
     typename Param::return_type>
 get_kernel_info(const queue &q, sycl::range<2> r, LaunchProperties props = {},
                 size_t bytes = 0) {
@@ -280,7 +291,7 @@ get_kernel_info(const queue &q, sycl::range<2> r, LaunchProperties props = {},
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 // Param must be equal to max_num_work_groups_sync.
@@ -288,7 +299,8 @@ template <auto *Func, typename Param,
           typename LaunchProperties = empty_properties_t>
 std::enable_if_t<
     sycl::ext::oneapi::experimental::is_kernel_v<Func> &&
-        std::is_same_v<Param, sycl::info::kernel::max_num_work_groups_sync>,
+        std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                  max_num_work_groups_sync>,
     typename Param::return_type>
 get_kernel_info(const queue &q, sycl::range<3> r, LaunchProperties props = {},
                 size_t bytes = 0) {
@@ -297,7 +309,7 @@ get_kernel_info(const queue &q, sycl::range<3> r, LaunchProperties props = {},
   auto bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
       Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k = bundle.template ext_oneapi_get_kernel<Func>();
-  auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
+  return k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 }
 
 } // namespace experimental

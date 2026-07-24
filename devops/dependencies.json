@@ -19,21 +19,21 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "level_zero": {
-      "github_tag": "v1.30.0",
-      "version": "v1.30.0",
-      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.30.0",
+      "github_tag": "v1.32.0",
+      "version": "v1.32.0",
+      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.32.0",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
-      "github_tag": "v2023.0.0",
-      "version": "2023.0.0",
-      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2023.0.0/oneapi-tbb-2023.0.0-lin.tgz",
+      "github_tag": "v2023.1.0",
+      "version": "2023.1.0",
+      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2023.1.0/oneapi-tbb-2023.1.0-lin.tgz",
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
-      "github_tag": "2026-WW22",
-      "version": "2026.22.3.0.31_160000",
-      "url": "https://github.com/intel/llvm/releases/download/2026-WW22/oclcpuexp-2026.22.3.0.31_160000_rel.tar.gz",
+      "github_tag": "2026-WW28",
+      "version": "2026.22.6.1.17_160000",
+      "url": "https://github.com/intel/llvm/releases/download/2026-WW28/oclcpuexp-2026.22.6.1.17_160000_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     }
   },
@@ -44,15 +44,15 @@
       "root": ""
     },
     "tbb": {
-      "github_tag": "v2023.0.0",
-      "version": "2023.0.0",
-      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2023.0.0/oneapi-tbb-2023.0.0-win.zip",
+      "github_tag": "v2023.1.0",
+      "version": "2023.1.0",
+      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2023.1.0/oneapi-tbb-2023.1.0-win.zip",
       "root": "{DEPS_ROOT}/tbb/win"
     },
     "oclcpu": {
-      "github_tag": "2026-WW22",
-      "version": "2026.22.3.0.31_160000",
-      "url": "https://github.com/intel/llvm/releases/download/2026-WW22/win-oclcpuexp-2026.22.3.0.31_160000_rel.zip",
+      "github_tag": "2026-WW28",
+      "version": "2026.22.6.1.17_160000",
+      "url": "https://github.com/intel/llvm/releases/download/2026-WW28/win-oclcpuexp-2026.22.6.1.17_160000_rel.zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     }
   }

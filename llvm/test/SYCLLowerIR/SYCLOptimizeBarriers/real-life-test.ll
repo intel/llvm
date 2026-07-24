@@ -14,9 +14,9 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_7nd_itemILi1EEEE_ = comdat a
 @__spirv_BuiltInGlobalSize = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
 ; Function Attrs: convergent mustprogress norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_7nd_itemILi1EEEE_(ptr addrspace(3) noundef align 4 %_arg_local, ptr addrspace(1) noundef align 4 %_arg_input, ptr addrspace(1) noundef align 4 %_arg_output) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !6 !kernel_arg_runtime_aligned !7 !kernel_arg_exclusive_ptr !7 !sycl_fixed_targets !8 !sycl_kernel_omit_args !9 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_7nd_itemILi1EEEE_(ptr addrspace(3) noundef align 4 %_arg_local, ptr addrspace(1) noundef align 4 %_arg_input, ptr addrspace(1) noundef align 4 %_arg_output) local_unnamed_addr #0 comdat !kernel_arg_runtime_aligned !7 !kernel_arg_exclusive_ptr !7 !sycl_fixed_targets !8 !sycl_kernel_omit_args !9 {
 ; CHECK-LABEL: define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_7nd_itemILi1EEEE_(
-; CHECK-SAME: ptr addrspace(3) noundef align 4 [[_ARG_LOCAL:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_INPUT:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_OUTPUT:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] comdat !kernel_arg_buffer_location [[META6:![0-9]+]] !kernel_arg_runtime_aligned [[META7:![0-9]+]] !kernel_arg_exclusive_ptr [[META7]] !sycl_fixed_targets [[META8:![0-9]+]] !sycl_kernel_omit_args [[META9:![0-9]+]] {
+; CHECK-SAME: ptr addrspace(3) noundef align 4 [[_ARG_LOCAL:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_INPUT:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_OUTPUT:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] comdat !kernel_arg_runtime_aligned [[META7:![0-9]+]] !kernel_arg_exclusive_ptr [[META7]] !sycl_fixed_targets [[META8:![0-9]+]] !sycl_kernel_omit_args [[META9:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*]]:
 ; CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId, align 32, !noalias [[META10:![0-9]+]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationId, align 32
@@ -148,7 +148,6 @@ attributes #2 = { convergent nounwind }
 !3 = !{i32 1, i32 2}
 !4 = !{i32 4, i32 100000}
 !5 = !{!"clang version 21.0.0git (https://github.com/intel/llvm.git 02aa83943d3480d7d55159309cdb0638d166c5b5)"}
-!6 = !{i32 -1, i32 -1, i32 -1}
 !7 = !{i1 true, i1 false, i1 false}
 !8 = !{}
 !9 = !{i1 false, i1 true, i1 true, i1 true, i1 false, i1 false}
@@ -190,7 +189,6 @@ attributes #2 = { convergent nounwind }
 !45 = distinct !{!45, !46, !"_ZNK4sycl3_V17nd_itemILi1EE9get_groupEv: %agg.result"}
 !46 = distinct !{!46, !"_ZNK4sycl3_V17nd_itemILi1EE9get_groupEv"}
 ;.
-; CHECK: [[META6]] = !{i32 -1, i32 -1, i32 -1}
 ; CHECK: [[META7]] = !{i1 true, i1 false, i1 false}
 ; CHECK: [[META8]] = !{}
 ; CHECK: [[META9]] = !{i1 false, i1 true, i1 true, i1 true, i1 false, i1 false}

@@ -13,6 +13,9 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/util.hpp>
+#include <sycl/ext/intel/experimental/kernel_execution_properties.hpp> // for cache_config
+#include <sycl/ext/oneapi/properties.hpp> // for empty_properties_t
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp> // for work_group_scratch_size
 #include <sycl/info/kernel.hpp>         // for is_kernel_device_specif...
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <unified-runtime/ur_api.h>     // for ur_native_handle_t
@@ -83,7 +86,7 @@ public:
   /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
 #ifdef __SYCL_INTERNAL_API
-  kernel(cl_kernel ClKernel, const context &SyclContext);
+  kernel(OpenCLKernelT ClKernel, const context &SyclContext);
 #endif
 
   kernel() = delete;
@@ -119,7 +122,7 @@ public:
   ///
   /// \return a valid cl_kernel instance
 #ifdef __SYCL_INTERNAL_API
-  cl_kernel get() const;
+  OpenCLKernelT get() const;
 #endif
 
   /// Get the context that this kernel is defined for.
@@ -273,7 +276,9 @@ public:
       typename Param,
       typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
       typename = std::enable_if_t<
-          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+          std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                    max_num_work_groups_sync>,
+          void>>
   typename Param::return_type
   ext_oneapi_get_info(const device &Dev, sycl::range<1> Range,
                       LaunchProperties Props = {}, size_t Bytes = 0) const {
@@ -296,7 +301,9 @@ public:
       typename Param,
       typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
       typename = std::enable_if_t<
-          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+          std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                    max_num_work_groups_sync>,
+          void>>
   typename Param::return_type
   ext_oneapi_get_info(const device &Dev, sycl::range<2> Range,
                       LaunchProperties Props = {}, size_t Bytes = 0) const {
@@ -319,7 +326,9 @@ public:
       typename Param,
       typename LaunchProperties = ext::oneapi::experimental::empty_properties_t,
       typename = std::enable_if_t<
-          std::is_same_v<Param, info::kernel::max_num_work_groups_sync>, void>>
+          std::is_same_v<Param, sycl::ext::oneapi::experimental::info::kernel::
+                                    max_num_work_groups_sync>,
+          void>>
   typename Param::return_type
   ext_oneapi_get_info(const device &Dev, sycl::range<3> Range,
                       LaunchProperties Props = {}, size_t Bytes = 0) const {
@@ -345,8 +354,8 @@ private:
 
   // The type below bundles together some execution information for the kernel
   // such as the amount of dynamic work group memory requested represented by
-  // size_t and the cache config setting represented by
-  // ur_kernel_cache_config_t.
+  // DynamicWorkGroupMem and the cache config setting represented by
+  // CacheConfig.
   struct KernelExecInfoTy {
     size_t DynamicWorkGroupMem;
     ur_kernel_cache_config_t CacheConfig;
@@ -356,32 +365,30 @@ private:
   size_t queryMaxNumWorkGroups(const device &Dev, sycl::range<Dimensions> Range,
                                size_t Bytes, KernelExecInfoTy ExecInfo) const;
 
-  template <typename LaunchProperties>
+  template <
+      typename LaunchProperties = ext::oneapi::experimental::empty_properties_t>
   KernelExecInfoTy ProcessLaunchProperties(LaunchProperties Props) const {
     ur_kernel_cache_config_t CacheConfig =
         ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_DEFAULT;
     size_t DynamicLocalMem = 0;
     if constexpr (LaunchProperties::template has_property<
                       ext::intel::experimental::cache_config_key>()) {
-      auto prop = LaunchProperties::template get_property<
+      auto prop = Props.template get_property<
           ext::intel::experimental::cache_config_key>();
-      if (prop->value == ext::intel::experimental::cache_config_enum::large_slm)
+      if (prop.value == ext::intel::experimental::cache_config_enum::large_slm)
         CacheConfig =
             ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
-      else if (prop->value ==
+      else if (prop.value ==
                ext::intel::experimental::cache_config_enum::large_data) {
         CacheConfig =
             ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
-      } else {
-        throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                              "Unknown cache property type encountered!");
       }
     }
     if constexpr (LaunchProperties::template has_property<
                       ext::oneapi::experimental::work_group_scratch_size>()) {
-      auto prop = LaunchProperties::template get_property<
+      auto prop = Props.template get_property<
           ext::oneapi::experimental::work_group_scratch_size>();
-      DynamicLocalMem = prop->size;
+      DynamicLocalMem = prop.size;
     }
     return {DynamicLocalMem, CacheConfig};
   }
