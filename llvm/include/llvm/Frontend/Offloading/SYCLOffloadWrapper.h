@@ -23,11 +23,16 @@ namespace llvm {
 namespace offloading {
 
 // SYCL binary image formats supported.
+//
+// BIF_Compressed marks a zstd-compressed payload. The runtime re-derives the
+// real format (SPIR-V / LLVM bitcode / native) post-decompression by reading
+// the magic-number, so any pre-compression tag is not preserved.
 enum class SYCLBinaryImageFormat {
-  BIF_None,   // Undetermined Image kind
-  BIF_Native, // Native Image kind
-  BIF_SPIRV,  // SPIR-V
-  BIF_LLVMBC  // LLVM bitcode
+  BIF_None,      // Undetermined Image kind
+  BIF_Native,    // Native Image kind
+  BIF_SPIRV,     // SPIR-V
+  BIF_LLVMBC,    // LLVM bitcode
+  BIF_Compressed // zstd-compressed image; format-of-original unknown
 };
 
 struct SYCLImage {
