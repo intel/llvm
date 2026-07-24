@@ -235,6 +235,12 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
   UrDesc.height = ImgDesc.height;
   UrDesc.depth = ImgDesc.depth;
   UrDesc.arraySize = ImgDesc.array_size;
+
+  UrDesc.rowPitch = ImgDesc.row_pitch;
+  UrDesc.slicePitch = ImgDesc.slice_pitch;
+  UrDesc.numSamples = ImgDesc.num_samples;
+  UrDesc.numMipLevel = ImgDesc.num_levels;
+
   return UrDesc;
 }
 
@@ -304,8 +310,12 @@ static void fill_copy_args(
     impl->MDstImageDesc.depth = DestExtent[2];
   }
 
-  impl->MSrcImageDesc.rowPitch = SrcPitch;
-  impl->MDstImageDesc.rowPitch = DestPitch;
+  // Explicit pitch arg wins when non-zero; otherwise keep the descriptor's
+  // row_pitch already set by fill_image_desc().
+  if (SrcPitch != 0)
+    impl->MSrcImageDesc.rowPitch = SrcPitch;
+  if (DestPitch != 0)
+    impl->MDstImageDesc.rowPitch = DestPitch;
 }
 
 static void
@@ -319,8 +329,35 @@ fill_copy_args(detail::handler_impl *impl,
                sycl::range<3> DestExtent = {0, 0, 0},
                sycl::range<3> CopyExtent = {0, 0, 0}) {
 
-  size_t SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
-  size_t DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
+  // The UR adapters interpret pSrcImageDesc->rowPitch / pDstImageDesc->rowPitch
+  // as the row stride of whichever side is host/USM memory (see e.g.
+  // unified-runtime/source/adapters/level_zero/image_common.cpp). Host memory
+  // is always tightly packed, so for MEM_TO_IMAGE / IMAGE_TO_MEM we must not
+  // let the image descriptor's row_pitch (a device stride) reach the memory
+  // side. Derive the host pitch from the caller-supplied extent when present,
+  // otherwise from the descriptor width.
+  auto TightHostPitch = [&](sycl::range<3> Extent) {
+    size_t W = Extent[0] != 0 ? Extent[0] : Desc.width;
+    return W * Desc.num_channels * get_channel_size(Desc);
+  };
+
+  size_t SrcPitch = 0;
+  size_t DestPitch = 0;
+  switch (ImageCopyInputTypes) {
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE:
+    SrcPitch = TightHostPitch(SrcExtent);
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM:
+    DestPitch = TightHostPitch(DestExtent);
+    break;
+  default:
+    // MEM_TO_MEM and IMAGE_TO_IMAGE do not reach this overload from the
+    // handler; preserve the pre-existing extent-driven derivation as a
+    // safe fallback.
+    SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
+    DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
+    break;
+  }
 
   fill_copy_args(impl, Desc, Desc, ImageCopyFlags, ImageCopyInputTypes,
                  SrcPitch, DestPitch, SrcOffset, SrcExtent, DestOffset,
