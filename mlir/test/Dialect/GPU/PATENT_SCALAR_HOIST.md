@@ -145,9 +145,16 @@ indicate usage.
 The invention is a compiler method for optimizing heterogeneous compute
 kernels by identifying kernel-scope uniform scalar expressions, hoisting them
 from GPU kernels to the host CPU for precomputation, and passing
-results back as kernel parameters. It operates on MLIR's device-aware
-IR where the host-device boundary is explicitly modeled via
-`gpu.module`, `gpu.func`, and `gpu.launch_func` operations.
+results back as kernel parameters. The method is realized through a
+device-aware compiler IR dialect (MLIR's GPU dialect) that explicitly
+models computation devices (host CPU vs. GPU), cross-device value
+transfer (via kernel argument ABI), and precomputation scheduling
+(host-side code generation before kernel launch). Specifically, the
+host-device boundary is modeled via `gpu.module`, `gpu.func`, and
+`gpu.launch_func` operations, which make both sides of the boundary
+visible to a single compiler pass, enabling cross-boundary analysis
+and transformation that is impossible in traditional single-address-space
+compiler frameworks.
 
 The method operates in four phases:
 
