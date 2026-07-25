@@ -35,6 +35,7 @@ add_mlir_dialect_library(MLIRGPUTransforms
   Transforms/GlobalIdRewriter.cpp
   Transforms/KernelOutlining.cpp
   Transforms/ScalarHoist.cpp
+  Transforms/LowerScalarHoist.cpp
   Transforms/IndexedAccessOpInterfaceImpl.cpp
   Transforms/MemoryPromotion.cpp
   Transforms/ModuleToBinary.cpp

@@ -282,12 +282,25 @@ def GpuScalarHoistPass : Pass<"gpu-scalar-hoist", "ModuleOp"> {
     is a uniform scalar kernel argument. Hoists magic/shift precomputation
     to the host (before gpu.launch_func) and replaces kernel division with
     magic multiply (mului_extended + add + shift).
+
+    Host-side precomputation is wrapped in scalar_hoist.precompute ops
+    (from the scalar_hoist dialect). Run lower-scalar-hoist after this pass
+    to inline them before standard lowering.
   }];
   let dependentDialects = [
     "mlir::gpu::GPUDialect", "mlir::arith::ArithDialect",
     "mlir::math::MathDialect", "mlir::memref::MemRefDialect",
     "mlir::func::FuncDialect", "mlir::scf::SCFDialect"
   ];
+}
+
+def LowerScalarHoistPass : Pass<"lower-scalar-hoist", "ModuleOp"> {
+  let summary = "Lower scalar_hoist dialect ops to standard operations";
+  let description = [{
+    Inlines scalar_hoist.precompute regions into the parent block and
+    erases the wrapper ops, producing standard arith/math operations
+    in the host function. Must run before convert-to-llvm.
+  }];
 }
 
 def GpuXeVMAttachTarget : Pass<"xevm-attach-target", ""> {

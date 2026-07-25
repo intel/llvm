@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/GPU/Transforms/ScalarHoistDialect.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -180,6 +181,12 @@ namespace {
 struct GpuScalarHoistPass
     : public impl::GpuScalarHoistPassBase<GpuScalarHoistPass> {
 
+  void getDependentDialects(DialectRegistry &registry) const override {
+    impl::GpuScalarHoistPassBase<GpuScalarHoistPass>::getDependentDialects(
+        registry);
+    registry.insert<scalar_hoist::ScalarHoistDialect>();
+  }
+
   void runOnOperation() override {
     ModuleOp module = getOperation();
 
@@ -263,27 +270,49 @@ struct GpuScalarHoistPass
         if (!isIntOrIndex(hostDivisor.getType()))
           hostDivisor = hostB.create<arith::IndexCastUIOp>(loc, i32Ty, hostDivisor);
 
-        // --- Magic/shift computation (host side) ---
-        Value one   = hostB.create<arith::ConstantIntOp>(loc, 1, 32);
-        Value dm1   = hostB.create<arith::SubIOp>(loc, hostDivisor, one);
-        Value clz   = hostB.create<math::CountLeadingZerosOp>(loc, dm1);
-        Value c32   = hostB.create<arith::ConstantIntOp>(loc, 32, 32);
-        Value shift = hostB.create<arith::SubIOp>(loc, c32, clz);
+        // --- Wrap magic/shift computation in scalar_hoist.precompute ---
+        OperationState precompState(loc, "scalar_hoist.precompute");
+        precompState.addOperands({hostDivisor});
+        precompState.addTypes({i32Ty, i32Ty}); // magic, shift
+        precompState.addRegion();
+        Operation *precompOp = hostB.create(precompState);
 
-        Value d64     = hostB.create<arith::ExtUIOp>(loc, i64Ty, hostDivisor);
-        Value s64     = hostB.create<arith::ExtUIOp>(loc, i64Ty, shift);
-        Value c32_64  = hostB.create<arith::ConstantIntOp>(loc, 32, 64);
-        Value ts      = hostB.create<arith::AddIOp>(loc, s64, c32_64);
-        Value one64   = hostB.create<arith::ConstantIntOp>(loc, 1, 64);
-        Value p2      = hostB.create<arith::ShLIOp>(loc, one64, ts);
-        Value m0      = hostB.create<arith::DivUIOp>(loc, p2, d64);
-        Value m1      = hostB.create<arith::AddIOp>(loc, m0, one64);
-        Value pr      = hostB.create<arith::MulIOp>(loc, m1, d64);
-        Value ov      = hostB.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt, pr, p2);
-        Value m64     = hostB.create<arith::SelectOp>(loc, ov, m0, m1);
-        Value magic   = hostB.create<arith::TruncIOp>(loc, i32Ty, m64);
+        // Build region body
+        Region &body = precompOp->getRegion(0);
+        Block *bodyBlock = new Block();
+        body.push_back(bodyBlock);
+        BlockArgument bodyDiv =
+            bodyBlock->addArgument(hostDivisor.getType(), loc);
+        OpBuilder bodyB = OpBuilder::atBlockBegin(bodyBlock);
 
-        scalarMagicShift[c.scalarOperand] = {magic, shift};
+        // Magic/shift computation (inside precompute region)
+        Value one   = bodyB.create<arith::ConstantIntOp>(loc, 1, 32);
+        Value dm1   = bodyB.create<arith::SubIOp>(loc, bodyDiv, one);
+        Value clz   = bodyB.create<math::CountLeadingZerosOp>(loc, dm1);
+        Value c32   = bodyB.create<arith::ConstantIntOp>(loc, 32, 32);
+        Value shift = bodyB.create<arith::SubIOp>(loc, c32, clz);
+
+        Value d64     = bodyB.create<arith::ExtUIOp>(loc, i64Ty, bodyDiv);
+        Value s64     = bodyB.create<arith::ExtUIOp>(loc, i64Ty, shift);
+        Value c32_64  = bodyB.create<arith::ConstantIntOp>(loc, 32, 64);
+        Value ts      = bodyB.create<arith::AddIOp>(loc, s64, c32_64);
+        Value one64   = bodyB.create<arith::ConstantIntOp>(loc, 1, 64);
+        Value p2      = bodyB.create<arith::ShLIOp>(loc, one64, ts);
+        Value m0      = bodyB.create<arith::DivUIOp>(loc, p2, d64);
+        Value m1      = bodyB.create<arith::AddIOp>(loc, m0, one64);
+        Value pr      = bodyB.create<arith::MulIOp>(loc, m1, d64);
+        Value ov      = bodyB.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt, pr, p2);
+        Value m64     = bodyB.create<arith::SelectOp>(loc, ov, m0, m1);
+        Value magic   = bodyB.create<arith::TruncIOp>(loc, i32Ty, m64);
+
+        // Yield magic and shift from the precompute region
+        OperationState yieldState(loc, "scalar_hoist.yield");
+        yieldState.addOperands({magic, shift});
+        bodyB.create(yieldState);
+
+        // Use precompute op results (SSA values from the wrapper)
+        scalarMagicShift[c.scalarOperand] = {precompOp->getResult(0),
+                                             precompOp->getResult(1)};
       }
 
       if (orderedScalars.empty()) continue;
