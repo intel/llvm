@@ -1,10 +1,10 @@
-# PATENT: Scalar Expression Hoisting from GPU Kernels to Host CPU
+# PATENT: Kernel-Scope Uniform Expression Hoisting from GPU Kernels to Host CPU
 
 ## 1. TITLE OF THE INVENTION
 
-Method for Identifying and Hoisting Deterministic Scalar Expressions
-from GPU Kernels to Host CPU for Precomputation via Device-Aware
-Compiler IR
+Method for Identifying and Hoisting Kernel-Scope Uniform Scalar
+Expressions from GPU Kernels to Host CPU for Precomputation via
+Device-Aware Compiler IR
 
 ## 2. NAMES OF THE INVENTORS
 
@@ -21,7 +21,7 @@ THIS SECTION TO BE LEFT BLANK FOR INITIAL SUBMISSIONS.
 In heterogeneous computing (GPU/accelerator kernels written in SYCL,
 OpenCL, CUDA, or similar frameworks), scalar kernel parameters
 frequently appear in expressions that produce the same result for every
-work-item in a dispatch. These **deterministic scalar expressions**
+work-item in a dispatch. These **kernel-scope uniform expressions**
 range from simple cases (e.g., integer division `i / scalar_d`, or
 floating-point reciprocal `1.0 / scalar_a`) to complex cases where
 algebraic restructuring is required to reveal the scalar-only
@@ -52,7 +52,7 @@ Existing compiler optimizations are insufficient:
   result. Does not perform algebraic restructuring to expose hidden
   invariants.
 
-The technical problem is: how to (1) identify deterministic scalar
+The technical problem is: how to (1) identify kernel-scope uniform
 expressions in GPU kernels -- including those hidden within mixed
 expressions requiring algebraic decomposition, (2) hoist them from the
 GPU kernel to the host CPU for precomputation, and (3) pass the
@@ -67,7 +67,7 @@ Developers may manually precompute obvious cases (e.g., `1.0 / a`),
 but this is ad-hoc, error-prone, and misses complex cases where
 algebraic transformation is needed to expose the invariant. No
 existing solution provides: (a) automatic identification of
-deterministic scalar expressions including those requiring algebraic
+kernel-scope uniform expressions including those requiring algebraic
 decomposition, (b) systematic hoisting across the host-device boundary
 with device-aware IR modeling, and (c) cost-model-driven filtering to
 ensure net benefit exceeds overhead.
@@ -77,7 +77,7 @@ ensure net benefit exceeds overhead.
 ### 5.1 Short Summary
 
 The invention is a compiler method that: (1) identifies scalar kernel
-parameters involved in deterministic expressions within GPU kernels --
+parameters involved in kernel-scope uniform expressions within GPU kernels --
 using forward dataflow analysis to classify every SSA value as
 SCALAR_ONLY (uniform across work-items), INDEX_ONLY (varies per
 work-item), MIXED, or CONSTANT, and applying algebraic decomposition
@@ -132,7 +132,7 @@ floating-point) preceding each kernel dispatch call. Compiler IR dumps
 show cross-boundary value transfer from host to device regions.
 
 **C. Product Literature:** Compiler documentation describing
-`gpu-scalar-hoist` pass, "scalar expression hoisting", "deterministic
+`gpu-scalar-hoist` pass, "scalar expression hoisting", "kernel-scope uniform
 expression precomputation", "magic number division hoisting", "scalar
 dependency classification", device-aware IR dialects for cross-boundary
 optimization, or compiler flags enabling such optimizations would
@@ -143,7 +143,7 @@ indicate usage.
 ### 7.1 Invention Details
 
 The invention is a compiler method for optimizing heterogeneous compute
-kernels by identifying deterministic scalar expressions, hoisting them
+kernels by identifying kernel-scope uniform scalar expressions, hoisting them
 from GPU kernels to the host CPU for precomputation, and passing
 results back as kernel parameters. It operates on MLIR's device-aware
 IR where the host-device boundary is explicitly modeled via
