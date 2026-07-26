@@ -11,10 +11,8 @@ v0.1
 
 == Status
 
-This extension has been deprecated.  Although it is still supported in {dpcpp},
-we expect that the interfaces defined in this specification will be removed in
-an upcoming {dpcpp} release.  *Shipping software products should stop using
-APIs defined in this specification and use an alternative instead.*
+This extension has been removed and is no longer supported in {dpcpp}.
+Applications should use the `sycl_khr_default_context` extension instead.
 
 == Overview
 
@@ -41,4 +39,3 @@ This extension also modifies the behavior of `queue` constructors. Queues will n
 == Feature Test Macro
 
 This extension defines the macro `SYCL_EXT_ONEAPI_DEFAULT_CONTEXT` to `1` to indicate that it is enabled.
-
