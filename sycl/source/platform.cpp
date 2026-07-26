@@ -91,12 +91,14 @@ context platform::khr_get_default_context() const {
       impl->khr_get_default_context());
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 context platform::ext_oneapi_get_default_context() const {
   if (!detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
     throw std::runtime_error("SYCL default contexts are not enabled");
 
   return khr_get_default_context();
 }
+#endif
 
 std::vector<device> platform::ext_oneapi_get_composite_devices() const {
   // Only GPU architectures can be composite devices.
