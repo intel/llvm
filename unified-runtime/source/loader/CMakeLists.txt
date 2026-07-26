@@ -98,6 +98,14 @@ if(UR_STATIC_ADAPTER_L0_V2 AND (UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_ALL))
     target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_LEVEL_ZERO_V2)
 endif()
 
+# A static Level Zero adapter links UMF statically; let the loader hold a UMF
+# reference across teardown (see ur_lib.cpp).
+if((UR_STATIC_ADAPTER_L0 AND UR_BUILD_ADAPTER_L0) OR
+   (UR_STATIC_ADAPTER_L0_V2 AND UR_BUILD_ADAPTER_L0_V2))
+    target_compile_definitions(ur_loader PRIVATE UR_STATIC_UMF)
+    target_link_libraries(ur_loader PRIVATE umf::umf umf::headers)
+endif()
+
 if(UR_ENABLE_TRACING)
     target_link_libraries(ur_loader PRIVATE ${TARGET_XPTI})
     target_include_directories(ur_loader PRIVATE ${xpti_SOURCE_DIR}/include)
