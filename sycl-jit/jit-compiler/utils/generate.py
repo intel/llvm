@@ -82,30 +82,24 @@ def main():
                 rel_path = os.path.relpath(file_path, toolchain_dir).replace(
                     os.sep, "/"
                 )
-                shard_out.write(
-                    f"""extern const char {symbol}[] = {{
+                shard_out.write(f"""extern const char {symbol}[] = {{
 #embed "{file_path}" if_empty(0)
     , 0}};
-"""
-                )
+""")
                 externs.append(f"extern const char {symbol}[{array_size}];")
-                entries.append(
-                    f"""
+                entries.append(f"""
 {{
     {{"{args.prefix}{rel_path}"}} ,
     []() {{ return resource_string_view{{{symbol}}}; }}()
-}},"""
-                )
+}},""")
 
     with open(args.output, "w") as out:
         out.write("\n#include <Resource.h>\n\n")
         for extern_decl in externs:
             out.write(extern_decl + "\n")
-        out.write(
-            """
+        out.write("""
 namespace jit_compiler::resource {
-const resource_file ToolchainFiles[] = {"""
-        )
+const resource_file ToolchainFiles[] = {""")
         for entry in entries:
             out.write(entry)
         out.write(
