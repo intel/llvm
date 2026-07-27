@@ -480,9 +480,8 @@ void ur_usm_pool_handle_t_::changeResidentDevice(ur_device_handle_t hDevice,
         // would be wrong: the system is in a fully consistent state and
         // future allocations will correctly omit the now-disabled peer from
         // their resident-device set.
-        UR_LOG(WARN,
-               "changing resident devices in UMF failed with:{}, continuing",
-               changeResult);
+        UR_LOG(WARN, "{} resident devices in UMF failed with: {}, continuing",
+               isAdding ? "adding" : "removing", changeResult);
       }
     }
     return true;
