@@ -867,8 +867,6 @@ class SubmitKernel(ComputeBenchmark):
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
         runtimes = super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
-        # OFFLOAD (liboffload) SubmitKernel is only available when built via
-        # --offload-install-dir / --offload-include-dir.
         if options.offload_install_dir and options.offload_include_dir:
             runtimes.append(RUNTIMES.OFFLOAD)
         return runtimes
