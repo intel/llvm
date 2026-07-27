@@ -72,7 +72,12 @@ runs:
   - name: Pack SYCL-CTS binaries
     if:  ${{ !cancelled() && inputs.testing_mode == 'build-only' }}
     shell: bash
-    run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
+    run: |
+      # Compiler generates test.exe, test.exp and test.lib. Pack only exe.
+      mkdir executables
+      find ./build-cts/bin -name 'test_*.exe' -exec cp {} executables/ \;
+      tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./executables .
+      rm -rf executables
 
   - name: Upload SYCL-CTS binaries
     if:  ${{ !cancelled() && inputs.testing_mode == 'build-only' }}
