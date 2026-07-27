@@ -114,9 +114,9 @@ For example `--filter "graph_api_*"`
 
 ### Local development options
 
-`--benchmarks-source-dir <dir>` - use an existing Compute Benchmarks source tree instead of cloning the repository into the working directory. This is intended for local development against a checkout you are editing.
+`--compute-benchmarks-source-dir <dir>` - use an existing Compute Benchmarks source tree instead of cloning the repository into the working directory. This is intended for local development against a checkout you are editing.
 
-When a build finishes successfully, a JSON build-complete marker (`benchmark_build_complete.json`) is written into the project's build directory recording the source commit and `git status --porcelain` fingerprint. On subsequent runs the build is skipped when the fingerprint still matches, so editing a tracked source file triggers a rebuild automatically. If `--benchmarks-source-dir` points at a directory that is **not** a git repository, the benchmarks are always rebuilt.
+When a build finishes successfully, a JSON build-complete marker (`benchmark_build_complete.json`) is written into the project's build directory recording the source commit and `git status --porcelain` fingerprint. On subsequent runs the build is skipped when the fingerprint still matches, so editing a tracked source file triggers a rebuild automatically. If `--compute-benchmarks-source-dir` points at a directory that is **not** a git repository, the benchmarks are always rebuilt.
 
 `--offload-install-dir <dir>` / `--offload-include-dir <dir>` - directories providing liboffload: the library dir containing `libLLVMOffload` (passed as `OFFLOAD_INSTALL_DIR`) and the header dir containing `OffloadAPI.h` (passed as `OFFLOAD_INCLUDE_DIR`). Both must be set together. When set, the OFFLOAD (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled. For an LLVM install tree built with `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF` these are typically `<install>/lib` and `<install>/include/offload`.
 

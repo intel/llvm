@@ -57,7 +57,7 @@ class Options:
     redownload: bool = False
     # Use an existing compute-benchmarks source dir instead of cloning. When the
     # dir is not a git repository, the benchmarks are always rebuilt.
-    benchmarks_source_dir: str = None
+    compute_benchmarks_source_dir: str = None
     # liboffload library dir (-> OFFLOAD_INSTALL_DIR) and header dir
     # (-> OFFLOAD_INCLUDE_DIR). When both are set, the OFFLOAD SubmitKernel
     # benchmark is built (via -DBUILD_OL=ON) and enabled.

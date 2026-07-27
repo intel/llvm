@@ -524,11 +524,11 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
-        "--benchmarks-source-dir",
+        "--compute-benchmarks-source-dir",
         type=str,
         help="Use this compute-benchmarks source dir instead of cloning the repository. "
         "If the dir is not a git repository, benchmarks are always rebuilt.",
-        default=options.benchmarks_source_dir,
+        default=options.compute_benchmarks_source_dir,
     )
     parser.add_argument(
         "--offload-install-dir",
@@ -812,7 +812,7 @@ if __name__ == "__main__":
     options.workdir = args.benchmark_directory
     options.offline = args.offline
     options.redownload = args.redownload
-    options.benchmarks_source_dir = args.benchmarks_source_dir
+    options.compute_benchmarks_source_dir = args.compute_benchmarks_source_dir
     options.offload_install_dir = args.offload_install_dir
     options.offload_include_dir = args.offload_include_dir
     options.force_offload_plugin = args.force_offload_plugin
@@ -858,10 +858,10 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
-    if args.benchmarks_source_dir is not None:
-        if not os.path.isdir(args.benchmarks_source_dir):
-            parser.error("Specified --benchmarks-source-dir is not a valid path")
-        options.benchmarks_source_dir = os.path.abspath(args.benchmarks_source_dir)
+    if args.compute_benchmarks_source_dir is not None:
+        if not os.path.isdir(args.compute_benchmarks_source_dir):
+            parser.error("Specified --compute-benchmarks-source-dir is not a valid path")
+        options.compute_benchmarks_source_dir = os.path.abspath(args.compute_benchmarks_source_dir)
     if args.offload_install_dir is not None or args.offload_include_dir is not None:
         if args.offload_install_dir is None or args.offload_include_dir is None:
             parser.error(

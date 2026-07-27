@@ -49,8 +49,8 @@ class ComputeBench(Suite):
 
         if self._project is None:
             src_override = (
-                Path(options.benchmarks_source_dir)
-                if options.benchmarks_source_dir
+                Path(options.compute_benchmarks_source_dir)
+                if options.compute_benchmarks_source_dir
                 else None
             )
             self._project = GitProject(
