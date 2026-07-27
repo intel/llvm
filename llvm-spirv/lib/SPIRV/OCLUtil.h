@@ -508,6 +508,12 @@ bool isPipeOrAddressSpaceCastBI(const StringRef MangledName);
 bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
+// Returns the storage-class memory-semantics bit mask derived from the pointer
+// address space. RecordedType is checked first; if it resolves to Generic, Ptr
+// is analyzed via use-def walk.
+unsigned getAtomicPointerMemorySemanticsMask(const Value *Ptr,
+                                             const Type *RecordedType);
+
 /// Check that the type is the sampler_t
 bool isSamplerTy(Type *Ty);
 

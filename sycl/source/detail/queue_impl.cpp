@@ -464,6 +464,8 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     EnqueueKernel();
   } else {
     ResultEvent->setWorkerQueue(weak_from_this());
+    ResultEvent->setPotentiallyNativeRecorded(
+        getContextImpl().isNativeRecordingActive());
     ResultEvent->setStateIncomplete();
     ResultEvent->setSubmissionTime();
 
@@ -514,6 +516,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
       ResEvent->setQueue(*this);
     }
     ResEvent->setWorkerQueue(weak_from_this());
+    ResEvent->setPotentiallyNativeRecorded(
+        getContextImpl().isNativeRecordingActive());
     ResEvent->setSubmissionTime();
     ResEvent->setEnqueued();
     ResEvent->setStateIncomplete();
@@ -615,14 +619,21 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
               /*SchedulerBypass*/ true};
     }
 
-    if (EventForReuse) {
+    if (EventForReuse || !CallerNeedsEvent) {
       // Current limitation: reusable events require scheduler bypass so that
       // the barrier can be submitted directly to the backend with the reusable
       // event's handle as the output event. Scheduler bypass is not possible
       // when dependencies include host tasks or cross-context dependencies.
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "An event cannot be enqueued for signaling behind "
-                            "a command which is not enqueued in the backend.");
+      //
+      // This limitation applies to both: enqueue_signal_event and
+      // enqueue_wait_event(s).
+      //
+      // The !CallerNeedsEvent condition is used to detect the
+      // enqueue_wait_event(s) function calls.
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "An event cannot be enqueued for signaling or waiting "
+          "behind a command which is not enqueued in the backend.");
     }
 
     std::unique_ptr<detail::CG> CommandGroup;
@@ -660,6 +671,34 @@ bool queue_impl::isNativeRecording() const {
   return Result == UR_RESULT_SUCCESS && IsGraphCaptureEnabled;
 }
 
+queue_impl::NativeRecordingResult
+queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph) {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  NativeRecordingResult BeginResult;
+  BeginResult.Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueBeginCaptureIntoGraphExp>(
+          MQueue, Graph);
+  BeginResult.RecordingActive = BeginResult.Result == UR_RESULT_SUCCESS;
+  if (BeginResult.RecordingActive) {
+    getContextImpl().nativeRecordingBegan();
+  }
+  return BeginResult;
+}
+
+queue_impl::NativeRecordingResult queue_impl::endNativeRecording() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  NativeRecordingResult EndResult;
+  EndResult.Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueEndGraphCaptureExp>(
+          MQueue, &EndResult.CapturedGraph);
+  EndResult.RecordingActive =
+      EndResult.Result != UR_RESULT_SUCCESS && isNativeRecording();
+  if (!EndResult.RecordingActive) {
+    getContextImpl().nativeRecordingEnded();
+  }
+  return EndResult;
+}
+
 ext::oneapi::experimental::queue_state
 queue_impl::ext_oneapi_get_state_impl() const {
   // A graph may either be recording at the SYCL level or recording at a lower
@@ -682,8 +721,11 @@ queue_impl::ext_oneapi_get_graph_impl() const {
     if (Result == UR_RESULT_SUCCESS) {
       Graph = getContextImpl().getNativeGraph(UrGraphHandle);
     } else if (Result != UR_RESULT_ERROR_INVALID_OPERATION) {
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "Failed to query native UR graph from queue.");
+      throw sycl::detail::set_ur_error(
+          sycl::exception(make_error_code(errc::runtime),
+                          "Failed to query native UR graph from queue: " +
+                              sycl::detail::codeToString(Result)),
+          Result);
     }
   }
   if (!Graph) {

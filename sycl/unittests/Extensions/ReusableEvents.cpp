@@ -443,7 +443,9 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
   Queue.wait();
 }
 
-// Cross-context events with wait
+// Cross-context event with wait.
+// Current limitation is that the cross-context wait
+// is not supported.
 TEST_F(ReusableEventsTest, CrossContextEventWait) {
   mock::getCallbacks().set_replace_callback("urDeviceGet",
                                             &redefinedUrDeviceGet);
@@ -467,26 +469,69 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
 
   auto event = syclex::make_event(Ctx1);
 
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  bool exception = false;
 
-  syclex::enqueue_signal_event(Queue1, event);
+  // Current limitation is that an event from different context
+  // cannot be used with enqueue_wait_event
+  try {
+    syclex::enqueue_wait_event(Queue2, event);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
+  }
 
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
-
-  ExpectedNumEventsInWaitList = 1;
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_wait);
-
-  // Event from different context should still work with enqueue_wait_event
-  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue2, event); });
-
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
+  EXPECT_TRUE(exception);
 
   Queue1.wait();
   Queue2.wait();
+}
+
+// Cross-context events with wait (multiple events).
+// Current limitation is that the cross-context wait
+// is not supported.
+TEST_F(ReusableEventsTest, CrossContextEventsWait) {
+  mock::getCallbacks().set_replace_callback("urDeviceGet",
+                                            &redefinedUrDeviceGet);
+  mock::getCallbacks().set_replace_callback("urDeviceRelease",
+                                            &redefinedUrDeviceRelease);
+
+  sycl::platform Plt = sycl::platform();
+  auto Devices = Plt.get_devices();
+
+  if (Devices.size() < 2) {
+    GTEST_SKIP() << "Need at least 2 devices for this test";
+  }
+
+  const sycl::device Dev1 = Devices[0];
+  const sycl::device Dev2 = Devices[1];
+  sycl::context Ctx1{Dev1};
+  sycl::context Ctx2{Dev2};
+
+  sycl::queue Queue{Ctx1, Dev1};
+
+  // Check if the exception is thrown if one of the events
+  // has different context than the queue.
+  auto event1 = syclex::make_event(Ctx1);
+  auto event2 = syclex::make_event(Ctx2);
+
+  std::vector<sycl::event> events{event1, event2};
+
+  bool exception = false;
+
+  // Current limitation is that an event from different context
+  // cannot be used with enqueue_wait_event
+  try {
+    syclex::enqueue_wait_events(Queue, events);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
+  }
+
+  EXPECT_TRUE(exception);
+
+  Queue.wait();
 }
 
 // Cross-context make_event and signal event - not allowed
