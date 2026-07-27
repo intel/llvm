@@ -2,6 +2,9 @@
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: Device incompatible error
 
+// UNSUPPORTED: native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22772
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
