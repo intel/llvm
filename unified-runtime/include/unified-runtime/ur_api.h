@@ -2228,9 +2228,9 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_COMPILER_AVAILABLE = 57,
   /// [::ur_bool_t] device linker is available
   UR_DEVICE_INFO_LINKER_AVAILABLE = 58,
-  /// [::ur_device_exec_capability_flags_t] device kernel execution
-  /// capability bit-field
-  UR_DEVICE_INFO_EXECUTION_CAPABILITIES = 59,
+  /// [::ur_device_exec_capability_flags_t][deprecated-value] device kernel
+  /// execution capability bit-field
+  UR_DEVICE_INFO_EXECUTION_CAPABILITIES [[deprecated]] = 59,
   /// [::ur_queue_flags_t] device command queue property bit-field
   UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES = 60,
   /// [::ur_queue_flags_t] host queue property bit-field

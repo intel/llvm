@@ -183,9 +183,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_LINKER_AVAILABLE);
   std::cout << prefix;
-  printDeviceInfo<ur_device_exec_capability_flags_t>(
-      hDevice, UR_DEVICE_INFO_EXECUTION_CAPABILITIES);
-  std::cout << prefix;
   printDeviceInfo<ur_queue_flags_t>(hDevice,
                                     UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES);
   std::cout << prefix;
