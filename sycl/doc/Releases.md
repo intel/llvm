@@ -26,12 +26,19 @@ for end users. The list below is ordered from the newest to the oldest.
 
 Release branches are prefixed with `sycl-rel-`.
 
-### _[Upcoming]_ `7.0.0` release
+### [Upcoming] `7.1.0` release
 
-This release will be made from the sycl-rel-7_0 branch around the end of
-Q2'2026.
+This release will be made from the sycl-rel-7_1 branch approximately in the
+middle of Q3'2026.
 
-### **[Latest]** `6.3.0` release
+### **[Latest]** `7.0.0` release
+
+This release was made from the
+[`sycl-rel-7_0`](https://github.com/intel/llvm/tree/sycl-rel-7_0) branch and we
+have the following tags published:
+- [`v7.0.0`](https://github.com/intel/llvm/releases/tag/v7.0.0)
+
+### `6.3.0` release
 
 This release was made from the
 [`sycl-rel-6_3`](https://github.com/intel/llvm/tree/sycl-rel-6_3) branch and we
