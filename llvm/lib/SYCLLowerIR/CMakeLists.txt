@@ -6,9 +6,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: April 03, 2026
-    # Fix build again.
-    set(LLVMGenXIntrinsics_GIT_TAG 4fc83e12979096db72c129bd432238d5ca397e4d)
+    # Date: July 27, 2026
+    # Fix build: migrate GenXSimdCFLowering.cpp away from deprecated BranchInst
+    set(LLVMGenXIntrinsics_GIT_TAG 96988ae5f6002a01e86c4c8c27fc88c364c52e84)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
