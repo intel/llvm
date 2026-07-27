@@ -40,17 +40,17 @@
     return __spirv_SubgroupShuffleINTEL(value, id);                            \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE                                  \
-      __spirv_GroupNonUniformShuffleXor(int scope, TYPE value, uint mask) {    \
+  __spirv_GroupNonUniformShuffleXor(int scope, TYPE value, uint mask) {        \
     (void)scope;                                                               \
     return __spirv_SubgroupShuffleXorINTEL(value, mask);                       \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE                                  \
-      __spirv_GroupNonUniformShuffleUp(int scope, TYPE value, uint delta) {    \
+  __spirv_GroupNonUniformShuffleUp(int scope, TYPE value, uint delta) {        \
     (void)scope;                                                               \
     return __spirv_SubgroupShuffleUpINTEL(value, value, delta);                \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE                                  \
-      __spirv_GroupNonUniformShuffleDown(int scope, TYPE value, uint delta) {  \
+  __spirv_GroupNonUniformShuffleDown(int scope, TYPE value, uint delta) {      \
     (void)scope;                                                               \
     return __spirv_SubgroupShuffleDownINTEL(value, value, delta);              \
   }
