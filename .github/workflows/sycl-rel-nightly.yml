@@ -96,7 +96,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-111f18b3477aef0c4c30cd61f06058912171c127
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
@@ -153,15 +153,15 @@ jobs:
       name: Build SYCL-CTS
       runner: '["Linux", "build"]'
       testing_mode: 'build-only'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-111f18b3477aef0c4c30cd61f06058912171c127
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       # Author: Alexey Bader <alexey.bader@intel.com>
-      # Date:   Mon Jan 26 16:04:26 2026 -0800
-      # Merge pull request #1172 from frengels/crosscompile-target
-      # Placeholder should be used for link executable
-      tests_ref: d534667b7b5445d7c49f5e38f4ac045909d928ac
+      # Date:   Thu May 28 08:07:51 2026 -0700
+      # Merge pull request #1202 from 0x12CC/fix-nextafter
+      # Disambiguate `nextafter`
+      tests_ref: 493fca2e1f319516c0e9816cd4a714c9c37f1220
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
@@ -191,7 +191,7 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       testing_mode: 'run-only'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-111f18b3477aef0c4c30cd61f06058912171c127
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
@@ -212,10 +212,10 @@ jobs:
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       # Author: Alexey Bader <alexey.bader@intel.com>
-      # Date:   Mon Jan 26 16:04:26 2026 -0800
-      # Merge pull request #1172 from frengels/crosscompile-target
-      # Placeholder should be used for link executable
-      tests_ref: d534667b7b5445d7c49f5e38f4ac045909d928ac
+      # Date:   Thu May 28 08:07:51 2026 -0700
+      # Merge pull request #1202 from 0x12CC/fix-nextafter
+      # Disambiguate `nextafter`
+      tests_ref: 493fca2e1f319516c0e9816cd4a714c9c37f1220
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       binaries_artifact: sycl_cts_bin_win
 
