@@ -261,6 +261,10 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {
+  if (phContextOpque) {
+    delete v2_cast(*phContextOpque);
+    *phContextOpque = nullptr;
+  }
   return exceptionToResult(std::current_exception());
 }
 
