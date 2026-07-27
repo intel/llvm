@@ -52,25 +52,23 @@ using fp4_uint8_vec1 = uint8_t __attribute__((ext_vector_type(1)));
 
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ConvertFP16ToE2M1INTEL(_Float16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ConvertFP16ToE2M1INTEL(
-        ::sycl::detail::fp4_float16_vec2) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t __builtin_spirv_ConvertFP16ToE2M1INTEL(
+    ::sycl::detail::fp4_float16_vec2) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ConvertBF16ToE2M1INTEL(__bf16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ConvertBF16ToE2M1INTEL(
-        ::sycl::detail::fp4_bfloat16_vec2) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t __builtin_spirv_ConvertBF16ToE2M1INTEL(
+    ::sycl::detail::fp4_bfloat16_vec2) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL _Float16
 __builtin_spirv_ConvertE2M1ToFP16INTEL(uint8_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL ::sycl::detail::fp4_float16_vec2
-__builtin_spirv_ConvertE2M1ToFP16INTEL(
-    ::sycl::detail::fp4_uint8_vec1) noexcept;
+    __builtin_spirv_ConvertE2M1ToFP16INTEL(
+        ::sycl::detail::fp4_uint8_vec1) noexcept;
 extern __DPCPP_SYCL_EXTERNAL __bf16
 __builtin_spirv_ConvertE2M1ToBF16INTEL(uint8_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL ::sycl::detail::fp4_bfloat16_vec2
-__builtin_spirv_ConvertE2M1ToBF16INTEL(
-    ::sycl::detail::fp4_uint8_vec1) noexcept;
+    __builtin_spirv_ConvertE2M1ToBF16INTEL(
+        ::sycl::detail::fp4_uint8_vec1) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_StochasticRoundFP16ToE2M1INTEL(_Float16, uint32_t,
@@ -459,8 +457,7 @@ template <size_t N> class fp4_e2m1_x {
 
   uint8_t ConvertBF16ToFP4(bfloat16 h) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_spirv_ConvertBF16ToE2M1INTEL(
-        sycl::bit_cast<__bf16>(h));
+    return __builtin_spirv_ConvertBF16ToE2M1INTEL(sycl::bit_cast<__bf16>(h));
 #else
     return detail::ConvertFloatToFP4_CPU<bfloat16>(h, rounding::to_even);
 #endif
