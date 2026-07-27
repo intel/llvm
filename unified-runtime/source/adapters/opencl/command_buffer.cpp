@@ -29,15 +29,21 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 
   cl_context CLContext = hContext->CLContext;
   cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
-  cl_int Res =
-      cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
-          CLContext,
-          cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
-          cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
-  assert(Res == CL_SUCCESS);
-  (void)Res;
+  try {
+    cl_int Res =
+        cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
+            CLContext,
+            cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
+            cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
+    assert(Res == CL_SUCCESS);
+    (void)Res;
+  } catch (...) {
+    assert(false && "Failed to look up clReleaseCommandBufferKHR");
+  }
 
-  clReleaseCommandBufferKHR(CLCommandBuffer);
+  if (clReleaseCommandBufferKHR) {
+    clReleaseCommandBufferKHR(CLCommandBuffer);
+  }
 }
 
 ur_result_t
