@@ -132,10 +132,62 @@ int main() {
   using PBS = sycl::info::device::printf_buffer_size;
   // expected-warning@+1{{'preferred_interop_user_sync' is deprecated: deprecated in SYCL 2020}}
   using PIUS = sycl::info::device::preferred_interop_user_sync;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // expected-warning@+1{{'usm_device_allocations' is deprecated: use sycl::aspect::usm_device_allocations instead}}
+  using UDA = sycl::info::device::usm_device_allocations;
+  // expected-warning@+1{{'usm_host_allocations' is deprecated: use sycl::aspect::usm_host_allocations instead}}
+  using UHA = sycl::info::device::usm_host_allocations;
+  // expected-warning@+1{{'usm_shared_allocations' is deprecated: use sycl::aspect::usm_shared_allocations instead}}
+  using USA = sycl::info::device::usm_shared_allocations;
+  // expected-warning@+1{{'usm_restricted_shared_allocations' is deprecated: deprecated descriptor}}
+  using USRA = sycl::info::device::usm_restricted_shared_allocations;
+  // expected-warning@+1{{'usm_system_allocations' is deprecated: use sycl::aspect::usm_system_allocations instead}}
+  using USYSA = sycl::info::device::usm_system_allocations;
   // expected-warning@+1{{'image_max_array_size' is deprecated: support for image arrays has been removed in SYCL 2020}}
   using IMAS = sycl::info::device::image_max_array_size;
   // expected-warning@+1{{'opencl_c_version' is deprecated: use device::get_info instead}}
   using OCV = sycl::info::device::opencl_c_version;
+
+  // expected-warning@+1{{'sub_group_independent_forward_progress' is deprecated: extension is deprecated}}
+  using SGIFP = sycl::info::device::sub_group_independent_forward_progress;
+  // expected-warning@+1{{'ext_intel_pci_address' is deprecated: use ext::intel::info::device::pci_address instead}}
+  using EXT_INTEL_PCI_ADDRESS = sycl::info::device::ext_intel_pci_address;
+  // expected-warning@+1{{'ext_intel_gpu_eu_count' is deprecated: use ext::intel::info::device::gpu_eu_count instead}}
+  using EXT_INTEL_GPU_EU_COUNT = sycl::info::device::ext_intel_gpu_eu_count;
+  // expected-warning@+2{{'ext_intel_gpu_eu_simd_width' is deprecated: use ext::intel::info::device::gpu_eu_simd_width instead}}
+  using EXT_INTEL_GPU_EU_SIMD_WIDTH =
+      sycl::info::device::ext_intel_gpu_eu_simd_width;
+  // expected-warning@+1{{'ext_intel_gpu_slices' is deprecated: use ext::intel::info::device::gpu_slices instead}}
+  using EXT_INTEL_GPU_SLICES = sycl::info::device::ext_intel_gpu_slices;
+  // expected-warning@+2{{'ext_intel_gpu_subslices_per_slice' is deprecated: use ext::intel::info::device::gpu_subslices_per_slice instead}}
+  using EXT_INTEL_GPU_SUBSLICES_PER_SLICE =
+      sycl::info::device::ext_intel_gpu_subslices_per_slice;
+  // expected-warning@+2{{'ext_intel_gpu_eu_count_per_subslice' is deprecated: use ext::intel::info::device::gpu_eu_count_per_subslice instead}}
+  using EXT_INTEL_GPU_EU_COUNT_PER_SUBSLICE =
+      sycl::info::device::ext_intel_gpu_eu_count_per_subslice;
+  // expected-warning@+2{{'ext_intel_gpu_hw_threads_per_eu' is deprecated: use ext::intel::info::device::gpu_hw_threads_per_eu instead}}
+  using EXT_INTEL_GPU_HW_THREADS_PER_EU =
+      sycl::info::device::ext_intel_gpu_hw_threads_per_eu;
+  // expected-warning@+2{{'ext_intel_device_info_uuid' is deprecated: use ext::intel::info::device::uuid instead}}
+  using EXT_INTEL_DEVICE_INFO_UUID =
+      sycl::info::device::ext_intel_device_info_uuid;
+  // expected-warning@+2{{'ext_intel_max_mem_bandwidth' is deprecated: use ext::intel::info::device::max_mem_bandwidth instead}}
+  using EXT_INTEL_MAX_MEM_BANDWIDTH =
+      sycl::info::device::ext_intel_max_mem_bandwidth;
+  // expected-warning@+2{{'ext_oneapi_max_work_groups_1d' is deprecated: use ext::oneapi::experimental::info::device::max_work_groups<1> instead}}
+  using EXT_ONEAPI_MAX_WORK_GROUPS_1D =
+      sycl::info::device::ext_oneapi_max_work_groups_1d;
+  // expected-warning@+2{{'ext_oneapi_max_work_groups_2d' is deprecated: use ext::oneapi::experimental::info::device::max_work_groups<2> instead}}
+  using EXT_ONEAPI_MAX_WORK_GROUPS_2D =
+      sycl::info::device::ext_oneapi_max_work_groups_2d;
+  // expected-warning@+2{{'ext_oneapi_max_work_groups_3d' is deprecated: use ext::oneapi::experimental::info::device::max_work_groups<3> instead}}
+  using EXT_ONEAPI_MAX_WORK_GROUPS_3D =
+      sycl::info::device::ext_oneapi_max_work_groups_3d;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+  // expected-warning@+1{{'execution_capabilities' is deprecated: deprecated in SYCL 2020}}
+  using EC = sycl::info::device::execution_capabilities;
 
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;

@@ -21,7 +21,6 @@ using namespace sycl;
 int main() {
   queue Queue;
   device Device = Queue.get_device();
-  Device.get_info<info::device::sub_group_independent_forward_progress>();
   Device.get_info<info::device::max_num_sub_groups>();
 
   try {

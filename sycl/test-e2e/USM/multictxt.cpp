@@ -25,7 +25,7 @@ void GpuCpuCpu() {
   queue cpu_q(cpu_selector_v);
   device dev = cpu_q.get_device();
   context ctx = cpu_q.get_context();
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     void *ptr = malloc_shared(128, dev, ctx);
 
     free(ptr, ctx);
@@ -38,7 +38,7 @@ void CpuGpuGpu() {
   device dev = gpu_q.get_device();
   context ctx = gpu_q.get_context();
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     void *ptr = malloc_shared(128, dev, ctx);
 
     free(ptr, ctx);
@@ -51,7 +51,7 @@ void GpuCpuGpu() {
   device dev = gpu_q.get_device();
   context ctx = gpu_q.get_context();
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     void *ptr = malloc_shared(128, dev, ctx);
 
     free(ptr, ctx);
