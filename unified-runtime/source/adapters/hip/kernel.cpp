@@ -159,7 +159,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t hKernel, ur_device_handle_t /*hDevice*/,
     uint32_t workDim, const size_t *pLocalWorkSize,
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pLocalWorkSize, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pGroupCountRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
   size_t localWorkSize = pLocalWorkSize[0];
   localWorkSize *= (workDim >= 2 ? pLocalWorkSize[1] : 1);
