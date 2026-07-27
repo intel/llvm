@@ -24,7 +24,7 @@ def runtime_to_name(runtime: RUNTIMES) -> str:
         RUNTIMES.SYCL: "SYCL",
         RUNTIMES.LEVEL_ZERO: "Level Zero",
         RUNTIMES.UR: "Unified Runtime",
-        RUNTIMES.OL: "Offload",
+        RUNTIMES.OFFLOAD: "Offload",
     }[runtime]
 
 
@@ -867,10 +867,10 @@ class SubmitKernel(ComputeBenchmark):
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
         runtimes = super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
-        # OL (liboffload) SubmitKernel is only available when built via
+        # OFFLOAD (liboffload) SubmitKernel is only available when built via
         # --offload-install-dir / --offload-include-dir.
         if options.offload_install_dir and options.offload_include_dir:
-            runtimes.append(RUNTIMES.OL)
+            runtimes.append(RUNTIMES.OFFLOAD)
         return runtimes
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:

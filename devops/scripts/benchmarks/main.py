@@ -534,14 +534,14 @@ if __name__ == "__main__":
         "--offload-install-dir",
         type=str,
         help="Directory containing libLLVMOffload (-> OFFLOAD_INSTALL_DIR). "
-        "Set together with --offload-include-dir to enable the OL SubmitKernel benchmark.",
+        "Set together with --offload-include-dir to enable the OFFLOAD SubmitKernel benchmark.",
         default=options.offload_install_dir,
     )
     parser.add_argument(
         "--offload-include-dir",
         type=str,
         help="Directory containing OffloadAPI.h (-> OFFLOAD_INCLUDE_DIR). "
-        "Set together with --offload-install-dir to enable the OL SubmitKernel benchmark.",
+        "Set together with --offload-install-dir to enable the OFFLOAD SubmitKernel benchmark.",
         default=options.offload_include_dir,
     )
     parser.add_argument(

@@ -118,9 +118,9 @@ For example `--filter "graph_api_*"`
 
 When a build finishes successfully, a JSON build-complete marker (`benchmark_build_complete.json`) is written into the project's build directory recording the source commit and `git status --porcelain` fingerprint. On subsequent runs the build is skipped when the fingerprint still matches, so editing a tracked source file triggers a rebuild automatically. If `--benchmarks-source-dir` points at a directory that is **not** a git repository, the benchmarks are always rebuilt.
 
-`--offload-install-dir <dir>` / `--offload-include-dir <dir>` - directories providing liboffload: the library dir containing `libLLVMOffload` (passed as `OFFLOAD_INSTALL_DIR`) and the header dir containing `OffloadAPI.h` (passed as `OFFLOAD_INCLUDE_DIR`). Both must be set together. When set, the OL (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled. For an LLVM install tree built with `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF` these are typically `<install>/lib` and `<install>/include/offload`.
+`--offload-install-dir <dir>` / `--offload-include-dir <dir>` - directories providing liboffload: the library dir containing `libLLVMOffload` (passed as `OFFLOAD_INSTALL_DIR`) and the header dir containing `OffloadAPI.h` (passed as `OFFLOAD_INCLUDE_DIR`). Both must be set together. When set, the OFFLOAD (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled. For an LLVM install tree built with `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF` these are typically `<install>/lib` and `<install>/include/offload`.
 
-`--force-offload-plugin <name>` - backend name (`level_zero`, `cuda`, `amdgpu`, or `host`) exported as the `FORCE_OFFLOAD_PLUGIN` environment variable for the benchmark executable process. The OL benchmark uses it to select the offload device by backend.
+`--force-offload-plugin <name>` - backend name (`level_zero`, `cuda`, `amdgpu`, or `host`) exported as the `FORCE_OFFLOAD_PLUGIN` environment variable for the benchmark executable process. The OFFLOAD benchmark uses it to select the offload device by backend.
 
 ## Running in CI
 

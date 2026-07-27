@@ -59,8 +59,8 @@ class Options:
     # dir is not a git repository, the benchmarks are always rebuilt.
     benchmarks_source_dir: str = None
     # liboffload library dir (-> OFFLOAD_INSTALL_DIR) and header dir
-    # (-> OFFLOAD_INCLUDE_DIR). When both are set, the OL SubmitKernel benchmark
-    # is built (via -DBUILD_OL=ON) and enabled.
+    # (-> OFFLOAD_INCLUDE_DIR). When both are set, the OFFLOAD SubmitKernel
+    # benchmark is built (via -DBUILD_OL=ON) and enabled.
     offload_install_dir: str = None
     offload_include_dir: str = None
     # Backend name (e.g. level_zero/cuda/amdgpu/host) exported as
