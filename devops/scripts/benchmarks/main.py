@@ -4,18 +4,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#   "matplotlib==3.9.2",
-#   "mpld3==0.5.10",
-#   "dataclasses-json==0.6.7",
-#   "PyYAML==6.0.1",
-#   "Mako==1.3.12",
-#   "psutil>=7.0.0",
-# ]
-# ///
-
 import argparse
 import re
 import statistics
