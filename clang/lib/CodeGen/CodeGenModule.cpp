@@ -1263,9 +1263,9 @@ void CodeGenModule::Release() {
       // runtime allocates and parses automatically from the code object's
       // printf metadata. This flag tells AMDGPUPrintfRuntimeBinding to lower
       // printf using the buffered layout expected by the runtime.
-      getModule().addModuleFlag(llvm::Module::Error, "amdgpu_printf_kind",
-                                llvm::MDString::get(getLLVMContext(),
-                                                    "buffered"));
+      getModule().addModuleFlag(
+          llvm::Module::Error, "amdgpu_printf_kind",
+          llvm::MDString::get(getLLVMContext(), "buffered"));
     }
   }
 
