@@ -1248,7 +1248,7 @@ a|
 a!
 [source]
 ----
-handle get(const sycl::event &evt)
+handle_data_t get(const sycl::event &evt)
 ----
 !====
 
