@@ -1691,7 +1691,7 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     Value *Val = GetValue(Ops[ValueIdx]);
     DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
     DebugLoc Loc = transDebugScope(DebugInst);
-    DbgInstPtr DbgValIntr = getDIBuilder(DebugInst).insertDbgValueIntrinsic(
+    DbgInstPtr DbgValIntr = getDIBuilder(DebugInst).insertDbgValue(
         Val, LocalVar.first, Expr, Loc, BB);
 
     std::vector<ValueAsMetadata *> MDs;
