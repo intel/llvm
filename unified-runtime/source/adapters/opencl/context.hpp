@@ -75,8 +75,12 @@ struct ur_context_handle_t_ : handle_base {
     for (uint32_t i = 0; i < DeviceCount; i++) {
       ur::opencl::urDeviceRelease(cast(Devices[i]));
     }
-    if (TimestampRecordingBuffer) {
-      clReleaseMemObject(TimestampRecordingBuffer);
+    {
+      std::lock_guard<std::mutex> Lock(TimestampRecordingBufferMutex);
+      if (TimestampRecordingBuffer) {
+        clReleaseMemObject(TimestampRecordingBuffer);
+        TimestampRecordingBuffer = nullptr;
+      }
     }
     if (IsNativeHandleOwned) {
       clReleaseContext(CLContext);

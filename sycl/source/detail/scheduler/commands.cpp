@@ -22,6 +22,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/ur_utils.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
@@ -3717,6 +3718,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // If the queue is not in-order, the implementation will need to first
     // insert a marker event that the timestamp waits for.
     ur_event_handle_t PreTimestampMarkerEvent{};
+    std::optional<OwnedUrEvent> OwnedPreTimestampMarkerEvent;
     ur_event_handle_t *TimestampDeps = nullptr;
     size_t NumTimestampDeps = 0;
     if (!IsInOrderQueue) {
@@ -3727,6 +3729,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
           /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
+      OwnedPreTimestampMarkerEvent.emplace(PreTimestampMarkerEvent, Adapter,
+                                           /*TakeOwnership=*/true);
       TimestampDeps = &PreTimestampMarkerEvent;
       NumTimestampDeps = 1;
     }
@@ -3742,20 +3746,22 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
 
     if (TimestampResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      // Release the marker the (unused) timestamp recording would have waited
-      // for.
-      if (!IsInOrderQueue)
-        Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
-      // A barrier with an empty wait list waits for all previously-submitted
-      // work and blocks subsequent work, providing the same ordering semantics
-      // as a native profiling tag.
-      if (auto Result =
-              Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-                  MQueue->getHandleRef(),
-                  /*num_events_in_wait_list=*/0,
-                  /*event_wait_list=*/nullptr, Event);
-          Result != UR_RESULT_SUCCESS)
-        return Result;
+      if (!IsInOrderQueue) {
+        // The pre-timestamp barrier already provides the required ordering and
+        // profiling information, so reuse its event instead of submitting a
+        // second barrier.
+        if (Event)
+          *Event = OwnedPreTimestampMarkerEvent->TransferOwnership();
+      } else {
+        // An in-order queue has no pre-timestamp barrier to reuse.
+        if (auto Result =
+                Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+                    MQueue->getHandleRef(),
+                    /*num_events_in_wait_list=*/0,
+                    /*event_wait_list=*/nullptr, Event);
+            Result != UR_RESULT_SUCCESS)
+          return Result;
+      }
     } else {
       if (TimestampResult != UR_RESULT_SUCCESS)
         return TimestampResult;
@@ -3764,8 +3770,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // does not need output events as it will implicitly enforce the following
       // enqueue is blocked until it finishes.
       if (!IsInOrderQueue) {
-        // We also need to release the timestamp event from the marker.
-        Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
         // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we
         //        do not pass an output event to the UR call. Once that is
         //        fixed, this immediately-deleted event can be removed.
