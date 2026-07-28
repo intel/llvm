@@ -80,6 +80,7 @@ int main() {
   const context krnCtxExt =
       syclex::get_kernel_info<SingleTask, info::kernel::context>(ctx);
   assert(krnCtxExt == krnCtx);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   device dev = q.get_device();
   const size_t wgSize =
