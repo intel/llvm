@@ -25,7 +25,7 @@ int main() {
   std::vector<int> data(N, 1);
   sycl::buffer<int> buf(data.data(), sycl::range<1>(N));
 
-  syclex::properties PropList{syclex::enable_profiling};
+  syclex::properties PropList{syclex::enable_profiling{true}};
   auto start_event = syclex::make_event(ctx, PropList);
   auto end_event = syclex::make_event(ctx, PropList);
 

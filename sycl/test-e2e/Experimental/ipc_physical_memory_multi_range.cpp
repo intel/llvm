@@ -88,7 +88,7 @@ int spawner(int argc, char *argv[]) {
   try {
     for (size_t R = 0; R < NumRanges; ++R)
       PhysMemVec.emplace_back(Dev, Ctx, AlignedByteSize,
-                              syclexp::properties{syclexp::enable_ipc});
+                              syclexp::properties{syclexp::enable_ipc{true}});
   } catch (const sycl::exception &E) {
     if (std::string_view{E.what()}.find("UNSUPPORTED_FEATURE") !=
         std::string_view::npos) {

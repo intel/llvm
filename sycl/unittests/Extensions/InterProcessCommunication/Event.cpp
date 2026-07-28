@@ -158,8 +158,8 @@ protected:
 // UR handle (lazy materialization).
 TEST_F(IPCEventTests, MakeEventIPCFlagSet) {
   {
-    sycl::event Evt =
-        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    sycl::event Evt = syclexp::make_event(
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true}});
     EXPECT_TRUE(Evt.ext_oneapi_ipc_enabled());
   }
   // No UR handle was ever materialized, so nothing to release.
@@ -182,8 +182,8 @@ TEST_F(IPCEventTests, MakeEventNoIPCFlag) {
 // correct data.
 TEST_F(IPCEventTests, GetCallsURAndReturnsHandle) {
   {
-    sycl::event Evt =
-        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    sycl::event Evt = syclexp::make_event(
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true}});
 
     sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
 
@@ -216,8 +216,8 @@ TEST_F(IPCEventTests, GetOnNonIPCEventThrows) {
 // ipc::event::put calls urIPCPutEventHandleExp with the handle data.
 TEST_F(IPCEventTests, PutCallsUR) {
   {
-    sycl::event Evt =
-        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    sycl::event Evt = syclexp::make_event(
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true}});
 
     sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
     EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
@@ -293,7 +293,8 @@ TEST_F(IPCEventTests, MakeEventNoAspectThrows) {
 
   bool caught = false;
   try {
-    (void)syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    (void)syclexp::make_event(Ctxt,
+                              syclexp::properties{syclexp::enable_ipc{true}});
   } catch (const sycl::exception &E) {
     caught = true;
     EXPECT_EQ(E.code(),
@@ -308,8 +309,8 @@ TEST_F(IPCEventTests, MakeEventIPCAndProfilingThrows) {
   bool caught = false;
   try {
     (void)syclexp::make_event(
-        Ctxt,
-        syclexp::properties{syclexp::enable_ipc, syclexp::enable_profiling});
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true},
+                                  syclexp::enable_profiling{true}});
   } catch (const sycl::exception &E) {
     caught = true;
     EXPECT_EQ(E.code(), sycl::make_error_code(sycl::errc::invalid));
