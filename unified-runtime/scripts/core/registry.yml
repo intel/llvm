@@ -751,9 +751,6 @@ etors:
 - name: IPC_GET_EVENT_HANDLE_EXP
   desc: Enumerator for $xIPCGetEventHandleExp
   value: '323'
-- name: IPC_PUT_EVENT_HANDLE_EXP
-  desc: Enumerator for $xIPCPutEventHandleExp
-  value: '324'
 - name: IPC_OPEN_EVENT_HANDLE_EXP
   desc: Enumerator for $xIPCOpenEventHandleExp
   value: '325'

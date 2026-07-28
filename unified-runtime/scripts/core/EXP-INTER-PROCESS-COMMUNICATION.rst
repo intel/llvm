@@ -48,7 +48,6 @@ Functions
    * ${x}IPCCloseMemHandleExp
 * Inter-Process Communication (Event)
    * ${x}IPCGetEventHandleExp
-   * ${x}IPCPutEventHandleExp
    * ${x}IPCOpenEventHandleExp
 
 Event sharing semantics

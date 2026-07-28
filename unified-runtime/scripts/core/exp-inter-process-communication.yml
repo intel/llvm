@@ -278,65 +278,41 @@ details:
         $X_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that flag,
         and events opened with $xIPCOpenEventHandleExp, cannot be exported.
     - >
-        On success, `ppIPCEventHandleData` receives an opaque byte buffer
-        allocated and owned by the implementation, and `pIPCEventHandleDataSizeRet`
-        receives its size. The contents of this buffer may be copied and
-        transferred, by the application's own means, to another process on the
-        same system, which passes those bytes to $xIPCOpenEventHandleExp to
-        obtain an event object that shares state with `hEvent`.
+        The handle data is written directly into the caller-provided buffer
+        `pIPCEventHandleData`. No separate release call is required.
     - >
-        The returned handle data must be released in the originating process
-        with $xIPCPutEventHandleExp once it is no longer needed.
+        If `pIPCEventHandleData` is NULL, only `pIPCEventHandleDataSizeRet` is
+        filled in (size query). The handle size is fixed for a given platform
+        and can be queried once before allocating the buffer.
     - "Events created with $X_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be exported."
 params:
     - type: $x_event_handle_t
       name: hEvent
       desc: "[in] handle of the event object"
-    - type: void**
-      name: ppIPCEventHandleData
-      desc: "[out] a pointer to the IPC event handle data"
+    - type: size_t
+      name: IPCEventHandleDataSize
+      desc: "[in] size of the buffer pointed to by `pIPCEventHandleData`; ignored when `pIPCEventHandleData` is NULL"
+    - type: void*
+      name: pIPCEventHandleData
+      desc: >
+          [out][optional] caller-provided buffer to receive the IPC handle data;
+          if NULL, only the size is returned in `pIPCEventHandleDataSizeRet`
     - type: size_t*
       name: pIPCEventHandleDataSizeRet
-      desc: "[out] size of the resulting IPC event handle data"
+      desc: "[out] size in bytes of the IPC event handle data"
 returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
       - "`NULL == hEvent`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "`NULL == ppIPCEventHandleData`"
       - "`NULL == pIPCEventHandleDataSizeRet`"
+    - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`pIPCEventHandleData != NULL` and `IPCEventHandleDataSize` is smaller than the platform's handle size"
     - $X_RESULT_ERROR_INVALID_EVENT:
       - "`hEvent` was not created with the $X_EXP_EVENT_FLAG_IPC_EXP flag."
       - "`hEvent` was obtained from $xIPCOpenEventHandleExp."
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
       - "`hEvent` has profiling or timestamping enabled."
       - "The device associated with `hEvent` does not support event IPC, as reported by $X_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP."
-    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
-    - $X_RESULT_ERROR_OUT_OF_RESOURCES
---- #--------------------------------------------------------------------------
-type: function
-desc: "Releases an inter-process event handle"
-class: $xIPC
-name: PutEventHandleExp
-ordinal: "0"
-details:
-    - >
-        Releases the resources associated with IPC event handle data returned by
-        $xIPCGetEventHandleExp. Must be called in the same process that obtained
-        the handle data. This does not destroy the source event and does not
-        affect event objects already opened with $xIPCOpenEventHandleExp.
-params:
-    - type: $x_context_handle_t
-      name: hContext
-      desc: "[in] handle of the context object"
-    - type: void*
-      name: pIPCEventHandleData
-      desc: "[in] a pointer to the IPC event handle data obtained with $xIPCGetEventHandleExp"
-returns:
-    - $X_RESULT_ERROR_INVALID_CONTEXT
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "`NULL == hContext`"
-    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "`NULL == pIPCEventHandleData`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
