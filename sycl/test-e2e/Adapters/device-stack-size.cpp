@@ -26,9 +26,7 @@
 int main() {
   try {
     sycl::queue Q{};
-    Q.submit([&](sycl::handler &cgh) {
-       cgh.single_task([=]() {});
-     }).wait();
+    Q.submit([&](sycl::handler &cgh) { cgh.single_task([=]() {}); }).wait();
     std::puts("PASS");
   } catch (const std::exception &e) {
     std::puts(e.what());
