@@ -36,18 +36,18 @@ int main() {
   ProducerEvt.wait();
 
   // 2. Get the IPC handle.
-  ipc::handle Handle = ipc::event::get(ProducerEvt);
+  ipc::handle_data_t Handle = ipc::event::get(ProducerEvt);
 
   // 3. Open in this process via the requested overload.
   sycl::event Imported1, Imported2;
 #ifdef USE_VIEW
-  ipc::handle_data_view_t View = Handle.data_view();
+  ipc::handle_data_view_t View = Handle;
   if (View.empty())
     return 10;
   Imported1 = ipc::event::open(View, Ctx);
   Imported2 = ipc::event::open(View, Ctx);
 #else
-  ipc::handle_data_t Bytes = Handle.data();
+  ipc::handle_data_t Bytes = Handle;
   if (Bytes.empty())
     return 10;
   Imported1 = ipc::event::open(Bytes, Ctx);
@@ -71,16 +71,11 @@ int main() {
   Imported1.wait();
   Imported2.wait();
 
-  // 7. Default-context put compiles and runs.
-  ipc::event::put(Handle, Ctx);
-
-  // Optional: also exercise the default-context open + put overloads.
+  // 7. Optional: also exercise the default-context open overload.
 #ifndef USE_VIEW
-  ipc::handle Handle2 = ipc::event::get(ProducerEvt);
-  ipc::handle_data_t Bytes2 = Handle2.data();
-  sycl::event ImportedDefaultCtx = ipc::event::open(Bytes2);
+  ipc::handle_data_t Handle2 = ipc::event::get(ProducerEvt);
+  sycl::event ImportedDefaultCtx = ipc::event::open(Handle2);
   ImportedDefaultCtx.wait();
-  ipc::event::put(Handle2);
 #endif
 
   return 0;

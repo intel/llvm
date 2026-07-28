@@ -45,14 +45,12 @@ int main() {
         exp::make_event(Ctx, exp::properties{exp::enable_ipc});
     exp::enqueue_signal_event(Q, Producer);
     Producer.wait();
-    ipc::handle H = ipc::event::get(Producer);
-    sycl::event Imported = ipc::event::open(H.data(), Ctx);
+    ipc::handle_data_t H = ipc::event::get(Producer);
+    sycl::event Imported = ipc::event::open(H, Ctx);
     try {
       (void)ipc::event::get(Imported);
-      ipc::event::put(H, Ctx);
       return 7;
     } catch (const sycl::exception &E) {
-      ipc::event::put(H, Ctx);
       if (expectInvalid(E))
         return 8;
     }

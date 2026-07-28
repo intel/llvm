@@ -1024,7 +1024,8 @@ ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
 }
 
 ur_result_t urIPCGetEventHandleExp(ur_event_handle_t /*hEvent*/,
-                                   void ** /*ppIPCEventHandleData*/,
+                                   size_t /*IPCEventHandleDataSize*/,
+                                   void * /*pIPCEventHandleData*/,
                                    size_t * /*pIPCEventHandleDataSizeRet*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

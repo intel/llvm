@@ -54,8 +54,8 @@ int spawner(int argc, char *argv[]) {
   exp::enqueue_signal_event(Q, ProducerEvt);
   ProducerEvt.wait();
 
-  ipc::handle Handle = ipc::event::get(ProducerEvt);
-  ipc::handle_data_t Bytes = Handle.data();
+  ipc::handle_data_t Handle = ipc::event::get(ProducerEvt);
+  ipc::handle_data_t Bytes = Handle;
 
   // Write the handle bytes; layout matches readHandleFile in
   // Inputs/ipc_event_sentinel.hpp: [size_t size][size bytes].
@@ -70,7 +70,6 @@ int spawner(int argc, char *argv[]) {
   std::cout << "Spawning: " << Cmd << "\n";
   int Rc = std::system(Cmd.c_str());
 
-  ipc::event::put(Handle, Ctx);
   std::remove(CommsFile);
 
   if (!WIFEXITED(Rc)) {

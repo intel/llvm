@@ -62,11 +62,6 @@ __SYCL_EXPORT handle get(physical_mem &physmem);
 __SYCL_EXPORT void put(handle &ipc_handle, const sycl::context &ctx);
 } // namespace ext::oneapi::experimental::ipc::physical_memory
 
-namespace ext::oneapi::experimental::ipc::event {
-__SYCL_EXPORT handle get(const sycl::event &Evt);
-__SYCL_EXPORT void put(handle &IpcHandle, const sycl::context &Ctx);
-} // namespace ext::oneapi::experimental::ipc::event
-
 namespace ext::oneapi::experimental::ipc {
 
 using handle_data_t = std::vector<std::byte>;
@@ -96,12 +91,15 @@ private:
   friend __SYCL_EXPORT handle physical_memory::get(physical_mem &physmem);
   friend __SYCL_EXPORT void physical_memory::put(handle &ipc_handle,
                                                  const sycl::context &ctx);
-  friend __SYCL_EXPORT handle event::get(const sycl::event &Evt);
-  friend __SYCL_EXPORT void event::put(handle &IpcHandle,
-                                       const sycl::context &Ctx);
 };
 
 } // namespace ext::oneapi::experimental::ipc
+
+namespace ext::oneapi::experimental::ipc::event {
+// get() returns the handle bytes by value.
+__SYCL_EXPORT handle_data_t get(const sycl::event &Evt);
+} // namespace ext::oneapi::experimental::ipc::event
+
 } // namespace _V1
 } // namespace sycl
 

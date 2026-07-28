@@ -13,7 +13,6 @@
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
 
-#include <algorithm>
 #include <cassert>
 
 namespace sycl {
@@ -62,7 +61,7 @@ __SYCL_EXPORT sycl::event openIPCEventHandle(const std::byte *HandleData,
 
 namespace ext::oneapi::experimental::ipc::event {
 
-__SYCL_EXPORT handle get(const sycl::event &Evt) {
+__SYCL_EXPORT ipc::handle_data_t get(const sycl::event &Evt) {
   if (!Evt.ext_oneapi_ipc_enabled())
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
@@ -74,23 +73,19 @@ __SYCL_EXPORT handle get(const sycl::event &Evt) {
   // before the first signal.
   EvtImpl->materializeIPCEvent();
 
-  sycl::detail::context_impl &CtxImpl = EvtImpl->getContextImpl();
-  sycl::detail::adapter_impl &Adapter = CtxImpl.getAdapter();
+  sycl::detail::adapter_impl &Adapter = EvtImpl->getContextImpl().getAdapter();
 
-  void *HandlePtr = nullptr;
+  // Query the handle size, allocate a buffer, then fill it.
+  // The handle is a plain value type — no put() is required.
   size_t HandleSize = 0;
   Adapter.call<sycl::detail::UrApiKind::urIPCGetEventHandleExp>(
-      EvtImpl->getHandle(), &HandlePtr, &HandleSize);
+      EvtImpl->getHandle(), 0, nullptr, &HandleSize);
 
-  return {HandlePtr, HandleSize};
-}
+  ipc::handle_data_t Bytes(HandleSize);
+  Adapter.call<sycl::detail::UrApiKind::urIPCGetEventHandleExp>(
+      EvtImpl->getHandle(), HandleSize, Bytes.data(), &HandleSize);
 
-__SYCL_EXPORT void put(handle &IpcHandle, const sycl::context &Ctx) {
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
-  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
-
-  Adapter.call<sycl::detail::UrApiKind::urIPCPutEventHandleExp>(
-      CtxImpl->getHandleRef(), IpcHandle.MData);
+  return Bytes;
 }
 
 } // namespace ext::oneapi::experimental::ipc::event

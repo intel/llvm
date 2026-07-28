@@ -320,7 +320,8 @@ ur_result_t urEventCreateExp(ur_context_handle_t, ur_device_handle_t,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urIPCGetEventHandleExp(ur_event_handle_t, void **, size_t *) {
+ur_result_t urIPCGetEventHandleExp(ur_event_handle_t, size_t, void *,
+                                   size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

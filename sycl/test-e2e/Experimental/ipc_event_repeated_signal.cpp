@@ -80,7 +80,7 @@ static int producer(const std::string &Exe) {
        "repeat_producer_done", "repeat_consumer_done"});
 
   sycl::event Evt = exp::make_event(Ctx, exp::properties{exp::enable_ipc});
-  ipc::handle EvtHandle = ipc::event::get(Evt);
+  ipc::handle_data_t EvtHandle = ipc::event::get(Evt);
 
   int *Buf = sycl::malloc_device<int>(NumElems, Q);
   Q.fill(Buf, Poison, NumElems).wait();
@@ -120,7 +120,6 @@ static int producer(const std::string &Exe) {
   ipc_event_test::waitForFile("repeat_consumer_done");
 
   ipc::memory::put(MemHandle, Ctx);
-  ipc::event::put(EvtHandle, Ctx);
   sycl::free(Buf, Q);
 
   if (ConsumerFailed) {

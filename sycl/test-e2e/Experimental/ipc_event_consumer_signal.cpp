@@ -71,7 +71,7 @@ static int producer(const std::string &Exe) {
        "sigdata_producer_synced", "sigdata_consumer_done"});
 
   sycl::event Evt = exp::make_event(Ctx, exp::properties{exp::enable_ipc});
-  ipc::handle EvtHandle = ipc::event::get(Evt);
+  ipc::handle_data_t EvtHandle = ipc::event::get(Evt);
 
   // Allocate and poison the shared buffer before exporting it.
   int *Buf = sycl::malloc_device<int>(NumElems, Q);
@@ -106,7 +106,6 @@ static int producer(const std::string &Exe) {
   ipc_event_test::waitForFile("sigdata_consumer_done");
 
   ipc::memory::put(MemHandle, Ctx);
-  ipc::event::put(EvtHandle, Ctx);
   sycl::free(Buf, Q);
 
   if (Rc == 0)

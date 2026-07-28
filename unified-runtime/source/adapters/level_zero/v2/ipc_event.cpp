@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstring>
 #include <memory>
 
 #include <unified-runtime/ur_api.h>
@@ -27,11 +28,11 @@ constexpr size_t kIpcEventHandleDataSize =
 } // namespace
 
 ur_result_t urIPCGetEventHandleExp(ur_event_handle_t hEvent,
-                                   void **ppIPCEventHandleData,
+                                   size_t IPCEventHandleDataSize,
+                                   void *pIPCEventHandleData,
                                    size_t *pIPCEventHandleDataSizeRet) try {
   UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ppIPCEventHandleData && pIPCEventHandleDataSizeRet,
-            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pIPCEventHandleDataSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   std::shared_lock<ur_shared_mutex> lock(hEvent->Mutex);
 
@@ -40,24 +41,17 @@ ur_result_t urIPCGetEventHandleExp(ur_event_handle_t hEvent,
   UR_ASSERT(!hEvent->isProfilingEnabled() && !hEvent->isTimestamped(),
             UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 
-  auto handle = std::make_unique<ze_ipc_event_counter_based_handle_t>();
-  ZE2UR_CALL(zeEventCounterBasedGetIpcHandle,
-             (hEvent->getZeEvent(), handle.get()));
-
-  // Caller releases the buffer via urIPCPutEventHandleExp.
-  *ppIPCEventHandleData = handle.release();
   *pIPCEventHandleDataSizeRet = kIpcEventHandleDataSize;
-  return UR_RESULT_SUCCESS;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
 
-ur_result_t urIPCPutEventHandleExp(ur_context_handle_t /*hContext*/,
-                                   void *pIPCEventHandleData) try {
-  UR_ASSERT(pIPCEventHandleData, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  // Free the buffer allocated by urIPCGetEventHandleExp via RAII.
-  std::unique_ptr<ze_ipc_event_counter_based_handle_t> owner(
-      static_cast<ze_ipc_event_counter_based_handle_t *>(pIPCEventHandleData));
+  if (!pIPCEventHandleData)
+    return UR_RESULT_SUCCESS;
+
+  UR_ASSERT(IPCEventHandleDataSize >= kIpcEventHandleDataSize,
+            UR_RESULT_ERROR_INVALID_SIZE);
+
+  ze_ipc_event_counter_based_handle_t handle{};
+  ZE2UR_CALL(zeEventCounterBasedGetIpcHandle, (hEvent->getZeEvent(), &handle));
+  std::memcpy(pIPCEventHandleData, &handle, kIpcEventHandleDataSize);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

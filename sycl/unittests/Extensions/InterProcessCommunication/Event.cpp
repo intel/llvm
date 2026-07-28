@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstring>
 #include <gtest/gtest.h>
 
 #include <detail/context_impl.hpp>
@@ -32,7 +33,6 @@ int DummyEventData = 0;
 ur_event_handle_t DummyEvent = (ur_event_handle_t)&DummyEventData;
 
 int urIPCGetEventHandleExp_counter = 0;
-int urIPCPutEventHandleExp_counter = 0;
 int urIPCOpenEventHandleExp_counter = 0;
 int urEventRelease_counter = 0;
 // Filled in by SetUp() from the live mock context — needed by the
@@ -43,17 +43,13 @@ ur_context_handle_t MockContextHandle = nullptr;
 ur_result_t replace_urIPCGetEventHandleExp(void *pParams) {
   ++urIPCGetEventHandleExp_counter;
   auto params = *static_cast<ur_ipc_get_event_handle_exp_params_t *>(pParams);
-  if (*params.pppIPCEventHandleData)
-    **params.pppIPCEventHandleData = DummyHandleData;
+  // New API: caller provides a buffer; always report the fixed size.
   if (*params.ppIPCEventHandleDataSizeRet)
     **params.ppIPCEventHandleDataSizeRet = DummyHandleDataSize;
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t replace_urIPCPutEventHandleExp(void *pParams) {
-  ++urIPCPutEventHandleExp_counter;
-  auto params = *static_cast<ur_ipc_put_event_handle_exp_params_t *>(pParams);
-  EXPECT_EQ(*params.ppIPCEventHandleData, (void *)DummyHandleData);
+  // Fill buffer only when provided.
+  if (*params.ppIPCEventHandleData)
+    std::memcpy(*params.ppIPCEventHandleData, DummyHandleData,
+                DummyHandleDataSize);
   return UR_RESULT_SUCCESS;
 }
 
@@ -128,7 +124,6 @@ public:
 protected:
   void SetUp() override {
     urIPCGetEventHandleExp_counter = 0;
-    urIPCPutEventHandleExp_counter = 0;
     urIPCOpenEventHandleExp_counter = 0;
     urEventRelease_counter = 0;
 
@@ -136,8 +131,6 @@ protected:
 
     mock::getCallbacks().set_replace_callback("urIPCGetEventHandleExp",
                                               replace_urIPCGetEventHandleExp);
-    mock::getCallbacks().set_replace_callback("urIPCPutEventHandleExp",
-                                              replace_urIPCPutEventHandleExp);
     mock::getCallbacks().set_replace_callback("urIPCOpenEventHandleExp",
                                               replace_urIPCOpenEventHandleExp);
     mock::getCallbacks().set_replace_callback("urEventRelease",
@@ -185,13 +178,13 @@ TEST_F(IPCEventTests, GetCallsURAndReturnsHandle) {
     sycl::event Evt =
         syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
 
-    sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
+    sycl::ext::oneapi::experimental::ipc::handle_data_t H = ipcevt::get(Evt);
 
-    EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
-    EXPECT_EQ(urIPCPutEventHandleExp_counter, 0);
+    // get() is called twice: once for size query, once to fill.
+    EXPECT_EQ(urIPCGetEventHandleExp_counter, 2);
     EXPECT_EQ(urIPCOpenEventHandleExp_counter, 0);
 
-    sycl::ext::oneapi::experimental::ipc::handle_data_t Data = H.data();
+    sycl::ext::oneapi::experimental::ipc::handle_data_t Data = H;
     ASSERT_EQ(Data.size(), DummyHandleDataSize);
     EXPECT_EQ(memcmp(Data.data(), DummyHandleData, DummyHandleDataSize), 0);
   }
@@ -213,21 +206,22 @@ TEST_F(IPCEventTests, GetOnNonIPCEventThrows) {
   EXPECT_EQ(urIPCGetEventHandleExp_counter, 0);
 }
 
-// ipc::event::put calls urIPCPutEventHandleExp with the handle data.
-TEST_F(IPCEventTests, PutCallsUR) {
+// get() can be called multiple times on the same event without leaking.
+TEST_F(IPCEventTests, MultipleGetsSameEvent) {
   {
     sycl::event Evt =
         syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
 
-    sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
-    EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
+    auto H1 = ipcevt::get(Evt);
+    auto H2 = ipcevt::get(Evt);
 
-    ipcevt::put(H, Ctxt);
-
-    EXPECT_EQ(urIPCPutEventHandleExp_counter, 1);
-    EXPECT_EQ(urIPCOpenEventHandleExp_counter, 0);
+    auto D1 = H1;
+    auto D2 = H2;
+    ASSERT_EQ(D1.size(), DummyHandleDataSize);
+    ASSERT_EQ(D2.size(), DummyHandleDataSize);
+    EXPECT_EQ(memcmp(D1.data(), DummyHandleData, DummyHandleDataSize), 0);
+    EXPECT_EQ(memcmp(D2.data(), DummyHandleData, DummyHandleDataSize), 0);
   }
-  // The materialized UR event must be released on destruction.
   EXPECT_EQ(urEventRelease_counter, 1);
 }
 
@@ -241,7 +235,6 @@ TEST_F(IPCEventTests, OpenCallsURAndImportedEventNotIPC) {
     sycl::event Imported = ipcevt::open(HandleData, Ctxt);
 
     EXPECT_EQ(urIPCGetEventHandleExp_counter, 0);
-    EXPECT_EQ(urIPCPutEventHandleExp_counter, 0);
     EXPECT_EQ(urIPCOpenEventHandleExp_counter, 1);
 
     // Imported events cannot be re-exported.

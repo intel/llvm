@@ -45,8 +45,8 @@ inline void removeStaleFiles(std::initializer_list<const char *> Paths) {
 }
 
 // Layout: [size_t size][size bytes].
-inline void writeHandleFile(const std::string &Path, const ipc::handle &H) {
-  ipc::handle_data_t Bytes = H.data();
+inline void writeHandleFile(const std::string &Path,
+                            const ipc::handle_data_t &Bytes) {
   size_t Sz = Bytes.size();
   std::ofstream FS(Path, std::ios::out | std::ios::binary);
   FS.write(reinterpret_cast<const char *>(&Sz), sizeof(Sz));

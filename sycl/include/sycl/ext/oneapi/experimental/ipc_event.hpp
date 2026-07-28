@@ -38,14 +38,7 @@ __SYCL_EXPORT sycl::event openIPCEventHandle(const std::byte *HandleData,
 
 namespace ext::oneapi::experimental::ipc::event {
 
-// get / put are exported from libsycl; declarations live in
-// detail/ipc_common.hpp because they're friended on ipc::handle.
-
-inline void put(handle &IpcHandle) {
-  sycl::device Dev;
-  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  return put(IpcHandle, Ctx);
-}
+// get is exported from libsycl; declaration lives in detail/ipc_common.hpp.
 
 inline sycl::event open(const ipc::handle_data_t &HandleData,
                         const sycl::context &Ctx) {
