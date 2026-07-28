@@ -80,12 +80,11 @@ if(umf_FOUND)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-  # commit a12247bc1f59494ad9f08ac42886043cbcfe5b76
-  # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-  # Date:   Thu Jul 23 12:32:00 2026 +0200
-  # Merge pull request #1594 from bratpiorka/rrudnick_ze_relaxed_alloc
-  # Always use relaxed allocation limits for L0 host mem
-  set(UMF_TAG v1.2.0-dev3)
+  # commit d8763834d68f9545db30bea5d092edd78ad3d748
+  # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+  # Date:   Mon Jul 27 15:32:41 2026 +0200
+  #     1.2.0 release
+  set(UMF_TAG v1.2.0)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
