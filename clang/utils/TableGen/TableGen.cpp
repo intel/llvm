@@ -46,6 +46,7 @@ enum ActionType {
   GenClangAttrIsTypeDependent,
   GenClangAttrTextNodeDump,
   GenClangAttrNodeTraverse,
+  GenClangAttrUndocumentedAttrList,
   GenClangBasicReader,
   GenClangBasicWriter,
   GenClangBuiltins,
@@ -192,6 +193,9 @@ cl::opt<ActionType> Action(
                    "Generate clang attribute text node dumper"),
         clEnumValN(GenClangAttrNodeTraverse, "gen-clang-attr-node-traverse",
                    "Generate clang attribute traverser"),
+        clEnumValN(GenClangAttrUndocumentedAttrList,
+                   "gen-clang-attr-undocumented-list",
+                   "Generate a list of undocumented attributes"),
         clEnumValN(GenClangBuiltins, "gen-clang-builtins",
                    "Generate clang builtins list"),
         clEnumValN(GenClangBuiltinTemplates, "gen-clang-builtin-templates",
@@ -452,6 +456,9 @@ bool ClangTableGenMain(raw_ostream &OS, const RecordKeeper &Records) {
     break;
   case GenClangAttrNodeTraverse:
     EmitClangAttrNodeTraverse(Records, OS);
+    break;
+  case GenClangAttrUndocumentedAttrList:
+    EmitClangUndocumentedAttrList(Records, OS);
     break;
   case GenClangBuiltins:
     EmitClangBuiltins(Records, OS);

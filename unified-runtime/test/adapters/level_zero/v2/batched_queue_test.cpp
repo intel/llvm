@@ -18,7 +18,6 @@
 #include "event_provider.hpp"
 #include "event_provider_counter.hpp"
 #include "event_provider_normal.hpp"
-#include "level_zero/external/driver_experimental/zex_graph.h"
 #include "queue_batched.hpp"
 #include "queue_handle.hpp"
 #include "unified-runtime/ur_api.h"

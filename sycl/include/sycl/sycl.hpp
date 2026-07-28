@@ -33,9 +33,11 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_STRINGIFY
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// <sycl/sycl.hpp> is not a iostream "provider", however iostream was included
-// in some of SYCL transitive headers. Customers relied on that inclusion, so it
-// should be kept for now and be removed once breaking changes are allowed.
+// <sycl/sycl.hpp> is not a iostream or algorithm "provider", however both were
+// included in some of SYCL transitive headers. Customers relied on that
+// inclusion, so it should be kept for now and be removed once breaking changes
+// are allowed.
+#include <algorithm>
 #include <sycl/detail/iostream_proxy.hpp>
 #endif
 

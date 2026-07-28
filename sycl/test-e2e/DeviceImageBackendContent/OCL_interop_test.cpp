@@ -2,6 +2,7 @@
 // RUN: %{build} %opencl_lib -fno-sycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 //
+#include <CL/cl.h>
 #include <sycl/backend.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/core.hpp>

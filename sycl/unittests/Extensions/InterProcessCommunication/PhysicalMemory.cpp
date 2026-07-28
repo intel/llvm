@@ -210,6 +210,7 @@ TEST_F(IPCPhysMemTests, IPCOpenClose) {
   EXPECT_EQ(urIPCClosePhysMemHandleExp_counter, 1);
 }
 
+#if __cpp_lib_span
 TEST_F(IPCPhysMemTests, IPCOpenCloseView) {
   {
     syclexp::ipc::handle_data_view_t HandleDataView{DummyHandleData,
@@ -226,6 +227,7 @@ TEST_F(IPCPhysMemTests, IPCOpenCloseView) {
   EXPECT_EQ(urIPCOpenPhysMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCClosePhysMemHandleExp_counter, 1);
 }
+#endif
 
 TEST_F(IPCPhysMemTests, IPCGetNoFlagEnableIpc) {
   syclexp::properties PropList{};

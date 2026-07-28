@@ -31,7 +31,7 @@
 // RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64 %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
 // SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
-// SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}} "-only-needed"
+// SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}} "--only-needed"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libsycl-crt.bc"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libsycl-cmath.bc"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libsycl-imf.bc"
@@ -43,7 +43,7 @@
 // RUN: %clangxx -fsycl --no-offload-new-driver libsycl-crt.o --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_USER_ONLY_NEEDED
 // SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
-// SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
+// SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "--only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
 
 /// ###########################################################################
 /// test behavior of libsycl-asan.bc linking when -fsanitize=address is available
@@ -65,7 +65,7 @@
 // SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-asan.bc"
 // SYCL_DEVICE_ASAN_MACRO: "-cc1"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
-// SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}} "-only-needed"
+// SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}} "--only-needed"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "{{.*}}libsycl-asan.bc"
 
 /// ###########################################################################
@@ -133,7 +133,7 @@
 // SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-msan.bc"
 // SYCL_DEVICE_MSAN_MACRO: "-cc1"
 // SYCL_DEVICE_MSAN_MACRO-SAME: "USE_SYCL_DEVICE_MSAN"
-// SYCL_DEVICE_MSAN_MACRO: llvm-link{{.*}} "-only-needed"
+// SYCL_DEVICE_MSAN_MACRO: llvm-link{{.*}} "--only-needed"
 // SYCL_DEVICE_MSAN_MACRO-SAME: "{{.*}}libsycl-msan.bc"
 
 /// ###########################################################################
@@ -148,7 +148,7 @@
 // RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
-// SYCL_DEVICE_LIB_MSAN_PVC: llvm-link{{.*}} "-only-needed" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_MSAN_PVC: llvm-link{{.*}} "--only-needed" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_MSAN_PVC-SAME: "{{.*}}libsycl-msan-pvc.bc"
 
 
@@ -156,7 +156,7 @@
 /// test behavior of linking libsycl-msan-cpu for CPU target AOT compilation when msan flag is applied.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_CPU
-// SYCL_DEVICE_LIB_MSAN_CPU: llvm-link{{.*}} "-only-needed" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_MSAN_CPU: llvm-link{{.*}} "--only-needed" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_MSAN_CPU-SAME: "{{.*}}libsycl-msan-cpu.bc"
 
 /// ###########################################################################
@@ -179,7 +179,7 @@
 // SYCL_DEVICE_LIB_TSAN-SAME: "{{.*}}libsycl-tsan.bc"
 // SYCL_DEVICE_TSAN_MACRO: "-cc1"
 // SYCL_DEVICE_TSAN_MACRO-SAME: "USE_SYCL_DEVICE_TSAN"
-// SYCL_DEVICE_TSAN_MACRO: llvm-link{{.*}} "-only-needed"
+// SYCL_DEVICE_TSAN_MACRO: llvm-link{{.*}} "--only-needed"
 // SYCL_DEVICE_TSAN_MACRO-SAME: "{{.*}}libsycl-tsan.bc"
 
 /// ###########################################################################
@@ -194,7 +194,7 @@
 // RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
-// SYCL_DEVICE_LIB_TSAN_PVC: llvm-link{{.*}} "-only-needed" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_TSAN_PVC: llvm-link{{.*}} "--only-needed" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_TSAN_PVC-SAME: "{{.*}}libsycl-tsan-pvc.bc"
 
 
@@ -202,5 +202,5 @@
 /// test behavior of linking libsycl-tsan-cpu for CPU target AOT compilation when tsan flag is applied.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_CPU
-// SYCL_DEVICE_LIB_TSAN_CPU: llvm-link{{.*}} "-only-needed" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_TSAN_CPU: llvm-link{{.*}} "--only-needed" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_TSAN_CPU-SAME: "{{.*}}libsycl-tsan-cpu.bc"

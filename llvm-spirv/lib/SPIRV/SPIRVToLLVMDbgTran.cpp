@@ -79,10 +79,10 @@ void SPIRVToLLVMDbgTran::addDbgInfoVersion() {
 DIFile *
 SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
                               std::optional<DIFile::ChecksumInfo<StringRef>> CS,
-                              std::optional<StringRef> Source) {
+                              std::optional<std::string> Source) {
   return getOrInsert(FileMap, FileName, [this, FileName, CS, Source]() {
     SplitFileName Split(FileName);
-    // Use the first builder from the map to crete DIFile since it's
+    // Use the first builder from the map to create DIFile since it's
     // relations with other debug metadata is not going through DICompileUnit
     if (!Split.BaseName.empty())
       return BuilderMap.begin()->second->createFile(Split.BaseName, Split.Path,
@@ -136,11 +136,11 @@ const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
   return String->getStr();
 }
 
-const std::string
+std::optional<std::string>
 SPIRVToLLVMDbgTran::getStringSourceContinued(const SPIRVId Id,
                                              SPIRVExtInst *DebugInst) {
   if (!isValidId(Id) || getDbgInst<SPIRVDebug::DebugInfoNone>(Id))
-    return "";
+    return std::nullopt;
   std::string Str = BM->get<SPIRVString>(Id)->getStr();
   using namespace SPIRVDebug::Operand::SourceContinued;
   for (auto *I : DebugInst->getContinuedInstructions()) {

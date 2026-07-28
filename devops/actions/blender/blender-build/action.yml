@@ -24,10 +24,10 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+    - uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
       if: runner.os == 'Windows'
       with:
-        arch: amd64
+        arch: x64
 
     - name: Setup environment (Windows)
       shell: powershell
@@ -65,7 +65,7 @@ runs:
         OIDN_DIR_INPUT: ${{ inputs.oidn_dir }}
         SYCL_DIR_INPUT: ${{ inputs.sycl_dir }}
       run: |
-       unzip -q D:\\github\\blender_5_1_0_source.zip -d .
+       unzip -q D:\\github\\blender_5_2_0_source.zip -d .
        mv blender blender-src
        # Work around CMake issue using preinstalled Embree/OIDN.
        cp -RT "$EMBREE_DIR_INPUT" "blender-src/lib/windows_x64/embree"

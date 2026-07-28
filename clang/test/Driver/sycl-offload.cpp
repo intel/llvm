@@ -259,20 +259,21 @@
 
 /// ###########################################################################
 
-/// Check for default linking of -lsycl with -fsycl --offload-new-driver usage
-// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
+/// Check for default linking of libsycl.so with -fsycl --offload-new-driver usage
+// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -implicit-check-not="-lsycl" -check-prefix=CHECK-LD-SYCL %s
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-SYCL: "-lsycl"
+// CHECK-LD-SYCL: "{{.*}}libsycl.so"
+// CHECK-LD-SYCL-SAME: "{{.*}}libsycl-devicelib-host.a"
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s
 // CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
+// CHECK-LD-NOLIBSYCL-NOT: "libsycl.so"
 
 /// Check no SYCL runtime is linked with -nostdlib
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
 // CHECK-LD-NOSTDLIB: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOSTDLIB-NOT: "-lsycl"
+// CHECK-LD-NOSTDLIB-NOT: "libsycl.so"
 
 /// Check for default linking of syclN.lib with -fsycl --offload-new-driver usage
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
@@ -328,7 +329,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
-// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO1 -DFOO2"
+// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO1" "--device-compiler=sycl:spir64-unknown-unknown=-DFOO2"
 
 /// Check for implied options (-g -O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
@@ -348,7 +349,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
-// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-DFOO1 -DFOO2"
+// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-DFOO1" "--device-linker=sycl:spir64-unknown-unknown=-DFOO2"
 
 /// -fsycl-range-rounding settings
 ///
@@ -490,12 +491,6 @@
 // RUN:  | FileCheck -check-prefix=LIB-NODEVICE %s
 // LIB-NODEVICE: 0: input, "somelib", object, (host-sycl)
 // LIB-NODEVICE: 1: clang-linker-wrapper, {0}, image, (host-sycl)
-
-// Checking for an error if c-compilation is forced
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// CHECK_XC_FSYCL: '-x c{{.*}}' must not be used in conjunction with '-fsycl'
 
 // -std=c++17 check (check all 3 compilations)
 // RUN: %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
