@@ -3908,16 +3908,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcGetEventHandleExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_ipc_put_event_handle_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcPutEventHandleExpParams(
-    const struct ur_ipc_put_event_handle_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_ipc_open_event_handle_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

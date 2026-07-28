@@ -528,8 +528,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_EVENT_CREATE_EXP = 322,
   /// Enumerator for ::urIPCGetEventHandleExp
   UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP = 323,
-  /// Enumerator for ::urIPCPutEventHandleExp
-  UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP = 324,
   /// Enumerator for ::urIPCOpenEventHandleExp
   UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP = 325,
   /// Enumerator for ::urGraphGetIdExp
@@ -11432,15 +11430,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 ///       ::UR_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that
 ///       flag, and events opened with ::urIPCOpenEventHandleExp, cannot be
 ///       exported.
-///     - On success, `ppIPCEventHandleData` receives an opaque byte buffer
-///       allocated and owned by the implementation, and
-///       `pIPCEventHandleDataSizeRet` receives its size. The contents of this
-///       buffer may be copied and transferred, by the application's own means,
-///       to another process on the same system, which passes those bytes to
-///       ::urIPCOpenEventHandleExp to obtain an event object that shares state
-///       with `hEvent`.
-///     - The returned handle data must be released in the originating process
-///       with ::urIPCPutEventHandleExp once it is no longer needed.
+///     - The handle data is written directly into the caller-provided buffer
+///       `pIPCEventHandleData`. No separate release call is required.
+///     - If `pIPCEventHandleData` is NULL, only `pIPCEventHandleDataSizeRet` is
+///       filled in (size query). The handle size is fixed for a given platform
+///       and can be queried once before allocating the buffer.
 ///     - Events created with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be
 ///       exported.
 ///
@@ -11452,8 +11446,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppIPCEventHandleData`
 ///         + `NULL == pIPCEventHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `pIPCEventHandleData != NULL` and `IPCEventHandleDataSize` is
+///         smaller than the platform's handle size
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///         + `hEvent` was not created with the ::UR_EXP_EVENT_FLAG_IPC_EXP
 ///         flag.
@@ -11467,39 +11463,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 UR_APIEXPORT ur_result_t UR_APICALL urIPCGetEventHandleExp(
     /// [in] handle of the event object
     ur_event_handle_t hEvent,
-    /// [out] a pointer to the IPC event handle data
-    void **ppIPCEventHandleData,
-    /// [out] size of the resulting IPC event handle data
+    /// [in] size of the buffer pointed to by `pIPCEventHandleData`; ignored
+    /// when `pIPCEventHandleData` is NULL
+    size_t IPCEventHandleDataSize,
+    /// [out][optional] caller-provided buffer to receive the IPC handle data;
+    /// if NULL, only the size is returned in `pIPCEventHandleDataSizeRet`
+    void *pIPCEventHandleData,
+    /// [out] size in bytes of the IPC event handle data
     size_t *pIPCEventHandleDataSizeRet);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Releases an inter-process event handle
-///
-/// @details
-///     - Releases the resources associated with IPC event handle data returned
-///       by ::urIPCGetEventHandleExp. Must be called in the same process that
-///       obtained the handle data. This does not destroy the source event and
-///       does not affect event objects already opened with
-///       ::urIPCOpenEventHandleExp.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pIPCEventHandleData`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL urIPCPutEventHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC event handle data obtained with
-    /// ::urIPCGetEventHandleExp
-    void *pIPCEventHandleData);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Opens an inter-process event handle to get the corresponding event
@@ -17051,18 +17022,10 @@ typedef struct ur_ipc_close_phys_mem_handle_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_ipc_get_event_handle_exp_params_t {
   ur_event_handle_t *phEvent;
-  void ***pppIPCEventHandleData;
+  size_t *pIPCEventHandleDataSize;
+  void **ppIPCEventHandleData;
   size_t **ppIPCEventHandleDataSizeRet;
 } ur_ipc_get_event_handle_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urIPCPutEventHandleExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_ipc_put_event_handle_exp_params_t {
-  ur_context_handle_t *phContext;
-  void **ppIPCEventHandleData;
-} ur_ipc_put_event_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urIPCOpenEventHandleExp

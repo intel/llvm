@@ -7649,15 +7649,11 @@ ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 ///       ::UR_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that
 ///       flag, and events opened with ::urIPCOpenEventHandleExp, cannot be
 ///       exported.
-///     - On success, `ppIPCEventHandleData` receives an opaque byte buffer
-///       allocated and owned by the implementation, and
-///       `pIPCEventHandleDataSizeRet` receives its size. The contents of this
-///       buffer may be copied and transferred, by the application's own means,
-///       to another process on the same system, which passes those bytes to
-///       ::urIPCOpenEventHandleExp to obtain an event object that shares state
-///       with `hEvent`.
-///     - The returned handle data must be released in the originating process
-///       with ::urIPCPutEventHandleExp once it is no longer needed.
+///     - The handle data is written directly into the caller-provided buffer
+///       `pIPCEventHandleData`. No separate release call is required.
+///     - If `pIPCEventHandleData` is NULL, only `pIPCEventHandleDataSizeRet` is
+///       filled in (size query). The handle size is fixed for a given platform
+///       and can be queried once before allocating the buffer.
 ///     - Events created with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be
 ///       exported.
 ///
@@ -7669,8 +7665,10 @@ ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppIPCEventHandleData`
 ///         + `NULL == pIPCEventHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `pIPCEventHandleData != NULL` and `IPCEventHandleDataSize` is
+///         smaller than the platform's handle size
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///         + `hEvent` was not created with the ::UR_EXP_EVENT_FLAG_IPC_EXP
 ///         flag.
@@ -7684,42 +7682,14 @@ ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 ur_result_t UR_APICALL urIPCGetEventHandleExp(
     /// [in] handle of the event object
     ur_event_handle_t hEvent,
-    /// [out] a pointer to the IPC event handle data
-    void **ppIPCEventHandleData,
-    /// [out] size of the resulting IPC event handle data
+    /// [in] size of the buffer pointed to by `pIPCEventHandleData`; ignored
+    /// when `pIPCEventHandleData` is NULL
+    size_t IPCEventHandleDataSize,
+    /// [out][optional] caller-provided buffer to receive the IPC handle data;
+    /// if NULL, only the size is returned in `pIPCEventHandleDataSizeRet`
+    void *pIPCEventHandleData,
+    /// [out] size in bytes of the IPC event handle data
     size_t *pIPCEventHandleDataSizeRet) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Releases an inter-process event handle
-///
-/// @details
-///     - Releases the resources associated with IPC event handle data returned
-///       by ::urIPCGetEventHandleExp. Must be called in the same process that
-///       obtained the handle data. This does not destroy the source event and
-///       does not affect event objects already opened with
-///       ::urIPCOpenEventHandleExp.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pIPCEventHandleData`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urIPCPutEventHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC event handle data obtained with
-    /// ::urIPCGetEventHandleExp
-    void *pIPCEventHandleData) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

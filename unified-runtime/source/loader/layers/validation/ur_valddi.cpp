@@ -9178,9 +9178,13 @@ __urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 __urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
     /// [in] handle of the event object
     ur_event_handle_t hEvent,
-    /// [out] a pointer to the IPC event handle data
-    void **ppIPCEventHandleData,
-    /// [out] size of the resulting IPC event handle data
+    /// [in] size of the buffer pointed to by `pIPCEventHandleData`; ignored
+    /// when `pIPCEventHandleData` is NULL
+    size_t IPCEventHandleDataSize,
+    /// [out][optional] caller-provided buffer to receive the IPC handle data;
+    /// if NULL, only the size is returned in `pIPCEventHandleDataSizeRet`
+    void *pIPCEventHandleData,
+    /// [out] size in bytes of the IPC event handle data
     size_t *pIPCEventHandleDataSizeRet) {
   auto pfnGetEventHandleExp =
       getContext()->urDdiTable.IPCExp.pfnGetEventHandleExp;
@@ -9190,9 +9194,6 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == ppIPCEventHandleData)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
     if (NULL == pIPCEventHandleDataSizeRet)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -9205,41 +9206,9 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
     URLOG_CTX_INVALID_REFERENCE(hEvent);
   }
 
-  ur_result_t result = pfnGetEventHandleExp(hEvent, ppIPCEventHandleData,
-                                            pIPCEventHandleDataSizeRet);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCPutEventHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCPutEventHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC event handle data obtained with
-    /// ::urIPCGetEventHandleExp
-    void *pIPCEventHandleData) {
-  auto pfnPutEventHandleExp =
-      getContext()->urDdiTable.IPCExp.pfnPutEventHandleExp;
-
-  if (nullptr == pfnPutEventHandleExp) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == pIPCEventHandleData)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hContext)) {
-    URLOG_CTX_INVALID_REFERENCE(hContext);
-  }
-
-  ur_result_t result = pfnPutEventHandleExp(hContext, pIPCEventHandleData);
+  ur_result_t result =
+      pfnGetEventHandleExp(hEvent, IPCEventHandleDataSize, pIPCEventHandleData,
+                           pIPCEventHandleDataSizeRet);
 
   return result;
 }
@@ -12985,9 +12954,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
 
   dditable.pfnGetEventHandleExp = pDdiTable->pfnGetEventHandleExp;
   pDdiTable->pfnGetEventHandleExp = ur_validation_layer::urIPCGetEventHandleExp;
-
-  dditable.pfnPutEventHandleExp = pDdiTable->pfnPutEventHandleExp;
-  pDdiTable->pfnPutEventHandleExp = ur_validation_layer::urIPCPutEventHandleExp;
 
   dditable.pfnOpenEventHandleExp = pDdiTable->pfnOpenEventHandleExp;
   pDdiTable->pfnOpenEventHandleExp =

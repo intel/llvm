@@ -1416,9 +1416,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP:
     os << "UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP";
     break;
-  case UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP:
-    os << "UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP";
-    break;
   case UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP:
     os << "UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP";
     break;
@@ -22195,35 +22192,19 @@ operator<<(std::ostream &os,
   ur::details::printPtr(os, *(params->phEvent));
 
   os << ", ";
-  os << ".ppIPCEventHandleData = ";
+  os << ".IPCEventHandleDataSize = ";
 
-  ur::details::printPtr(os, *(params->pppIPCEventHandleData));
-
-  os << ", ";
-  os << ".pIPCEventHandleDataSizeRet = ";
-
-  ur::details::printPtr(os, *(params->ppIPCEventHandleDataSizeRet));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_ipc_put_event_handle_exp_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_ipc_put_event_handle_exp_params_t
-               *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
+  os << *(params->pIPCEventHandleDataSize);
 
   os << ", ";
   os << ".pIPCEventHandleData = ";
 
   ur::details::printPtr(os, *(params->ppIPCEventHandleData));
+
+  os << ", ";
+  os << ".pIPCEventHandleDataSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppIPCEventHandleDataSizeRet));
 
   return os;
 }
@@ -23842,9 +23823,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP: {
     os << (const struct ur_ipc_get_event_handle_exp_params_t *)params;
-  } break;
-  case UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP: {
-    os << (const struct ur_ipc_put_event_handle_exp_params_t *)params;
   } break;
   case UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP: {
     os << (const struct ur_ipc_open_event_handle_exp_params_t *)params;

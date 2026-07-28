@@ -159,7 +159,6 @@
 		urIPCOpenEventHandleExp;
 		urIPCOpenMemHandleExp;
 		urIPCOpenPhysMemHandleExp;
-		urIPCPutEventHandleExp;
 		urIPCPutMemHandleExp;
 		urIPCPutPhysMemHandleExp;
 		urKernelCreate;
@@ -423,7 +422,6 @@
 		urPrintIpcOpenEventHandleExpParams;
 		urPrintIpcOpenMemHandleExpParams;
 		urPrintIpcOpenPhysMemHandleExpParams;
-		urPrintIpcPutEventHandleExpParams;
 		urPrintIpcPutMemHandleExpParams;
 		urPrintIpcPutPhysMemHandleExpParams;
 		urPrintKernelArgLocalProperties;

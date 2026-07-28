@@ -9860,14 +9860,19 @@ __urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 __urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
     /// [in] handle of the event object
     ur_event_handle_t hEvent,
-    /// [out] a pointer to the IPC event handle data
-    void **ppIPCEventHandleData,
-    /// [out] size of the resulting IPC event handle data
+    /// [in] size of the buffer pointed to by `pIPCEventHandleData`; ignored
+    /// when `pIPCEventHandleData` is NULL
+    size_t IPCEventHandleDataSize,
+    /// [out][optional] caller-provided buffer to receive the IPC handle data;
+    /// if NULL, only the size is returned in `pIPCEventHandleDataSizeRet`
+    void *pIPCEventHandleData,
+    /// [out] size in bytes of the IPC event handle data
     size_t *pIPCEventHandleDataSizeRet) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_ipc_get_event_handle_exp_params_t params = {&hEvent, &ppIPCEventHandleData,
-                                                 &pIPCEventHandleDataSizeRet};
+  ur_ipc_get_event_handle_exp_params_t params = {
+      &hEvent, &IPCEventHandleDataSize, &pIPCEventHandleData,
+      &pIPCEventHandleDataSizeRet};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urIPCGetEventHandleExp"));
@@ -9893,52 +9898,6 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback("urIPCGetEventHandleExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCPutEventHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCPutEventHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC event handle data obtained with
-    /// ::urIPCGetEventHandleExp
-    void *pIPCEventHandleData) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_ipc_put_event_handle_exp_params_t params = {&hContext,
-                                                 &pIPCEventHandleData};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urIPCPutEventHandleExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urIPCPutEventHandleExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urIPCPutEventHandleExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -14122,8 +14081,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
   pDdiTable->pfnClosePhysMemHandleExp = driver::urIPCClosePhysMemHandleExp;
 
   pDdiTable->pfnGetEventHandleExp = driver::urIPCGetEventHandleExp;
-
-  pDdiTable->pfnPutEventHandleExp = driver::urIPCPutEventHandleExp;
 
   pDdiTable->pfnOpenEventHandleExp = driver::urIPCOpenEventHandleExp;
 

@@ -643,10 +643,9 @@ ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
 ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t hContext,
                                        ur_physical_mem_handle_t hPhysMem);
 ur_result_t urIPCGetEventHandleExp(ur_event_handle_t hEvent,
-                                   void **ppIPCEventHandleData,
+                                   size_t IPCEventHandleDataSize,
+                                   void *pIPCEventHandleData,
                                    size_t *pIPCEventHandleDataSizeRet);
-ur_result_t urIPCPutEventHandleExp(ur_context_handle_t hContext,
-                                   void *pIPCEventHandleData);
 ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t hContext,
                                     const void *pIPCEventHandleData,
                                     size_t ipcEventHandleDataSize,

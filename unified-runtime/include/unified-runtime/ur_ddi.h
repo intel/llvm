@@ -2025,13 +2025,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnIPCClosePhysMemHandleExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCGetEventHandleExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCGetEventHandleExp_t)(ur_event_handle_t,
-                                                              void **,
+                                                              size_t, void *,
                                                               size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urIPCPutEventHandleExp
-typedef ur_result_t(UR_APICALL *ur_pfnIPCPutEventHandleExp_t)(
-    ur_context_handle_t, void *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCOpenEventHandleExp
@@ -2050,7 +2045,6 @@ typedef struct ur_ipc_exp_dditable_t {
   ur_pfnIPCOpenPhysMemHandleExp_t pfnOpenPhysMemHandleExp;
   ur_pfnIPCClosePhysMemHandleExp_t pfnClosePhysMemHandleExp;
   ur_pfnIPCGetEventHandleExp_t pfnGetEventHandleExp;
-  ur_pfnIPCPutEventHandleExp_t pfnPutEventHandleExp;
   ur_pfnIPCOpenEventHandleExp_t pfnOpenEventHandleExp;
 } ur_ipc_exp_dditable_t;
 

@@ -4748,9 +4748,13 @@ __urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 __urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
     /// [in] handle of the event object
     ur_event_handle_t hEvent,
-    /// [out] a pointer to the IPC event handle data
-    void **ppIPCEventHandleData,
-    /// [out] size of the resulting IPC event handle data
+    /// [in] size of the buffer pointed to by `pIPCEventHandleData`; ignored
+    /// when `pIPCEventHandleData` is NULL
+    size_t IPCEventHandleDataSize,
+    /// [out][optional] caller-provided buffer to receive the IPC handle data;
+    /// if NULL, only the size is returned in `pIPCEventHandleDataSizeRet`
+    void *pIPCEventHandleData,
+    /// [out] size in bytes of the IPC event handle data
     size_t *pIPCEventHandleDataSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hEvent);
@@ -4760,27 +4764,8 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnGetEventHandleExp(hEvent, ppIPCEventHandleData,
-                              pIPCEventHandleDataSizeRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCPutEventHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCPutEventHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC event handle data obtained with
-    /// ::urIPCGetEventHandleExp
-    void *pIPCEventHandleData) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnPutEventHandleExp = dditable->IPCExp.pfnPutEventHandleExp;
-  if (nullptr == pfnPutEventHandleExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnPutEventHandleExp(hContext, pIPCEventHandleData);
+  return pfnGetEventHandleExp(hEvent, IPCEventHandleDataSize,
+                              pIPCEventHandleData, pIPCEventHandleDataSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7208,7 +7193,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
       pDdiTable->pfnClosePhysMemHandleExp =
           ur_loader::urIPCClosePhysMemHandleExp;
       pDdiTable->pfnGetEventHandleExp = ur_loader::urIPCGetEventHandleExp;
-      pDdiTable->pfnPutEventHandleExp = ur_loader::urIPCPutEventHandleExp;
       pDdiTable->pfnOpenEventHandleExp = ur_loader::urIPCOpenEventHandleExp;
     } else {
       // return pointers directly to platform's DDIs
