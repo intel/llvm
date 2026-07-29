@@ -9250,7 +9250,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // For all the host SYCL offloading compile jobs we need to pass the targets
   // information using -fsycl-targets= option.
-  if (isa<CompileJobAction>(JA) && JA.isHostOffloading(Action::OFK_SYCL)) {
+  // Skip the TY_LLVM_BC case: with --save-temps the compile phase is a
+  // separate cc1 invocation that does not need -fsycl-targets=, and passing it
+  // (an alias for --offload-targets=) would trigger spurious OpenMP target
+  // triple validation on SYCL-specific names like 'intel_gpu_pvc'.
+  if (isa<CompileJobAction>(JA) && JA.isHostOffloading(Action::OFK_SYCL) &&
+      JA.getType() != types::TY_LLVM_BC) {
     SmallString<128> TargetInfo("-fsycl-targets=");
 
     if (Arg *Tgts = Args.getLastArg(options::OPT_offload_targets_EQ)) {
