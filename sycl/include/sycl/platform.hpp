@@ -207,13 +207,13 @@ public:
 #pragma clang diagnostic pop
 #endif // defined(__clang__)
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Return this platform's default context
   ///
   /// \return the default context
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DEPRECATED("use khr_get_default_context() instead")
   context ext_oneapi_get_default_context() const;
-#endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   std::vector<device> ext_oneapi_get_composite_devices() const;
 

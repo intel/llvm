@@ -11,8 +11,13 @@ v0.1
 
 == Status
 
-This extension has been removed and is no longer supported in {dpcpp}.
-Applications should use the `sycl_khr_default_context` extension instead.
+This extension has been deprecated.  Although it is still supported in {dpcpp},
+we expect that the interfaces defined in this specification will be removed in
+an upcoming {dpcpp} release.  *Shipping software products should stop using
+APIs defined in this specification and use an alternative instead.*
+
+// __INTEL_PREVIEW_BREAKING_CHANGES: Move this specification to the "removed"
+// folder when the feature is removed at the next breaking changes window.
 
 == Overview
 

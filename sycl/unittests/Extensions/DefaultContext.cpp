@@ -37,7 +37,7 @@ void test_default_context_enabled() {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   ASSERT_EQ(Dev1.get_platform().ext_oneapi_get_default_context(),
             Dev2.get_platform().ext_oneapi_get_default_context());
-#endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   ASSERT_EQ(Dev1.get_platform().khr_get_default_context(),
             Dev2.get_platform().khr_get_default_context());
@@ -58,7 +58,7 @@ void test_default_context_disabled() {
   ASSERT_TRUE(catchException)
       << "ext_oneapi_get_default_context did not throw an exception";
 }
-#endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 TEST(DefaultContextTest, DefaultContextTest) {
   using namespace sycl::detail;
@@ -86,7 +86,7 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
   sycl::detail::enable_ext_oneapi_default_context(true);
   test_default_context_enabled();
 }
-#endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 TEST(DefaultContextTest, DefaultContextValueChangedAfterQueueCreated) {
   sycl::detail::enable_ext_oneapi_default_context(false);
