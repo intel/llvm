@@ -5,6 +5,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: target-native-cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // This test checks the interaction between a launch_config carrying a
 // work_group_scratch_size property and free function kernels launched through
 // nd_launch. A launch_config is often shared across several kernels, some of
@@ -81,8 +84,8 @@ int main() {
   // Kernel that does use scratch: the requested size must be honored.
   for (int I = 0; I < SIZE; ++I)
     Dst[I] = 0;
-  syclexp::nd_launch(Q, Config, syclexp::kernel_function<squareWithScratch>, Src,
-                     Dst);
+  syclexp::nd_launch(Q, Config, syclexp::kernel_function<squareWithScratch>,
+                     Src, Dst);
   Q.wait();
   for (int I = 0; I < SIZE; ++I)
     assert(Dst[I] == Src[I] * Src[I]);
