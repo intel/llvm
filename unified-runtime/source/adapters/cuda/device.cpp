@@ -1232,17 +1232,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // std::array<std::byte, 8>. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     std::array<char, 8> LUID{};
-    cuDeviceGetLuid(LUID.data(), nullptr, hDevice->get());
+    unsigned int nodeMask = 0;
+    // Must pass both parameters - CUDA returns SUCCESS with zeros on
+    // unsupported platforms
+    CUresult Result = cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
+    
+    // CUDA_ERROR_NOT_SUPPORTED means LUID is not available on this platform
+    if (Result == CUDA_ERROR_NOT_SUPPORTED) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    UR_CHECK_ERROR(Result);
 
     bool isAllZeros = true;
     for (char num : LUID) {
       if (num != 0) {
         isAllZeros = false;
+        break;
       }
     }
 
     if (isAllZeros) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
     std::array<unsigned char, 8> Name{};
@@ -1254,12 +1264,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // Intel extension for device node mask. This returns the node mask as
     // uint32_t. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-    uint32_t nodeMask = 0;
-    cuDeviceGetLuid(nullptr, &nodeMask, hDevice->get());
+    std::array<char, 8> LUID{};
+    unsigned int nodeMask = 0;
+    // Must pass both parameters - CUDA returns SUCCESS with zeros on
+    // unsupported platforms
+    CUresult Result = cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
+    
+    // CUDA_ERROR_NOT_SUPPORTED means node mask is not available on this
+    // platform
+    if (Result == CUDA_ERROR_NOT_SUPPORTED) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    UR_CHECK_ERROR(Result);
 
-    // If nodeMask has not changed, return unsupported.
+    // If nodeMask is zero, the feature is not supported on this platform
     if (nodeMask == 0) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
     return ReturnValue(nodeMask);
