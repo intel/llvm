@@ -389,18 +389,15 @@ config.level_zero_include = quote_path(
     )
 )
 
-level_zero_include_option = "-I" + config.level_zero_include
-
 level_zero_options = level_zero_options = (
     (" -L" + config.level_zero_libs_dir if config.level_zero_libs_dir else "")
     + " -lze_loader "
-    + " "
-    + level_zero_include_option
+    + " -I"
+    + config.level_zero_include
 )
 if cl_options:
     if is_windows_unc_network_path(level_zero_win_lib):
         level_zero_win_lib = normalize_windows_network_path(level_zero_win_lib)
-    level_zero_include_option = "/I" + config.level_zero_include
     level_zero_options = (
         " "
         + (
@@ -408,8 +405,8 @@ if cl_options:
             if config.level_zero_libs_dir
             else "ze_loader.lib"
         )
-        + " "
-        + level_zero_include_option
+        + " /I"
+        + config.level_zero_include
     )
 
 config.substitutions.append(("%level_zero_options", level_zero_options))
@@ -431,6 +428,8 @@ with test_env():
 if "level_zero_dev_kit" in config.available_features:
     # This trick relies on ZE_API_VERSION_CURRENT_M being defined as
     # ZE_MAKE_VERSION(<major>, <minor>). That could change in the future
+    include_flag = "/I" if cl_options else "-I"
+    level_zero_include_option = include_flag + config.level_zero_include
     check_l0_version_file = "l0_version.cpp"
     with open_check_file(check_l0_version_file) as fp:
         print("#include <level_zero/ze_api.h>", file=fp)
