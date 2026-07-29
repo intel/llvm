@@ -70,7 +70,8 @@ static int producer(const std::string &Exe) {
       {"sigdata_handles_ready", "sigdata_signal_done",
        "sigdata_producer_synced", "sigdata_consumer_done"});
 
-  sycl::event Evt = exp::make_event(Ctx, exp::properties{exp::enable_ipc});
+  sycl::event Evt =
+      exp::make_event(Ctx, exp::properties{exp::enable_ipc{true}});
   ipc::handle EvtHandle = ipc::event::get(Evt);
 
   // Allocate and poison the shared buffer before exporting it.

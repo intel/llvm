@@ -31,7 +31,7 @@ int main() {
 
   // 1. Create + signal the producer event via the reusable-events API.
   sycl::event ProducerEvt =
-      exp::make_event(Ctx, exp::properties{exp::enable_ipc});
+      exp::make_event(Ctx, exp::properties{exp::enable_ipc{true}});
   exp::enqueue_signal_event(Q, ProducerEvt);
   ProducerEvt.wait();
 

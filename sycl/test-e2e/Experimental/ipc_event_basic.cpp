@@ -23,7 +23,8 @@ int main() {
     return 1;
 
   // 2. make_event(enable_ipc) produces an IPC-capable event.
-  sycl::event IpcEvt = exp::make_event(Ctx, exp::properties{exp::enable_ipc});
+  sycl::event IpcEvt =
+      exp::make_event(Ctx, exp::properties{exp::enable_ipc{true}});
   if (!IpcEvt.ext_oneapi_ipc_enabled())
     return 2;
 

@@ -79,7 +79,8 @@ static int producer(const std::string &Exe) {
        "repeat_signal2_ready", "repeat_consumed2", "repeat_consumer_failed",
        "repeat_producer_done", "repeat_consumer_done"});
 
-  sycl::event Evt = exp::make_event(Ctx, exp::properties{exp::enable_ipc});
+  sycl::event Evt =
+      exp::make_event(Ctx, exp::properties{exp::enable_ipc{true}});
   ipc::handle EvtHandle = ipc::event::get(Evt);
 
   int *Buf = sycl::malloc_device<int>(NumElems, Q);
