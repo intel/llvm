@@ -19161,8 +19161,7 @@ void Sema::ActOnCXXEnterDeclInitializer(Scope *S, Decl *D) {
     EnterDeclaratorContext(S, D->getDeclContext());
 
   if (auto *VD = dyn_cast<VarDecl>(D);
-      VD && LangOpts.SYCLIsDevice &&
-      VD->mightBeUsableInConstantExpressions(Context))
+      VD && (VD->mightBeUsableInConstantExpressions(Context)))
     InConstexprVarInit = true;
   PushExpressionEvaluationContext(
       ExpressionEvaluationContext::PotentiallyEvaluated, D,
