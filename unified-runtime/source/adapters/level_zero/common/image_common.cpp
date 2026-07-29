@@ -366,9 +366,11 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
       (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
-  std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
+  // Exclusive lock: the map below is mutated; unlock() (not release()) is
+  // required so the device mutex is actually released afterwards.
+  std::unique_lock<ur_shared_mutex> Lock(hDevice->Mutex);
   hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage.get();
-  Lock.release();
+  Lock.unlock();
   ZeImage.release();
 
   return UR_RESULT_SUCCESS;
@@ -1167,16 +1169,18 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
   (void)hDevice;
   UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
+  // Exclusive lock: the map below is mutated; unlock() (not release()) is
+  // required so the device mutex is actually released afterwards.
+  std::unique_lock<ur_shared_mutex> Lock(hDevice->Mutex);
   auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
 
   if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
     auto *handle = item->second;
     hDevice->ZeOffsetToImageHandleMap.erase(item);
-    Lock.release();
+    Lock.unlock();
     ZE2UR_CALL(zeImageDestroy, (handle));
   } else {
-    Lock.release();
+    Lock.unlock();
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
