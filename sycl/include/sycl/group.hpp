@@ -301,7 +301,8 @@ public:
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
-  __SYCL_DEPRECATED("Removed in SYCL 2020") void mem_fence(
+  __SYCL_DEPRECATED("Removed in SYCL 2020")
+  void mem_fence(
       [[maybe_unused]]
       typename std::enable_if_t<accessMode == access::mode::read ||
                                     accessMode == access::mode::write ||
