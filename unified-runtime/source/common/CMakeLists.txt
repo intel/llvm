@@ -84,6 +84,10 @@ if(UR_USE_EXTERNAL_UMF)
 endif()
 if(umf_FOUND)
   message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
+  # Promote umf::umf and umf::umf_headers IMPORTED targets to global scope so
+  # sibling subdirectories (loader, adapters) can link against them.
+  set_target_properties(umf::umf PROPERTIES IMPORTED_GLOBAL TRUE)
+  set_target_properties(umf::umf_headers PROPERTIES IMPORTED_GLOBAL TRUE)
   # Add an alias matching the FetchContent case
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
