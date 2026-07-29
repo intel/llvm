@@ -8,10 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_buffer_command.hpp"
+#include "interfaces.hpp"
 
 #include "unified-runtime/ur_api.h"
-#include "ur_interface_loader.hpp"
-#include "ur_level_zero.hpp"
+#include "unified-runtime/ur_ddi.h"
+
+namespace ur::level_zero {
 
 kernel_command_handle::kernel_command_handle(
     ur_exp_command_buffer_handle_t commandBuffer, ur_kernel_handle_t kernel,
@@ -20,12 +22,13 @@ kernel_command_handle::kernel_command_handle(
     : ur_exp_command_buffer_command_handle_t_(commandBuffer, commandId),
       workDim(workDim), kernel(kernel) {
   // Add the default kernel to the list of valid kernels
-  ur::level_zero::urKernelRetain(kernel);
+  ddiTableOf(kernel)->Kernel.pfnRetain(kernel);
   validKernelHandles.insert(kernel);
   // Add alternative kernels if provided
   if (kernelAlternatives) {
     for (size_t i = 0; i < numKernelAlternatives; i++) {
-      ur::level_zero::urKernelRetain(kernelAlternatives[i]);
+      ddiTableOf(kernelAlternatives[i])
+          ->Kernel.pfnRetain(kernelAlternatives[i]);
       validKernelHandles.insert(kernelAlternatives[i]);
     }
   }
@@ -33,6 +36,8 @@ kernel_command_handle::kernel_command_handle(
 
 kernel_command_handle::~kernel_command_handle() {
   for (const ur_kernel_handle_t &kernelHandle : validKernelHandles) {
-    ur::level_zero::urKernelRelease(kernelHandle);
+    ddiTableOf(kernelHandle)->Kernel.pfnRelease(kernelHandle);
   }
 }
+
+} // namespace ur::level_zero

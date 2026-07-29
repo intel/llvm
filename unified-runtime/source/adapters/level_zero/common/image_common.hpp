@@ -1,9 +1,10 @@
 //===--------- image_common.hpp - Level Zero Adapter
 //--------------------===//
 //
+// Copyright (C) 2024-2025 Intel Corporation
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM
-// Exceptions. See https://llvm.org/LICENSE.txt for license information.
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -13,7 +14,10 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "v2/common.hpp"
+#include "../v2/common.hpp"
+#include "device.hpp"
+
+namespace ur::level_zero {
 
 struct ur_bindless_mem_handle_t {
   // Constructor for bindless image handle
@@ -89,3 +93,10 @@ bool verifyCommonImagePropertiesSupport(
     const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
     const ur_image_format_t *pImageFormat,
     ur_exp_image_mem_type_t imageMemHandleType);
+
+ur_result_t
+urBindlessImagesMipmapFreeExp(::ur_context_handle_t hContext,
+                              ::ur_device_handle_t hDevice,
+                              ur_exp_image_mem_native_handle_t hMem);
+
+} // namespace ur::level_zero

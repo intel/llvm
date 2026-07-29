@@ -7,19 +7,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "common.hpp"
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
-#include "context.hpp"
-#endif
+#include "device.hpp"
+#include "interfaces.hpp"
 #include "unified-runtime/ur_api.h"
 
 namespace ur::level_zero {
 
 ur_result_t urMemoryExportAllocExportableMemoryExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
-    size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem) {
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
+    size_t alignment, size_t size,
+    ur_exp_external_mem_type_t handleTypeToExport, void **ppMem) {
+  auto hContext = common_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
 
   UR_ASSERT(handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD ||
                 handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT ||
@@ -54,16 +53,19 @@ ur_result_t urMemoryExportAllocExportableMemoryExp(
 }
 
 ur_result_t urMemoryExportFreeExportableMemoryExp(
-    ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
-    void *pMem) {
+    ::ur_context_handle_t hContextOpque,
+    [[maybe_unused]] ::ur_device_handle_t hDeviceOpque, void *pMem) {
+  auto hContext = common_cast(hContextOpque);
   ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pMem));
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urMemoryExportExportMemoryHandleExp(
-    ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque,
+    [[maybe_unused]] ::ur_device_handle_t hDeviceOpque,
     ur_exp_external_mem_type_t handleTypeToExport, void *pMem,
     void *pMemHandleRet) {
+  auto hContext = common_cast(hContextOpque);
 
   ze_memory_allocation_properties_t MemAllocProps{};
   MemAllocProps.stype = ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;

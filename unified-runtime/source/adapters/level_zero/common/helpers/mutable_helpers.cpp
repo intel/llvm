@@ -9,9 +9,12 @@
 
 #include "mutable_helpers.hpp"
 #include "../device.hpp"
-#include "../ur_interface_loader.hpp"
-#include "../ur_level_zero.hpp"
+#include "adapters/level_zero/common/command_buffer_command.hpp"
 #include "kernel_helpers.hpp"
+#include "unified-runtime/ur_api.h"
+#include <memory>
+
+namespace ur::level_zero {
 
 using desc_storage_t = std::vector<std::variant<
     std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>,
@@ -315,10 +318,13 @@ ur_result_t updateCommandBufferUnlocked(
   // several L0 update descriptor structs.
   for (uint32_t i = 0; i < NumKernelUpdates; i++) {
     const auto &CommandDesc = CommandDescs[i];
-    auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
+    auto Command =
+        static_cast<kernel_command_handle *>(common_cast(CommandDesc.hCommand));
 
-    std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Guard(
-        Command->Mutex, Command->kernel->Mutex);
+    auto &KernelMutex =
+        reinterpret_cast<handle_head_t *>(Command->kernel)->Mutex;
+    std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Guard(Command->Mutex,
+                                                             KernelMutex);
 
     ur_kernel_handle_t NewKernel = CommandDesc.hNewKernel;
     if (NewKernel && Command->kernel != NewKernel) {
@@ -364,7 +370,8 @@ ur_result_t validateCommandDescUnlocked(
 
   for (size_t i = 0; i < CommandDescSize; i++) {
     const auto &CommandDesc = CommandDescs[i];
-    auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
+    auto Command =
+        static_cast<kernel_command_handle *>(common_cast(CommandDesc.hCommand));
     UR_ASSERT(CommandBuffer == Command->commandBuffer,
               UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP);
 
@@ -444,6 +451,9 @@ ur_result_t createCommandHandleUnlocked(
     ur_platform_handle_t Platform,
     ur_result_t (*GetZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
                                ur_device_handle_t),
+    kernel_command_handle *(*CreateCommandHandle)(
+        ur_exp_command_buffer_handle_t, ur_kernel_handle_t, uint64_t, uint32_t,
+        uint32_t, ur_kernel_handle_t *),
     ur_device_handle_t Device,
     std::unique_ptr<kernel_command_handle> &Command) {
 
@@ -505,10 +515,9 @@ ur_result_t createCommandHandleUnlocked(
   }
 
   try {
-    Command = std::make_unique<kernel_command_handle>(
-        CommandBuffer, Kernel, CommandId, WorkDim, NumKernelAlternatives,
-        KernelAlternatives);
-
+    Command = std::unique_ptr<kernel_command_handle>(
+        CreateCommandHandle(CommandBuffer, Kernel, CommandId, WorkDim,
+                            NumKernelAlternatives, KernelAlternatives));
     Command->setGlobalWorkSize(GlobalWorkSize);
 
   } catch (const std::bad_alloc &) {
@@ -519,3 +528,5 @@ ur_result_t createCommandHandleUnlocked(
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::level_zero

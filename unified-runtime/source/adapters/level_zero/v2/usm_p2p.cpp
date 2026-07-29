@@ -7,11 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../device.hpp"
+#include "../common/device.hpp"
+#include "../common/platform.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::v2 {
 
 // Validates that two devices are compatible for P2P operations: both must have
 // an assigned Id, must belong to the same platform (i.e. share the same device
@@ -69,34 +70,41 @@ static ur_result_t urUsmP2PChangePeerAccessExp(ur_device_handle_t commandDevice,
   // Copy the context list under the mutex and iterate outside the critical
   // section to avoid holding ContextsMutex during potentially heavy
   // changeResidentDevice calls and to reduce deadlock risk.
-  std::list<ur_context_handle_t> Contexts;
+  std::list<::ur_context_handle_t> Contexts;
   {
     std::scoped_lock<ur_shared_mutex> Lock(Platform->ContextsMutex);
     Contexts = Platform->Contexts;
   }
   UR_LOG(INFO, "changing peers in {} contexts", Contexts.size());
   for (auto Context : Contexts) {
-    Context->changeResidentDevice(peerDevice, commandDevice, isAdding);
+    v2_cast(Context)->changeResidentDevice(peerDevice, commandDevice, isAdding);
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t commandDevice,
-                                        ur_device_handle_t peerDevice) {
+ur_result_t urUsmP2PEnablePeerAccessExp(::ur_device_handle_t commandDeviceOpque,
+                                        ::ur_device_handle_t peerDeviceOpque) {
+  auto commandDevice = common_cast(commandDeviceOpque);
+  auto peerDevice = common_cast(peerDeviceOpque);
   return urUsmP2PChangePeerAccessExp(commandDevice, peerDevice, true);
 }
 
-ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t commandDevice,
-                                         ur_device_handle_t peerDevice) {
+ur_result_t
+urUsmP2PDisablePeerAccessExp(::ur_device_handle_t commandDeviceOpque,
+                             ::ur_device_handle_t peerDeviceOpque) {
+  auto commandDevice = common_cast(commandDeviceOpque);
+  auto peerDevice = common_cast(peerDeviceOpque);
   return urUsmP2PChangePeerAccessExp(commandDevice, peerDevice, false);
 }
 
-ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
-                                         ur_device_handle_t peerDevice,
-                                         ur_exp_peer_info_t propName,
-                                         size_t propSize, void *pPropValue,
-                                         size_t *pPropSizeRet) {
+ur_result_t
+urUsmP2PPeerAccessGetInfoExp(::ur_device_handle_t commandDeviceOpque,
+                             ::ur_device_handle_t peerDeviceOpque,
+                             ur_exp_peer_info_t propName, size_t propSize,
+                             void *pPropValue, size_t *pPropSizeRet) {
+  auto commandDevice = common_cast(commandDeviceOpque);
+  auto peerDevice = common_cast(peerDeviceOpque);
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
@@ -125,4 +133,4 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
 
   return ReturnValue(propertyValue);
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

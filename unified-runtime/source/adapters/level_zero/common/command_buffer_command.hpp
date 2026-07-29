@@ -7,14 +7,22 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
-#include "common.hpp"
+#include "interfaces.hpp"
+#include <cstring>
 #include <unified-runtime/ur_api.h>
 #include <unordered_set>
+#include <ur/ur.hpp>
 
-struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
+namespace ur::level_zero {
+
+struct ur_exp_command_buffer_command_handle_t_ : public ur_object_t {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t commandBuffer, uint64_t commandId)
-      : commandBuffer(commandBuffer), commandId(commandId) {}
+      : commandBuffer(commandBuffer), commandId(commandId) {
+    // Auto-populate ddi_table from the owning command buffer so the loader's
+    // intercept layer can dispatch this handle back to the correct adapter.
+    ddi_table = ddiTableOf(commandBuffer);
+  }
 
   virtual ~ur_exp_command_buffer_command_handle_t_() {}
 
@@ -50,3 +58,5 @@ struct kernel_command_handle : public ur_exp_command_buffer_command_handle_t_ {
   // Storage for valid kernel alternatives for this command.
   std::unordered_set<ur_kernel_handle_t> validKernelHandles;
 };
+
+} // namespace ur::level_zero

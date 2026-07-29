@@ -7,10 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "common.hpp"
+#include "shared_helpers.hpp"
 #include "logger/ur_logger.hpp"
-#include "usm.hpp"
-#include <level_zero/ze_api.h>
+#include <cstring>
+#include <mutex>
+#include <ze_api.h>
+
+std::mutex ur::level_zero::ZeCall::GlobalLock;
+
+namespace ur::level_zero {
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -396,3 +401,5 @@ thread_local int32_t ErrorAdapterNativeCode;
   ErrorMessageCode = ErrorCode;
   ErrorAdapterNativeCode = AdapterErrorCode;
 }
+
+} // namespace ur::level_zero

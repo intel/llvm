@@ -7,23 +7,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "common.hpp"
 #include "device.hpp"
+#include "interfaces.hpp"
 #include "logger/ur_logger.hpp"
 #include "physical_mem.hpp"
-
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
-#include "context.hpp"
-#endif
 
 namespace ur::level_zero {
 
 ur_result_t urVirtualMemGranularityGetInfo(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     size_t allocationSize, ur_virtual_mem_granularity_info_t propName,
     size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+  auto hContext = common_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
+
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   switch (propName) {
   case UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM:
@@ -38,32 +35,40 @@ ur_result_t urVirtualMemGranularityGetInfo(
     return ReturnValue(PageSize);
   }
   default:
-    UR_LOG(ERR, "Unsupported propName in urQueueGetInfo: propName={}({})",
+    UR_LOG(ERR,
+           "Unsupported propName in urVirtualMemGranularityGetInfo: "
+           "propName={}({})",
            propName, propName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urVirtualMemReserve(ur_context_handle_t hContext,
+ur_result_t urVirtualMemReserve(::ur_context_handle_t hContextOpque,
                                 const void *pStart, size_t size,
                                 void **ppStart) {
+  auto hContext = common_cast(hContextOpque);
+
   ZE2UR_CALL(zeVirtualMemReserve,
              (hContext->getZeHandle(), pStart, size, ppStart));
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urVirtualMemFree(ur_context_handle_t hContext, const void *pStart,
-                             size_t size) {
+ur_result_t urVirtualMemFree(::ur_context_handle_t hContextOpque,
+                             const void *pStart, size_t size) {
+  auto hContext = common_cast(hContextOpque);
+
   ZE2UR_CALL(zeVirtualMemFree, (hContext->getZeHandle(), pStart, size));
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urVirtualMemSetAccess(ur_context_handle_t hContext,
+ur_result_t urVirtualMemSetAccess(::ur_context_handle_t hContextOpque,
                                   const void *pStart, size_t size,
                                   ur_virtual_mem_access_flags_t flags) {
+  auto hContext = common_cast(hContextOpque);
+
   ze_memory_access_attribute_t AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_NONE;
   if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE;
@@ -76,10 +81,14 @@ ur_result_t urVirtualMemSetAccess(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urVirtualMemMap(ur_context_handle_t hContext, const void *pStart,
-                            size_t size, ur_physical_mem_handle_t hPhysicalMem,
+ur_result_t urVirtualMemMap(::ur_context_handle_t hContextOpque,
+                            const void *pStart, size_t size,
+                            ::ur_physical_mem_handle_t hPhysicalMemOpque,
                             size_t offset,
                             ur_virtual_mem_access_flags_t flags) {
+  auto hContext = common_cast(hContextOpque);
+  auto hPhysicalMem = common_cast(hPhysicalMemOpque);
+
   ze_memory_access_attribute_t AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_NONE;
   if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE;
@@ -93,18 +102,22 @@ ur_result_t urVirtualMemMap(ur_context_handle_t hContext, const void *pStart,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urVirtualMemUnmap(ur_context_handle_t hContext, const void *pStart,
-                              size_t size) {
+ur_result_t urVirtualMemUnmap(::ur_context_handle_t hContextOpque,
+                              const void *pStart, size_t size) {
+  auto hContext = common_cast(hContextOpque);
+
   ZE2UR_CALL(zeVirtualMemUnmap, (hContext->getZeHandle(), pStart, size));
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urVirtualMemGetInfo(ur_context_handle_t hContext,
+ur_result_t urVirtualMemGetInfo(::ur_context_handle_t hContextOpque,
                                 const void *pStart,
                                 [[maybe_unused]] size_t size,
                                 ur_virtual_mem_info_t propName, size_t propSize,
                                 void *pPropValue, size_t *pPropSizeRet) {
+  auto hContext = common_cast(hContextOpque);
+
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   switch (propName) {
   case UR_VIRTUAL_MEM_INFO_ACCESS_MODE: {
@@ -120,7 +133,7 @@ ur_result_t urVirtualMemGetInfo(ur_context_handle_t hContext,
     return ReturnValue(RetFlags);
   }
   default:
-    UR_LOG(ERR, "Unsupported propName in urQueueGetInfo: propName={}({})",
+    UR_LOG(ERR, "Unsupported propName in urVirtualMemGetInfo: propName={}({})",
            propName, propName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }

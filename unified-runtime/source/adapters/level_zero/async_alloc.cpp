@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "common/enqueued_pool.hpp"
 #include "context.hpp"
-#include "enqueued_pool.hpp"
 #include "event.hpp"
 
 #include "logger/ur_logger.hpp"
@@ -16,7 +16,7 @@
 #include <umf_helpers.hpp>
 #include <unified-runtime/ur_api.h>
 
-namespace ur::level_zero {
+namespace ur::level_zero::v1 {
 
 static ur_result_t enqueueUSMAllocHelper(
     ur_queue_handle_t Queue, ur_usm_pool_handle_t Pool, const size_t Size,
@@ -115,110 +115,121 @@ static ur_result_t enqueueUSMAllocHelper(
 }
 
 ur_result_t urEnqueueUSMDeviceAllocExp(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
-    ur_usm_pool_handle_t Pool, ///< [in][optional] USM pool descriptor
+    ::ur_queue_handle_t QueueOpque,   ///< [in] handle of the queue object
+    ::ur_usm_pool_handle_t PoolOpque, ///< [in][optional] USM pool descriptor
     const size_t Size, ///< [in] minimum size in bytes of the USM memory object
                        ///< to be allocated
     const ur_exp_async_usm_alloc_properties_t
         *Properties, ///< [in][optional] pointer to the enqueue asynchronous
                      ///< USM allocation properties
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating no wait
-                        ///< events.
-    void **Mem,         ///< [out] pointer to USM memory object
-    ur_event_handle_t *OutEvent ///< [out][optional] return an event object that
-                                ///< identifies the async alloc
+    const ::ur_event_handle_t
+        *EventWaitListOpque, ///< [in][optional][range(0, numEventsInWaitList)]
+                             ///< pointer to a list of events that must be
+                             ///< complete before the kernel execution. If
+                             ///< nullptr, the numEventsInWaitList must be 0,
+                             ///< indicating no wait events.
+    void **Mem,              ///< [out] pointer to USM memory object
+    ::ur_event_handle_t
+        *OutEventOpque ///< [out][optional] return an event
+                       ///< object that identifies the async alloc
 ) {
-  return enqueueUSMAllocHelper(Queue, Pool, Size, Properties,
-                               NumEventsInWaitList, EventWaitList, Mem,
-                               OutEvent, UR_USM_TYPE_DEVICE);
+  return enqueueUSMAllocHelper(v1_cast(QueueOpque), v1_cast(PoolOpque), Size,
+                               Properties, NumEventsInWaitList,
+                               v1_cast(EventWaitListOpque), Mem,
+                               v1_cast(OutEventOpque), UR_USM_TYPE_DEVICE);
 }
 
 ur_result_t urEnqueueUSMSharedAllocExp(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
-    ur_usm_pool_handle_t Pool, ///< [in][optional] USM pool descriptor
+    ::ur_queue_handle_t QueueOpque,   ///< [in] handle of the queue object
+    ::ur_usm_pool_handle_t PoolOpque, ///< [in][optional] USM pool descriptor
     const size_t Size, ///< [in] minimum size in bytes of the USM memory object
                        ///< to be allocated
     const ur_exp_async_usm_alloc_properties_t
         *Properties, ///< [in][optional] pointer to the enqueue asynchronous
                      ///< USM allocation properties
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating no wait
-                        ///< events.
-    void **Mem,         ///< [out] pointer to USM memory object
-    ur_event_handle_t *OutEvent ///< [out][optional] return an event object that
-                                ///< identifies the async alloc
+    const ::ur_event_handle_t
+        *EventWaitListOpque, ///< [in][optional][range(0, numEventsInWaitList)]
+                             ///< pointer to a list of events that must be
+                             ///< complete before the kernel execution. If
+                             ///< nullptr, the numEventsInWaitList must be 0,
+                             ///< indicating no wait events.
+    void **Mem,              ///< [out] pointer to USM memory object
+    ::ur_event_handle_t
+        *OutEventOpque ///< [out][optional] return an event
+                       ///< object that identifies the async alloc
 ) {
-  return enqueueUSMAllocHelper(Queue, Pool, Size, Properties,
-                               NumEventsInWaitList, EventWaitList, Mem,
-                               OutEvent, UR_USM_TYPE_SHARED);
+  return enqueueUSMAllocHelper(v1_cast(QueueOpque), v1_cast(PoolOpque), Size,
+                               Properties, NumEventsInWaitList,
+                               v1_cast(EventWaitListOpque), Mem,
+                               v1_cast(OutEventOpque), UR_USM_TYPE_SHARED);
 }
 
 ur_result_t urEnqueueUSMHostAllocExp(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
-    ur_usm_pool_handle_t Pool, ///< [in][optional] handle of the USM memory pool
+    ::ur_queue_handle_t QueueOpque, ///< [in] handle of the queue object
+    ::ur_usm_pool_handle_t
+        PoolOpque,     ///< [in][optional] handle of the USM memory pool
     const size_t Size, ///< [in] minimum size in bytes of the USM memory object
                        ///< to be allocated
     const ur_exp_async_usm_alloc_properties_t
         *Properties, ///< [in][optional] pointer to the enqueue asynchronous
                      ///< USM allocation properties
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating no wait
-                        ///< events.
-    void **Mem,         ///< [out] pointer to USM memory object
-    ur_event_handle_t
-        *OutEvent ///< [out][optional] return an event object that identifies
-                  ///< the asynchronous USM device allocation
+    const ::ur_event_handle_t
+        *EventWaitListOpque, ///< [in][optional][range(0, numEventsInWaitList)]
+                             ///< pointer to a list of events that must be
+                             ///< complete before the kernel execution. If
+                             ///< nullptr, the numEventsInWaitList must be 0,
+                             ///< indicating no wait events.
+    void **Mem,              ///< [out] pointer to USM memory object
+    ::ur_event_handle_t
+        *OutEventOpque ///< [out][optional] return an event object that
+                       ///< identifies the asynchronous USM device allocation
 ) {
-  return enqueueUSMAllocHelper(Queue, Pool, Size, Properties,
-                               NumEventsInWaitList, EventWaitList, Mem,
-                               OutEvent, UR_USM_TYPE_HOST);
+  return enqueueUSMAllocHelper(v1_cast(QueueOpque), v1_cast(PoolOpque), Size,
+                               Properties, NumEventsInWaitList,
+                               v1_cast(EventWaitListOpque), Mem,
+                               v1_cast(OutEventOpque), UR_USM_TYPE_HOST);
 }
 
 ur_result_t urEnqueueUSMFreeExp(
-    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
-    ur_usm_pool_handle_t,         ///< [in][optional] USM pool descriptor
-    void *Mem,                    ///< [in] pointer to USM memory object
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating no wait
-                        ///< events.
-    ur_event_handle_t *OutEvent ///< [out][optional] return an event object that
-                                ///< identifies the async alloc
+    ::ur_queue_handle_t QueueOpque, ///< [in] handle of the queue object
+    ::ur_usm_pool_handle_t,         ///< [in][optional] USM pool descriptor
+    void *Mem,                      ///< [in] pointer to USM memory object
+    uint32_t NumEventsInWaitList,   ///< [in] size of the event wait list
+    const ::ur_event_handle_t
+        *EventWaitListOpque, ///< [in][optional][range(0, numEventsInWaitList)]
+                             ///< pointer to a list of events that must be
+                             ///< complete before the kernel execution. If
+                             ///< nullptr, the numEventsInWaitList must be 0,
+                             ///< indicating no wait events.
+    ::ur_event_handle_t
+        *OutEventOpque ///< [out][optional] return an event
+                       ///< object that identifies the async alloc
 ) {
+  auto Queue = v1_cast(QueueOpque);
+  auto EventWaitListInternal = v1_cast(EventWaitListOpque);
+  auto OutEventInternal = v1_cast(OutEventOpque);
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   bool UseCopyEngine = false;
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+      NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
 
   bool OkToBatch = false;
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      OkToBatch, nullptr /*ForcedCmdQueue*/));
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList,
+      EventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent{};
-  bool IsInternal = OutEvent == nullptr;
-  ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+  bool IsInternal = OutEventInternal == nullptr;
+  ur_event_handle_t *Event =
+      OutEventInternal ? OutEventInternal : &InternalEvent;
 
   UR_CALL(createEventAndAssociateQueue(Queue, Event,
                                        UR_COMMAND_ENQUEUE_USM_FREE_EXP,
@@ -252,7 +263,7 @@ ur_result_t urEnqueueUSMFreeExp(
   }
 
   (*Event)->RefCount.retain();
-  UsmPool->AsyncPool.insert(Mem, Size, *Event, Queue);
+  UsmPool->AsyncPool.insert(Mem, Size, v1_cast(*Event), Queue);
 
   // Signal that USM free event was finished
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
@@ -261,4 +272,4 @@ ur_result_t urEnqueueUSMFreeExp(
 
   return UR_RESULT_SUCCESS;
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v1
