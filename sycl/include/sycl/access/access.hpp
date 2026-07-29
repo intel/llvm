@@ -16,6 +16,10 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+// forward declaration
+enum class access_mode;
+
 namespace access {
 
 enum class target {
@@ -30,14 +34,8 @@ enum class target {
   host_task = 2021,
 };
 
-enum class mode {
-  read = 1024,
-  write = 1025,
-  read_write = 1026,
-  discard_write = 1027,
-  discard_read_write = 1028,
-  atomic = 1029
-};
+__SYCL2020_DEPRECATED("use 'access_mode' instead")
+using mode = sycl::access_mode;
 
 enum class fence_space {
   local_space = 0,
@@ -61,7 +59,17 @@ enum class decorated : int { no = 0, yes = 1, legacy = 2 };
 } // namespace access
 
 using access::target;
-using access_mode = access::mode;
+
+enum class access_mode {
+  read = 1024,
+  write = 1025,
+  read_write = 1026,
+  discard_write __SYCL2020_DEPRECATED(
+      "use 'write' with the 'no_init' property instead") = 1027,
+  discard_read_write __SYCL2020_DEPRECATED(
+      "use 'read' with the 'no_init' property instead") = 1028,
+  atomic __SYCL2020_DEPRECATED("use 'atomic_ref' instead") = 1029
+};
 
 enum class image_target : unsigned int { device = 0, host_task = 1 };
 
