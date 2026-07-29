@@ -247,6 +247,9 @@ environment:
 * **aot_tool** - Ahead-of-time compilation tools availability;
 * **ocloc**, **opencl-aot** - Specific AOT tool availability;
 * **level_zero_dev_kit** - Level_Zero headers and libraries availability;
+* **level_zero_sdk_&lt;major&gt;_&lt;minor&gt;** - the available Level_Zero SDK headers
+  implement at least version `<major>.<minor>` of the Level Zero API
+  specification;
 * **cuda_dev_kit** - CUDA SDK headers and libraries availability;
 * **dump_ir**: - compiler can / cannot dump IR;
 * **llvm-spirv** - llvm-spirv tool availability;

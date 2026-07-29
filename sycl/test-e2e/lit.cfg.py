@@ -389,15 +389,18 @@ config.level_zero_include = quote_path(
     )
 )
 
+level_zero_include_option = "-I" + config.level_zero_include
+
 level_zero_options = level_zero_options = (
     (" -L" + config.level_zero_libs_dir if config.level_zero_libs_dir else "")
     + " -lze_loader "
-    + " -I"
-    + config.level_zero_include
+    + " "
+    + level_zero_include_option
 )
 if cl_options:
     if is_windows_unc_network_path(level_zero_win_lib):
         level_zero_win_lib = normalize_windows_network_path(level_zero_win_lib)
+    level_zero_include_option = "/I" + config.level_zero_include
     level_zero_options = (
         " "
         + (
@@ -405,8 +408,8 @@ if cl_options:
             if config.level_zero_libs_dir
             else "ze_loader.lib"
         )
-        + " /I"
-        + config.level_zero_include
+        + " "
+        + level_zero_include_option
     )
 
 config.substitutions.append(("%level_zero_options", level_zero_options))
@@ -420,6 +423,41 @@ with test_env():
         config.substitutions.append(("%level_zero_options", level_zero_options))
     else:
         config.substitutions.append(("%level_zero_options", ""))
+
+# Query which Level Zero spec version the SDK implements
+#
+# Adds a level_zero_sdk_<major>_<minor> feature for this version and every
+# earlier version.
+if "level_zero_dev_kit" in config.available_features:
+    # This trick relies on ZE_API_VERSION_CURRENT_M being defined as
+    # ZE_MAKE_VERSION(<major>, <minor>). That could change in the future
+    check_l0_version_file = "l0_version.cpp"
+    with open_check_file(check_l0_version_file) as fp:
+        print("#include <level_zero/ze_api.h>", file=fp)
+        print("#undef ZE_MAKE_VERSION", file=fp)
+        print("#define ZE_MAKE_VERSION(_maj, _min) LIT_L0_SPEC _maj _min", file=fp)
+        print("ZE_API_VERSION_CURRENT_M", file=fp)
+
+    with test_env():
+        # Preprocess only
+        sp = subprocess.getstatusoutput(
+            config.dpcpp_compiler
+            + " -E "
+            + check_l0_version_file
+            + " "
+            + level_zero_include_option
+        )
+    l0_spec_version = (
+        re.search(r"LIT_L0_SPEC\s+(\d+)\s+(\d+)", sp[1]) if sp[0] == 0 else None
+    )
+
+    if l0_spec_version:
+        l0_major, l0_minor = (int(g) for g in l0_spec_version.groups())
+        # add support for this version and previos versions
+        for minor in range(l0_minor + 1):
+            config.available_features.add(
+                "level_zero_sdk_{}_{}".format(l0_major, minor)
+            )
 
 test_preview = lit_config.params.get("test-preview-mode")
 if test_preview is not None and test_preview not in ["True", "False"]:
