@@ -1115,9 +1115,22 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
         continue;
       }
 
-      UR_LOG(INFO, "p2p access to memory of dev:{} from dev:{} can be enabled",
-             peerId, dev->Id.value());
-      dev->peers[peerId] = ur_device_handle_t_::PeerStatus::DISABLED;
+      // By default (i.e. unless SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P is
+      // set), P2P access is treated as enabled for all connectable peers, so
+      // that USM allocations are made resident on all of them without
+      // requiring the user to call urUsmP2PEnablePeerAccessExp explicitly.
+      if (restrictUsmResidencyToP2P()) {
+        UR_LOG(INFO,
+               "p2p access to memory of dev:{} from dev:{} can be enabled",
+               peerId, dev->Id.value());
+        dev->peers[peerId] = ur_device_handle_t_::PeerStatus::DISABLED;
+      } else {
+        UR_LOG(INFO,
+               "p2p access to memory of dev:{} from dev:{} is enabled by "
+               "default",
+               peerId, dev->Id.value());
+        dev->peers[peerId] = ur_device_handle_t_::PeerStatus::ENABLED;
+      }
     }
   }
 
