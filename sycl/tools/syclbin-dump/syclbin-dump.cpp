@@ -55,7 +55,12 @@ std::string PropertyValueToString(const llvm::util::PropertyValue &PropVal) {
   case llvm::util::PropertyValue::UINT32:
     return std::to_string(PropVal.asUint32());
   case llvm::util::PropertyValue::BYTE_ARRAY:
-    return std::string{PropVal.data(), PropVal.getByteArraySize()};
+    // asByteArray() skips the leading 8-byte size header; data() would
+    // include it and render the header bytes as garbage prefixed onto the
+    // payload (e.g. a 6-byte "x86_64" value printed as the size byte 0x30
+    // '0' followed by truncated payload).
+    return std::string{reinterpret_cast<const char *>(PropVal.asByteArray()),
+                       PropVal.getByteArraySize()};
   case llvm::util::PropertyValue::NONE:
     break;
   }

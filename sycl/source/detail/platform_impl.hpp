@@ -103,11 +103,11 @@ public:
   }
 
   /// \return an instance of OpenCL cl_platform_id.
-  cl_platform_id get() const {
+  OpenCLPlatformT get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
                                                             &nativeHandle);
-    return ur::cast<cl_platform_id>(nativeHandle);
+    return ur::cast<OpenCLPlatformT>(nativeHandle);
   }
 
   /// Returns raw underlying UR platform handle.

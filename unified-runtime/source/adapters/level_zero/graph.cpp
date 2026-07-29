@@ -44,6 +44,14 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t /* hGraph */,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t /* hGraph */,
+                            uint64_t * /* pGraphId */) {
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_handle_t /* hGraph */,
     ur_exp_graph_destruction_callback_t /* pfnCallback */,

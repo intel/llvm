@@ -43,6 +43,8 @@ struct KernelInfo<QueryKernel> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
+template void sycl::unittest::registerKernelNames<QueryKernel>();
+
 static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"QueryKernel"});
 static const sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};

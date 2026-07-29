@@ -43,6 +43,10 @@
 /// PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                      \
   "SYCL/specialization constants default values"
+/// PropertySetRegistry::SYCL_SPEC_CONSTANTS_SET_VALUES defined in
+/// PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SPEC_CONST_SET_VALUES_MAP                          \
+  "SYCL/specialization constants set values"
 /// PropertySetRegistry::SYCL_DEVICELIB_METADATA defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_DEVICELIB_METADATA "SYCL/devicelib metadata"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h

@@ -757,7 +757,10 @@ etors:
 - name: IPC_OPEN_EVENT_HANDLE_EXP
   desc: Enumerator for $xIPCOpenEventHandleExp
   value: '325'
-max_id: '325'
+- name: GRAPH_GET_ID_EXP
+  desc: Enumerator for $xGraphGetIdExp
+  value: '326'
+max_id: '326'
 ---
 type: enum
 desc: Defines structure types

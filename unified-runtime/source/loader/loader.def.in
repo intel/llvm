@@ -146,6 +146,7 @@ EXPORTS
 	urGraphDumpContentsExp
 	urGraphExecutableGraphDestroyExp
 	urGraphExecutableGraphGetNativeHandleExp
+	urGraphGetIdExp
 	urGraphGetNativeHandleExp
 	urGraphInstantiateGraphExp
 	urGraphIsEmptyExp
@@ -404,6 +405,7 @@ EXPORTS
 	urPrintGraphDumpContentsExpParams
 	urPrintGraphExecutableGraphDestroyExpParams
 	urPrintGraphExecutableGraphGetNativeHandleExpParams
+	urPrintGraphGetIdExpParams
 	urPrintGraphGetNativeHandleExpParams
 	urPrintGraphInstantiateGraphExpParams
 	urPrintGraphIsEmptyExpParams

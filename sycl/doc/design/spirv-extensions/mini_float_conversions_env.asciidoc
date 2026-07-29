@@ -1,5 +1,5 @@
-:fp4_extension_name: SPV_INTEL_float4
-:fp4_encoding_name: Float4E2M1INTEL
+:fp4_extension_name: SPV_EXT_ocp_microscaling_types
+:fp4_encoding_name: Float4E2M1EXT
 
 = Mini-float Types and Conversions Environment Specification
 

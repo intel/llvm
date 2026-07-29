@@ -732,6 +732,8 @@ public:
 
   template <typename Func, typename... ArgTs>
   void set_destruction_callback(Func&& callback, ArgTs&&... cbArgs);
+
+  size_t get_id() const noexcept;
 };
 
 template<>
@@ -1569,6 +1571,45 @@ state is `graph_state::modifiable`.
 
 [source,c++]
 ----
+size_t get_id() const noexcept;
+----
+
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
+
+_Returns:_ A process-unique ID associated with this graph object. The ID is stable across
+`begin_recording`/`end_recording` cycles on the same graph object. That is, multiple
+recording sessions on the same graph return the same ID. IDs increase
+monotonically as graph objects are created. The amount an ID increases from one
+graph to the next is implementation-defined and need not be constant.
+
+When the graph was created with the `property::graph::enable_native_recording`
+property (or under `SYCL_GRAPH_FORCE_NATIVE_RECORDING=1`), the returned ID is
+obtained from the backend's native graph object if supported. IDs are guaranteed
+unique among graphs that use native recording, and separately unique among
+graphs that do not use native recording. Within each of these two groups the IDs
+increase monotonically. There is *no* guarantee of uniqueness or relative
+ordering between a native-recording graph and a non-native-recording graph; an
+application that mixes both must not assume IDs from the two groups are
+distinct.
+
+[NOTE]
+====
+Example: querying the graph ID during recording to select a memory pool:
+
+[source,c++]
+----
+sycl::ext::oneapi::experimental::command_graph graph{ctx, dev};
+graph.begin_recording(queue);
+size_t id = graph.get_id();
+// id uniquely identifies this graph object within the process; use it
+// to look up or create a user-managed per-graph memory pool.
+auto& pool = memory_pools[id];
+----
+====
+
+[source,c++]
+----
 size_t get_required_mem_size() const noexcept;
 ----
 
@@ -2164,6 +2205,13 @@ auto node = graph.add([&](sycl::handler& cgh){
 
 Host-tasks can be updated using <<executable-graph-update, Executable Graph Update>>.
 
+When using `property::graph::enable_native_recording`, host tasks submitted via
+`sycl::handler::host_task` are not supported and will throw an exception. Host
+tasks submitted via
+`sycl::ext::oneapi::experimental::host_task` from the
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+extension are supported.
+
 
 === Queue Behavior In Recording Mode
 
@@ -2693,7 +2741,11 @@ if used in application code.
 
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Using host tasks via `sycl::handler::host_task` in a graph node when `property::graph::enable_native_recording` is set.
+. Using host tasks via `sycl::handler::host_task` in a graph node when
+  `property::graph::enable_native_recording` is set. Host tasks submitted via
+  `sycl::ext::oneapi::experimental::host_task` from
+  link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+  are supported in native recording mode.
 . Calling `update()` on an executable graph created from a graph with
   `property::graph::enable_native_recording`.
 . Using an out-of-order queue with `property::graph::enable_native_recording`.

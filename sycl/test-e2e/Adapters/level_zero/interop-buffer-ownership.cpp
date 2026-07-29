@@ -1,6 +1,8 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-INTENDED: L0 adapter incorrectly reports memory leaks because it
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22478
 // doesn't take into account direct calls to L0 API.
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s

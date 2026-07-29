@@ -41,10 +41,13 @@
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVInternal.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -661,6 +664,83 @@ template <> void LLVMSPIRVAtomicRmwOpCodeMap::init() {
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace OCLUtil {
+
+static unsigned getAddressSpaceFromType(const Type *Ty) {
+  assert(Ty && "Can't deduce pointer AS");
+  if (auto *TypedPtr = dyn_cast<TypedPointerType>(Ty))
+    return TypedPtr->getAddressSpace();
+  if (auto *Ptr = dyn_cast<PointerType>(Ty))
+    return Ptr->getAddressSpace();
+  llvm_unreachable("Can't deduce pointer AS");
+}
+
+// Performs an address space inference analysis.
+static unsigned getAddressSpaceFromValue(const Value *Ptr) {
+  assert(Ptr && "Can't deduce pointer AS");
+
+  SmallPtrSet<const Value *, 8> Visited;
+  SmallVector<const Value *, 8> Worklist;
+  Worklist.push_back(Ptr);
+  unsigned AS = SPIRAS_Generic;
+
+  while (!Worklist.empty()) {
+    const Value *Current = Worklist.pop_back_val();
+    if (!Visited.insert(Current).second)
+      continue;
+
+    unsigned DeducedAS = getAddressSpaceFromType(Current->getType());
+    if (DeducedAS != SPIRAS_Generic)
+      return DeducedAS;
+
+    // Find origins of the pointer and add to the worklist.
+    if (auto *Op = dyn_cast<Operator>(Current)) {
+      switch (Op->getOpcode()) {
+      case Instruction::AddrSpaceCast:
+      case Instruction::BitCast:
+      case Instruction::GetElementPtr:
+        Worklist.push_back(Op->getOperand(0));
+        break;
+      case Instruction::Select:
+        Worklist.push_back(Op->getOperand(1));
+        Worklist.push_back(Op->getOperand(2));
+        break;
+      case Instruction::PHI: {
+        auto *Phi = cast<PHINode>(Op);
+        for (Value *Incoming : Phi->incoming_values())
+          Worklist.push_back(Incoming);
+        break;
+      }
+      default:
+        break;
+      }
+    }
+  }
+
+  return AS;
+}
+
+unsigned getAtomicPointerMemorySemanticsMask(const Value *Ptr,
+                                             const Type *RecordedType) {
+  assert((Ptr && RecordedType) &&
+         "Can't evaluate atomic builtin's memory semantic");
+  unsigned AddrSpace = getAddressSpaceFromType(RecordedType);
+  if (AddrSpace == SPIRAS_Generic)
+    AddrSpace = getAddressSpaceFromValue(Ptr);
+
+  switch (AddrSpace) {
+  case SPIRAS_Global:
+  case SPIRAS_GlobalDevice:
+  case SPIRAS_GlobalHost:
+    return MemorySemanticsCrossWorkgroupMemoryMask;
+  case SPIRAS_Local:
+    return MemorySemanticsWorkgroupMemoryMask;
+  case SPIRAS_Generic:
+    return MemorySemanticsCrossWorkgroupMemoryMask |
+           MemorySemanticsWorkgroupMemoryMask;
+  default:
+    return MemorySemanticsMaskNone;
+  }
+}
 
 AtomicWorkItemFenceLiterals getAtomicWorkItemFenceLiterals(CallInst *CI) {
   return std::make_tuple(getArgAsInt(CI, 0),

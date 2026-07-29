@@ -11,6 +11,7 @@
 
 #include "version.hpp"
 
+#include <sycl/async_handler.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 

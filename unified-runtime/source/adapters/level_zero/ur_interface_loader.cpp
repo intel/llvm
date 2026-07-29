@@ -287,6 +287,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
   pDdiTable->pfnExecutableGraphDestroyExp =
       ur::level_zero::urGraphExecutableGraphDestroyExp;
   pDdiTable->pfnIsEmptyExp = ur::level_zero::urGraphIsEmptyExp;
+  pDdiTable->pfnGetIdExp = ur::level_zero::urGraphGetIdExp;
   pDdiTable->pfnSetDestructionCallbackExp =
       ur::level_zero::urGraphSetDestructionCallbackExp;
   pDdiTable->pfnDumpContentsExp = ur::level_zero::urGraphDumpContentsExp;

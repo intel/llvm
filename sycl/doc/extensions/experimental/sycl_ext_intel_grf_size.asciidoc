@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -65,15 +66,16 @@ is not able to issue a diagnostic to warn you if this happens.
 
 == Overview
 
-There are devices where the size of the general register file (GRF) used by a kernel is 
-configurable. Developers may want to change the GRF size based on their
-application. This extension adds the kernel property `grf_size` which provides a way
-to specify the GRF size for a SYCL kernel, and the kernel property `grf_size_automatic`
-which provides a way to request a valid GRF size be automatically chosen.
+This extension adds new kernel properties which allow an application to choose
+the size of the general register file (GRF) that the compiler uses when
+generating device code for a kernel.
 
-The properties described in this extension are advanced features that most applications
-should not need to use. In most cases, applications get the best performance
-without using these properties.
+These properties are intended for advanced performance tuning.
+Increasing the GRF size may improve performance for kernels with high register
+requirements, but it can also introduce trade-offs that reduce performance.
+Applications should generally rely on the compiler's default selection unless
+profiling demonstrates a benefit from specifying a different GRF size.
+
 
 == Specification
 
@@ -99,23 +101,23 @@ supports.
 
 === Properties
 
-|===
-|Property|Description
+This extension adds the properties listed below, which applications can use
+when defining a kernel to select the kernel's GRF size.
+When a kernel is defined without either property, the GRF size is
+implementation-defined.
+On devices that support two GRF sizes, implementations typically select the
+smaller size by default.
 
-|`grf_size`
-|The `grf_size` kernel property provides a way to specify the GRF size used by a kernel. 
-It accepts a single unsigned integer value.
+A kernel may be defined with at most one of these GRF-setting properties.
 
-|`grf_size_automatic`
-| The `grf_size_automatic` kernel property adds the requirement that the kernel use any of the supported GRF sizes. The manner in which the GRF size is selected is implementation-defined.
+[_Note_: Using these properties to select a larger GRF size may impose a lower
+limit on the kernel's maximum work-group size.
+Applications can query the maximum work-group size for the kernel via the
+`info::kernel_device_specific::work_group_size` information descriptor, which is
+defined in the core SYCL specification.
+_{endnote}_]
 
-|===
-
-At most one of the `grf_size` and `grf_size_automatic` properties may be associated with a kernel.
-
-If a kernel is not associated with a `grf_size` or `grf_size_automatic` property, the manner in which the GRF size is selected is implementation-defined.
-
-The properties are defined as follows:
+'''
 
 [source,c++]
 ----
@@ -128,31 +130,56 @@ struct grf_size_key {
                                            std::integral_constant<unsigned int, Size>>;
 };
 
+template <unsigned int Size>
+inline constexpr grf_size_key::value_t<Size> grf_size;
+
+} // namespace sycl::ext::intel::experimental
+----
+
+Indicates that the kernel should be compiled with a GRF size of `Size`.
+The value `Size` must be one of the legal GRF size values for the device to
+which the kernel is submitted, as defined by the table below.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+
 struct grf_size_automatic_key {
   using value_t = 
       oneapi::experimental::property_value<grf_size_automatic_key>;
 };
-
-template <unsigned int Size>
-inline constexpr grf_size_key::value_t<Size> grf_size;
 
 inline constexpr grf_size_automatic_key::value_t grf_size_automatic;
 
 } // namespace sycl::ext::intel::experimental
 ----
 
-The supported values are as follows:
+Indicates that the compiler should use a heuristic to determine the GRF size for
+the kernel.
+This property gives the compiler more freedom to chooes a larger GRF size
+compared to kernels that are not defined with any GRF property.
+
+=== Legal GRF sizes for Intel devices
+
+The following table lists the legal GRF sizes for some Intel devices.
 
 [%header,cols="1,5"]
 |===
 |GPU |Supported Values
 | PVC | 128 (small register file), 256 (large register file)
 | DG2 | 128 (small register file), 256 (large register file)
+| CRI | 128, 256, 512
 |===
 
-Providing a value not consistent with the supported values may result in undefined behavior.
+Providing a GRF size that is not consistent with the supported values results in
+undefined behavior.
 
-=== Using the properties in a kernel
+
+== Examples
+
+=== Basic usage
 
 A simple example of using this extension is below.
 
@@ -188,5 +215,39 @@ int main() {
   sycl::nd_range ndr{{256},{16}};
   q.parallel_for(ndr, Kernel1{}).wait();
   q.parallel_for(ndr, Kernel2{}).wait();
+}
+----
+
+=== Usage with a free function kernel
+
+An example using this extension with free function kernels
+(link:../experimental/sycl_ext_oneapi_free_function_kernels.asciidoc[
+sycl_ext_oneapi_free_function_kernels]).
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size<256>))
+void kernel1() {
+  /* ... */
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size_automatic))
+void kernel2() {
+  /* ... */
+}
+
+int main() {
+  sycl::queue q;
+
+  sycl::nd_range ndr{{256},{16}};
+  syclex::nd_launch(q, ndr, syclex::kernel_function<kernel1>);
+  syclex::nd_launch(q, ndr, syclex::kernel_function<kernel2>);
+  q.wait();
 }
 ----

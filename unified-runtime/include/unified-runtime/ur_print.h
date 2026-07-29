@@ -3766,6 +3766,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphIsEmptyExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_graph_get_id_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphGetIdExpParams(
+    const struct ur_graph_get_id_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_graph_set_destruction_callback_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

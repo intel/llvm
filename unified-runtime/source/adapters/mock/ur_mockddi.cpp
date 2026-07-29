@@ -13344,6 +13344,50 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetIdExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_get_id_exp_params_t params = {&hGraph, &pGraphId};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urGraphGetIdExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urGraphGetIdExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urGraphGetIdExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphSetDestructionCallbackExp
 __urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
     /// [in] Handle of the graph to register the callback for.
@@ -14022,6 +14066,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
       driver::urGraphExecutableGraphDestroyExp;
 
   pDdiTable->pfnIsEmptyExp = driver::urGraphIsEmptyExp;
+
+  pDdiTable->pfnGetIdExp = driver::urGraphGetIdExp;
 
   pDdiTable->pfnSetDestructionCallbackExp =
       driver::urGraphSetDestructionCallbackExp;

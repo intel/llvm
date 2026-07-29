@@ -187,6 +187,18 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_GRAPH
 --- #--------------------------------------------------------------------------
+type: function
+desc: "Returns a process-unique identifier that increases monotonically per graph."
+class: $xGraph
+name: GetIdExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph to query."
+    - type: uint64_t*
+      name: pGraphId
+      desc: "[out] Pointer to a uint64_t where the unique graph ID will be stored."
+--- #--------------------------------------------------------------------------
 type: fptr_typedef
 desc: "Callback function invoked when a graph is destroyed."
 name: $x_exp_graph_destruction_callback_t

@@ -2,16 +2,19 @@
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: Device incompatible error
 
+// UNSUPPORTED: native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22772
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks that a compile-time kernel property attached to a free
 // function kernel (here sub_group_size) is honored when the kernel is launched
 // through the enqueue functions that take a kernel_function_s (nd_launch /
-// single_task). These functions enqueue the free function kernel directly, so
-// its compile-time properties must reach the launched kernel. A previous
-// implementation submitted a wrapper kernel that forwarded to the free function
-// kernel and dropped the property. See intel/llvm#22706.
+// single_task). Previously the property was dropped because these functions
+// submit a wrapper kernel that forwards to the free function kernel, and the
+// property was not propagated to the wrapper. See the issue reported for the
+// 2026.1 free function launch method.
 
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>

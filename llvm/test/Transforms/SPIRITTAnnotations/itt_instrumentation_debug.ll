@@ -31,7 +31,7 @@ target triple = "spir64-unknown-unknown"
 @.str.5 = private unnamed_addr addrspace(2) constant [6 x i8] c"exit\0A\00", align 1
 
 ; Function Attrs: convergent noinline norecurse nounwind optnone
-define dso_local spir_kernel void @test() #0 !dbg !13 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !kernel_arg_host_accessible !4 !kernel_arg_pipe_depth !4 !kernel_arg_pipe_io !4 !kernel_arg_buffer_location !4 {
+define dso_local spir_kernel void @test() #0 !dbg !13 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !kernel_arg_host_accessible !4 !kernel_arg_pipe_depth !4 !kernel_arg_pipe_io !4 {
 entry:
   call spir_func void @foo() #2, !dbg !16
   %0 = getelementptr inbounds [7 x i8], ptr addrspace(2) @.str, i64 0, i64 0
