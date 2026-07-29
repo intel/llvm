@@ -34,8 +34,8 @@ enum class target {
   host_task = 2021,
 };
 
-__SYCL2020_DEPRECATED("use 'access_mode' instead")
-using mode = sycl::access_mode;
+using mode
+    __SYCL2020_DEPRECATED("use 'access_mode' instead") = sycl::access_mode;
 
 enum class fence_space {
   local_space = 0,
