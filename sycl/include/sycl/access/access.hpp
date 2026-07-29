@@ -39,11 +39,13 @@ enum class mode {
   atomic = 1029
 };
 
-enum class fence_space {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+enum class __SYCL_DEPRECATED("Removed in SYCL 2020") fence_space {
   local_space = 0,
   global_space = 1,
   global_and_local = 2
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 enum class placeholder { false_t = 0, true_t = 1 };
 
