@@ -11,17 +11,17 @@
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::v1 {
 
-ur_result_t urGraphCreateExp(ur_context_handle_t /* hContext */,
-                             ur_exp_graph_handle_t * /* phGraph */) {
+ur_result_t urGraphCreateExp(::ur_context_handle_t /* hContext */,
+                             ::ur_exp_graph_handle_t * /* phGraph */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t /* hGraph */) {
+ur_result_t urGraphDestroyExp(::ur_exp_graph_handle_t /* hGraph */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
@@ -29,14 +29,14 @@ ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t /* hGraph */) {
 }
 
 ur_result_t urGraphExecutableGraphDestroyExp(
-    ur_exp_executable_graph_handle_t /* hExecutableGraph */) {
+    ::ur_exp_executable_graph_handle_t /* hExecutableGraph */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t /* hGraph */,
+ur_result_t urGraphIsEmptyExp(::ur_exp_graph_handle_t /* hGraph */,
                               bool * /* pIsEmpty */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -44,7 +44,7 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t /* hGraph */,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t /* hGraph */,
+ur_result_t urGraphGetIdExp(::ur_exp_graph_handle_t /* hGraph */,
                             uint64_t * /* pGraphId */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -53,7 +53,7 @@ ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t /* hGraph */,
 }
 
 ur_result_t urGraphSetDestructionCallbackExp(
-    ur_exp_graph_handle_t /* hGraph */,
+    ::ur_exp_graph_handle_t /* hGraph */,
     ur_exp_graph_destruction_callback_t /* pfnCallback */,
     void * /* pUserData */) {
   UR_LOG_LEGACY(ERR,
@@ -62,7 +62,7 @@ ur_result_t urGraphSetDestructionCallbackExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t /* hGraph */,
+ur_result_t urGraphDumpContentsExp(::ur_exp_graph_handle_t /* hGraph */,
                                    const char * /* pDotFilePath */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -71,8 +71,8 @@ ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t /* hGraph */,
 }
 
 ur_result_t urGraphInstantiateGraphExp(
-    ur_exp_graph_handle_t /* hGraph */,
-    ur_exp_executable_graph_handle_t * /* phExecutableGraph */) {
+    ::ur_exp_graph_handle_t /* hGraph */,
+    ::ur_exp_executable_graph_handle_t * /* phExecutableGraph */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
@@ -80,7 +80,7 @@ ur_result_t urGraphInstantiateGraphExp(
 }
 
 ur_result_t
-urGraphGetNativeHandleExp(ur_exp_graph_handle_t /* hGraph */,
+urGraphGetNativeHandleExp(::ur_exp_graph_handle_t /* hGraph */,
                           ur_native_handle_t * /* phNativeGraph */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -89,7 +89,7 @@ urGraphGetNativeHandleExp(ur_exp_graph_handle_t /* hGraph */,
 }
 
 ur_result_t urGraphExecutableGraphGetNativeHandleExp(
-    ur_exp_executable_graph_handle_t /* hExecutableGraph */,
+    ::ur_exp_executable_graph_handle_t /* hExecutableGraph */,
     ur_native_handle_t * /* phNativeExecutableGraph */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -97,4 +97,4 @@ ur_result_t urGraphExecutableGraphGetNativeHandleExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v1

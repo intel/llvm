@@ -7,18 +7,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "program.hpp"
+#include "../program.hpp"
+#include "api.hpp"
 #include "device.hpp"
 #include "logger/ur_logger.hpp"
-#include "ur_interface_loader.hpp"
+#include "platform.hpp"
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
-#include "context.hpp"
-#endif
+#include "interfaces.hpp"
 
-extern "C" {
+namespace ur::level_zero {
+namespace {
 // Check to see if a Level Zero module has any unresolved symbols.
 //
 // @param ZeModule    The module handle to check.
@@ -38,7 +36,7 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
   // no imported symbols, it's not possible to have any unresolved symbols.  We
   // do this check first because we assume it's faster than the call to
   // zeModuleDynamicLink below.
-  ZeStruct<ze_module_properties_t> ZeModuleProps;
+  ur::level_zero::ZeStruct<ze_module_properties_t> ZeModuleProps;
   ze_result_t ZeResult =
       ZE_CALL_NOCHECK(zeModuleGetProperties, (ZeModule, &ZeModuleProps));
   if (ZeResult != ZE_RESULT_SUCCESS)
@@ -52,7 +50,7 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
   }
   return ZE_RESULT_SUCCESS;
 }
-} // extern "C"
+} // namespace
 
 static ur_program_handle_t_::CodeFormat matchILCodeFormat(const void *Input,
                                                           size_t Length) {
@@ -74,11 +72,9 @@ static bool isCodeFormatIL(ur_program_handle_t_::CodeFormat CodeFormat) {
   return CodeFormat == ur_program_handle_t_::CodeFormat::SPIRV;
 }
 
-namespace ur::level_zero {
-
 ur_result_t urProgramCreateWithIL(
     /// [in] handle of the context instance
-    ur_context_handle_t Context,
+    ::ur_context_handle_t ContextOpque,
     /// [in] pointer to IL binary.
     const void *IL,
     /// [in] length of `pIL` in bytes.
@@ -86,16 +82,16 @@ ur_result_t urProgramCreateWithIL(
     /// [in][optional] pointer to program creation properties.
     const ur_program_properties_t * /*Properties*/,
     /// [out] pointer to handle of program object created.
-    ur_program_handle_t *Program) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ::ur_program_handle_t *Program) {
+  UR_ASSERT(ContextOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(IL && Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   const ur_program_handle_t_::CodeFormat CodeFormat =
       matchILCodeFormat(IL, Length);
   UR_ASSERT(isCodeFormatIL(CodeFormat), UR_RESULT_ERROR_INVALID_BINARY);
   try {
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
-        ur_program_handle_t_::IL, Context, IL, Length, CodeFormat);
-    *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
+        ur_program_handle_t_::IL, ContextOpque, IL, Length, CodeFormat);
+    *Program = common_cast(UrProgram);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -107,12 +103,12 @@ ur_result_t urProgramCreateWithIL(
 
 ur_result_t urProgramCreateWithBinary(
     /// [in] handle of the context instance
-    ur_context_handle_t hContext,
+    ::ur_context_handle_t hContextOpque,
     /// [in] number of devices
     uint32_t numDevices,
     /// [in][range(0, numDevices)] a pointer to a list of device handles.
     /// The binaries are loaded for devices specified in this list.
-    ur_device_handle_t *phDevices,
+    ::ur_device_handle_t *phDevicesOpque,
     /// [in][range(0, numDevices)] array of sizes of program binaries specified
     /// by `pBinaries` (in bytes).
     size_t *pLengths,
@@ -122,7 +118,9 @@ ur_result_t urProgramCreateWithBinary(
     /// [in][optional] pointer to program creation properties.
     const ur_program_properties_t *pProperties,
     /// [out] pointer to handle of Program object created.
-    ur_program_handle_t *phProgram) {
+    ::ur_program_handle_t *phProgram) {
+  auto hContext = common_cast(hContextOpque);
+  auto phDevices = common_cast(phDevicesOpque);
   // In OpenCL, clCreateProgramWithBinary() can be used to load any of the
   // following: "program executable", "compiled program", or "library of
   // compiled programs".  In addition, the loaded program can be either
@@ -140,9 +138,9 @@ ur_result_t urProgramCreateWithBinary(
                 UR_RESULT_ERROR_INVALID_DEVICE);
     }
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
-        ur_program_handle_t_::Native, hContext, numDevices, phDevices,
+        ur_program_handle_t_::Native, hContextOpque, numDevices, phDevices,
         pProperties, ppBinaries, pLengths);
-    *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
+    *phProgram = common_cast(UrProgram);
     return UR_RESULT_SUCCESS;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -153,32 +151,35 @@ ur_result_t urProgramCreateWithBinary(
 
 ur_result_t urProgramBuild(
     /// [in] handle of the context instance.
-    ur_context_handle_t Context,
+    ::ur_context_handle_t ContextOpque,
     /// [in] Handle of the program to build.
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in][optional] pointer to build options null-terminated string.
     const char *Options) {
+  auto Context = common_cast(ContextOpque);
   std::vector<ur_device_handle_t> Devices = Context->getDevices();
-  return ur::level_zero::urProgramBuildExp(Program, Devices.size(),
-                                           Devices.data(),
+  return ur::level_zero::urProgramBuildExp(ProgramOpque, Devices.size(),
+                                           common_cast(Devices.data()),
                                            ur_exp_program_flags_t{}, Options);
 }
 
 ur_result_t urProgramBuildExp(
     /// [in] Handle of the program to build.
-    ur_program_handle_t hProgram,
+    ::ur_program_handle_t hProgramOpque,
     /// [in] number of devices
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
+    ::ur_device_handle_t *phDevicesOpque,
     /// [in] program information flags
     ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
+  auto hProgram = common_cast(hProgramOpque);
+  auto phDevices = common_cast(phDevicesOpque);
   // TODO
   // Check if device belongs to associated context.
   // UR_ASSERT(Program->Context, UR_RESULT_ERROR_INVALID_PROGRAM);
-  // UR_ASSERT(Program->Context->isValidDevice(Devices[0]),
+  // UR_ASSERT(Program->common_cast(Context)->isValidDevice(Devices[0]),
   // UR_RESULT_ERROR_INVALID_VALUE);
 
   std::scoped_lock<ur_shared_mutex> Guard(hProgram->Mutex);
@@ -233,7 +234,8 @@ ur_result_t urProgramBuildExp(
     }
     ZeModuleDesc.inputSize = hProgram->getCodeSize(ZeDevice);
     ZeModuleDesc.pInputModule = Code;
-    ze_context_handle_t ZeContext = hProgram->Context->getZeHandle();
+    auto Context = common_cast(hProgram->Context);
+    ze_context_handle_t ZeContext = Context->getZeHandle();
     ze_module_handle_t ZeModuleHandle = nullptr;
     ze_module_build_log_handle_t ZeBuildLog{};
 
@@ -278,15 +280,17 @@ ur_result_t urProgramBuildExp(
 
 ur_result_t urProgramCompileExp(
     /// [in][out] handle of the program to compile.
-    ur_program_handle_t hProgram,
+    ::ur_program_handle_t hProgramOpque,
     /// [in] number of devices
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
+    ::ur_device_handle_t *phDevicesOpque,
     /// [in] program information flags
     [[maybe_unused]] ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
+  auto hProgram = common_cast(hProgramOpque);
+  auto phDevices = common_cast(phDevicesOpque);
   std::scoped_lock<ur_shared_mutex> Guard(hProgram->Mutex);
   // Check that state is IL for all devices in the context and set the state to
   // Object.
@@ -323,51 +327,56 @@ ur_result_t urProgramCompileExp(
 
 ur_result_t urProgramCompile(
     /// [in] handle of the context instance.
-    ur_context_handle_t Context,
+    ::ur_context_handle_t ContextOpque,
     /// [in][out] handle of the program to compile.
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in][optional] pointer to build options null-terminated string.
     const char *Options) {
-  auto devices = Context->getDevices();
-  return ur::level_zero::urProgramCompileExp(Program, devices.size(),
-                                             devices.data(),
+  auto Context = common_cast(ContextOpque);
+  auto Devices = common_cast(Context->getDevices());
+  return ur::level_zero::urProgramCompileExp(ProgramOpque, Devices.size(),
+                                             Devices.data(),
                                              ur_exp_program_flags_t{}, Options);
 }
 
 ur_result_t urProgramLink(
     /// [in] handle of the context instance.
-    ur_context_handle_t Context,
+    ::ur_context_handle_t ContextOpque,
     /// [in] number of program handles in `phPrograms`.
     uint32_t Count,
     /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *Programs,
+    const ::ur_program_handle_t *ProgramsOpque,
     /// [in][optional] pointer to linker options null-terminated string.
     const char *Options,
     /// [out] pointer to handle of program object created.
-    ur_program_handle_t *Program) {
-  std::vector<ur_device_handle_t> Devices = Context->getDevices();
+    ::ur_program_handle_t *Program) {
+  auto Context = common_cast(ContextOpque);
+  auto Devices = common_cast(Context->getDevices());
   return ur::level_zero::urProgramLinkExp(
-      Context, Devices.size(), Devices.data(), ur_exp_program_flags_t{}, Count,
-      Programs, Options, Program);
+      ContextOpque, Devices.size(), Devices.data(), ur_exp_program_flags_t{},
+      Count, ProgramsOpque, Options, Program);
 }
 
 ur_result_t urProgramLinkExp(
     /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
+    ::ur_context_handle_t hContextOpque,
     /// [in] number of devices
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
+    ::ur_device_handle_t *phDevicesOpque,
     /// [in] program information flags
     ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
+    const ::ur_program_handle_t *phProgramsOpque,
     /// [in][optional] pointer to linker options null-terminated string.
     const char *pOptions,
     /// [out] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) {
+    ::ur_program_handle_t *phProgram) {
+  auto hContext = common_cast(hContextOpque);
+  auto phDevices = common_cast(phDevicesOpque);
+  auto phPrograms = common_cast(phProgramsOpque);
   if (nullptr != phProgram) {
     *phProgram = nullptr;
   }
@@ -384,8 +393,8 @@ ur_result_t urProgramLinkExp(
     ErrorMessage.append(pOptions);
     ErrorMessage.push_back('\"');
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
-        ur_program_handle_t_::Invalid, hContext, ErrorMessage);
-    *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
+        ur_program_handle_t_::Invalid, hContextOpque, ErrorMessage);
+    *phProgram = common_cast(UrProgram);
     return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
   }
   ur_result_t UrResult = UR_RESULT_SUCCESS;
@@ -455,11 +464,10 @@ ur_result_t urProgramLinkExp(
     SpecConstShims.reserve(count);
 
     for (uint32_t I = 0; I < count; I++) {
-      ur_program_handle_t Program = phPrograms[I];
-      CodeSizes[I] = Program->getCodeSize();
-      CodeBufs[I] = Program->getCode();
+      CodeSizes[I] = phPrograms[I]->getCodeSize();
+      CodeBufs[I] = phPrograms[I]->getCode();
       if (!NativeInput) {
-        SpecConstShims.emplace_back(Program);
+        SpecConstShims.emplace_back(phPrograms[I]);
         SpecConstPtrs[I] = SpecConstShims[I].ze();
       }
     }
@@ -523,8 +531,8 @@ ur_result_t urProgramLinkExp(
       }
     }
 
-    ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(hContext);
-    *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
+    ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(hContextOpque);
+    *phProgram = common_cast(UrProgram);
     for (uint32_t i = 0; i < numDevices; i++) {
       // Call the Level Zero API to compile, link, and create the module.
       ze_device_handle_t ZeDevice = phDevices[i]->ZeDevice;
@@ -595,11 +603,13 @@ ur_result_t urProgramLinkExp(
 
 ur_result_t urProgramDynamicLinkExp(
     /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
+    ::ur_context_handle_t hContextOpque,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms) {
+    const ::ur_program_handle_t *phProgramsOpque) {
+  auto hContext = common_cast(hContextOpque);
+  auto phPrograms = common_cast(phProgramsOpque);
   ur_result_t UrResult = UR_RESULT_SUCCESS;
 
   try {
@@ -640,16 +650,17 @@ ur_result_t urProgramDynamicLinkExp(
 
 ur_result_t urProgramRetain(
     /// [in] handle for the Program to retain
-    ur_program_handle_t Program) {
-  Program->RefCount.retain();
+    ::ur_program_handle_t ProgramOpque) {
+  common_cast(ProgramOpque)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urProgramRelease(
     /// [in] handle for the Program to release
-    ur_program_handle_t Program) {
-  if (!Program)
+    ::ur_program_handle_t ProgramOpque) {
+  if (!ProgramOpque)
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  auto Program = common_cast(ProgramOpque);
 
   // Detect double-release by attempting to safely access program members
   // and catching any access violations that indicate freed memory
@@ -717,16 +728,18 @@ static bool is_in_separated_string(const std::string &str, char delimiter,
 
 ur_result_t urProgramGetFunctionPointer(
     /// [in] handle of the device to retrieve pointer for.
-    ur_device_handle_t Device,
+    ::ur_device_handle_t DeviceOpque,
     /// [in] handle of the program to search for function in. The program
     /// must already be built to the specified device, or otherwise
     /// ::UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE is returned.
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in] A null-terminates string denoting the mangled function name.
     const char *FunctionName,
     /// [out] Returns the pointer to the function if it is found in the
     /// program.
     void **FunctionPointerRet) {
+  auto Device = common_cast(DeviceOpque);
+  auto Program = common_cast(ProgramOpque);
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   if (Program->getState(Device->ZeDevice) != ur_program_handle_t_::Exe) {
     return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
@@ -749,12 +762,12 @@ ur_result_t urProgramGetFunctionPointer(
     size_t Size;
     *FunctionPointerRet = 0;
     UR_CALL(ur::level_zero::urProgramGetInfo(
-        Program, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size));
+        ProgramOpque, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size));
 
     std::string ClResult(Size, ' ');
     UR_CALL(ur::level_zero::urProgramGetInfo(
-        Program, UR_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0],
-        nullptr));
+        ProgramOpque, UR_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(),
+        &ClResult[0], nullptr));
 
     // Get rid of the null terminator and search for kernel_name
     // If function can be found return error code to indicate it
@@ -776,9 +789,9 @@ ur_result_t urProgramGetFunctionPointer(
 
 ur_result_t urProgramGetGlobalVariablePointer(
     /// [in] handle of the device to retrieve the pointer for.
-    ur_device_handle_t Device,
+    ::ur_device_handle_t DeviceOpque,
     /// [in] handle of the program where the global variable is.
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in] mangled name of the global variable to retrieve the pointer for.
     const char *GlobalVariableName,
     /// [out][optional] Returns the size of the global variable if it is found
@@ -787,6 +800,8 @@ ur_result_t urProgramGetGlobalVariablePointer(
     /// [out] Returns the pointer to the global variable if it is found in the
     /// program.
     void **GlobalVariablePointerRet) {
+  auto Device = common_cast(DeviceOpque);
+  auto Program = common_cast(ProgramOpque);
   std::scoped_lock<ur_shared_mutex> lock(Program->Mutex);
   if (Program->getState(Device->ZeDevice) != ur_program_handle_t_::Exe) {
     return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
@@ -808,7 +823,7 @@ ur_result_t urProgramGetGlobalVariablePointer(
 
 ur_result_t urProgramGetInfo(
     /// [in] handle of the Program object
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in] name of the Program property to query
     ur_program_info_t PropName,
     /// [in] the size of the Program property.
@@ -822,6 +837,7 @@ ur_result_t urProgramGetInfo(
     /// [out][optional] pointer to the actual size in bytes of data copied to
     /// propName.
     size_t *PropSizeRet) {
+  auto Program = common_cast(ProgramOpque);
   UrReturnHelper ReturnValue(PropSize, ProgramInfo, PropSizeRet);
 
   switch (PropName) {
@@ -963,9 +979,9 @@ ur_result_t urProgramGetInfo(
 
 ur_result_t urProgramGetBuildInfo(
     /// [in] handle of the Program object
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in] handle of the Device object
-    ur_device_handle_t Device,
+    ::ur_device_handle_t DeviceOpque,
     /// [in] name of the Program build info to query
     ur_program_build_info_t PropName,
     /// [in] size of the Program build info property.
@@ -978,7 +994,8 @@ ur_result_t urProgramGetBuildInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *PropSizeRet) {
-
+  auto Device = common_cast(DeviceOpque);
+  auto Program = common_cast(ProgramOpque);
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
   if (PropName == UR_PROGRAM_BUILD_INFO_BINARY_TYPE) {
@@ -1045,7 +1062,7 @@ ur_result_t urProgramGetBuildInfo(
 
 ur_result_t urProgramSetSpecializationConstant(
     /// [in] handle of the Program object
-    ur_program_handle_t /*Program*/,
+    ::ur_program_handle_t /*Program*/,
     /// [in] specification constant Id
     uint32_t /*SpecId*/,
     /// [in] size of the specialization constant value
@@ -1060,10 +1077,10 @@ ur_result_t urProgramSetSpecializationConstant(
 
 ur_result_t urProgramGetNativeHandle(
     /// [in] handle of the program.
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [out] a pointer to the native handle of the program.
-    ur_native_handle_t *NativeProgram) {
-  auto ZeModule = ur_cast<ze_module_handle_t *>(NativeProgram);
+    ::ur_native_handle_t *NativeProgram) {
+  auto Program = common_cast(ProgramOpque);
 
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   assert(Program->AssociatedDevices.size() > 0);
@@ -1080,20 +1097,20 @@ ur_result_t urProgramGetNativeHandle(
     // L0 only supprts returning native handle from built programs.
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  *ZeModule = Module;
+  *ur_cast<ze_module_handle_t *>(NativeProgram) = Module;
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urProgramCreateWithNativeHandle(
     /// [in] the native handle of the program.
-    ur_native_handle_t NativeProgram,
+    ::ur_native_handle_t NativeProgram,
     /// [in] handle of the context instance
-    ur_context_handle_t Context,
+    ::ur_context_handle_t ContextOpque,
     /// [in][optional] pointer to native program properties struct.
     const ur_program_native_properties_t *Properties,
     /// [out] pointer to the handle of the program object created.
-    ur_program_handle_t *Program) {
-  UR_ASSERT(Context && NativeProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    ::ur_program_handle_t *Program) {
+  UR_ASSERT(ContextOpque && NativeProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   auto ZeModule = ur_cast<ze_module_handle_t>(NativeProgram);
   // We assume here that programs created from a native handle always
@@ -1102,9 +1119,9 @@ ur_result_t urProgramCreateWithNativeHandle(
 
   try {
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
-        ur_program_handle_t_::Exe, Context, ZeModule,
+        ur_program_handle_t_::Exe, ContextOpque, ZeModule,
         Properties ? Properties->isNativeHandleOwned : false);
-    *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
+    *Program = common_cast(UrProgram);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1115,12 +1132,13 @@ ur_result_t urProgramCreateWithNativeHandle(
 
 ur_result_t urProgramSetSpecializationConstants(
     /// [in] handle of the Program object
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in] the number of elements in the pSpecConstants array
     uint32_t Count,
     /// [in][range(0, count)] array of specialization constant value
     /// descriptions
     const ur_specialization_constant_info_t *SpecConstants) {
+  auto Program = common_cast(ProgramOpque);
   std::scoped_lock<ur_shared_mutex> Guard(Program->Mutex);
 
   // Remember the value of this specialization constant until the program is
@@ -1137,19 +1155,19 @@ ur_result_t urProgramSetSpecializationConstants(
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
-
 ur_program_handle_t_::ur_program_handle_t_(state St,
                                            ur_context_handle_t Context,
                                            const void *Input, size_t Length,
                                            CodeFormat CodeFormat)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices(Context->getDevices()), ILCode{new uint8_t[Length]},
-      ILCodeLength{Length}, ILCodeFormat(CodeFormat) {
+      AssociatedDevices(common_cast(Context)->getDevices()),
+      ILCode{new uint8_t[Length]}, ILCodeLength{Length},
+      ILCodeFormat(CodeFormat) {
+  ddi_table = ddiTableOf(Context);
   assert(isCodeFormatIL(CodeFormat));
   std::memcpy(ILCode.get(), Input, Length);
   // All devices have the program in IL state.
-  for (auto &Device : Context->getDevices()) {
+  for (auto &Device : common_cast(Context)->getDevices()) {
     DeviceData &PerDevData = DeviceDataMap[Device->ZeDevice];
     PerDevData.State = St;
   }
@@ -1157,11 +1175,12 @@ ur_program_handle_t_::ur_program_handle_t_(state St,
 
 ur_program_handle_t_::ur_program_handle_t_(
     state St, ur_context_handle_t Context, const uint32_t NumDevices,
-    const ur_device_handle_t *Devices,
+    const ur::level_zero::ur_device_handle_t *Devices,
     const ur_program_properties_t *Properties, const uint8_t **Inputs,
     const size_t *Lengths)
     : Context{Context}, NativeProperties(Properties), OwnZeModule{true},
       AssociatedDevices(Devices, Devices + NumDevices) {
+  ddi_table = ddiTableOf(Context);
   for (uint32_t I = 0; I < NumDevices; ++I) {
     DeviceData &PerDevData = DeviceDataMap[Devices[I]->ZeDevice];
     PerDevData.State = St;
@@ -1173,20 +1192,25 @@ ur_program_handle_t_::ur_program_handle_t_(
 
 ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Context)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices(Context->getDevices()) {}
+      AssociatedDevices(common_cast(Context)->getDevices()) {
+  ddi_table = ddiTableOf(Context);
+}
 
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices({Context->getDevices()[0]}),
-      InteropZeModule{InteropZeModule} {}
+      AssociatedDevices({common_cast(Context)->getDevices()[0]}),
+      InteropZeModule{InteropZeModule} {
+  ddi_table = ddiTableOf(Context);
+}
 
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule,
                                            bool OwnZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{OwnZeModule},
-      AssociatedDevices({Context->getDevices()[0]}),
+      AssociatedDevices({common_cast(Context)->getDevices()[0]}),
       InteropZeModule{InteropZeModule} {
+  ddi_table = ddiTableOf(Context);
   // TODO: Currently it is not possible to understand the device associated
   // with provided ZeModule. So we can't set the state on that device to Exe.
 }
@@ -1195,8 +1219,10 @@ ur_program_handle_t_::ur_program_handle_t_(state St,
                                            ur_context_handle_t Context,
                                            const std::string &ErrorMessage)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      ErrorMessage{ErrorMessage}, AssociatedDevices(Context->getDevices()) {
-  for (auto &Device : Context->getDevices()) {
+      ErrorMessage{ErrorMessage},
+      AssociatedDevices(common_cast(Context)->getDevices()) {
+  ddi_table = ddiTableOf(Context);
+  for (auto &Device : common_cast(Context)->getDevices()) {
     DeviceData &PerDevData = DeviceDataMap[Device->ZeDevice];
     PerDevData.State = St;
   }
@@ -1219,16 +1245,17 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   }
   if (!resourcesReleased) {
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap) {
-      if (DeviceData.ZeBuildLog && checkL0LoaderTeardown())
+      if (DeviceData.ZeBuildLog && ::ur::level_zero::checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (DeviceData.ZeBuildLog));
     }
     // interop api
-    if (InteropZeModule && OwnZeModule && checkL0LoaderTeardown()) {
+    if (InteropZeModule && OwnZeModule &&
+        ::ur::level_zero::checkL0LoaderTeardown()) {
       ZE_CALL_NOCHECK(zeModuleDestroy, (InteropZeModule));
     }
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)
-      if (DeviceData.ZeModule && checkL0LoaderTeardown())
+      if (DeviceData.ZeModule && ::ur::level_zero::checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleDestroy, (DeviceData.ZeModule));
 
     this->DeviceDataMap.clear();
@@ -1236,3 +1263,5 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
     resourcesReleased = true;
   }
 }
+
+} // namespace ur::level_zero

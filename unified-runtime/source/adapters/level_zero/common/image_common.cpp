@@ -9,19 +9,15 @@
 
 #include <loader/ze_loader.h>
 
-#include "common.hpp"
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
-#include "context.hpp"
-#endif
+#include "device.hpp"
 #include "helpers/memory_helpers.hpp"
 #include "image_common.hpp"
+#include "interfaces.hpp"
 #include "logger/ur_logger.hpp"
 #include "platform.hpp"
 #include "sampler.hpp"
-#include "ur_interface_loader.hpp"
 
+namespace ur::level_zero {
 namespace {
 
 /// Construct UR image format from ZE image desc.
@@ -303,8 +299,10 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
   const bool Sampled = (pSamplerDesc != nullptr);
   if (Sampled) {
-    ze_api_version_t ZeApiVersion = hContext->getPlatform()->ZeApiVersion;
-    UR_CALL(ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc, ZeSamplerDesc));
+    ze_api_version_t ZeApiVersion =
+        common_cast(hContext)->getPlatform()->ZeApiVersion;
+    UR_CALL(ur::level_zero::ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc,
+                                             ZeSamplerDesc));
     BindlessDesc.pNext = &ZeSamplerDesc;
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
   }
@@ -315,7 +313,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
       ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES, nullptr,
       ZE_MEMORY_TYPE_UNKNOWN, 0, 0};
 
-  ze_context_handle_t zeCtx = hContext->getZeHandle();
+  ze_context_handle_t zeCtx = common_cast(hContext)->getZeHandle();
 
   ZE2UR_CALL(zeMemGetAllocProperties,
              (zeCtx, reinterpret_cast<const void *>(hImageMem),
@@ -1061,14 +1059,16 @@ bool verifyCommonImagePropertiesSupport(
   return supported;
 }
 
-namespace ur::level_zero {
-
-ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
-                                 ur_device_handle_t hDevice,
+ur_result_t urUSMPitchedAllocExp(::ur_context_handle_t hContextOpque,
+                                 ::ur_device_handle_t hDeviceOpque,
                                  const ur_usm_desc_t *pUSMDesc,
-                                 ur_usm_pool_handle_t pool, size_t widthInBytes,
-                                 size_t height, size_t elementSizeBytes,
-                                 void **ppMem, size_t *pResultPitch) {
+                                 ::ur_usm_pool_handle_t pool,
+                                 size_t widthInBytes, size_t height,
+                                 size_t elementSizeBytes, void **ppMem,
+                                 size_t *pResultPitch) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(widthInBytes != 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
   UR_ASSERT(ppMem && pResultPitch, UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -1089,16 +1089,20 @@ ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
   *pResultPitch = RowPitch;
 
   size_t Size = height * RowPitch;
-  UR_CALL(ur::level_zero::urUSMDeviceAlloc(hContext, hDevice, pUSMDesc, pool,
-                                           Size, ppMem));
+  auto *ddi = ddiTableOf(hContextOpque);
+  UR_CALL(ddi->USM.pfnDeviceAlloc(hContextOpque, common_cast(hDevice), pUSMDesc,
+                                  pool, Size, ppMem));
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesImageAllocateExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_image_mem_native_handle_t *phImageMem) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pImageFormat && pImageDesc && phImageMem,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -1117,10 +1121,12 @@ ur_result_t urBindlessImagesImageAllocateExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
-                             [[maybe_unused]] ur_device_handle_t hDevice,
-                             ur_exp_image_mem_native_handle_t hImageMem) {
+ur_result_t urBindlessImagesImageFreeExp(
+    [[maybe_unused]] ::ur_context_handle_t hContextOpque,
+    [[maybe_unused]] ::ur_device_handle_t hDeviceOpque,
+    ur_exp_image_mem_native_handle_t hImageMem) {
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   ur_bindless_mem_handle_t *urImg =
       reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
   delete urImg;
@@ -1128,29 +1134,37 @@ urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
 }
 
 ur_result_t urBindlessImagesUnsampledImageCreateExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     ur_exp_image_mem_native_handle_t hImageMem,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_image_native_handle_t *phImage) {
-  UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
-                                   pImageDesc, nullptr, phImage));
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
+  UR_CALL(bindlessImagesCreateImpl(hContextOpque, hDevice, hImageMem,
+                                   pImageFormat, pImageDesc, nullptr, phImage));
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesSampledImageCreateExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     ur_exp_image_mem_native_handle_t hImageMem,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     const ur_sampler_desc_t *pSamplerDesc,
     ur_exp_image_native_handle_t *phImage) {
-  UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
-                                   pImageDesc, pSamplerDesc, phImage));
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
+  UR_CALL(bindlessImagesCreateImpl(hContextOpque, hDevice, hImageMem,
+                                   pImageFormat, pImageDesc, pSamplerDesc,
+                                   phImage));
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     ur_exp_image_native_handle_t hImage) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
@@ -1170,24 +1184,29 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
 }
 
 ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     ur_exp_image_native_handle_t hImage) {
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   // Sampled image is a combination of unsampled image and sampler.
   // The sampler is tied to the image on creation, and is destroyed together
   // with the image.
   return ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
-      hContext, hDevice, hImage);
+      hContextOpque, hDeviceOpque, hImage);
 }
 
 ur_result_t
-urBindlessImagesMipmapFreeExp(ur_context_handle_t hContext,
-                              ur_device_handle_t hDevice,
+urBindlessImagesMipmapFreeExp(::ur_context_handle_t hContextOpque,
+                              ::ur_device_handle_t hDeviceOpque,
                               ur_exp_image_mem_native_handle_t hMem) {
-  return ur::level_zero::urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
+  return ur::level_zero::urBindlessImagesImageFreeExp(hContextOpque,
+                                                      hDeviceOpque, hMem);
 }
 
 ur_result_t urBindlessImagesImageGetInfoExp(
-    ur_context_handle_t, ur_exp_image_mem_native_handle_t hImageMem,
+    ::ur_context_handle_t, ur_exp_image_mem_native_handle_t hImageMem,
     ur_image_info_t propName, void *pPropValue, size_t *pPropSizeRet) {
   UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(UR_IMAGE_INFO_DEPTH >= propName,
@@ -1238,7 +1257,7 @@ ur_result_t urBindlessImagesImageGetInfoExp(
 }
 
 ur_result_t urBindlessImagesMipmapGetLevelExp(
-    ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
+    ::ur_context_handle_t /*hContext*/, ::ur_device_handle_t /*hDevice*/,
     ur_exp_image_mem_native_handle_t /*hImageMem*/, uint32_t /*mipmapLevel*/,
     ur_exp_image_mem_native_handle_t * /*phImageMem*/) {
   UR_LOG_LEGACY(ERR,
@@ -1248,10 +1267,13 @@ ur_result_t urBindlessImagesMipmapGetLevelExp(
 }
 
 ur_result_t urBindlessImagesImportExternalMemoryExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    ur_exp_external_mem_type_t memHandleType,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
+    size_t size, ur_exp_external_mem_type_t memHandleType,
     ur_exp_external_mem_desc_t *pExternalMemDesc,
-    ur_exp_external_mem_handle_t *phExternalMem) {
+    ::ur_exp_external_mem_handle_t *phExternalMem) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
 
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pExternalMemDesc && phExternalMem,
@@ -1340,10 +1362,13 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
 }
 
 ur_result_t urBindlessImagesMapExternalArrayExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_exp_external_mem_handle_t hExternalMem,
+    ::ur_exp_external_mem_handle_t hExternalMem,
     ur_exp_image_mem_native_handle_t *phImageMem) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
 
   UR_ASSERT(hContext && hDevice && hExternalMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -1369,8 +1394,11 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
 }
 
 ur_result_t urBindlessImagesReleaseExternalMemoryExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_external_mem_handle_t hExternalMem) {
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
+    ::ur_exp_external_mem_handle_t hExternalMem) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
 
   UR_ASSERT(hContext && hDevice && hExternalMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -1397,10 +1425,13 @@ ur_result_t urBindlessImagesReleaseExternalMemoryExp(
 }
 
 ur_result_t urBindlessImagesImportExternalSemaphoreExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     ur_exp_external_semaphore_type_t semHandleType,
     ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
-    ur_exp_external_semaphore_handle_t *phExternalSemaphoreHandle) {
+    ::ur_exp_external_semaphore_handle_t *phExternalSemaphoreHandle) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
 
   auto UrPlatform = hContext->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
@@ -1483,8 +1514,12 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
 }
 
 ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
-    ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
-    ur_exp_external_semaphore_handle_t hExternalSemaphore) {
+    ::ur_context_handle_t hContextOpque,
+    [[maybe_unused]] ::ur_device_handle_t hDeviceOpque,
+    ::ur_exp_external_semaphore_handle_t hExternalSemaphore) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   auto UrPlatform = hContext->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] "),
@@ -1499,8 +1534,12 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
 }
 
 ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
-    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
+    uint64_t offset, uint64_t size, ::ur_exp_external_mem_handle_t hExternalMem,
+    void **phRetMem) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   UR_ASSERT(hContext && hDevice && hExternalMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(size, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
@@ -1537,8 +1576,11 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
 }
 
 ur_result_t urBindlessImagesFreeMappedLinearMemoryExp(
-    ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
-    void *pMem) {
+    ::ur_context_handle_t hContextOpque,
+    [[maybe_unused]] ::ur_device_handle_t hDeviceOpque, void *pMem) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
@@ -1547,9 +1589,12 @@ ur_result_t urBindlessImagesFreeMappedLinearMemoryExp(
 }
 
 ur_result_t urBindlessImagesGetImageMemoryHandleTypeSupportExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
     ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1563,9 +1608,12 @@ ur_result_t urBindlessImagesGetImageMemoryHandleTypeSupportExp(
 }
 
 ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
     ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1594,9 +1642,12 @@ ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
 }
 
 ur_result_t urBindlessImagesGetImageSampledHandleSupportExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ::ur_context_handle_t hContextOpque, ::ur_device_handle_t hDeviceOpque,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
     ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  auto hContext = common_cast(hContextOpque);
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1611,8 +1662,10 @@ ur_result_t urBindlessImagesGetImageSampledHandleSupportExp(
 }
 
 ur_result_t urBindlessImagesSupportsImportingHandleTypeExp(
-    [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] ::ur_device_handle_t hDeviceOpque,
     ur_exp_external_mem_type_t memHandleType, ur_bool_t *pSupportedRet) {
+  auto *hDevice = common_cast(hDeviceOpque);
+  (void)hDevice;
 #if defined(_WIN32)
   *pSupportedRet =
       (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT) ||

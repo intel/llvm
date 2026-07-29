@@ -7,8 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../device.hpp"
 #include <unified-runtime/ur_api.h>
 #include <ze_api.h>
+
+namespace ur::level_zero {
 
 /**
  * Calculates a work group size for the kernel based on the GlobalWorkSize or
@@ -82,3 +85,5 @@ inline void postSubmit(ze_kernel_handle_t hZeKernel,
 ur_result_t setArgValueOnZeKernel(ze_kernel_handle_t hZeKernel,
                                   uint32_t argIndex, size_t argSize,
                                   const void *pArgValue);
+
+} // namespace ur::level_zero
