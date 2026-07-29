@@ -133,7 +133,6 @@
 ; CHECK-NEXT:       Machine code sinking
 ; CHECK-NEXT:       Peephole Optimizations
 ; CHECK-NEXT:       Remove dead machine instructions
-; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       PowerPC Reduce CR logical Operation
 ; CHECK-NEXT:       Remove unreachable machine basic blocks
 ; CHECK-NEXT:       Live Variable Analysis
