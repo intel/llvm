@@ -29,7 +29,7 @@ def find_xml_file(search_path: str, xml_name: str) -> str:
         return ""
 
     search_root = Path(search_path)
-    
+
     # Handle wildcard for adapter-specific tests (searches in adapter subfolders)
     if xml_name == "*.xml":
         print(f"Note: Searching for XML files in adapter subfolders", file=sys.stderr)
@@ -38,7 +38,7 @@ def find_xml_file(search_path: str, xml_name: str) -> str:
             found_files = list(search_root.rglob("*.xml"))
             print(f"Debug: rglob found {len(found_files)} files", file=sys.stderr)
             for xml_path in found_files:
-                print(f"Debug: Checking {xml_path} (is_file={xml_path.is_file()})", file=sys.stderr)
+                print(f"Debug: File name={xml_path.name}, full={xml_path}, is_file={xml_path.is_file()}", file=sys.stderr)
                 if xml_path.is_file():
                     abs_path = xml_path.absolute()
                     print(f"Note: Found XML at: {abs_path}", file=sys.stderr)

@@ -108,6 +108,9 @@ runs:
       if [ -n "$FOUND_XML" ] && [ -f "$FOUND_XML" ]; then
         # Copy XML with explicit basename to avoid wildcard issues
         XML_BASENAME=$(basename "$FOUND_XML")
+        echo "Debug: FOUND_XML=$FOUND_XML"
+        echo "Debug: XML_BASENAME=$XML_BASENAME"
+        echo "Debug: Checking if file exists: [ -f \"$FOUND_XML\" ] = $([ -f "$FOUND_XML" ] && echo yes || echo no)"
         cp "$FOUND_XML" "test_artifacts/$XML_BASENAME"
       fi
 
