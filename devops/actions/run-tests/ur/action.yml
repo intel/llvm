@@ -31,7 +31,7 @@ runs:
       
       echo "Debug: Captured output file size: $(wc -l < "$OUTPUTS_FILE") lines"
       echo "Debug: Outputs in file:"
-      grep -E "^(log_file|xml_name|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE" || echo "Warning: No outputs found"
+      grep -E "^(log_file|xml_file|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE" || echo "Warning: No outputs found"
       
       # Parse Python output and set GitHub Actions outputs (not env for security)
       while IFS='=' read -r key value; do
@@ -39,7 +39,7 @@ runs:
           echo "$key=$value" >> $GITHUB_OUTPUT
           echo "  Set output: $key=$value"
         fi
-      done < <(grep -E "^(log_file|xml_name|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE")
+      done < <(grep -E "^(log_file|xml_file|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE")
       
       rm -f "$OUTPUTS_FILE"
       exit $EXIT_CODE
@@ -70,11 +70,8 @@ runs:
     if: ${{ always() }}
     shell: bash
     env:
-      BUILD_DIR: ${{ inputs.build_dir }}
-      TEST_TYPE: ${{ inputs.test_type }}
       LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
-      XML_NAME: ${{ steps.run_tests.outputs.xml_name }}
-      XML_SEARCH_PATH: ${{ steps.run_tests.outputs.xml_search_path }}
+      XML_FILE: ${{ steps.run_tests.outputs.xml_file }}
     run: |
       if [ ! -f "$LOG_FILE" ]; then
         echo "::warning::Test log not found"
@@ -86,8 +83,6 @@ runs:
         exit 0
       fi
       
-      XML_FILE=$(python3 devops/scripts/ur_ci_utils.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
-      
       python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
 
   - name: Copy artifacts
@@ -95,8 +90,7 @@ runs:
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
-      XML_NAME: ${{ steps.run_tests.outputs.xml_name }}
-      XML_SEARCH_PATH: ${{ steps.run_tests.outputs.xml_search_path }}
+      XML_FILE: ${{ steps.run_tests.outputs.xml_file }}
     run: |
       mkdir -p test_artifacts
       
@@ -104,14 +98,8 @@ runs:
         cp "$LOG_FILE" test_artifacts/
       fi
       
-      FOUND_XML=$(python3 devops/scripts/ur_ci_utils.py find-xml "$XML_SEARCH_PATH" "$XML_NAME")
-      if [ -n "$FOUND_XML" ] && [ -f "$FOUND_XML" ]; then
-        # Copy XML with explicit basename to avoid wildcard issues
-        XML_BASENAME=$(basename "$FOUND_XML")
-        echo "Debug: FOUND_XML=$FOUND_XML"
-        echo "Debug: XML_BASENAME=$XML_BASENAME"
-        echo "Debug: Checking if file exists: [ -f \"$FOUND_XML\" ] = $([ -f "$FOUND_XML" ] && echo yes || echo no)"
-        cp "$FOUND_XML" "test_artifacts/$XML_BASENAME"
+      if [ -n "$XML_FILE" ] && [ -f "$XML_FILE" ]; then
+        cp "$XML_FILE" test_artifacts/
       fi
 
   - name: Upload test artifacts

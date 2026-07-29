@@ -171,7 +171,6 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
 
     # Output configuration for GitHub Actions (always, before tests run)
     print(f"log_file={config.log_file}", flush=True)
-    print(f"xml_name={config.xml_name}", flush=True)
     print(f"xml_search_path={config.xml_search_path}", flush=True)
     sys.stdout.flush()  # Ensure outputs are written before subprocess
 
@@ -196,6 +195,11 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         print("No adapter-specific tests found", file=sys.stderr)
         print("skip_artifacts=1", flush=True)
         return 0
+
+    # Find XML file and output absolute path (not wildcard pattern)
+    xml_file = find_xml_file(config.xml_search_path, config.xml_name)
+    if xml_file:
+        print(f"xml_file={xml_file}", flush=True)
 
     return result.returncode
 
