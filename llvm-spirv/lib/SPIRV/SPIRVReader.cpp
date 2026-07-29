@@ -2483,7 +2483,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return mapValue(BV, transSPIRVBuiltinFromInst(AC, BB));
     }
     Type *BaseTy = nullptr;
-    if (BaseSPVTy->isTypeVector()) {
+    if (isUntypedAccessChainOpCode(OC)) {
+      // For untyped access chains the Base Type operand already is the type
+      // being indexed, so it has to be used as is.
+      BaseTy = transType(BaseSPVTy);
+    } else if (BaseSPVTy->isTypeVector()) {
       auto *VecCompTy = BaseSPVTy->getVectorComponentType();
       if (VecCompTy->isTypePointer())
         BaseTy = transType(VecCompTy->getPointerElementType());
