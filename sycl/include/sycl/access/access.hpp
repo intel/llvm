@@ -25,7 +25,7 @@ enum class target {
   local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image __SYCL_DEPRECATED("removed in SYCL 2020") = 2017,
   host_buffer __SYCL2020_DEPRECATED("use 'host_accessor' instead") = 2018,
-  host_image  __SYCL_DEPRECATED("removed in SYCL 2020") = 2019,
+  host_image __SYCL_DEPRECATED("removed in SYCL 2020") = 2019,
   image_array __SYCL_DEPRECATED("removed in SYCL 2020") = 2020,
   host_task = 2021,
 };
