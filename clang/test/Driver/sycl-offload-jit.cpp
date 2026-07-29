@@ -56,7 +56,7 @@
 
 // Check that --allow-partial-linkage and --create-library are not passed to
 // clang-linker-wrapper for SYCL (they are spirv-link flags, not clang-sycl-linker flags).
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SPIRVLINK-FLAGS %s
 // CHECK-NO-SPIRVLINK-FLAGS-NOT: --device-linker=spirv64-unknown-unknown=--allow-partial-linkage
 // CHECK-NO-SPIRVLINK-FLAGS-NOT: --device-linker=spirv64-unknown-unknown=--create-library
@@ -88,7 +88,8 @@
 // CHK-SPLIT-INVALID: error: invalid value 'bogus' in '-fsycl-device-image-split='
 
 /// Check -fsycl-device-image-split is unused when not linking (e.g. -c).
-// RUN: %clang -### -c --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=kernel %s 2>&1 \
+// RUN: %clang -### -c --target=x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
+// RUN:   -fsycl-device-image-split=kernel %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-UNUSED %s
 // CHK-SPLIT-UNUSED: warning: argument unused during compilation: '-fsycl-device-image-split=kernel'
 
