@@ -968,7 +968,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
           SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
     BM->setName(BF, F->getName().str());
   }
-  if (!isKernel(F) && F->getLinkage() != GlobalValue::InternalLinkage)
+  if (!isKernel(F) && F->hasName() &&
+      F->getLinkage() != GlobalValue::InternalLinkage)
     BF->setLinkageType(transLinkageType(F));
 
   // Translate OpenCL/SYCL buffer_location metadata if it's attached to the
@@ -6505,6 +6506,8 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
   fpContractUpdateRecursive(I, getFPContract(I));
 
   if (isKernel(I)) {
+    BM->getErrorLog().checkError(I->hasName(), SPIRVEC_InvalidLlvmModule,
+                                 "Entry point function must have a name");
     auto Interface = collectEntryPointInterfaces(BF, I);
     BM->addEntryPoint(ExecutionModelKernel, BF->getId(), I->getName().str(),
                       Interface);
