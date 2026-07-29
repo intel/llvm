@@ -22,12 +22,27 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-struct enable_profiling_key
-    : detail::compile_time_property_key<detail::PropKind::EnableProfiling> {
-  using value_t = property_value<enable_profiling_key>;
+struct enable_profiling
+    : detail::run_time_property_key<enable_profiling,
+                                    detail::PropKind::EnableProfiling> {
+  constexpr enable_profiling(bool enable = true) : value(enable) {}
+  bool value;
 };
 
-inline constexpr enable_profiling_key::value_t enable_profiling;
+using enable_profiling_key = enable_profiling;
+
+inline bool operator==(const enable_profiling &lhs,
+                       const enable_profiling &rhs) {
+  return lhs.value == rhs.value;
+}
+inline bool operator!=(const enable_profiling &lhs,
+                       const enable_profiling &rhs) {
+  return !(lhs == rhs);
+}
+
+template <>
+struct is_property_key_of<enable_profiling_key, sycl::event> : std::true_type {
+};
 
 template <>
 struct is_property_key_of<enable_ipc_key, sycl::event> : std::true_type {};
@@ -40,12 +55,17 @@ enum make_event_flags : uint32_t {
 
 __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt, uint32_t Flags);
 
-template <typename PropertyListT> uint32_t getMakeEventFlags() {
+template <typename PropertyListT>
+uint32_t getMakeEventFlags(const PropertyListT &props) {
   uint32_t Flags = 0;
-  if constexpr (PropertyListT::template has_property<enable_profiling_key>())
-    Flags |= make_event_flag_enable_profiling;
-  if constexpr (PropertyListT::template has_property<enable_ipc_key>())
-    Flags |= make_event_flag_enable_ipc;
+  if constexpr (PropertyListT::template has_property<enable_profiling_key>()) {
+    if (props.template get_property<enable_profiling_key>().value)
+      Flags |= make_event_flag_enable_profiling;
+  }
+  if constexpr (PropertyListT::template has_property<enable_ipc_key>()) {
+    if (props.template get_property<enable_ipc_key>().value)
+      Flags |= make_event_flag_enable_ipc;
+  }
   return Flags;
 }
 } // namespace detail
@@ -55,9 +75,8 @@ inline sycl::event make_event(const sycl::context &ctxt,
                               PropertyListT props = {}) {
   static_assert(is_property_list_v<PropertyListT>,
                 "Props must be a sycl::ext::oneapi::experimental::properties");
-  (void)props;
 
-  return detail::make_event(ctxt, detail::getMakeEventFlags<PropertyListT>());
+  return detail::make_event(ctxt, detail::getMakeEventFlags(props));
 }
 
 template <typename PropertyListT = empty_properties_t>
