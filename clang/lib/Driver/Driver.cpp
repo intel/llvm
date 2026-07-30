@@ -8354,8 +8354,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     ActionList AL{PackagerAction};
     Action *FinalizeAction =
         C.MakeAction<LinkerWrapperJobAction>(AL, types::TY_Image);
-    DDep.add(*FinalizeAction,
-             *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+    DDep.add(*FinalizeAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
              /*BA=*/{}, Action::OFK_SYCL);
   } else {
     // RDC (default): package raw device bitcode to be embedded in the host

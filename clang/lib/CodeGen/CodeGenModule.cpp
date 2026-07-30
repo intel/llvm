@@ -50,9 +50,9 @@
 #include "clang/CodeGen/BackendUtil.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaSYCL.h"
-#include "clang/Lex/Preprocessor.h"
 #include "llvm/ABI/IRTypeMapper.h"
 #include "llvm/ABI/TargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
@@ -60,6 +60,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
@@ -84,7 +85,6 @@
 #include "llvm/Transforms/Utils/BuildLibCalls.h"
 #include "llvm/Transforms/Utils/KCFIHash.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
-#include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include <optional>
 #include <set>
 
@@ -1268,9 +1268,8 @@ void CodeGenModule::Release() {
   if (LangOpts.SYCLIsHost &&
       !getCodeGenOpts().SYCLTargetBinaryFileName.empty()) {
     auto VFS = getFileSystem();
-    auto BinaryOrErr =
-        VFS->getBufferForFile(getCodeGenOpts().SYCLTargetBinaryFileName,
-                              -1, false);
+    auto BinaryOrErr = VFS->getBufferForFile(
+        getCodeGenOpts().SYCLTargetBinaryFileName, -1, false);
     if (std::error_code EC = BinaryOrErr.getError()) {
       getDiags().Report(diag::err_cannot_open_file)
           << getCodeGenOpts().SYCLTargetBinaryFileName << EC.message();
