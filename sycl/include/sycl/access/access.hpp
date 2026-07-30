@@ -34,8 +34,21 @@ enum class target {
   host_task = 2021,
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+enum class mode {
+  read = 1024,
+  write = 1025,
+  read_write = 1026,
+  discard_write __SYCL2020_DEPRECATED(
+      "use 'write' with the 'no_init' property instead") = 1027,
+  discard_read_write __SYCL2020_DEPRECATED(
+      "use 'read' with the 'no_init' property instead") = 1028,
+  atomic __SYCL2020_DEPRECATED("use 'atomic_ref' instead") = 1029
+};
+#else
 using mode
     __SYCL2020_DEPRECATED("use 'access_mode' instead") = sycl::access_mode;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 enum class fence_space {
   local_space = 0,
@@ -59,7 +72,11 @@ enum class decorated : int { no = 0, yes = 1, legacy = 2 };
 } // namespace access
 
 using access::target;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+using access_mode = access::mode;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 enum class access_mode {
   read = 1024,
   write = 1025,
@@ -70,6 +87,7 @@ enum class access_mode {
       "use 'read' with the 'no_init' property instead") = 1028,
   atomic __SYCL2020_DEPRECATED("use 'atomic_ref' instead") = 1029
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 enum class image_target : unsigned int { device = 0, host_task = 1 };
 
