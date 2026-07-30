@@ -26,8 +26,8 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
   queue q;
   size_t sg_size = get_sg_size<class copy>(q);
   q.submit([&](handler &cgh) {
-     auto accC = bufC.get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.get_access<access::mode::write>(cgh);
+     auto accC = bufC.get_access<access_mode::read_write>(cgh);
+     auto accA = bufA.get_access<access_mode::write>(cgh);
 
      cgh.parallel_for<class copy>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
