@@ -488,9 +488,7 @@ bool CompilerInstanceWithContext::initialize(
   // once here, and the information is reused for all computeDependencies calls.
   // We do not need to call createTarget explicitly if we go through
   // CompilerInstance::ExecuteAction to perform scanning.
-  CI.createTarget();
-
-  return true;
+  return CI.createTarget();
 }
 
 bool CompilerInstanceWithContext::computeDependencies(
