@@ -263,8 +263,8 @@ template <typename T> void test_copy_ptr_acc() {
     buffer<T, 1> DstBuf(&DstValue, range<1>(1));
     queue Queue;
     Queue.submit([&](handler &Cgh) {
-      accessor<T, 0, access_mode::write, access::target::device>
-          DstAcc(DstBuf, Cgh, sycl::no_init);
+      accessor<T, 0, access_mode::write, access::target::device> DstAcc(
+          DstBuf, Cgh, sycl::no_init);
       Cgh.copy(&SrcValue, DstAcc);
     });
   }
@@ -337,7 +337,7 @@ template <typename T> void test_copy_acc_ptr() {
     queue Queue;
     Queue.submit([&](handler &Cgh) {
       accessor<T, 0, access_mode::read, access::target::device> SrcAcc(SrcBuf,
-                                                                        Cgh);
+                                                                       Cgh);
       Cgh.copy(SrcAcc, &DstValue);
     });
   }

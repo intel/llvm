@@ -93,7 +93,7 @@ void try_3D(queue &Q) {
 
   Q.submit([&](handler &h) {
     accessor<int4, 2, access_mode::read, access::target::image_array> acs3(im3,
-                                                                            h);
+                                                                           h);
     accessor ABX{BX, h};
     auto R = acs3.get_range();
     std::cout << "Host acs3.get_range()=" << R[0] << "," << R[1] << "," << R[2]

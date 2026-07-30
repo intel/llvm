@@ -50,8 +50,8 @@ void run_test(size_t numThreads) {
     sycl::buffer<int, 1> result_buf{sycl::range<1>{DIMS}};
     queue
         .submit([&](sycl::handler &cgh) {
-          auto result_acc =
-              result_buf.get_access<sycl::access_mode::write>(cgh, sycl::no_init);
+          auto result_acc = result_buf.get_access<sycl::access_mode::write>(
+              cgh, sycl::no_init);
           cgh.parallel_for<kernel_set_value>(
               sycl::range<1>{DIMS},
               [=](sycl::id<1> idx) { result_acc[idx] = idx[0]; });

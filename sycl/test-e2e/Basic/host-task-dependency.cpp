@@ -27,10 +27,9 @@ struct Context {
 
 S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
   S::event Event = Ctx->Queue.submit([&](S::handler &CGH) {
-    S::host_accessor<int, 1, S::access_mode::read> CopierSrcAcc(Ctx->Buf1,
-                                                                 CGH);
+    S::host_accessor<int, 1, S::access_mode::read> CopierSrcAcc(Ctx->Buf1, CGH);
     S::host_accessor<int, 1, S::access_mode::write> CopierDstAcc(Ctx->Buf2,
-                                                                  CGH);
+                                                                 CGH);
 
     auto CopierHostTask = [=] {
       for (size_t Idx = 0; Idx < CopierDstAcc.size(); ++Idx)
@@ -92,8 +91,8 @@ void Thread1Fn(Context *Ctx) {
 
   // 3. submit simple task to move data between two buffers
   Ctx->Queue.submit([&](S::handler &CGH) {
-    S::accessor<int, 1, S::access_mode::read, S::access::target::device>
-        SrcAcc(Ctx->Buf2, CGH);
+    S::accessor<int, 1, S::access_mode::read, S::access::target::device> SrcAcc(
+        Ctx->Buf2, CGH);
     S::accessor<int, 1, S::access_mode::write, S::access::target::device>
         DstAcc(Ctx->Buf3, CGH);
 

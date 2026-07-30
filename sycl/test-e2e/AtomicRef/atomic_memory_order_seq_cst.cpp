@@ -92,7 +92,8 @@ template <memory_order order> void test_global(size_t N_iters) {
   buffer<int> val_buf(&val, 1);
 
   q.submit([&](handler &cgh) {
-     auto res = res_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
+     auto res =
+         res_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
      auto val = val_buf.template get_access<access_mode::read_write>(cgh);
      // Intentionally using a small work group size. The assumption being that
      // more sub groups mean more likely failure for the same number of
@@ -123,7 +124,8 @@ template <memory_order order> void test_local(size_t N_iters) {
   buffer<int, 2> res_buf({N_items / 2, N_iters});
 
   q.submit([&](handler &cgh) {
-     auto res = res_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
+     auto res =
+         res_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
      local_accessor<int, 1> val(2, cgh);
      cgh.parallel_for(nd_range<1>(N_items, N_items), [=](nd_item<1> it) {
        val[0] = 0;
