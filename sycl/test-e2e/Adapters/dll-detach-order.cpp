@@ -8,6 +8,5 @@
 
 // whatever adapter THIS is
 // CHECK: ---> urAdapterRelease
-// CHECK: <LOADER>[INFO]: unloaded adapter
 
 // CHECK: ---> urLoaderTearDown

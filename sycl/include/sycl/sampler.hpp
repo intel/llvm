@@ -71,7 +71,7 @@ public:
           const property_list &propList = {});
 
 #ifdef __SYCL_INTERNAL_API
-  sampler(cl_sampler clSampler, const context &syclContext);
+  sampler(OpenCLSamplerT clSampler, const context &syclContext);
 #endif
 
   sampler(const sampler &rhs) = default;

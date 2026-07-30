@@ -54,10 +54,10 @@ bool device_impl::is_affinity_supported(
                    AffinityDomain) != SupportedDomains.end();
 }
 
-cl_device_id device_impl::get() const {
+OpenCLDeviceIdT device_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(getNative()));
-  return ur::cast<cl_device_id>(getNative());
+  retainOpenCLDevice(getNative());
+  return ur::cast<OpenCLDeviceIdT>(getNative());
 }
 
 platform device_impl::get_platform() const {
@@ -304,7 +304,7 @@ ur_native_handle_t device_impl::getNative() const {
   ur_native_handle_t Handle;
   Adapter.call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
+    retainOpenCLDevice(Handle);
   }
   return Handle;
 }

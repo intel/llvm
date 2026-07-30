@@ -11324,6 +11324,41 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetIdExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) {
+  auto pfnGetIdExp = getContext()->urDdiTable.GraphExp.pfnGetIdExp;
+
+  if (nullptr == pfnGetIdExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_get_id_exp_params_t params = {&hGraph, &pGraphId};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_GRAPH_GET_ID_EXP,
+                                                 "urGraphGetIdExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphGetIdExp\n");
+
+  ur_result_t result = pfnGetIdExp(hGraph, pGraphId);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_GET_ID_EXP, "urGraphGetIdExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_GRAPH_GET_ID_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urGraphGetIdExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphSetDestructionCallbackExp
 __urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
     /// [in] Handle of the graph to register the callback for.
@@ -12134,6 +12169,9 @@ __urdlllocal ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 
   dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
   pDdiTable->pfnIsEmptyExp = ur_tracing_layer::urGraphIsEmptyExp;
+
+  dditable.pfnGetIdExp = pDdiTable->pfnGetIdExp;
+  pDdiTable->pfnGetIdExp = ur_tracing_layer::urGraphGetIdExp;
 
   dditable.pfnSetDestructionCallbackExp =
       pDdiTable->pfnSetDestructionCallbackExp;

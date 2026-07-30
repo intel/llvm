@@ -10,7 +10,7 @@ $singleArg = comdat any
 $multiArg = comdat any
 
 ; Function Attrs: convergent mustprogress norecurse
-define weak_odr dso_local spir_kernel void @singleArg(i32 addrspace(4)* noundef align 4 "sycl-alignment"="4" "sycl-awidth"="32" "sycl-buffer-location"="10" "sycl-conduit" "sycl-dwidth"="64" "sycl-latency"="1" "sycl-maxburst"="3" "sycl-read-write-mode"="2" "sycl-register-map" "sycl-stable" "sycl-strict" "sycl-wait-request"="5" %_arg_p) #0 comdat !kernel_arg_buffer_location !1587
+define weak_odr dso_local spir_kernel void @singleArg(i32 addrspace(4)* noundef align 4 "sycl-alignment"="4" "sycl-awidth"="32" "sycl-buffer-location"="10" "sycl-conduit" "sycl-dwidth"="64" "sycl-latency"="1" "sycl-maxburst"="3" "sycl-read-write-mode"="2" "sycl-register-map" "sycl-stable" "sycl-strict" "sycl-wait-request"="5" %_arg_p) #0 comdat
 ; CHECK-DAG: !spirv.ParameterDecorations ![[PARMDECOR_CASE1:[0-9]+]]
 {
 
@@ -18,7 +18,7 @@ entry:
 		ret void
 }
 
-define weak_odr dso_local spir_kernel void @multiArg(i32 addrspace(4)* noundef align 4 "sycl-alignment"="8" %_arg_a, i32 addrspace(4)* noundef %_arg_b, i32 addrspace(4)* noundef align 4 "sycl-awidth"="64" %_arg_c) #0 comdat !kernel_arg_buffer_location !1588
+define weak_odr dso_local spir_kernel void @multiArg(i32 addrspace(4)* noundef align 4 "sycl-alignment"="8" %_arg_a, i32 addrspace(4)* noundef %_arg_b, i32 addrspace(4)* noundef align 4 "sycl-awidth"="64" %_arg_c) #0 comdat
 ; CHECK-DAG: !spirv.ParameterDecorations ![[PARMDECOR_CASE2:[0-9]+]]
 {
 
@@ -26,8 +26,6 @@ entry:
 		ret void
 }
 
-!1587 = !{i32 -1}
-!1588 = !{i32 -1, i32 -1, i32 -1}
 ; CHECK-DAG: ![[PARMDECOR_CASE1]] = !{![[ARG:[0-9]+]]}
 ; CHECK-DAG: ![[ARG]] = !{![[AWIDTH:[0-9]+]], ![[BL:[0-9]+]], ![[CONDUIT:[0-9]+]], ![[DWIDTH:[0-9]+]], ![[LATENCY:[0-9]+]], ![[MAXBURST:[0-9]+]], ![[RWMODE:[0-9]+]], ![[REGMAP:[0-9]+]], ![[STABLE:[0-9]+]], ![[STRICT:[0-9]+]], ![[WAITREQ:[0-9]+]]}
 

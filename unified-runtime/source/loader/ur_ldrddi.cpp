@@ -42,11 +42,25 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     if (*pfnGet == nullptr)
       return UR_RESULT_ERROR_UNINITIALIZED;
 
-    uint32_t adapter;
-    ur_adapter_handle_t *adapterHandle =
-        numAdapters < NumEntries ? &phAdapters[numAdapters] : nullptr;
-    pfnGet(1, adapterHandle, &adapter);
+    // Count adapters without writing handles when the caller did not request
+    // them or its output array is already full.
+    if (phAdapters == nullptr || numAdapters >= NumEntries) {
+      uint32_t adapter = 0;
+      auto result = pfnGet(0, nullptr, &adapter);
+      if (result == UR_RESULT_SUCCESS)
+        numAdapters += adapter;
+      continue;
+    }
 
+    // Query single adapter into a temporary handle and copy it to output array
+    // if the query was successful.
+    uint32_t adapter = 0;
+    ur_adapter_handle_t adapterHandle = nullptr;
+    auto result = pfnGet(1, &adapterHandle, &adapter);
+    if (result != UR_RESULT_SUCCESS || adapterHandle == nullptr)
+      continue;
+
+    phAdapters[numAdapters] = adapterHandle;
     numAdapters += adapter;
   }
 
@@ -6404,6 +6418,24 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetIdExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetIdExp(
+    /// [in] Handle of the graph to query.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] Pointer to a uint64_t where the unique graph ID will be stored.
+    uint64_t *pGraphId) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnGetIdExp = dditable->GraphExp.pfnGetIdExp;
+  if (nullptr == pfnGetIdExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetIdExp(hGraph, pGraphId);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphSetDestructionCallbackExp
 __urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
     /// [in] Handle of the graph to register the callback for.
@@ -7107,6 +7139,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
       pDdiTable->pfnExecutableGraphDestroyExp =
           ur_loader::urGraphExecutableGraphDestroyExp;
       pDdiTable->pfnIsEmptyExp = ur_loader::urGraphIsEmptyExp;
+      pDdiTable->pfnGetIdExp = ur_loader::urGraphGetIdExp;
       pDdiTable->pfnSetDestructionCallbackExp =
           ur_loader::urGraphSetDestructionCallbackExp;
       pDdiTable->pfnDumpContentsExp = ur_loader::urGraphDumpContentsExp;

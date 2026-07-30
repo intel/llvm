@@ -33,6 +33,12 @@ urGraphIsEmptyExp(ur_exp_graph_handle_t /* hGraph */, bool * /* pIsEmpty */) {
   DIE_NO_IMPLEMENTATION;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL
+urGraphGetIdExp(ur_exp_graph_handle_t /* hGraph */, uint64_t * /* pGraphId */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
     ur_exp_graph_handle_t /* hGraph */,
     ur_exp_graph_destruction_callback_t /* pfnCallback */,

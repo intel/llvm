@@ -37,7 +37,7 @@ $"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE11Kernel4Name" = comdat any
 @_ZL10SpecConst3 = internal constant %"class._ZTSN2cl4sycl17specialization_idI10TestStructEE.cl::sycl::specialization_id" { %struct._ZTS10TestStruct.TestStruct { i32 42, i32 42 } }, align 4
 
 ; Function Attrs: convergent noinline norecurse
-define weak_odr dso_local void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE11Kernel4Name"(%struct._ZTS10TestStruct.TestStruct addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3, i8 addrspace(1)* %_arg__specialization_constants_buffer) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !11 {
+define weak_odr dso_local void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE11Kernel4Name"(%struct._ZTS10TestStruct.TestStruct addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3, i8 addrspace(1)* %_arg__specialization_constants_buffer) local_unnamed_addr #0 comdat {
 entry:
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %_arg_3, i64 0, i32 0, i32 0, i64 0
   %1 = load i64, i64* %0, align 8
@@ -79,7 +79,6 @@ attributes #2 = { convergent }
 !8 = !{i32 4, i32 100000}
 !9 = !{!"clang version 13.0.0"}
 !10 = !{i32 1, i32 4}
-!11 = !{i32 -1, i32 -1, i32 -1, i32 -1, i32 -1}
 !12 = !{i64 0, i64 4, !13, i64 4, i64 4, !13}
 !13 = !{!14, !14, i64 0}
 !14 = !{!"int", !15, i64 0}

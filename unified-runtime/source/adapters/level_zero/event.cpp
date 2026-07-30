@@ -15,10 +15,13 @@
 
 #include "command_buffer.hpp"
 #include "common.hpp"
+#include "common/device.hpp"
 #include "event.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
+
+namespace ur::level_zero::v1 {
 
 void printZeEventList(const ur_ze_event_list_t &UrZeEventList) {
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
@@ -59,22 +62,23 @@ bool WaitListEmptyOrAllEventsFromSameQueue(
   return true;
 }
 
-namespace ur::level_zero {
-
 ur_result_t urEnqueueEventsWait(
     /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
+    ::ur_queue_handle_t QueueOpque,
     /// [in] size of the event wait list
     uint32_t NumEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     /// events that must be complete before this command can be executed. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that all
     /// previously enqueued commands must be complete.
-    const ur_event_handle_t *EventWaitList,
+    const ::ur_event_handle_t *EventWaitList,
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
-    ur_event_handle_t *OutEvent) {
-  if (EventWaitList) {
+    ::ur_event_handle_t *OutEvent) {
+  auto Queue = v1_cast(QueueOpque);
+  auto EventWaitListInternal = v1_cast(EventWaitList);
+  auto OutEventInternal = v1_cast(OutEvent);
+  if (EventWaitListInternal) {
     bool UseCopyEngine = false;
 
     // Lock automatically releases when this goes out of scope.
@@ -82,18 +86,20 @@ ur_result_t urEnqueueEventsWait(
 
     ur_ze_event_list_t TmpWaitList = {};
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-        NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+        NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
 
     // Get a new command list to be used on this call
     ur_command_list_ptr_t CommandList{};
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-        false /*AllowBatching*/, nullptr /*ForceCmdQueue*/));
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList,
+        EventWaitListInternal, false /*AllowBatching*/,
+        nullptr /*ForceCmdQueue*/));
 
     ze_event_handle_t ZeEvent = nullptr;
     ur_event_handle_t InternalEvent;
-    bool IsInternal = OutEvent == nullptr;
-    ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+    bool IsInternal = OutEventInternal == nullptr;
+    ur_event_handle_t *Event =
+        OutEventInternal ? OutEventInternal : &InternalEvent;
     UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_EVENTS_WAIT,
                                          CommandList, IsInternal, false));
 
@@ -121,8 +127,8 @@ ur_result_t urEnqueueEventsWait(
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-  if (OutEvent) {
-    UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
+  if (OutEventInternal) {
+    UR_CALL(createEventAndAssociateQueue(Queue, OutEventInternal,
                                          UR_COMMAND_EVENTS_WAIT,
                                          Queue->CommandListMap.end(), false,
                                          /* IsInternal */ false));
@@ -131,12 +137,13 @@ ur_result_t urEnqueueEventsWait(
   UR_CALL(Queue->executeAllOpenCommandLists());
   UR_CALL(Queue->synchronize());
 
-  if (OutEvent) {
-    Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
+  if (OutEventInternal) {
+    auto OutEventLocal = *OutEventInternal;
+    Queue->LastCommandEvent = OutEventLocal;
 
-    if (!(*OutEvent)->CounterBasedEventsEnabled)
-      ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
-    (*OutEvent)->Completed = true;
+    if (!OutEventLocal->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, (OutEventLocal->ZeEvent));
+    OutEventLocal->Completed = true;
   }
 
   if (!Queue->UsingImmCmdLists) {
@@ -155,24 +162,24 @@ static const bool InOrderBarrierBySignal = [] {
 
 ur_result_t urEnqueueEventsWaitWithBarrier(
     /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
+    ::ur_queue_handle_t QueueOpque,
     /// [in] size of the event wait list
     uint32_t NumEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     /// events that must be complete before this command can be executed. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that all
     /// previously enqueued commands must be complete.
-    const ur_event_handle_t *EventWaitList,
+    const ::ur_event_handle_t *EventWaitList,
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
-    ur_event_handle_t *OutEvent) {
-  return ur::level_zero::urEnqueueEventsWaitWithBarrierExt(
-      Queue, nullptr, NumEventsInWaitList, EventWaitList, OutEvent);
+    ::ur_event_handle_t *OutEvent) {
+  return ur::level_zero::v1::urEnqueueEventsWaitWithBarrierExt(
+      QueueOpque, nullptr, NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
 ur_result_t urEnqueueEventsWaitWithBarrierExt(
     /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
+    ::ur_queue_handle_t QueueOpque,
     /// [in][optional] pointer to the extended enqueue
     const ur_exp_enqueue_ext_properties_t *EnqueueExtProp,
     /// [in] size of the event wait list
@@ -181,10 +188,13 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
     /// events that must be complete before this command can be executed. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that all
     /// previously enqueued commands must be complete.
-    const ur_event_handle_t *EventWaitList,
+    const ::ur_event_handle_t *EventWaitList,
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
-    ur_event_handle_t *OutEvent) {
+    ::ur_event_handle_t *OutEvent) {
+  auto Queue = v1_cast(QueueOpque);
+  auto EventWaitListInternal = v1_cast(EventWaitList);
+  auto OutEventInternal = v1_cast(OutEvent);
   bool InterruptBasedEventsEnabled =
       EnqueueExtProp ? (EnqueueExtProp->flags &
                         UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT) ||
@@ -241,12 +251,13 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
   // a "barrier" event to be created. Or if we need to wait for events in
   // potentially different queues.
   //
-  if (Queue->isInOrderQueue() && NumEventsInWaitList == 0 && !OutEvent) {
+  if (Queue->isInOrderQueue() && NumEventsInWaitList == 0 &&
+      !OutEventInternal) {
     return UR_RESULT_SUCCESS;
   }
 
   ur_event_handle_t ResultEvent = nullptr;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsInternal = OutEventInternal == nullptr;
 
   // For in-order queue and wait-list which is empty or has events from
   // the same queue just use the last command event as the barrier event.
@@ -254,12 +265,13 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
   // accurate profiling values & the overhead that profiling incurs.
   if (Queue->isInOrderQueue() && !Queue->isProfilingEnabled() &&
       WaitListEmptyOrAllEventsFromSameQueue(Queue, NumEventsInWaitList,
-                                            EventWaitList) &&
+                                            EventWaitListInternal) &&
       Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
-    UR_CALL(ur::level_zero::urEventRetain(Queue->LastCommandEvent));
+    UR_CALL(
+        ur::level_zero::v1::urEventRetain(v1_cast(Queue->LastCommandEvent)));
     ResultEvent = Queue->LastCommandEvent;
-    if (OutEvent) {
-      *OutEvent = ResultEvent;
+    if (OutEventInternal) {
+      *OutEventInternal = ResultEvent;
     }
     return UR_RESULT_SUCCESS;
   }
@@ -281,13 +293,14 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
     // Retain the events as they will be owned by the result event.
     ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-        NumEventsInWaitList, EventWaitList, Queue, false /*UseCopyEngine=*/));
+        NumEventsInWaitList, EventWaitListInternal, Queue,
+        false /*UseCopyEngine=*/));
 
     // Get an arbitrary command-list in the queue.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
         Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
-        EventWaitList, OkToBatch, nullptr /*ForcedCmdQueue*/));
+        EventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
 
     // Insert the barrier into the command-list and execute.
     UR_CALL(insertBarrierIntoCmdList(CmdList, TmpWaitList, ResultEvent,
@@ -306,8 +319,8 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
       Queue->ActiveBarriers.add(UREvent);
     }
 
-    if (OutEvent) {
-      *OutEvent = ResultEvent;
+    if (OutEventInternal) {
+      *OutEventInternal = ResultEvent;
     }
     return UR_RESULT_SUCCESS;
   }
@@ -339,7 +352,8 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
        {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
     for (auto &QueueGroup : QueueMap) {
       bool UseCopyEngine =
-          QueueGroup.second.Type != ur_queue_handle_t_::queue_type::Compute;
+          QueueGroup.second.Type !=
+          ur::level_zero::v1::ur_queue_handle_t_::queue_type::Compute;
       if (Queue->UsingImmCmdLists) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
@@ -352,7 +366,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
             ur_command_list_ptr_t CmdList;
             UR_CALL(Queue->Context->getAvailableCommandList(
                 Queue, CmdList, UseCopyEngine, NumEventsInWaitList,
-                EventWaitList, OkToBatch, &ZeQueue));
+                EventWaitListInternal, OkToBatch, &ZeQueue));
             CmdLists.push_back(CmdList);
           }
         }
@@ -366,7 +380,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
         Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
-        EventWaitList, OkToBatch, nullptr /*ForcedCmdQueue*/));
+        EventWaitListInternal, OkToBatch, nullptr /*ForcedCmdQueue*/));
     CmdLists.push_back(CmdList);
   }
 
@@ -411,8 +425,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
 
   // Execute each command list so the barriers can be encountered.
   for (ur_command_list_ptr_t &CmdList : CmdLists) {
-    bool IsCopy =
-        CmdList->second.isCopy(reinterpret_cast<ur_queue_handle_t>(Queue));
+    bool IsCopy = CmdList->second.isCopy(Queue);
     const auto &CommandBatch =
         (IsCopy) ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
     // Only batch if the matching CmdList is already open.
@@ -424,15 +437,15 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
 
   UR_CALL(Queue->ActiveBarriers.clear());
   Queue->ActiveBarriers.add(ResultEvent);
-  if (OutEvent) {
-    *OutEvent = ResultEvent;
+  if (OutEventInternal) {
+    *OutEventInternal = ResultEvent;
   }
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urEventGetInfo(
     /// [in] handle of the event object
-    ur_event_handle_t Event,
+    ::ur_event_handle_t EventOpque,
     /// [in] the name of the event property to query
     ur_event_info_t PropName,
     /// [in] size in bytes of the event property value
@@ -442,6 +455,7 @@ ur_result_t urEventGetInfo(
     size_t
         /// [out][optional] bytes returned in event property
         *PropValueSizeRet) {
+  auto Event = v1_cast(EventOpque);
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
 
   switch (PropName) {
@@ -518,7 +532,7 @@ ur_result_t urEventGetInfo(
 
 ur_result_t urEventGetProfilingInfo(
     /// [in] handle of the event object
-    ur_event_handle_t Event,
+    ::ur_event_handle_t EventOpque,
     /// [in] the name of the profiling property to query
     ur_profiling_info_t PropName,
     /// [in] size in bytes of the profiling property value
@@ -528,6 +542,7 @@ ur_result_t urEventGetProfilingInfo(
     /// [out][optional] pointer to the actual size in bytes returned in
     /// propValue
     size_t *PropValueSizeRet) {
+  auto Event = v1_cast(EventOpque);
   std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
 
   // The event must either have profiling enabled or be recording timestamps.
@@ -537,7 +552,7 @@ ur_result_t urEventGetProfilingInfo(
   }
 
   ur_device_handle_t Device =
-      Event->UrQueue ? Event->UrQueue->Device : Event->Context->Devices[0];
+      Event->UrQueue ? Event->UrQueue->Device : Event->Context->getDevices()[0];
 
   const double ZeTimerResolution = Device->getTimerResolution();
   const uint64_t TimestampMaxValue = Device->getTimestampMask();
@@ -721,7 +736,7 @@ ur_result_t urEventGetProfilingInfo(
 
 ur_result_t urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
+    ::ur_queue_handle_t QueueOpque,
     /// [in] blocking or non-blocking enqueue
     bool Blocking,
     /// [in] size of the event wait list
@@ -730,10 +745,13 @@ ur_result_t urEnqueueTimestampRecordingExp(
     /// events that must be complete before this command can be executed. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
-    const ur_event_handle_t *EventWaitList,
+    const ::ur_event_handle_t *EventWaitList,
     /// [in,out] return an event object that identifies this particular
     /// command instance.
-    ur_event_handle_t *OutEvent) {
+    ::ur_event_handle_t *OutEvent) {
+  auto Queue = v1_cast(QueueOpque);
+  auto EventWaitListInternal = v1_cast(EventWaitList);
+  auto OutEventInternalPtr = v1_cast(OutEvent);
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -742,37 +760,42 @@ ur_result_t urEnqueueTimestampRecordingExp(
   bool UseCopyEngine = false;
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+      NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList,
+      EventWaitListInternal,
       /* AllowBatching */ false, nullptr /*ForcedCmdQueue*/));
 
   UR_CALL(createEventAndAssociateQueue(
-      Queue, OutEvent, UR_COMMAND_TIMESTAMP_RECORDING_EXP, CommandList,
+      Queue, OutEventInternalPtr, UR_COMMAND_TIMESTAMP_RECORDING_EXP,
+      CommandList,
       /* IsInternal */ false, /* HostVisible */ true));
-  ze_event_handle_t ZeEvent = (*OutEvent)->ZeEvent;
-  (*OutEvent)->WaitList = TmpWaitList;
+  auto OutEventInternal = *OutEventInternalPtr;
+  ze_event_handle_t ZeEvent = OutEventInternal->ZeEvent;
+  OutEventInternal->WaitList = TmpWaitList;
 
   // Reset the end timestamp, in case it has been previously used.
-  (*OutEvent)->RecordEventEndTimestamp = 0;
+  OutEventInternal->RecordEventEndTimestamp = 0;
 
   uint64_t DeviceStartTimestamp = 0;
   UR_CALL(ur::level_zero::urDeviceGetGlobalTimestamps(
-      Device, &DeviceStartTimestamp, nullptr));
-  (*OutEvent)->RecordEventStartTimestamp = DeviceStartTimestamp;
+      common_cast(Device), &DeviceStartTimestamp, nullptr));
+  OutEventInternal->RecordEventStartTimestamp = DeviceStartTimestamp;
 
   // Mark this event as timestamped
-  (*OutEvent)->IsTimestamped = true;
+  OutEventInternal->IsTimestamped = true;
 
   // Create a new entry in the queue's recordings.
-  Queue->EndTimeRecordings[*OutEvent] = 0;
+  Queue->EndTimeRecordings[*OutEventInternalPtr] = 0;
 
   ZE2UR_CALL(zeCommandListAppendWriteGlobalTimestamp,
-             (CommandList->first, &Queue->EndTimeRecordings[*OutEvent], ZeEvent,
-              (*OutEvent)->WaitList.Length, (*OutEvent)->WaitList.ZeEventList));
+             (CommandList->first,
+              &Queue->EndTimeRecordings[*OutEventInternalPtr], ZeEvent,
+              OutEventInternal->WaitList.Length,
+              OutEventInternal->WaitList.ZeEventList));
 
   UR_CALL(
       Queue->executeCommandList(CommandList, Blocking, false /* OkToBatch */));
@@ -785,7 +808,8 @@ ur_result_t
 urEventWait(uint32_t NumEvents,
             /// [in][range(0, numEvents)] pointer to a
             /// list of events to wait for completion
-            const ur_event_handle_t *EventWaitList) {
+            const ::ur_event_handle_t *EventWaitListOpque) {
+  auto EventWaitList = v1_cast(EventWaitListOpque);
   for (uint32_t I = 0; I < NumEvents; I++) {
     auto e = EventWaitList[I];
     auto UrQueue = e->UrQueue;
@@ -794,7 +818,7 @@ urEventWait(uint32_t NumEvents,
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.
       //
-      ur_event_handle_t_ *Event = ur_cast<ur_event_handle_t_ *>(e);
+      ur::level_zero::v1::ur_event_handle_t_ *Event = e;
       if (!Event->hasExternalRefs())
         die("urEventWait must not be called for an internal event");
 
@@ -805,7 +829,7 @@ urEventWait(uint32_t NumEvents,
   }
   // Submit dependent open command lists for execution, if any
   for (uint32_t I = 0; I < NumEvents; I++) {
-    ur_event_handle_t_ *Event = ur_cast<ur_event_handle_t_ *>(EventWaitList[I]);
+    ur::level_zero::v1::ur_event_handle_t_ *Event = EventWaitList[I];
     auto UrQueue = Event->UrQueue;
     if (UrQueue) {
       // Lock automatically releases when this goes out of scope.
@@ -817,8 +841,7 @@ urEventWait(uint32_t NumEvents,
   std::unordered_set<ur_queue_handle_t> Queues;
   for (uint32_t I = 0; I < NumEvents; I++) {
     {
-      ur_event_handle_t_ *Event =
-          ur_cast<ur_event_handle_t_ *>(EventWaitList[I]);
+      ur::level_zero::v1::ur_event_handle_t_ *Event = EventWaitList[I];
       {
         std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
         if (!Event->hasExternalRefs())
@@ -875,7 +898,9 @@ urEventWait(uint32_t NumEvents,
 
 ur_result_t
 /// [in] handle of the event object
-urEventRetain(/** [in] handle of the event object */ ur_event_handle_t Event) {
+urEventRetain(
+    /** [in] handle of the event object */ ::ur_event_handle_t EventOpque) {
+  auto Event = v1_cast(EventOpque);
   Event->RefCountExternal++;
   Event->RefCount.retain();
 
@@ -884,7 +909,9 @@ urEventRetain(/** [in] handle of the event object */ ur_event_handle_t Event) {
 
 ur_result_t
 
-urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
+urEventRelease(
+    /** [in] handle of the event object */ ::ur_event_handle_t EventOpque) {
+  auto Event = v1_cast(EventOpque);
   Event->RefCountExternal--;
   bool isEventsWaitCompleted =
       (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
@@ -898,7 +925,7 @@ urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
   // cleaned up (e.g. by CleanupEventListFromResetCmdList), preventing a
   // double-release of the internal reference count.
   if (isEventsWaitCompleted & !isEventDeleted) {
-    UR_CALL(CleanupCompletedEvent((Event), false, false));
+    UR_CALL(CleanupCompletedEvent(Event, false, false));
   }
 
   return UR_RESULT_SUCCESS;
@@ -906,9 +933,10 @@ urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
 
 ur_result_t urEventGetNativeHandle(
     /// [in] handle of the event.
-    ur_event_handle_t Event,
+    ::ur_event_handle_t EventOpque,
     /// [out] a pointer to the native handle of the event.
-    ur_native_handle_t *NativeEvent) {
+    ::ur_native_handle_t *NativeEvent) {
+  auto Event = v1_cast(EventOpque);
   {
     std::shared_lock<ur_shared_mutex> Lock(Event->Mutex);
     auto *ZeEvent = ur_cast<ze_event_handle_t *>(NativeEvent);
@@ -931,49 +959,54 @@ ur_result_t urEventGetNativeHandle(
 
 ur_result_t urExtEventCreate(
     /// [in] handle of the context object
-    ur_context_handle_t Context,
-    ur_event_handle_t
+    ::ur_context_handle_t ContextOpque,
+    ::ur_event_handle_t
         /// [out] pointer to the handle of the event object created.
         *Event) {
+  auto Context = v1_cast(ContextOpque);
+  auto EventInternal = v1_cast(Event);
   UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
-                      true /*HostVisible*/, Event,
+                      true /*HostVisible*/, EventInternal,
                       false /*CounterBasedEventEnabled*/,
                       false /*ForceDisableProfiling*/, false));
 
-  (*Event)->RefCountExternal++;
-  if (!(*Event)->CounterBasedEventsEnabled)
-    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+  (*EventInternal)->RefCountExternal++;
+  if (!(*EventInternal)->CounterBasedEventsEnabled)
+    ZE2UR_CALL(zeEventHostSignal, ((*EventInternal)->ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urEventCreateWithNativeHandle(
     /// [in] the native handle of the event.
-    ur_native_handle_t NativeEvent,
+    ::ur_native_handle_t NativeEvent,
     /// [in] handle of the context object
-    ur_context_handle_t Context, const ur_event_native_properties_t *Properties,
+    ::ur_context_handle_t ContextOpque,
+    const ur_event_native_properties_t *Properties,
     /// [out] pointer to the handle of the event object created.
-    ur_event_handle_t *Event) {
+    ::ur_event_handle_t *Event) {
+  auto Context = v1_cast(ContextOpque);
+  auto EventInternal = v1_cast(Event);
 
   // we dont have urEventCreate, so use this check for now to know that
   // the call comes from urEventCreate()
   if (reinterpret_cast<ze_event_handle_t>(NativeEvent) == nullptr) {
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
-                        true /*HostVisible*/, Event,
+                        true /*HostVisible*/, EventInternal,
                         false /*CounterBasedEventEnabled*/,
                         false /*ForceDisableProfiling*/, false));
 
-    (*Event)->RefCountExternal++;
-    if (!(*Event)->CounterBasedEventsEnabled)
-      ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+    (*EventInternal)->RefCountExternal++;
+    if (!(*EventInternal)->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, ((*EventInternal)->ZeEvent));
     return UR_RESULT_SUCCESS;
   }
 
   auto ZeEvent = ur_cast<ze_event_handle_t>(NativeEvent);
-  ur_event_handle_t_ *UREvent{};
+  ur::level_zero::v1::ur_event_handle_t_ *UREvent{};
   try {
-    UREvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
-                                     Context, UR_EXT_COMMAND_TYPE_USER,
-                                     Properties->isNativeHandleOwned);
+    UREvent = new ur::level_zero::v1::ur_event_handle_t_(
+        ZeEvent, nullptr /* ZeEventPool */, Context, UR_EXT_COMMAND_TYPE_USER,
+        Properties->isNativeHandleOwned);
     UREvent->RefCountExternal++;
 
   } catch (const std::bad_alloc &) {
@@ -993,14 +1026,14 @@ ur_result_t urEventCreateWithNativeHandle(
   // made for waiting for event completion, but not this interop event.
   UREvent->CleanedUp = true;
 
-  *Event = reinterpret_cast<ur_event_handle_t>(UREvent);
+  *EventInternal = UREvent;
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urEventSetCallback(
     /// [in] handle of the event object
-    ur_event_handle_t /*Event*/,
+    ::ur_event_handle_t /*Event*/,
     /// [in] execution status of the event
     ur_execution_info_t /*ExecStatus*/,
     /// [in] execution status of the event
@@ -1013,35 +1046,33 @@ ur_result_t urEventSetCallback(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
-                             ur_device_handle_t /*hDevice*/,
+ur_result_t urEventCreateExp(::ur_context_handle_t /*hContext*/,
+                             ::ur_device_handle_t /*hDevice*/,
                              const ur_exp_event_desc_t * /*pEventDesc*/,
-                             ur_event_handle_t * /*phEvent*/) {
+                             ::ur_event_handle_t * /*phEvent*/) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urIPCGetEventHandleExp(ur_event_handle_t /*hEvent*/,
+ur_result_t urIPCGetEventHandleExp(::ur_event_handle_t /*hEvent*/,
                                    void ** /*ppIPCEventHandleData*/,
                                    size_t * /*pIPCEventHandleDataSizeRet*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urIPCPutEventHandleExp(ur_context_handle_t /*hContext*/,
+ur_result_t urIPCPutEventHandleExp(::ur_context_handle_t /*hContext*/,
                                    void * /*pIPCEventHandleData*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t /*hContext*/,
+ur_result_t urIPCOpenEventHandleExp(::ur_context_handle_t /*hContext*/,
                                     const void * /*pIPCEventHandleData*/,
                                     size_t /*ipcEventHandleDataSize*/,
-                                    ur_event_handle_t * /*phEvent*/) {
+                                    ::ur_event_handle_t * /*phEvent*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
-
-} // namespace ur::level_zero
 
 ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
     ze_event_handle_t &ZeHostVisibleEvent) {
@@ -1105,7 +1136,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
  * This ensures that resources are properly released and avoids potential memory
  * leaks or resource mismanagement.
  */
-ur_event_handle_t_::~ur_event_handle_t_() {
+ur::level_zero::v1::ur_event_handle_t_::~ur_event_handle_t_() {
   if (this->ZeEvent && this->Completed && checkL0LoaderTeardown()) {
     if (this->UrQueue && !this->UrQueue->isDiscardEvents())
       ZE_CALL_NOCHECK(zeEventDestroy, (this->ZeEvent));
@@ -1284,7 +1315,8 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
       // some other thread) then release referenced memory allocations. As a
       // result, memory can be deallocated and context can be removed from
       // container in the platform. That's why we need to lock a mutex here.
-      ur_platform_handle_t Plt = Kernel->Program->Context->getPlatform();
+      ur_platform_handle_t Plt =
+          v1_cast(Kernel->Program->Context)->getPlatform();
       std::scoped_lock<ur_shared_mutex> ContextsLock(Plt->ContextsMutex);
 
       if (--Kernel->SubmissionsCount == 0) {
@@ -1303,7 +1335,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   // We've reset event data members above, now cleanup resources.
   if (AssociatedKernel) {
     ReleaseIndirectMem(AssociatedKernel);
-    UR_CALL(ur::level_zero::urKernelRelease(AssociatedKernel));
+    UR_CALL(ur::level_zero::v1::urKernelRelease(v1_cast(AssociatedKernel)));
   }
 
   if (AssociatedQueue) {
@@ -1362,7 +1394,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
     }
     if (DepEventKernel) {
       ReleaseIndirectMem(DepEventKernel);
-      UR_CALL(ur::level_zero::urKernelRelease(DepEventKernel));
+      UR_CALL(ur::level_zero::v1::urKernelRelease(v1_cast(DepEventKernel)));
     }
     UR_CALL(urEventReleaseInternal(DepEvent));
   }
@@ -1432,9 +1464,8 @@ EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   ZE2UR_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
 
   try {
-    *RetEvent = new ur_event_handle_t_(
-        ZeEvent, ZeEventPool, reinterpret_cast<ur_context_handle_t>(Context),
-        UR_EXT_COMMAND_TYPE_USER, true);
+    *RetEvent = new ur::level_zero::v1::ur_event_handle_t_(
+        ZeEvent, ZeEventPool, Context, UR_EXT_COMMAND_TYPE_USER, true);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1449,13 +1480,14 @@ EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_event_handle_t_::reset() {
+ur_result_t ur::level_zero::v1::ur_event_handle_t_::reset() {
   // Clean up timestamp recording entry from queue if this was a timestamped
   // event
   if (IsTimestamped && UrQueue) {
-    auto Entry = UrQueue->EndTimeRecordings.find(this);
-    if (Entry != UrQueue->EndTimeRecordings.end()) {
-      UrQueue->EndTimeRecordings.erase(Entry);
+    auto *Queue = UrQueue;
+    auto Entry = Queue->EndTimeRecordings.find(this);
+    if (Entry != Queue->EndTimeRecordings.end()) {
+      Queue->EndTimeRecordings.erase(Entry);
     }
   }
 
@@ -1801,7 +1833,9 @@ ur_result_t ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
 }
 
 // Tells if this event is with profiling capabilities.
-bool ur_event_handle_t_::isProfilingEnabled() const {
+bool ur::level_zero::v1::ur_event_handle_t_::isProfilingEnabled() const {
   return !UrQueue || // tentatively assume user events are profiling enabled
          (UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
 }
+
+} // namespace ur::level_zero::v1

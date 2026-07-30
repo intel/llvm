@@ -24,8 +24,8 @@ int main() {
 
   {
     // Test usm_allocator
-    if (dev.get_info<info::device::usm_shared_allocations>() &&
-        dev.get_info<info::device::usm_host_allocations>()) {
+    if (dev.has(aspect::usm_shared_allocations) &&
+        dev.has(aspect::usm_host_allocations)) {
       usm_allocator<int, usm::alloc::shared> alloc11(ctxt, dev);
       usm_allocator<int, usm::alloc::shared> alloc12(ctxt, dev,
                                                      property_list{});

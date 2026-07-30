@@ -20,18 +20,19 @@
 #include "queue_immediate_out_of_order.hpp"
 #include <unified-runtime/ur_api.h>
 
-struct ur_queue_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
+namespace ur::level_zero::v2 {
+
+struct ur_queue_handle_t_ : v2::ur_object_t {
   using data_variant = std::variant<v2::ur_queue_immediate_in_order_t,
                                     v2::ur_queue_immediate_out_of_order_t,
                                     v2::ur_queue_batched_t>;
   data_variant queue_data;
 
-  static constexpr uintptr_t queue_offset =
-      sizeof(ur::handle_base<ur::level_zero::ddi_getter>);
+  static constexpr uintptr_t queue_offset = sizeof(v2::ur_object_t);
 
   template <typename T, class... Args>
   ur_queue_handle_t_(std::in_place_type_t<T>, Args &&...args)
-      : ur::handle_base<ur::level_zero::ddi_getter>(),
+      : v2::ur_object_t(),
         queue_data(std::in_place_type<T>, std::forward<Args>(args)...) {
     assert(queue_offset ==
            (std::visit([](auto &q) { return reinterpret_cast<uintptr_t>(&q); },
@@ -69,3 +70,5 @@ struct ur_queue_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
         queue_data);
   }
 };
+
+} // namespace ur::level_zero::v2

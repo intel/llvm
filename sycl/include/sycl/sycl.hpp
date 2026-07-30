@@ -33,10 +33,12 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_STRINGIFY
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// <sycl/sycl.hpp> is not a iostream "provider", however iostream was included
-// in some of SYCL transitive headers. Customers relied on that inclusion, so it
-// should be kept for now and be removed once breaking changes are allowed.
-#include <iostream>
+// <sycl/sycl.hpp> is not a iostream or algorithm "provider", however both were
+// included in some of SYCL transitive headers. Customers relied on that
+// inclusion, so it should be kept for now and be removed once breaking changes
+// are allowed.
+#include <algorithm>
+#include <sycl/detail/iostream_proxy.hpp>
 #endif
 
 // All SYCL macro are provided through this header
@@ -129,12 +131,15 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/group_helpers_sorters.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/ext/oneapi/experimental/ipc_event.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
+#include <sycl/ext/oneapi/experimental/ipc_physical_memory.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/reduction_properties.hpp>
 #include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_properties.hpp>

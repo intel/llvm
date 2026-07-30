@@ -42,7 +42,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_7nd_itemILi2EEEE_ = comdat a
 $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_EUlNS0_7nd_itemILi2EEEE_ = comdat any
 
 ; Function Attrs: convergent norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_7nd_itemILi2EEEE_() local_unnamed_addr #0 comdat !srcloc !5 !kernel_arg_buffer_location !6 !sycl_fixed_targets !6 !sycl_joint_matrix !7 !sycl_joint_matrix_mad !8 !sycl_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_7nd_itemILi2EEEE_() local_unnamed_addr #0 comdat !srcloc !5 !sycl_fixed_targets !6 !sycl_joint_matrix !7 !sycl_joint_matrix_mad !8 !sycl_kernel_omit_args !6 {
 entry:
   %call.i.i = tail call spir_func noundef target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) @_Z27__spirv_JointMatrixMadINTELIffLm8ELm16ELm16ELN5__spv9MatrixUseE0ELS1_1ELS1_2ELNS0_12MatrixLayoutE0ELS2_0ELS2_3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNS5_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNS5_IS9_XT2_EXT3_EXT8_EXT10_EXT5_EEES8_S4_(target("spirv.JointMatrixINTEL", float, 8, 16, 0, 3, 0) noundef undef, target("spirv.JointMatrixINTEL", float, 16, 16, 0, 3, 1) noundef undef, target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) noundef undef, i32 noundef 3) #3
   ret void
@@ -52,7 +52,7 @@ entry:
 declare dso_local spir_func noundef target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) @_Z27__spirv_JointMatrixMadINTELIffLm8ELm16ELm16ELN5__spv9MatrixUseE0ELS1_1ELS1_2ELNS0_12MatrixLayoutE0ELS2_0ELS2_3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNS5_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNS5_IS9_XT2_EXT3_EXT8_EXT10_EXT5_EEES8_S4_(target("spirv.JointMatrixINTEL", float, 8, 16, 0, 3, 0) noundef, target("spirv.JointMatrixINTEL", float, 16, 16, 0, 3, 1) noundef, target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) noundef, i32 noundef) local_unnamed_addr #1
 
 ; Function Attrs: norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_EUlNS0_7nd_itemILi2EEEE_() local_unnamed_addr #2 comdat !srcloc !9 !kernel_arg_buffer_location !6 !sycl_fixed_targets !6 !sycl_joint_matrix !10 !sycl_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_EUlNS0_7nd_itemILi2EEEE_() local_unnamed_addr #2 comdat !srcloc !9 !sycl_fixed_targets !6 !sycl_joint_matrix !10 !sycl_kernel_omit_args !6 {
 entry:
   ret void
 }
@@ -76,7 +76,7 @@ attributes #3 = { convergent nounwind }
 !4 = !{!""}
 !5 = !{i32 1091}
 !6 = !{}
-!7 = !{!"matrix_type::fp32,use::a,8,16;matrix_type::fp32,use::accumulator,8,16;matrix_type::fp32,use::b,16,16"}
+!7 =!{!"matrix_type::fp32,use::a,8,16;matrix_type::fp32,use::accumulator,8,16;matrix_type::fp32,use::b,16,16"}
 !8 = !{!"matrix_type::fp32,matrix_type::fp32,matrix_type::fp32,matrix_type::fp32,8,16,16"}
 !9 = !{i32 1529}
 !10 = !{!"matrix_type::fp64,use::a,16,16"}

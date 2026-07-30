@@ -14,26 +14,28 @@
 
 #include <vector>
 
-struct ur_program_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_program_handle_t_ : handle_base {
   using native_type = cl_program;
   native_type CLProgram;
-  ur_context_handle_t Context;
+  ur_context_handle_t_ *Context;
   bool IsNativeHandleOwned = true;
   uint32_t NumDevices = 0;
-  std::vector<ur_device_handle_t> Devices;
+  std::vector<ur_device_handle_t_ *> Devices;
   ur::RefCount RefCount;
 
-  ur_program_handle_t_(native_type Prog, ur_context_handle_t Ctx,
-                       uint32_t NumDevices, ur_device_handle_t *Devs)
+  ur_program_handle_t_(native_type Prog, ur_context_handle_t_ *Ctx,
+                       uint32_t NumDevices, ur_device_handle_t_ **Devs)
       : handle_base(), CLProgram(Prog), Context(Ctx), NumDevices(NumDevices) {
-    urContextRetain(Context);
+    ur::opencl::urContextRetain(cast(Context));
     for (uint32_t i = 0; i < NumDevices; i++) {
       Devices.push_back(Devs[i]);
     }
   }
 
   ~ur_program_handle_t_() {
-    urContextRelease(Context);
+    ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
       clReleaseProgram(CLProgram);
     }
@@ -43,3 +45,5 @@ struct ur_program_handle_t_ : ur::opencl::handle_base {
                                     ur_context_handle_t Context,
                                     ur_program_handle_t &Program);
 };
+
+} // namespace ur::opencl

@@ -25,6 +25,17 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+class device_impl;
+class devices_range;
+
+/// Extract built native binaries from a UR program, one per device. The
+/// returned outer vector matches \p Devices in length and order; each entry
+/// holds the device-specific native binary bytes. Used by both the persistent
+/// device code cache and the SYCLBIN serializer (ext_oneapi_get_content).
+std::vector<std::vector<char>>
+getProgramBinaryData(const ur_program_handle_t &NativePrg,
+                     devices_range Devices);
+
 /* The class manages inter-process synchronization:
  *  - Path passed to the constructor is appended with .lock and used as lock
  *    file.

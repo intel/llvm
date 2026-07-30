@@ -967,6 +967,7 @@ def make_param_lines(
     format: List[str] = ["type", "name", "delim", "desc"],
     delim: str = ",",
     replacements: dict = {},
+    global_handles: bool = False,
 ):
     """
     Public:
@@ -983,6 +984,12 @@ def make_param_lines(
             name = replacements[name]
 
         tname = _get_type_name(namespace, tags, obj, item)
+
+        # Qualify handle types with leading '::' so they resolve to the global
+        # scope, not an enclosing adapter namespace's same-named internal type.
+        if global_handles and type_traits.is_handle(tname):
+            base = type_traits.base(tname)  # strips const/* -> ur_X_handle_t
+            tname = tname.replace(base, "::" + base, 1)
 
         words = []
         if "type*" in format:
@@ -1707,8 +1714,14 @@ def get_queue_related_functions(specs: List[dict], namespace: str, tags) -> List
     return funcs
 
 
+# Handle types that have no adapter-internal alias: they resolve to the
+# global type even inside an adapter namespace, so they are forwarded as-is
+# (no cast) when bridging the public API into the internal queue interface.
+_QUEUE_NO_CAST_HANDLES = ("native_handle_t", "external_semaphore_handle_t")
+
+
 def transform_queue_related_function_name(
-    namespace, tags, obj, format=["name", "type"]
+    namespace, tags, obj, format=["name", "type"], cast_handles=False
 ) -> str:
     """
     Public:
@@ -1716,12 +1729,28 @@ def transform_queue_related_function_name(
         - remove $x prefix
         - make first letter lowercase
         - remove first param (queue)
+        - if cast_handles, wrap each remaining handle argument in v2_cast()
+          so the global public-API handle is converted to the internal type
+          the queue interface method expects (native/external-semaphore
+          handles have no internal alias and are left as-is)
     """
     function_name = make_func_name(namespace, tags, obj).replace(namespace, "")
     function_name = function_name[0].lower() + function_name[1:]
 
     if obj["params"][0]["type"] != "$x_queue_handle_t":
         raise ValueError("First parameter is not a queue handle.")
+
+    if cast_handles:
+        args = []
+        for item in obj["params"][1:]:
+            name = _get_param_name(namespace, tags, item)
+            if type_traits.is_handle(item["type"]) and not any(
+                h in item["type"] for h in _QUEUE_NO_CAST_HANDLES
+            ):
+                args.append("v2_cast(%s)" % name)
+            else:
+                args.append(name)
+        return "{}({})".format(function_name, ", ".join(args))
 
     params = make_param_lines(namespace, tags, obj, format=format)
     params = params[1:]

@@ -31,9 +31,14 @@ using context_traits =
 using context_runtime_traits =
     sycl::detail::rt_traits_base<sycl::detail::info_class::context>;
 
-struct reference_count : context_traits<UR_CONTEXT_INFO_REFERENCE_COUNT> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/defines_elementary.hpp>
+struct __SYCL_DEPRECATED("info::context::reference_count is not part of "
+                         "SYCL 2020") reference_count
+    : context_traits<UR_CONTEXT_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 struct platform : context_runtime_traits {
   using return_type = sycl::platform;
 };

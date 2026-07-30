@@ -75,12 +75,12 @@ public:
   /// an exception with errc::invalid error code will be thrown.
   ///
   /// \return a valid cl_kernel instance
-  cl_kernel get() const {
+  OpenCLKernelT get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                           &nativeHandle);
-    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
-    return ur::cast<cl_kernel>(nativeHandle);
+    retainOpenCLKernel(nativeHandle);
+    return ur::cast<OpenCLKernelT>(nativeHandle);
   }
 
   adapter_impl &getAdapter() const { return MContext->getAdapter(); }
@@ -216,7 +216,7 @@ public:
     Adapter.call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     if (MContext->getBackend() == backend::opencl)
-      __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
+      retainOpenCLKernel(NativeKernel);
 
     return NativeKernel;
   }
@@ -243,6 +243,10 @@ public:
                : ProgramManager::getInstance().getDeviceKernelInfo(
                      std::string_view(getName()));
   }
+  template <int Dimensions>
+  size_t queryMaxNumWorkGroups(queue Queue,
+                               const range<Dimensions> &WorkGroupSize,
+                               size_t DynamicLocalMemorySize) const;
 
 private:
   Managed<ur_kernel_handle_t> MKernel;
@@ -273,10 +277,6 @@ private:
   bool exceedsOccupancyResourceLimits(const device &Device,
                                       const range<Dimensions> &WorkGroupSize,
                                       size_t DynamicLocalMemorySize) const;
-  template <int Dimensions>
-  size_t queryMaxNumWorkGroups(queue Queue,
-                               const range<Dimensions> &WorkGroupSize,
-                               size_t DynamicLocalMemorySize) const;
 
   void enableUSMIndirectAccess() const;
   std::optional<unsigned> getFreeFuncKernelArgSize() const;
