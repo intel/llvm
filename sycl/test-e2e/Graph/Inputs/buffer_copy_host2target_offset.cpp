@@ -31,7 +31,7 @@ int main() {
 
     auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
       auto AccA = BufferA.get_access<access_mode::write>(CGH, range<1>(Size),
-                                                          id<1>(Offset));
+                                                         id<1>(Offset));
       CGH.copy(DataB.data(), AccA);
     });
 

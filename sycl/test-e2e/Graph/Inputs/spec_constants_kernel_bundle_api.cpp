@@ -206,8 +206,7 @@ bool test_set_and_get_on_device(sycl::queue Queue) {
         Graph, Queue, ([&](sycl::handler &CGH) {
           CGH.use_kernel_bundle(ExecBundle);
           auto IntAcc = IntBuffer.get_access<sycl::access_mode::write>(CGH);
-          auto FloatAcc =
-              FloatBuffer.get_access<sycl::access_mode::write>(CGH);
+          auto FloatAcc = FloatBuffer.get_access<sycl::access_mode::write>(CGH);
 
           CGH.single_task<TestSetAndGetOnDevice>([=](sycl::kernel_handler KH) {
             IntAcc[0] = KH.get_specialization_constant<IntId>();

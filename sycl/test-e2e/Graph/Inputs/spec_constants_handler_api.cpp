@@ -175,8 +175,7 @@ bool test_set_and_get_on_device(sycl::queue Queue) {
         Graph, Queue, ([&](sycl::handler &CGH) {
           auto IntAcc = IntBuffer.get_access<sycl::access_mode::write>(CGH);
           auto IntAcc2 = IntBuffer2.get_access<sycl::access_mode::write>(CGH);
-          auto FloatAcc =
-              FloatBuffer.get_access<sycl::access_mode::write>(CGH);
+          auto FloatAcc = FloatBuffer.get_access<sycl::access_mode::write>(CGH);
 
           CGH.set_specialization_constant<IntId>(NewIntValue);
           CGH.set_specialization_constant<IntId2>(NewIntValue2);
