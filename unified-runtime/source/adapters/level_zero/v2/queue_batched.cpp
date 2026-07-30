@@ -863,14 +863,11 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
       getEvent(lockedBatch, phEvent));
 }
 
-// In case of queues with batched submissions, which use regular command lists
-// (similarly to command buffers), the start timestamp would be recorded as the
-// operation is submitted (event.recordStartTimestamp() in
-// appendTimestampRecordingExp does not use the queue but directly the device),
-// but the end timestamp would wait for the submission of the given regular
-// command list. The difference between the start and end timestamps would
-// reflect the delay in the batch submission, the difference between end
-// timestamps would reflect the actual time of execution.
+// Queues with batched submissions use regular command lists (similarly to
+// command buffers). The tag event records a single GPU-written global
+// timestamp via zeCommandListAppendWriteGlobalTimestamp, which becomes
+// available once the batch's regular command list is submitted. The difference
+// between two tag timestamps reflects the actual time of execution.
 //
 
 ur_result_t ur_queue_batched_t::enqueueTimestampRecordingExp(

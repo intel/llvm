@@ -56,44 +56,38 @@ uint64_t event_profiling_data_t::getEventEndTimestamp() {
   assert(zeTimerResolution);
   assert(timestampMaxValue);
 
-  adjustedEventEndTimestamp = adjustEndEventTimestamp(
-      adjustedEventStartTimestamp, recordEventEndTimestamp, timestampMaxValue,
-      zeTimerResolution);
+  // A timestamp-recording event holds a single GPU-written global timestamp,
+  // so there is no separate start value to detect a wrap-around against.
+  adjustedEventEndTimestamp =
+      (recordEventEndTimestamp & timestampMaxValue) * zeTimerResolution;
 
   return adjustedEventEndTimestamp;
 }
 
 void event_profiling_data_t::reset() {
-  // This ensures that the event is consider as not timestamped.
-  // We can't touch the recordEventEndTimestamp
-  // as it may still be overwritten by the driver.
-  // In case event is resued and recordStartTimestamp
-  // is called again, adjustedEventEndTimestamp will always be updated correctly
-  // to the new value as we wait for the event to be signaled.
-  // If the event is reused on another queue, this means that the original
-  // queue must have been destroyed (and the even pool released back to the
-  // context) and the timstamp is already wrriten, so there's no race-condition
-  // possible.
-  adjustedEventStartTimestamp = 0;
+  // This ensures that the event is considered as not timestamped.
+  // We can't touch recordEventEndTimestamp as it may still be overwritten by
+  // the driver. When the event is reused and initTimestampRecording is called
+  // again, adjustedEventEndTimestamp will be recomputed correctly as we wait
+  // for the event to be signaled before reading it.
+  // If the event is reused on another queue, the original queue must have been
+  // destroyed (and the event pool released back to the context) and the
+  // timestamp is already written, so no race-condition is possible.
   adjustedEventEndTimestamp = 0;
   timestampRecorded = false;
 }
 
-void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
+void event_profiling_data_t::initTimestampRecording(
+    ur_device_handle_t hDevice) {
   zeTimerResolution = hDevice->getTimerResolution();
   timestampMaxValue = hDevice->getTimestampMask();
-
-  uint64_t deviceStartTimestamp = 0;
-  UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
-      common_cast(hDevice), &deviceStartTimestamp, nullptr));
-
-  assert(adjustedEventStartTimestamp == 0);
-  adjustedEventStartTimestamp = deviceStartTimestamp;
   timestampRecorded = true;
 }
 
-uint64_t event_profiling_data_t::getEventStartTimestmap() const {
-  return adjustedEventStartTimestamp;
+void ur_event_handle_t_::initTimestampRecording() {
+  assert(hQueue);
+  assert(hDevice);
+  profilingData.initTimestampRecording(hDevice);
 }
 
 bool event_profiling_data_t::recordingStarted() const {
@@ -143,18 +137,6 @@ void ur_event_handle_t_::onWaitListUse() {
   if (batchGeneration) {
     hQueue->onEventWaitListUse(batchGeneration.value());
   }
-}
-
-void ur_event_handle_t_::recordStartTimestamp() {
-  // queue and device must be set before calling this
-  assert(hQueue);
-  assert(hDevice);
-
-  profilingData.recordStartTimestamp(hDevice);
-}
-
-uint64_t ur_event_handle_t_::getEventStartTimestmap() const {
-  return profilingData.getEventStartTimestmap();
 }
 
 uint64_t ur_event_handle_t_::getEventEndTimestamp() {
@@ -342,19 +324,16 @@ ur_result_t urEventGetProfilingInfo(
 
   UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
-  // For timestamped events we have the timestamps ready directly on the event
-  // handle, so we short-circuit the return.
+  // For timestamp-recording events the GPU wrote a single global timestamp.
+  // All profiling fields return that value: submit == start == end.
   if (isTimestampedEvent) {
-    uint64_t contextStartTime = event->getEventStartTimestmap();
     switch (propName) {
     case UR_PROFILING_INFO_COMMAND_QUEUED:
     case UR_PROFILING_INFO_COMMAND_SUBMIT:
-      return returnValue(contextStartTime);
-    case UR_PROFILING_INFO_COMMAND_END:
     case UR_PROFILING_INFO_COMMAND_START:
-    case UR_PROFILING_INFO_COMMAND_COMPLETE: {
+    case UR_PROFILING_INFO_COMMAND_END:
+    case UR_PROFILING_INFO_COMMAND_COMPLETE:
       return returnValue(event->getEventEndTimestamp());
-    }
     default:
       UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;

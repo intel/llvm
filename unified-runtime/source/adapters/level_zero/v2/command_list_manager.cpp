@@ -602,7 +602,7 @@ ur_result_t ur_command_list_manager::appendTimestampRecordingExp(
 
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
-  phEvent->recordStartTimestamp();
+  phEvent->initTimestampRecording();
 
   auto [timestampPtr, zeSignalEvent] = phEvent->getEventEndTimestampAndHandle();
 

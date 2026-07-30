@@ -410,8 +410,7 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (isProfilingTagEvent()) {
-    // For profiling tag events we rely on the submission time reported as
-    // the start time has undefined behavior.
+    // A tag event has a single device timestamp; all fields return it.
     return get_event_profiling_info<info::event_profiling::command_submit>(
         this->getHandle(), this->getAdapter());
   }
@@ -608,7 +607,9 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled && !MProfilingTagEvent)
+  // Tag events use their single device timestamp for all fields, so there is
+  // no host-side submission time to record.
+  if (!MIsProfilingEnabled || MProfilingTagEvent)
     return;
 
   if (std::shared_ptr<queue_impl> Queue =
