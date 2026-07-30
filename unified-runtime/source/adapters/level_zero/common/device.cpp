@@ -1457,20 +1457,37 @@ ur_result_t urDeviceGetInfo(
     if (FanCount == 0)
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
+    std::vector<zes_fan_handle_t> ZeFanHandles(FanCount);
+    ZE2UR_CALL(zesDeviceEnumFans, (ZesDevice, &FanCount, ZeFanHandles.data()));
+
+    // Some devices enumerate fan handles that don't actually support
+    // reporting their state (observed on Arc(TM) B-series GPUs), so probe
+    // every fan and only treat the query as supported if at least one of
+    // them can report a speed. Do this before servicing the size-only query
+    // so that UNSUPPORTED_ENUMERATION is returned consistently regardless of
+    // whether the caller is asking for the size or the value.
+    int32_t Speed = -1;
+    bool AnyFanSupported = false;
+    for (auto Fan : ZeFanHandles) {
+      int32_t CurSpeed;
+      auto ZeResult = ZE_CALL_NOCHECK(
+          zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed));
+      if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+        continue;
+      if (ZeResult != ZE_RESULT_SUCCESS)
+        return ze2urResult(ZeResult);
+      AnyFanSupported = true;
+      Speed = std::max(Speed, CurSpeed);
+    }
+    if (!AnyFanSupported)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
     if (!ParamValue) {
       // If ParamValue is nullptr, then we are only interested in the size of
       // the value.
       return ReturnValue(int32_t{0});
     }
 
-    std::vector<zes_fan_handle_t> ZeFanHandles(FanCount);
-    ZE2UR_CALL(zesDeviceEnumFans, (ZesDevice, &FanCount, ZeFanHandles.data()));
-    int32_t Speed = -1;
-    for (auto Fan : ZeFanHandles) {
-      int32_t CurSpeed;
-      ZE2UR_CALL(zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed));
-      Speed = std::max(Speed, CurSpeed);
-    }
     return ReturnValue(Speed);
   }
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
