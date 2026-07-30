@@ -89,7 +89,7 @@ int main() {
 
       auto Event = Queue1.submit([&](sycl::handler &CGH) {
         auto Acc =
-            BufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+            BufferInterop.get_access<sycl::access_mode::read_write>(CGH);
         CGH.single_task<class SimpleKernel6>([=]() {
           for (int i = 0; i < 12; i++) {
             Acc[i] = 99;
@@ -101,7 +101,7 @@ int main() {
       // Submit in a different context
       Queue2.submit([&](sycl::handler &CGH) {
         auto Acc =
-            BufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+            BufferInterop.get_access<sycl::access_mode::read_write>(CGH);
         CGH.single_task<class SimpleKernel7>([=]() {
           for (int i = 0; i < 12; i++) {
             Acc[i] *= 2;
@@ -113,7 +113,7 @@ int main() {
 
       Queue1
           .submit([&](handler &CGH) {
-            auto BufferAcc = BufferInterop.get_access<access::mode::write>(CGH);
+            auto BufferAcc = BufferInterop.get_access<access_mode::write>(CGH);
             CGH.host_task([=](const interop_handle &IH) {
               void *DevicePtr =
                   IH.get_native_mem<backend::ext_oneapi_level_zero>(BufferAcc);

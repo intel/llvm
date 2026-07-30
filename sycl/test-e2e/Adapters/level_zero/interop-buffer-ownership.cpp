@@ -89,7 +89,7 @@ void test_copyback_and_free(
 
       auto Event = Queue1.submit([&](sycl::handler &CGH) {
         auto Acc =
-            BufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+            BufferInterop.get_access<sycl::access_mode::read_write>(CGH);
         CGH.single_task<class SimpleKernel6>([=]() {
           for (int i = 0; i < 12; i++) {
             Acc[i] = 99;
@@ -101,7 +101,7 @@ void test_copyback_and_free(
       // Submit in a different context
       Queue2.submit([&](sycl::handler &CGH) {
         auto Acc =
-            BufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+            BufferInterop.get_access<sycl::access_mode::read_write>(CGH);
         CGH.single_task<class SimpleKernel7>([=]() {
           for (int i = 0; i < 12; i++) {
             Acc[i] *= 2;
