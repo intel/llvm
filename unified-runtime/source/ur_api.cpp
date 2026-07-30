@@ -7650,14 +7650,14 @@ ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 ///       flag, and events opened with ::urIPCOpenEventHandleExp, cannot be
 ///       exported.
 ///     - On success, `ppIPCEventHandleData` receives an opaque byte buffer
-///       allocated and owned by the implementation, and
-///       `pIPCEventHandleDataSizeRet` receives its size. The contents of this
-///       buffer may be copied and transferred, by the application's own means,
-///       to another process on the same system, which passes those bytes to
-///       ::urIPCOpenEventHandleExp to obtain an event object that shares state
-///       with `hEvent`.
-///     - The returned handle data must be released in the originating process
-///       with ::urIPCPutEventHandleExp once it is no longer needed.
+///       owned by `hEvent`, and `pIPCEventHandleDataSizeRet` receives its size.
+///       The contents of this buffer may be copied and transferred, by the
+///       application's own means, to another process on the same system, which
+///       passes those bytes to ::urIPCOpenEventHandleExp to obtain an event
+///       object that shares state with `hEvent`.
+///     - The buffer is owned by `hEvent` and remains valid until the event is
+///       destroyed, so releasing it with ::urIPCPutEventHandleExp is optional.
+///       Repeated calls for the same event return a pointer to the same bytes.
 ///     - Events created with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be
 ///       exported.
 ///
@@ -7701,6 +7701,9 @@ ur_result_t UR_APICALL urIPCGetEventHandleExp(
 ///       obtained the handle data. This does not destroy the source event and
 ///       does not affect event objects already opened with
 ///       ::urIPCOpenEventHandleExp.
+///     - The handle data is owned by the source event and is released
+///       automatically when that event is destroyed, so calling this function
+///       is optional.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

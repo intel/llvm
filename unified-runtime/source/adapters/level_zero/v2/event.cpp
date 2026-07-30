@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstring>
 #include <optional>
 #include <ze_api.h>
 
@@ -214,6 +215,30 @@ bool ur_event_handle_t_::isIpcCapable() const {
 
 bool ur_event_handle_t_::isIpcImported() const {
   return flags & v2::EVENT_FLAGS_IPC_IMPORTED;
+}
+
+ur_result_t
+ur_event_handle_t_::getIPCHandle(void **ppIPCEventHandleData,
+                                 size_t *pIPCEventHandleDataSizeRet) {
+  constexpr size_t IpcEventHandleDataSize =
+      sizeof(ze_ipc_event_counter_based_handle_t);
+
+  std::unique_lock<ur_shared_mutex> lock(Mutex);
+
+  // Export the handle once and cache the bytes on the event. The cache is owned
+  // by the event and freed on destruction, so callers are not required to
+  // release it via urIPCPutEventHandleExp. Repeated exports return the same
+  // cached bytes.
+  if (ipcHandleData.empty()) {
+    ze_ipc_event_counter_based_handle_t handle{};
+    ZE2UR_CALL(zeEventCounterBasedGetIpcHandle, (getZeEvent(), &handle));
+    ipcHandleData.resize(IpcEventHandleDataSize);
+    std::memcpy(ipcHandleData.data(), &handle, IpcEventHandleDataSize);
+  }
+
+  *ppIPCEventHandleData = ipcHandleData.data();
+  *pIPCEventHandleDataSizeRet = ipcHandleData.size();
+  return UR_RESULT_SUCCESS;
 }
 
 std::pair<uint64_t *, ze_event_handle_t>

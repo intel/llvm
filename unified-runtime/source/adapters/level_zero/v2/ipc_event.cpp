@@ -34,21 +34,16 @@ ur_result_t urIPCGetEventHandleExp(::ur_event_handle_t hEventOpque,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   auto hEvent = v2_cast(hEventOpque);
-  std::shared_lock<ur_shared_mutex> lock(hEvent->Mutex);
 
   UR_ASSERT(hEvent->isIpcCapable() && !hEvent->isIpcImported(),
             UR_RESULT_ERROR_INVALID_EVENT);
   UR_ASSERT(!hEvent->isProfilingEnabled() && !hEvent->isTimestamped(),
             UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 
-  auto handle = std::make_unique<ze_ipc_event_counter_based_handle_t>();
-  ZE2UR_CALL(zeEventCounterBasedGetIpcHandle,
-             (hEvent->getZeEvent(), handle.get()));
-
-  // Caller releases the buffer via urIPCPutEventHandleExp.
-  *ppIPCEventHandleData = handle.release();
-  *pIPCEventHandleDataSizeRet = kIpcEventHandleDataSize;
-  return UR_RESULT_SUCCESS;
+  // The exported bytes are cached on and owned by the event, so the caller is
+  // not required to release them via urIPCPutEventHandleExp and repeated
+  // exports return identical bytes.
+  return hEvent->getIPCHandle(ppIPCEventHandleData, pIPCEventHandleDataSizeRet);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -56,9 +51,9 @@ ur_result_t urIPCGetEventHandleExp(::ur_event_handle_t hEventOpque,
 ur_result_t urIPCPutEventHandleExp(::ur_context_handle_t /*hContext*/,
                                    void *pIPCEventHandleData) try {
   UR_ASSERT(pIPCEventHandleData, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  // Free the buffer allocated by urIPCGetEventHandleExp via RAII.
-  std::unique_ptr<ze_ipc_event_counter_based_handle_t> owner(
-      static_cast<ze_ipc_event_counter_based_handle_t *>(pIPCEventHandleData));
+  // No-op: the exported bytes are owned by the event and released when the
+  // event is destroyed. Retained for source/ABI compatibility so existing
+  // callers that still call put() keep working.
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

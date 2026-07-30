@@ -278,15 +278,16 @@ details:
         $X_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that flag,
         and events opened with $xIPCOpenEventHandleExp, cannot be exported.
     - >
-        On success, `ppIPCEventHandleData` receives an opaque byte buffer
-        allocated and owned by the implementation, and `pIPCEventHandleDataSizeRet`
-        receives its size. The contents of this buffer may be copied and
-        transferred, by the application's own means, to another process on the
-        same system, which passes those bytes to $xIPCOpenEventHandleExp to
-        obtain an event object that shares state with `hEvent`.
+        On success, `ppIPCEventHandleData` receives an opaque byte buffer owned
+        by `hEvent`, and `pIPCEventHandleDataSizeRet` receives its size. The
+        contents of this buffer may be copied and transferred, by the
+        application's own means, to another process on the same system, which
+        passes those bytes to $xIPCOpenEventHandleExp to obtain an event object
+        that shares state with `hEvent`.
     - >
-        The returned handle data must be released in the originating process
-        with $xIPCPutEventHandleExp once it is no longer needed.
+        The buffer is owned by `hEvent` and remains valid until the event is
+        destroyed, so releasing it with $xIPCPutEventHandleExp is optional.
+        Repeated calls for the same event return a pointer to the same bytes.
     - "Events created with $X_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be exported."
 params:
     - type: $x_event_handle_t
@@ -324,6 +325,10 @@ details:
         $xIPCGetEventHandleExp. Must be called in the same process that obtained
         the handle data. This does not destroy the source event and does not
         affect event objects already opened with $xIPCOpenEventHandleExp.
+    - >
+        The handle data is owned by the source event and is released
+        automatically when that event is destroyed, so calling this function is
+        optional.
 params:
     - type: $x_context_handle_t
       name: hContext

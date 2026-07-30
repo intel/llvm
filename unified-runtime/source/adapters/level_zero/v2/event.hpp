@@ -8,7 +8,9 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <cstddef>
 #include <stack>
+#include <vector>
 
 #include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
@@ -113,6 +115,15 @@ public:
   // True for events opened via urIPCOpenEventHandleExp.
   bool isIpcImported() const;
 
+  // Exports this event's IPC handle, caching it on the first call. Repeated
+  // calls return a pointer to the same bytes. The buffer is owned by the event
+  // and released when the event is destroyed, so releasing it explicitly via
+  // urIPCPutEventHandleExp is optional. On success, *ppIPCEventHandleData
+  // points to storage owned by this event and *pIPCEventHandleDataSizeRet is
+  // its size in bytes.
+  ur_result_t getIPCHandle(void **ppIPCEventHandleData,
+                           size_t *pIPCEventHandleDataSizeRet);
+
   // Queue associated with this event. Can be nullptr (for native events)
   ur_queue_t_ *getQueue() const;
 
@@ -164,6 +175,12 @@ protected:
 
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
+
+  // Lazily-exported IPC handle bytes for an IPC-capable event. Populated on the
+  // first getIPCHandle() call and owned by the event, so it is freed when the
+  // event is destroyed. Caching also makes repeated exports return identical
+  // bytes. Guarded by the event's Mutex.
+  std::vector<std::byte> ipcHandleData;
 };
 
 } // namespace ur::level_zero::v2
