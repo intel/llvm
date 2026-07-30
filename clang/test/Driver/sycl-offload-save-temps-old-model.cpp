@@ -41,12 +41,10 @@
 // CHK_LLVM_PASSES-NOT: clang{{.*}} "-triple" "spir64-unknown-unknown" {{.*}} "-disable-llvm-passes"
 // CHK_LLVM_PASSES: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-disable-llvm-passes"
 
-/// -save-temps must not inject -fsycl-targets= into the host compile step
-/// that emits LLVM BC. That step is a separate cc1 invocation (-emit-llvm-bc)
-/// and does not need the targets info; passing -fsycl-targets= (an alias for
-/// --offload-targets=) would trigger spurious OpenMP target triple validation
-/// on SYCL-specific names like 'intel_gpu_pvc', causing:
-///   error: OpenMP target is invalid: 'intel_gpu_pvc'
+/// -fsycl-targets= must never appear in any host cc1 invocation. It is not
+/// consumed by the host compile and passing it (an alias for --offload-targets=)
+/// triggers spurious OpenMP target triple validation on SYCL-specific names
+/// like 'intel_gpu_pvc', causing: error: OpenMP target is invalid: 'intel_gpu_pvc'
 // RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHK-NO-FSYCL-TARGETS-IN-HOST-BC
 // RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=intel_gpu_pvc -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
