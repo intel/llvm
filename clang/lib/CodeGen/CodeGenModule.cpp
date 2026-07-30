@@ -84,6 +84,7 @@
 #include "llvm/Transforms/Utils/BuildLibCalls.h"
 #include "llvm/Transforms/Utils/KCFIHash.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
+#include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include <optional>
 #include <set>
 
@@ -1256,6 +1257,32 @@ void CodeGenModule::Release() {
   if (Context.getLangOpts().CUDA && CUDARuntime) {
     if (llvm::Function *CudaCtorFunction = CUDARuntime->finalizeModule())
       AddGlobalCtor(CudaCtorFunction);
+  }
+  // SYCL -fno-sycl-rdc: the per-TU device image was finalized at compile time
+  // by clang-linker-wrapper --sycl-device-link. Read it here and call
+  // wrapSYCLBinaries to embed the binary and emit __sycl_register_lib /
+  // __sycl_unregister_lib into the host module, mirroring what CUDA does via
+  // CGCUDANV::makeModuleCtorFunction for -fno-gpu-rdc.
+  // SYCLJITOptions is left default (empty) because device code is already
+  // fully finalized -- there are no JIT compile/link options to encode.
+  if (LangOpts.SYCLIsHost &&
+      !getCodeGenOpts().SYCLTargetBinaryFileName.empty()) {
+    auto VFS = getFileSystem();
+    auto BinaryOrErr =
+        VFS->getBufferForFile(getCodeGenOpts().SYCLTargetBinaryFileName,
+                              -1, false);
+    if (std::error_code EC = BinaryOrErr.getError()) {
+      getDiags().Report(diag::err_cannot_open_file)
+          << getCodeGenOpts().SYCLTargetBinaryFileName << EC.message();
+    } else {
+      llvm::ArrayRef<char> Buffer((*BinaryOrErr)->getBufferStart(),
+                                  (*BinaryOrErr)->getBufferSize());
+      if (llvm::Error E = llvm::offloading::wrapSYCLBinaries(
+              getModule(), Buffer, llvm::offloading::SYCLJITOptions{}))
+        getDiags().Report(diag::err_cannot_open_file)
+            << getCodeGenOpts().SYCLTargetBinaryFileName
+            << llvm::toString(std::move(E));
+    }
   }
   if (OpenMPRuntime) {
     OpenMPRuntime->createOffloadEntriesAndInfoMetadata();

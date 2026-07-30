@@ -8339,9 +8339,27 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     DDep.add(*PackagerAction,
              *C.getOffloadToolChains<Action::OFK_HIP>().first->second,
              /*BA=*/{}, Action::OFK_HIP);
+  } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
+             tools::SYCL::shouldDoPerObjectFileLinking(C) &&
+             !isa<LinkJobAction>(HostAction)) {
+    // SYCL -fno-sycl-rdc at compile time (-c): finalize this TU's device code
+    // immediately via clang-linker-wrapper --sycl-device-link --no-sycl-rdc,
+    // producing a self-contained device image. The image is passed to the host
+    // cc1 via -fsycl-include-target-binary and embedded+registered at compile
+    // time. The final link step does no SYCL device work. This mirrors the
+    // CUDA/HIP -fno-gpu-rdc per-TU finalize model; downstream uses
+    // clang-linker-wrapper instead of clang-sycl-linker.
+    Action *PackagerAction =
+        C.MakeAction<OffloadPackagerJobAction>(OffloadActions, types::TY_Image);
+    ActionList AL{PackagerAction};
+    Action *FinalizeAction =
+        C.MakeAction<LinkerWrapperJobAction>(AL, types::TY_Image);
+    DDep.add(*FinalizeAction,
+             *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+             /*BA=*/{}, Action::OFK_SYCL);
   } else {
-    // Package all the offloading actions into a single output that can be
-    // embedded in the host and linked.
+    // RDC (default): package raw device bitcode to be embedded in the host
+    // object and device-linked across all TUs at final link time.
     Action *PackagerAction =
         C.MakeAction<OffloadPackagerJobAction>(OffloadActions, types::TY_Image);
     DDep.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),

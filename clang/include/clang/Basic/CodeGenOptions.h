@@ -401,6 +401,11 @@ public:
   /// CUDA runtime back-end for incorporating them into host-side object file.
   std::string CudaGpuBinaryFileName;
 
+  /// Name of file passed with -fsycl-include-target-binary option. Used in
+  /// -fno-sycl-rdc mode to embed and register a per-TU finalized SYCL device
+  /// image into the host object at compile time.
+  std::string SYCLTargetBinaryFileName;
+
   /// List of filenames passed in using the -fembed-offload-object option. These
   /// are offloading binaries containing device images and metadata.
   std::vector<std::string> OffloadObjects;

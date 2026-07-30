@@ -9469,6 +9469,9 @@ def fcuda_is_device : Flag<["-"], "fcuda-is-device">,
 def fcuda_include_gpubinary : Separate<["-"], "fcuda-include-gpubinary">,
   HelpText<"Incorporate CUDA device-side binary into host object file.">,
   MarshallingInfoString<CodeGenOpts<"CudaGpuBinaryFileName">>;
+def fsycl_include_target_binary : Separate<["-"], "fsycl-include-target-binary">,
+  HelpText<"Incorporate SYCL device-side binary into host object file.">,
+  MarshallingInfoString<CodeGenOpts<"SYCLTargetBinaryFileName">>;
 def fcuda_allow_variadic_functions : Flag<["-"], "fcuda-allow-variadic-functions">,
   HelpText<"Deprecated; Allow variadic functions in CUDA device code.">;
 def fno_cuda_host_device_constexpr : Flag<["-"], "fno-cuda-host-device-constexpr">,
