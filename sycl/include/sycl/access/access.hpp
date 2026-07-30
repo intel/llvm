@@ -17,8 +17,10 @@
 namespace sycl {
 inline namespace _V1 {
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // forward declaration
 enum class access_mode;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 namespace access {
 
