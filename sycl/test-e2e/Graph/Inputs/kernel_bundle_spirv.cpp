@@ -41,18 +41,18 @@ int main(int, char **argv) {
 
     add_node(Graph, Queue, ([&](sycl::handler &CGH) {
                CGH.set_arg(
-                   0, input_buffer.get_access<sycl::access::mode::read>(CGH));
+                   0, input_buffer.get_access<sycl::access_mode::read>(CGH));
                CGH.set_arg(
-                   1, output_buffer.get_access<sycl::access::mode::write>(CGH));
+                   1, output_buffer.get_access<sycl::access_mode::write>(CGH));
                CGH.parallel_for(sycl::range<1>{N}, kernel);
              }));
 
     add_node(Graph, Queue, ([&](sycl::handler &CGH) {
                CGH.set_arg(
-                   0, input_buffer.get_access<sycl::access::mode::read>(CGH));
+                   0, input_buffer.get_access<sycl::access_mode::read>(CGH));
                CGH.set_arg(
                    1,
-                   output_buffer2.get_access<sycl::access::mode::write>(CGH));
+                   output_buffer2.get_access<sycl::access_mode::write>(CGH));
                CGH.parallel_for(sycl::range<1>{N}, kernel);
              }));
 
