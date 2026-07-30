@@ -13,7 +13,47 @@
 #include <level_zero/ze_api.h>
 #include <sycl/properties/all_properties.hpp>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
+struct lit_ze_group_size_t {
+  uint32_t groupSizeX;
+  uint32_t groupSizeY;
+  uint32_t groupSizeZ;
+};
+
+typedef ze_result_t(ZE_APICALL *zeCommandListAppendLaunchKernelWithArguments_fn)(
+    ze_command_list_handle_t hCommandList, ze_kernel_handle_t hKernel,
+    const ze_group_count_t groupCounts, const lit_ze_group_size_t groupSizes,
+    void **pArguments, const void *pNext, ze_event_handle_t hSignalEvent,
+    uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
+
+static zeCommandListAppendLaunchKernelWithArguments_fn
+loadAppendLaunchKernelWithArguments() {
+  const char *Name = "zeCommandListAppendLaunchKernelWithArguments";
+#ifdef _WIN32
+  HMODULE Loader = GetModuleHandleA("ze_loader.dll");
+  void *Sym = Loader ? (void *)GetProcAddress(Loader, Name) : nullptr;
+#else
+  void *Sym = dlsym(RTLD_DEFAULT, Name);
+#endif
+  return reinterpret_cast<zeCommandListAppendLaunchKernelWithArguments_fn>(Sym);
+}
+
 int main(int, char **argv) {
+  auto pfnAppendLaunchKernelWithArguments =
+      loadAppendLaunchKernelWithArguments();
+
+  if (!pfnAppendLaunchKernelWithArguments) {
+    std::cout << "SKIPPED: zeCommandListAppendLaunchKernelWithArguments is not provided "
+                 "by this Level Zero loader (needs API spec 1.14)"
+              << std::endl;
+    return 0;
+  }
+
   queue Queue{property::queue::in_order{}};
 
   const sycl::context Context = Queue.get_context();
@@ -75,9 +115,9 @@ int main(int, char **argv) {
   void *ArgPointers[] = {&DataZ, &DataX};
 
   ze_group_count_t ZeGroupCount{static_cast<uint32_t>(N) / GroupSizeX, 1, 1};
-  ze_group_size_t ZeGroupSize{GroupSizeX, GroupSizeY, GroupSizeZ};
+  lit_ze_group_size_t ZeGroupSize{GroupSizeX, GroupSizeY, GroupSizeZ};
 
-  ASSERT_ZE_RESULT_SUCCESS(zeCommandListAppendLaunchKernelWithArguments(
+  ASSERT_ZE_RESULT_SUCCESS(pfnAppendLaunchKernelWithArguments(
       ZeCommandList, ZeKernel, ZeGroupCount, ZeGroupSize, ArgPointers, nullptr,
       nullptr, 0, nullptr));
 
