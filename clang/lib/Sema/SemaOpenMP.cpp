@@ -17676,9 +17676,10 @@ OMPClause *SemaOpenMP::ActOnOpenMPSimpleClause(
     Res = ActOnOpenMPFailClause(static_cast<OpenMPClauseKind>(Argument),
                                 ArgumentLoc, StartLoc, LParenLoc, EndLoc);
     break;
-  case OMPC_update:
-    Res = ActOnOpenMPUpdateClause(static_cast<OpenMPDependClauseKind>(Argument),
-                                  ArgumentLoc, StartLoc, LParenLoc, EndLoc);
+  case OMPC_update_depend_objects:
+    Res = ActOnOpenMPUpdateDependObjectsClause(
+        static_cast<OpenMPDependClauseKind>(Argument), ArgumentLoc, StartLoc,
+        LParenLoc, EndLoc);
     break;
   case OMPC_bind:
     Res = ActOnOpenMPBindClause(static_cast<OpenMPBindClauseKind>(Argument),
@@ -17730,6 +17731,7 @@ OMPClause *SemaOpenMP::ActOnOpenMPSimpleClause(
   case OMPC_write:
   case OMPC_capture:
   case OMPC_compare:
+  case OMPC_update:
   case OMPC_seq_cst:
   case OMPC_acq_rel:
   case OMPC_acquire:
@@ -18139,11 +18141,9 @@ OMPClause *SemaOpenMP::ActOnOpenMPOrderClause(
       Kind, KindLoc, StartLoc, LParenLoc, EndLoc, Modifier, MLoc);
 }
 
-OMPClause *SemaOpenMP::ActOnOpenMPUpdateClause(OpenMPDependClauseKind Kind,
-                                               SourceLocation KindKwLoc,
-                                               SourceLocation StartLoc,
-                                               SourceLocation LParenLoc,
-                                               SourceLocation EndLoc) {
+OMPClause *SemaOpenMP::ActOnOpenMPUpdateDependObjectsClause(
+    OpenMPDependClauseKind Kind, SourceLocation KindKwLoc,
+    SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation EndLoc) {
   if (Kind == OMPC_DEPEND_unknown || Kind == OMPC_DEPEND_source ||
       Kind == OMPC_DEPEND_sink || Kind == OMPC_DEPEND_depobj) {
     SmallVector<unsigned> Except = {
@@ -18154,11 +18154,11 @@ OMPClause *SemaOpenMP::ActOnOpenMPUpdateClause(OpenMPDependClauseKind Kind,
     Diag(KindKwLoc, diag::err_omp_unexpected_clause_value)
         << getListOfPossibleValues(OMPC_depend, /*First=*/0,
                                    /*Last=*/OMPC_DEPEND_unknown, Except)
-        << getOpenMPClauseNameForDiag(OMPC_update);
+        << getOpenMPClauseNameForDiag(OMPC_update_depend_objects);
     return nullptr;
   }
-  return OMPUpdateClause::Create(getASTContext(), StartLoc, LParenLoc,
-                                 KindKwLoc, Kind, EndLoc);
+  return OMPUpdateDependObjectsClause::Create(
+      getASTContext(), StartLoc, LParenLoc, KindKwLoc, Kind, EndLoc);
 }
 
 OMPClause *SemaOpenMP::ActOnOpenMPSizesClause(ArrayRef<Expr *> SizeExprs,
@@ -18843,7 +18843,7 @@ OMPClause *SemaOpenMP::ActOnOpenMPWriteClause(SourceLocation StartLoc,
 
 OMPClause *SemaOpenMP::ActOnOpenMPUpdateClause(SourceLocation StartLoc,
                                                SourceLocation EndLoc) {
-  return OMPUpdateClause::Create(getASTContext(), StartLoc, EndLoc);
+  return new (getASTContext()) OMPUpdateClause(StartLoc, EndLoc);
 }
 
 OMPClause *SemaOpenMP::ActOnOpenMPCaptureClause(SourceLocation StartLoc,

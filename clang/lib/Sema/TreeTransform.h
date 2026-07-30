@@ -11127,6 +11127,13 @@ TreeTransform<Derived>::TransformOMPUpdateClause(OMPUpdateClause *C) {
 }
 
 template <typename Derived>
+OMPClause *TreeTransform<Derived>::TransformOMPUpdateDependObjectsClause(
+    OMPUpdateDependObjectsClause *C) {
+  // No need to rebuild this clause, no template-dependent parameters.
+  return C;
+}
+
+template <typename Derived>
 OMPClause *
 TreeTransform<Derived>::TransformOMPCaptureClause(OMPCaptureClause *C) {
   // No need to rebuild this clause, no template-dependent parameters.
