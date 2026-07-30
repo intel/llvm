@@ -81,8 +81,7 @@ bool check(bool a, bool b) { return (a != b); }
   { /* On Device */                                                            \
     buffer<int> err_buf(&err, 1);                                              \
     q.submit([&](handler &cgh) {                                               \
-       accessor<int, 1, access_mode::write, target::device> ERR(err_buf,      \
-                                                                 cgh);         \
+       accessor<int, 1, access_mode::write, target::device> ERR(err_buf, cgh); \
        cgh.single_task([=]() { OPTEST(NAME, SZ, RETTY, INPVAL) });             \
      }).wait();                                                                \
   }                                                                            \
