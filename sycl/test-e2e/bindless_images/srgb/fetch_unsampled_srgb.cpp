@@ -79,10 +79,10 @@ int main() {
         auto acc = srgbBuf.get_access<sycl::access_mode::write>(cgh);
         cgh.parallel_for(
             sycl::nd_range<2>{globalSize, localSize}, [=](sycl::nd_item<2> it) {
-              size_t dim0 = it.get_global_id(0);
-              size_t dim1 = it.get_global_id(1);
-              acc[sycl::id<2>(dim0, dim1)] = syclexp::fetch_image<sycl::float4>(
-                  srgbImg, sycl::int2(dim0, dim1));
+              size_t y = it.get_global_id(0);
+              size_t x = it.get_global_id(1);
+              acc[sycl::id<2>(y, x)] =
+                  syclexp::fetch_image<sycl::float4>(srgbImg, sycl::int2(x, y));
             });
       });
 
@@ -90,10 +90,10 @@ int main() {
         auto acc = linearBuf.get_access<sycl::access_mode::write>(cgh);
         cgh.parallel_for(
             sycl::nd_range<2>{globalSize, localSize}, [=](sycl::nd_item<2> it) {
-              size_t dim0 = it.get_global_id(0);
-              size_t dim1 = it.get_global_id(1);
-              acc[sycl::id<2>(dim0, dim1)] = syclexp::fetch_image<sycl::float4>(
-                  linearImg, sycl::int2(dim0, dim1));
+              size_t y = it.get_global_id(0);
+              size_t x = it.get_global_id(1);
+              acc[sycl::id<2>(y, x)] = syclexp::fetch_image<sycl::float4>(
+                  linearImg, sycl::int2(x, y));
             });
       });
 

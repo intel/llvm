@@ -86,30 +86,28 @@ int main() {
 
       q.submit([&](sycl::handler &cgh) {
         auto acc = srgbBuf.get_access<sycl::access_mode::write>(cgh);
-        cgh.parallel_for(sycl::nd_range<2>{globalSize, localSize},
-                         [=](sycl::nd_item<2> it) {
-                           size_t dim0 = it.get_global_id(0);
-                           size_t dim1 = it.get_global_id(1);
-                           float fdim0 = (float(dim0) + 0.5f) / float(height);
-                           float fdim1 = (float(dim1) + 0.5f) / float(width);
-                           acc[sycl::id<2>(dim0, dim1)] =
-                               syclexp::sample_image<sycl::float4>(
-                                   srgbImg, sycl::float2(fdim0, fdim1));
-                         });
+        cgh.parallel_for(
+            sycl::nd_range<2>{globalSize, localSize}, [=](sycl::nd_item<2> it) {
+              size_t y = it.get_global_id(0);
+              size_t x = it.get_global_id(1);
+              float fx = (float(x) + 0.5f) / float(width);
+              float fy = (float(y) + 0.5f) / float(height);
+              acc[sycl::id<2>(y, x)] = syclexp::sample_image<sycl::float4>(
+                  srgbImg, sycl::float2(fx, fy));
+            });
       });
 
       q.submit([&](sycl::handler &cgh) {
         auto acc = linearBuf.get_access<sycl::access_mode::write>(cgh);
-        cgh.parallel_for(sycl::nd_range<2>{globalSize, localSize},
-                         [=](sycl::nd_item<2> it) {
-                           size_t dim0 = it.get_global_id(0);
-                           size_t dim1 = it.get_global_id(1);
-                           float fdim0 = (float(dim0) + 0.5f) / float(height);
-                           float fdim1 = (float(dim1) + 0.5f) / float(width);
-                           acc[sycl::id<2>(dim0, dim1)] =
-                               syclexp::sample_image<sycl::float4>(
-                                   linearImg, sycl::float2(fdim0, fdim1));
-                         });
+        cgh.parallel_for(
+            sycl::nd_range<2>{globalSize, localSize}, [=](sycl::nd_item<2> it) {
+              size_t y = it.get_global_id(0);
+              size_t x = it.get_global_id(1);
+              float fx = (float(x) + 0.5f) / float(width);
+              float fy = (float(y) + 0.5f) / float(height);
+              acc[sycl::id<2>(y, x)] = syclexp::sample_image<sycl::float4>(
+                  linearImg, sycl::float2(fx, fy));
+            });
       });
 
       q.wait_and_throw();
