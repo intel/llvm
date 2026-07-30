@@ -23,8 +23,8 @@ template <memory_order order> void test_acquire_global() {
 
     q.submit([&](handler &cgh) {
        auto error =
-           error_buf.template get_access<access::mode::read_write>(cgh);
-       auto val = val_buf.template get_access<access::mode::read_write>(cgh);
+           error_buf.template get_access<access_mode::read_write>(cgh);
+       auto val = val_buf.template get_access<access_mode::read_write>(cgh);
        cgh.parallel_for(range<1>(N_items), [=](item<1> it) {
          volatile int *val_p = val.get_multi_ptr<access::decorated::no>().get();
          auto atm0 =
@@ -67,7 +67,7 @@ template <memory_order order> void test_acquire_local() {
 
     q.submit([&](handler &cgh) {
        auto error =
-           error_buf.template get_access<access::mode::read_write>(cgh);
+           error_buf.template get_access<access_mode::read_write>(cgh);
        local_accessor<int, 1> val(2, cgh);
        cgh.parallel_for(
            nd_range<1>(global_size, local_size), [=](nd_item<1> it) {
@@ -115,8 +115,8 @@ template <memory_order order> void test_release_global() {
 
     q.submit([&](handler &cgh) {
        auto error =
-           error_buf.template get_access<access::mode::read_write>(cgh);
-       auto val = val_buf.template get_access<access::mode::read_write>(cgh);
+           error_buf.template get_access<access_mode::read_write>(cgh);
+       auto val = val_buf.template get_access<access_mode::read_write>(cgh);
        cgh.parallel_for(range<1>(N_items), [=](item<1> it) {
          volatile int *val_p = val.get_multi_ptr<access::decorated::no>().get();
          auto atm0 =
@@ -159,7 +159,7 @@ template <memory_order order> void test_release_local() {
 
     q.submit([&](handler &cgh) {
        auto error =
-           error_buf.template get_access<access::mode::read_write>(cgh);
+           error_buf.template get_access<access_mode::read_write>(cgh);
        local_accessor<int, 1> val(2, cgh);
        cgh.parallel_for(
            nd_range<1>(global_size, local_size), [=](nd_item<1> it) {

@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   {
     buffer<int, 2> output_buf(output.data(), range<2>(outer, inner));
     q.submit([&](handler &cgh) {
-      auto output = output_buf.get_access<access::mode::read_write>(cgh);
+      auto output = output_buf.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class linear_id>(
           nd_range<2>(range<2>(outer, inner), range<2>(outer, inner)),
           [=](nd_item<2> it) {

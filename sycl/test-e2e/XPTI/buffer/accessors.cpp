@@ -31,10 +31,10 @@ int main() {
     auto A2 = Buf.get_access<mode::write>(cgh);
     // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID3:.*]]|2016|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:34
     sycl::local_accessor<int, 1> A3(Range, cgh);
-    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.*]]|2014|1027|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
-    auto A4 = Buf.get_access<mode::discard_write>(cgh);
-    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.*]]|2014|1028|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
-    auto A5 = Buf.get_access<mode::discard_read_write, target::device>(cgh);
+    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.*]]|2014|1025|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+    auto A4 = Buf.get_access<mode::write>(cgh, sycl::no_init);
+    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.*]]|2014|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+    auto A5 = Buf.get_access<mode::read_write, target::device>(cgh, sycl::no_init);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID6:.*]]|2014|1029|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
     auto A6 = Buf.get_access<mode::atomic>(cgh);
     cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::nd_item<1>) {
@@ -52,10 +52,10 @@ int main() {
   { sycl::host_accessor HA(Buf, sycl::write_only); }
   // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID9:.*]]|2018|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:25
   { sycl::host_accessor HA(Buf, sycl::read_write); }
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID10:.*]]|2018|1027|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
-  { auto HA = Buf.get_access<mode::discard_write>(); }
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID11:.*]]|2018|1028|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
-  { auto HA = Buf.get_access<mode::discard_read_write>(); }
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID10:.*]]|2018|1025|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+  { auto HA = Buf.get_access<mode::write>(sycl::no_init); }
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID11:.*]]|2018|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+  { auto HA = Buf.get_access<mode::read_write>(sycl::no_init); }
   // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID12:.*]]|2018|1029|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
   { auto HA = Buf.get_access<mode::atomic>(); }
 

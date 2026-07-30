@@ -41,8 +41,8 @@ int main() {
     buffer<int, 1> CounterBuf{CounterVec.data(), range<1>(WgCount)};
 
     Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
-      auto CounterAcc = CounterBuf.get_access<access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
+      auto CounterAcc = CounterBuf.get_access<access_mode::read_write>(Cgh);
       Cgh.parallel_for<KernelA>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             // Some alternative (and functionally equivalent) ways to use this
@@ -80,7 +80,7 @@ int main() {
     buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 
     Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
       Cgh.parallel_for<KernelB>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             multi_ptr<int[WgSize], access::address_space::local_space,
@@ -107,7 +107,7 @@ int main() {
     buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 
     Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access::mode::write>(Cgh);
+      auto Acc = Buf.get_access<access_mode::write>(Cgh);
       Cgh.parallel_for<KernelC>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             multi_ptr<Bar, access::address_space::local_space,

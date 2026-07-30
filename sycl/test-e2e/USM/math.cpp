@@ -78,7 +78,7 @@ int main() {
         int *BufI = (int *)s::malloc_shared(
             sizeof(int) * 2, myQueue.get_device(), myQueue.get_context());
         myQueue.submit([&](s::handler &cgh) {
-          auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
+          auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
           cgh.single_task<class lgamma_rF1PI1>([=]() {
             AccR[0] = s::lgamma_r(
                 float{10.f},
@@ -103,7 +103,7 @@ int main() {
         int *BufI = (int *)s::malloc_shared(
             sizeof(int) * 2, myQueue.get_device(), myQueue.get_context());
         myQueue.submit([&](s::handler &cgh) {
-          auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
+          auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
           cgh.single_task<class lgamma_rF1PI1_neg>([=]() {
             AccR[0] = s::lgamma_r(
                 float{-2.4f},
@@ -128,7 +128,7 @@ int main() {
         s::int2 *BufI = (s::int2 *)s::malloc_shared(
             sizeof(s::int2) * 2, myQueue.get_device(), myQueue.get_context());
         myQueue.submit([&](s::handler &cgh) {
-          auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
+          auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
           cgh.single_task<class lgamma_rF2PF2>([=]() {
             AccR[0] = s::lgamma_r(
                 s::float2{10.f, -2.4f},

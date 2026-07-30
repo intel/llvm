@@ -52,7 +52,7 @@ int test(queue &Q, T Identity) {
 
   // Compute.
   Q.submit([&](handler &CGH) {
-    auto In = InBuf.template get_access<access::mode::read>(CGH);
+    auto In = InBuf.template get_access<access_mode::read>(CGH);
     CGH.parallel_for<Name>(NDRange, sycl::reduction(OutBuf, CGH, Identity, BOp),
                            [=](nd_item<1> NDIt, auto &Sum) {
                              if (NDIt.get_global_linear_id() < NWorkItems)
