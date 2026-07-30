@@ -5,6 +5,7 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
 
 #include "common_free_function.hpp"
+#include <sycl/half_type.hpp>
 
 // Basic usage reduction test using free function kernels.
 // A global buffer is allocated using USM and it is passed to the kernel on the

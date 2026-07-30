@@ -1,9 +1,8 @@
 //===--------- event.hpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -29,7 +28,8 @@
 #include "queue.hpp"
 #include "unified-runtime/ur_api.h"
 
-extern "C" {
+namespace ur::level_zero::v1 {
+
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
                                    bool *isEventDeleted = nullptr);
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
@@ -39,7 +39,6 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool ForceDisableProfiling,
                         bool InterruptBasedEventEnabled,
                         std::optional<bool> IsInternal = std::nullopt);
-} // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
 // the context.
@@ -127,7 +126,7 @@ struct ur_ze_event_list_t {
 
 void printZeEventList(const ur_ze_event_list_t &PiZeEventList);
 
-struct ur_event_handle_t_ : ur_object {
+struct ur_event_handle_t_ : ur_object_t {
   ur_event_handle_t_(ze_event_handle_t ZeEvent,
                      ze_event_pool_handle_t ZeEventPool,
                      ur_context_handle_t Context, ur_command_t CommandType,
@@ -266,7 +265,6 @@ struct ur_event_handle_t_ : ur_object {
 
   ur::RefCount RefCount;
 };
-
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
 // This allows for a much more responsive debugging of hangs.
@@ -314,3 +312,5 @@ static const EventsScope DeviceEventsSetting = [] {
   // with the modern GPU drivers.
   return AllHostVisible;
 }();
+
+} // namespace ur::level_zero::v1

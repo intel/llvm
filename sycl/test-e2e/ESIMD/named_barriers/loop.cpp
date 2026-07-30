@@ -15,6 +15,7 @@
 // SLM and surface size is 32 bytes, 16 bytes per iteration.
 // Each iteration has 1 barrier and 1 producer. Producer stores data to SLM,
 // then all threads read SLM and store data to surface.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

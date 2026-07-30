@@ -8,10 +8,7 @@
 // as expected to fail, whilst it is being investigated, see intel/llvm#11359
 // XFAIL: linux && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11359
-//
-// Hanging on gen12, remove when internal tracker fixed
-// UNSUPPORTED: gpu-intel-gen12
-//
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

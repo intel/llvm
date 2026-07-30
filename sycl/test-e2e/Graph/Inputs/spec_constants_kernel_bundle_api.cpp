@@ -3,6 +3,7 @@
 // This test was taken from `SpecConstants/2020/kernel-bundle-api.cpp`.
 // Variable names have been changed to meet PascalCase naming convention
 // requirements and native constants test was removed.
+#include <iostream>
 
 #include "../graph_common.hpp"
 

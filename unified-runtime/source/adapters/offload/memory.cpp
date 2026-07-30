@@ -1,9 +1,8 @@
 //===----------- memory.cpp - LLVM Offload Adapter  -----------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -228,5 +227,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(ur_context_handle_t,
 
 UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
                                                            void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    ur_context_handle_t, ur_physical_mem_handle_t, void **, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCPutPhysMemHandleExp(ur_context_handle_t, const void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCOpenPhysMemHandleExp(ur_context_handle_t, ur_device_handle_t, const void *,
+                          size_t, ur_physical_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCClosePhysMemHandleExp(ur_context_handle_t, ur_physical_mem_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

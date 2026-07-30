@@ -1,9 +1,8 @@
 //===--------- memory.hpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -19,15 +18,17 @@
 #include <vector>
 
 #include "common.hpp"
+#include "common/sampler.hpp"
 #include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include "program.hpp"
 #include "queue.hpp"
-#include "sampler.hpp"
 #include <umf/ipc.h>
 
 struct ur_device_handle_t_;
+
+namespace ur::level_zero::v1 {
 
 bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr);
 bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr);
@@ -61,7 +62,7 @@ ur_result_t enqueueMemCopyRectHelper(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent, bool PreferCopyEngine = false);
 
-struct ur_mem_handle_t_ : ur_object {
+struct ur_mem_handle_t_ : ur_object_t {
   // Keeps the PI context of this memory handle.
   ur_context_handle_t UrContext;
 
@@ -260,3 +261,5 @@ createUrMemFromZeImage(ur_context_handle_t Context, ze_image_handle_t ZeImage,
   }
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::level_zero::v1

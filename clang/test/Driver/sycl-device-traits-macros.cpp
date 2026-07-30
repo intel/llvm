@@ -10,7 +10,7 @@
 /// occurrences of the macro definition, one for host and one for device.
 // RUN:   %clang -fsycl --no-offload-new-driver -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-ENABLED %s
-// RUN:   %clang -fsycl --offload-new-driver -### %s 2>&1 \
+// RUN:   %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-ENABLED %s
 // CHECK-ENABLED-COUNT-2: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
 
@@ -20,7 +20,7 @@
 /// definition, one for host and one for each of the two devices.
 // RUN:   %clang -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS %s
-// RUN:   %clang -fsycl --offload-new-driver -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
+// RUN:   %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS %s
 // CHECK-SYCL-TARGETS-COUNT-3: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
 
@@ -42,7 +42,7 @@
 // RUN: %clangxx -fsycl --no-offload-new-driver -nogpulib -fsycl-targets=intel_gpu_pvc,amd_gpu_gfx906 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS-NO-MAY-SUPPORT-OTHER-ASPECTS %s
-// RUN: %clangxx -fsycl --offload-new-driver -nogpulib -fsycl-targets=intel_gpu_pvc,amd_gpu_gfx906 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nogpulib -fsycl-targets=intel_gpu_pvc,amd_gpu_gfx906 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS-NO-MAY-SUPPORT-OTHER-ASPECTS %s
 // CHECK-SYCL-TARGETS-NO-MAY-SUPPORT-OTHER-ASPECTS-NOT: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"

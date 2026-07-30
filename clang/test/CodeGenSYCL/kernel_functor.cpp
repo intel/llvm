@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device -fno-sycl-unnamed-lambda -fsycl-int-header=%t.h %s -o /dev/null
+// RUN: %clang_cc1 -triple spirv64-unknown-unknown -fsycl-is-device -fno-sycl-unnamed-lambda -fsycl-int-header=%t.h %s -o /dev/null
 // RUN: FileCheck %s --input-file=%t.h --check-prefixes=NUL,CHECK
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device -fsycl-int-header=%t.h %s -o /dev/null
+// RUN: %clang_cc1 -triple spirv64-unknown-unknown -fsycl-is-device -fsycl-int-header=%t.h %s -o /dev/null
 // RUN: FileCheck %s --input-file=%t.h --check-prefixes=UL,CHECK
 
 // Checks that functors are supported as SYCL kernels.

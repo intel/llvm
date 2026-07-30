@@ -75,13 +75,15 @@ void structs() {
   struct st s1;
 
   struct st s2 = __builtin_intel_fpga_reg(s1);
-  // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[S2_ASCAST]], ptr addrspace(4) align 4 [[S1_ASCAST]], i64 12, i1 false)
-  // CHECK: [[TMP_S4:%.*]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) [[S2_ASCAST]], [[BIFR_STR]]
+  // CHECK: [[S2_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[S2_ASCAST]] to ptr
+  // CHECK-NEXT: call void @llvm.memcpy.p0.p4.i64(ptr align 4 [[S2_ASCAST_ASCAST]], ptr addrspace(4) align 4 [[S1_ASCAST]], i64 12, i1 false)
+  // CHECK: [[TMP_S4:%.*]] = call ptr @llvm.ptr.annotation.p0.p1(ptr [[S2_ASCAST_ASCAST]], [[BIFR_STR]]
 
   struct st s3;
   s3 = __builtin_intel_fpga_reg(s2);
-  // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[REF_TMP_ASCAST]], ptr addrspace(4) align 4 [[S2_ASCAST]], i64 12, i1 false)
-  // CHECK: [[TMP_S9:%.*]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) [[REF_TMP_ASCAST]], [[BIFR_STR]]
+  // CHECK: [[REF_TMP_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[REF_TMP_ASCAST]] to ptr
+  // CHECK-NEXT: call void @llvm.memcpy.p0.p4.i64(ptr align 4 [[REF_TMP_ASCAST_ASCAST]], ptr addrspace(4) align 4 [[S2_ASCAST]], i64 12, i1 false)
+  // CHECK: [[TMP_S9:%.*]] = call ptr @llvm.ptr.annotation.p0.p1(ptr [[REF_TMP_ASCAST_ASCAST]], [[BIFR_STR]]
   // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[S3_ASCAST]], ptr addrspace(4) align 4 [[REF_TMP_ASCAST]], i64 12, i1 false)
 }
 
@@ -96,8 +98,9 @@ void unions() {
   union un u2;
 
   u2 = __builtin_intel_fpga_reg(u1);
-  // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[REF_TMP2_ASCAST]], ptr addrspace(4) align 4 [[U1_ASCAST]], i64 4, i1 false)
-  // CHECK-NEXT: [[TMP_U4:%.*]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) [[REF_TMP2_ASCAST]], [[BIFR_STR]]
+  // CHECK: [[REF_TMP2_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[REF_TMP2_ASCAST]] to ptr
+  // CHECK-NEXT: call void @llvm.memcpy.p0.p4.i64(ptr align 4 [[REF_TMP2_ASCAST_ASCAST]], ptr addrspace(4) align 4 [[U1_ASCAST]], i64 4, i1 false)
+  // CHECK-NEXT: [[TMP_U4:%.*]] = call ptr @llvm.ptr.annotation.p0.p1(ptr [[REF_TMP2_ASCAST_ASCAST]], [[BIFR_STR]]
   // CHECK-NEXT: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[U2_ASCAST]], ptr addrspace(4) align 4 [[REF_TMP2_ASCAST]], i64 4, i1 false)
 }
 
@@ -109,8 +112,9 @@ void classes() {
   A ca(213);
 
   A cb = __builtin_intel_fpga_reg(ca);
-  // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[CB_ASCAST]], ptr addrspace(4) align 4 [[CA_ASCAST]], i64 4, i1 false)
-  // CHECK-NEXT: [[TMP_C4:%.*]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) [[CB_ASCAST]], [[BIFR_STR]]
+  // CHECK: [[CB_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[CB_ASCAST]] to ptr
+  // CHECK-NEXT: call void @llvm.memcpy.p0.p4.i64(ptr align 4 [[CB_ASCAST_ASCAST]], ptr addrspace(4) align 4 [[CA_ASCAST]], i64 4, i1 false)
+  // CHECK-NEXT: [[TMP_C4:%.*]] = call ptr @llvm.ptr.annotation.p0.p1(ptr [[CB_ASCAST_ASCAST]], [[BIFR_STR]]
 }
 
 void pointers() {

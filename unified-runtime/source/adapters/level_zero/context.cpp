@@ -1,9 +1,8 @@
 //===--------- context.cpp - Level Zero Adapter ---------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -19,17 +18,18 @@
 #include "queue.hpp"
 #include "ur_level_zero.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::v1 {
 
 ur_result_t urContextCreate(
     /// [in] the number of devices given in phDevices
     uint32_t DeviceCount,
     /// [in][range(0, DeviceCount)] array of handle of devices.
-    const ur_device_handle_t *Devices,
+    const ::ur_device_handle_t *DevicesOpque,
     /// [in][optional] pointer to context creation properties.
     const ur_context_properties_t * /*Properties*/,
     /// [out] pointer to handle of context object created
-    ur_context_handle_t *RetContext) {
+    ::ur_context_handle_t *RetContextOpque) {
+  auto Devices = common_cast(DevicesOpque);
 
   ur_platform_handle_t Platform = Devices[0]->Platform;
   ZeStruct<ze_context_desc_t> ContextDesc{};
@@ -37,14 +37,17 @@ ur_result_t urContextCreate(
   ze_context_handle_t ZeContext{};
   ZE2UR_CALL(zeContextCreate, (Platform->ZeDriver, &ContextDesc, &ZeContext));
   try {
-    ur_context_handle_t_ *Context =
-        new ur_context_handle_t_(ZeContext, DeviceCount, Devices, true);
+    ur::level_zero::v1::ur_context_handle_t_ *Context =
+        new ur::level_zero::v1::ur_context_handle_t_(ZeContext, DeviceCount,
+                                                     Devices, true);
 
     Context->initialize();
-    *RetContext = reinterpret_cast<ur_context_handle_t>(Context);
+    *v1_cast(RetContextOpque) = Context;
+    // TODO: delete below 'if' when memory isolation in the context is
+    // implemented in the driver
     if (IndirectAccessTrackingEnabled) {
       std::scoped_lock<ur_shared_mutex> Lock(Platform->ContextsMutex);
-      Platform->Contexts.push_back(*RetContext);
+      Platform->Contexts.push_back(*RetContextOpque);
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -60,14 +63,15 @@ ur_result_t urContextCreate(
 ur_result_t urContextRetain(
 
     /// [in] handle of the context to get a reference of.
-    ur_context_handle_t Context) {
-  Context->RefCount.retain();
+    ::ur_context_handle_t ContextOpque) {
+  v1_cast(ContextOpque)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urContextRelease(
     /// [in] handle of the context to release.
-    ur_context_handle_t Context) {
+    ::ur_context_handle_t ContextOpque) {
+  auto Context = v1_cast(ContextOpque);
   ur_platform_handle_t Plt = Context->getPlatform();
   std::unique_lock<ur_shared_mutex> ContextsLock(Plt->ContextsMutex,
                                                  std::defer_lock);
@@ -91,7 +95,7 @@ static const bool UseMemcpy2DOperations = [] {
 
 ur_result_t urContextGetInfo(
     /// [in] handle of the context
-    ur_context_handle_t Context,
+    ::ur_context_handle_t ContextOpque,
     /// [in] type of the info to retrieve
     ur_context_info_t ContextInfoType,
     /// [in] the number of bytes of memory pointed to by pContextInfo.
@@ -104,14 +108,16 @@ ur_result_t urContextGetInfo(
     /// [out][optional] pointer to the actual size in bytes of data queried by
     /// ContextInfoType.
     size_t *PropSizeRet) {
+  auto Context = v1_cast(ContextOpque);
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
   UrReturnHelper ReturnValue(PropSize, ContextInfo, PropSizeRet);
   switch (
       (uint32_t)ContextInfoType) { // cast to avoid warnings on EXT enum values
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(&Context->Devices[0], Context->Devices.size());
+    return ReturnValue(Context->getDevices().data(),
+                       Context->getDevices().size());
   case UR_CONTEXT_INFO_NUM_DEVICES:
-    return ReturnValue(uint32_t(Context->Devices.size()));
+    return ReturnValue(uint32_t(Context->getDevices().size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Context->RefCount.getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
@@ -129,29 +135,33 @@ ur_result_t urContextGetInfo(
 
 ur_result_t urContextGetNativeHandle(
     /// [in] handle of the context.
-    ur_context_handle_t Context,
+    ::ur_context_handle_t ContextOpque,
     /// [out] a pointer to the native handle of the context.
-    ur_native_handle_t *NativeContext) {
-  *NativeContext = reinterpret_cast<ur_native_handle_t>(Context->ZeContext);
+    ::ur_native_handle_t *NativeContext) {
+  *NativeContext =
+      reinterpret_cast<ur_native_handle_t>(v1_cast(ContextOpque)->ZeContext);
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urContextCreateWithNativeHandle(
-    ur_native_handle_t
+    ::ur_native_handle_t
         /// [in] the native handle of the context.
         NativeContext,
-    ur_adapter_handle_t, uint32_t NumDevices, const ur_device_handle_t *Devices,
+    ::ur_adapter_handle_t, uint32_t NumDevices,
+    const ::ur_device_handle_t *DevicesOpque,
     const ur_context_native_properties_t *Properties,
     /// [out] pointer to the handle of the context object created.
-    ur_context_handle_t *Context) {
+    ::ur_context_handle_t *ContextOpque) {
+  auto Devices = common_cast(DevicesOpque);
   bool OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
   try {
     ze_context_handle_t ZeContext =
         reinterpret_cast<ze_context_handle_t>(NativeContext);
-    ur_context_handle_t_ *UrContext = new ur_context_handle_t_(
-        ZeContext, NumDevices, Devices, OwnNativeHandle);
+    ur::level_zero::v1::ur_context_handle_t_ *UrContext =
+        new ur::level_zero::v1::ur_context_handle_t_(ZeContext, NumDevices,
+                                                     Devices, OwnNativeHandle);
     UrContext->initialize();
-    *Context = reinterpret_cast<ur_context_handle_t>(UrContext);
+    *v1_cast(ContextOpque) = UrContext;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -162,7 +172,7 @@ ur_result_t urContextCreateWithNativeHandle(
 
 ur_result_t urContextSetExtendedDeleter(
     /// [in] handle of the context.
-    ur_context_handle_t /*Context*/,
+    ::ur_context_handle_t /*Context*/,
     /// [in] Function pointer to extended deleter.
     ur_context_extended_deleter_t /*Deleter*/,
     /// [in][out][optional] pointer to data to be passed to callback.
@@ -172,9 +182,14 @@ ur_result_t urContextSetExtendedDeleter(
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
-} // namespace ur::level_zero
 
-ur_result_t ur_context_handle_t_::initialize() {
+ur_result_t ur::level_zero::v1::ur_context_handle_t_::initialize() {
+  assert(
+      static_cast<void *>(this) ==
+          static_cast<void *>(
+              &static_cast<ur::level_zero::ur_object_t *>(this)->ddi_table) &&
+      "ddi_table must be at offset 0 for loader intercept dispatch");
+
   // Create the immediate command list to be used for initializations.
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
@@ -185,7 +200,7 @@ ur_result_t ur_context_handle_t_::initialize() {
   // D2D migartion, if no P2P, is broken since it should use
   // immediate command-list for the specfic devices, and this single one.
   //
-  ur_device_handle_t Device = Devices[0];
+  ur_device_handle_t Device = getDevices()[0];
 
   // Prefer to use copy engine for initialization copies,
   // if available and allowed (main copy engine with index 0).
@@ -218,7 +233,9 @@ ur_result_t ur_context_handle_t_::initialize() {
   return UR_RESULT_SUCCESS;
 }
 
-ur_device_handle_t ur_context_handle_t_::getRootDevice() const {
+ur_device_handle_t
+ur::level_zero::v1::ur_context_handle_t_::getRootDevice() const {
+  const auto &Devices = getDevices();
   assert(Devices.size() > 0);
 
   if (Devices.size() == 1)
@@ -257,7 +274,7 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
   if (IndirectAccessTrackingEnabled) {
     ur_platform_handle_t Plt = Context->getPlatform();
     auto &Contexts = Plt->Contexts;
-    auto It = std::find(Contexts.begin(), Contexts.end(), Context);
+    auto It = std::find(Contexts.begin(), Contexts.end(), v1_cast(Context));
     if (It != Contexts.end())
       Contexts.erase(It);
   }
@@ -291,11 +308,7 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
   return Result;
 }
 
-ur_platform_handle_t ur_context_handle_t_::getPlatform() const {
-  return Devices[0]->Platform;
-}
-
-ur_result_t ur_context_handle_t_::finalize() {
+ur_result_t ur::level_zero::v1::ur_context_handle_t_::finalize() {
   // This function is called when ur_context_handle_t is deallocated,
   // urContextRelease. There could be some memory that may have not been
   // deallocated. For example, event and event pool caches would be still alive.
@@ -306,7 +319,7 @@ ur_result_t ur_context_handle_t_::finalize() {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
     for (auto &EventCache : EventCaches) {
       for (auto &Event : EventCache) {
-        if (checkL0LoaderTeardown()) {
+        if (Event->ZeEvent && checkL0LoaderTeardown()) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
           // Gracefully handle the case that L0 was already unloaded.
           if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
@@ -402,7 +415,8 @@ static const uint32_t MaxNumEventsPerPool = [] {
   return Result;
 }();
 
-ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
+ur_result_t
+ur::level_zero::v1::ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_handle_t &Pool, size_t &Index, bool HostVisible,
     bool ProfilingEnabled, ur_device_handle_t Device,
     bool CounterBasedEventEnabled, bool UsingImmCmdList,
@@ -455,7 +469,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     if (ZeDevice) {
       ZeDevices.push_back(ZeDevice);
     } else {
-      std::for_each(Devices.begin(), Devices.end(),
+      std::for_each(getDevices().begin(), getDevices().end(),
                     [&](const ur_device_handle_t &D) {
                       ZeDevices.push_back(D->ZeDevice);
                     });
@@ -517,6 +531,21 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   Index = 0;
   // Create one event ZePool per MaxNumEventsPerPool events
   if (*ZePool == nullptr) {
+    // Before creating a new pool, scan the cache tail for a fully-recycled
+    // pool that can be reused (all events released, all slots available).
+    for (auto it = std::next(ZePoolCache->begin()); it != ZePoolCache->end();
+         ++it) {
+      if (*it != nullptr && NumEventsUnreleasedInEventPool.count(*it) &&
+          NumEventsUnreleasedInEventPool[*it] == 0 &&
+          NumEventsAvailableInEventPool.count(*it) &&
+          NumEventsAvailableInEventPool[*it] == MaxNumEventsPerPool) {
+        ZePoolCache->front() = *it;
+        ZePoolCache->erase(it);
+        break;
+      }
+    }
+  }
+  if (*ZePool == nullptr) {
     ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
         ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
 
@@ -557,7 +586,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     if (ZeDevice) {
       ZeDevices.push_back(ZeDevice);
     } else {
-      std::for_each(Devices.begin(), Devices.end(),
+      std::for_each(getDevices().begin(), getDevices().end(),
                     [&](const ur_device_handle_t &D) {
                       ZeDevices.push_back(D->ZeDevice);
                     });
@@ -594,7 +623,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   return UR_RESULT_SUCCESS;
 }
 
-ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
+ur_event_handle_t
+ur::level_zero::v1::ur_context_handle_t_::getEventFromContextCache(
     bool HostVisible, bool WithProfiling, ur_device_handle_t Device,
     bool CounterBasedEventEnabled, bool InterruptBasedEventEnabled) {
   // Don't reuse events with profiling enabled because zeEventHostReset
@@ -634,7 +664,8 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
   return Event;
 }
 
-void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
+void ur::level_zero::v1::ur_context_handle_t_::addEventToContextCache(
+    ur_event_handle_t Event) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
   ur_device_handle_t Device = nullptr;
 
@@ -654,7 +685,8 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
 }
 
 ur_result_t
-ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
+ur::level_zero::v1::ur_context_handle_t_::decrementUnreleasedEventsInPool(
+    ur_event_handle_t Event) {
   std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex, std::defer_lock);
   std::scoped_lock<ur_mutex, std::shared_lock<ur_shared_mutex>> LockAll(
       ZeEventPoolCacheMutex, EventLock);
@@ -682,9 +714,26 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
     die("Invalid event release: event pool doesn't have unreleased events");
   if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
     if (ZePoolCache->front() != Event->ZeEventPool) {
-      ZePoolCache->push_back(Event->ZeEventPool);
+      bool hasFrontPool =
+          !ZePoolCache->empty() && ZePoolCache->front() != nullptr;
+      if (hasFrontPool && checkL0LoaderTeardown()) {
+        ZE_CALL_NOCHECK(zeEventPoolDestroy, (Event->ZeEventPool));
+        NumEventsAvailableInEventPool.erase(Event->ZeEventPool);
+        NumEventsUnreleasedInEventPool.erase(Event->ZeEventPool);
+        // Remove the destroyed pool handle from the cache to prevent
+        // double-free in finalize().
+        ZePoolCache->remove(Event->ZeEventPool);
+        Event->ZeEventPool = nullptr;
+      } else if (!ZePoolCache->empty() && ZePoolCache->front() == nullptr) {
+        ZePoolCache->front() = Event->ZeEventPool;
+        NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
+      } else {
+        ZePoolCache->push_back(Event->ZeEventPool);
+        NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
+      }
+    } else {
+      NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
     }
-    NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
   }
 
   return UR_RESULT_SUCCESS;
@@ -894,20 +943,4 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   return ur_result;
 }
 
-bool ur_context_handle_t_::isValidDevice(ur_device_handle_t Device) const {
-  while (Device) {
-    if (std::find(Devices.begin(), Devices.end(), Device) != Devices.end())
-      return true;
-    Device = Device->RootDevice;
-  }
-  return false;
-}
-
-const std::vector<ur_device_handle_t> &
-ur_context_handle_t_::getDevices() const {
-  return Devices;
-}
-
-ze_context_handle_t ur_context_handle_t_::getZeHandle() const {
-  return ZeContext;
-}
+} // namespace ur::level_zero::v1

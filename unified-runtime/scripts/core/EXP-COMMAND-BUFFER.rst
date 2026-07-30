@@ -26,7 +26,7 @@ A command-buffer represents a series of commands for execution on a command
 queue. Many adapters support this kind of construct either natively or through
 extensions, but they are not available to use directly. Typically their use is
 abstracted through the existing Core APIs, for example when calling
-${x}EnqueueKernelLaunch the adapter may both append the kernel command to a
+${x}EnqueueKernelLaunchWithArgsExp the adapter may both append the kernel command to a
 command-buffer-like construct and also submit that command-buffer to a queue for
 execution. These types of structures allow for batching of commands to improve
 host launch latency, but without direct control it falls to the adapter

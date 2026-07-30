@@ -1,9 +1,8 @@
 //===--------- command_list_manager.hpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -18,6 +17,7 @@
 #include <unordered_set>
 #include <ze_api.h>
 
+namespace ur::level_zero::v2 {
 struct ur_mem_buffer_t;
 
 struct wait_list_view {
@@ -66,8 +66,8 @@ private:
 };
 
 struct ur_command_list_manager {
-  ur_command_list_manager(ur_context_handle_t context,
-                          ur_device_handle_t device,
+  ur_command_list_manager(ur_context_handle_t hContext,
+                          ur_device_handle_t hDevice,
                           v2::raii::command_list_unique_handle &&commandList);
   ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
@@ -259,7 +259,8 @@ struct ur_command_list_manager {
   ur_result_t beginGraphCapture();
   ur_result_t beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph);
   ur_result_t endGraphCapture(ur_exp_graph_handle_t *phGraph);
-  ur_result_t isGraphCaptureActive(bool *pResult);
+  ur_result_t queryGraphCaptureActive(bool *pResult);
+  ur_result_t getGraph(ur_exp_graph_handle_t *phGraph);
 
   v2::raii::command_list_unique_handle &&releaseCommandList();
 
@@ -338,3 +339,5 @@ private:
 
   graph_capture_tracking_data_t graphCapture;
 };
+
+} // namespace ur::level_zero::v2

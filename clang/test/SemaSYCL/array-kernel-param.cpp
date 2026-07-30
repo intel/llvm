@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck --check-prefixes=CHECK,GEN-AS %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -fsycl-force-global-as-in-kernel-args -sycl-std=2020 %s | FileCheck --check-prefixes=CHECK,GLOB-AS %s
 
 // This test checks that compiler generates correct kernel arguments for
 // arrays, Accessor arrays, and structs containing Accessors.
@@ -157,23 +158,40 @@ int main() {
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
+
+// Array initilializer if no address space modification
+// GEN-AS-NEXT: ArrayInitLoopExpr {{.*}} 'int *[2]'
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[2]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'int *[2]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers' '__wrapper_class'
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
+// GEN-AS-NEXT: ArraySubscriptExpr {{.*}} 'int *' lvalue
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'int **' <ArrayToPointerDecay>
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[2]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'int *[2]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers' '__wrapper_class'
+// GEN-AS-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
+
+// GLOB-AS-NEXT: InitListExpr {{.*}} 'int *[2]'
+
+// Otherwise per-element initialization for address space modifications.
 // Initializer for ArrayOfPointers[0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
+
 // Initializer for ArrayOfPointers[1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_StructAccArray parameters
 // CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
@@ -274,29 +292,44 @@ int main() {
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
+
+// GEN-AS-NEXT: ArrayInitLoopExpr {{.*}} 'StructWithPointers[2]'
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'StructWithPointers[2]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'StructWithPointers[2]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray' '__wrapper_class'
+// GEN-AS-NEXT: CXXConstructExpr {{.*}} 'StructWithPointers' 'void (const StructWithPointers &) noexcept'
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
+// GEN-AS-NEXT: ArraySubscriptExpr {{.*}} 'StructWithPointers' lvalue
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'StructWithPointers *' <ArrayToPointerDecay>
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'StructWithPointers[2]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'StructWithPointers[2]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray' '__wrapper_class'
+// GEN-AS-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
+
+// GLOB-AS-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
 // Initializer for StructWithPointersArray[0]
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithPointers' 'void (const StructWithPointers &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__generated_StructWithPointers' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__generated_StructWithPointers *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__generated_StructWithPointers[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// GLOB-AS-NEXT: CXXConstructExpr {{.*}} 'StructWithPointers' 'void (const StructWithPointers &) noexcept'
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'StructWithPointers' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__generated_StructWithPointers' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__generated_StructWithPointers *' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__generated_StructWithPointers[2]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
+
 // Initializer for StructWithPointersArray[1]
-// CHECK: CXXConstructExpr {{.*}} 'StructWithPointers' 'void (const StructWithPointers &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__generated_StructWithPointers' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__generated_StructWithPointers *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__generated_StructWithPointers[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// GLOB-AS: CXXConstructExpr {{.*}} 'StructWithPointers' 'void (const StructWithPointers &) noexcept'
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'StructWithPointers' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__generated_StructWithPointers' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__generated_StructWithPointers *' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__generated_StructWithPointers[2]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_Array_Ptrs_2D parameters
 // CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D{{.*}} 'void (__wrapper_class, __wrapper_class) __attribute__((device_kernel))'
@@ -310,98 +343,135 @@ int main() {
 // CHECK-NEXT: InitListExpr
 
 // Initializer for ArrayOfPointers_2D
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[2][3]'
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
+// GEN-AS-NEXT: ArrayInitLoopExpr {{.*}} 'int *[2][3]'
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[2][3]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'int *[2][3]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GEN-AS-NEXT: ArrayInitLoopExpr {{.*}} 'int *[3]'
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[3]' lvalue
+// GEN-AS-NEXT: ArraySubscriptExpr {{.*}} 'int *[3]' lvalue
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'int *(*)[3]' <ArrayToPointerDecay>
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[2][3]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'int *[2][3]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GEN-AS-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
+// GEN-AS-NEXT: ArraySubscriptExpr {{.*}} 'int *' lvalue
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'int **' <ArrayToPointerDecay>
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[3]' lvalue
+// GEN-AS-NEXT: ArraySubscriptExpr {{.*}} 'int *[3]' lvalue
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'int *(*)[3]' <ArrayToPointerDecay>
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[2][3]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'int *[2][3]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GEN-AS-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
+// GEN-AS-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
+
+// GLOB-AS-NEXT: InitListExpr {{.*}} 'int *[2][3]'
+// GLOB-AS-NEXT: InitListExpr {{.*}} 'int *[3]'
+
 // Initializer for ArrayOfPointers_2D[0][0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers_2D[0][1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 
 // Initializer for ArrayOfPointers_2D[0][2]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 2
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 2
 
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
+// GLOB-AS-NEXT: InitListExpr {{.*}} 'int *[3]'
 
 // Initializer for ArrayOfPointers_2D[1][0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers_2D[1][1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 
 // Initializer for ArrayOfPointers_2D[1][2]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 2
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 2
 
 // Initializer for ArrayOfPointers
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
+// GEN-AS: ArrayInitLoopExpr {{.*}} 'int *[2]'
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[2]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'int *[2]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
+// GEN-AS-NEXT: ArraySubscriptExpr {{.*}} 'int *' lvalue
+// GEN-AS-NEXT: ImplicitCastExpr {{.*}} 'int **' <ArrayToPointerDecay>
+// GEN-AS-NEXT: OpaqueValueExpr {{.*}} 'int *[2]' lvalue
+// GEN-AS-NEXT: MemberExpr {{.*}} 'int *[2]' lvalue .
+// GEN-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
+// GEN-AS-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
+
+// GLOB-AS: InitListExpr {{.*}} 'int *[2]'
 // Initializer for ArrayOfPointers[0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers[1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
+// GLOB-AS-NEXT: IntegerLiteral {{.*}} 1

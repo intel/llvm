@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../../graph_common.hpp"
-#include "sycl/ext/oneapi/kernel_properties/properties.hpp"
+#include "sycl/ext/oneapi/kernel_properties.hpp"
 #include "sycl/kernel_bundle.hpp"
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>

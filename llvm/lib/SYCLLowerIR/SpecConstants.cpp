@@ -348,7 +348,7 @@ void collectCompositeElementsDefaultValuesRecursive(
 
   if (auto *ArrayC = dyn_cast<ConstantArray>(C)) {
     // This branch handles arrays of composite types (structs, arrays, etc.)
-    assert(!C->isZeroValue() && "C must not be a zeroinitializer");
+    assert(!C->isNullValue() && "C must not be a zeroinitializer");
     for (size_t I = 0; I < ArrayC->getType()->getNumElements(); ++I) {
       collectCompositeElementsDefaultValuesRecursive(M, ArrayC->getOperand(I),
                                                      Offset, DefaultValues);
@@ -357,7 +357,7 @@ void collectCompositeElementsDefaultValuesRecursive(
   }
 
   if (auto *StructC = dyn_cast<ConstantStruct>(C)) {
-    assert(!C->isZeroValue() && "C must not be a zeroinitializer");
+    assert(!C->isNullValue() && "C must not be a zeroinitializer");
     auto *StructTy = StructC->getType();
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     const size_t BaseDefaultValueOffset = DefaultValues.size();
@@ -760,7 +760,7 @@ Constant *getSpecConstInitializerFromCI(CallInst *CI, unsigned ArgIndex) {
   // Go through global variable if the argument was not null.
   assert(GV->hasInitializer() && "GV is expected to have initializer");
   Constant *Initializer = GV->getInitializer();
-  assert((isa<ConstantAggregate>(Initializer) || Initializer->isZeroValue()) &&
+  assert((isa<ConstantAggregate>(Initializer) || Initializer->isNullValue()) &&
          "expected specialization_id instance");
   // specialization_id structure contains a single field which is the
   // default value of corresponding specialization constant.
@@ -848,9 +848,9 @@ StringRef SpecConstantsPass::convertHandlingModeToString(HandlingMode Mode) {
     return "emulation";
   case SpecConstantsPass::HandlingMode::default_values:
     return "default_values";
-  default:
-    llvm_unreachable("unknown value");
   }
+
+  llvm_unreachable("uncovered input value");
 }
 
 PreservedAnalyses SpecConstantsPass::run(Module &M,

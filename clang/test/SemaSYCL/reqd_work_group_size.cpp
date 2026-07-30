@@ -67,14 +67,6 @@ public:
   [[sycl::reqd_work_group_size(16, 16, 16)]] [[sycl::reqd_work_group_size(32, 32, 32)]] void operator()(int) const; // expected-error {{attribute 'sycl::reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
 };
 
-class FunctorC {
-public:
-  [[intel::max_work_group_size(64, 64, 64)]] [[sycl::reqd_work_group_size(64, 64, 64)]] void operator()() const;
-  [[intel::max_work_group_size(16, 16, 16)]]      // expected-note {{conflicting attribute is here}}
-  [[sycl::reqd_work_group_size(64, 64, 64)]] void // expected-error {{'sycl::reqd_work_group_size' attribute conflicts with 'intel::max_work_group_size' attribute}}
-  operator()(int) const;
-};
-
 class Functor32 {
 public:
   [[sycl::reqd_work_group_size(32, 1, 1)]]      // expected-note {{previous attribute is here}} // expected-warning {{'sycl::reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}

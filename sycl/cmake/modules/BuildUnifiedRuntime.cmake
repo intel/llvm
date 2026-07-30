@@ -1,5 +1,8 @@
 # Builds in-tree UR
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../unified-runtime/cmake")
+include(helpers)
+
 # TODO: taken from sycl/plugins/CMakeLists.txt - maybe we should handle this
 # within UR (although it is an obscure warning that the build system here
 # seems to specifically enable)
@@ -92,6 +95,15 @@ add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
 # Restore original flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
+if(WIN32 AND UR_STATIC_LOADER)
+  foreach(_ur_static_target ur_loader ur_common)
+    if(TARGET ${_ur_static_target})
+      set_target_properties(${_ur_static_target} PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    endif()
+  endforeach()
+endif()
+
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
 set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
@@ -126,19 +138,6 @@ function(add_sycl_ur_adapter NAME)
   install(TARGETS ur_adapter_${NAME}
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
     RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
-
-  set(manifest_file
-    ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_ur_adapter_${NAME}.txt)
-  add_custom_command(OUTPUT ${manifest_file}
-    COMMAND "${CMAKE_COMMAND}"
-    "-DCMAKE_INSTALL_COMPONENT=ur_adapter_${NAME}"
-    -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
-    COMMENT "Deploying component ur_adapter_${NAME}"
-    USES_TERMINAL
-  )
-  add_custom_target(install-sycl-ur-adapter-${NAME}
-    DEPENDS ${manifest_file} ur_adapter_${NAME}
-  )
 
   set_property(GLOBAL APPEND PROPERTY
     SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
@@ -223,6 +222,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUR_BUILD_ADAPTER_CUDA:BOOL=${UR_BUILD_ADAPTER_CUDA}
       -DUR_BUILD_ADAPTER_HIP:BOOL=${UR_BUILD_ADAPTER_HIP}
       -DUR_BUILD_ADAPTER_NATIVE_CPU:BOOL=${UR_BUILD_ADAPTER_NATIVE_CPU}
+      -DUR_STATIC_LOADER:BOOL=${UR_STATIC_LOADER}
+      -DUR_STATIC_ADAPTER_L0:BOOL=${UR_STATIC_ADAPTER_L0}
+      -DUR_STATIC_ADAPTER_L0_V2:BOOL=${UR_STATIC_ADAPTER_L0_V2}
+      -DUR_STATIC_ADAPTER_OPENCL:BOOL=${UR_STATIC_ADAPTER_OPENCL}
       -DUMF_BUILD_EXAMPLES:BOOL=${UMF_BUILD_EXAMPLES}
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
@@ -261,29 +264,105 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endmacro()
 
   urd_copy_library_to_build(ur_loaderd "NOT;${UR_STATIC_LOADER}")
-  foreach(adatper ${SYCL_ENABLE_BACKENDS})
-    if(adapter MATCHES "level_zero")
-      set(shared "NOT;${UR_STATIC_ADAPTER_L0}")
+  if(UR_STATIC_LOADER)
+    # sycld can't reuse the release UnifiedRuntimeLoader target (CRT
+    # mismatch). Bundle static debug deps as INTERFACE so we can
+    # link using one name.
+    urd_copy_library_to_build(ur_commond FALSE)
+    add_library(UnifiedRuntimeLoaderDebug INTERFACE)
+    target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+      ${LLVM_BINARY_DIR}/lib/ur_loaderd.lib
+      ${LLVM_BINARY_DIR}/lib/ur_commond.lib
+      dbghelp)
+    set(_urd_static_l0 FALSE)
+    # Link static adapters into the loader
+    foreach(adapter ${SYCL_ENABLE_BACKENDS})
+      ur_adapter_is_static(${adapter} adapter_is_static)
+      # The Level Zero adapters use the abbreviated build flags
+      # UR_BUILD_ADAPTER_L0 / _L0_V2 rather than the backend name.
+      string(TOUPPER "${adapter}" adapter_upper)
+      if(adapter_upper STREQUAL "LEVEL_ZERO")
+        set(build_var "UR_BUILD_ADAPTER_L0")
+      elseif(adapter_upper STREQUAL "LEVEL_ZERO_V2")
+        set(build_var "UR_BUILD_ADAPTER_L0_V2")
+      else()
+        set(build_var "UR_BUILD_ADAPTER_${adapter_upper}")
+      endif()
+      if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
+        target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+          ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
+        if(build_var STREQUAL "UR_BUILD_ADAPTER_L0" OR
+           build_var STREQUAL "UR_BUILD_ADAPTER_L0_V2")
+          set(_urd_static_l0 TRUE)
+        endif()
+      endif()
+    endforeach()
+    # A static umfd.lib does not absorb its private helper archives, so link
+    # them too. umfd and the helpers are copied below.
+    target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+      ${LLVM_BINARY_DIR}/lib/umfd.lib
+      ${LLVM_BINARY_DIR}/lib/umf_bad.lib
+      ${LLVM_BINARY_DIR}/lib/umf_utilsd.lib
+      ${LLVM_BINARY_DIR}/lib/umf_coarsed.lib)
+    if(_urd_static_l0)
+      # The static L0 adapters need ze_loader. Copy the debug-CRT ze_loader
+      # from the debug sub-build under a 'd' name (it has no debug postfix, so
+      # copying it as-is would collide with the release in-tree ze_loader.lib).
+      list(APPEND URD_COPY_FILES ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib)
+      add_custom_command(
+        OUTPUT ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib
+        COMMAND ${CMAKE_COMMAND} -E copy
+          ${URD_INSTALL_DIR}/lib/ze_loader.lib
+          ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib
+      )
+      target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+        ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib)
+    endif()
+  endif()
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+    ur_adapter_is_static(${adapter} adapter_is_static)
+    if(adapter_is_static)
+      set(shared FALSE)
     else()
       set(shared TRUE)
     endif()
-    urd_copy_library_to_build(ur_adapter_${adatper}d "${shared}")
+    urd_copy_library_to_build(ur_adapter_${adapter}d "${shared}")
   endforeach()
   # Also copy umfd.dll/umfd.lib
   urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
+  # A static umfd.lib doesn't absorb its private helper archives (umf_ba /
+  # umf_utils / umf_coarse), so a consumer linking umfd.lib must link them too.
+  # They aren't installed, but the debug sub-build produces them (debug CRT) at
+  # ${URD_BINARY_DIR}/lib without a 'd' postfix, so copy them under a 'd' name.
+  if(NOT UMF_BUILD_SHARED_LIBRARY)
+    foreach(_umfd_helper umf_ba umf_utils umf_coarse)
+      list(APPEND URD_COPY_FILES ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib)
+      add_custom_command(
+        OUTPUT ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib
+        COMMAND ${CMAKE_COMMAND} -E copy
+          ${URD_BINARY_DIR}/lib/${_umfd_helper}.lib
+          ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib
+        DEPENDS unified-runtimed
+      )
+    endforeach()
+  endif()
 
   add_custom_target(unified-runtimed-build ALL DEPENDS ${URD_COPY_FILES})
   add_dependencies(unified-runtimed-build unified-runtimed)
 
   # Add the debug UR runtime libraries to the parent install.
-  install(
-    FILES ${URD_INSTALL_DIR}/bin/ur_loaderd.dll
-    DESTINATION "bin" COMPONENT unified-runtime-loader)
-  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+  if(NOT UR_STATIC_LOADER)
     install(
-      FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
-      DESTINATION "bin" COMPONENT ur_adapter_${adapter})
-    add_dependencies(install-sycl-ur-adapter-${adapter} unified-runtimed)
+      FILES ${URD_INSTALL_DIR}/bin/ur_loaderd.dll
+      DESTINATION "bin" COMPONENT unified-runtime-loader)
+  endif()
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+    ur_adapter_is_static(${adapter} adapter_is_static)
+    if(NOT adapter_is_static)
+      install(
+        FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
+        DESTINATION "bin" COMPONENT ur_adapter_${adapter})
+    endif()
   endforeach()
   if(UMF_BUILD_SHARED_LIBRARY)
     # Also install umfd.dll

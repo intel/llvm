@@ -1,9 +1,8 @@
 //===--------- kernel.hpp - Level Zero Adapter ---------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -15,6 +14,8 @@
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "memory.hpp"
+
+namespace ur::level_zero::v2 {
 
 struct ur_single_device_kernel_t {
   ur_single_device_kernel_t(ur_device_handle_t hDevice,
@@ -34,7 +35,7 @@ struct ur_single_device_kernel_t {
   mutable ZeCache<ZeStruct<ze_kernel_properties_t>> zeKernelProperties;
 };
 
-struct ur_kernel_handle_t_ : ur_object {
+struct ur_kernel_handle_t_ : v2::ur_object_t {
 private:
   struct pending_memory_allocation_t;
 
@@ -114,7 +115,7 @@ public:
                                    wait_list_view &waitListView);
 
   // Get context of the kernel.
-  ur_context_handle_t getContext() const { return hProgram->Context; }
+  ur_context_handle_t getContext() const { return v2_cast(hProgram->Context); }
 
   ur::RefCount RefCount;
 
@@ -157,3 +158,5 @@ private:
   // pointer to any non-null kernel in deviceKernels
   ur_single_device_kernel_t *nonEmptyKernel;
 };
+
+} // namespace ur::level_zero::v2

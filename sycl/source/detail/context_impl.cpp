@@ -18,7 +18,6 @@
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/property_list.hpp>
 
@@ -106,13 +105,13 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   }
 }
 
-cl_context context_impl::get() const {
+OpenCLContextT context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
   getAdapter().call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
   getAdapter().call<UrApiKind::urContextGetNativeHandle>(MContext,
                                                          &nativeHandle);
-  return ur::cast<cl_context>(nativeHandle);
+  return ur::cast<OpenCLContextT>(nativeHandle);
 }
 
 context_impl::~context_impl() {
@@ -144,11 +143,13 @@ const async_handler &context_impl::get_async_handler() const {
   return MAsyncHandler;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
   return get_context_info<info::context::reference_count>(this->getHandleRef(),
                                                           this->getAdapter());
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
@@ -233,7 +234,7 @@ ur_native_handle_t context_impl::getNative() const {
   ur_native_handle_t Handle;
   Adapter.call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainContext, ur::cast<cl_context>(Handle));
+    retainOpenCLContext(Handle);
   }
   return Handle;
 }
@@ -246,6 +247,32 @@ void context_impl::addAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
   std::lock_guard<std::mutex> Lock{MAssociatedDeviceGlobalsMutex};
   MAssociatedDeviceGlobals.erase(DeviceGlobalPtr);
+}
+
+void context_impl::registerNativeGraph(
+    ur_exp_graph_handle_t UrGraphHandle,
+    std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+        Graph) {
+  assert(UrGraphHandle != nullptr && Graph != nullptr);
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  MNativeGraphRegistry.try_emplace(UrGraphHandle, Graph);
+}
+
+std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+context_impl::getNativeGraph(ur_exp_graph_handle_t UrGraphHandle) const {
+  assert(UrGraphHandle != nullptr);
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  auto It = MNativeGraphRegistry.find(UrGraphHandle);
+  if (It != MNativeGraphRegistry.end()) {
+    return It->second.lock();
+  }
+  return nullptr;
+}
+
+void context_impl::deregisterNativeGraph(ur_exp_graph_handle_t UrGraphHandle) {
+  assert(UrGraphHandle != nullptr);
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  MNativeGraphRegistry.erase(UrGraphHandle);
 }
 
 void context_impl::addDeviceGlobalInitializer(
@@ -262,20 +289,50 @@ void context_impl::addDeviceGlobalInitializer(
   }
 }
 
+void context_impl::removeDeviceGlobalInitializer(
+    ur_program_handle_t Program, const RTDeviceBinaryImage *BinImage) {
+  std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
+
+  for (auto It = MDeviceGlobalInitializers.begin();
+       It != MDeviceGlobalInitializers.end();) {
+    const bool ProgramMatches = It->first.first == Program;
+    const bool ImageMatches = It->second.MBinImage == BinImage;
+
+    if (!ProgramMatches || !ImageMatches) {
+      ++It;
+      continue;
+    }
+
+    {
+      std::lock_guard<std::mutex> InitLock(It->second.MDeviceGlobalInitMutex);
+      if (!It->second.MDeviceGlobalsFullyInitialized)
+        --MDeviceGlobalNotInitializedCnt;
+      It->second.ClearEvents(getAdapter());
+    }
+
+    It = MDeviceGlobalInitializers.erase(It);
+  }
+}
+
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg, queue_impl &QueueImpl,
     detail::kernel_bundle_impl *KernelBundleImplPtr) {
+
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
   detail::adapter_impl &Adapter = getAdapter();
   device_impl &DeviceImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
+
   auto ImgIt = MDeviceGlobalInitializers.find(
       std::make_pair(NativePrg, DeviceImpl.getHandleRef()));
-  if (ImgIt == MDeviceGlobalInitializers.end() ||
-      ImgIt->second.MDeviceGlobalsFullyInitialized)
+  if (ImgIt == MDeviceGlobalInitializers.end()) {
     return {};
+  }
+  if (ImgIt->second.MDeviceGlobalsFullyInitialized) {
+    return {};
+  }
 
   DeviceGlobalInitializer &InitRef = ImgIt->second;
   {
@@ -517,6 +574,47 @@ context_impl::get_default_memory_pool(const context &Context,
   MMemPoolImplPtrs.push_back(std::pair(Device, MemPoolImplPtr));
 
   return MemPoolImplPtr;
+}
+
+bool context_impl::allDevicesSupport(ur_device_info_t Info,
+                                     std::optional<bool> &Cache,
+                                     std::mutex &CacheMutex) {
+  {
+    std::lock_guard<std::mutex> Lock(CacheMutex);
+    if (Cache)
+      return *Cache;
+  }
+
+  bool Result =
+      std::all_of(MDevices.cbegin(), MDevices.cend(),
+                  [this, Info](detail::device_impl *DevImpl) {
+                    ur_bool_t Supported = false;
+                    ur_result_t Res =
+                        getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+                            DevImpl->getHandleRef(), Info, sizeof(Supported),
+                            &Supported, nullptr);
+                    return (Res == UR_RESULT_SUCCESS) && Supported;
+                  });
+
+  std::lock_guard<std::mutex> Lock(CacheMutex);
+  if (!Cache)
+    Cache = Result;
+  return *Cache;
+}
+
+bool context_impl::supportsReusableEvents() {
+  return allDevicesSupport(UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
+                           MReusableEventsSupport, MReusableEventsSupportMutex);
+}
+
+bool context_impl::supportsEventProfiling() {
+  return allDevicesSupport(UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
+                           MEventProfilingSupport, MEventProfilingSupportMutex);
+}
+
+bool context_impl::supportsIPCEvents() {
+  return allDevicesSupport(UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP,
+                           MIPCEventSupport, MIPCEventSupportMutex);
 }
 
 } // namespace detail

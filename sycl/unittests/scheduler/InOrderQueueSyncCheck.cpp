@@ -26,7 +26,9 @@ public:
                 const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
       : sycl::detail::queue_impl(Device, AsyncHandler, PropList,
-                                 sycl::detail::queue_impl::private_tag{}) {}
+                                 sycl::detail::queue_impl::private_tag{}) {
+    this->getDeviceImpl().registerQueue(this);
+  }
   using sycl::detail::queue_impl::finalizeHandlerInOrderHostTaskUnlocked;
 };
 

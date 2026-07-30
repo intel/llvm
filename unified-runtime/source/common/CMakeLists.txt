@@ -1,6 +1,5 @@
-# Copyright (C) 2022-2025 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 if (UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
@@ -62,10 +61,19 @@ target_include_directories(ur_common PUBLIC
 )
 
 
-if (UR_STATIC_ADAPTER_L0)
+# Only a statically-embedded Level Zero adapter that is actually built pulls UMF
+# in statically. UR_STATIC_ADAPTER_L0 defaults ON even when L0 is not built, so
+# gate on the adapter being built too; otherwise non-L0 builds (e.g. macOS)
+# would needlessly force static UMF and its hwloc dependency.
+if ((UR_STATIC_ADAPTER_L0 AND UR_BUILD_ADAPTER_L0) OR
+    (UR_STATIC_ADAPTER_L0_V2 AND UR_BUILD_ADAPTER_L0_V2))
     if (UMF_BUILD_SHARED_LIBRARY)
         message(STATUS "Static adapter is not compatible with shared UMF, switching to fully statically linked UMF")
         set(UMF_BUILD_SHARED_LIBRARY OFF)
+        # A statically-linked UMF must also link hwloc statically; otherwise it
+        # requires a system hwloc that isn't present on every platform (e.g.
+        # macOS), breaking the link.
+        set(UMF_LINK_HWLOC_STATICALLY ON)
     endif()
 endif()
   
@@ -76,16 +84,20 @@ if(UR_USE_EXTERNAL_UMF)
 endif()
 if(umf_FOUND)
   message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
+  # Promote umf::umf and umf::umf_headers IMPORTED targets to global scope so
+  # sibling subdirectories (loader, adapters) can link against them.
+  set_target_properties(umf::umf PROPERTIES IMPORTED_GLOBAL TRUE)
+  set_target_properties(umf::umf_headers PROPERTIES IMPORTED_GLOBAL TRUE)
   # Add an alias matching the FetchContent case
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
-  
-  # commit 6c97f3de424fa5d852f2e1c0d8f0dfbbc9b419b6 
-  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Tue Feb 3 14:28:16 2026 +0100
-  # 1.1.0 release
-  set(UMF_TAG v1.1.0)
+
+  # commit d8763834d68f9545db30bea5d092edd78ad3d748
+  # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+  # Date:   Mon Jul 27 15:32:41 2026 +0200
+  #     1.2.0 release
+  set(UMF_TAG v1.2.0)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -99,6 +111,9 @@ else()
   set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
+  if(UMF_LINK_HWLOC_STATICALLY)
+    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  endif()
 
   FetchContent_MakeAvailable(unified-memory-framework)
   FetchContent_GetProperties(unified-memory-framework)
@@ -139,6 +154,7 @@ if (UNIX)
 endif()
 
 install(TARGETS ur_common
+    COMPONENT unified-runtime
     EXPORT ${PROJECT_NAME}-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -158,3 +174,14 @@ target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
 )
+
+# Install ur_umf when any static adapter is enabled, so install(EXPORT ...)
+# can resolve it for static consumers.
+if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2 OR UR_STATIC_ADAPTER_OPENCL)
+    install(TARGETS ur_umf
+        EXPORT ${PROJECT_NAME}-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()

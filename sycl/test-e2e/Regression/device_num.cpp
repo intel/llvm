@@ -6,6 +6,7 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:3" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 
 #include "../helpers.hpp"
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <map>

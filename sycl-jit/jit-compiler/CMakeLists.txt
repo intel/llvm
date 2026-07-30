@@ -2,6 +2,15 @@
 
 set(SYCL_JIT_RESOURCE_CPP "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp")
 set(SYCL_JIT_RESOURCE_OBJ "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp.o")
+set(SYCL_JIT_RESOURCE_SHARD_DIR "${CMAKE_CURRENT_BINARY_DIR}/resource-shards")
+set(SYCL_JIT_RESOURCE_NUM_SHARDS 16)
+# `generate.py` packs #embed'd files into fixed resource-shard-N.cpp units for
+# parallel compilation. This count allows path declaration at configure time.
+set(SYCL_JIT_RESOURCE_SHARD_CPPS)
+math(EXPR SYCL_JIT_RESOURCE_LAST_SHARD "${SYCL_JIT_RESOURCE_NUM_SHARDS} - 1")
+foreach(shard_index RANGE 0 ${SYCL_JIT_RESOURCE_LAST_SHARD})
+  list(APPEND SYCL_JIT_RESOURCE_SHARD_CPPS "${SYCL_JIT_RESOURCE_SHARD_DIR}/resource-shard-${shard_index}.cpp")
+endforeach()
 
 if (WIN32)
 set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "c:/sycl-jit-toolchain/")
@@ -20,7 +29,15 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
-if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
+set(libclc_enabled FALSE)
+foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
+  if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
+    set(libclc_enabled TRUE)
+    break()
+  endif()
+endforeach()
+
+if (libclc_enabled)
   # If some targets required `libclc` then we should embed it for the
   # `sycl-jit`.
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
@@ -29,13 +46,28 @@ endif()
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
 
 set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS)
-foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
+
+function(sycl_jit_add_install_command component binary_dir)
   list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
-    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
+    COMMAND ${CMAKE_COMMAND} --install ${binary_dir} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
   )
+  set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS "${SYCL_JIT_PREPARE_RESOURCE_COMMANDS}" PARENT_SCOPE)
+endfunction()
+
+foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
+  if("${component}" STREQUAL "libspirv-builtins")
+    list(APPEND SYCL_JIT_RESOURCE_DEPS libclc)
+    foreach(tgt IN LISTS LLVM_RUNTIME_TARGETS)
+      if("libclc" IN_LIST RUNTIMES_${tgt}_LLVM_ENABLE_RUNTIMES)
+        sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc")
+      endif()
+    endforeach()
+  else()
+    list(APPEND SYCL_JIT_RESOURCE_DEPS ${component})
+    sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}")
+  endif()
 endforeach()
 
-set(SYCL_JIT_RESOURCE_DEPS ${SYCL_JIT_RESOURCE_INSTALL_COMPONENTS})
   # OpenCL-Headers doesn't have a corresponding build target:
 list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
 
@@ -54,12 +86,14 @@ add_custom_target(rtc-prepare-resources
 
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT} --shard-dir ${SYCL_JIT_RESOURCE_SHARD_DIR} --num-shards ${SYCL_JIT_RESOURCE_NUM_SHARDS}
   DEPENDS
   rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_DEPS}
   ${SYCL_JIT_RESOURCE_FILES}
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
+  BYPRODUCTS
+  ${SYCL_JIT_RESOURCE_SHARD_CPPS}
 )
 
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"
@@ -87,6 +121,21 @@ else()
     list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS -isysroot ${SYCL_JIT_OSX_SYSROOT})
   endif()
 endif()
+
+# Compile each of the fixed set of resource-shard-N.cpp files (declared above).
+set(SYCL_JIT_RESOURCE_SHARD_OBJS)
+foreach(shard_cpp IN LISTS SYCL_JIT_RESOURCE_SHARD_CPPS)
+  set(shard_obj "${shard_cpp}.o")
+  add_custom_command(
+    OUTPUT ${shard_obj}
+    COMMAND
+    ${clang_exe} --target=${LLVM_HOST_TRIPLE} ${shard_cpp} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${shard_obj} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
+    DEPENDS
+    ${shard_cpp}
+    ${SYCL_JIT_RESOURCE_CPP}
+  )
+  list(APPEND SYCL_JIT_RESOURCE_SHARD_OBJS ${shard_obj})
+endforeach()
 
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_OBJ}
@@ -117,6 +166,7 @@ add_llvm_library(sycl-jit
    lib/helper/ErrorHelper.cpp
 
    ${SYCL_JIT_RESOURCE_OBJ}
+   ${SYCL_JIT_RESOURCE_SHARD_OBJS}
 
    SHARED
 
@@ -145,6 +195,11 @@ add_llvm_library(sycl-jit
    SPIRVLib
    ${LLVM_TARGETS_TO_BUILD}
 
+# INTEL_CUSTOMIZATION
+# Reusing PCH for Core would cause extra warnings in ADT
+  DISABLE_PCH_REUSE
+#end INTEL_CUSTOMIZATION
+
    LINK_LIBS
    clangBasic
    clangDriver
@@ -159,7 +214,7 @@ if(WIN32)
   target_link_libraries(sycl-jit PRIVATE Shlwapi)
 endif()
 
-target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
+sycl_jit_apply_target_warning_flags(sycl-jit)
 
 # Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.
 # This classification remains intact even if the same paths are added as normal

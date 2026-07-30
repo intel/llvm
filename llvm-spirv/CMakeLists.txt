@@ -79,7 +79,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
     )
   endif(LLVM_SPIRV_INCLUDE_TESTS)
 
-  find_package(LLVM ${BASE_LLVM_VERSION} REQUIRED
+  find_package(LLVM ${BASE_LLVM_VERSION} REQUIRED CONFIG
     COMPONENTS
       Analysis
       BitReader

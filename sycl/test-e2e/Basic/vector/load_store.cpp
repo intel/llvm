@@ -9,6 +9,7 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 // Tests load and store on sycl::vec.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>

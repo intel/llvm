@@ -1,17 +1,16 @@
 //===--------- event_pool_cache.cpp - Level Zero Adapter ------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #include "event_pool_cache.hpp"
-#include "../device.hpp"
-#include "../platform.hpp"
+#include "../common/device.hpp"
+#include "../common/platform.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 event_pool_cache::event_pool_cache(ur_context_handle_t hContext,
                                    size_t max_devices,
@@ -46,4 +45,4 @@ raii::cache_borrowed_event_pool event_pool_cache::borrow(DeviceId id,
       });
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

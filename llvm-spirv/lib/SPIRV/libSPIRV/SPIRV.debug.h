@@ -971,6 +971,25 @@ enum {
 } // namespace NonSemantic
 } // namespace ImportedEntity
 
+namespace MacroDef {
+enum {
+  SourceIdx      = 0,
+  LineIdx        = 1,
+  NameIdx        = 2,
+  ValueIdx       = 3,
+  MinOperandCount = 3
+};
+}
+
+namespace MacroUndef {
+enum {
+  SourceIdx      = 0,
+  LineIdx        = 1,
+  MacroIdx       = 2,
+  OperandCount   = 3
+};
+}
+
 namespace ModuleINTEL {
 enum {
   NameIdx         = 0,

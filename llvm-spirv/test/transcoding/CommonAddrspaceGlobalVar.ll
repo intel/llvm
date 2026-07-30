@@ -4,6 +4,7 @@
 ; RUN: llvm-spirv %s -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 ; CHECK-LLVM-NOT: alloca
 ; CHECK-LLVM: @CAG = common addrspace(1) global i32 0, align 4

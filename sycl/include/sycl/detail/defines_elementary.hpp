@@ -57,6 +57,10 @@
 #define __SYCL_ID_QUERIES_FIT_IN_INT__ 0
 #endif
 
+#ifndef __SYCL_ID_QUERIES_FIT_IN_UINT__
+#define __SYCL_ID_QUERIES_FIT_IN_UINT__ 0
+#endif
+
 #ifndef __SYCL_DEPRECATED
 #if !defined(__SYCL_DISABLE_DEPRECATION_WARNINGS)
 #define __SYCL_DEPRECATED(message) [[deprecated(message)]]
@@ -73,6 +77,20 @@
 #define __SYCL2020_DEPRECATED(message)
 #endif
 #endif // __SYCL2020_DEPRECATED
+
+#if !defined(__SYCL_SUPPRESS_DEPRECATED_PUSH) &&                               \
+    !defined(__SYCL_SUPPRESS_DEPRECATED_POP)
+#if defined(_MSC_VER)
+#define __SYCL_SUPPRESS_DEPRECATED_PUSH                                        \
+  __pragma(warning(push)) __pragma(warning(disable : 4996))
+#define __SYCL_SUPPRESS_DEPRECATED_POP __pragma(warning(pop))
+#else
+#define __SYCL_SUPPRESS_DEPRECATED_PUSH                                        \
+  _Pragma("GCC diagnostic push")                                               \
+      _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+#define __SYCL_SUPPRESS_DEPRECATED_POP _Pragma("GCC diagnostic pop")
+#endif
+#endif // __SYCL_SUPPRESS_DEPRECATED_PUSH, __SYCL_SUPPRESS_DEPRECATED_POP
 
 #ifndef __SYCL_WARN_IMAGE_ASPECT
 #if !defined(SYCL_DISABLE_IMAGE_ASPECT_WARNING) && __has_attribute(diagnose_if)

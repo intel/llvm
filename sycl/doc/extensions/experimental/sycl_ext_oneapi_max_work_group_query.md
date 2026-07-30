@@ -79,14 +79,3 @@ The table below lists the soon to be removed deprecated descriptors and their re
 
 * Note *N* can take the value 1,2, or 3
 
-
-## Implementation
-
-### Consistency with existing checks
-
-The implementation already checks when enqueuing a kernel that the global and per dimension work-group number is smaller than `std::numeric_limits<int>::max`. This check is implemented in `sycl/include/sycl/handler.hpp`. For consistency, values returned by the two device descriptors are bound by this limit.
-
-### Example of returned values
-
-- If the device is the host or has an OpenCL back-end, the values returned - as they are not applicable - are the maximum values accepted at kernel submission (see `sycl/include/sycl/handler.hpp`) which are currently `std::numeric_limits<int>::max`.
-- CUDA: Back-end query using `CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_[X,Y,Z]`.

@@ -10,7 +10,7 @@ file(GLOB TARGET_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
 
 set(OPENCL_AOT_PROJECT_NAME opencl-aot)
 
-add_llvm_tool(${OPENCL_AOT_PROJECT_NAME} ${TARGET_SOURCES})
+add_llvm_tool(${OPENCL_AOT_PROJECT_NAME} ${TARGET_SOURCES} DISABLE_PCH_REUSE)
 
 if (WIN32)
   # 0x2000: exclude CWD from DLL loading path

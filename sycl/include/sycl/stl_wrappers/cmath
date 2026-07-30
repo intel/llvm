@@ -163,8 +163,10 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cexpf(float __complex__ z);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cexp(double __complex__ z);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ clogf(float __complex__ z);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ clog(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cpowf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cpow(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cpowf(float __complex__ x,
+                                                          float __complex__ y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cpow(double __complex__ x,
+                                                          double __complex__ y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ csqrtf(float __complex__ z);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ csqrt(
     double __complex__ z);
@@ -216,8 +218,10 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __muldc3(double a,
                                                               double d);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ __divsc3(float a, float b,
                                                              float c, float d);
-extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __divdc3(float a, float b,
-                                                              float c, float d);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __divdc3(double a,
+                                                              double b,
+                                                              double c,
+                                                              double d);
 }
 #elif defined(_WIN32)
 extern "C" {

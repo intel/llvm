@@ -221,10 +221,32 @@ The image descriptor represents the image dimensions, number of channels, and
 channel type. An `image_type` member is also present to allow for implementation
 of mipmapped, image array, and cubemapped images.
 
+[NOTE]
+====
+Certain combinations of image format and type may not be supported on all platforms
+====
+
 The `image_descriptor` shall be default constructible and follow by-value 
 semantics.
 
 [NOTE]
+====
+The `sycl::range<N>` constructors map dimensions in **X, Y, Z order** (width, height, depth), 
+which differs from the SYCL 2020 specification's general `range` convention of "fastest-incrementing" dimension order
+ (https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:multi-dim-linearization).
+This means that users should not attempt to use the same `sycl::range<N>` instance for both their `parallel_for` calls 
+and their bindless image `image_descriptor` construction.
+
+This follows standard image/graphics conventions where:
+
+* `range<1>{width}` => `width` = `dims[0]`
+* `range<2>{width, height}` => `width` = `dims[0]`, `height` = `dims[1]`
+* `range<3>{width, height, depth}` => `width` = `dims[0]`, `height` = `dims[1]`, `depth` = `dims[2]`
+
+This ordering is consistent throughout the bindless images API, including coordinate parameters for read/write operations where `x`, `y`, `z` correspond to indices `0`, `1`, `2` respectively (as detailed in the copy API preconditions).
+====
+
+
 ====
 Additional future `image_type` enumerators _may_ include combined image types
 like "mipmapped cubemap".
@@ -2097,10 +2119,14 @@ struct external_mem_descriptor {
 }
 ```
 
-The user should create an `external_mem_descriptor` templated on the appropriate 
-handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe 
-a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle` 
-for Windows NT resource handles.
+The user should create an `external_mem_descriptor` templated on the appropriate
+handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe
+a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle`
+for Windows NT resource handles.  Use `resource_win32_name` instead when the
+external API has produced a named NT object (for example via
+`ID3D12Device::CreateSharedHandle` with a name argument, or `CreateEvent` /
+`CreateSemaphore`); the SYCL implementation opens the named object on the
+caller's behalf, so the application does not pass an already-opened `HANDLE`.
 
 The user must populate the `external_mem_descriptor` with the appropriate 
 `ResourceType` values, a `handle_type`, and the size of the external memory in 
@@ -2242,13 +2268,18 @@ memory resources handles can take different forms of structure and type
 depending on the API and operating system, so do external semaphore resource 
 handles.
 
-It is important to note, that the use of imported external semaphore objects
-within SYCL has the restriction in that imported external semaphores can only
-be used in conjuction with SYCL queues that have been constructed with the
-`property::queue::in_order` property. The semaphore synchronization mechanism
-is not supported for the default SYCL out-of-order queues. Use of the semaphore 
-synchronization mechanism with SYCL queues which were not constructed with the 
-`queue::in_order` property will result in undefined behaviour.
+It is important to note that the use of imported external semaphore objects
+within SYCL requires the SYCL queue to have been constructed with both of the
+following properties:
+
+* `sycl::property::queue::in_order` -- the semaphore synchronization mechanism
+  is not supported on the default out-of-order queues.
+* `sycl::ext::intel::property::queue::immediate_command_list` -- external
+  semaphore operations are only supported on queues backed by immediate
+  command lists. This restriction might be lifted in the future.
+
+Use of the semaphore synchronization mechanism with a SYCL queue that was not
+constructed with both of these properties will result in undefined behaviour.
 
 External semaphore import is facilitated through the following proposed 
 descriptor struct.
@@ -2263,6 +2294,7 @@ enum class external_semaphore_handle_type {
   win32_nt_dx12_fence = 2,
   timeline_fd = 3,
   timeline_win32_nt_handle = 4,
+  win32_nt_dx11_fence = 5
 };
 
 // Descriptor templated on specific resource type
@@ -2275,10 +2307,14 @@ struct external_semaphore_descriptor {
 }
 ```
 
-The user should create an `external_semaphore_descriptor` templated on the 
-appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd` 
-to describe a POSIX file descriptor resource on Linux systems, or a 
-`resource_win32_handle` for Windows NT resource handles.
+The user should create an `external_semaphore_descriptor` templated on the
+appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd`
+to describe a POSIX file descriptor resource on Linux systems, or a
+`resource_win32_handle` for Windows NT resource handles.  Use
+`resource_win32_name` instead when the external API has produced a named NT
+object (for example a D3D12 fence created via
+`ID3D12Device::CreateSharedHandle` with a name argument); the SYCL
+implementation opens the named object on the caller's behalf.
 
 The user must populate the `external_semaphore_descriptor` with the appropriate 
 `ResourceType` values, and `handle_type`, before they can then import that 
@@ -2313,10 +2349,10 @@ external_semaphore import_external_semaphore(
 The resulting `external_semaphore` can then be used in a SYCL command 
 group, to either wait until the semaphore signalled, or signal the semaphore.
 
-If the type of semaphore imported supports setting the state of discrete 
-semaphore value (the semaphore type is `win32_nt_dx12_fence`, `timeline_fd` or
-`timeline_win32_nt_handle`), then the user can specify which value the semaphore
-operation should wait on, or signal.
+If the imported semaphore type supports setting the state of a discrete semaphore 
+value (the semaphore type is `win32_nt_dx12_fence`, `win32_nt_dx11_fence`, 
+`timeline_fd`, or `timeline_win32_nt_handle`), then the user can specify which 
+value the semaphore operation should wait on, or signal.
 
 We propose to extend the SYCL queue and handler classes with semaphore waiting 
 and signalling operations.
@@ -2408,15 +2444,15 @@ The behaviour of waiting on a semaphore will depend on the type of the
 semaphore which was imported.
 
 If the semaphore does not support setting of a discrete state value (the
-semaphore type is not `win32_nt_dx12_fence`, `timeline_fd` or
-`timeline_win32_nt_handle`), then any operations submitted to the queue after a
-`ext_oneapi_wait_external_semaphore` call will not begin until the imported
-semaphore is in a signalled state. After this, the semaphore will be reset to a
-non-signalled state.
+semaphore type is not `win32_nt_dx12_fence`, `win32_nt_dx11_fence`, 
+`timeline_fd` or `timeline_win32_nt_handle`), then any operations submitted to 
+the queue after a `ext_oneapi_wait_external_semaphore` call will not begin until
+the imported semaphore is in a signalled state. After this, the semaphore will 
+be reset to a non-signalled state.
 
 If the semaphore does support setting of a discrete state value (the semaphore
-type is `win32_nt_dx12_fence`, `timeline_fd` or `timeline_win32_nt_handle`),
-then any operations submitted to the queue after a
+type is `win32_nt_dx12_fence`, `win32_nt_dx11_fence`, `timeline_fd` or 
+`timeline_win32_nt_handle`), then any operations submitted to the queue after a
 `ext_oneapi_wait_external_semaphore` call will not begin until the imported
 semaphore is in a state greater than or equal to the `wait_value`. The state of
 this type of semaphore will not be altered by the call to

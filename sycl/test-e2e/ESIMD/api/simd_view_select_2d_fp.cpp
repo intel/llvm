@@ -10,6 +10,7 @@
 //
 // Smoke test for 2D region select API which can be used to represent 2D tiles.
 // Tests FP types.
+#include <iostream>
 
 #include "simd_view_select_2d.hpp"
 

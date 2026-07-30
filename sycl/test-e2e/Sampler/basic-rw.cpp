@@ -14,6 +14,7 @@
     ONEAPI_DEVICE_SELECTOR=level_zero:gpu ./binx.bin
     ONEAPI_DEVICE_SELECTOR=opencl:cpu ./binx.bin
 */
+#include <iostream>
 
 #include "common.hpp"
 

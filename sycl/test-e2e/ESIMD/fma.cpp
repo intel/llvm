@@ -8,6 +8,7 @@
 // REQUIRES-INTEL-DRIVER: lin: 29138, win: 101.5499
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

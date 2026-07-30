@@ -238,7 +238,7 @@ protected:
               uint8_t Dimensions, const property_list &PropList);
 
 #ifdef __SYCL_INTERNAL_API
-  image_plain(cl_mem ClMemObject, const context &SyclContext,
+  image_plain(OpenCLMemT ClMemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions);
@@ -427,7 +427,9 @@ private:
 ///
 /// \ingroup sycl_api
 template <int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
-class image : public detail::unsampled_image_common<Dimensions, AllocatorT> {
+class __SYCL2020_DEPRECATED(
+    "The SYCL 1.2.1 image class has been removed in SYCL 2020") image
+    : public detail::unsampled_image_common<Dimensions, AllocatorT> {
 private:
   friend sycl::detail::ImplUtils;
   using common_base =
@@ -581,7 +583,7 @@ public:
             Dimensions, PropList, /*IsConstPtr*/ false) {}
 
 #ifdef __SYCL_INTERNAL_API
-  image(cl_mem ClMemObject, const context &SyclContext,
+  image(OpenCLMemT ClMemObject, const context &SyclContext,
         event AvailableEvent = {})
       : common_base(ClMemObject, SyclContext, AvailableEvent,
                     std::make_unique<

@@ -17,6 +17,7 @@
 // NOMINMAX is intentionally NOT defined to cause potential problems with
 // min/max functions.
 // #define NOMINMAX
+#include <iostream>
 #include <windows.h>
 #endif
 

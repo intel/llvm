@@ -8,6 +8,7 @@
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM \
 ; RUN:   "--implicit-check-not=declare {{.*}} @spirv.llvm_umul_with_overflow_{{.*}}" \
 ; RUN:   "--implicit-check-not=old_llvm.umul.with.overflow.{{.*}}"
+; FIXME: LLVM_SPIRV_REVERSE_FAIL for llc compilation flow
 
 ; CHECK-SPIRV: Name [[NAME_UMUL_FUNC_8:[0-9]+]] "spirv.llvm_umul_with_overflow_i8"
 ; CHECK-SPIRV: Name [[NAME_UMUL_FUNC_32:[0-9]+]] "spirv.llvm_umul_with_overflow_i32"

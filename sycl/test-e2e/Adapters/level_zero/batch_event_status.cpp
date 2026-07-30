@@ -1,7 +1,14 @@
 // See https://github.com/intel/llvm-test-suite/issues/906
 // REQUIRES: gpu, level_zero
+
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
+
 // UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
+
+// UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 // RUN: %{build} -o %t.out
 
@@ -30,7 +37,6 @@
 // CHECK-NOT:  zeCommandQueueExecuteCommandLists
 // CHECK-NOT: Test Fail
 // CHECK: Test Pass
-// UNSUPPORTED: ze_debug
 
 #include <cassert>
 #include <chrono>

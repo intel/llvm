@@ -164,25 +164,25 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Pointer>([=]() { return SimpleStructWithPtr.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (__generated_StructWithPtr) __attribute__((device_kernel))'
+    // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (StructWithPtr) __attribute__((device_kernel))'
 
     Nested::TDStrWithPTR TDStructWithPtr;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class TDStr>([=]() { return TDStructWithPtr.i; });
     });
-    // CHECK: FunctionDecl {{.*}}TDStr{{.*}} 'void (__generated_StructWithPtr) __attribute__((device_kernel))'
+    // CHECK: FunctionDecl {{.*}}TDStr{{.*}} 'void (Nested::TDStrWithPTR) __attribute__((device_kernel))'
 
     StructWithArray<StructWithPtr> t1;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NestedArrayOfStructWithPointer>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}NestedArrayOfStructWithPointer{{.*}} 'void (__generated_StructWithArray) __attribute__((device_kernel))'
+    // CHECK: FunctionDecl {{.*}}NestedArrayOfStructWithPointer{{.*}} 'void (StructWithArray<StructWithPtr>) __attribute__((device_kernel))'
 
     DerivedStruct<StructWithPtr> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class PointerInBase>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}PointerInBase{{.*}} 'void (__generated_DerivedStruct) __attribute__((device_kernel))'
+    // CHECK: FunctionDecl {{.*}}PointerInBase{{.*}} 'void (DerivedStruct<StructWithPtr>) __attribute__((device_kernel))'
   }
 
   {
@@ -190,7 +190,7 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NonTrivial>([=]() { return NonTrivialStructWithPtr.i;});
     });
-    // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (__generated_NonTrivialType) __attribute__((device_kernel))'
+    // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (NonTrivialType) __attribute__((device_kernel))'
 
     NonTrivialType NonTrivialTypeArray[2]{0,0};
     myQueue.submit([&](sycl::handler &h) {
@@ -202,6 +202,6 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NonTrivialStructInBase>([=]() { return NonTrivialDerivedStructWithPtr.i;});
     });
-    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__generated_NonTrivialDerived) __attribute__((device_kernel))'
+    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (NonTrivialDerived) __attribute__((device_kernel))'
   }
 }

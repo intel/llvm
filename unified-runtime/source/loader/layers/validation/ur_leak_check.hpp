@@ -1,6 +1,5 @@
-// Copyright (C) 2023-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #ifndef UR_LEAK_CHECK_H
@@ -13,8 +12,6 @@
 #include <typeindex>
 #include <unordered_map>
 #include <utility>
-
-#define MAX_BACKTRACE_FRAMES 64
 
 namespace ur_validation_layer {
 

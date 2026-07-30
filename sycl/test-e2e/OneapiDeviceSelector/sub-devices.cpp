@@ -17,6 +17,7 @@
 // select root devices and pass arg to test so it knows.
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out 1
 // RUN: %{run-unfiltered-devices} %t.out 1
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 using namespace sycl;

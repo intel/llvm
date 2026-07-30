@@ -63,6 +63,7 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   case sycl::detail::CGType::BarrierWaitlist:
     return node_type::ext_oneapi_barrier;
   case sycl::detail::CGType::CodeplayHostTask:
+  case sycl::detail::CGType::NativeHostTask:
     return node_type::host_task;
   case sycl::detail::CGType::ExecCommandBuffer:
     return node_type::subgraph;
@@ -106,9 +107,15 @@ public:
   size_t MTotalVisitedEdges = 0;
 
   /// Partition number needed to assign a Node to a a partition.
-  /// Note : This number is only used during the partitionning process and
+  /// Note : This number is only used during the partitioning process and
   /// cannot be used to find out the partion of a node outside of this process.
   int MPartitionNum = -1;
+
+  /// Number of predecessors of this node that belong to the same partition.
+  /// Note : This number is only used during the partitioning process and
+  /// cannot be used to find out the number of partition predecessors outside of
+  /// this process.
+  int MSamePartitionPredecessors = -1;
 
   // Out-of-class as need "complete" `nodes_range`:
   inline nodes_range successors() const;
@@ -257,7 +264,8 @@ public:
     case sycl::detail::CGType::Memset2DUSM:
       return createCGCopy<sycl::detail::CGMemset2DUSM>();
     case sycl::detail::CGType::EnqueueNativeCommand:
-    case sycl::detail::CGType::CodeplayHostTask: {
+    case sycl::detail::CGType::CodeplayHostTask:
+    case sycl::detail::CGType::NativeHostTask: {
       // The unique_ptr to the `sycl::detail::HostTask`, which is also used for
       // a EnqueueNativeCommand command, in the HostTask CG prevents from
       // copying the CG. We overcome this restriction by creating a new CG with
@@ -541,7 +549,7 @@ private:
       Stream << "CGExecKernel \\n";
       sycl::detail::CGExecKernel *Kernel =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      Stream << "NAME = " << Kernel->getKernelName() << "\\n";
+      Stream << "NAME = " << Kernel->getDemangledKernelName() << "\\n";
       if (Verbose) {
         Stream << "ARGS = \\n";
         for (size_t i = 0; i < Kernel->MArgs.size(); i++) {
@@ -670,6 +678,7 @@ private:
       }
       break;
     case sycl::detail::CGType::CodeplayHostTask:
+    case sycl::detail::CGType::NativeHostTask:
       Stream << "CGHostTask \\n";
       break;
     case sycl::detail::CGType::Barrier:

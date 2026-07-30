@@ -7,6 +7,7 @@
 
 #include "unified-runtime/ur_api.h"
 #include <detail/error_handling/error_handling.hpp>
+#include <detail/host_task.hpp>
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -27,6 +28,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/sampler.hpp>
 
 #include <cassert>
@@ -91,7 +93,13 @@ static size_t deviceToID(const device &Device) {
   return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
 }
 
-static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue) {
+static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue,
+                              xpti::stream_id_t StreamID) {
+  if (detail::GSYCLStreamDetailLevel <
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL &&
+      !detail::isDebugStream(StreamID))
+    return;
+
   xpti::addMetadata(TraceEvent, "sycl_device_type", queueDeviceToString(Queue));
   if (Queue) {
     xpti::addMetadata(TraceEvent, "sycl_device",
@@ -102,8 +110,9 @@ static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue) {
   }
 }
 static void addDeviceMetadata(xpti_td *TraceEvent,
-                              const std::shared_ptr<queue_impl> &Queue) {
-  addDeviceMetadata(TraceEvent, Queue.get());
+                              const std::shared_ptr<queue_impl> &Queue,
+                              xpti::stream_id_t StreamID) {
+  addDeviceMetadata(TraceEvent, Queue.get(), StreamID);
 }
 
 static unsigned long long getQueueID(queue_impl *Queue) {
@@ -200,6 +209,10 @@ static std::string commandToName(Command::CommandType Type) {
 std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand) {
+  const bool CanRemoveRedundantEvent =
+      CommandQueue && CommandQueue->isInOrder() && !IsHostTaskCommand &&
+      !CommandQueue->getContextImpl().isNativeRecordingActive();
+
   std::vector<ur_event_handle_t> RetUrEvents;
   for (event_impl &Event : Events) {
     auto Handle = Event.getHandle();
@@ -210,8 +223,12 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (CommandQueue && Event.getWorkerQueue().get() == CommandQueue &&
-        CommandQueue->isInOrder() && !IsHostTaskCommand)
+    // When native recording is in-progress, then we must skip this optimization
+    // to let the driver runtime handle event dependencies crossing the graph
+    // capture boundary.
+    if (CanRemoveRedundantEvent &&
+        Event.getWorkerQueue().get() == CommandQueue &&
+        !Event.isPotentiallyNativeRecorded())
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -241,6 +258,7 @@ void InteropFreeFunc(ur_queue_handle_t, void *InteropData) {
   auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
   return Data->func(Data->ih);
 }
+
 } // namespace
 
 class DispatchHostTask {
@@ -356,14 +374,15 @@ public:
           // This entry point is needed in order to migrate memory across
           // devices in the same context for CUDA and HIP backends
           Queue->getAdapter().call<UrApiKind::urEnqueueNativeCommandExp>(
-              HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
+              Queue->getHandleRef(), InteropFreeFunc, &CustomOpData,
               MReqUrMem.size(), MReqUrMem.data(), nullptr, 0, nullptr, nullptr);
         } else {
           HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
                                    IH);
         }
-      } else
+      } else {
         HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
+      }
     } catch (...) {
       auto CurrentException = std::current_exception();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -480,10 +499,36 @@ Command::Command(
   if (Queue)
     MEvent->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
-  if (MQueue)
-    MEvent->setContextImpl(MQueue->getContextImpl());
+  if (MQueue) {
+    context_impl &Context = MQueue->getContextImpl();
+    MEvent->setContextImpl(Context);
+    MEvent->setPotentiallyNativeRecorded(Context.isNativeRecordingActive());
+  }
   MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Obtain the stream ID so all commands can emit traces to that stream;
+  // copying it to the member variable to avoid ABI breakage
+  MStreamID = getActiveXPTIStreamID();
+#endif
+}
+
+Command::Command(
+    CommandType Type, queue_impl *Queue, EventImplPtr Event,
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
+    : MQueue(Queue ? Queue->shared_from_this() : nullptr),
+      MEvent(std::move(Event)),
+      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
+  MWorkerQueue = MQueue;
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  MEvent->setCommand(this);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
@@ -538,14 +583,22 @@ void Command::emitEdgeEventForCommandDependence(
     xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
     EdgeEvent->source_id = SrcEvent->unique_id;
     EdgeEvent->target_id = TgtEvent->unique_id;
-    // We allow this metadata to be set as it describes the edge.
     if (IsCommand) {
-      xpti::addMetadata(EdgeEvent, "access_mode",
-                        static_cast<int>(AccMode.value()));
       xpti::addMetadata(EdgeEvent, "memory_object",
                         reinterpret_cast<size_t>(ObjAddr));
+      if (detail::GSYCLStreamDetailLevel >=
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+          detail::isDebugStream(MStreamID)) {
+        xpti::addMetadata(EdgeEvent, "access_mode",
+                          static_cast<int>(AccMode.value()));
+      }
     } else {
-      xpti::addMetadata(EdgeEvent, "event", reinterpret_cast<size_t>(ObjAddr));
+      if (detail::GSYCLStreamDetailLevel >=
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+          detail::isDebugStream(MStreamID)) {
+        xpti::addMetadata(EdgeEvent, "event",
+                          reinterpret_cast<size_t>(ObjAddr));
+      }
     }
     xptiNotifySubscribers(MStreamID, NotificationTraceType,
                           detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
@@ -615,10 +668,12 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
       xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
-      // We allow this metadata to be set as an edge without the event address
-      // will be less useful.
-      xpti::addMetadata(EdgeEvent, "event",
-                        reinterpret_cast<size_t>(UrEventAddr));
+      if (detail::GSYCLStreamDetailLevel >=
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+          detail::isDebugStream(MStreamID)) {
+        xpti::addMetadata(EdgeEvent, "event",
+                          reinterpret_cast<size_t>(UrEventAddr));
+      }
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                             detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
                             nullptr);
@@ -974,7 +1029,7 @@ void AllocaCommandBase::emitInstrumentationData() {
   // internal infrastructure to guarantee collision free universal IDs.
   if (MTraceEvent) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(TE, MQueue);
+    addDeviceMetadata(TE, MQueue, MStreamID);
     // Memory-object is used frequently, so it is always added.
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
@@ -1093,10 +1148,15 @@ void AllocaSubBufCommand::emitInstrumentationData() {
     return;
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-  xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
-  xpti::addMetadata(TE, "access_range_start",
-                    this->MRequirement.MAccessRange[0]);
-  xpti::addMetadata(TE, "access_range_end", this->MRequirement.MAccessRange[1]);
+  if (detail::GSYCLStreamDetailLevel >=
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      detail::isDebugStream(MStreamID)) {
+    xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
+    xpti::addMetadata(TE, "access_range_start",
+                      this->MRequirement.MAccessRange[0]);
+    xpti::addMetadata(TE, "access_range_end",
+                      this->MRequirement.MAccessRange[1]);
+  }
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
   makeTraceEventEpilog();
 #endif
@@ -1170,9 +1230,13 @@ void ReleaseCommand::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(TE, MQueue);
-  xpti::addMetadata(TE, "allocation_type",
-                    commandToName(MAllocaCmd->getType()));
+  addDeviceMetadata(TE, MQueue, MStreamID);
+  if (detail::GSYCLStreamDetailLevel >=
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      detail::isDebugStream(MStreamID)) {
+    xpti::addMetadata(TE, "allocation_type",
+                      commandToName(MAllocaCmd->getType()));
+  }
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
@@ -1238,7 +1302,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
     UnmapEventImpl->setHandle(UREvent);
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
-    EventImpls.push_back(UnmapEventImpl);
+    EventImpls.push_back(std::move(UnmapEventImpl));
   }
   ur_event_handle_t UREvent = nullptr;
   if (SkipRelease)
@@ -1297,7 +1361,7 @@ void MapMemObject::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(TE, MQueue);
+  addDeviceMetadata(TE, MQueue, MStreamID);
   xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
@@ -1360,7 +1424,7 @@ void UnMapMemObject::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(TE, MQueue);
+  addDeviceMetadata(TE, MQueue, MStreamID);
   xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
@@ -1441,6 +1505,11 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  // When MQueue is non-null the base Command constructor already set this from
+  // MQueue's context.
+  if (!MQueue && MWorkerQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
 }
@@ -1455,13 +1524,17 @@ void MemCpyCommand::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(CmdTraceEvent, MQueue);
+  addDeviceMetadata(CmdTraceEvent, MQueue, MStreamID);
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
-  xpti::addMetadata(CmdTraceEvent, "copy_from",
-                    MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
-  xpti::addMetadata(CmdTraceEvent, "copy_to",
-                    MQueue ? deviceToID(MQueue->get_device()) : 0);
+  if (detail::GSYCLStreamDetailLevel >=
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      detail::isDebugStream(MStreamID)) {
+    xpti::addMetadata(CmdTraceEvent, "copy_from",
+                      MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
+    xpti::addMetadata(CmdTraceEvent, "copy_to",
+                      MQueue ? deviceToID(MQueue->get_device()) : 0);
+  }
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
@@ -1614,6 +1687,11 @@ MemCpyCommandHost::MemCpyCommandHost(const Requirement &SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  // When MQueue is non-null the base Command constructor already set this from
+  // MQueue's context.
+  if (!MQueue && MWorkerQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
 }
@@ -1628,13 +1706,17 @@ void MemCpyCommandHost::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(CmdTraceEvent, MQueue);
+  addDeviceMetadata(CmdTraceEvent, MQueue, MStreamID);
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
-  xpti::addMetadata(CmdTraceEvent, "copy_from",
-                    MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
-  xpti::addMetadata(CmdTraceEvent, "copy_to",
-                    MQueue ? deviceToID(MQueue->get_device()) : 0);
+  if (detail::GSYCLStreamDetailLevel >=
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      detail::isDebugStream(MStreamID)) {
+    xpti::addMetadata(CmdTraceEvent, "copy_from",
+                      MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
+    xpti::addMetadata(CmdTraceEvent, "copy_to",
+                      MQueue ? deviceToID(MQueue->get_device()) : 0);
+  }
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
@@ -1724,7 +1806,7 @@ void EmptyCommand::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(CmdTraceEvent, MQueue);
+  addDeviceMetadata(CmdTraceEvent, MQueue, MStreamID);
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
@@ -1789,7 +1871,7 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(CmdTraceEvent, MQueue);
+  addDeviceMetadata(CmdTraceEvent, MQueue, MStreamID);
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
@@ -1860,6 +1942,8 @@ static std::string_view cgTypeToString(detail::CGType Type) {
     return "semaphore wait";
   case detail::CGType::SemaphoreSignal:
     return "semaphore signal";
+  case detail::CGType::NativeHostTask:
+    return "native host task";
   default:
     return "unknown";
     break;
@@ -1870,23 +1954,48 @@ ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
-    : Command(CommandType::RUN_CG, Queue, CommandBuffer, Dependencies),
+    : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
+              CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
-    queue_impl *SubmitQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue.get();
+  emitInstrumentationDataProxy();
+}
+
+EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
+  EventImplPtr ResEvent;
+
+  if (CG.getType() == CGType::NativeHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_device_event(*HT.MQueue);
+    ResEvent->setWorkerQueue(HT.MQueue);
+    ResEvent->setSubmittedQueue(HT.MQueue.get());
+    ResEvent->setContextImpl(HT.MQueue->getContextImpl());
+  } else if (CG.getType() == CGType::CodeplayHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_incomplete_host_event();
+    queue_impl *SubmitQueue = HT.MQueue.get();
     assert(SubmitQueue &&
            "Host task command group must have a valid submit queue");
-
-    MEvent->setSubmittedQueue(SubmitQueue);
+    ResEvent->setSubmittedQueue(SubmitQueue);
     // Initialize host profiling info if the queue has profiling enabled.
     if (SubmitQueue->MIsProfilingEnabled)
-      MEvent->initHostProfilingInfo();
-  }
-  if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
-    MEvent->markAsProfilingTagEvent();
+      ResEvent->initHostProfilingInfo();
+  } else {
+    ResEvent = Queue ? event_impl::create_device_event(*Queue)
+                     : event_impl::create_incomplete_host_event();
+    if (Queue) {
+      ResEvent->setWorkerQueue(Queue->shared_from_this());
+      ResEvent->setSubmittedQueue(Queue);
+      ResEvent->setContextImpl(Queue->getContextImpl());
 
-  emitInstrumentationDataProxy();
+      if (CG.getType() == CGType::ProfilingTag) {
+        ResEvent->markAsProfilingTagEvent();
+      }
+    }
+  }
+
+  ResEvent->setStateIncomplete();
+
+  return ResEvent;
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -1985,13 +2094,16 @@ void instrumentationFillCommonData(
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
 
-    addDeviceMetadata(CmdTraceEvent, Queue);
+    addDeviceMetadata(CmdTraceEvent, Queue, StreamID);
     if (!KernelName.empty()) {
       xpti::addMetadata(CmdTraceEvent, "kernel_name", KernelName);
     }
-    // We limit the metadata to only include the kernel name and device
-    // information by default.
-    if (detail::isDebugStream(StreamID)) {
+
+    // Debug metadata is added at VERBOSE level or if subscribing to sycl.debug
+    // stream.
+    if (detail::GSYCLStreamDetailLevel >=
+            xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE ||
+        detail::isDebugStream(StreamID)) {
       if (FromSource.has_value()) {
         xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
       }
@@ -2052,9 +2164,11 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     if (Queue)
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
                                    getQueueID(Queue));
-    // Add the additional metadata only if the debug information is subscribed
-    // to; in this case, it is the kernel and its parameters.
-    if (detail::isDebugStream(StreamID)) {
+    // Add the additional metadata only if VERBOSE level is enabled or
+    // subscribing to sycl.debug stream.
+    if (detail::GSYCLStreamDetailLevel >=
+            xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE ||
+        detail::isDebugStream(StreamID)) {
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, NDRDesc, KernelBundleImplPtr, DeviceKernelInfo,
           SyclKernel, Queue, CGArgs);
@@ -2108,7 +2222,9 @@ void ExecCGCommand::emitInstrumentationData() {
                                  getQueueID(MQueue));
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
     if (MCommandGroup->getType() == detail::CGType::Kernel) {
-      if (detail::isDebugStream(MStreamID)) {
+      if (detail::GSYCLStreamDetailLevel >=
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE ||
+          detail::isDebugStream(MStreamID)) {
         auto KernelCG =
             reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
         instrumentationAddExtraKernelMetadata(
@@ -2501,6 +2617,79 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
   return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
 }
 
+// Check if the provided global size and offset values are within the maximum
+// range supported by the kernel's id queries type, per dimension.
+// MaxRange is an inclusive upper bound for both offset and size.
+// Also checks if the total global size (product of global sizes across all
+// dimensions) is within the maximum range, to ensure that functions like
+// get_global_linear_id can safely return a value within the maximum range.
+// If NDRDesc.GlobalSize[I] is zero, it is treated as valid and does not exceed
+// the range.
+static bool isNDRangeExceedsMaxRange(const NDRDescT &NDRDesc,
+                                     uint64_t MaxRange) {
+  uint64_t TotalGlobalSize = 1;
+  for (size_t I = 0; I < NDRDesc.Dims; ++I) {
+    uint64_t GlobalOffset = NDRDesc.GlobalOffset[I];
+    if (GlobalOffset > MaxRange)
+      return true;
+    uint64_t GlobalSize = NDRDesc.GlobalSize[I];
+    if (GlobalSize > MaxRange - GlobalOffset)
+      return true;
+    TotalGlobalSize *= GlobalSize;
+    if (TotalGlobalSize > MaxRange)
+      return true;
+  }
+  return false;
+}
+
+void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
+                                const uint32_t IdQueriesRange) {
+  // Skipping the range check if the kernel supports size_t range for id
+  // queries. Because, range exceeding size_t is not practically possible, and
+  // for a 64-bit size_t, it'll take hundreds of years for such a kernel to
+  // complete.
+  if (IdQueriesRange == 2) {
+    return;
+  }
+
+  if (IdQueriesRange == 1) {
+    uint64_t MaxRange = std::numeric_limits<uint32_t>::max();
+
+    // Early exit if kernel is compiled with -fsycl-id-queries-range=uint,
+    // and launched with a range lesser than or equal to UINT_MAX.
+    if (!isNDRangeExceedsMaxRange(NDRDesc, MaxRange))
+      return;
+  }
+
+  // No need to check when IdQueriesRange is 0 (INT_MAX) because this
+  // function is only called when the kernel is executed with a range exceeding
+  // INT_MAX. In this case, the default range type is int, and the check is not
+  // required since the function is not called for ranges within INT_MAX.
+
+  // Throw an exception.
+  std::string ErrMsg;
+  switch (IdQueriesRange) {
+  case 1:
+    ErrMsg = "The kernel was compiled with -fsycl-id-queries-range=uint, but "
+             "the provided range/offset exceeds the maximum value storable in "
+             "an uint32_t. Either reduce the range/offset or "
+             "recompile the kernel with -fsycl-id-queries-range=size_t.";
+    break;
+  case 0:
+  default:
+    ErrMsg =
+        "The kernel was compiled with -fsycl-id-queries-range=int, but the "
+        "provided range/offset exceeds the maximum value storable in an "
+        "int. Either reduce the range/offset or "
+        "recompile the kernel with -fsycl-id-queries-range=[uint|size_t].";
+  }
+
+  throw detail::set_ur_error(
+      sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                      ErrMsg.c_str()),
+      UR_RESULT_ERROR_INVALID_VALUE);
+}
+
 ur_result_t enqueueImpCommandBufferKernel(
     const context &Ctx, device_impl &DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
@@ -2681,7 +2870,6 @@ void enqueueImpKernel(
                       : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
-
     Program = DeviceImageImpl->get_ur_program();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
@@ -2711,6 +2899,34 @@ void enqueueImpKernel(
                                        DeviceGlobalInitEvents.begin(),
                                        DeviceGlobalInitEvents.end());
     EventsWaitList = std::move(EventsWithDeviceGlobalInits);
+  }
+
+  // If the kernel was invoked with global range/offset exceeding INT_MAX, we
+  // need to check if the kernel was compiled with
+  // -fsycl-id-queries-range=[uint32_t|size_t] flag.
+  const bool isRangeGreaterThanIntMax = isNDRangeExceedsMaxRange(
+      NDRDesc, static_cast<uint64_t>(std::numeric_limits<int>::max()));
+  if (isRangeGreaterThanIntMax) {
+    uint32_t IdQueryRangeProp = 0;
+
+    // Get device image of kernel and retrieve the id queries range property.
+    if (MSyclKernel != nullptr && !MSyclKernel->isInteropOrSourceBased()) {
+      DeviceImageImpl = &MSyclKernel->getDeviceImage();
+      IdQueryRangeProp =
+          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    } else if (DeviceImageImpl != nullptr) {
+      IdQueryRangeProp =
+          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    } else {
+      const RTDeviceBinaryImage &DeviceImage =
+          detail::ProgramManager::getInstance().getDeviceImage(
+              DeviceKernelInfo.Name, ContextImpl, DeviceImpl);
+      IdQueryRangeProp = DeviceImage.getIdQueriesRangeProperties();
+    }
+    // If IdQueryRangeProp property is not present in the device image,
+    // it means that the kernel was compiled without -fsycl-id-queries-range
+    // option, so use the default range type of `int`.
+    checkNDRangeBoundsAndThrow(NDRDesc, IdQueryRangeProp);
   }
 
   ur_result_t Error = UR_RESULT_SUCCESS;
@@ -3306,6 +3522,37 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     MShouldCompleteEventIfPossible = false;
 
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::NativeHostTask: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+
+    for (ArgDesc &Arg : HostTask->MArgs) {
+      switch (Arg.MType) {
+      case kernel_param_kind_t::kind_accessor: {
+        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+        if (AllocaCmd)
+          Req->MData = AllocaCmd->getMemAllocation();
+        break;
+      }
+      default:
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Unsupported arg type " +
+                                  codeToString(UR_RESULT_ERROR_INVALID_VALUE));
+      }
+    }
+
+    auto &Queue = HostTask->MQueue;
+    auto NativeHostTaskData = std::make_unique<detail::EnqueueHostTaskData>(
+        HostTask->MHostTask->MHostTask);
+    Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), detail::NativeHostTask<true>,
+        NativeHostTaskData.get(), nullptr, RawEvents.size(), RawEvents.data(),
+        Event);
+    (void)NativeHostTaskData.release();
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::EnqueueNativeCommand: {

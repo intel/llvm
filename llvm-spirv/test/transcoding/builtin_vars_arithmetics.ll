@@ -9,6 +9,10 @@
 
 ; Check that produced builtin-call-based SPV-IR is recognized by the translator
 ; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r --spirv-target-env=SPV-IR %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV < %t.llc.rev.ll %}
 
 ; The IR was generated from the following source:
 ; #include <CL/sycl.hpp>

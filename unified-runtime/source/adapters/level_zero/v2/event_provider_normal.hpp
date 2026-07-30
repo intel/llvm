@@ -1,9 +1,8 @@
 //===--------- event_provider_normal.hpp - Level Zero Adapter -------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -23,10 +22,10 @@
 #include "event.hpp"
 #include "event_provider.hpp"
 
-#include "../device.hpp"
-#include "../ur_interface_loader.hpp"
+#include "../common/device.hpp"
+#include "ur_interface_loader.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 class provider_pool {
 public:
@@ -59,4 +58,4 @@ private:
   std::vector<std::unique_ptr<provider_pool>> pools;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

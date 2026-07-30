@@ -13,6 +13,7 @@
 //   simd <short, 32> a;
 //   simd <short, 32> b;
 //   a + b; // yield simd <int, 32>
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

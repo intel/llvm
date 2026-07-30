@@ -2,12 +2,10 @@
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 
-#include <array>
 #include <cassert>
-#include <complex>
 #include <iostream>
-#include <sycl/detail/core.hpp>
 
+#include "complex_utils.hpp"
 #include "math_utils.hpp"
 
 using std::complex;
@@ -20,7 +18,7 @@ template <typename T> bool approx_equal_cmplx(complex<T> x, complex<T> y) {
          approx_equal_fp(x.imag(), y.imag());
 }
 
-complex<float> ref1_results[] = {
+static complex<float> ref1_results[] = {
     complex<float>(-1.f, 1.f),          complex<float>(1.f, 3.f),
     complex<float>(-2.f, 10.f),         complex<float>(-8.f, 31.f),
     complex<float>(1.f, 1.f),           complex<float>(2.f, 1.f),
@@ -44,10 +42,10 @@ complex<float> ref1_results[] = {
     complex<float>(M_PI_2, 0.549306f),  complex<float>(INFINITY, 0.f),
     complex<float>(INFINITY, INFINITY), complex<float>(INFINITY, -INFINITY)};
 
-float ref2_results[] = {0.f, 25.f, 169.f,    INFINITY, 0.f,
-                        5.f, 13.f, INFINITY, 0.f,      M_PI_2};
+static float ref2_results[] = {0.f, 25.f, 169.f,    INFINITY, 0.f,
+                               5.f, 13.f, INFINITY, 0.f,      M_PI_2};
 
-complex<float> ref3_results[] = {
+static complex<float> ref3_results[] = {
     complex<float>(0.f, 1.f),         complex<float>(1.f, 1.f),
     complex<float>(2.f, 0.f),         complex<float>(2.f, 3.f),
     complex<float>(M_PI_2, 0.f),      complex<float>(0.f, 0.f),
@@ -218,6 +216,161 @@ int device_complex_test_2(s::queue &deviceQueue) {
   return n_fails;
 }
 #endif
+
+static complex<float> complex_input[] = {{1.e-6f, 1.e-6f},
+                                         {-1.e-6f, 1.e-6f},
+                                         {-1.e-6f, -1.e-6f},
+                                         {1.e-6f, -1.e-6f},
+                                         {1.e+6f, 1.e-6f},
+                                         {-1.e+6f, 1.e-6f},
+                                         {-1.e+6f, -1.e-6f},
+                                         {1.e+6f, -1.e-6f},
+
+                                         {1.e-6f, 1.e+6f},
+                                         {-1.e-6f, 1.e+6f},
+                                         {-1.e-6f, -1.e+6f},
+                                         {1.e-6f, -1.e+6f},
+
+                                         {1.e+6f, 1.e+6f},
+                                         {-1.e+6f, 1.e+6f},
+                                         {-1.e+6f, -1.e+6f},
+                                         {1.e+6f, -1.e+6f},
+
+                                         {NAN, NAN},
+                                         {-INFINITY, NAN},
+                                         {-2.f, NAN},
+                                         {-1.f, NAN},
+                                         {-0.5f, NAN},
+                                         {-0.f, NAN},
+                                         {+0.f, NAN},
+                                         {0.5, NAN},
+                                         {1, NAN},
+                                         {2, NAN},
+                                         {INFINITY, NAN},
+
+                                         {NAN, -INFINITY},
+                                         {-INFINITY, -INFINITY},
+                                         {-2, -INFINITY},
+                                         {-1, -INFINITY},
+                                         {-0.5, -INFINITY},
+                                         {-0., -INFINITY},
+                                         {+0., -INFINITY},
+                                         {0.5, -INFINITY},
+                                         {1, -INFINITY},
+                                         {2, -INFINITY},
+                                         {INFINITY, -INFINITY},
+
+                                         {NAN, -2},
+                                         {-INFINITY, -2},
+                                         {-2, -2},
+                                         {-1, -2},
+                                         {-0.5, -2},
+                                         {-0., -2},
+                                         {+0., -2},
+                                         {0.5, -2},
+                                         {1, -2},
+                                         {2, -2},
+                                         {INFINITY, -2},
+
+                                         {NAN, -1},
+                                         {-INFINITY, -1},
+                                         {-2, -1},
+                                         {-1, -1},
+                                         {-0.5, -1},
+                                         {-0., -1},
+                                         {+0., -1},
+                                         {0.5, -1},
+                                         {1, -1},
+                                         {2, -1},
+                                         {INFINITY, -1},
+
+                                         {NAN, -0.5},
+                                         {-INFINITY, -0.5},
+                                         {-2, -0.5},
+                                         {-1, -0.5},
+                                         {-0.5, -0.5},
+                                         {-0., -0.5},
+                                         {+0., -0.5},
+                                         {0.5, -0.5},
+                                         {1, -0.5},
+                                         {2, -0.5},
+                                         {INFINITY, -0.5},
+
+                                         {NAN, -0.},
+                                         {-INFINITY, -0.},
+                                         {-2, -0.},
+                                         {-1, -0.},
+                                         {-0.5, -0.},
+                                         {-0., -0.},
+                                         {+0., -0.},
+                                         {0.5, -0.},
+                                         {1, -0.},
+                                         {2, -0.},
+                                         {INFINITY, -0.},
+
+                                         {NAN, 0.},
+                                         {-INFINITY, 0.},
+                                         {-2, 0.},
+                                         {-1, 0.},
+                                         {-0.5, 0.},
+                                         {-0., 0.},
+                                         {+0., 0.},
+                                         {0.5, 0.},
+                                         {1, 0.},
+                                         {2, 0.},
+                                         {INFINITY, 0.},
+
+                                         {NAN, 0.5},
+                                         {-INFINITY, 0.5},
+                                         {-2, 0.5},
+                                         {-1, 0.5},
+                                         {-0.5, 0.5},
+                                         {-0., 0.5},
+                                         {+0., 0.5},
+                                         {0.5, 0.5},
+                                         {1, 0.5},
+                                         {2, 0.5},
+                                         {INFINITY, 0.5},
+
+                                         {NAN, 1},
+                                         {-INFINITY, 1},
+                                         {-2, 1},
+                                         {-1, 1},
+                                         {-0.5, 1},
+                                         {-0., 1},
+                                         {+0., 1},
+                                         {0.5, 1},
+                                         {1, 1},
+                                         {2, 1},
+                                         {INFINITY, 1},
+
+                                         {NAN, 2},
+                                         {-INFINITY, 2},
+                                         {-2, 2},
+                                         {-1, 2},
+                                         {-0.5, 2},
+                                         {-0., 2},
+                                         {+0., 2},
+                                         {0.5, 2},
+                                         {1, 2},
+                                         {2, 2},
+                                         {INFINITY, 2},
+
+                                         {NAN, INFINITY},
+                                         {-INFINITY, INFINITY},
+                                         {-2, INFINITY},
+                                         {-1, INFINITY},
+                                         {-0.5, INFINITY},
+                                         {-0., INFINITY},
+                                         {+0., INFINITY},
+                                         {0.5, INFINITY},
+                                         {1, INFINITY},
+                                         {2, INFINITY},
+                                         {INFINITY, INFINITY}
+
+};
+static constexpr auto TestComplexSize = std::size(complex_input);
+
 int main() {
   s::queue deviceQueue;
 
@@ -236,6 +389,10 @@ int main() {
   n_fails += device_complex_test_1(deviceQueue);
 #ifndef _WIN32
   n_fails += device_complex_test_2(deviceQueue);
+  n_fails += device_complex_test_mul<float, TestComplexSize>(deviceQueue,
+                                                             complex_input);
+  n_fails += device_complex_test_div<float, TestComplexSize>(deviceQueue,
+                                                             complex_input);
 #endif
   if (n_fails == 0)
     std::cout << "Pass" << std::endl;

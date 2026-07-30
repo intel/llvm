@@ -18,6 +18,7 @@
 //
 #include <sycl/sycl.hpp>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>

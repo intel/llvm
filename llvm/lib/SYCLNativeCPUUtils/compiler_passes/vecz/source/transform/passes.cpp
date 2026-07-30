@@ -49,11 +49,7 @@ PreservedAnalyses DivergenceCleanupPass::run(Function &F,
 
   for (BasicBlock &BB : F) {
     auto *TI = BB.getTerminator();
-    if (BranchInst *Branch = dyn_cast<BranchInst>(TI)) {
-      if (!Branch->isConditional()) {
-        continue;
-      }
-
+    if (CondBrInst *Branch = dyn_cast<CondBrInst>(TI)) {
       if (auto *const call = dyn_cast<CallInst>(Branch->getCondition())) {
         compiler::utils::Lexer L(call->getCalledFunction()->getName());
         if (L.Consume(VectorizationContext::InternalBuiltinPrefix) &&
@@ -111,7 +107,7 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
       }
 
       // Handle special constants.
-      if (CMask->isZeroValue()) {
+      if (CMask->isNullValue()) {
         // A null mask means no lane executes the memory operation.
         if (BuiltinDesc->isLoad()) {
           CI->replaceAllUsesWith(PoisonValue::get(BuiltinDesc->getDataType()));

@@ -10,6 +10,7 @@
 //
 // The test checks that ESIMD kernels correctly handle function pointers as
 // arguments of LLVM's select function.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

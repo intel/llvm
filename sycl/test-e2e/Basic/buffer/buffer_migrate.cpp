@@ -2,6 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22058
+//
 // Test for buffer use in a context with multiple devices (all found
 // root-devices)
 //

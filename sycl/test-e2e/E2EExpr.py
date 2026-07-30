@@ -19,6 +19,7 @@ class E2EExpr(BooleanExpression):
         "linux",
         "system-linux",
         "windows",
+        "O0",
         "system-windows",
         "cl_options",
         "enable-perf-tests",

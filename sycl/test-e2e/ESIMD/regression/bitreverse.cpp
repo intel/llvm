@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// XFAIL: linux && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22789
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// TODO: Enable when driver issue fixed
-// UNSUPPORTED: gpu
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>

@@ -5,7 +5,8 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
+#include <sycl/info/kernel.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/nd_item.hpp>
@@ -13,6 +14,7 @@
 #include <sycl/sub_group.hpp>
 #include <sycl/usm.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 

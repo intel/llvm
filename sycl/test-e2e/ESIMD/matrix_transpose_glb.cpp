@@ -7,10 +7,7 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: linux && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20589
-
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

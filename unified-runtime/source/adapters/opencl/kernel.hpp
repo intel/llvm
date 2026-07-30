@@ -1,9 +1,8 @@
 //===--------- kernel.hpp - OpenCL Adapter ---------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -17,11 +16,13 @@
 
 #include <vector>
 
-struct ur_kernel_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_kernel_handle_t_ : handle_base {
   using native_type = cl_kernel;
   native_type CLKernel;
-  ur_program_handle_t Program;
-  ur_context_handle_t Context;
+  ur_program_handle_t_ *Program;
+  ur_context_handle_t_ *Context;
   bool IsNativeHandleOwned = true;
   clSetKernelArgMemPointerINTEL_fn clSetKernelArgMemPointerINTEL = nullptr;
   ur::RefCount RefCount;
@@ -29,28 +30,30 @@ struct ur_kernel_handle_t_ : ur::opencl::handle_base {
   ur_kernel_handle_t_(const ur_kernel_handle_t_ &) = delete;
   ur_kernel_handle_t_ &operator=(const ur_kernel_handle_t_ &) = delete;
 
-  ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t Program,
-                      ur_context_handle_t Context)
+  ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t_ *Program,
+                      ur_context_handle_t_ *Context)
       : handle_base(), CLKernel(Kernel), Program(Program), Context(Context) {
-    urProgramRetain(Program);
-    urContextRetain(Context);
+    ur::opencl::urProgramRetain(cast(Program));
+    ur::opencl::urContextRetain(cast(Context));
 
     cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
         Context->CLContext,
-        ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
+        cast(ur::cl::getAdapter())->fnCache.clSetKernelArgMemPointerINTELCache,
         cl_ext::SetKernelArgMemPointerName, &clSetKernelArgMemPointerINTEL);
   }
 
   ~ur_kernel_handle_t_() {
-    urProgramRelease(Program);
-    urContextRelease(Context);
+    ur::opencl::urProgramRelease(cast(Program));
+    ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
       clReleaseKernel(CLKernel);
     }
   }
 
   static ur_result_t makeWithNative(native_type NativeKernel,
-                                    ur_program_handle_t Program,
-                                    ur_context_handle_t Context,
-                                    ur_kernel_handle_t &Kernel);
+                                    ur_program_handle_t_ *Program,
+                                    ur_context_handle_t_ *Context,
+                                    ur_kernel_handle_t_ *&Kernel);
 };
+
+} // namespace ur::opencl

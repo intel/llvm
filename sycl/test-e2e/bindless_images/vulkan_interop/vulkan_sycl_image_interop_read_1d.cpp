@@ -2,6 +2,9 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
+// UNSUPPORTED: cuda-ge-13
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 /*
@@ -43,6 +46,7 @@
 // RUN: %{run} %t.out --type int8 --channels 1 32
 // RUN: %{run} %t.out --type int8 --channels 2 32
 // RUN: %{run} %t.out --type int8 --channels 4 32
+// CUDA doesn't support unorm8
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 32
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32
@@ -70,25 +74,34 @@
 // RUN: %{run} %t.out --type int8 --channels 1 --sampled 32
 // RUN: %{run} %t.out --type int8 --channels 2 --sampled 32
 // RUN: %{run} %t.out --type int8 --channels 4 --sampled 32
+// CUDA doesn't support unorm8
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 --sampled 32
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 --sampled 32
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 --sampled 32
 
-// RUN: %{run} %t.out --type float --channels 1 32 --semaphores
-// RUN: %{run} %t.out --type float --channels 2 32 --semaphores
-// RUN: %{run} %t.out --type float --channels 4 32 --semaphores
-// RUN: %{run} %t.out --type half --channels 1 32 --semaphores
-// RUN: %{run} %t.out --type int32 --channels 2 32 --semaphores
-// RUN: %{run} %t.out --type uint32 --channels 4 32 --semaphores
-// RUN: %{run} %t.out --type int16 --channels 1 32 --semaphores
-// RUN: %{run} %t.out --type uint16 --channels 2 32 --semaphores
-// RUN: %{run} %t.out --type uint8 --channels 4 32 --semaphores
-// RUN: %{run} %t.out --type int8 --channels 1 32 --semaphores
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32 --semaphores
-// RUN: %{run} %t.out --type float --channels 4 --sampled 32 --semaphores
-// RUN: %{run} %t.out --type int16 --channels 4 --sampled 32 --semaphores
-// RUN: %{run} %t.out --type int8 --channels 4 --sampled 32 --semaphores
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 --sampled 32 --semaphores
+// On Windows, we require driver 38303 or later to avoid semaphore issues, which the CI does not yet have. 
+// Rather than mark the WHOLE test as requiring 38303, which would mean no testing nowhere,
+// I'm just intentionally breaking the R U N directive below until it can be restored.
+
+
+// RUN-IF: !windows, %{run} %t.out --type float --channels 1 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type float --channels 2 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type float --channels 4 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type half --channels 1 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type int32 --channels 2 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type uint32 --channels 4 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type int16 --channels 1 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type uint16 --channels 2 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type uint8 --channels 4 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type int8 --channels 1 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type float --channels 4 --sampled 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type int16 --channels 4 --sampled 32 --semaphores
+// RUN-IF: !windows, %{run} %t.out --type int8 --channels 4 --sampled 32 --semaphores
+
+// CUDA doesn't support unorm8
+// RUN-IF: !windows && !cuda, %{run} %t.out --type unorm8 --channels 2 32 --semaphores
+// CUDA doesn't support unorm8
+// RUN-IF: !windows && !cuda, %{run} %t.out --type unorm8 --channels 4 --sampled 32 --semaphores
 
 /*
 
@@ -151,6 +164,7 @@ VK_FORMAT_R8G8B8A8_UNORM
     ./vsr_1d_test.bin --linear --type unorm8 128x
 */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 
@@ -161,6 +175,7 @@ VK_FORMAT_R8G8B8A8_UNORM
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/image.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 // ---------------------------------------------------------
 // SYCL TYPE MAPPING HELPERS
@@ -254,7 +269,15 @@ int runTest(
   // SYCL Import and Verification
   namespace syclexp = sycl::ext::oneapi::experimental;
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
 
     // Import Memory (Platform Specific)
 #ifdef _WIN32

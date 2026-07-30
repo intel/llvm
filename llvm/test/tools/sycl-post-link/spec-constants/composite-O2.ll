@@ -39,7 +39,7 @@ $_ZTS17SpecializedKernel = comdat any
 @id_compos = dso_local global %class.specialization_id { %struct._ZTS1A.A { i32 42, float 2.000000e+00 } }
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel(float addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !4 {
+define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel(float addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat {
 entry:
   %c.i = alloca %struct._ZTS1A.A, align 4
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %_arg_3, i64 0, i32 0, i32 0, i64 0
@@ -89,7 +89,6 @@ attributes #4 = { convergent }
 !1 = !{i32 1, i32 2}
 !2 = !{i32 4, i32 100000}
 !3 = !{!"clang version 12.0.0 "}
-!4 = !{i32 -1, i32 -1, i32 -1, i32 -1}
 !5 = !{i64 0, i64 16, !6, i64 16, i64 8, !6}
 !6 = !{!7, !7, i64 0}
 !7 = !{!"omnipotent char", !8, i64 0}

@@ -6,6 +6,8 @@
 ; Translation cycle should be successful:
 ; RUN: llvm-spirv %t.regularized.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
 
 ; CHECK: %[[#Base:]] = load i1, ptr addrspace(4){{.*}}, align 1
 ; CHECK: %[[#LoadShift:]] = load i32, ptr addrspace(4){{.*}} align 4

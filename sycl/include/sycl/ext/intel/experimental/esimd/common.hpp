@@ -77,6 +77,15 @@ enum class split_barrier_action : uint8_t {
   signal = 1, // split barrier signal
 };
 
+enum class downconvert_packing_mode { mode_0 = 0, mode_1, mode_2, mode_3 };
+
+enum class downconvert_rounding_mode {
+  biased_round = 0,
+  round_to_nearest_even
+};
+
+enum class downconvert_output_mode { s1e3m0 = 0, s1e2m1, int4 };
+
 /// @} sycl_esimd_core
 
 } // namespace ext::intel::experimental::esimd

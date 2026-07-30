@@ -1,6 +1,5 @@
-// Copyright (C) 2023-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -155,7 +154,7 @@ TEST_P(urProgramGetInfoTest, SuccessBinarySizes) {
 TEST_P(urProgramGetInfoTest, SuccessBinaries) {
   // Not implemented correctly on these targets - they copy their own pointer into the output rather than copying the
   // binary
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
+  UUR_KNOWN_FAILURE_ON(uur::HIP{});
 
   size_t binary_sizes_len = 0;
   std::vector<char> property_value(0);

@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsyntax-only %fsycl-host-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
-// RUN: %clangxx -fsyntax-only -fsycl -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsyntax-only %fsycl-host-only -Wno-deprecated-declarations -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsyntax-only -fsycl -fsycl-device-only -Wno-deprecated-declarations -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 #include <iostream>
 #include <sycl/sycl.hpp>
 

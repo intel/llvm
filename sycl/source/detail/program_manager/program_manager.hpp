@@ -65,6 +65,10 @@ checkDevSupportDeviceRequirements(const device_impl &Dev,
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
                                 const device_impl &DevImpl);
 
+/// Returns the SYCL device architecture name string (e.g. "intel_gpu_pvc")
+/// for \p DeviceImpl, or "unknown" when the architecture is not recognized.
+const char *getArchName(const device_impl &DeviceImpl);
+
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
@@ -182,7 +186,8 @@ public:
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                     context_impl &ContextImpl, devices_range Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
-                    const SerializedObj &SpecConsts = {});
+                    const SerializedObj &SpecConsts = {},
+                    bool AllowUnresolvedSymbols = false);
 
   FastKernelCacheValPtr getOrCreateKernel(context_impl &ContextImpl,
                                           device_impl &DeviceImpl,
@@ -223,7 +228,7 @@ public:
   tryGetSYCLKernelID(std::string_view KernelName) const {
     std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
 
-    auto It = m_DeviceKernelInfoMap.find(KernelName);
+    auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
     if (It == m_DeviceKernelInfoMap.end())
       return std::nullopt;
 
@@ -355,9 +360,13 @@ public:
   void dynamicLink(device_images_range Imgs);
 
   // Produces new device image by converting input device image to the
-  // executable state
+  // executable state. AllowUnresolvedSymbols defers cross-image
+  // SYCL_EXTERNAL resolution to a subsequent dynamicLink() call; used for
+  // native AOT objects loaded as part of a sycl::link with unresolved
+  // imported symbols.
   device_image_plain build(const DevImgPlainWithDeps &ImgWithDeps,
-                           devices_range Devs, const property_list &PropList);
+                           devices_range Devs, const property_list &PropList,
+                           bool AllowUnresolvedSymbols = false);
 
   std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, std::string_view KernelName,
@@ -369,7 +378,7 @@ public:
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
   void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
-
+  void cacheKernelWorkGroupDynamicLocalMem(const RTDeviceBinaryImage &Img);
   DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
   DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName);
   DeviceKernelInfo *tryGetDeviceKernelInfo(std::string_view KernelName);
@@ -387,6 +396,17 @@ public:
 
   static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage);
 
+  // True when the image's DeviceTargetSpec identifies a native AOT binary
+  // that goes through the linker-wrapper / IGC AOT pipeline. Currently
+  // only spir64_x86_64 (OpenCL CPU AOT) and spir64_gen (Intel GPU AOT) emit
+  // native object images that participate in the runtime native-link path.
+  // SYCLBIN/JIT (spir64), CUDA (nvptx64), HIP (amdgcn) and native_cpu paths
+  // either go through the JIT branch or use a different runtime link
+  // mechanism; they are intentionally excluded here. Sites that branch on
+  // "is this image native AOT?" should use this helper to keep the answer
+  // in one place.
+  static bool isAOTBinaryTarget(const char *DeviceTargetSpec);
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
@@ -396,7 +416,7 @@ private:
         const std::string &CompileOptions, const std::string &LinkOptions,
         std::vector<ur_device_handle_t> &Devices,
         const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
-        bool CreatedFromBinary = false);
+        bool CreatedFromBinary = false, bool AllowUnresolvedSymbols = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
@@ -408,6 +428,10 @@ private:
   bool isBfloat16DeviceImage(const RTDeviceBinaryImage *BinImage);
   bool shouldBF16DeviceImageBeUsed(const RTDeviceBinaryImage *BinImage,
                                    const device_impl &DeviceImpl);
+
+  /// Returns a comma-separated list of available image target names for the
+  /// given kernel ID, for use in error messages.
+  std::string getKernelTargetList(const kernel_id &KernelID);
 
 protected:
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
@@ -451,6 +475,12 @@ protected:
   /// Access must be guarded by the m_ImgMapsMutex mutex.
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       m_DeviceImages;
+
+  /// Keeps merged device binary images alive for linked programs with multiple
+  /// images. The merged image combines device_globals from all linked images.
+  /// Access must be guarded by the MNativeProgramsMutex mutex.
+  std::unordered_map<ur_program_handle_t, DynRTDeviceBinaryImageUPtr>
+      m_MergedImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
@@ -499,7 +529,9 @@ protected:
 
   // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.
-  std::unordered_map<std::string_view, DeviceKernelInfo> m_DeviceKernelInfoMap;
+  // Uses std::string keys (not string_view) because the backing storage for
+  // kernel names lives in DSO offload tables that may be unmapped on dlclose.
+  std::unordered_map<std::string, DeviceKernelInfo> m_DeviceKernelInfoMap;
 
   // Protects m_DeviceKernelInfoMap.
   mutable std::mutex m_DeviceKernelInfoMapMutex;

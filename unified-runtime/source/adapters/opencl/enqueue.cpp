@@ -1,9 +1,8 @@
 //===--------- enqueue.cpp - OpenCL Adapter --------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -39,148 +38,100 @@ cl_map_flags convertURMapFlagsToCL(ur_map_flags_t URFlags) {
 void MapUREventsToCL(uint32_t numEvents, const ur_event_handle_t *UREvents,
                      std::vector<cl_event> &CLEvents) {
   for (uint32_t i = 0; i < numEvents; i++) {
-    CLEvents[i] = UREvents[i]->CLEvent;
+    CLEvents[i] = ur::opencl::cast(UREvents[i])->CLEvent;
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize,
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+namespace ur::opencl {
 
-  ur_kernel_launch_ext_properties_t *_launchPropList =
-      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
-  // Adapters that don't support cooperative kernels are currently expected
-  // to ignore COOPERATIVE launch properties. Ideally we should avoid passing
-  // these at the SYCL RT level instead, see
-  // https://github.com/intel/llvm/issues/18421
-  if (_launchPropList &&
-      _launchPropList->flags & ~UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  while (_launchPropList != nullptr) {
-    if (_launchPropList->stype !=
-        as_stype<ur_kernel_launch_ext_properties_t>()) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
-        _launchPropList->pNext);
-  }
-
-  std::vector<size_t> compiledLocalWorksize;
-  if (!pLocalWorkSize) {
-    cl_device_id device = nullptr;
-    CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
-        hQueue->CLQueue, CL_QUEUE_DEVICE, sizeof(device), &device, nullptr));
-    // This query always returns size_t[3], if nothing was specified it returns
-    // all zeroes.
-    size_t queriedLocalWorkSize[3] = {0, 0, 0};
-    CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
-        hKernel->CLKernel, device, CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
-        sizeof(size_t[3]), queriedLocalWorkSize, nullptr));
-    if (queriedLocalWorkSize[0] != 0) {
-      for (uint32_t i = 0; i < workDim; i++) {
-        compiledLocalWorksize.push_back(queriedLocalWorkSize[i]);
-      }
-    }
-  }
-
-  cl_event Event;
-  std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
-  MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  auto Err = clEnqueueNDRangeKernel(
-      hQueue->CLQueue, hKernel->CLKernel, workDim, pGlobalWorkOffset,
-      pGlobalWorkSize,
-      compiledLocalWorksize.empty() ? pLocalWorkSize
-                                    : compiledLocalWorksize.data(),
-      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event));
-  if (Err == CL_INVALID_KERNEL_ARGS) {
-    UR_LOG_L(ur::cl::getAdapter()->log, ERR,
-             "Kernel called with invalid arguments");
-  }
-  CL_RETURN_ON_FAILURE(Err);
-
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
-    ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueEventsWait(ur_queue_handle_t hQueue,
+                                uint32_t numEventsInWaitList,
+                                const ur_event_handle_t *phEventWaitList,
+                                ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueMarkerWithWaitList(
-      hQueue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
+      Queue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
       ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
+ur_result_t urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueBarrierWithWaitList(
-      hQueue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
+      Queue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
       ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
-                                        phEventWaitList, phEvent);
+  return ur::opencl::urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                                    phEventWaitList, phEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
-    size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueMemBufferRead(ur_queue_handle_t hQueue,
+                                   ur_mem_handle_t hBuffer, bool blockingRead,
+                                   size_t offset, size_t size, void *pDst,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto Buffer = cast(hBuffer);
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueReadBuffer(
-      hQueue->CLQueue, hBuffer->CLMemory, blockingRead, offset, size, pDst,
+      Queue->CLQueue, Buffer->CLMemory, blockingRead, offset, size, pDst,
       numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
+ur_result_t urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto Buffer = cast(hBuffer);
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueWriteBuffer(
-      hQueue->CLQueue, hBuffer->CLMemory, blockingWrite, offset, size, pSrc,
+      Queue->CLQueue, Buffer->CLMemory, blockingWrite, offset, size, pSrc,
       numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
+ur_result_t urEnqueueMemBufferReadRect(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
     ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
     ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto Buffer = cast(hBuffer);
   const size_t BufferOrigin[3] = {bufferOrigin.x, bufferOrigin.y,
                                   bufferOrigin.z};
   const size_t HostOrigin[3] = {hostOrigin.x, hostOrigin.y, hostOrigin.z};
@@ -189,22 +140,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueReadBufferRect(
-      hQueue->CLQueue, hBuffer->CLMemory, blockingRead, BufferOrigin,
-      HostOrigin, Region, bufferRowPitch, bufferSlicePitch, hostRowPitch,
-      hostSlicePitch, pDst, numEventsInWaitList, CLWaitEvents.data(),
+      Queue->CLQueue, Buffer->CLMemory, blockingRead, BufferOrigin, HostOrigin,
+      Region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
+      pDst, numEventsInWaitList, CLWaitEvents.data(),
       ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
+ur_result_t urEnqueueMemBufferWriteRect(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
     ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
     size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto Buffer = cast(hBuffer);
   const size_t BufferOrigin[3] = {bufferOrigin.x, bufferOrigin.y,
                                   bufferOrigin.z};
   const size_t HostOrigin[3] = {hostOrigin.x, hostOrigin.y, hostOrigin.z};
@@ -213,39 +167,49 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueWriteBufferRect(
-      hQueue->CLQueue, hBuffer->CLMemory, blockingWrite, BufferOrigin,
-      HostOrigin, Region, bufferRowPitch, bufferSlicePitch, hostRowPitch,
-      hostSlicePitch, pSrc, numEventsInWaitList, CLWaitEvents.data(),
+      Queue->CLQueue, Buffer->CLMemory, blockingWrite, BufferOrigin, HostOrigin,
+      Region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
+      pSrc, numEventsInWaitList, CLWaitEvents.data(),
       ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBufferSrc,
-    ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueMemBufferCopy(ur_queue_handle_t hQueue,
+                                   ur_mem_handle_t hBufferSrc,
+                                   ur_mem_handle_t hBufferDst, size_t srcOffset,
+                                   size_t dstOffset, size_t size,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto BufferSrc = cast(hBufferSrc);
+  auto BufferDst = cast(hBufferDst);
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueCopyBuffer(
-      hQueue->CLQueue, hBufferSrc->CLMemory, hBufferDst->CLMemory, srcOffset,
+      Queue->CLQueue, BufferSrc->CLMemory, BufferDst->CLMemory, srcOffset,
       dstOffset, size, numEventsInWaitList, CLWaitEvents.data(),
       ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
+ur_result_t urEnqueueMemBufferCopyRect(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBufferSrc,
     ur_mem_handle_t hBufferDst, ur_rect_offset_t srcOrigin,
     ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto BufferSrc = cast(hBufferSrc);
+  auto BufferDst = cast(hBufferDst);
   const size_t SrcOrigin[3] = {srcOrigin.x, srcOrigin.y, srcOrigin.z};
   const size_t DstOrigin[3] = {dstOrigin.x, dstOrigin.y, dstOrigin.z};
   const size_t Region[3] = {region.width, region.height, region.depth};
@@ -253,19 +217,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueCopyBufferRect(
-      hQueue->CLQueue, hBufferSrc->CLMemory, hBufferDst->CLMemory, SrcOrigin,
+      Queue->CLQueue, BufferSrc->CLMemory, BufferDst->CLMemory, SrcOrigin,
       DstOrigin, Region, srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
       numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, const void *pPattern,
-    size_t patternSize, size_t offset, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueMemBufferFill(ur_queue_handle_t hQueue,
+                                   ur_mem_handle_t hBuffer,
+                                   const void *pPattern, size_t patternSize,
+                                   size_t offset, size_t size,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto Buffer = cast(hBuffer);
   // CL FillBuffer only allows pattern sizes up to the largest CL type:
   // long16/double16
   if (patternSize <= 128) {
@@ -273,11 +242,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
     MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
     CL_RETURN_ON_FAILURE(clEnqueueFillBuffer(
-        hQueue->CLQueue, hBuffer->CLMemory, pPattern, patternSize, offset, size,
+        Queue->CLQueue, Buffer->CLMemory, pPattern, patternSize, offset, size,
         numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
 
     UR_RETURN_ON_FAILURE(
-        createUREvent(Event, hQueue->Context, hQueue, phEvent));
+        createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
     return UR_RESULT_SUCCESS;
   }
 
@@ -292,7 +261,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   auto ClErr = clEnqueueWriteBuffer(
-      hQueue->CLQueue, hBuffer->CLMemory, false, offset, size, HostBuffer,
+      Queue->CLQueue, Buffer->CLMemory, false, offset, size, HostBuffer,
       numEventsInWaitList, CLWaitEvents.data(), &WriteEvent);
   if (ClErr != CL_SUCCESS) {
     delete[] HostBuffer;
@@ -315,7 +284,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
 
   if (phEvent) {
     UR_RETURN_ON_FAILURE(
-        createUREvent(WriteEvent, hQueue->Context, hQueue, phEvent));
+        createUREvent(WriteEvent, cast(Queue->Context), cast(Queue), phEvent));
   } else {
     CL_RETURN_ON_FAILURE(clReleaseEvent(WriteEvent));
   }
@@ -323,146 +292,177 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
+ur_result_t urEnqueueMemImageRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingRead,
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto Image = cast(hImage);
   const size_t Origin[3] = {origin.x, origin.y, origin.z};
   const size_t Region[3] = {region.width, region.height, region.depth};
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueReadImage(
-      hQueue->CLQueue, hImage->CLMemory, blockingRead, Origin, Region, rowPitch,
+      Queue->CLQueue, Image->CLMemory, blockingRead, Origin, Region, rowPitch,
       slicePitch, pDst, numEventsInWaitList, CLWaitEvents.data(),
       ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
+ur_result_t urEnqueueMemImageWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingWrite,
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto Image = cast(hImage);
   const size_t Origin[3] = {origin.x, origin.y, origin.z};
   const size_t Region[3] = {region.width, region.height, region.depth};
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueWriteImage(
-      hQueue->CLQueue, hImage->CLMemory, blockingWrite, Origin, Region,
-      rowPitch, slicePitch, pSrc, numEventsInWaitList, CLWaitEvents.data(),
+      Queue->CLQueue, Image->CLMemory, blockingWrite, Origin, Region, rowPitch,
+      slicePitch, pSrc, numEventsInWaitList, CLWaitEvents.data(),
       ifUrEvent(phEvent, Event)));
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hImageSrc,
-    ur_mem_handle_t hImageDst, ur_rect_offset_t srcOrigin,
-    ur_rect_offset_t dstOrigin, ur_rect_region_t region,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t
+urEnqueueMemImageCopy(ur_queue_handle_t hQueue, ur_mem_handle_t hImageSrc,
+                      ur_mem_handle_t hImageDst, ur_rect_offset_t srcOrigin,
+                      ur_rect_offset_t dstOrigin, ur_rect_region_t region,
+                      uint32_t numEventsInWaitList,
+                      const ur_event_handle_t *phEventWaitList,
+                      ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto ImageSrc = cast(hImageSrc);
+  auto ImageDst = cast(hImageDst);
   const size_t SrcOrigin[3] = {srcOrigin.x, srcOrigin.y, srcOrigin.z};
   const size_t DstOrigin[3] = {dstOrigin.x, dstOrigin.y, dstOrigin.z};
   const size_t Region[3] = {region.width, region.height, region.depth};
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  CL_RETURN_ON_FAILURE(clEnqueueCopyImage(
-      hQueue->CLQueue, hImageSrc->CLMemory, hImageDst->CLMemory, SrcOrigin,
-      DstOrigin, Region, numEventsInWaitList, CLWaitEvents.data(),
-      ifUrEvent(phEvent, Event)));
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  CL_RETURN_ON_FAILURE(
+      clEnqueueCopyImage(Queue->CLQueue, ImageSrc->CLMemory, ImageDst->CLMemory,
+                         SrcOrigin, DstOrigin, Region, numEventsInWaitList,
+                         CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingMap,
-    ur_map_flags_t mapFlags, size_t offset, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent, void **ppRetMap) {
+ur_result_t urEnqueueMemBufferMap(ur_queue_handle_t hQueue,
+                                  ur_mem_handle_t hBuffer, bool blockingMap,
+                                  ur_map_flags_t mapFlags, size_t offset,
+                                  size_t size, uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent, void **ppRetMap) {
+  auto Queue = cast(hQueue);
+  auto Buffer = cast(hBuffer);
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   cl_int Err;
-  *ppRetMap = clEnqueueMapBuffer(
-      hQueue->CLQueue, hBuffer->CLMemory, blockingMap,
-      convertURMapFlagsToCL(mapFlags), offset, size, numEventsInWaitList,
-      CLWaitEvents.data(), ifUrEvent(phEvent, Event), &Err);
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  *ppRetMap = clEnqueueMapBuffer(Queue->CLQueue, Buffer->CLMemory, blockingMap,
+                                 convertURMapFlagsToCL(mapFlags), offset, size,
+                                 numEventsInWaitList, CLWaitEvents.data(),
+                                 ifUrEvent(phEvent, Event), &Err);
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return mapCLErrorToUR(Err);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hMem, void *pMappedPtr,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueMemUnmap(ur_queue_handle_t hQueue, ur_mem_handle_t hMem,
+                              void *pMappedPtr, uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) {
+  auto Queue = cast(hQueue);
+  auto Mem = cast(hMem);
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueUnmapMemObject(
-      hQueue->CLQueue, hMem->CLMemory, pMappedPtr, numEventsInWaitList,
+      Queue->CLQueue, Mem->CLMemory, pMappedPtr, numEventsInWaitList,
       CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
+ur_result_t urEnqueueDeviceGlobalVariableWrite(
     ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
     bool blockingWrite, size_t count, size_t offset, const void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  cl_context Ctx = hQueue->Context->CLContext;
+  auto Queue = cast(hQueue);
+  auto Program = cast(hProgram);
+  cl_context Ctx = Queue->Context->CLContext;
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  cl_ext::clEnqueueWriteGlobalVariable_fn F = nullptr;
+  cl_ext::clEnqueueWriteGlobalVariableINTEL_fn F = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueWriteGlobalVariableCache,
+      Ctx,
+      cast(ur::cl::getAdapter())
+          ->fnCache.clEnqueueWriteGlobalVariableINTELCache,
       cl_ext::EnqueueWriteGlobalVariableName, &F));
 
-  cl_int Res = F(hQueue->CLQueue, hProgram->CLProgram, name, blockingWrite,
-                 count, offset, pSrc, numEventsInWaitList, CLWaitEvents.data(),
+  cl_int Res = F(Queue->CLQueue, Program->CLProgram, name, blockingWrite, count,
+                 offset, pSrc, numEventsInWaitList, CLWaitEvents.data(),
                  ifUrEvent(phEvent, Event));
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), hQueue, phEvent));
   return mapCLErrorToUR(Res);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
+ur_result_t urEnqueueDeviceGlobalVariableRead(
     ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
     bool blockingRead, size_t count, size_t offset, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  cl_context Ctx = hQueue->Context->CLContext;
+  auto Queue = cast(hQueue);
+  auto Program = cast(hProgram);
+  cl_context Ctx = Queue->Context->CLContext;
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  cl_ext::clEnqueueReadGlobalVariable_fn F = nullptr;
+  cl_ext::clEnqueueReadGlobalVariableINTEL_fn F = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueReadGlobalVariableCache,
+      Ctx,
+      cast(ur::cl::getAdapter())->fnCache.clEnqueueReadGlobalVariableINTELCache,
       cl_ext::EnqueueReadGlobalVariableName, &F));
 
-  cl_int Res = F(hQueue->CLQueue, hProgram->CLProgram, name, blockingRead,
-                 count, offset, pDst, numEventsInWaitList, CLWaitEvents.data(),
+  cl_int Res = F(Queue->CLQueue, Program->CLProgram, name, blockingRead, count,
+                 offset, pDst, numEventsInWaitList, CLWaitEvents.data(),
                  ifUrEvent(phEvent, Event));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), hQueue, phEvent));
   return mapCLErrorToUR(Res);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pDst, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueReadHostPipe(ur_queue_handle_t hQueue,
+                                  ur_program_handle_t hProgram,
+                                  const char *pipe_symbol, bool blocking,
+                                  void *pDst, size_t size,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent) {
 
-  cl_context CLContext = hQueue->Context->CLContext;
+  auto Queue = cast(hQueue);
+  auto Program = cast(hProgram);
+  cl_context CLContext = Queue->Context->CLContext;
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
@@ -470,28 +470,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clEnqueueReadHostPipeINTEL_fn>(
           CLContext,
-          ur::cl::getAdapter()->fnCache.clEnqueueReadHostPipeINTELCache,
+          cast(ur::cl::getAdapter())->fnCache.clEnqueueReadHostPipeINTELCache,
           cl_ext::EnqueueReadHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
     CL_RETURN_ON_FAILURE(FuncPtr(
-        hQueue->CLQueue, hProgram->CLProgram, pipe_symbol, blocking, pDst, size,
+        Queue->CLQueue, Program->CLProgram, pipe_symbol, blocking, pDst, size,
         numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
 
     UR_RETURN_ON_FAILURE(
-        createUREvent(Event, hQueue->Context, hQueue, phEvent));
+        createUREvent(Event, cast(Queue->Context), hQueue, phEvent));
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
+                                   ur_program_handle_t hProgram,
+                                   const char *pipe_symbol, bool blocking,
+                                   void *pSrc, size_t size,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
 
-  cl_context CLContext = hQueue->Context->CLContext;
+  auto Queue = cast(hQueue);
+  auto Program = cast(hProgram);
+  cl_context CLContext = Queue->Context->CLContext;
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
@@ -499,21 +503,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clEnqueueWriteHostPipeINTEL_fn>(
           CLContext,
-          ur::cl::getAdapter()->fnCache.clEnqueueWriteHostPipeINTELCache,
+          cast(ur::cl::getAdapter())->fnCache.clEnqueueWriteHostPipeINTELCache,
           cl_ext::EnqueueWriteHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
     CL_RETURN_ON_FAILURE(FuncPtr(
-        hQueue->CLQueue, hProgram->CLProgram, pipe_symbol, blocking, pSrc, size,
+        Queue->CLQueue, Program->CLProgram, pipe_symbol, blocking, pSrc, size,
         numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
     UR_RETURN_ON_FAILURE(
-        createUREvent(Event, hQueue->Context, hQueue, phEvent));
+        createUREvent(Event, cast(Queue->Context), hQueue, phEvent));
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numArgs,
@@ -542,43 +546,56 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
         _launchPropList->pNext);
   }
 
+  // Only look up USM function pointer if we have POINTER args
   clSetKernelArgMemPointerINTEL_fn SetKernelArgMemPointerPtr = nullptr;
-  UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
-          hQueue->Context->CLContext,
-          ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
-          cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
+  bool hasPointerArgs = false;
+  for (uint32_t i = 0; i < numArgs; i++) {
+    if (pArgs[i].type == UR_EXP_KERNEL_ARG_TYPE_POINTER) {
+      hasPointerArgs = true;
+      break;
+    }
+  }
+  auto Queue = cast(hQueue);
+  auto Kernel = cast(hKernel);
+  if (hasPointerArgs) {
+    UR_RETURN_ON_FAILURE(
+        cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
+            Queue->Context->CLContext,
+            cast(ur::cl::getAdapter())
+                ->fnCache.clSetKernelArgMemPointerINTELCache,
+            cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
+  }
 
   for (uint32_t i = 0; i < numArgs; i++) {
     switch (pArgs[i].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+      CL_RETURN_ON_FAILURE(clSetKernelArg(Kernel->CLKernel,
                                           static_cast<cl_uint>(pArgs[i].index),
                                           pArgs[i].size, nullptr));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+      CL_RETURN_ON_FAILURE(clSetKernelArg(Kernel->CLKernel,
                                           static_cast<cl_uint>(pArgs[i].index),
                                           pArgs[i].size, pArgs[i].value.value));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
       cl_mem mem = pArgs[i].value.memObjTuple.hMem
-                       ? pArgs[i].value.memObjTuple.hMem->CLMemory
+                       ? cast(pArgs[i].value.memObjTuple.hMem)->CLMemory
                        : nullptr;
-      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+      CL_RETURN_ON_FAILURE(clSetKernelArg(Kernel->CLKernel,
                                           static_cast<cl_uint>(pArgs[i].index),
                                           pArgs[i].size, &mem));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
       CL_RETURN_ON_FAILURE(SetKernelArgMemPointerPtr(
-          hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
+          Kernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
           pArgs[i].value.pointer));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
       CL_RETURN_ON_FAILURE(clSetKernelArg(
-          hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
-          pArgs[i].size, &pArgs[i].value.sampler->CLSampler));
+          Kernel->CLKernel, static_cast<cl_uint>(pArgs[i].index), pArgs[i].size,
+          &cast(pArgs[i].value.sampler)->CLSampler));
       break;
     }
     default:
@@ -590,12 +607,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   if (!pLocalWorkSize) {
     cl_device_id device = nullptr;
     CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
-        hQueue->CLQueue, CL_QUEUE_DEVICE, sizeof(device), &device, nullptr));
+        Queue->CLQueue, CL_QUEUE_DEVICE, sizeof(device), &device, nullptr));
     // This query always returns size_t[3], if nothing was specified it
     // returns all zeroes.
     size_t queriedLocalWorkSize[3] = {0, 0, 0};
     CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
-        hKernel->CLKernel, device, CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
+        Kernel->CLKernel, device, CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
         sizeof(size_t[3]), queriedLocalWorkSize, nullptr));
     if (queriedLocalWorkSize[0] != 0) {
       for (uint32_t i = 0; i < 3; i++) {
@@ -608,12 +625,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   CL_RETURN_ON_FAILURE(clEnqueueNDRangeKernel(
-      hQueue->CLQueue, hKernel->CLKernel, workDim, pGlobalWorkOffset,
+      Queue->CLQueue, Kernel->CLKernel, workDim, pGlobalWorkOffset,
       pGlobalWorkSize,
       compiledLocalWorksize.empty() ? pLocalWorkSize
                                     : compiledLocalWorksize.data(),
-      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+      numEventsInWaitList, numEventsInWaitList ? CLWaitEvents.data() : nullptr,
+      ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, cast(Queue->Context), hQueue, phEvent));
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

@@ -1,14 +1,32 @@
 //===--------- usm.cpp - HIP Adapter --------------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
+#include <cstring>
+
+#include <unified-runtime/ur_api.h>
+
+// Per-adapter translator for umf2urResult's provider-specific error path.
+namespace umf {
+namespace {
+[[maybe_unused]] inline ur_result_t
+hipGetProviderNativeError(const char *providerName, int32_t nativeError) {
+  if (strcmp(providerName, "HIP") == 0) {
+    // HIP provider stores native errors of ur_result_t type
+    return static_cast<ur_result_t>(nativeError);
+  }
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace
+} // namespace umf
+
+#define UMF_GET_PROVIDER_NATIVE_ERROR ::umf::hipGetProviderNativeError
 
 #include "adapter.hpp"
 #include "common.hpp"
@@ -17,18 +35,6 @@
 #include "platform.hpp"
 #include "ur_util.hpp"
 #include "usm.hpp"
-
-namespace umf {
-ur_result_t getProviderNativeError(const char *providerName,
-                                   int32_t nativeError) {
-  if (strcmp(providerName, "HIP") == 0) {
-    // HIP provider stores native errors of ur_result_t type
-    return static_cast<ur_result_t>(nativeError);
-  }
-
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -539,5 +545,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
                                                           void *, const void *,
                                                           size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/, size_t /*size*/,
+    const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

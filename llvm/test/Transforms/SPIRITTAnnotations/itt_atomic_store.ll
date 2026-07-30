@@ -24,7 +24,7 @@ $_ZTS12store_kernelIiE = comdat any
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTSN2cl4sycl6detail19__pf_kernel_wrapperI12store_kernelIiEEE(ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_, ptr addrspace(1) %_arg_1, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_3, ptr byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_4) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !4 {
+define weak_odr dso_local spir_kernel void @_ZTSN2cl4sycl6detail19__pf_kernel_wrapperI12store_kernelIiEEE(ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_, ptr addrspace(1) %_arg_1, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_3, ptr byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_4) local_unnamed_addr #0 comdat {
 entry:
 ; CHECK-LABEL: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperI12store_kernelIiEEE(
 ; CHECK-NEXT: entry:
@@ -78,7 +78,7 @@ entry:
 declare dso_local spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(ptr addrspace(1), i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTS12store_kernelIiE(ptr addrspace(1) %_arg_, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, ptr byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !14 {
+define weak_odr dso_local spir_kernel void @_ZTS12store_kernelIiE(ptr addrspace(1) %_arg_, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, ptr byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat {
 entry:
 ; CHECK-LABEL: _ZTS12store_kernelIiE(
 ; CHECK-NEXT: entry:
@@ -119,7 +119,6 @@ attributes #2 = { convergent nounwind }
 !1 = !{i32 1, i32 2}
 !2 = !{i32 4, i32 100000}
 !3 = !{!"clang version 13.0.0 (https://github.com/intel/llvm.git 51f22c4b69cf01465bdd7b586343f6e19e9ab045)"}
-!4 = !{i32 -1, i32 -1, i32 -1, i32 -1, i32 -1}
 !5 = !{!6, !8, !10, !12}
 !6 = distinct !{!6, !7, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN2cl4sycl2idILi1EEEE8initSizeEv: %agg.result"}
 !7 = distinct !{!7, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN2cl4sycl2idILi1EEEE8initSizeEv"}
@@ -129,7 +128,6 @@ attributes #2 = { convergent nounwind }
 !11 = distinct !{!11, !"_ZN2cl4sycl6detail7Builder7getItemILi1ELb1EEENSt9enable_ifIXT0_EKNS0_4itemIXT_EXT0_EEEE4typeEv"}
 !12 = distinct !{!12, !13, !"_ZN2cl4sycl6detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE: %agg.result"}
 !13 = distinct !{!13, !"_ZN2cl4sycl6detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE"}
-!14 = !{i32 -1, i32 -1, i32 -1, i32 -1}
 !15 = !{!16, !18, !20, !22}
 !16 = distinct !{!16, !17, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN2cl4sycl2idILi1EEEE8initSizeEv: %agg.result"}
 !17 = distinct !{!17, !"_ZN7__spirv29InitSizesSTGlobalInvocationIdILi1EN2cl4sycl2idILi1EEEE8initSizeEv"}

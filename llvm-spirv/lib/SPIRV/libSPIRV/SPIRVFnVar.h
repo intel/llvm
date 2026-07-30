@@ -51,6 +51,7 @@ bool specializeFnVariants(SPIRVModule *BM, std::string &ErrMsg);
 class SPIRVConditionalEntryPointINTEL : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 5;
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   SPIRVConditionalEntryPointINTEL(SPIRVModule *TheModule, SPIRVId Condition,
                                   SPIRVExecutionModelKind TheExecModel,
                                   SPIRVId TheId, const std::string &TheName,
@@ -75,7 +76,9 @@ protected:
 
   void decode(std::istream &I) override {
     getDecoder(I) >> Condition >> ExecModel >> Target >> Name;
-    Variables.resize(WordCount - FixedWC - getSizeInWords(Name) + 1);
+    SPIRVWord NameWC = getSizeInWords(Name);
+    SPIRVCK(WordCount >= FixedWC + NameWC - 1, InvalidWordCount, "");
+    Variables.resize(WordCount - FixedWC - NameWC + 1);
     getDecoder(I) >> Variables;
     Module->setName(getOrCreateTarget(), Name);
     Module->addConditionalEntryPoint(Condition, ExecModel, Target, Name,
@@ -170,6 +173,7 @@ public:
 protected:
   void setWordCount(SPIRVWord TheWordCount) override {
     SPIRVEntry::setWordCount(TheWordCount);
+    SPIRVCK(TheWordCount >= FixedWordCount, InvalidWordCount, "");
     Constituents.resize(TheWordCount - FixedWordCount);
   }
   _SPIRV_DEF_ENCDEC3(Type, Id, Constituents)
@@ -246,11 +250,13 @@ public:
 
     return Res;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC4(Type, Id, Target, Features);
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     Features.resize(WordCount - FixedWC);
     NumWords = WordCount - FixedWC;
   }
@@ -410,6 +416,7 @@ public:
 
     return Res;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC3(Type, Id, Capabilities);
@@ -427,6 +434,7 @@ protected:
 
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     Capabilities.resize(WordCount - FixedWC);
     NumWords = WordCount - FixedWC;
   }

@@ -185,6 +185,15 @@ void SPIRVImageInstBase::setOpWords(const std::vector<SPIRVWord> &OpsArg) {
   SPIRVInstTemplateBase::setOpWords(Ops);
 }
 
+bool SPIRVImageInstBase::hasImageOperand(ImageOperandsMask Mask) const {
+  size_t ImgOpsIndex = getImageOperandsIndex(OpCode);
+  if (ImgOpsIndex == ~0U)
+    return false;
+  if (getOpWords().size() <= ImgOpsIndex)
+    return false;
+  return getOpWord(ImgOpsIndex) & Mask;
+}
+
 bool isSpecConstantOpAllowedOp(Op OC) {
   static SPIRVWord Table[] = {
       OpSConvert,

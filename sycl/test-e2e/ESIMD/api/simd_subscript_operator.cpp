@@ -13,6 +13,7 @@
 // operator. E.g.:
 //   simd<int, 4> v = 1;
 //   v[1] = 0; // v[1] returns writable simd_view
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

@@ -1,9 +1,8 @@
 //===--------- event_provider_counter.cpp - Level Zero Adapter ------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -16,10 +15,10 @@
 #include "event_provider_normal.hpp"
 #include "loader/ze_loader.h"
 
-#include "../device.hpp"
-#include "../platform.hpp"
+#include "../common/device.hpp"
+#include "../common/platform.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 provider_counter::provider_counter(ur_platform_handle_t platform,
                                    ur_context_handle_t context,
@@ -50,11 +49,15 @@ static zex_counter_based_event_exp_flags_t createZeFlags(queue_type queueType,
     zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_KERNEL_TIMESTAMP;
   }
 
+  if (flags & EVENT_FLAGS_IPC) {
+    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IPC;
+  }
+
   if (queueType == QUEUE_IMMEDIATE) {
     zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IMMEDIATE;
-  } else {
-    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_NON_IMMEDIATE;
   }
+  // Always set non immediate flag for compatibility with graph record & replay
+  zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_NON_IMMEDIATE;
 
   return zeFlags;
 }
@@ -114,4 +117,4 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
   return std::make_unique<provider_normal>(context, queueType, flags);
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 
 // This test checks esimd::ballot function.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

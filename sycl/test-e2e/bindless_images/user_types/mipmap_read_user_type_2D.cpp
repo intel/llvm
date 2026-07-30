@@ -13,6 +13,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 
 // Returns true if test case was passed and validated
 template <typename MyType, int NElems, typename OutType,

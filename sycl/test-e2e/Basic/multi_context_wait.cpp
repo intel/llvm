@@ -8,6 +8,7 @@
 #include <sycl/usm.hpp>
 
 #include <iostream>
+#include <sycl/builtins.hpp>
 #include <vector>
 
 std::vector<sycl::event> submit_dependencies(sycl::queue q1, sycl::queue q2,

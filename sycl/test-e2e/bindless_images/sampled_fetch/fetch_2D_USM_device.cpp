@@ -11,6 +11,9 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/usm.hpp>
 
+// Uncomment to print additional test information
+// #define VERBOSE_PRINT
+
 namespace {
 
 template <typename T, sycl::image_channel_type ChanType>

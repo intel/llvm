@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/ext/oneapi/experimental/syclbin_properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 #include <fstream>

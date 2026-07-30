@@ -11,7 +11,7 @@
 
 ; CHECK-PROP1: specConstsReplacedWithDefault=1|1
 
-; CHECK-IR1: store { float, i32, i8 } { float 0x40091EB860000000, i32 42, i8 8 }, ptr addrspace(4) %a.ascast.i, align 4
+; CHECK-IR1: store { float, i32, i8 } { float 3.140000e+00, i32 42, i8 8 }, ptr addrspace(4) %a.ascast.i, align 4
 
 ; CHECK-LOG: sycl.specialization-constants
 ; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}

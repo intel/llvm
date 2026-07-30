@@ -1,3 +1,4 @@
+#include <iostream>
 //===-joint_matrix_int8_colmajorA_colmajorB_impl.hpp - DPC++ joint_matrix--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

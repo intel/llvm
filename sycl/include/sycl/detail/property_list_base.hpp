@@ -11,7 +11,6 @@
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
 #include <sycl/exception.hpp>
 
-#include <algorithm>   // for iter_swap
 #include <bitset>      // for bitset
 #include <functional>  // for function
 #include <memory>      // for shared_ptr, __shared_ptr_...

@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -70,13 +69,11 @@ ur_result_t EnqueueMemCopyRectHelper(
     UR_CALL(getContext()->urDdiTable.Event.pfnWait(Events.size(), &Events[0]));
   }
 
-  if (Event) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(Queue, Events.size(),
-                                                           &Events[0], Event));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(Queue, Events.size(),
+                                                         &Events[0], Event));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(Queue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }

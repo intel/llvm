@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 //
 // The test checks main functionality of esimd::saturate function.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

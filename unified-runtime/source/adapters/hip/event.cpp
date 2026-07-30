@@ -1,9 +1,8 @@
 //===--------- event.cpp - HIP Adapter ------------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -313,4 +312,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   *phEvent = EventPtr.release();
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urEventCreateExp(ur_context_handle_t, ur_device_handle_t,
+                 const ur_exp_event_desc_t *, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

@@ -1,9 +1,6 @@
 // RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s %if !windows %{--check-prefix=CHECK-RELEASE%}
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21096
-
 //==------------------- ReleaseResourcesTests.cpp --------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

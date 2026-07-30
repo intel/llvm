@@ -12,9 +12,17 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
 
+#include <cstdlib>
+#include <iostream>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+void cannot_be_called_on_host(const char *API) {
+  std::cerr << API << " cannot be called on host!" << std::endl;
+  std::abort();
+}
 
 AccessorImplHost::~AccessorImplHost() {
   try {

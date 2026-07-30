@@ -1,6 +1,5 @@
-// Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -22,7 +21,7 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  if (!dev.get_info<info::device::usm_shared_allocations>()) {
+  if (!dev.has(aspect::usm_shared_allocations)) {
     return 0;
   }
 

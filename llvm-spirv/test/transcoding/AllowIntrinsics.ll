@@ -30,6 +30,7 @@
 ; RUN: not llvm-spirv -spirv-allow-unknown-intrinsics=non.llvm.1,non,llvm.2 %t.bc
 
 ; Note: This test used to call llvm.fma, but that is now traslated correctly.
+; Note2: Not expected to be run with llc.
 
 ; CHECK-LLVM: declare i64 @llvm.readcyclecounter()
 ; CHECK-SPIRV: LinkageAttributes "llvm.readcyclecounter" Import

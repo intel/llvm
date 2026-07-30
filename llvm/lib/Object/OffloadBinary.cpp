@@ -1,4 +1,4 @@
-//===- Offloading.cpp - Utilities for handling offloading code  -*- C++ -*-===//
+//===- OffloadBinary.cpp - Utilities for handling offloading code ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -424,6 +424,7 @@ ImageKind object::getImageKind(StringRef Name) {
       .Case("fatbin", IMG_Fatbinary)
       .Case("s", IMG_PTX)
       .Case("syclbin", IMG_SYCLBIN)
+      .Case("spv", IMG_SPIRV)
       .Default(IMG_None);
 }
 
@@ -441,6 +442,8 @@ StringRef object::getImageKindName(ImageKind Kind) {
     return "s";
   case IMG_SYCLBIN:
     return "syclbin";
+  case IMG_SPIRV:
+    return "spv";
   default:
     return "";
   }

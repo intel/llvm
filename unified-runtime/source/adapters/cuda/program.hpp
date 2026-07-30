@@ -1,9 +1,8 @@
 //===--------- program.hpp - CUDA Adapter ---------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -14,6 +13,7 @@
 
 #include <atomic>
 #include <unordered_map>
+#include <vector>
 
 #include "common/ur_ref_count.hpp"
 #include "context.hpp"
@@ -21,7 +21,7 @@
 struct ur_program_handle_t_ : ur::cuda::handle_base {
   using native_type = CUmodule;
   native_type Module;
-  const char *Binary;
+  std::vector<char> Binary;
   size_t BinarySizeInBytes;
   ur::RefCount RefCount;
   ur_context_handle_t Context;

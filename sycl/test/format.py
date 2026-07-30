@@ -113,7 +113,7 @@ class SYCLHeadersTest(lit.formats.TestFormat):
                 command,
                 # TODO: do we need to pass some non-default cwd argument here?
                 env=test.config.environment,
-                timeout=litConfig.maxIndividualTestTime,
+                timeout=test.config.maxIndividualTestTime,
             )
             if is_xfail:
                 status = lit.Test.XPASS if exitCode == 0 else lit.Test.XFAIL

@@ -14,6 +14,7 @@
 // not operator, using core data types.
 // The test verifies that selected values can be changed with avoid to change
 // values, that hasn't beed selected.
+#include <iostream>
 
 #include "functions_select_2d.hpp"
 

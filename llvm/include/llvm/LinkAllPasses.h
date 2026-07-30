@@ -130,8 +130,6 @@ struct ForcePassLinking {
     (void)llvm::createEarlyCSEPass();
     (void)llvm::createGVNPass();
     (void)llvm::createPostDomTree();
-    (void)llvm::createMergeICmpsLegacyPass();
-    (void)llvm::createExpandMemCmpLegacyPass();
     std::string buf;
     llvm::raw_string_ostream os(buf);
     (void)llvm::createPrintModulePass(os);
@@ -160,7 +158,6 @@ struct ForcePassLinking {
     llvm::AliasAnalysis AA(TLI);
     llvm::BatchAAResults BAA(AA);
     llvm::AliasSetTracker X(BAA);
-    X.add(llvm::MemoryLocation()); // for -print-alias-sets
     (void)llvm::AreStatisticsEnabled();
     (void)llvm::sys::RunningOnValgrind();
   }

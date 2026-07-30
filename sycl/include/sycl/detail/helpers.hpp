@@ -19,8 +19,7 @@
 
 #include <cstddef>     // for size_t
 #include <stdint.h>    // for uint32_t
-#include <type_traits> // for enable_if_t, integral_constant
-#include <utility>     // for forward, integer_sequence, mak...
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {
@@ -231,15 +230,6 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
                  LocalScopeMask);
 }
 
-// To ensure loop unrolling is done when processing dimensions.
-template <size_t... Inds, class F>
-constexpr void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
-  (f(std::integral_constant<size_t, Inds>{}), ...);
-}
-
-template <size_t count, class F> constexpr void loop(F &&f) {
-  loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
-}
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
 } // namespace detail
 

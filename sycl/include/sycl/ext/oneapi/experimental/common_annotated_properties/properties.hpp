@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/properties.hpp> // for properties_t
+#include <sycl/ext/oneapi/properties.hpp> // for properties_t
 
 #include <type_traits> // for false_type, con...
 #include <utility>     // for declval

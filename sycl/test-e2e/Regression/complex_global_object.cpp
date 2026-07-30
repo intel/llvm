@@ -7,6 +7,7 @@
 
 // Disable test due to flacky failures
 // UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22225
 
 #include <sycl/detail/core.hpp>
 

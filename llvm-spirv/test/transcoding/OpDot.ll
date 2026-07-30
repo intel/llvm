@@ -5,6 +5,10 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 ; The OpDot operands must be vectors; check that translating dot with
 ; scalar arguments does not result in OpDot.
@@ -15,6 +19,9 @@
 
 ; CHECK-LLVM-LABEL: @testScalar
 ; CHECK-LLVM: fmul
+
+; CHECK-LLC-LABEL: @testScalar
+; CHECK-LLC: ret void
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
@@ -32,6 +39,10 @@ entry:
 
 ; CHECK-LLVM-LABEL: @testVector
 ; CHECK-LLVM: call spir_func float @_Z3dotDv2_fS_(
+
+; CHECK-LLC-LABEL: @testVector
+; CHECK-LLC: call spir_func float @_Z3dotDv2_fS_(
+; CHECK-LLC: ret void
 
 ; Function Attrs: nounwind
 define spir_kernel void @testVector(<2 x float> %f) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {

@@ -13,6 +13,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <vector>
 
@@ -39,7 +40,7 @@ template <typename T1, typename T2> struct KernelFunctor {
       Ptr[WgSize * I + Item.get_local_linear_id()] = Item.get_local_linear_id();
     }
 
-    Item.barrier();
+    sycl::group_barrier(Item.get_group());
     // Check that multiple calls return the same pointer.
     unsigned int *PtrAlias = reinterpret_cast<unsigned int *>(
         sycl_ext::get_work_group_scratch_memory());

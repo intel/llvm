@@ -12,6 +12,7 @@
 // and optional compile-time esimd::properties.
 // The scatter() calls in this test do not use cache-hint properties
 // or VS > 1 (number of stores per offset) to not impose using PVC features.
+#include <iostream>
 
 #include "Inputs/scatter.hpp"
 

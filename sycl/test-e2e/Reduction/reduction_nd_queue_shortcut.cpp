@@ -3,6 +3,7 @@
 
 // This test only checks that the method queue::parallel_for() accepting
 // reduction, can be properly translated into queue::submit + parallel_for().
+#include <iostream>
 
 #include "reduction_utils.hpp"
 

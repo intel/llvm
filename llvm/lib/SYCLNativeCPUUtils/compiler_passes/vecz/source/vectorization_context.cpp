@@ -334,7 +334,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
         CallInst::Create(FTy, CI->getCalledOperand(), CIArgs, "", immTrueBB);
     c0->setCallingConv(cc);
     c0->setAttributes(callAttrs);
-    BranchInst::Create(mergeBlock, immTrueBB);
+    UncondBrInst::Create(mergeBlock, immTrueBB);
 
     CIArgs[firstImmArg] = ConstantInt::getFalse(ctx);
     // Now the false half
@@ -345,8 +345,8 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
         CallInst::Create(FTy, CI->getCalledOperand(), CIArgs, "", immFalseBB);
     c1->setCallingConv(cc);
     c1->setAttributes(callAttrs);
-    BranchInst::Create(mergeBlock, immFalseBB);
-    BranchInst::Create(immTrueBB, immFalseBB, immArg, activeBlock);
+    UncondBrInst::Create(mergeBlock, immFalseBB);
+    CondBrInst::Create(immArg, immTrueBB, immFalseBB, activeBlock);
     PhiOperands.push_back({c0, immTrueBB});
     PhiOperands.push_back({c1, immFalseBB});
 
@@ -365,7 +365,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
     c->setCallingConv(cc);
     c->setAttributes(callAttrs);
     PhiOperands.push_back({c, activeBlock});
-    BranchInst::Create(mergeBlock, activeBlock);
+    UncondBrInst::Create(mergeBlock, activeBlock);
   }
   newFunction->setCallingConv(cc);
   newFunction->setAttributes(fnAttrs);
@@ -373,7 +373,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   // Get the last argument (the mask) and use it as our branch predicate as to
   // the live blocks or a no-op
   Value *mask = newFunction->arg_end() - 1;
-  BranchInst::Create(activeBlock, mergeBlock, mask, entryBlock);
+  CondBrInst::Create(mask, activeBlock, mergeBlock, entryBlock);
 
   Type *returnTy = F->getReturnType();
   if (returnTy != Type::getVoidTy(ctx)) {

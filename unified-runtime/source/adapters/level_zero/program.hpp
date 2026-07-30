@@ -1,19 +1,20 @@
 //===--------- program.hpp - Level Zero Adapter ---------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
+#include "common/device.hpp"
+#include "common/interfaces.hpp"
 #include "common/ur_ref_count.hpp"
-#include "device.hpp"
 
-struct ur_program_handle_t_ : ur_object {
+namespace ur::level_zero {
+
+struct ur_program_handle_t_ : ur_object_t {
   // ur_program_handle_t_() {}
 
   typedef enum {
@@ -272,3 +273,5 @@ private:
   // TODO: Currently interoparability UR API does not support multiple devices.
   ze_module_handle_t InteropZeModule = nullptr;
 };
+
+} // namespace ur::level_zero

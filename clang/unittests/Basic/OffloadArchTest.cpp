@@ -34,3 +34,17 @@ TEST(OffloadArchTest, basic) {
   EXPECT_FALSE(IsAMDOffloadArch(OffloadArch::Generic));
   EXPECT_FALSE(IsIntelOffloadArch(OffloadArch::Generic));
 }
+
+TEST(OffloadArchTest, IntelGPUFamilyArchitectures) {
+  EXPECT_TRUE(IsIntelGPUOffloadArch(OffloadArch::DG2));
+  EXPECT_TRUE(IsIntelGPUOffloadArch(OffloadArch::MTL));
+  EXPECT_TRUE(IsIntelGPUOffloadArch(OffloadArch::BMG));
+  EXPECT_TRUE(IsIntelGPUOffloadArch(OffloadArch::PTL));
+}
+
+TEST(OffloadArchTest, IntelGPUFamilyArchParsing) {
+  EXPECT_EQ(StringToOffloadArch("dg2"), OffloadArch::DG2);
+  EXPECT_EQ(StringToOffloadArch("mtl"), OffloadArch::MTL);
+  EXPECT_EQ(StringToOffloadArch("bmg"), OffloadArch::BMG);
+  EXPECT_EQ(StringToOffloadArch("ptl"), OffloadArch::PTL);
+}

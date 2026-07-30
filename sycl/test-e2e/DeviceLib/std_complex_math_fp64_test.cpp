@@ -1,13 +1,12 @@
 // REQUIRES: aspect-fp64
-// RUN: %{build} -o %t1.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 
-#include <array>
 #include <cassert>
-#include <complex>
 #include <iostream>
-#include <sycl/detail/core.hpp>
 
+#include "complex_utils.hpp"
 #include "math_utils.hpp"
 
 using std::complex;
@@ -20,81 +19,82 @@ template <typename T> bool approx_equal_cmplx(complex<T> x, complex<T> y) {
          approx_equal_fp(x.imag(), y.imag());
 }
 
-complex<double> ref1_results[] = {complex<double>(-1., 1.),
-                                  complex<double>(1., 3.),
-                                  complex<double>(-2., 10.),
-                                  complex<double>(-8., 31.),
-                                  complex<double>(1., 1.),
-                                  complex<double>(2., 1.),
-                                  complex<double>(2., 2.),
-                                  complex<double>(3., 4.),
-                                  complex<double>(2., 1.),
-                                  complex<double>(0., 1.),
-                                  complex<double>(2., 0.),
-                                  complex<double>(0., 0.),
-                                  complex<double>(0., 1.),
-                                  complex<double>(1., 1.),
-                                  complex<double>(2., 0.),
-                                  complex<double>(2., 3.),
-                                  complex<double>(1., 0.),
-                                  complex<double>(0., 1.),
-                                  complex<double>(-1., 0.),
-                                  complex<double>(0., M_E),
-                                  complex<double>(0., 0.),
-                                  complex<double>(0., M_PI_2),
-                                  complex<double>(0., M_PI),
-                                  complex<double>(1., M_PI_2),
-                                  complex<double>(0., 0.),
-                                  complex<double>(1., 0.),
-                                  complex<double>(1., 0.),
-                                  complex<double>(-1., 0.),
-                                  complex<double>(-INFINITY, 0.),
-                                  complex<double>(1., 0.),
-                                  complex<double>(10., 0.),
-                                  complex<double>(100., 0.),
-                                  complex<double>(200., 0.),
-                                  complex<double>(1., 2.),
-                                  complex<double>(INFINITY, 0.),
-                                  complex<double>(INFINITY, 0.),
-                                  complex<double>(0., 1.),
-                                  complex<double>(M_PI_2, 0.),
-                                  complex<double>(0., 0.),
-                                  complex<double>(1., 0.),
-                                  complex<double>(INFINITY, 0.),
-                                  complex<double>(0., 0.),
-                                  complex<double>(1., 0.),
-                                  complex<double>(0., 0.),
-                                  complex<double>(INFINITY, M_PI_2),
-                                  complex<double>(INFINITY, 0.),
-                                  complex<double>(0., M_PI_2),
-                                  complex<double>(INFINITY, M_PI_2),
-                                  complex<double>(INFINITY, 0.),
-                                  complex<double>(0., 0.),
-                                  complex<double>(0., M_PI_2),
+static complex<double> ref1_results[] = {
+    complex<double>(-1., 1.),
+    complex<double>(1., 3.),
+    complex<double>(-2., 10.),
+    complex<double>(-8., 31.),
+    complex<double>(1., 1.),
+    complex<double>(2., 1.),
+    complex<double>(2., 2.),
+    complex<double>(3., 4.),
+    complex<double>(2., 1.),
+    complex<double>(0., 1.),
+    complex<double>(2., 0.),
+    complex<double>(0., 0.),
+    complex<double>(0., 1.),
+    complex<double>(1., 1.),
+    complex<double>(2., 0.),
+    complex<double>(2., 3.),
+    complex<double>(1., 0.),
+    complex<double>(0., 1.),
+    complex<double>(-1., 0.),
+    complex<double>(0., M_E),
+    complex<double>(0., 0.),
+    complex<double>(0., M_PI_2),
+    complex<double>(0., M_PI),
+    complex<double>(1., M_PI_2),
+    complex<double>(0., 0.),
+    complex<double>(1., 0.),
+    complex<double>(1., 0.),
+    complex<double>(-1., 0.),
+    complex<double>(-INFINITY, 0.),
+    complex<double>(1., 0.),
+    complex<double>(10., 0.),
+    complex<double>(100., 0.),
+    complex<double>(200., 0.),
+    complex<double>(1., 2.),
+    complex<double>(INFINITY, 0.),
+    complex<double>(INFINITY, 0.),
+    complex<double>(0., 1.),
+    complex<double>(M_PI_2, 0.),
+    complex<double>(0., 0.),
+    complex<double>(1., 0.),
+    complex<double>(INFINITY, 0.),
+    complex<double>(0., 0.),
+    complex<double>(1., 0.),
+    complex<double>(0., 0.),
+    complex<double>(INFINITY, M_PI_2),
+    complex<double>(INFINITY, 0.),
+    complex<double>(0., M_PI_2),
+    complex<double>(INFINITY, M_PI_2),
+    complex<double>(INFINITY, 0.),
+    complex<double>(0., 0.),
+    complex<double>(0., M_PI_2),
 
-                                  complex<double>(1., -4.),
-                                  complex<double>(18., -7.),
-                                  complex<double>(1.557407724654902, 0.),
-                                  complex<double>(0, 0.761594155955765),
-                                  complex<double>(M_PI_2, 0.),
-                                  complex<double>(M_PI_2, 0.549306144334055),
+    complex<double>(1., -4.),
+    complex<double>(18., -7.),
+    complex<double>(1.557407724654902, 0.),
+    complex<double>(0, 0.761594155955765),
+    complex<double>(M_PI_2, 0.),
+    complex<double>(M_PI_2, 0.549306144334055),
 // The MSVC implementation of tanh does not obey
 // tanh(-inf + nan * i)  == 1 + 0*i or
 // tanh(-inf + -inf * i) == 1 + 0*i.
 #ifndef _WIN32
-                                  complex<double>(-1., 0.),
-                                  complex<double>(-1., 0.),
+    complex<double>(-1., 0.),
+    complex<double>(-1., 0.),
 #else
-                                  0.,
-                                  0.,
+    0.,
+    0.,
 #endif
-                                  complex<double>(-1., 0.),
-                                  complex<double>(INFINITY, 0.),
-                                  complex<double>(INFINITY, INFINITY),
-                                  complex<double>(INFINITY, -INFINITY)};
+    complex<double>(-1., 0.),
+    complex<double>(INFINITY, 0.),
+    complex<double>(INFINITY, INFINITY),
+    complex<double>(INFINITY, -INFINITY)};
 
-double ref2_results[] = {0., 25., 169.,     INFINITY, 0.,
-                         5., 13., INFINITY, 0.,       M_PI_2};
+static double ref2_results[] = {0., 25., 169.,     INFINITY, 0.,
+                                5., 13., INFINITY, 0.,       M_PI_2};
 
 static constexpr auto TestArraySize1 = std::size(ref1_results);
 static constexpr auto TestArraySize2 = 10;
@@ -232,9 +232,169 @@ int device_complex_test(s::queue &deviceQueue) {
   return n_fails;
 }
 
+static complex<double> complex_input[] = {{1.e-6, 1.e-6},
+                                          {-1.e-6, 1.e-6},
+                                          {-1.e-6, -1.e-6},
+                                          {1.e-6, -1.e-6},
+                                          {1.e+6, 1.e-6},
+                                          {-1.e+6, 1.e-6},
+                                          {-1.e+6, -1.e-6},
+                                          {1.e+6, -1.e-6},
+
+                                          {1.e-6, 1.e+6},
+                                          {-1.e-6, 1.e+6},
+                                          {-1.e-6, -1.e+6},
+                                          {1.e-6, -1.e+6},
+
+                                          {1.e+6, 1.e+6},
+                                          {-1.e+6, 1.e+6},
+                                          {-1.e+6, -1.e+6},
+                                          {1.e+6, -1.e+6},
+
+                                          {NAN, NAN},
+                                          {-INFINITY, NAN},
+                                          {-2, NAN},
+                                          {-1, NAN},
+                                          {-0.5, NAN},
+                                          {-0., NAN},
+                                          {+0., NAN},
+                                          {0.5, NAN},
+                                          {1, NAN},
+                                          {2, NAN},
+                                          {INFINITY, NAN},
+
+                                          {NAN, -INFINITY},
+                                          {-INFINITY, -INFINITY},
+                                          {-2, -INFINITY},
+                                          {-1, -INFINITY},
+                                          {-0.5, -INFINITY},
+                                          {-0., -INFINITY},
+                                          {+0., -INFINITY},
+                                          {0.5, -INFINITY},
+                                          {1, -INFINITY},
+                                          {2, -INFINITY},
+                                          {INFINITY, -INFINITY},
+
+                                          {NAN, -2},
+                                          {-INFINITY, -2},
+                                          {-2, -2},
+                                          {-1, -2},
+                                          {-0.5, -2},
+                                          {-0., -2},
+                                          {+0., -2},
+                                          {0.5, -2},
+                                          {1, -2},
+                                          {2, -2},
+                                          {INFINITY, -2},
+
+                                          {NAN, -1},
+                                          {-INFINITY, -1},
+                                          {-2, -1},
+                                          {-1, -1},
+                                          {-0.5, -1},
+                                          {-0., -1},
+                                          {+0., -1},
+                                          {0.5, -1},
+                                          {1, -1},
+                                          {2, -1},
+                                          {INFINITY, -1},
+
+                                          {NAN, -0.5},
+                                          {-INFINITY, -0.5},
+                                          {-2, -0.5},
+                                          {-1, -0.5},
+                                          {-0.5, -0.5},
+                                          {-0., -0.5},
+                                          {+0., -0.5},
+                                          {0.5, -0.5},
+                                          {1, -0.5},
+                                          {2, -0.5},
+                                          {INFINITY, -0.5},
+
+                                          {NAN, -0.},
+                                          {-INFINITY, -0.},
+                                          {-2, -0.},
+                                          {-1, -0.},
+                                          {-0.5, -0.},
+                                          {-0., -0.},
+                                          {+0., -0.},
+                                          {0.5, -0.},
+                                          {1, -0.},
+                                          {2, -0.},
+                                          {INFINITY, -0.},
+
+                                          {NAN, 0.},
+                                          {-INFINITY, 0.},
+                                          {-2, 0.},
+                                          {-1, 0.},
+                                          {-0.5, 0.},
+                                          {-0., 0.},
+                                          {+0., 0.},
+                                          {0.5, 0.},
+                                          {1, 0.},
+                                          {2, 0.},
+                                          {INFINITY, 0.},
+
+                                          {NAN, 0.5},
+                                          {-INFINITY, 0.5},
+                                          {-2, 0.5},
+                                          {-1, 0.5},
+                                          {-0.5, 0.5},
+                                          {-0., 0.5},
+                                          {+0., 0.5},
+                                          {0.5, 0.5},
+                                          {1, 0.5},
+                                          {2, 0.5},
+                                          {INFINITY, 0.5},
+
+                                          {NAN, 1},
+                                          {-INFINITY, 1},
+                                          {-2, 1},
+                                          {-1, 1},
+                                          {-0.5, 1},
+                                          {-0., 1},
+                                          {+0., 1},
+                                          {0.5, 1},
+                                          {1, 1},
+                                          {2, 1},
+                                          {INFINITY, 1},
+
+                                          {NAN, 2},
+                                          {-INFINITY, 2},
+                                          {-2, 2},
+                                          {-1, 2},
+                                          {-0.5, 2},
+                                          {-0., 2},
+                                          {+0., 2},
+                                          {0.5, 2},
+                                          {1, 2},
+                                          {2, 2},
+                                          {INFINITY, 2},
+
+                                          {NAN, INFINITY},
+                                          {-INFINITY, INFINITY},
+                                          {-2, INFINITY},
+                                          {-1, INFINITY},
+                                          {-0.5, INFINITY},
+                                          {-0., INFINITY},
+                                          {+0., INFINITY},
+                                          {0.5, INFINITY},
+                                          {1, INFINITY},
+                                          {2, INFINITY},
+                                          {INFINITY, INFINITY}
+
+};
+static constexpr auto TestComplexSize = std::size(complex_input);
+
 int main() {
   s::queue deviceQueue;
   auto n_fails = device_complex_test(deviceQueue);
+#ifndef _WIN32
+  n_fails += device_complex_test_mul<double, TestComplexSize>(deviceQueue,
+                                                              complex_input);
+  n_fails += device_complex_test_div<double, TestComplexSize>(deviceQueue,
+                                                              complex_input);
+#endif
   if (n_fails == 0)
     std::cout << "Pass" << std::endl;
   return n_fails;

@@ -51,12 +51,12 @@ declare void @_ZN2ns1fEv()
 !llvm.module.flags = !{!10, !11, !12}
 !llvm.ident = !{!13}
 
-!0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus, file: !1, producer: "clang version 6.0.0 (trunk 309061) (llvm/trunk 309076)", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, imports: !3)
+!0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus, file: !1, producer: "clang version 6.0.0 (trunk 309061) (llvm/trunk 309076)", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2)
 !1 = !DIFile(filename: "imported-name-inlined.cpp", directory: "/usr/local/google/home/blaikie/dev/scratch")
 !2 = !{}
 !3 = !{!4}
 !4 = !DIImportedEntity(tag: DW_TAG_imported_declaration, scope: !5, entity: !8, file: !1, line: 5)
-!5 = distinct !DISubprogram(name: "f1", linkageName: "_Z2f1v", scope: !1, file: !1, line: 4, type: !6, isLocal: false, isDefinition: true, scopeLine: 4, flags: DIFlagPrototyped, isOptimized: false, unit: !0, retainedNodes: !2)
+!5 = distinct !DISubprogram(name: "f1", linkageName: "_Z2f1v", scope: !1, file: !1, line: 4, type: !6, isLocal: false, isDefinition: true, scopeLine: 4, flags: DIFlagPrototyped, isOptimized: false, unit: !0, retainedNodes: !3)
 !6 = !DISubroutineType(types: !7)
 !7 = !{null}
 !8 = !DISubprogram(name: "f", linkageName: "_ZN2ns1fEv", scope: !9, file: !1, line: 2, type: !6, isLocal: false, isDefinition: false, flags: DIFlagPrototyped, isOptimized: false)

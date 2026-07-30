@@ -3,6 +3,7 @@
 // This test was taken from `SpecConstants/2020/handler-api.cpp`.
 // Variable names have been changed to meet PascalCase naming convention
 // requirements.
+#include <iostream>
 
 #include "../graph_common.hpp"
 

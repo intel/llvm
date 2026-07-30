@@ -15,6 +15,9 @@
 #include <detail/config.hpp>
 #include <detail/device_kernel_info.hpp>
 #include <detail/global_handler.hpp>
+#if SYCL_EXT_JIT_ENABLE
+#include <detail/jit_compiler.hpp>
+#endif
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -158,6 +161,13 @@ ProgramManager &GlobalHandler::getProgramManager() {
   return PM;
 }
 
+#if SYCL_EXT_JIT_ENABLE
+jit_compiler &GlobalHandler::getJITCompiler() {
+  static jit_compiler &JIT = getOrCreate(MJITCompiler);
+  return JIT;
+}
+#endif
+
 std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
 GlobalHandler::getPlatformToDefaultContextCache() {
   // The optimization with static reference is not done because
@@ -282,7 +292,6 @@ void GlobalHandler::unloadAdapters() {
   auto loaderTearDown =
       loaderTearDownInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
   loaderTearDown();
-  // urLoaderTearDown();
 
   // Clear after unload to avoid uses after unload.
   getAdapters().clear();
@@ -366,6 +375,9 @@ void shutdown_late() {
   GlobalHandler::RTGlobalObjHandler->MPlatformCache.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MScheduler.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MProgramManager.Inst.reset(nullptr);
+#if SYCL_EXT_JIT_ENABLE
+  GlobalHandler::RTGlobalObjHandler->MJITCompiler.Inst.reset(nullptr);
+#endif
 
   // Clear the adapters and reset the instance if it was there.
   GlobalHandler::RTGlobalObjHandler->unloadAdapters();

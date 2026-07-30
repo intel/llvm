@@ -1,10 +1,9 @@
 //===----------------------------------------------------------------------===//
 /*
  *
- * Copyright (C) 2025 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -117,7 +116,8 @@ TsanInterceptor::~TsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    DeviceInfo->Shadow->Destroy();
+    [[maybe_unused]] ur_result_t Result = DeviceInfo->Shadow->Destroy();
+    assert(Result == UR_RESULT_SUCCESS && "Failed to destroy shadow memory");
     DeviceInfo->Shadow = nullptr;
   }
 
@@ -132,16 +132,27 @@ TsanInterceptor::~TsanInterceptor() {
 
 ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
-                                            const ur_usm_desc_t *Properties,
-                                            ur_usm_pool_handle_t Pool,
+                                            const AllocMemoryParams &Params,
                                             size_t Size, AllocType Type,
                                             void **ResultPtr) {
   auto CI = getContextInfo(Context);
 
   void *Allocated = nullptr;
 
-  UR_CALL(
-      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
+  if (Type != AllocType::EXPORTABLE_MEM) {
+    UR_CALL(SafeAllocate(Context, Device, Size, Params.USMDesc, Params.Pool,
+                         Type, &Allocated));
+  } else {
+    // Check if the device is not NULL as AllocExportableMemoryExp requires it
+    if (!Device) {
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    UR_CALL(
+        getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp(
+            Context, Device, Params.Alignment, Size, Params.HandleTypeToExport,
+            &Allocated));
+  }
 
   auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
@@ -378,30 +389,18 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
                                            ur_queue_handle_t Queue,
                                            ur_kernel_handle_t Kernel,
                                            LaunchInfo &LaunchInfo) {
-  // Set membuffer arguments
   auto &KernelInfo = getKernelInfo(Kernel);
-  {
-    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-      char *ArgPointer = nullptr;
-      UR_CALL(MemBuffer->getHandle(DI->Handle, ArgPointer));
-      ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-          Kernel, ArgIndex, nullptr, ArgPointer);
-      if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, ERR,
-                 "Failed to set buffer {} as the {} arg to kernel {}: {}",
-                 ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-                 URes);
-      }
-    }
-  }
 
   // Get suggested local work size if user doesn't determine it.
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto ArgNums = GetKernelNumArgs(Kernel);
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;

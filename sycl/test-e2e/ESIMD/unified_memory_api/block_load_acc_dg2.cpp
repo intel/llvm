@@ -15,6 +15,7 @@
 // and optional compile-time esimd::properties.
 // The block_load() calls in this test can use mask and cache-hint
 // properties which require DG2 target device.
+#include <iostream>
 
 #include "Inputs/block_load.hpp"
 

@@ -39,7 +39,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV-TYPED-PTR: 7 SpecConstantOp [[AS2]] [[ASTRC:[0-9]+]] 70 [[ASTR]] [[I320]] [[I320]]
 ; CHECK-SPIRV-UNTYPED-PTR: 8 SpecConstantOp [[AS2]] [[ASTRC:[0-9]+]] 4424 [[#]] [[ASTR]] [[I320]] [[I320]]
 ; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[I64ARRC:[0-9]+]] 124 [[I64ARR]]
-; CHECK-SPIRV: 5 ConstantComposite [[STRUCTTY]] [[STRUCT_INIT:[0-9]+]] [[ASTRC]] [[I64ARRC]]
+; CHECK-SPIRV: 5 SpecConstantComposite [[STRUCTTY]] [[STRUCT_INIT:[0-9]+]] [[ASTRC]] [[I64ARRC]]
 ; CHECK-SPIRV-TYPED-PTR: 5 Variable {{[0-9]+}} [[STRUCT:[0-9]+]] 5 [[STRUCT_INIT]]
 ; CHECK-SPIRV-UNTYPED-PTR: 6 UntypedVariableKHR {{[0-9]+}} [[STRUCT:[0-9]+]] 5 [[STRUCTTY]] [[STRUCT_INIT]]
 
@@ -49,8 +49,8 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV-TYPED-PTR: 5 SpecConstantOp [[AS1]] [[STRUCTC:[0-9]+]] 124 [[STRUCT]]
 ; CHECK-SPIRV-TYPED-PTR: 7 SpecConstantOp {{[0-9]+}} [[GEP:[0-9]+]] 67 [[I64ARR]]
 ; CHECK-SPIRV-UNTYPED-PTR: 8 SpecConstantOp {{[0-9]+}} [[GEP:[0-9]+]] 4423 [[#]] [[I64ARR]]
-; CHECK-SPIRV-TYPED-PTR: 6 ConstantComposite [[ARRAYTY]] [[ARRAY_INIT:[0-9]+]] [[I64ARRC2]] [[STRUCTC]] [[GEP]]
-; CHECK-SPIRV-UNTYPED-PTR: 6 ConstantComposite [[ARRAYTY]] [[ARRAY_INIT:[0-9]+]] [[I64ARRC2]] [[STRUCT]] [[GEP]]
+; CHECK-SPIRV-TYPED-PTR: 6 SpecConstantComposite [[ARRAYTY]] [[ARRAY_INIT:[0-9]+]] [[I64ARRC2]] [[STRUCTC]] [[GEP]]
+; CHECK-SPIRV-UNTYPED-PTR: 6 SpecConstantComposite [[ARRAYTY]] [[ARRAY_INIT:[0-9]+]] [[I64ARRC2]] [[STRUCT]] [[GEP]]
 ; CHECK-SPIRV: 5 Variable {{[0-9]+}} [[ARRAY:[0-9]+]] 5 [[ARRAY_INIT]]
 
 ; CHECK-LLVM: %structtype = type { ptr addrspace(2), ptr addrspace(1) }

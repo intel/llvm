@@ -17,6 +17,7 @@
 
 #include <functional> // for function
 #include <memory>     // for shared_ptr
+#include <tuple>      // for tuple, apply
 #include <vector>     // for vector
 
 namespace sycl {
@@ -159,6 +160,24 @@ public:
   /// Get a list of all root nodes (nodes without dependencies) in this graph.
   std::vector<node> get_root_nodes() const;
 
+  /// Returns true if the graph contains no nodes.
+  bool empty() const;
+
+  /// Register a callback to be invoked when the graph object is destroyed.
+  /// @param Callback Callable to invoke on destruction.
+  /// @param CbArgs Arguments to forward to the callback.
+  template <typename Func, typename... ArgTs>
+  void set_destruction_callback(Func &&Callback, ArgTs &&...CbArgs) {
+    setDestructionCallbackImpl(
+        [Cb = std::forward<Func>(Callback),
+         Args = std::tuple(std::forward<ArgTs>(CbArgs)...)]() mutable {
+          std::apply(Cb, Args);
+        });
+  }
+
+  /// Returns a process-unique ID associated with this graph object.
+  size_t get_id() const noexcept;
+
   /// Common Reference Semantics
   friend bool operator==(const modifiable_command_graph &LHS,
                          const modifiable_command_graph &RHS) {
@@ -199,6 +218,8 @@ protected:
   void addGraphLeafDependencies(node Node);
 
   void print_graph(sycl::detail::string_view path, bool verbose = false) const;
+
+  void setDestructionCallbackImpl(std::function<void()> Callback);
 
   std::shared_ptr<detail::graph_impl> impl;
 

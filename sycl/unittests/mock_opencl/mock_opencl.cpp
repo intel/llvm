@@ -52,7 +52,7 @@ EXPORT size_t mockOpenCLNumContextRetains() { return contextRetains; }
 
 EXPORT size_t mockOpenCLNumDeviceRetains() { return deviceRetains; }
 
-EXPORT size_t mockOpenCLNumEventRetains() { return deviceRetains; }
+EXPORT size_t mockOpenCLNumEventRetains() { return eventRetains; }
 }
 
 namespace sycl {

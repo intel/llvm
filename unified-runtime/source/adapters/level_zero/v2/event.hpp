@@ -1,9 +1,8 @@
 //===--------- event.hpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -20,11 +19,11 @@
 #include "common/ur_ref_count.hpp"
 #include "event_provider.hpp"
 
+namespace ur::level_zero::v2 {
+
 using ur_event_generation_t = int64_t;
 
-namespace v2 {
 class event_pool;
-}
 
 struct event_profiling_data_t {
   event_profiling_data_t(ze_event_handle_t hZeEvent) : hZeEvent(hZeEvent) {}
@@ -55,12 +54,17 @@ private:
   bool timestampRecorded = false;
 };
 
-struct ur_event_handle_t_ : ur_object {
+struct ur_event_handle_t_ : v2::ur_object_t {
 public:
-  // cache_borrowed_event is used for pooled events, whilst ze_event_handle_t is
-  // used for native events
+  // The variant alternative encodes how the L0 event handle is torn down:
+  // - cache_borrowed_event: pooled event; it is returned to the pool.
+  // - ze_event_handle_t: standalone/native event; the wrapper's ownZeHandle
+  //   flag controls whether zeEventDestroy runs on destruction.
+  // - ipc_event_handle_t: opened from an IPC handle in another process;
+  //   torn down via zeEventCounterBasedCloseIpcHandle.
   using event_variant =
-      std::variant<v2::raii::cache_borrowed_event, v2::raii::ze_event_handle_t>;
+      std::variant<v2::raii::cache_borrowed_event, v2::raii::ze_event_handle_t,
+                   v2::raii::ipc_event_handle_t>;
 
   ur_event_handle_t_(ur_context_handle_t hContext,
                      v2::raii::cache_borrowed_event eventAllocation,
@@ -69,6 +73,9 @@ public:
   ur_event_handle_t_(ur_context_handle_t hContext,
                      ur_native_handle_t hNativeEvent,
                      const ur_event_native_properties_t *pProperties);
+
+  ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,
+                     v2::event_flags_t flags);
 
   // Set the queue and command that this event is associated with
   void setQueue(ur_queue_t_ *hQueue);
@@ -100,6 +107,12 @@ public:
   // Tells if this event comes from a pool that has profiling enabled.
   bool isProfilingEnabled() const;
 
+  // True for IPC-shareable events.
+  bool isIpcCapable() const;
+
+  // True for events opened via urIPCOpenEventHandleExp.
+  bool isIpcImported() const;
+
   // Queue associated with this event. Can be nullptr (for native events)
   ur_queue_t_ *getQueue() const;
 
@@ -128,6 +141,8 @@ public:
 
   ur::RefCount RefCount;
 
+  bool isCounter() const { return flags & v2::EVENT_FLAGS_COUNTER; }
+
 private:
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,
                      v2::event_flags_t flags, v2::event_pool *pool);
@@ -150,3 +165,5 @@ protected:
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
 };
+
+} // namespace ur::level_zero::v2

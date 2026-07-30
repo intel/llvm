@@ -1,9 +1,8 @@
 //===--------- queue.hpp - OpenCL Adapter ---------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -16,28 +15,30 @@
 
 #include <vector>
 
-struct ur_queue_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_queue_handle_t_ : handle_base {
   using native_type = cl_command_queue;
   native_type CLQueue;
-  ur_context_handle_t Context;
-  ur_device_handle_t Device;
+  ur_context_handle_t_ *Context;
+  ur_device_handle_t_ *Device;
   // Used to keep a handle to the default queue alive if it is different
-  std::optional<ur_queue_handle_t> DeviceDefault = std::nullopt;
+  std::optional<ur_queue_handle_t_ *> DeviceDefault = std::nullopt;
   bool IsNativeHandleOwned = true;
   // Used to implement UR_QUEUE_INFO_EMPTY query
   bool IsInOrder;
-  ur_event_handle_t LastEvent = nullptr;
+  ur_event_handle_t_ *LastEvent = nullptr;
   ur::RefCount RefCount;
 
   ur_queue_handle_t_(const ur_queue_handle_t_ &) = delete;
   ur_queue_handle_t_ &operator=(const ur_queue_handle_t_ &) = delete;
 
-  ur_queue_handle_t_(native_type Queue, ur_context_handle_t Ctx,
-                     ur_device_handle_t Dev, bool InOrder)
+  ur_queue_handle_t_(native_type Queue, ur_context_handle_t_ *Ctx,
+                     ur_device_handle_t_ *Dev, bool InOrder)
       : handle_base(), CLQueue(Queue), Context(Ctx), Device(Dev),
         IsInOrder(InOrder) {
-    urDeviceRetain(Device);
-    urContextRetain(Context);
+    ur::opencl::urDeviceRetain(cast(Device));
+    ur::opencl::urContextRetain(cast(Context));
   }
 
   static ur_result_t makeWithNative(native_type NativeQueue,
@@ -46,13 +47,13 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
                                     ur_queue_handle_t &Queue);
 
   ~ur_queue_handle_t_() {
-    urDeviceRelease(Device);
-    urContextRelease(Context);
+    ur::opencl::urDeviceRelease(cast(Device));
+    ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
       clReleaseCommandQueue(CLQueue);
     }
     if (DeviceDefault.has_value()) {
-      urQueueRelease(*DeviceDefault);
+      ur::opencl::urQueueRelease(cast(*DeviceDefault));
     }
   }
 
@@ -63,12 +64,14 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
       return UR_RESULT_SUCCESS;
     }
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(urEventRelease(LastEvent));
+      UR_RETURN_ON_FAILURE(ur::opencl::urEventRelease(cast(LastEvent)));
     }
-    LastEvent = Event;
+    LastEvent = cast(Event);
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(urEventRetain(LastEvent));
+      UR_RETURN_ON_FAILURE(ur::opencl::urEventRetain(cast(LastEvent)));
     }
     return UR_RESULT_SUCCESS;
   }
 };
+
+} // namespace ur::opencl

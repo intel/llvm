@@ -4,6 +4,10 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: Name [[#A:]] "a"
 ; CHECK-SPIRV: Name [[#B:]] "b"
@@ -12,6 +16,7 @@
 ; CHECK-SPIRV: Decorate [[#B]] FuncParamAttr 7
 
 ; CHECK-LLVM: {{.*}}void @test_builtin_readnone(ptr readonly captures(none) %{{.*}}, ptr readnone captures(none) %{{.*}})
+; CHECK-LLC: {{.*}}void @test_builtin_readnone(ptr readonly %{{.*}}, ptr %{{.*}})
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir-unknown-unknown"

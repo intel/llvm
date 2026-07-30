@@ -6,15 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/relational.h>
-#include <libspirv/spirv.h>
+#include "clc/clc_convert.h"
+#include "clc/relational/clc_isgreater.h"
+#include "clc/relational/clc_isunordered.h"
 
-#define _CLC_SPIRV_BUILTIN __spirv_FOrdGreaterThan
-#define _CLC_BUILTIN_IMPL __builtin_isgreater
-#include "genbinrelational.inc"
-#undef _CLC_SPIRV_BUILTIN
-#undef _CLC_BUILTIN_IMPL
+#define __CLC_FUNCTION __spirv_FOrdGreaterThan
+#define __CLC_IMPL_FUNCTION(x) __clc_isgreater
+#define __CLC_BODY "relational_binary_def.inc"
+#include "clc/math/gentype.inc"
 
-#define _CLC_SPIRV_BUILTIN __spirv_FUnordGreaterThan
-#define _CLC_BUILTIN_IMPL(X, Y) X > Y
-#include "genbinrelational.inc"
+#undef __CLC_FUNCTION
+#undef __CLC_IMPL_FUNCTION
+
+#define __CLC_FUNCTION __spirv_FUnordGreaterThan
+#define __CLC_IMPL_FUNCTION(x) __CLC_REL_OP_BODY
+#define __CLC_REL_OP_BODY(x, y)                                                \
+  ((__clc_isunordered(x, y)) || (__clc_isgreater(x, y)))
+#define __CLC_BODY "relational_binary_def.inc"
+#include "clc/math/gentype.inc"

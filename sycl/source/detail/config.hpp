@@ -13,11 +13,11 @@
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -611,6 +611,30 @@ private:
 
 template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS> {
   using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_KERNELS>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue = false;
+    const char *ValStr = getCachedValue();
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_GRAPH_FORCE_NATIVE_RECORDING> {
+  using BaseT = SYCLConfigBase<SYCL_GRAPH_FORCE_NATIVE_RECORDING>;
 
 public:
   static bool get() {

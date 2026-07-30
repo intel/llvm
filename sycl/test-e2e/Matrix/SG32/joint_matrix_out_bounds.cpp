@@ -15,6 +15,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "common.hpp"
 #define SG_SZ 32

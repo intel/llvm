@@ -6,6 +6,7 @@
 
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
+#include <sycl/context.hpp>
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_event.hpp>

@@ -10,6 +10,7 @@
 
 // This test checks the behavior of simd_view constructors
 // and assignment operators.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

@@ -110,14 +110,18 @@ fn *dynLookupFunction(const char *const *LibNames, size_t LibNameSize,
   return reinterpret_cast<fn *>(dynLookup(LibNames, LibNameSize, FunName));
 }
 
-// On Linux, first try to load from libur_adapter_opencl.so, then
-// libur_adapter_opencl.so.0 if the first is not found. libur_adapter_opencl.so
-// and libur_adapter_opencl.so.0 might be different libraries if they are not
-// symlinked, which is the case with PyPi compiler distribution package.
-// We can't load libur_adapter_opencl.so.0 always as the first choice because
-// that would break SYCL unittests, which rely on mocking libur_adapter_opencl.
+// On Linux, probe libur_adapter_opencl.so first, then libur_adapter_opencl.so.0
+// (these may differ in PyPi distributions where they are not symlinked).
+//
+// When the OpenCL adapter is statically linked into the loader, there is no
+// libur_adapter_opencl.so to look up symbols in. The static adapter dlopens
+// libOpenCL.so.1 (or libOpenCL.so) at initialization, so probe those names
+// instead to find clRetain* and friends.
 #ifdef __SYCL_RT_OS_WINDOWS
 constexpr std::array<const char *, 1> OCLLibNames = {"OpenCL"};
+#elif defined(SYCL_UR_STATIC_ADAPTER_OPENCL)
+constexpr std::array<const char *, 2> OCLLibNames = {"libOpenCL.so.1",
+                                                     "libOpenCL.so"};
 #else
 constexpr std::array<const char *, 2> OCLLibNames = {
     "libur_adapter_opencl.so", "libur_adapter_opencl.so.0"};

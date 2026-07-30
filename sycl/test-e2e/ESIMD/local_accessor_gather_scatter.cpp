@@ -11,6 +11,7 @@
 //
 // The test checks functionality of the gather/scatter local
 // accessor-based ESIMD intrinsics.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

@@ -10,9 +10,11 @@
 // For L0 we currently need to set
 // SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS to enable fix on certain
 // hardware.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/builtins.hpp>
 #include <sycl/usm.hpp>
 
 constexpr size_t NElemsPerSplit = 1000;

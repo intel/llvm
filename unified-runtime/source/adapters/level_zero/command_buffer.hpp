@@ -1,9 +1,8 @@
 //===--------- command_buffer.hpp - Level Zero Adapter --------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -17,17 +16,20 @@
 
 #include "common.hpp"
 
+#include "common/command_buffer_command.hpp"
 #include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
 #include "queue.hpp"
+
+namespace ur::level_zero::v1 {
 
 struct command_buffer_profiling_t {
   ur_exp_command_buffer_sync_point_t NumEvents;
   ze_kernel_timestamp_result_t *Timestamps;
 };
 
-struct ur_exp_command_buffer_handle_t_ : public ur_object {
+struct ur_exp_command_buffer_handle_t_ : public ur_object_t {
   ur_exp_command_buffer_handle_t_(
       ur_context_handle_t Context, ur_device_handle_t Device,
       ze_command_list_handle_t CommandList,
@@ -148,8 +150,11 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   // command_buffer.
   std::vector<ur_kernel_handle_t> KernelsList;
   // Track handle objects to free when command-buffer is destroyed.
-  std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
+  std::vector<
+      std::unique_ptr<ur::level_zero::ur_exp_command_buffer_command_handle_t_>>
       CommandHandles;
 
   ur::RefCount RefCount;
 };
+
+} // namespace ur::level_zero::v1

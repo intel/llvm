@@ -10,6 +10,7 @@
 // RUN: %{run} %t.out
 
 // Regression test for SVM gather/scatter API.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

@@ -3,6 +3,7 @@
 
 // This test merely checks the use of the correct UR call. Its sister test
 // fill_accessor.cpp thoroughly checks the workings of the .fill() call.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 constexpr int width = 32;

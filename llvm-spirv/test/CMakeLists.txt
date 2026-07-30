@@ -2,6 +2,7 @@ llvm_canonicalize_cmake_booleans(SPIRV_SKIP_CLANG_BUILD)
 llvm_canonicalize_cmake_booleans(SPIRV_SKIP_DEBUG_INFO_TESTS)
 llvm_canonicalize_cmake_booleans(LLVM_BUILD_SHARED_LIBS)
 llvm_canonicalize_cmake_booleans(LLVM_SPIRV_BUILD_EXTERNAL)
+llvm_canonicalize_cmake_booleans(SPIRV_BACKEND_FOUND)
 
 # required by lit.site.cfg.py.in
 get_target_property(LLVM_SPIRV_DIR llvm-spirv BINARY_DIR)
@@ -115,6 +116,11 @@ if(NOT LLVM_SPIRV_BUILD_EXTERNAL)
       llvm-readobj
     )
   endif(NOT SPIRV_SKIP_DEBUG_INFO_TESTS)
+  if(SPIRV_BACKEND_FOUND AND SPIRV_SKIP_DEBUG_INFO_TESTS)
+    list(APPEND LLVM_SPIRV_TEST_DEPS
+      llc
+    )
+  endif()
   if(LLVM_BUILD_SHARED_LIBS)
     list(APPEND LLVM_SPIRV_TEST_DEPS
       opt

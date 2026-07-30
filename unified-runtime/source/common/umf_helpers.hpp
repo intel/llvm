@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2023-2025 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -283,13 +282,25 @@ template <typename Type> umf_result_t &getPoolLastStatusRef() {
   return last_status;
 }
 
-ur_result_t getProviderNativeError(const char *providerName,
-                                   int32_t nativeError);
+namespace detail {
+inline ur_result_t defaultGetProviderNativeError(const char * /*providerName*/,
+                                                 int32_t /*nativeError*/) {
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace detail
+
+// Customization point for translating a memory provider's backend-native error
+// to a ur_result_t. Each adapter #defines this to its own internal-linkage
+// translator before including this header.
+#ifndef UMF_GET_PROVIDER_NATIVE_ERROR
+#define UMF_GET_PROVIDER_NATIVE_ERROR                                          \
+  ::umf::detail::defaultGetProviderNativeError
+#endif
 
 /// @brief translates UMF return values to UR.
 /// This function assumes that the native error of
 /// the last failed memory provider is ur_result_t.
-inline ur_result_t umf2urResult(umf_result_t umfResult) {
+static inline ur_result_t umf2urResult(umf_result_t umfResult) {
   switch (umfResult) {
   case UMF_RESULT_SUCCESS:
     return UR_RESULT_SUCCESS;
@@ -316,7 +327,7 @@ inline ur_result_t umf2urResult(umf_result_t umfResult) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
 
-    return getProviderNativeError(Name, Err);
+    return UMF_GET_PROVIDER_NATIVE_ERROR(Name, Err);
   }
   case UMF_RESULT_ERROR_INVALID_ARGUMENT:
     return UR_RESULT_ERROR_INVALID_ARGUMENT;

@@ -1,9 +1,8 @@
 //===--------- queue.hpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -25,12 +24,12 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/device.hpp"
 #include "common/ur_ref_count.hpp"
-#include "device.hpp"
 
-extern "C" {
+namespace ur::level_zero::v1 {
+
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue);
-} // extern "C"
 
 struct ur_completion_batch;
 using ur_completion_batch_list = std::list<ur_completion_batch>;
@@ -225,7 +224,7 @@ using ur_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using ur_command_list_ptr_t = ur_command_list_map_t::iterator;
 
-struct ur_queue_handle_t_ : ur_object {
+struct ur_queue_handle_t_ : ur_object_t {
   ur_queue_handle_t_(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      ur_context_handle_t Context, ur_device_handle_t Device,
@@ -595,11 +594,11 @@ struct ur_queue_handle_t_ : ur_object {
   void CaptureIndirectAccesses();
 
   // Kernel is not necessarily submitted for execution during
-  // urEnqueueKernelLaunch, it may be batched. That's why we need to save the
-  // list of kernels which is going to be submitted but have not been submitted
-  // yet. This is needed to capture memory allocations for each kernel with
-  // indirect access in the list at the moment when kernel is really submitted
-  // for execution.
+  // urEnqueueKernelLaunchWithArgsExp, it may be batched. That's why we need to
+  // save the list of kernels which is going to be submitted but have not been
+  // submitted yet. This is needed to capture memory allocations for each kernel
+  // with indirect access in the list at the moment when kernel is really
+  // submitted for execution.
   std::vector<ur_kernel_handle_t> KernelsToBeSubmitted;
 
   // Append command to the command list to signal new event if the last event in
@@ -739,3 +738,5 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
 ur_result_t CleanupEventListFromResetCmdList(
     std::vector<ur_event_handle_t> &EventListToCleanup,
     bool QueueLocked = false);
+
+} // namespace ur::level_zero::v1

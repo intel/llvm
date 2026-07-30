@@ -38,6 +38,13 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py
   )
 
+configure_lit_site_cfg(
+  ${CMAKE_CURRENT_SOURCE_DIR}/Unit-Preview/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/Unit-Preview/lit.site.cfg.py
+  MAIN_CONFIG
+  ${CMAKE_CURRENT_SOURCE_DIR}/Unit-Preview/lit.cfg.py
+  )
+
 list(APPEND SYCL_TEST_DEPS
   sycl-toolchain
   FileCheck

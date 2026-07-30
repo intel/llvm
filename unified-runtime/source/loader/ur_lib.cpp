@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -26,6 +25,13 @@
 #include <cstring> // for std::memcpy
 #include <regex>
 #include <stdlib.h>
+
+// With static UMF, its library destructor finalizes UMF before the loader
+// tears down. Hold a umfInit reference so UMF outlives the layers' frees in
+// urLoaderTearDown.
+#if defined(UR_STATIC_UMF)
+#include <umf.h>
+#endif
 
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
@@ -85,6 +91,12 @@ __urdlllocal ur_result_t context_t::Init(
   if (!enabledLayerNames.empty()) {
     initLayers();
   }
+
+#if defined(UR_STATIC_UMF)
+  if (UR_RESULT_SUCCESS == result) {
+    umfInit();
+  }
+#endif
 
   return result;
 }
@@ -205,6 +217,13 @@ ur_result_t urLoaderTearDown() {
     ur_loader::context_t::forceDelete();
     delete context;
   });
+
+#if defined(UR_STATIC_UMF)
+  // Release the Init reference only after the layers are torn down above.
+  if (ret == 0) {
+    umfTearDown();
+  }
+#endif
 
   ur_result_t result =
       ret == 0 ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNINITIALIZED;

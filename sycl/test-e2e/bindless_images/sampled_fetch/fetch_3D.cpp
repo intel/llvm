@@ -10,6 +10,9 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
+// Uncomment to print additional test information
+// #define VERBOSE_PRINT
+
 class kernel_sampled_fetch;
 
 int main() {
@@ -44,7 +47,7 @@ int main() {
                                    sycl::image_channel_type::fp32);
 
     syclexp::bindless_image_sampler samp(
-        sycl::addressing_mode::repeat,
+        sycl::addressing_mode::clamp,
         sycl::coordinate_normalization_mode::unnormalized,
         sycl::filtering_mode::nearest);
 

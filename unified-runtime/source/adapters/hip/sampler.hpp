@@ -1,9 +1,8 @@
 //===--------- sampler.hpp - HIP Adapter ----------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -29,9 +28,9 @@
 struct ur_sampler_handle_t_ : ur::hip::handle_base {
   ur::RefCount RefCount;
   uint32_t Props;
-  float MinMipmapLevelClamp;
-  float MaxMipmapLevelClamp;
-  float MaxAnisotropy;
+  float MinMipmapLevelClamp{};
+  float MaxMipmapLevelClamp{};
+  float MaxAnisotropy{};
   ur_context_handle_t Context;
 
   ur_sampler_handle_t_(ur_context_handle_t Context)

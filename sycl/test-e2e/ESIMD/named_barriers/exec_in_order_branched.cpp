@@ -15,6 +15,7 @@
 // stores data to addresses that partially overlap with addresses used by
 // previous thread. Same as "exec_in_order.cpp", but each thread in separate
 // 'if' branch.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

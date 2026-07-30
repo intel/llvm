@@ -1,9 +1,8 @@
 //===--------- command_list_cache.hpp - Level Zero Adapter ---------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -19,7 +18,7 @@
 
 #include "common.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 namespace raii {
 using command_list_unique_handle =
     std::unique_ptr<::_ze_command_list_handle_t,
@@ -118,4 +117,4 @@ private:
   raii::ze_command_list_handle_t
   createCommandList(const command_list_descriptor_t &desc);
 };
-} // namespace v2
+} // namespace ur::level_zero::v2

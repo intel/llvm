@@ -11,15 +11,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <iostream>
 
 #include "helper.hpp"
+#include <algorithm>
 class kernel_sg;
 using namespace sycl;
 
 int main() {
   queue Queue;
   device Device = Queue.get_device();
-  Device.get_info<info::device::sub_group_independent_forward_progress>();
   Device.get_info<info::device::max_num_sub_groups>();
 
   try {

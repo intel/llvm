@@ -19,6 +19,7 @@
 #include <iomanip>
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 #if DEBUG_OUTPUT
 #include <iostream>
 #endif

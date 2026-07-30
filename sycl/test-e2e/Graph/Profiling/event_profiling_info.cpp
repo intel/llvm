@@ -9,6 +9,7 @@
 // It first tests a graph made exclusively of memory operations,
 // then tests a graph made of kernels.
 #define GRAPH_TESTS_VERBOSE_PRINT 0
+#include <iostream>
 
 #include "../graph_common.hpp"
 

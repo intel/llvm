@@ -205,7 +205,11 @@ def main():
         if args.output is None:
             print("Please specify --output option. Quiting.")
             sys.exit(-2)
-        dump_symbols(args.target_library, args.output)
+        try:
+            dump_symbols(args.target_library, args.output)
+        except FileNotFoundError as e:
+            print(f"Could not find file named: {e.filename}")
+            sys.exit(-2)
 
 
 if __name__ == "__main__":

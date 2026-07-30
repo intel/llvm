@@ -16,8 +16,6 @@
 // XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
-#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-
 #include <sycl/detail/core.hpp>
 #include <sycl/khr/dynamic_addrspace_cast.hpp>
 

@@ -128,6 +128,13 @@ public:
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
 
+  /// This constructor takes a pre-built event and can be used for commands,
+  /// which require custom logic related to how the event is created.
+  Command(
+      CommandType Type, queue_impl *Queue, EventImplPtr Event,
+      ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
+
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return an optional connection cmd to enqueue
@@ -666,6 +673,8 @@ private:
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
+  static EventImplPtr makeEvent(const detail::CG &CG, queue_impl *Queue);
+
   std::unique_ptr<detail::CG> MCommandGroup;
 
   friend class Command;
@@ -718,6 +727,9 @@ private:
   std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
       MNodes;
 };
+
+void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
+                                const uint32_t IdQueriesRange);
 
 // Enqueues a given kernel to a ur_exp_command_buffer_handle_t
 ur_result_t enqueueImpCommandBufferKernel(

@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -93,9 +92,7 @@ inline bool stringPropertyIsValid(const char *property,
 #define EXPECT_SUCCESS(ACTUAL) EXPECT_EQ_RESULT(UR_RESULT_SUCCESS, ACTUAL)
 #endif
 
-// This macro is intended to be used for the first call to a GetInfo query, it
-// gracefully handles cases where the adapter doesn't support a query marked
-// [optional-query] in the spec by returning early.
+// Handles optional queries by skipping the test if the adapter doesn't support them.
 #ifndef ASSERT_SUCCESS_OR_OPTIONAL_QUERY
 #define ASSERT_SUCCESS_OR_OPTIONAL_QUERY(CALL, QUERY)                          \
   do {                                                                         \
@@ -103,7 +100,8 @@ inline bool stringPropertyIsValid(const char *property,
     if (result != UR_RESULT_SUCCESS) {                                         \
       ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);       \
       ASSERT_TRUE(uur::isQueryOptional(QUERY));                                \
-      return;                                                                  \
+      GTEST_SKIP() << "Query " << #QUERY                                       \
+                   << " is not supported by this adapter";                     \
     }                                                                          \
   } while (0)
 #endif

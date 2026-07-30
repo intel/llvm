@@ -11,14 +11,18 @@
 #include "graph_impl.hpp"
 #include "dynamic_impl.hpp" // for dynamic classes
 #include "node_impl.hpp"    // for node_impl
+#include <algorithm>        // for count_if
 #include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
+#include <detail/config.hpp>                          // for SYCLConfig
 #include <detail/event_impl.hpp>                      // for event_impl
 #include <detail/handler_impl.hpp>                    // for handler_impl
+#include <detail/host_task.hpp>                       // for EnqueueHostTaskData
 #include <detail/kernel_arg_mask.hpp>                 // for KernelArgMask
 #include <detail/kernel_impl.hpp>                     // for kernel_impl
 #include <detail/program_manager/program_manager.hpp> // ProgramManager
 #include <detail/queue_impl.hpp>                      // for queue_impl
 #include <detail/sycl_mem_obj_t.hpp>                  // for SYCLMemObjT
+#include <detail/ur.hpp>                              // for UR APIs
 #include <stack>                                      // for stack
 #include <sycl/detail/common.hpp>      // for tls_code_loc_t etc..
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
@@ -104,9 +108,18 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
         continue;
       }
 
+      // When PartitionBounded we only traverse edges internal to the partition
+      // as predecessor nodes to an earlier partition are not part of the
+      // current schedule.
+      assert(!PartitionBounded || Succ.MSamePartitionPredecessors >= 0);
+      const size_t RequiredEdges =
+          PartitionBounded
+              ? static_cast<size_t>(Succ.MSamePartitionPredecessors)
+              : Succ.MPredecessors.size();
+
       auto &TotalVisitedEdges = Succ.MTotalVisitedEdges;
       ++TotalVisitedEdges;
-      if (TotalVisitedEdges == Succ.MPredecessors.size()) {
+      if (TotalVisitedEdges == RequiredEdges) {
         Source.push(&Succ);
       }
     }
@@ -126,7 +139,8 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
 /// @param PartitionNum Number to propagate.
 void propagatePartitionUp(node_impl &Node, int PartitionNum) {
   if (((Node.MPartitionNum != -1) && (Node.MPartitionNum <= PartitionNum)) ||
-      (Node.MCGType == sycl::detail::CGType::CodeplayHostTask)) {
+      Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+      Node.MCGType == sycl::detail::CGType::NativeHostTask) {
     return;
   }
   Node.MPartitionNum = PartitionNum;
@@ -144,7 +158,8 @@ void propagatePartitionUp(node_impl &Node, int PartitionNum) {
 /// are encountered as successors to the node Node.
 void propagatePartitionDown(node_impl &Node, int PartitionNum,
                             std::list<node_impl *> &HostTaskList) {
-  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+      Node.MCGType == sycl::detail::CGType::NativeHostTask) {
     if (Node.MPartitionNum != -1) {
       HostTaskList.push_front(&Node);
     }
@@ -156,17 +171,16 @@ void propagatePartitionDown(node_impl &Node, int PartitionNum,
   }
 }
 
-/// Tests if the node is a root of its partition (i.e. no predecessors that
-/// belong to the same partition)
+/// Counts the predecessors of `Node` that belong to the same partition.
+/// A node is a root of its partition iff this count is zero.
 /// @param Node node to test
-/// @return True is `Node` is a root of its partition
-bool isPartitionRoot(node_impl &Node) {
-  for (node_impl &Predecessor : Node.predecessors()) {
-    if (Predecessor.MPartitionNum == Node.MPartitionNum) {
-      return false;
-    }
-  }
-  return true;
+/// @return Number of predecessors of `Node` in the same partition.
+size_t countPredecessorsInPartition(const node_impl &Node) {
+  return static_cast<size_t>(
+      std::count_if(Node.predecessors().begin(), Node.predecessors().end(),
+                    [&Node](node_impl &Predecessor) {
+                      return Predecessor.MPartitionNum == Node.MPartitionNum;
+                    }));
 }
 } // anonymous namespace
 
@@ -183,7 +197,8 @@ void exec_graph_impl::makePartitions() {
   std::list<node_impl *> HostTaskList;
   // find all the host-tasks in the graph
   for (node_impl &Node : nodes()) {
-    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+        Node.MCGType == sycl::detail::CGType::NativeHostTask) {
       HostTaskList.push_back(&Node);
     }
   }
@@ -253,9 +268,11 @@ void exec_graph_impl::makePartitions() {
     for (node_impl &Node : nodes()) {
       if (Node.MPartitionNum == i) {
         MPartitionNodes[&Node] = PartitionFinalNum;
-        if (isPartitionRoot(Node)) {
+        Node.MSamePartitionPredecessors = countPredecessorsInPartition(Node);
+        if (Node.MSamePartitionPredecessors == 0) {
           Partition->MRoots.insert(&Node);
-          if (Node.MCGType == CGType::CodeplayHostTask) {
+          if (Node.MCGType == CGType::CodeplayHostTask ||
+              Node.MCGType == CGType::NativeHostTask) {
             Partition->MIsHostTask = true;
           }
         }
@@ -296,6 +313,7 @@ void exec_graph_impl::makePartitions() {
   // Reset node groups (if node have to be re-processed - e.g. subgraph)
   for (node_impl &Node : nodes()) {
     Node.MPartitionNum = -1;
+    Node.MSamePartitionPredecessors = -1;
   }
 }
 
@@ -313,6 +331,48 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
   if (PropList.has_property<property::graph::assume_buffer_outlives_graph>()) {
     MAllowBuffers = true;
   }
+  if (PropList.has_property<property::graph::enable_native_recording>() ||
+      sycl::detail::SYCLConfig<
+          sycl::detail::SYCL_GRAPH_FORCE_NATIVE_RECORDING>::get()) {
+    // Create native UR graph when native recording is enabled
+    // Note: Native recording only works with immediate command lists,
+    // this is validated when recording begins
+    context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+    sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+
+    // Check if the device supports graph record and replay
+    sycl::detail::device_impl &DeviceImpl =
+        *sycl::detail::getSyclObjImpl(MDevice);
+
+    ur_bool_t SupportsGraphRecordReplay = false;
+    ur_result_t Result =
+        Adapter.call_nocheck<sycl::detail::UrApiKind::urDeviceGetInfo>(
+            DeviceImpl.getHandleRef(),
+            UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+            sizeof(ur_bool_t), &SupportsGraphRecordReplay, nullptr);
+    if (Result != UR_RESULT_SUCCESS || !SupportsGraphRecordReplay) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Device does not support graph record and replay feature "
+          "(UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP).");
+    }
+
+    Result = Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphCreateExp>(
+        ContextImpl.getHandleRef(), &MNativeGraphHandle);
+    Adapter.checkUrResult(Result, "Failed to create native UR graph");
+    assert(MNativeGraphHandle != nullptr &&
+           "Native UR graph handle should not be null if graph creation "
+           "succeeded");
+
+    uint64_t NativeId = 0;
+    Result = Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphGetIdExp>(
+        MNativeGraphHandle, &NativeId);
+    if (Result == UR_RESULT_SUCCESS) {
+      MNativeID = NativeId;
+    }
+    // On failure (e.g. backend lacks urGraphGetIdExp), MNativeID stays unset
+    // and getID() falls back to the SYCL atomic counter MID.
+  }
 
   if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
       !SyclDevice.has(aspect::ext_oneapi_graph)) {
@@ -327,9 +387,35 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
 
 graph_impl::~graph_impl() {
   try {
-    clearQueues(false /*Needs lock*/);
+    // Handle any exception when ending capture, so we avoid throwing
+    // and can still try to destroy the graph object when native recording.
+    try {
+      clearQueues(false /*Needs lock*/);
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
+    }
     for (auto &MemObj : MMemObjs) {
       MemObj->markNoLongerBeingUsedInGraph();
+    }
+    // Clean up native UR graph if it was created
+    if (MNativeGraphHandle) {
+      context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+      sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+
+      ContextImpl.deregisterNativeGraph(MNativeGraphHandle);
+
+      ur_result_t Result =
+          Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDestroyExp>(
+              MNativeGraphHandle);
+      Adapter.checkUrResult(Result, "Failed to destroy native UR graph");
+      MNativeGraphHandle = nullptr;
+    }
+    for (auto &Cb : MDestructionCallbacks) {
+      // Catch exceptions to match native graph callback behavior
+      try {
+        Cb();
+      } catch (...) {
+      }
     }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
@@ -403,6 +489,14 @@ void graph_impl::markCGMemObjs(
 }
 
 node_impl &graph_impl::add(nodes_range Deps) {
+  // Native recording limitation: explicit API not supported
+  if (MNativeGraphHandle) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "graph.add(): The explicit graph API is not supported in native "
+        "recording mode. Use the record-and-replay API instead.");
+  }
+
   node_impl &NodeImpl = createNode();
 
   addDepsToNode(NodeImpl, Deps);
@@ -415,6 +509,14 @@ node_impl &graph_impl::add(nodes_range Deps) {
 node_impl &graph_impl::add(std::function<void(handler &)> CGF,
                            const std::vector<sycl::detail::ArgDesc> &Args,
                            nodes_range Deps) {
+  // Native recording limitation: explicit API not supported
+  if (MNativeGraphHandle) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "graph.add(): The explicit graph API is not supported in native "
+        "recording mode. Use the record-and-replay API instead.");
+  }
+
   (void)Args;
   detail::handler_impl HandlerImpl{*this};
   sycl::handler Handler{HandlerImpl};
@@ -485,6 +587,13 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
 node_impl &graph_impl::add(node_type NodeType,
                            std::shared_ptr<sycl::detail::CG> CommandGroup,
                            nodes_range Deps) {
+  // Native recording limitation: explicit API not supported
+  if (MNativeGraphHandle) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "graph.add(): The explicit graph API is not supported in native "
+        "recording mode. Use the record-and-replay API instead.");
+  }
 
   // A unique set of dependencies obtained by checking requirements and events
   std::set<node_impl *> UniqueDeps = getCGEdges(CommandGroup);
@@ -512,6 +621,14 @@ node_impl &graph_impl::add(node_type NodeType,
 node_impl &
 graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
                 nodes_range Deps) {
+  // Native recording limitation: explicit API not supported
+  if (MNativeGraphHandle) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "graph.add(): The explicit graph API is not supported in native "
+        "recording mode. Use the record-and-replay API instead.");
+  }
+
   // Set of Dependent nodes based on CG event and accessor dependencies.
   std::set<node_impl *> DynCGDeps = getCGEdges(DynCGImpl->MCommandGroups[0]);
   for (unsigned i = 1; i < DynCGImpl->getNumCGs(); i++) {
@@ -559,6 +676,45 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
   MRecordingQueues.erase(RecordingQueue.weak_from_this());
 }
 
+bool graph_impl::isQueueRecording(sycl::detail::queue_impl &Queue) {
+
+  return MRecordingQueues.count(Queue.weak_from_this()) > 0;
+}
+
+void graph_impl::setDestructionCallback(std::function<void()> Callback) {
+  graph_impl::WriteLock Lock(MMutex);
+  if (MNativeGraphHandle) {
+    auto Data = std::make_unique<std::function<void()>>(std::move(Callback));
+    context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+    sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+    ur_result_t Result = Adapter.call_nocheck<
+        sycl::detail::UrApiKind::urGraphSetDestructionCallbackExp>(
+        MNativeGraphHandle,
+        [](void *UserData) {
+          auto *Fn = static_cast<std::function<void()> *>(UserData);
+          // Catch all exceptions to prevent leaking Fn
+          try {
+            (*Fn)();
+          } catch (...) {
+          }
+          delete Fn;
+        },
+        Data.get());
+    Adapter.checkUrResult(Result,
+                          "Failed to register graph destruction callback");
+    Data.release();
+  } else {
+    MDestructionCallbacks.push_back(std::move(Callback));
+  }
+}
+
+sycl::detail::EnqueueHostTaskData *graph_impl::addNativeHostTaskCallback(
+    std::unique_ptr<sycl::detail::EnqueueHostTaskData> Data) {
+  graph_impl::WriteLock Lock(MMutex);
+  MNativeHostTaskCallbacks.push_back(std::move(Data));
+  return MNativeHostTaskCallbacks.back().get();
+}
+
 void graph_impl::clearQueues(bool NeedsLock) {
   graph_impl::RecQueuesStorage SwappedQueues;
   {
@@ -571,9 +727,35 @@ void graph_impl::clearQueues(bool NeedsLock) {
 
   for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
-      ValidQueue->setCommandGraph(nullptr);
+      if (MNativeGraphHandle) {
+        auto EndResult = ValidQueue->endNativeRecording();
+        getContextImpl().getAdapter().checkUrResult(
+            EndResult.Result, "Error when ending native graph capture");
+        // CapturedGraph should be the same as MNativeGraphHandle
+      } else {
+        // Only call setCommandGraph for traditional recording
+        ValidQueue->setCommandGraph(nullptr);
+      }
+    } else if (MNativeGraphHandle) {
+      // The primary recording queue was destroyed by the user. We must update
+      // the context that the recording is over.
+      getContextImpl().nativeRecordingEnded();
     }
   }
+}
+
+bool graph_impl::empty() const {
+
+  if (!MNativeGraphHandle) {
+    return MNodeStorage.empty();
+  }
+
+  bool IsEmptyResult = true;
+  sycl::detail::adapter_impl &Adapter = getContextImpl().getAdapter();
+  ur_result_t Result = Adapter.call_nocheck<UrApiKind::urGraphIsEmptyExp>(
+      MNativeGraphHandle, &IsEmptyResult);
+  Adapter.checkUrResult(Result, "Failed to check if graph is empty");
+  return IsEmptyResult;
 }
 
 bool graph_impl::checkForCycles() {
@@ -689,20 +871,55 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
-void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
+void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
+                                    bool AcquireQueueLock) {
   graph_impl::WriteLock Lock(MMutex);
+
+  // Native recording limitation: single queue at a time
+  if (MNativeGraphHandle && !MRecordingQueues.empty()) {
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Recording the same graph to multiple queues is not "
+                          "supported in native mode");
+  }
+
+  // Native recording limitation: in-order queues only
+  if (MNativeGraphHandle && !Queue.isInOrder()) {
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Native recording only works with in-order queues");
+  }
+
   if (!Queue.hasCommandGraph()) {
-    Queue.setCommandGraphUnlocked(shared_from_this());
-    addQueue(Queue);
+
+    // Use native UR graph recording if enabled
+    if (MNativeGraphHandle) {
+      if (Queue.isNativeRecording()) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "Queue is already in native graph capture mode");
+      }
+      auto BeginResult = Queue.beginNativeRecording(MNativeGraphHandle);
+      if (BeginResult.RecordingActive) {
+        addQueue(Queue);
+      }
+      getContextImpl().getAdapter().checkUrResult(
+          BeginResult.Result, "Failed to begin native UR graph capture");
+    } else {
+      // Non-native recording path
+      if (AcquireQueueLock) {
+        Queue.setCommandGraph(shared_from_this());
+      } else {
+        Queue.setCommandGraphUnlocked(shared_from_this());
+      }
+      addQueue(Queue);
+    }
   }
 }
 
+void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
+  beginRecordingImpl(Queue, /*AcquireQueueLock=*/false);
+}
+
 void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
-  graph_impl::WriteLock Lock(MMutex);
-  if (!Queue.hasCommandGraph()) {
-    Queue.setCommandGraph(shared_from_this());
-    addQueue(Queue);
-  }
+  beginRecordingImpl(Queue, /*AcquireQueueLock=*/true);
 }
 
 // Check if nodes do not require enqueueing and if so loop back through
@@ -928,16 +1145,38 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                             "Device does not support Command Graph update");
     }
   }
-  // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
-  duplicateNodes();
 
-  if (auto PlaceholderQueuePtr = GraphImpl->getLastRecordedQueue()) {
-    MQueueImpl = std::move(PlaceholderQueuePtr);
+  // Create native UR executable graph if the modifiable graph uses native
+  // recording
+  if (isNativeRecordingEnabledForGraph(*GraphImpl)) {
+    if (MIsUpdatable) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::feature_not_supported),
+          "Updatable graphs are not supported in native recording mode");
+    }
+    context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+    sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+    ur_result_t Result =
+        Adapter
+            .call_nocheck<sycl::detail::UrApiKind::urGraphInstantiateGraphExp>(
+                GraphImpl->getNativeGraphHandle(),
+                &MNativeExecutableGraphHandle);
+    Adapter.checkUrResult(Result,
+                          "Failed to instantiate native UR executable graph");
   } else {
-    MQueueImpl = sycl::detail::queue_impl::create(
-        *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
-        *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
-        sycl::property_list{});
+    // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
+    duplicateNodes();
+
+    // A placeholder queue is only required for enqueueNode and update
+    // operations which are only possible with the command buffer path.
+    if (auto PlaceholderQueuePtr = GraphImpl->getLastRecordedQueue()) {
+      MQueueImpl = std::move(PlaceholderQueuePtr);
+    } else {
+      MQueueImpl = sycl::detail::queue_impl::create(
+          *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+          *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+          sycl::property_list{});
+    }
   }
 }
 
@@ -948,6 +1187,16 @@ exec_graph_impl::~exec_graph_impl() {
     sycl::detail::adapter_impl &Adapter =
         sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
+
+    // Clean up native UR executable graph if it was created
+    if (MNativeExecutableGraphHandle) {
+      ur_result_t Res = Adapter.call_nocheck<
+          sycl::detail::UrApiKind::urGraphExecutableGraphDestroyExp>(
+          MNativeExecutableGraphHandle);
+      Adapter.checkUrResult(Res,
+                            "Failed to destroy native UR executable graph");
+      MNativeExecutableGraphHandle = nullptr;
+    }
 
     // Clean up any graph-owned allocations that were allocated
     MGraphImpl->getMemPool().deallocateAndUnmapAll();
@@ -1203,12 +1452,60 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
   return SignalEvent;
 }
 
+EventImplPtr
+exec_graph_impl::enqueueNative(sycl::detail::queue_impl &Queue,
+                               sycl::detail::CG::StorageInitHelper CGData,
+                               bool EventNeeded) {
+  // Create a list containing all the UR event handles in WaitEvents.
+  // WaitEvents is assumed to be safe for scheduler bypass and any
+  // host-task events that it contains can be ignored.
+  auto &WaitEvents = CGData.MEvents;
+  std::vector<ur_event_handle_t> UrEventHandles{};
+  UrEventHandles.reserve(WaitEvents.size());
+  for (auto &SyclWaitEvent : WaitEvents) {
+    if (auto URHandle = SyclWaitEvent->getHandle()) {
+      UrEventHandles.push_back(URHandle);
+    }
+  }
+
+  const size_t UrEnqueueWaitListSize = UrEventHandles.size();
+  ur_event_handle_t *UrEnqueueWaitList =
+      UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
+  EventImplPtr NewEvent = nullptr;
+  if (!EventNeeded) {
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueGraphExp>(
+        Queue.getHandleRef(), MNativeExecutableGraphHandle,
+        UrEnqueueWaitListSize, UrEnqueueWaitList, nullptr);
+  } else {
+    NewEvent = sycl::detail::event_impl::create_device_event(Queue);
+    NewEvent->setContextImpl(Queue.getContextImpl());
+    NewEvent->setStateIncomplete();
+    NewEvent->setSubmissionTime();
+    ur_event_handle_t UrEvent = nullptr;
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueGraphExp>(
+        Queue.getHandleRef(), MNativeExecutableGraphHandle,
+        UrEnqueueWaitListSize, UrEnqueueWaitList, &UrEvent);
+    NewEvent->setHandle(UrEvent);
+    NewEvent->setEventFromSubmittedExecCommandBuffer(true);
+    if (MEnableProfiling) {
+      NewEvent->setProfilingEnabled(MEnableProfiling);
+    }
+  }
+  return NewEvent;
+}
+
 std::pair<EventImplPtr, bool>
 exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                          sycl::detail::CG::StorageInitHelper CGData,
                          bool EventNeeded) {
   WriteLock Lock(MMutex);
+  // Use native recording path if available
+  if (MNativeExecutableGraphHandle) {
+    return {enqueueNative(Queue, std::move(CGData), EventNeeded),
+            /*SkipScheduler=*/true};
+  }
 
+  // Command buffer path
   cleanupExecutionEvents(MSchedulerDependencies);
   CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
                         MSchedulerDependencies.end());
@@ -1410,7 +1707,6 @@ void exec_graph_impl::duplicateNodes() {
 }
 
 void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
-
   if (MDevice != GraphImpl->getDevice()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
@@ -1848,18 +2144,33 @@ modifiable_command_graph::modifiable_command_graph(
     const sycl::context &SyclContext, const sycl::device &SyclDevice,
     const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice,
-                                                PropList)) {}
+                                                PropList)) {
+  if (auto UrNativeHandle = impl->getNativeGraphHandle()) {
+    auto &ContextImpl = *sycl::detail::getSyclObjImpl(SyclContext);
+    ContextImpl.registerNativeGraph(UrNativeHandle, impl);
+  }
+}
 
 modifiable_command_graph::modifiable_command_graph(
     const sycl::queue &SyclQueue, const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(
-          SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {}
+          SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {
+  if (auto UrNativeHandle = impl->getNativeGraphHandle()) {
+    auto &ContextImpl = *sycl::detail::getSyclObjImpl(SyclQueue.get_context());
+    ContextImpl.registerNativeGraph(UrNativeHandle, impl);
+  }
+}
 
 modifiable_command_graph::modifiable_command_graph(
     const sycl::device &SyclDevice, const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(
           SyclDevice.get_platform().khr_get_default_context(), SyclDevice,
-          PropList)) {}
+          PropList)) {
+  if (auto UrNativeHandle = impl->getNativeGraphHandle()) {
+    auto &ContextImpl = *sycl::detail::getSyclObjImpl(impl->getContext());
+    ContextImpl.registerNativeGraph(UrNativeHandle, impl);
+  }
+}
 
 node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
                                        const std::vector<node> &Deps) {
@@ -1972,12 +2283,39 @@ void modifiable_command_graph::end_recording() {
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(RecordingQueue);
-  if (QueueImpl.getCommandGraph() == impl) {
-    QueueImpl.setCommandGraph(nullptr);
+
+  // Check if this queue is recording to this graph
+  bool IsRecordingToThisGraph = false;
+
+  if (isNativeRecordingEnabledForGraph(*impl)) {
+    // For native recording, check if queue is in our recording queue list
     graph_impl::WriteLock Lock(impl->MMutex);
-    impl->removeQueue(QueueImpl);
+    IsRecordingToThisGraph = impl->isQueueRecording(QueueImpl);
+
+    if (IsRecordingToThisGraph) {
+      // End native UR graph capture
+      assert(impl->getNativeGraphHandle() &&
+             "Native graph handle must be valid when ending native recording");
+      auto EndResult = QueueImpl.endNativeRecording();
+      if (!EndResult.RecordingActive) {
+        impl->removeQueue(QueueImpl);
+      }
+      impl->getContextImpl().getAdapter().checkUrResult(
+          EndResult.Result, "Error when ending native graph capture");
+      assert(EndResult.CapturedGraph == impl->getNativeGraphHandle() &&
+             "Captured graph handle must match the graph's native handle");
+    }
+  } else {
+    // Traditional recording path
+    if (QueueImpl.getCommandGraph() == impl) {
+      QueueImpl.setCommandGraph(nullptr);
+      graph_impl::WriteLock Lock(impl->MMutex);
+      impl->removeQueue(QueueImpl);
+      IsRecordingToThisGraph = true;
+    }
   }
-  if (QueueImpl.hasCommandGraph())
+
+  if (QueueImpl.hasCommandGraph() && !IsRecordingToThisGraph)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
@@ -2005,11 +2343,32 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
 
 std::vector<node> modifiable_command_graph::get_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
+  if (impl->getNativeGraphHandle()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "get_nodes() is not supported for graphs created with the "
+        "enable_native_recording property.");
+  }
   return impl->nodes().to<std::vector<node>>();
 }
 std::vector<node> modifiable_command_graph::get_root_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
+  if (impl->getNativeGraphHandle()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "get_root_nodes() is not supported for graphs created with the "
+        "enable_native_recording property.");
+  }
   return impl->roots().to<std::vector<node>>();
+}
+
+bool modifiable_command_graph::empty() const {
+  graph_impl::ReadLock Lock(impl->MMutex);
+  return impl->empty();
+}
+
+size_t modifiable_command_graph::get_id() const noexcept {
+  return impl->getID();
 }
 
 void modifiable_command_graph::checkNodePropertiesAndThrow(
@@ -2040,6 +2399,11 @@ void modifiable_command_graph::checkNodePropertiesAndThrow(
       Properties, CheckDataLessProperties, CheckPropertiesWithData);
 }
 
+void modifiable_command_graph::setDestructionCallbackImpl(
+    std::function<void()> Callback) {
+  impl->setDestructionCallback(std::move(Callback));
+}
+
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx,
     const property_list &PropList)
@@ -2050,18 +2414,22 @@ executable_command_graph::executable_command_graph(
 }
 
 void executable_command_graph::finalizeImpl() {
-  impl->makePartitions();
+  // Partitions and command buffers are not used for native recording and
+  // instantiation is fully performed in the exec_graph_impl constructor.
+  if (!impl->getNativeExecutableGraphHandle()) {
+    impl->makePartitions();
 
-  // Handle any work required for graph-owned memory allocations
-  impl->finalizeMemoryAllocations();
+    // Handle any work required for graph-owned memory allocations
+    impl->finalizeMemoryAllocations();
 
-  auto Device = impl->getGraphImpl()->getDevice();
-  for (auto Partition : impl->getPartitions()) {
-    if (!Partition->MIsHostTask) {
-      impl->createCommandBuffers(Device, Partition);
+    auto Device = impl->getGraphImpl()->getDevice();
+    for (auto Partition : impl->getPartitions()) {
+      if (!Partition->MIsHostTask) {
+        impl->createCommandBuffers(Device, Partition);
+      }
     }
+    impl->buildRequirements();
   }
-  impl->buildRequirements();
 }
 
 void executable_command_graph::update(

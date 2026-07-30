@@ -19,6 +19,7 @@
 //  * Determine what else should be included here.
 
 #include <sycl/accessor.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/buffer.hpp>
 #include <sycl/queue.hpp>
 

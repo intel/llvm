@@ -7,9 +7,11 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/detail/common.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/usm/usm_enums.hpp>
+
+#include <cstddef>
 
 namespace sycl {
 inline namespace _V1 {

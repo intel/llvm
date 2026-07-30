@@ -1,9 +1,8 @@
 //===--------- event_pool_cache.hpp - Level Zero Adapter ------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -19,11 +18,11 @@
 #include <ur/ur.hpp>
 #include <ze_api.h>
 
-#include "../device.hpp"
+#include "../common/device.hpp"
 #include "event_pool.hpp"
 #include "event_provider.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 namespace raii {
 using cache_borrowed_event_pool =
@@ -41,21 +40,21 @@ public:
   raii::cache_borrowed_event_pool borrow(DeviceId, event_flags_t flags);
 
 private:
-  ur_context_handle_t hContext;
-  ur_mutex mutex;
-  ProviderCreateFunc providerCreate;
-
   struct event_descriptor {
     DeviceId device;
     event_flags_t flags;
 
-    uint64_t index() {
+    uint64_t index() const {
       return uint64_t(flags) | (uint64_t(device) << EVENT_FLAGS_USED_BITS);
     }
   };
+
+  ur_context_handle_t hContext;
+  ur_mutex mutex;
+  ProviderCreateFunc providerCreate;
 
   // Indexed by event_descriptor::index()
   std::vector<std::vector<std::unique_ptr<event_pool>>> pools;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

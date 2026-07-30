@@ -16,6 +16,7 @@
 // 1) When the application contains both SYCL and ESIMD kernel, thus requiring
 //    different GPU back-ends (scalar and vector) to kick-in at compile-time.
 // 2) When the application contains only ESIMD kernel.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

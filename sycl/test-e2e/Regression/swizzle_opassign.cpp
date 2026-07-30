@@ -5,6 +5,7 @@
 
 // Tests that the mutating operators (+=, -=, ..., ++, --) on swizzles compile
 // and correctly mutate the elements in the corresponding vector.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>

@@ -1,5 +1,6 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
+#include <iostream>
 
 #include "imf_utils.hpp"
 #include <sycl/detail/core.hpp>

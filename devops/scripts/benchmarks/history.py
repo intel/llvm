@@ -1,6 +1,5 @@
-# Copyright (C) 2024-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
@@ -16,7 +15,6 @@ from utils.utils import run
 from utils.validate import Validate
 from utils.logger import log
 from utils.detect_versions import DetectVersion
-from utils.unitrace import get_unitrace
 
 
 class BenchmarkHistory:
@@ -190,11 +188,19 @@ class BenchmarkHistory:
             log.warning("GPU information detection failed.")
             platform_info.gpu_info = []
 
+        run_date = (
+            datetime.strptime(
+                options.timestamp_override, options.TIMESTAMP_FORMAT
+            ).replace(tzinfo=timezone.utc)
+            if options.timestamp_override is not None
+            else datetime.now(tz=timezone.utc)
+        )
+
         return BenchmarkRun(
             name=name,
             git_hash=git_hash,
             github_repo=github_repo,
-            date=datetime.now(tz=timezone.utc),
+            date=run_date,
             results=results,
             hostname=hostname,
             compute_runtime=compute_runtime,
@@ -212,9 +218,7 @@ class BenchmarkHistory:
         results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
-        if options.unitrace:
-            timestamp = get_unitrace().timestamp  # type: ignore
-        elif options.timestamp_override is not None:
+        if options.timestamp_override is not None:
             timestamp = options.timestamp_override
         else:
             timestamp = (

@@ -3,6 +3,7 @@
 //
 // Fail is flaky for level_zero, enable when fixed.
 // UNSUPPORTED: level_zero
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22226
 //
 // Consistently fails with opencl gpu, enable when fixed.
 // XFAIL: opencl && gpu

@@ -1,12 +1,13 @@
-// Copyright (C) 2025 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #pragma once
 
 #include "unified-runtime/ur_api.h"
+
+namespace ur::level_zero::v2 {
 
 struct ur_queue_extensions {
   // Non-batched queues don't need to perform any action
@@ -22,3 +23,5 @@ struct ur_queue_extensions {
 
   virtual bool isInOrder() = 0;
 };
+
+} // namespace ur::level_zero::v2

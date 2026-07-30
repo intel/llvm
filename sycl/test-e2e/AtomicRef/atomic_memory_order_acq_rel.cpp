@@ -6,6 +6,7 @@
 #include "atomic_memory_order.h"
 #include <iostream>
 #include <numeric>
+#include <sycl/group_barrier.hpp>
 using namespace sycl;
 
 template <memory_order order> void test_acquire_global() {
@@ -73,7 +74,7 @@ template <memory_order order> void test_acquire_local() {
              size_t lid = it.get_local_id(0);
              val[0] = 0;
              val[1] = 0;
-             it.barrier(access::fence_space::local_space);
+             group_barrier(it.get_group());
              volatile int *val_p =
                  val.get_multi_ptr<access::decorated::no>().get();
              auto atm0 =
@@ -165,7 +166,7 @@ template <memory_order order> void test_release_local() {
              size_t lid = it.get_local_id(0);
              val[0] = 0;
              val[1] = 0;
-             it.barrier(access::fence_space::local_space);
+             group_barrier(it.get_group());
              volatile int *val_p =
                  val.get_multi_ptr<access::decorated::no>().get();
              auto atm0 =

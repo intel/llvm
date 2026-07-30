@@ -8,6 +8,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 #include "bitmap_helpers.h"

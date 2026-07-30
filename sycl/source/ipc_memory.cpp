@@ -12,6 +12,8 @@
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
+#include <utility>
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -46,14 +48,21 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
                           "HandleData data size does not correspond "
                           "to the target platform's IPC memory handle size.");
   Adapter.checkUrResult(UrRes);
+  if (Ptr == nullptr)
+    throw sycl::exception(
+        sycl::make_error_code(errc::runtime),
+        "urIPCOpenMemHandleExp returned success but did not produce a "
+        "valid memory pointer.");
+
   return Ptr;
 }
 
 } // namespace detail
 
-namespace ext::oneapi::experimental::ipc_memory {
+namespace ext::oneapi::experimental::ipc::memory {
+namespace detail {
 
-__SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
+std::pair<void *, size_t> get(void *Ptr, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
@@ -79,18 +88,50 @@ __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
   return {HandlePtr, HandleSize};
 }
 
-__SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
+void put(std::byte *HandleData, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   CtxImpl->getAdapter().call<sycl::detail::UrApiKind::urIPCPutMemHandleExp>(
-      CtxImpl->getHandleRef(), Handle.MData);
+      CtxImpl->getHandleRef(), HandleData);
 }
 
-__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
+void close(void *Ptr, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   CtxImpl->getAdapter().call<sycl::detail::UrApiKind::urIPCCloseMemHandleExp>(
       CtxImpl->getHandleRef(), Ptr);
 }
 
+} // namespace detail
+
+__SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
+  std::pair<void *, size_t> RetHandle = detail::get(Ptr, Ctx);
+  return {RetHandle.first, RetHandle.second};
+}
+
+__SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
+  detail::put(Handle.MData, Ctx);
+}
+
+__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
+  detail::close(Ptr, Ctx);
+}
+} // namespace ext::oneapi::experimental::ipc::memory
+
+namespace ext::oneapi::experimental::ipc_memory {
+__SYCL_SUPPRESS_DEPRECATED_PUSH
+__SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
+  std::pair<void *, size_t> RetHandle =
+      ext::oneapi::experimental::ipc::memory::detail::get(Ptr, Ctx);
+  return {RetHandle.first, RetHandle.second};
+}
+
+__SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
+  ext::oneapi::experimental::ipc::memory::detail::put(Handle.MData, Ctx);
+}
+
+__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
+  ext::oneapi::experimental::ipc::memory::detail::close(Ptr, Ctx);
+}
+__SYCL_SUPPRESS_DEPRECATED_POP
 } // namespace ext::oneapi::experimental::ipc_memory
 } // namespace _V1
 } // namespace sycl

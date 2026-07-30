@@ -36,6 +36,7 @@
 */
 // clang-format on
 #include "vulkan_setup.hpp"
+#include <iostream>
 
 #include <optional>
 #include <string>
@@ -44,6 +45,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/image.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 // ---------------------------------------------------------
 // SYCL TYPE MAPPING HELPERS
@@ -138,7 +140,15 @@ int runTest(
   // SYCL Import and Verification
   namespace syclexp = sycl::ext::oneapi::experimental;
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
 
     // Import Memory (Platform Specific)
 #ifdef _WIN32
@@ -178,6 +188,8 @@ int runTest(
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
 
+    // bindless image use (x,y,z) order,
+    // differening from SYCL 2020 "fastest incrementing" convention.
     syclexp::image_descriptor imgDesc(sycl::range<3>(width, height, depth),
                                       channels, syclType);
 
@@ -221,11 +233,13 @@ int runTest(
          h.depends_on(dependencyEvent);
        sycl::accessor outAcc(checkBuf, h, sycl::write_only);
 
+       // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+       // but bindless images ranges use (x,y,z) order.
        h.parallel_for(
-           sycl::range<3>(width, height, depth), [=](sycl::item<3> item) {
-             int x = item.get_id(0);
+           sycl::range<3>(depth, height, width), [=](sycl::item<3> item) {
+             int x = item.get_id(2);
              int y = item.get_id(1);
-             int z = item.get_id(2);
+             int z = item.get_id(0);
              size_t baseIdx = (z * width * height + y * width + x) * channels;
 
              // Special handling for unorm8 (normalized 0.0-1.0)

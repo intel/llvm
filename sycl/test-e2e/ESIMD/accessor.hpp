@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // This test checks that accessor-based memory accesses work correctly in ESIMD.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

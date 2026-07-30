@@ -6,6 +6,10 @@
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv -r -spec-const "0:i1:1 1:i8:11 2:i16:22 3:i32:33 4:i64:4609589727908835759 5:f16:5.5 6:f32:6.6 7:f64:7.7" %t.spv -o %t.rev.spec.bc
 ; RUN: llvm-dis < %t.rev.spec.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPEC
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV-NOT: Capability Matrix
 ; CHECK-SPIRV-NOT: Capability Shader
@@ -60,13 +64,13 @@ entry:
   %4 = call i64 @_Z20__spirv_SpecConstantix(i32 4, i64 3)
   store i64 %4, ptr addrspace(1) %l, align 8
 
-  ; CHECK-LLVM: store half 0xH3800, ptr addrspace(1) %h, align 2
-  ; CHECK-LLVM-SPEC: store half 0xH4580, ptr addrspace(1) %h, align 2
+  ; CHECK-LLVM: store half 5.000000e-01, ptr addrspace(1) %h, align 2
+  ; CHECK-LLVM-SPEC: store half 5.500000e+00, ptr addrspace(1) %h, align 2
   %5 = call half @_Z20__spirv_SpecConstantih(i32 5, half 0xH3800)
   store half %5, ptr addrspace(1) %h, align 2
 
   ; CHECK-LLVM: store float 1.250000e+00, ptr addrspace(1) %f, align 4
-  ; CHECK-LLVM-SPEC: store float 0x401A666660000000, ptr addrspace(1) %f, align 4
+  ; CHECK-LLVM-SPEC: store float 6.600000e+00, ptr addrspace(1) %f, align 4
   %6 = call float @_Z20__spirv_SpecConstantif(i32 6, float 1.250000e+00)
   store float %6, ptr addrspace(1) %f, align 4
 

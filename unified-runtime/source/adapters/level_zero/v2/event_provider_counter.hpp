@@ -1,9 +1,8 @@
 //===--------- event_provider_counter.hpp - Level Zero Adapter ------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -23,12 +22,12 @@
 #include "event.hpp"
 #include "event_provider.hpp"
 
-#include "../device.hpp"
+#include "../common/device.hpp"
 
 #include <level_zero/driver_experimental/zex_event.h>
 #include <level_zero/ze_intel_gpu.h>
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 typedef ze_result_t (*zexCounterBasedEventCreate)(
     ze_context_handle_t hContext, ze_device_handle_t hDevice,
@@ -62,4 +61,4 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
                                                ur_device_handle_t device,
                                                event_flags_t flags);
 
-} // namespace v2
+} // namespace ur::level_zero::v2

@@ -1,9 +1,8 @@
 //===--------- kernel.hpp - HIP Adapter -----------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -17,6 +16,7 @@
 #include <cassert>
 #include <numeric>
 
+#include "memory.hpp"
 #include "program.hpp"
 
 /// Implementation of a UR Kernel for HIP
@@ -77,7 +77,7 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
     args_size_t OriginalLocalMemSize;
 
     // A struct to keep track of memargs so that we can do dependency analysis
-    // at urEnqueueKernelLaunch
+    // at urEnqueueKernelLaunchWithArgsExp
     struct mem_obj_arg {
       ur_mem_handle_t_ *Mem;
       int Index;
@@ -309,4 +309,43 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
   }
 
   uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
+
+  ur_result_t
+  setKernelArgMemObj(uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *Properties,
+                     ur_mem_handle_t hArgValue) {
+    try {
+      // Below sets kernel arg when zero-sized buffers are handled.
+      // In such case the corresponding memory is null.
+      if (hArgValue == nullptr) {
+        setKernelArg(argIndex, 0, nullptr);
+        return UR_RESULT_SUCCESS;
+      }
+
+      auto Device = getProgram()->getDevice();
+      Args.addMemObjArg(argIndex, hArgValue,
+                        Properties ? Properties->memoryAccess : 0);
+      if (hArgValue->isImage()) {
+        auto array = std::get<SurfaceMem>(hArgValue->Mem).getArray(Device);
+        hipArray_Format Format{};
+        size_t NumChannels;
+        UR_CHECK_ERROR(getArrayDesc(array, Format, NumChannels));
+        if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
+            Format != HIP_AD_FORMAT_SIGNED_INT32 &&
+            Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
+          return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+        }
+        hipSurfaceObject_t hipSurf =
+            std::get<SurfaceMem>(hArgValue->Mem).getSurface(Device);
+        setKernelArg(argIndex, sizeof(hipSurf), (void *)&hipSurf);
+      } else {
+        void *HIPPtr = std::get<BufferMem>(hArgValue->Mem).getVoid(Device);
+        setKernelArg(argIndex, sizeof(void *), (void *)&HIPPtr);
+      }
+    } catch (ur_result_t Err) {
+      return Err;
+    }
+
+    return UR_RESULT_SUCCESS;
+  }
 };

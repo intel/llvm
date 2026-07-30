@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 enum USM_TEST_RES { USM_ALLOC_FAIL = -1, USM_TEST_PASS = 0, USM_TEST_FAIL = 1 };
@@ -649,7 +650,7 @@ int main() {
   sycl::device dev = deviceQueue.get_device();
   bool shared_usm_enabled = false;
   USM_TEST_RES usm_tres;
-  if (dev.get_info<sycl::info::device::usm_shared_allocations>())
+  if (dev.has(sycl::aspect::usm_shared_allocations))
     shared_usm_enabled = true;
   success = kernel_test_memcpy(deviceQueue);
   if (shared_usm_enabled) {

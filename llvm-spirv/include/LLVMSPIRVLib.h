@@ -200,7 +200,8 @@ bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
 /// TypedPointerType instead, to faithfully represent the pointer element types
 /// for name mangling.
 void mangleOpenClBuiltin(const std::string &UnmangledName,
-                         ArrayRef<Type *> ArgTypes, std::string &MangledName);
+                         ArrayRef<Type *> ArgTypes, std::string &MangledName,
+                         const SPIRV::AddrSpaceMap *Map = nullptr);
 
 /// Create a pass for translating LLVM to SPIR-V.
 ModulePass *createLLVMToSPIRVLegacy(SPIRV::SPIRVModule *);

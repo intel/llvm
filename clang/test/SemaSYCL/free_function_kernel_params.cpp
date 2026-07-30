@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
-// RUN: %s -o - | FileCheck %s
+// RUN: %s -o - | FileCheck --check-prefixes=GEN-AS,CHECK %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
+// RUN: -fsycl-force-global-as-in-kernel-args %s -o - | FileCheck --check-prefixes=GLOB-AS,CHECK %s
 // This test checks parameter rewriting for free functions with parameters
 // of type scalar, pointer, non-decomposed struct, work group memory, dynamic work group memory 
 // and special types.
@@ -90,10 +92,13 @@ __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_4(NoPointers S1, Pointers S2, Agg S3) {
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (NoPointers, __generated_Pointers, __generated_Agg) __attribute__((device_kernel))'
+// GEN-AS: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (NoPointers, Pointers, Agg) __attribute__((device_kernel))'
+// GLOB-AS: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (NoPointers, __generated_Pointers, __generated_Agg) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S1 'NoPointers'
-// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Pointers'
-// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S3 '__generated_Agg'
+// GEN-AS-NEXT: ParmVarDecl {{.*}} used __arg_S2 'Pointers'
+// GEN-AS-NEXT: ParmVarDecl {{.*}} used __arg_S3 'Agg'
+// GLOB-AS-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Pointers'
+// GLOB-AS-NEXT: ParmVarDecl {{.*}} used __arg_S3 '__generated_Agg'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(NoPointers, Pointers, Agg)' <FunctionToPointerDecay>
@@ -103,25 +108,30 @@ void ff_4(NoPointers S1, Pointers S2, Agg S3) {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'NoPointers' lvalue ParmVar {{.*}} '__arg_S1' 'NoPointers'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Pointers' 'void (const Pointers &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const Pointers' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'Pointers' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'Pointers *' reinterpret_cast<Pointers *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_Pointers *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_Pointers' lvalue ParmVar {{.*}} '__arg_S2' '__generated_Pointers'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Agg' 'void (const Agg &) noexcept'
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'Pointers' lvalue ParmVar {{.*}} '__arg_S2' 'Pointers'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'Pointers' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'Pointers *' reinterpret_cast<Pointers *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_Pointers *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_Pointers' lvalue ParmVar {{.*}} '__arg_S2' '__generated_Pointers'
+// CHECK: CXXConstructExpr {{.*}} 'Agg' 'void (const Agg &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const Agg' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'Agg' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'Agg *' reinterpret_cast<Agg *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_Agg *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_Agg' lvalue ParmVar {{.*}} '__arg_S3' '__generated_Agg'
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'Agg' lvalue ParmVar {{.*}} '__arg_S3' 'Agg'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'Agg' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'Agg *' reinterpret_cast<Agg *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_Agg *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_Agg' lvalue ParmVar {{.*}} '__arg_S3' '__generated_Agg'
 
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_5(Agg1 S1, Derived S2, Derived1 S3) {
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (Agg1, __generated_Derived, __generated_Derived1) __attribute__((device_kernel))'
+// GEN-AS: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (Agg1, Derived, Derived1) __attribute__((device_kernel))'
+// GLOB-AS: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (Agg1, __generated_Derived, __generated_Derived1) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S1 'Agg1'
-// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Derived'
-// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S3 '__generated_Derived1'
+// GEN-AS-NEXT: ParmVarDecl {{.*}} used __arg_S2 'Derived'
+// GEN-AS-NEXT: ParmVarDecl {{.*}} used __arg_S3 'Derived1'
+// GLOB-AS-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Derived'
+// GLOB-AS-NEXT: ParmVarDecl {{.*}} used __arg_S3 '__generated_Derived1'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr
 // CHECK-NEXT: ImplicitCastExpr{{.*}}'void (*)(Agg1, Derived, Derived1)' <FunctionToPointerDecay>
@@ -131,16 +141,18 @@ void ff_5(Agg1 S1, Derived S2, Derived1 S3) {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'Agg1' lvalue ParmVar {{.*}} '__arg_S1' 'Agg1'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Derived' 'void (const Derived &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const Derived' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'Derived' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'Derived *' reinterpret_cast<Derived *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_Derived *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_Derived' lvalue ParmVar {{.*}} '__arg_S2' '__generated_Derived'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Derived1' 'void (const Derived1 &) noexcept'
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'Derived' lvalue ParmVar {{.*}} '__arg_S2' 'Derived'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'Derived' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'Derived *' reinterpret_cast<Derived *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_Derived *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_Derived' lvalue ParmVar {{.*}} '__arg_S2' '__generated_Derived'
+// CHECK: CXXConstructExpr {{.*}} 'Derived1' 'void (const Derived1 &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const Derived1' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'Derived1' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'Derived1 *' reinterpret_cast<Derived1 *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_Derived1 *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_Derived1' lvalue ParmVar {{.*}} '__arg_S3' '__generated_Derived1'
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'Derived1' lvalue ParmVar {{.*}} '__arg_S3' 'Derived1'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'Derived1' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'Derived1 *' reinterpret_cast<Derived1 *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_Derived1 *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_Derived1' lvalue ParmVar {{.*}} '__arg_S3' '__generated_Derived1'
 
 template <typename T1, typename T2>
 __attribute__((sycl_device))
@@ -150,9 +162,12 @@ __attribute__((sycl_device))
 
 // Explicit instantiation.
 template void ff_6(Agg S1, Derived1 S2, int);
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_Agg, __generated_Derived1, int) __attribute__((device_kernel))'
-// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S1 '__generated_Agg'
-// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Derived1'
+// GEN-AS: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (Agg, Derived1, int) __attribute__((device_kernel))'
+// GLOB-AS: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_Agg, __generated_Derived1, int) __attribute__((device_kernel))'
+// GEN-AS-NEXT: ParmVarDecl {{.*}} used __arg_S1 'Agg'
+// GEN-AS-NEXT: ParmVarDecl {{.*}} used __arg_S2 'Derived1'
+// GLOB-AS-NEXT: ParmVarDecl {{.*}} used __arg_S1 '__generated_Agg'
+// GLOB-AS-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Derived1'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_end 'int'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr {{.*}} 'void'
@@ -160,17 +175,19 @@ template void ff_6(Agg S1, Derived1 S2, int);
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (Agg, Derived1, int)' lvalue Function {{.*}} 'ff_6' 'void (Agg, Derived1, int)'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Agg' 'void (const Agg &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const Agg' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'Agg' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'Agg *' reinterpret_cast<struct Agg *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_Agg *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_Agg' lvalue ParmVar {{.*}} '__arg_S1' '__generated_Agg'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Derived1' 'void (const Derived1 &) noexcept'
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'Agg' lvalue ParmVar {{.*}} '__arg_S1' 'Agg'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'Agg' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'Agg *' reinterpret_cast<struct Agg *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_Agg *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_Agg' lvalue ParmVar {{.*}} '__arg_S1' '__generated_Agg'
+// CHECK: CXXConstructExpr {{.*}} 'Derived1' 'void (const Derived1 &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const Derived1' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'Derived1' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'Derived1 *' reinterpret_cast<class Derived1 *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_Derived1 *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_Derived1' lvalue ParmVar {{.*}} '__arg_S2' '__generated_Derived1'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'Derived1' lvalue ParmVar {{.*}} '__arg_S2' 'Derived1'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'Derived1' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'Derived1 *' reinterpret_cast<class Derived1 *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_Derived1 *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_Derived1' lvalue ParmVar {{.*}} '__arg_S2' '__generated_Derived1'
+// CHECK: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '__arg_end' 'int'
 
 __attribute__((sycl_device))

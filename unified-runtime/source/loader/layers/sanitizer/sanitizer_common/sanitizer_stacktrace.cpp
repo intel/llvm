@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -14,13 +13,11 @@
 #include "sanitizer_stacktrace.hpp"
 #include "ur_sanitizer_layer.hpp"
 
-extern "C" {
-
-__attribute__((weak)) void SymbolizeCode(const char *ModuleName,
-                                         uint64_t ModuleOffset,
-                                         char *ResultString, size_t ResultSize,
-                                         size_t *RetSize);
-}
+#ifdef UR_HAVE_SYMBOLIZER
+extern "C" void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
+                              char *ResultString, size_t ResultSize,
+                              size_t *RetSize);
+#endif
 
 namespace ur_sanitizer_layer {
 
@@ -30,6 +27,7 @@ bool Contains(const std::string &s, const char *p) {
   return s.find(p) != std::string::npos;
 }
 
+#ifdef UR_HAVE_SYMBOLIZER
 // Parse back trace information in the following formats:
 //   <module_name>([function_name]+function_offset) [offset]
 void ParseBacktraceInfo(const BacktraceInfo &BI, std::string &ModuleName,
@@ -77,6 +75,7 @@ SourceInfo ParseSymbolizerOutput(const std::string &Output) {
 
   return Info;
 }
+#endif
 
 } // namespace
 
@@ -100,7 +99,8 @@ void StackTrace::print() const {
       continue;
     }
 
-    if (&SymbolizeCode != nullptr) {
+#ifdef UR_HAVE_SYMBOLIZER
+    {
       std::string Result;
       std::string ModuleName;
       uptr Offset;
@@ -122,9 +122,10 @@ void StackTrace::print() const {
                    SrcInfo.function, ModuleName, (void *)Offset);
         }
       }
-    } else {
-      UR_LOG_L(getContext()->logger, QUIET, "  #{} {}", index, BI);
     }
+#else
+    UR_LOG_L(getContext()->logger, QUIET, "  #{} {}", index, BI);
+#endif
     ++index;
   }
   UR_LOG_L(getContext()->logger, QUIET, "");

@@ -471,19 +471,20 @@
 /// ###########################################################################
 
 /// Check for default linking of -lsycl with -fsycl --no-offload-new-driver usage
-// RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
+// RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -implicit-check-not="-lsycl" -check-prefix=CHECK-LD-SYCL %s
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-SYCL: "-lsycl"
+// CHECK-LD-SYCL: "{{.*}}libsycl.so"
+// CHECK-LD-SYCL-SAME: "{{.*}}libsycl-devicelib-host.a"
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl --no-offload-new-driver -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s
 // CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
+// CHECK-LD-NOLIBSYCL-NOT: "libsycl.so"
 
 /// Check no SYCL runtime is linked with -nostdlib
 // RUN: %clang -fsycl --no-offload-new-driver -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
 // CHECK-LD-NOSTDLIB: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOSTDLIB-NOT: "-lsycl"
+// CHECK-LD-NOSTDLIB-NOT: "libsycl.so"
 
 /// Check for default linking of syclN.lib with -fsycl --no-offload-new-driver usage
 // RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
@@ -605,7 +606,7 @@
 /// Verify that triple-boundarch pairs are correct with multi-targetting
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc %s 2>&1 \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/libspirv.l64.signed_char.bc %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -644,7 +645,7 @@
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/libspirv.l64.signed_char.bc \
 // RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:     -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH2 %s
@@ -686,7 +687,7 @@
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/libspirv.l64.signed_char.bc \
 // RUN:    -fsycl-targets=spir64,nvptx64-nvidia-cuda -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -728,7 +729,7 @@
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/libspirv.l64.signed_char.bc \
 // RUN:    -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa \
 // RUN:    -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 \
 // RUN:    -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
@@ -803,12 +804,6 @@
 // LIB-NODEVICE: 1: linker, {0}, image, (host-sycl)
 // LIB-NODEVICE-NOT: linker, {{.*}}, spirv, (device-sycl)
 
-// Checking for an error if c-compilation is forced
-// RUN: not %clangxx -### -c -fsycl --no-offload-new-driver -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --no-offload-new-driver -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --no-offload-new-driver -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// CHECK_XC_FSYCL: '-x c{{.*}}' must not be used in conjunction with '-fsycl'
-
 // -std=c++17 check (check all 3 compilations)
 // RUN: %clangxx -### -c -fsycl --no-offload-new-driver -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
 // RUN: %clang_cl -### -c -fsycl --no-offload-new-driver -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
@@ -816,10 +811,10 @@
 // CHECK-STD: clang{{.*}} "-emit-obj" {{.*}} "-std=c++17"
 
 // -std=c++17 override check
-// RUN: %clangxx -### -c -fsycl --no-offload-new-driver -std=c++14 -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
-// RUN: %clang_cl -### -c -fsycl --no-offload-new-driver /std:c++14 -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
-// CHECK-STD-OVR: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++14"
-// CHECK-STD-OVR: clang{{.*}} "-emit-obj" {{.*}} "-std=c++14"
+// RUN: %clangxx -### -c -fsycl --no-offload-new-driver -std=c++20 -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// RUN: %clang_cl -### -c -fsycl --no-offload-new-driver /std:c++20 -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// CHECK-STD-OVR: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++20"
+// CHECK-STD-OVR: clang{{.*}} "-emit-obj" {{.*}} "-std=c++20"
 // CHECK-STD-OVR-NOT: clang{{.*}} "-std=c++17"
 
 // Check sycl-post-link optimization level.
@@ -1092,3 +1087,12 @@
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: ocloc{{.*}} "-options" "-ze-fp64-gen-conv-emu"
+
+/// Check that -fsycl alone does NOT use --offload-new-driver
+// RUN: %clangxx -### -fsycl --target=x86_64-unknown-linux-gnu %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-OLD-MODEL %s
+// RUN: %clangxx -### -fsycl --no-offload-new-driver --target=x86_64-unknown-linux-gnu %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-OLD-MODEL %s
+// RUN: %clang_cl -### -fsycl -- %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-OLD-MODEL %s
+// CHECK-OLD-MODEL-NOT: "--offload-new-driver"

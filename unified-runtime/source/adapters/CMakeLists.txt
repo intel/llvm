@@ -1,10 +1,24 @@
-# Copyright (C) 2022-2024 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(helpers)
 
 function(add_ur_adapter name)
     add_ur_library(${name} ${ARGN})
+    string(REPLACE "ur_adapter_" "" UR_ADAPTER_NAME ${name})
+    string(TOUPPER ${UR_ADAPTER_NAME} UR_ADAPTER_NAME)
+    ur_adapter_is_static(${UR_ADAPTER_NAME} adapter_is_static)
+    if(WIN32 AND NOT adapter_is_static)
+        set(ADAPTER_RESOURCE_FILE ${CMAKE_CURRENT_BINARY_DIR}/${name}.rc)
+        configure_file(
+            ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/UrAdapterVersion.rc.in
+            ${ADAPTER_RESOURCE_FILE}
+            @ONLY
+        )
+        target_sources(${name} PRIVATE ${ADAPTER_RESOURCE_FILE})
+    endif()
     if(MSVC)
         set(TARGET_LIBNAME ${name})
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
@@ -20,6 +34,11 @@ function(add_ur_adapter name)
         )
     elseif(APPLE)
         target_compile_options(${name} PRIVATE "-fvisibility=hidden")
+        # @loader_path is the macOS equivalent of $ORIGIN: it resolves
+        # relative to the directory containing the loading library.
+        set_target_properties(${name} PROPERTIES
+            INSTALL_RPATH "@loader_path"
+        )
     else()
         set(TARGET_LIBNAME lib${name}_${PROJECT_VERSION_MAJOR}.0)
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
@@ -32,6 +51,15 @@ function(add_ur_adapter name)
         )
         target_link_options(${name} PRIVATE
             "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}"
+        )
+        # Set the install RPATH so installed adapters can find co-located
+        # dependencies (e.g. libumf.so, libze_loader.so) without requiring
+        # LD_LIBRARY_PATH. BUILD_WITH_INSTALL_RPATH is intentionally not set:
+        # CMAKE_BUILD_RPATH already points to the build output directory for
+        # the build tree, and $ORIGIN is only correct at install time when
+        # all libraries reside in the same directory.
+        set_target_properties(${name} PROPERTIES
+            INSTALL_RPATH "\$ORIGIN"
         )
     endif()
     add_dependencies(ur_loader ${name})

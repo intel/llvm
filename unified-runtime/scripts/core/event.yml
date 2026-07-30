@@ -1,8 +1,7 @@
 #
-# Copyright (C) 2022 Intel Corporation
 #
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
@@ -18,7 +17,7 @@ class: $xEvent
 name: $x_command_t
 etors:
     - name: KERNEL_LAUNCH
-      desc: Event created by $xEnqueueKernelLaunch
+      desc: Event created by $xEnqueueKernelLaunchWithArgsExp
     - name: EVENTS_WAIT
       desc: Event created by $xEnqueueEventsWait
     - name: EVENTS_WAIT_WITH_BARRIER

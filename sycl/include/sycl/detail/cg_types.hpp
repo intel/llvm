@@ -8,26 +8,11 @@
 
 #pragma once
 
-#include <sycl/detail/array.hpp>               // for array
-#include <sycl/detail/common.hpp>              // for InitializedVal, NDLoop
-#include <sycl/detail/helpers.hpp>             // for Builder
-#include <sycl/detail/host_profiling_info.hpp> // for HostProfilingInfo
-#include <sycl/detail/item_base.hpp>           // for id
-#include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
-#include <sycl/exception.hpp>
-#include <sycl/group.hpp>                      // for group
-#include <sycl/h_item.hpp>                     // for h_item
-#include <sycl/id.hpp>                         // for id
-#include <sycl/item.hpp>                       // for item
-#include <sycl/kernel_handler.hpp>             // for kernel_handler
-#include <sycl/nd_item.hpp>                    // for nd_item
-#include <sycl/nd_range.hpp>                   // for nd_range
-#include <sycl/range.hpp>                      // for range, operator*
+#include <sycl/kernel_handler.hpp> // for kernel_handler
 
-#include <functional>  // for function
-#include <stddef.h>    // for size_t
+#include <memory>      // for unique_ptr
 #include <type_traits> // for enable_if_t, false_type
-#include <utility>     // for declval
+#include <utility>     // for declval, move
 
 namespace sycl {
 inline namespace _V1 {
@@ -66,6 +51,7 @@ enum class CGType : unsigned int {
   EnqueueNativeCommand = 26,
   AsyncAlloc = 27,
   AsyncFree = 28,
+  NativeHostTask = 29,
 };
 
 template <typename, typename T> struct check_fn_signature {

@@ -1,8 +1,14 @@
 // FIXME flaky fail on CUDA and HIP
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda
+//
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 //
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
+//
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21023
 //
 // RUN: %{build} -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 //

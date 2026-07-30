@@ -72,6 +72,8 @@ private:
 } // namespace _V1
 } // namespace sycl
 
+template void sycl::unittest::registerKernelNames<EAMTestKernel, EAMTestKernel2,
+                                                  EAMTestKernel3>();
 static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   using namespace sycl::unittest;
 

@@ -1,8 +1,7 @@
 #
-# Copyright (C) 2025 Intel Corporation
 #
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
@@ -152,9 +151,9 @@ returns:
     - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
         - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION:
-        - "`pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 || pGlobalWorkSize[2] == 0`"
+        - "`pGlobalWorkSize[0] == 0 || (workDim >= 2 && pGlobalWorkSize[1] == 0) || (workDim >= 3 && pGlobalWorkSize[2] == 0)`"
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
-        - "`pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] == 0 || pLocalWorkSize[2] == 0)`"
+        - "`pLocalWorkSize && (pLocalWorkSize[0] == 0 || (workDim >= 2 && pLocalWorkSize[1] == 0) || (workDim >= 3 && pLocalWorkSize[2] == 0))`"
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGS
         - "The kernel argument values have not been specified."

@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+
+#include <string>
 
 #ifdef _MSC_VER
 #include <Windows.h>
@@ -40,6 +41,32 @@ struct urDeviceGetSelectedTest : uur::urPlatformTest {
     if (!totalCount) {
       GTEST_SKIP() << "Platform has no devices";
     }
+  }
+
+  // Computes device offset for a given platform, since the first device
+  // of platform 2 may not be 0.
+  uint32_t getDeviceIndexOffset() {
+    ur_adapter_handle_t adapter = nullptr;
+    EXPECT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
+                                     sizeof(adapter), &adapter, nullptr));
+
+    uint32_t numPlatforms = 0;
+    EXPECT_SUCCESS(urPlatformGet(adapter, 0, nullptr, &numPlatforms));
+    std::vector<ur_platform_handle_t> platforms(numPlatforms);
+    EXPECT_SUCCESS(
+        urPlatformGet(adapter, numPlatforms, platforms.data(), nullptr));
+
+    uint32_t offset = 0;
+    for (auto p : platforms) {
+      if (p == platform) {
+        break;
+      }
+      uint32_t deviceCount = 0;
+      EXPECT_SUCCESS(
+          urDeviceGet(p, UR_DEVICE_TYPE_ALL, 0, nullptr, &deviceCount));
+      offset += deviceCount;
+    }
+    return offset;
   }
 };
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urDeviceGetSelectedTest);
@@ -109,7 +136,8 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonStar) {
 }
 
 TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonZero) {
-  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0");
+  const std::string selector = "*:" + std::to_string(getDeviceIndexOffset());
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", selector.c_str());
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -154,7 +182,10 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_SelectAndDiscard) {
 
 TEST_P(urDeviceGetSelectedTest,
        SuccessSelected_SelectSomethingAndDiscardSomethingElse) {
-  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0;!*:1");
+  const uint32_t offset = getDeviceIndexOffset();
+  const std::string selector =
+      "*:" + std::to_string(offset) + ";!*:" + std::to_string(offset + 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", selector.c_str());
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));

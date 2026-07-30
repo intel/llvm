@@ -4,8 +4,6 @@
 // RUN: %{build} -fsycl-device-code-split=off -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: hip
-
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;

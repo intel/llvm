@@ -1,6 +1,7 @@
 // Header with helper macros for testing vec binary operators.
 
 #pragma once
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/vector.hpp>

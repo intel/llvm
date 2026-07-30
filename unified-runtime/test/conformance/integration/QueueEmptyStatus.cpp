@@ -1,6 +1,5 @@
-// Copyright (C) 2024-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -52,15 +51,23 @@ struct QueueEmptyStatusTest : uur::IntegrationQueueTest {
                                     0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, SharedMem));
+    ur_exp_kernel_arg_value_t arg_val = {};
+    arg_val.pointer = SharedMem;
+    ur_exp_kernel_arg_properties_t arg = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        0,
+        sizeof(void *),
+        arg_val};
 
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
     constexpr uint32_t num_iterations = 5;
     for (uint32_t i = 0; i < num_iterations; ++i) {
-      ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                           &global_offset, &ArraySize, nullptr,
-                                           nullptr, 0, nullptr, &Event));
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, n_dimensions, &global_offset, &ArraySize, nullptr, 1,
+          &arg, nullptr, 0, nullptr, &Event));
       ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
     }
 

@@ -13,6 +13,12 @@
 #include <sycl/detail/builtins/builtins.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
+// Pull in the minimal C runtime headers that cover the libc declarations below.
+// This keeps the device-side redeclarations aligned with the platform headers
+// without relying on heavier transitive includes such as <algorithm>.
+#include <cstdlib>
+#include <cstring>
+
 extern "C" {
 
 extern __DPCPP_SYCL_EXTERNAL_LIBC void *memcpy(void *dest, const void *src,

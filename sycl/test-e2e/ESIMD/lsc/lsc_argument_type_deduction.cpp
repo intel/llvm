@@ -11,6 +11,7 @@
 
 // The test checks that compiler is able to corrctly deduce the template
 // parameter types for lsc functions.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

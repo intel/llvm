@@ -11,11 +11,10 @@ from templates import helper as th
     handle_create_get_retain_release_funcs=th.get_handle_create_get_retain_release_functions(specs, n, tags)
 %>/*
  *
- * Copyright (C) 2023-2026 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *

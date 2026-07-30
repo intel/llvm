@@ -4,7 +4,7 @@
 
 // clang-format off
 
-#include <sycl/detail/common.hpp>
+#include <sycl/detail/code_location.hpp>
 
 void foo(sycl::detail::tls_code_loc_t) {}
 

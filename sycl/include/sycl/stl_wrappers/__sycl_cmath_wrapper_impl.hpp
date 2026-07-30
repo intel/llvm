@@ -199,16 +199,9 @@ __SYCL_SPIRV_MAP_UNARY_C(rint);
 // unsupported: lrint, llrint (no spirv mapping)
 
 // unsupported (partially, no spirv mapping): nearbyint
-#if defined(__NVPTX__)
-extern "C" SYCL_EXTERNAL float __nv_nearbyintf(float);
-extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
-__SYCL_DEVICE_C float nearbyintf(float x) { return __nv_nearbyintf(x); }
-__SYCL_DEVICE_C double nearbyint(double x) { return __nv_nearbyintf(x); }
-#elif defined(__AMDGCN__)
-extern "C" SYCL_EXTERNAL float __ocml_nearbyint_f32(float);
-extern "C" SYCL_EXTERNAL double __ocml_nearbyint_f64(double);
-__SYCL_DEVICE_C float nearbyintf(float x) { return __ocml_nearbyint_f32(x); }
-__SYCL_DEVICE_C double nearbyint(double x) { return __ocml_nearbyint_f64(x); }
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+__SYCL_DEVICE_C float nearbyintf(float x) { return __builtin_nearbyintf(x); }
+__SYCL_DEVICE_C double nearbyint(double x) { return __builtin_nearbyint(x); }
 #endif
 
 /// Floating-point manipulation functions
@@ -389,14 +382,8 @@ __SYCL_SPIRV_MAP_UNARY_CXX(rint);
 #if defined(__NVPTX__) || defined(__AMDGCN__)
 using ::nearbyint;
 using ::nearbyintf;
-#endif
 
-#if defined(__NVPTX__)
-__SYCL_DEVICE float nearbyint(float x) { return __nv_nearbyintf(x); }
-#endif
-
-#if defined(__AMDGCN__)
-__SYCL_DEVICE float nearbyint(float x) { return __ocml_nearbyint_f32(x); }
+__SYCL_DEVICE float nearbyint(float x) { return __builtin_nearbyintf(x); }
 #endif
 
 // Floating-point manipulation functions

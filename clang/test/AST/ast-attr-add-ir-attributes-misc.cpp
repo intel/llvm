@@ -198,6 +198,14 @@ class SubClass2 : BaseClass1 {};
 // CHECK-NEXT:       ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:         value: Int 2
 // CHECK-NEXT:         IntegerLiteral {{.*}} 'int' 2
+// CHECK-NEXT: ExplicitInstantiationDecl {{.*}} explicit_instantiation_definition 'TemplateClass1'
+// CHECK-NEXT:   ClassTemplateSpecialization {{.*}} 'TemplateClass1'
+// CHECK-NEXT:   TemplateArgument {{.*}} type 'float'
+// CHECK-NEXT:     BuiltinType {{.*}} 'float'
+// CHECK-NEXT:   TemplateArgument {{.*}} expr '3'
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 3
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 3
 // CHECK-NEXT: ClassTemplatePartialSpecializationDecl {{.*}} struct TemplateClass1 definition
 // CHECK-NEXT:     DefinitionData
 // CHECK-NEXT:       DefaultConstructor

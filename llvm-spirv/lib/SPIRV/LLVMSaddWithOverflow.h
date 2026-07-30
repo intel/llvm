@@ -133,6 +133,40 @@
 // Clang options: -emit-llvm -O2 -g0 -fno-discard-value-names
 
 static const char LLVMSaddWithOverflow[]{R"(
+define spir_func { i8, i1 } @llvm_sadd_with_overflow_i8(i8 %a, i8 %b) {
+entry:
+  %conv = sext i8 %a to i32
+  %conv1 = sext i8 %b to i32
+  %0 = or i8 %b, %a
+  %1 = icmp sgt i8 %0, -1
+  %2 = and i8 %b, %a
+  %3 = icmp slt i8 %2, 0
+  %brmerge = or i1 %1, %3
+  br i1 %brmerge, label %if.then, label %if.end21
+
+if.then:                                          ; preds = %entry
+  %4 = icmp slt i32 %conv, 0
+  %neg = sub nsw i32 0, %conv
+  %5 = select i1 %4, i32 %neg, i32 %conv
+  %6 = icmp slt i32 %conv1, 0
+  %neg39 = sub nsw i32 0, %conv1
+  %7 = select i1 %6, i32 %neg39, i32 %conv1
+  %add = add nuw nsw i32 %7, %5
+  %cmp15 = icmp ugt i32 %add, 127
+  %or.cond = and i1 %1, %cmp15
+  %cmp19 = icmp ugt i32 %add, 128
+  %or.cond28 = and i1 %3, %cmp19
+  %or.cond40 = or i1 %or.cond, %or.cond28
+  br label %if.end21
+
+if.end21:                                         ; preds = %if.then, %entry
+  %overflow = phi i1 [ 0, %entry ], [ %or.cond40, %if.then ]
+  %add24 = add i8 %b, %a
+  %agg = insertvalue {i8, i1} poison, i8 %add24, 0
+  %res = insertvalue {i8, i1} %agg, i1 %overflow, 1
+  ret {i8, i1} %res
+}
+
 define spir_func { i16, i1 } @llvm_sadd_with_overflow_i16(i16 %a, i16 %b) {
 entry:
   %conv = sext i16 %a to i32

@@ -107,7 +107,7 @@ to be taken.
 For example, when an embedded device binary is of the `OFK_SYCL` kind and of
 the `spir64_gen` architecture triple, the resulting extracted binary is linked,
 post-link processed and converted to SPIR-V before being passed to `ocloc` to
-generate the final device binary.  Options passed via `--gpu-tool-arg=` will
+generate the final device binary.  Options passed via `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>` will
 be applied to the `ocloc` step as well.
 
 Binaries generated during the offload compilation will be 'bundled' together
@@ -233,17 +233,40 @@ to create the image.
 
 To support the needed option passing triggered by use of the
 `-Xsycl-target-backend` option and implied options based on the optional
-device behaviors for AOT compilations for GPU new command line interfaces
+device behaviors for AOT compilations for GPU and CPU, new command line interfaces
 are needed to pass along this information.
 
-| Target | Triple        | Offline Tool   | Option for Additional Args |
-|--------|---------------|----------------|----------------------------|
-| CPU    | spir64_x86_64 | opencl-aot     | `--cpu-tool-arg=<arg>`     |
-| GPU    | spir64_gen    | ocloc          | `--gpu-tool-arg=<arg>`     |
-| FPGA   | spir64_fpga   | aoc/opencl-aot | `--fpga-tool-arg=<arg>`    |
+| Target | Triple        | Offline Tool   | Option for Additional Args                                       |
+|--------|---------------|----------------|------------------------------------------------------------------|
+| CPU    | spir64_x86_64 | opencl-aot     | `--device-compiler=sycl:spir64_x86_64-unknown-unknown=<arg>`     |
+| GPU    | spir64_gen    | ocloc          | `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>`        |
 
 *Table: Ahead of Time Info*
 
+#### Format of the --device-compiler Option
+The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:
+- `<kind>` : specifies the offloading kind (e.g., sycl, hip, openmp) and is optional.
+- `<triple>` : specifies the target triple (e.g., `spir64_gen-unknown-unknown`, `spir64_x86_64-unknown-unknown`) and is optional.
+- `<value>` : contains the arguments to be passed to the backend compiler.
+
+In clang-linker-wrapper, the `<kind>` and `<triple>` are matched against the current compilation target. Only arguments that match both the offloading kind and target triple will be passed to the backend compiler. If `<kind>` is not specified, the arguments will match any offloading kind; if `<triple>` is not specified, the arguments will match any target triple; and if neither is specified, the arguments will be applied to all targets. 
+
+To support multiple device architectures, a new `--device-compiler` option must be specified for each device. For example, to compile for Ponte Vecchio (PVC) and Skylake (SKL) architectures and put them in a fat binary, the user must add the following two `--device-compiler` options:
+
+`--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options ...`
+
+`--device-compiler=sycl:spir64_gen-unknown-unknown=-device skl -options ...`
+
+Device specific options for each of the device architectures should be specified after `-device <name>`.
+
+Here is an example of a clang-linker-wrapper invocation where ther user wants to create a fat binary with PVC and SKL architectures to be run on a x86_64 Linux host. In addition, they would like to enable aggressive mathematical optimizations and are tolerant for slightly imprecise floating-point values just for SKL, that is, use the `-cl-unsafe-math-optimizations` flag. For PVC, they would like to enable the multiply and add instruction usage (`-cl-mad-enable`). The source binaries are called host.o and kernel.o and the output should be called out.exe.
+
+`clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu
+ --device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options "-cl-mad-enable"
+ --device-compiler=sycl:spir64_gen-unknown-unknown=-device skl -options "-cl-unsafe-math-optimizations" -- /usr/bin/ld
+host.o kernel.o -o out.exe`
+
+#### Other Supported Options
 To complete the support needed for the various targets using the
 `clang-linker-wrapper` as the main interface, a few additional options will
 be needed to communicate from the driver to the tool.  Further details of usage
@@ -251,7 +274,6 @@ are given further below.
 
 | Option Name                  | Purpose                                      |
 |------------------------------|----------------------------------------------|
-| `--fpga-link-type=<arg>`     | Tells the link step to perform 'early' or 'image' processing to create archives for FPGA |
 | `--parallel-link-sycl=<arg>` | Provide the number of parallel jobs that will be used when processing split jobs |
 
 *Table: Additional Options for clang-linker-wrapper*
@@ -282,8 +304,8 @@ list to be passed along.
 
 *Example: spir64_gen enabling options*
 
-> --gpu-tool-arg="-device pvc -options extraopt_pvc"
---gpu-tool-arg="-options -extraopt_skl"
+> "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options extraopt_pvc"
+"--device-compiler=sycl:spir64_gen-unknown-unknown=-options -extraopt_skl"
 
 *Example: clang-linker-wrapper options*
 
@@ -292,7 +314,7 @@ individually wrapped and linked into the final executable.
 
 Additionally, the syntax can be expanded to enable the ability to pass specific
 options to a specific device GPU target for spir64_gen.  The syntax will
-resemble `--gpu-tool-arg=<arch> <arg>`.  This corresponds to the existing
+resemble `--device-compiler=sycl:spir64_gen-unknown-unknown=<arch> <arg>`.  This corresponds to the existing
 option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
 set of targets.
 
@@ -418,56 +440,6 @@ lists the accepted values.
 | GCN GFX12 (RDNA 4) architecture | gfx1200 |
 | GCN GFX12 (RDNA 4) architecture | gfx1201 |
 
-#### spir64_fpga support
-
-Compilation behaviors involving AOT for FPGA involve an additional call to
-either `aoc` (for Hardware/Simulation) or `opencl-aot` (for Emulation).  This
-call occurs after the post-link step performed by `sycl-post-link` and the
-SPIR-V translation step performed by `llvm-spirv`.  Additional options passed
-by the user via the `-Xsycl-target-backend=spir64_fpga <opts>` command will be
-processed by a new options to the wrapper,
-`--fpga-tool-arg=<arg>`
-
-The FPGA target also has support for additional generated binaries that
-contain intermediate files specific for FPGA.  These binaries (aoco, aocr and
-aocx) can reside in archives and are treated differently than traditional
-device binaries.
-
-Generation of the AOCR and AOCX type binary is triggered by the command line
-option `-fsycl-link`, where `-fsycl-link=image` creates AOCX archives and
-`-fsycl-link=early` generates AOCR archives.  The files generated by these
-options are handled in a specific manner when encountered.
-
-Any archive with an AOCR type device binary will have the AOCR binary
-extracted and passed to `aoc` to produce an AOCX final image.  This final
-image is wrapped and added to the final binary during the host link.  The use
-of `-fsycl-link=image` with an AOCR binary will create an AOCX based archive
-instead of completing the host link.  Any archive with an AOCX type device
-binary skips the `aoc` step and is wrapped and added to the final binary during
-the host link.  Archives with any AOCO device binaries are extracted and passed
-through to `aoc -library-list=<listfile>`
-
-As the `clang-linker-wrapper` is responsible for understanding the archives
-that are added on the command line, it will need to know when to look for
-these unique device binaries based on the expected compilation targets.  The
-behavior of creating the AOCX/AOCR type archive will be triggered via an
-additional command line option specified by the driver when `-fsycl-link`
-options are used.  The `--fpga-link=<type>` option will tell the wrapper when
-these handlings need to occur.
-
-When using the `-fintelfpga` option to enable AOT for FPGA, there are
-additional expectations during the compilation.  Use of the option will enable
-debug generation and also generate dependency information.  The dependency
-generation should be packaged along with the device binary for use during
-the link phase.  It is expected that the full fat object, containing host,
-device and dependency file is generated before being passed to the link phase.
-The dependency information is only used when compiling for hardware.
-
-The `clang-linker-wrapper` tool will be responsible to determine which FPGA
-tool is being used during the AOT device compilation phase.  The use of
-`-simulation` or `-hardware` as passed in by `--fpga-tool-arg` signifies
-which tool is used.
-
 #### spir64_x86_64 support
 
 Compilation behaviors involving AOT for CPU involve an additional call to
@@ -475,7 +447,7 @@ Compilation behaviors involving AOT for CPU involve an additional call to
 `sycl-post-link` and the SPIR-V translation step performed by `llvm-spirv`.
 Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_x86_64 <opts>` command will be processed by a new
-option to the wrapper, `--cpu-tool-arg=<arg>`
+option to the wrapper, `--device-compiler=sycl:spir64_x86_64-unknown-unknown=<arg>`
 
 Similar to SYCL offloading to Intel GPUs using `--offload-arch`, SYCL AOT for Intel CPUs
 will also leverage the `--offload-arch` option.

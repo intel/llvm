@@ -5,6 +5,7 @@
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck %s --input-file %t.spt -check-prefix=CHECK-SPIRV
 ; RUN: FileCheck %s --input-file %t.rev.ll  -check-prefix=CHECK-LLVM
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 ; Make sure that when the GEP operand type doesn't match the source element type (here operand a_var is [2 x i16], but the source element is i8),
 ; we cast the operand to the source element pointer type (a_var to i8*).

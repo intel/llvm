@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck --check-prefixes=CHECK,GEN-AS %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -fsycl-force-global-as-in-kernel-args %s | FileCheck --check-prefixes=CHECK,GLOB-AS %s
 
 // This test checks that compiler generates correct kernel arguments for
 // a struct-with-an-array-of-unions and a array-of-struct-with-a-union.
@@ -95,11 +96,13 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .AccField
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .struct_mem
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:48:9)' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp:48:9)'
+// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp{{.*}})' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp{{.*}})'
 
 // Check kernel_C parameters
-// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (__generated_MyStructWithPtr) __attribute__((device_kernel))'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_structWithPtr_mem '__generated_MyStructWithPtr'
+// GEN-AS: FunctionDecl {{.*}}kernel_C{{.*}} 'void (struct MyStructWithPtr) __attribute__((device_kernel))'
+// GEN-AS-NEXT: ParmVarDecl {{.*}} used _arg_structWithPtr_mem 'struct MyStructWithPtr'
+// GLOB-AS: FunctionDecl {{.*}}kernel_C{{.*}} 'void (__generated_MyStructWithPtr) __attribute__((device_kernel))'
+// GLOB-AS-NEXT: ParmVarDecl {{.*}} used _arg_structWithPtr_mem '__generated_MyStructWithPtr'
 
 // Check kernel_C inits
 // CHECK-NEXT: CompoundStmt
@@ -108,7 +111,8 @@ int main() {
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr' 'void (const MyStructWithPtr &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'struct MyStructWithPtr *' reinterpret_cast<struct MyStructWithPtr *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '__generated_MyStructWithPtr'
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'struct MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' 'struct MyStructWithPtr'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'struct MyStructWithPtr *' reinterpret_cast<struct MyStructWithPtr *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '__generated_MyStructWithPtr'

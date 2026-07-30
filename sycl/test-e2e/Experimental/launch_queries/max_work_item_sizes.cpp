@@ -2,7 +2,8 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
+#include <sycl/info/kernel.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 

@@ -122,7 +122,8 @@ EventImplPtr Scheduler::addCG(
       NewCmd =
           MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       break;
-    case CGType::CodeplayHostTask: {
+    case CGType::CodeplayHostTask:
+    case CGType::NativeHostTask: {
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
                                    AuxiliaryCmds, EventNeeded);
       break;
@@ -199,8 +200,10 @@ void Scheduler::enqueueCommandForCG(event_impl &Event,
               sycl::exception(
                   sycl::make_error_code(errc::runtime),
                   std::string("Enqueue process failed.\n") +
-                      __SYCL_UR_ERROR_REPORT(
-                          NewCmd->getWorkerContext()->getBackend()) +
+                      (NewCmd->getWorkerContext()
+                           ? __SYCL_UR_ERROR_REPORT(
+                                 NewCmd->getWorkerContext()->getBackend())
+                           : " ") +
                       sycl::detail::codeToString(Res.MErrCode)),
               Res.MErrCode);
         }
@@ -628,8 +631,9 @@ ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
     [[maybe_unused]] std::string_view KernelName,
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
 #if SYCL_EXT_JIT_ENABLE && !_WIN32
-  return detail::jit_compiler::get_instance().materializeSpecConstants(
-      Queue, BinImage, KernelName, SpecConstBlob);
+  return detail::GlobalHandler::instance()
+      .getJITCompiler()
+      .materializeSpecConstants(Queue, BinImage, KernelName, SpecConstBlob);
 #else  // SYCL_EXT_JIT_ENABLE && !_WIN32
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
     std::cerr << "WARNING: Materialization of spec constants not supported by "

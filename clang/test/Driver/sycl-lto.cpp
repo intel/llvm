@@ -5,11 +5,11 @@
 // CHECK-ERROR: unsupported option '-foffload-lto=thin' for target 'spir64-unknown-unknown'
 
 // Verify we error when using the new offload driver but with device code split set to off.
-// RUN: not %clangxx -fsycl --offload-new-driver -foffload-lto=thin -fsycl-device-code-split=off %s -### 2>&1 | FileCheck -check-prefix=CHECK-SPLIT-ERROR %s
+// RUN: not %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -foffload-lto=thin -fsycl-device-code-split=off %s -### 2>&1 | FileCheck -check-prefix=CHECK-SPLIT-ERROR %s
 // CHECK-SPLIT-ERROR: '-fsycl-device-code-split=off' is not supported when '-foffload-lto=thin' is set with '-fsycl'
 
 // Verify there's no error and we see the expected cc1 flags and tool invocations with the new offload driver.
-// RUN: %clangxx -fsycl --offload-new-driver -foffload-lto=thin %s -### 2>&1 | \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -foffload-lto=thin %s -### 2>&1 | \
 // RUN: FileCheck -check-prefix=CHECK-SUPPORTED -implicit-check-not=-emit-only-kernels-as-entry-points %s
 // CHECK-SUPPORTED: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" {{.*}} "-flto=thin" "-flto-unit"
 // CHECK-SUPPORTED: sycl-post-link

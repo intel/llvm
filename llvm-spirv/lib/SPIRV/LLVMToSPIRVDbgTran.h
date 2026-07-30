@@ -165,6 +165,11 @@ private:
   // A module in programming language. Example - Fortran module, clang module.
   SPIRVEntry *transDbgModule(const DIModule *IE);
 
+  // Macros
+  SPIRVEntry *transDbgMacroDefine(const DIMacro *Macro, SPIRVString *FileName);
+  SPIRVEntry *transDbgMacroUndef(const DIMacro *Macro, SPIRVString *FileName);
+  void transDbgMacros();
+
   // Flags
   SPIRVWord mapDebugFlags(DINode::DIFlags DFlags);
   SPIRVWord transDebugFlags(const DINode *DN);
@@ -174,6 +179,7 @@ private:
   LLVMToSPIRVBase *SPIRVWriter;
   std::unordered_map<const MDNode *, SPIRVEntry *> MDMap;
   std::unordered_map<std::string, SPIRVExtInst *> FileMap;
+  std::unordered_map<std::string, SPIRVExtInst *> MacroDefMap;
   DebugInfoFinder DIF;
   SPIRVType *VoidT = nullptr;
   SPIRVType *Int32T = nullptr;

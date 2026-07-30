@@ -9,6 +9,7 @@
 /* Tests invoke_simd support in the compiler/headers
  * The test checks error message running simd8 on PVC
  */
+#include <iostream>
 
 #include "Inputs/common.hpp"
 

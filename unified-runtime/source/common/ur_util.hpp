@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2022-2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -321,6 +320,37 @@ inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+}
+
+// Multiply a, b and c, and check for overflow. If overflow occurs, return
+// MAX_SIZE_T.
+inline size_t multiplyWithOverflowCheck(size_t a, size_t b, size_t c) {
+
+  size_t Product = 0;
+  size_t MaxSizeTVal = std::numeric_limits<size_t>::max();
+
+  if (a == 0 || b == 0 || c == 0) {
+    return 0;
+  }
+
+#ifndef _MSC_VER
+  if (__builtin_mul_overflow(a, b, &Product) ||
+      __builtin_mul_overflow(Product, c, &Product)) {
+    return MaxSizeTVal; // Overflow occurred, return max possible value.
+  }
+#else
+  if (b > MaxSizeTVal / a) {
+    return MaxSizeTVal; // Overflow occurred, return max possible value.
+  }
+  Product = a * b;
+
+  if (c > MaxSizeTVal / Product) {
+    return MaxSizeTVal; // Overflow occurred, return max possible value.
+  }
+  Product *= c;
+#endif
+
+  return Product;
 }
 
 template <class> inline constexpr bool ur_always_false_t = false;

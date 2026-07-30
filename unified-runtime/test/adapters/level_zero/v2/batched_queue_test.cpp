@@ -1,6 +1,5 @@
-// Copyright (C) 2025 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -9,7 +8,7 @@
 #include "command_list_cache.hpp"
 
 #include "level_zero/common.hpp"
-#include "level_zero/device.hpp"
+#include "level_zero/common/device.hpp"
 
 #include "../ze_helpers.hpp"
 #include "context.hpp"
@@ -24,28 +23,26 @@
 #include "unified-runtime/ur_api.h"
 #include "uur/checks.h"
 #include "uur/fixtures.h"
+#include "uur/utils.h"
 #include "ze_api.h"
 
 #include "gtest/gtest.h"
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <gtest/gtest.h>
+#include <iostream>
 #include <optional>
 #include <vector>
 
-const ur_dditable_t *ur::level_zero::ddi_getter::value() {
-  // Return a blank dditable
-  static ur_dditable_t table{};
-  return &table;
-};
+// Note: ddi_getter::value() and ur_context_handle_t_::getDevices() are now
+// provided by ur_adapter_level_zero_common and ur_adapter_level_zero_v2,
+// which this test links against. No local mocks are needed.
 
-// mock necessary functions from context, we can't pull in entire context
-// implementation due to a lot of other dependencies
-std::vector<ur_device_handle_t> mockVec{};
-const std::vector<ur_device_handle_t> &
-ur_context_handle_t_::getDevices() const {
-  return mockVec;
-}
+// The adapter types this test exercises live in `ur::level_zero::v2`; alias it
+// so the unqualified `v2::` references resolve without pulling the whole
+// `ur::level_zero` namespace (which would clash with the public `urX` C API).
+namespace v2 = ur::level_zero::v2;
 
 struct urBatchedQueueTest : uur::urContextTest {
   void SetUp() override {
@@ -81,6 +78,7 @@ struct urBatchedQueueTest : uur::urContextTest {
   }
 
   void vectorOfSubmittedBatchesIsClearedHelper() {
+    auto ctx = v2::v2_cast(context);
     std::vector<uint8_t> data(buffer_size, 42);
     // Initially, the vector of batches submitted for execution is empty. After
     // every iteration, each queueFlush results in submitting the current batch
@@ -97,7 +95,7 @@ struct urBatchedQueueTest : uur::urContextTest {
 
     // The maximum arbitrarily set capacity is reached, but the vector is not
     // cleared
-    ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
+    ASSERT_EQ(ctx->getCommandListCache().getNumRegularCommandLists(), 0);
 
     std::vector<uint8_t> output(buffer_size, 0);
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queue1, buffer, false, 0, buffer_size,
@@ -110,12 +108,23 @@ struct urBatchedQueueTest : uur::urContextTest {
     // reaching its arbitrarily set capacity, queueFinish is called and the
     // vector is cleared. Submitted batches (regular command lists) are
     // returned to the command list cache in their destructors.
-    ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(),
+    ASSERT_EQ(ctx->getCommandListCache().getNumRegularCommandLists(),
               v2::initialSlotsForBatches);
 
     for (size_t index = 0; index < buffer_size; index++) {
       ASSERT_EQ(data[index], output[index]);
     }
+  }
+
+  bool isGraphSupported() {
+    ur_bool_t graph_supported = false;
+    auto result = urDeviceGetInfo(
+        device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+        sizeof(graph_supported), &graph_supported, nullptr);
+    if (result != UR_RESULT_SUCCESS || !graph_supported) {
+      return false;
+    }
+    return true;
   }
 
   ur_queue_properties_t batched_queue_properties = {
@@ -178,12 +187,12 @@ event1 = enqueueSth(q1)
 event2 = enqueueSth(q1)
 enqueueSth(q2, event2) // submit the current batch from q1
 enqueueSth(q1, ..., getEvent) // access to the current batchNr from q1
-getEvent->getBatch > event2->getBatch
+v2::v2_cast(getEvent)->getBatch > v2::v2_cast(event2)->getBatch
 
 enqueueSth(q2, event1) // already run in q1
 enqueueSth(q1, ..., getEvent2) // access to batchNr - check if the batch has
 // been submitted for execution for the second time
-getEvent2->getBatch == getEvent->getBatch
+v2::v2_cast(getEvent2)->getBatch == v2::v2_cast(getEvent)->getBatch
 
 event statuses in L0v2 are only UR_EVENT_STATUS_SUBMITTED and
 UR_EVENT_STATUS_COMPLETE
@@ -194,15 +203,15 @@ TEST_P(urBatchedQueueTest, RunBatchOnlyWhenNeededSimple) {
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* blocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &event1));
-  ASSERT_NE(event1->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(event1)->getBatch(), std::nullopt);
 
   ur_event_handle_t event2 = nullptr;
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* blocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &event2));
-  ASSERT_NE(event2->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(event2)->getBatch(), std::nullopt);
   // Events from the same batch
-  ASSERT_EQ(event1->getBatch(), event2->getBatch());
+  ASSERT_EQ(v2::v2_cast(event1)->getBatch(), v2::v2_cast(event2)->getBatch());
 
   // Submit the current batch in queue1 for execution
   std::vector<uint8_t> output(buffer_size, 0);
@@ -214,9 +223,10 @@ TEST_P(urBatchedQueueTest, RunBatchOnlyWhenNeededSimple) {
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* blocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &getEvent1));
-  ASSERT_NE(getEvent1->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(getEvent1)->getBatch(), std::nullopt);
 
-  ASSERT_EQ(getEvent1->getBatch().value(), event2->getBatch().value() + 1);
+  ASSERT_EQ(v2::v2_cast(getEvent1)->getBatch().value(),
+            v2::v2_cast(event2)->getBatch().value() + 1);
 
   // Event1 is from the batch from q1, which has been already submitted for
   // execution
@@ -229,10 +239,11 @@ TEST_P(urBatchedQueueTest, RunBatchOnlyWhenNeededSimple) {
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* blocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &getEvent2));
-  ASSERT_NE(getEvent2->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(getEvent2)->getBatch(), std::nullopt);
 
   // Events should be assigned to the same batch
-  ASSERT_EQ(getEvent1->getBatch(), getEvent2->getBatch());
+  ASSERT_EQ(v2::v2_cast(getEvent1)->getBatch(),
+            v2::v2_cast(getEvent2)->getBatch());
 
   ASSERT_SUCCESS(urQueueFinish(queue1));
   ASSERT_SUCCESS(urQueueFinish(queue2));
@@ -249,25 +260,26 @@ TEST_P(urBatchedQueueTest, IncreaseGenerationNumberAfterQueueFinish) {
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* isBlocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &event1));
-  ASSERT_NE(event1->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(event1)->getBatch(), std::nullopt);
   ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(event1));
 
   ur_event_handle_t event2 = nullptr;
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(
       queue1, buffer, /* blocking involves queueFinish */ true, 0, buffer_size,
       data.data(), 0, nullptr, &event2));
-  ASSERT_NE(event2->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(event2)->getBatch(), std::nullopt);
 
   ur_event_handle_t event3 = nullptr;
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* isBlocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &event3));
-  ASSERT_NE(event3->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(event3)->getBatch(), std::nullopt);
 
   // Events from the same batch
-  ASSERT_EQ(event1->getBatch(), event2->getBatch());
+  ASSERT_EQ(v2::v2_cast(event1)->getBatch(), v2::v2_cast(event2)->getBatch());
 
-  ASSERT_EQ(event3->getBatch().value(), event2->getBatch().value() + 1);
+  ASSERT_EQ(v2::v2_cast(event3)->getBatch().value(),
+            v2::v2_cast(event2)->getBatch().value() + 1);
 
   ASSERT_SUCCESS(urQueueFinish(queue1));
 
@@ -340,16 +352,17 @@ TEST_P(urBatchedQueueTest, RunBatchIfNeededCommandBuffer) {
   // command list. Therefore, for events generated by submitting command
   // buffers on batched queues, the generation number of the current batch is
   // not tracked.
-  ASSERT_EQ(eventOnImmediate->getBatch(), std::nullopt);
+  ASSERT_EQ(v2::v2_cast(eventOnImmediate)->getBatch(), std::nullopt);
 
   ur_event_handle_t eventAfterEnqueueCmdBuff = nullptr;
   std::vector<uint8_t> data(buffer_size, 42);
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(
       queue1, buffer, /* blocking write involves queueFinish */ false, 0,
       buffer_size, data.data(), 0, nullptr, &eventAfterEnqueueCmdBuff));
-  ASSERT_NE(eventAfterEnqueueCmdBuff->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(eventAfterEnqueueCmdBuff)->getBatch(), std::nullopt);
 
-  ASSERT_EQ(eventAfterEnqueueCmdBuff->getBatch(), v2::initialGenerationNumber);
+  ASSERT_EQ(v2::v2_cast(eventAfterEnqueueCmdBuff)->getBatch(),
+            v2::initialGenerationNumber);
 
   // Enqueue command buffer when the current batch is not empty
   if (cmd_buf_handle) {
@@ -373,7 +386,8 @@ TEST_P(urBatchedQueueTest, RunBatchIfNeededCommandBuffer) {
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queue1, output, false, 0, buffer_size,
                                         output2.data(), 0, nullptr,
                                         &eventNonemptyBatch));
-  ASSERT_EQ(eventNonemptyBatch->getBatch(), v2::initialGenerationNumber + 1);
+  ASSERT_EQ(v2::v2_cast(eventNonemptyBatch)->getBatch(),
+            v2::initialGenerationNumber + 1);
 
   urQueueFinish(queue1);
 
@@ -396,7 +410,7 @@ TEST_P(urBatchedQueueTest, RunBatchWhenNeededSameQueue) {
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* isBlocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &event1));
-  ASSERT_NE(event1->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(event1)->getBatch(), std::nullopt);
   ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(event1));
 
   ur_event_handle_t event2 = nullptr;
@@ -405,7 +419,7 @@ TEST_P(urBatchedQueueTest, RunBatchWhenNeededSameQueue) {
                                          0, buffer_size, data2.data(), 0,
                                          nullptr, &event2));
   ASSERT_NE(event2, nullptr);
-  ASSERT_NE(event2->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(event2)->getBatch(), std::nullopt);
   ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(event2));
   // wait_list_view is constructed before passing arguments to command list
   // manager functions. Therefore, if the batch from the current queue might
@@ -414,7 +428,7 @@ TEST_P(urBatchedQueueTest, RunBatchWhenNeededSameQueue) {
   // increased. However, there is no need to submit batches assigned to events
   // from the same queue, since the operations are executed in-order: either
   // from different consecutive batches or as part of the same batch.
-  ASSERT_EQ(event1->getBatch(), event2->getBatch());
+  ASSERT_EQ(v2::v2_cast(event1)->getBatch(), v2::v2_cast(event2)->getBatch());
 
   ASSERT_SUCCESS(urQueueFinish(queue1));
 
@@ -432,11 +446,12 @@ TEST_P(urBatchedQueueTest, RunBatchWhenNeededQueueFlush) {
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* isBlocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &eventEmpty));
-  ASSERT_NE(eventEmpty->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(eventEmpty)->getBatch(), std::nullopt);
   ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(eventEmpty));
 
   // The batch should have not been run when empty
-  ASSERT_EQ(eventEmpty->getBatch().value(), v2::initialGenerationNumber);
+  ASSERT_EQ(v2::v2_cast(eventEmpty)->getBatch().value(),
+            v2::initialGenerationNumber);
 
   // A non-empty batch should have been sumitted for execution and renewed
   // The generation number is increased
@@ -448,11 +463,12 @@ TEST_P(urBatchedQueueTest, RunBatchWhenNeededQueueFlush) {
                                         output.data(), 0, nullptr,
                                         &eventNonEmpty));
 
-  ASSERT_NE(eventNonEmpty->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(eventNonEmpty)->getBatch(), std::nullopt);
   ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(eventNonEmpty));
 
   // The batch should not have been run when empty
-  ASSERT_EQ(eventNonEmpty->getBatch().value(), v2::initialGenerationNumber + 1);
+  ASSERT_EQ(v2::v2_cast(eventNonEmpty)->getBatch().value(),
+            v2::initialGenerationNumber + 1);
 
   ASSERT_SUCCESS(urQueueFinish(queue1));
 
@@ -471,7 +487,8 @@ TEST_P(urBatchedQueueTest, VectorOfSubmittedBatchesIsClearedQueueFlush) {
 }
 
 TEST_P(urBatchedQueueTest, VectorOfSubmittedBatchesIsClearedQueueFinish) {
-  ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
+  auto ctx = v2::v2_cast(context);
+  ASSERT_EQ(ctx->getCommandListCache().getNumRegularCommandLists(), 0);
 
   std::vector<uint8_t> data(buffer_size, 42);
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* isBlocking */ false,
@@ -479,7 +496,7 @@ TEST_P(urBatchedQueueTest, VectorOfSubmittedBatchesIsClearedQueueFinish) {
                                          nullptr, nullptr));
   // A non-empty batch should be submitted for execution and renewed
   ASSERT_SUCCESS(urQueueFlush(queue1));
-  ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
+  ASSERT_EQ(ctx->getCommandListCache().getNumRegularCommandLists(), 0);
 
   // The vector of current batches is cleared
   ASSERT_SUCCESS(urQueueFinish(queue1));
@@ -489,7 +506,7 @@ TEST_P(urBatchedQueueTest, VectorOfSubmittedBatchesIsClearedQueueFinish) {
   // the command list cache in their destructors. The current batch is reset
   // during queueFinish, therefore only one command list is returned to the
   // command list cache
-  ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 1);
+  ASSERT_EQ(ctx->getCommandListCache().getNumRegularCommandLists(), 1);
 }
 
 TEST_P(urBatchedQueueTest, ReuseCommandLists) {
@@ -513,14 +530,14 @@ TEST_P(urBatchedQueueTest, FlushBatchAfterEnqueuedOperationsLimitIsReached) {
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(
         queue1, buffer, /* isBlocking */ false, 0, buffer_size, data.data(), 0,
         nullptr, &events[lastIdx]));
-    ASSERT_NE(events[lastIdx]->getBatch(), std::nullopt);
+    ASSERT_NE(v2::v2_cast(events[lastIdx])->getBatch(), std::nullopt);
     ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(events[lastIdx]));
 
     lastIdx++;
   }
 
   int64_t idxFirstGeneration = lastIdx - 1;
-  ASSERT_EQ(events[idxFirstGeneration]->getBatch(),
+  ASSERT_EQ(v2::v2_cast(events[idxFirstGeneration])->getBatch(),
             v2::initialGenerationNumber);
 
   // The next operation should exceed the allowed number of operations enqueued
@@ -530,11 +547,11 @@ TEST_P(urBatchedQueueTest, FlushBatchAfterEnqueuedOperationsLimitIsReached) {
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* isBlocking */ false,
                                          0, buffer_size, data.data(), 0,
                                          nullptr, &events[lastIdx]));
-  ASSERT_NE(events[lastIdx]->getBatch(), std::nullopt);
+  ASSERT_NE(v2::v2_cast(events[lastIdx])->getBatch(), std::nullopt);
   ASSERT_NO_FATAL_FAILURE(assertEventIsSubmitted(events[lastIdx]));
 
   int64_t idxNextGeneration = lastIdx;
-  ASSERT_EQ(events[idxNextGeneration]->getBatch(),
+  ASSERT_EQ(v2::v2_cast(events[idxNextGeneration])->getBatch(),
             v2::initialGenerationNumber + 1);
 
   ASSERT_SUCCESS(urQueueFinish(queue1));
@@ -542,4 +559,131 @@ TEST_P(urBatchedQueueTest, FlushBatchAfterEnqueuedOperationsLimitIsReached) {
   for (uint64_t j = 0; j < v2::maxNumberOfEnqueuedOperations + 1; j++) {
     ASSERT_SUCCESS(urEventRelease(events[j]));
   }
+}
+
+// Graph capture is not active by default
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseByDefault) {
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
+
+  bool isEnabled = false;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+}
+
+// After beginning graph capture, isGraphCaptureActive should return true.
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsTrueAfterBeginCapture) {
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  bool isEnabled = false;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_TRUE(isEnabled);
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+  ASSERT_NE(graph, nullptr);
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+}
+
+// After ending graph capture, isGraphCaptureActive should return false again.
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseAfterEndCapture) {
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+  ASSERT_NE(graph, nullptr);
+
+  bool isEnabled = true;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+}
+
+// Graph capture may be started on a batched queue, but captured operations
+// should still be submitted on an immediate command list for execution. Events created for
+// those operations have no batch generation number (getBatch() == std::nullopt).
+TEST_P(urBatchedQueueTest, EnqueueDuringGraphCaptureUsesImmediateList) {
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
+
+  ur_queue_handle_t captureQueue = queue1;
+  ur_queue_handle_t submitQueue = nullptr;
+
+  ur_queue_properties_t immediate_queue_properties = {
+      UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+      UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+
+  ASSERT_SUCCESS(urQueueCreate(context, device, &immediate_queue_properties,
+                               &submitQueue));
+  ASSERT_NE(submitQueue, nullptr);
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(captureQueue));
+
+  // Graph capture records the copy source address. Use USM shared memory so
+  // the pointer stays valid for device access on discrete GPUs (e.g. PVC);
+  // plain host stack/heap pointers can fault on synchronize/replay.
+  ur_event_handle_t event = nullptr;
+  void *usmSrc = nullptr;
+  std::vector<uint8_t> data(buffer_size, 42);
+  ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                  buffer_size, &usmSrc));
+  ASSERT_NE(usmSrc, nullptr);
+  std::memcpy(usmSrc, data.data(), buffer_size);
+
+  ASSERT_SUCCESS(urEnqueueMemBufferWrite(captureQueue, buffer,
+                                         /* isBlocking */ true, 0, buffer_size,
+                                         usmSrc, 0, nullptr, &event));
+
+  // The capture operation should not be associated with the batched queue's
+  // regular batch generation.
+  ASSERT_EQ(v2::v2_cast(event)->getBatch(), std::nullopt);
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(captureQueue, &graph));
+  ASSERT_NE(graph, nullptr);
+
+  bool graphIsEmpty = true;
+  ASSERT_SUCCESS(urGraphIsEmptyExp(graph, &graphIsEmpty));
+  ASSERT_FALSE(graphIsEmpty)
+      << "recorded graph should contain the captured mem buffer write";
+
+  // Prove replay from an immediate queue performs the write: clear the buffer,
+  // then run the executable graph and read back the original pattern.
+  const uint8_t clearByte = 0;
+  ASSERT_SUCCESS(urEnqueueMemBufferFill(submitQueue, buffer, &clearByte,
+                                        sizeof(clearByte), 0, buffer_size, 0,
+                                        nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(submitQueue));
+
+  ur_exp_executable_graph_handle_t exGraph = nullptr;
+  ASSERT_SUCCESS(urGraphInstantiateGraphExp(graph, &exGraph));
+  ASSERT_NE(exGraph, nullptr);
+
+  ASSERT_SUCCESS(urEnqueueGraphExp(submitQueue, exGraph, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(submitQueue));
+
+  std::vector<uint8_t> output(buffer_size, 0);
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(submitQueue, buffer,
+                                        /* isBlocking */ true, 0, buffer_size,
+                                        output.data(), 0, nullptr, nullptr));
+
+  for (size_t i = 0; i < buffer_size; i++) {
+    ASSERT_EQ(output[i], data[i]) << "mismatch at byte " << i;
+  }
+
+  ASSERT_SUCCESS(urGraphExecutableGraphDestroyExp(exGraph));
+  ASSERT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+  ASSERT_SUCCESS(urUSMFree(context, usmSrc));
+  ASSERT_SUCCESS(urQueueRelease(submitQueue));
 }

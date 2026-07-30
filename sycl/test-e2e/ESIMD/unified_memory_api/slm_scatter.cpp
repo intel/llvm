@@ -11,6 +11,7 @@
 // The test verifies esimd::slm_scatter() functions accepting  optional
 // compile-time esimd::properties. The slm_scatter() calls in this test do not
 // use VS > 1 (number of stores per offset) to not impose using PVC features.
+#include <iostream>
 
 #include "Inputs/scatter.hpp"
 
