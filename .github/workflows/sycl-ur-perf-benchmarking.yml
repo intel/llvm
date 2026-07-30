@@ -5,8 +5,8 @@ name: SYCL Run Benchmarks
 
 on:
   schedule:
-    # 2 hours after SYCL nightly, every day after weekday (we built in the morning the next day)
-    - cron: '0 5 * * 2-6'
+    # 1:15 hour after SYCL nightly, every day after weekday (we built in the morning the next day)
+    - cron: '15 4 * * 2-6'
   # Run on pull requests only when a benchmark-related files were changed.
   pull_request:
     # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
@@ -301,7 +301,7 @@ jobs:
       runner: '["TEST_PERF"]'
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-      target_devices: 'level_zero:gpu'
+      target_devices: 'level_zero_v2:gpu'
       tests_selector: benchmarks
       benchmark_upload_results: false
       benchmark_preset: 'Minimal'

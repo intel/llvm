@@ -208,22 +208,22 @@ class HostTask;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
+Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg));
+Arg member_ptr_helper(RetType (Func::*)(Arg));
 
 // Version with two arguments to handle the case when kernel_handler is passed
 // to a lambda
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
+Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
+Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
@@ -257,7 +257,7 @@ using sycl::detail::queue_impl;
 // Returns true if x*y will overflow in T;
 // otherwise, returns false and stores x*y in dst.
 template <typename T>
-static std::enable_if_t<std::is_unsigned_v<T>, bool>
+std::enable_if_t<std::is_unsigned_v<T>, bool>
 multiply_with_overflow_check(T &dst, T x, T y) {
   dst = x * y;
   return (y != 0) && (x > (std::numeric_limits<T>::max)() / y);

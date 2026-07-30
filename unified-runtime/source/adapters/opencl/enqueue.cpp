@@ -44,9 +44,10 @@ void MapUREventsToCL(uint32_t numEvents, const ur_event_handle_t *UREvents,
 
 namespace ur::opencl {
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
-    ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueEventsWait(ur_queue_handle_t hQueue,
+                                uint32_t numEventsInWaitList,
+                                const ur_event_handle_t *phEventWaitList,
+                                ur_event_handle_t *phEvent) {
   auto Queue = cast(hQueue);
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
@@ -60,7 +61,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
+ur_result_t urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto Queue = cast(hQueue);
@@ -76,7 +77,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
@@ -84,10 +85,12 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
                                                     phEventWaitList, phEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
-    size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueMemBufferRead(ur_queue_handle_t hQueue,
+                                   ur_mem_handle_t hBuffer, bool blockingRead,
+                                   size_t offset, size_t size, void *pDst,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
   auto Queue = cast(hQueue);
   auto Buffer = cast(hBuffer);
   cl_event Event;
@@ -102,7 +105,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
+ur_result_t urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
@@ -120,7 +123,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
+ur_result_t urEnqueueMemBufferReadRect(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
     ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
     ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
@@ -147,7 +150,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
+ur_result_t urEnqueueMemBufferWriteRect(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
     ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
@@ -174,11 +177,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBufferSrc,
-    ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueMemBufferCopy(ur_queue_handle_t hQueue,
+                                   ur_mem_handle_t hBufferSrc,
+                                   ur_mem_handle_t hBufferDst, size_t srcOffset,
+                                   size_t dstOffset, size_t size,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
   auto Queue = cast(hQueue);
   auto BufferSrc = cast(hBufferSrc);
   auto BufferDst = cast(hBufferDst);
@@ -195,7 +200,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
+ur_result_t urEnqueueMemBufferCopyRect(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBufferSrc,
     ur_mem_handle_t hBufferDst, ur_rect_offset_t srcOrigin,
     ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
@@ -221,11 +226,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, const void *pPattern,
-    size_t patternSize, size_t offset, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueMemBufferFill(ur_queue_handle_t hQueue,
+                                   ur_mem_handle_t hBuffer,
+                                   const void *pPattern, size_t patternSize,
+                                   size_t offset, size_t size,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
   auto Queue = cast(hQueue);
   auto Buffer = cast(hBuffer);
   // CL FillBuffer only allows pattern sizes up to the largest CL type:
@@ -285,7 +292,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
+ur_result_t urEnqueueMemImageRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingRead,
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
@@ -307,7 +314,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
+ur_result_t urEnqueueMemImageWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingWrite,
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
@@ -328,12 +335,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hImageSrc,
-    ur_mem_handle_t hImageDst, ur_rect_offset_t srcOrigin,
-    ur_rect_offset_t dstOrigin, ur_rect_region_t region,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t
+urEnqueueMemImageCopy(ur_queue_handle_t hQueue, ur_mem_handle_t hImageSrc,
+                      ur_mem_handle_t hImageDst, ur_rect_offset_t srcOrigin,
+                      ur_rect_offset_t dstOrigin, ur_rect_region_t region,
+                      uint32_t numEventsInWaitList,
+                      const ur_event_handle_t *phEventWaitList,
+                      ur_event_handle_t *phEvent) {
   auto Queue = cast(hQueue);
   auto ImageSrc = cast(hImageSrc);
   auto ImageDst = cast(hImageDst);
@@ -352,11 +360,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingMap,
-    ur_map_flags_t mapFlags, size_t offset, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent, void **ppRetMap) {
+ur_result_t urEnqueueMemBufferMap(ur_queue_handle_t hQueue,
+                                  ur_mem_handle_t hBuffer, bool blockingMap,
+                                  ur_map_flags_t mapFlags, size_t offset,
+                                  size_t size, uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent, void **ppRetMap) {
   auto Queue = cast(hQueue);
   auto Buffer = cast(hBuffer);
   cl_event Event;
@@ -372,10 +381,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   return mapCLErrorToUR(Err);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hMem, void *pMappedPtr,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueMemUnmap(ur_queue_handle_t hQueue, ur_mem_handle_t hMem,
+                              void *pMappedPtr, uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) {
   auto Queue = cast(hQueue);
   auto Mem = cast(hMem);
   cl_event Event;
@@ -389,7 +398,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
+ur_result_t urEnqueueDeviceGlobalVariableWrite(
     ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
     bool blockingWrite, size_t count, size_t offset, const void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
@@ -416,7 +425,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   return mapCLErrorToUR(Res);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
+ur_result_t urEnqueueDeviceGlobalVariableRead(
     ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
     bool blockingRead, size_t count, size_t offset, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
@@ -443,11 +452,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   return mapCLErrorToUR(Res);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pDst, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueReadHostPipe(ur_queue_handle_t hQueue,
+                                  ur_program_handle_t hProgram,
+                                  const char *pipe_symbol, bool blocking,
+                                  void *pDst, size_t size,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent) {
 
   auto Queue = cast(hQueue);
   auto Program = cast(hProgram);
@@ -474,11 +485,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
+                                   ur_program_handle_t hProgram,
+                                   const char *pipe_symbol, bool blocking,
+                                   void *pSrc, size_t size,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
 
   auto Queue = cast(hQueue);
   auto Program = cast(hProgram);
@@ -504,7 +517,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numArgs,

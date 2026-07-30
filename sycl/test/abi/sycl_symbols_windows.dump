@@ -3907,6 +3907,7 @@
 ?ext_oneapi_has_kernel@kernel_bundle_plain@detail@_V1@sycl@@AEAA_NVstring_view@234@@Z
 ?ext_oneapi_has_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?ext_oneapi_index_within_platform@device@_V1@sycl@@QEBA_KXZ
+?ext_oneapi_ipc_enabled@event@_V1@sycl@@QEBA_NXZ
 ?ext_oneapi_memcpy2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
 ?ext_oneapi_memset2d_impl@handler@_V1@sycl@@AEAAXPEAX_KH11@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vcontext@_V1@sycl@@@2oneapi@ext@34@@Z
@@ -3976,6 +3977,7 @@
 ?frexp_impl@detail@_V1@sycl@@YANNPEAH@Z
 ?get@context@_V1@sycl@@QEBAPEAU_cl_context@@XZ
 ?get@device@_V1@sycl@@QEBAPEAU_cl_device_id@@XZ
+?get@event@ipc@experimental@oneapi@ext@_V1@sycl@@YA?AUhandle@234567@AEBV167@@Z
 ?get@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUhandle@123456@PEAXAEBVcontext@56@@Z
 ?get@kernel@_V1@sycl@@QEBAPEAU_cl_kernel@@XZ
 ?get@memory@ipc@experimental@oneapi@ext@_V1@sycl@@YA?AUhandle@234567@PEAXAEBVcontext@67@@Z
@@ -4282,6 +4284,7 @@
 ?modf_impl@detail@_V1@sycl@@YANNPEAN@Z
 ?name@SYCLCategory@detail@_V1@sycl@@UEBAPEBDXZ
 ?native_specialization_constant@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
+?openIPCEventHandle@detail@_V1@sycl@@YA?AVevent@23@PEBW4byte@std@@_KAEBVcontext@23@@Z
 ?openIPCMemHandle@detail@_V1@sycl@@YAPEAXPEBW4byte@std@@_KAEBVcontext@23@AEBVdevice@23@@Z
 ?openIPCPhysicalMemHandle@detail@_V1@sycl@@YA?AVphysical_mem@experimental@oneapi@ext@23@PEBW4byte@std@@_KAEBVcontext@23@AEBVdevice@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$00@23@Vkernel@23@@Z
@@ -4302,6 +4305,7 @@
 ?prepare_for_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVqueue@45@@Z
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEBAXVstring_view@267@_N@Z
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@_N@Z
+?put@event@ipc@experimental@oneapi@ext@_V1@sycl@@YAXAEAUhandle@234567@AEBVcontext@67@@Z
 ?put@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAXAEAUhandle@123456@AEBVcontext@56@@Z
 ?put@memory@ipc@experimental@oneapi@ext@_V1@sycl@@YAXAEAUhandle@234567@AEBVcontext@67@@Z
 ?put@physical_memory@ipc@experimental@oneapi@ext@_V1@sycl@@YAXAEAUhandle@234567@AEBVcontext@67@@Z

@@ -91,9 +91,8 @@ ur_adapter_handle_t ur::cl::getAdapter() {
 
 namespace ur::opencl {
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
-             uint32_t *pNumAdapters) {
+ur_result_t urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
+                         uint32_t *pNumAdapters) {
   static std::mutex AdapterConstructionMutex{};
 
   // Always construct the adapter, even for count-only queries (NumEntries==0),
@@ -125,15 +124,13 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterRetain(ur_adapter_handle_t hAdapter) {
+ur_result_t urAdapterRetain(ur_adapter_handle_t hAdapter) {
   auto Adapter = cast(hAdapter);
   Adapter->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterRelease(ur_adapter_handle_t hAdapter) {
+ur_result_t urAdapterRelease(ur_adapter_handle_t hAdapter) {
   auto Adapter = cast(hAdapter);
   if (Adapter->RefCount.release()) {
     delete Adapter;
@@ -141,17 +138,17 @@ urAdapterRelease(ur_adapter_handle_t hAdapter) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
-    ur_adapter_handle_t, const char **ppMessage, int32_t *pError) {
+ur_result_t urAdapterGetLastError(ur_adapter_handle_t, const char **ppMessage,
+                                  int32_t *pError) {
   *ppMessage = cl_adapter::ErrorMessage;
   *pError = cl_adapter::ErrorMessageCode;
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
-                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+ur_result_t urAdapterGetInfo(ur_adapter_handle_t hAdapter,
+                             ur_adapter_info_t propName, size_t propSize,
+                             void *pPropValue, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -170,7 +167,7 @@ urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+ur_result_t urAdapterSetLoggerCallback(
     ur_adapter_handle_t hAdapter, ur_logger_callback_t pfnLoggerCallback,
     void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
 
@@ -182,8 +179,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
-    ur_adapter_handle_t hAdapter, ur_logger_level_t level) {
+ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t hAdapter,
+                                            ur_logger_level_t level) {
 
   if (hAdapter) {
     auto Adapter = cast(hAdapter);

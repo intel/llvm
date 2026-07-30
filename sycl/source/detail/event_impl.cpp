@@ -187,30 +187,54 @@ void event_impl::setQueue(queue_impl &Queue) {
   MIsProfilingEnabled = MIsProfilingEnabled || Queue.MIsProfilingEnabled;
 }
 
-void event_impl::toDeviceEvent(queue_impl &Queue) {
-  assert(MIsDefaultConstructed);
-
-  initContextIfNeeded();
-  setQueue(Queue);
+ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
+  assert(MContext && "createDeviceUrEvent requires a bound context");
 
   ur_event_handle_t EventHandle = nullptr;
   ur_exp_event_desc_t Desc = {};
   Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
-  if (MIsProfilingEnabled) {
-    Desc.flags = UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
-  }
+  if (MIsProfilingEnabled)
+    Desc.flags |= UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
+  if (MIPCEnabled)
+    Desc.flags |= UR_EXP_EVENT_FLAG_IPC_EXP;
 
   ur_result_t Result =
       getAdapter().call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
-          MContext->getHandleRef(), Queue.getDeviceImpl().getHandleRef(), &Desc,
-          &EventHandle);
+          MContext->getHandleRef(), Device.getHandleRef(), &Desc, &EventHandle);
   if (Result != UR_RESULT_SUCCESS) {
     throw sycl::exception(sycl::make_error_code(errc::runtime),
                           "Failed to create an event.");
   }
+  assert(EventHandle && "urEventCreateExp returned success with null event");
+  return EventHandle;
+}
 
-  setHandle(EventHandle);
+void event_impl::toDeviceEvent(queue_impl &Queue) {
+  assert(MIsDefaultConstructed);
+
+  initContextIfNeeded();
+
+  // get() may have already materialized the handle for an IPC event; reuse it.
+  if (getHandle() == nullptr)
+    setHandle(createDeviceUrEvent(Queue.getDeviceImpl()));
+
+  setQueue(Queue);
   MIsDefaultConstructed = false;
+}
+
+void event_impl::materializeIPCEvent() {
+  assert(MIPCEnabled && "materializeIPCEvent is only valid for IPC events");
+
+  if (getHandle() != nullptr)
+    return;
+
+  initContextIfNeeded();
+
+  // Any device in the context works; all support the IPC aspect.
+  device_impl &Device = MContext->getDevices().front();
+  setHandle(createDeviceUrEvent(Device));
+  // Leaves MIsDefaultConstructed set so a later signal still runs through
+  // getHandleReusable.
 }
 
 ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
@@ -224,6 +248,9 @@ ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
       toDeviceEvent(Queue);
     }
   } else {
+    // IPC support implies reusable-event support.
+    assert(!MIPCEnabled &&
+           "IPC event on a context without reusable-events support");
     // If the context does not support reusable events, then release the
     // previous event and set the handle to nullptr, so UR can create a new
     // event during command submission.

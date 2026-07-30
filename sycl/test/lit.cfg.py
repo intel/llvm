@@ -201,6 +201,38 @@ llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 if not dump_only_tests:
     llvm_config.use_clang(additional_flags=additional_flags)
 
+    # Detect libstdc++ behavior that %clangxx picks up on this host, so tests
+    # can be gated on actual libstdc++ properties instead of a nonexistent
+    # "gcc11"-style feature. Modeled after libcxx's compilerMacros() in
+    # libcxx/utils/libcxx/test/dsl.py.
+    def get_predefined_macros(include, std=None):
+        probe = tempfile.NamedTemporaryFile(suffix=".cpp", delete=False)
+        try:
+            probe.write(("#include <%s>\n" % include).encode())
+            probe.close()
+            cmd = [config.clang, "-dM", "-E", probe.name]
+            if std:
+                cmd.insert(1, "-std=%s" % std)
+            return subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode()
+        except (subprocess.CalledProcessError, OSError):
+            return ""
+        finally:
+            os.unlink(probe.name)
+
+    if platform.system() == "Linux":
+        match = re.search(
+            r"#define _GLIBCXX_RELEASE (\d+)", get_predefined_macros("version")
+        )
+        if match and int(match.group(1)) >= 11:
+            config.available_features.add("glibcxx-ge-11")
+
+        # negative_test.cpp expects __cpp_lib_span-gated diagnostics; older
+        # libstdc++ versions don't provide <span>, so __cpp_lib_span stays
+        # undefined even with -std=c++20 and the expected-error annotations
+        # under "#ifdef __cpp_lib_span" never get compiled in.
+        if "#define __cpp_lib_span" in get_predefined_macros("span", std="c++20"):
+            config.available_features.add("cpp_lib_span")
+
 # Set timeout for test = 10 mins
 try:
     import psutil

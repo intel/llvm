@@ -1332,22 +1332,22 @@ def COS_APPROX_f32 :
                       "cos.approx$ftz.f32",
                       [(set f32:$dst, (UnaryOpAllowsApproxFn<fcos> f32:$src))]>;
 
-// NOTE: tanh.approx doesn't support the FTZ flag for f16/f16x2
-def TANH_APPROX_f16 :
-  BasicNVPTXInst<(outs B16:$dst), (ins B16:$src), "tanh.approx.f16",
-                 [(set f16:$dst, (UnaryOpAllowsApproxFn<ftanh> f16:$src))]>,
-                 Requires<[hasPTX<70>, hasSM<75>]>;
+class FTANHInst<RegTyInfo t> :
+      BasicNVPTXInst<(outs t.RC:$dst), (ins t.RC:$src),
+                "tanh.approx." # t.PtxType,
+                [(set t.Ty:$dst, (UnaryOpAllowsApproxFn<ftanh> t.Ty:$src))]>;
 
-def TANH_APPROX_f16x2 :
-  BasicNVPTXInst<(outs B32:$dst), (ins B32:$src), "tanh.approx.f16x2",
-                 [(set v2f16:$dst, (UnaryOpAllowsApproxFn<ftanh> v2f16:$src))]>,
-                 Requires<[hasPTX<70>, hasSM<75>]>;
-
-def TANH_APPROX_f32 :
-  BasicFlagsNVPTXInst<(outs B32:$dst), (ins B32:$src), (ins FTZFlag:$ftz),
-                      "tanh.approx$ftz.f32",
-                      [(set f32:$dst, (UnaryOpAllowsApproxFn<ftanh> f32:$src))]>,
+def TANH_APPROX_f32 : FTANHInst<F32RT>,
                       Requires<[hasPTX<70>, hasSM<75>]>;
+
+let Predicates = [useFP16Math, hasPTX<70>, hasSM<75>] in {
+  def TANH_APPROX_f16   : FTANHInst<F16RT>;
+  def TANH_APPROX_f16x2 : FTANHInst<F16X2RT>;
+}
+let Predicates = [hasPTX<78>, hasSM<90>] in {
+  def TANH_APPROX_bf16   : FTANHInst<BF16RT>;
+  def TANH_APPROX_bf16x2 : FTANHInst<BF16X2RT>;
+}
 
 // Patterns for NVVM tanh intrinsics
 def : Pat<(f16 (int_nvvm_tanh_approx_f16 f16:$a)),
@@ -1355,7 +1355,7 @@ def : Pat<(f16 (int_nvvm_tanh_approx_f16 f16:$a)),
 def : Pat<(v2f16 (int_nvvm_tanh_approx_f16x2 v2f16:$a)),
           (TANH_APPROX_f16x2 v2f16:$a)>;
 def : Pat<(f32 (int_nvvm_tanh_approx_f f32:$a)),
-          (TANH_APPROX_f32 f32:$a, 0)>;
+          (TANH_APPROX_f32 f32:$a)>;
 
 //-----------------------------------
 // Bitwise operations
@@ -1898,18 +1898,6 @@ def : Pat<(declare_array_param externalsym:$a, imm:$align, imm:$size),
           (DECLARE_PARAM_array (to_texternsym $a), imm:$align, imm:$size)>;
 def : Pat<(declare_scalar_param externalsym:$a, imm:$size),
           (DECLARE_PARAM_scalar (to_texternsym $a), imm:$size)>;
-
-// Call prototype wrapper, this is a dummy instruction that just prints it's
-// operand which is string defining the prototype.
-def SDTCallPrototype : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
-def CallPrototype :
-  SDNode<"NVPTXISD::CallPrototype", SDTCallPrototype,
-         [SDNPHasChain, SDNPSideEffect]>;
-def ProtoIdent : Operand<i32> { let PrintMethod = "printProtoIdent"; }
-def CALL_PROTOTYPE :
-  NVPTXInst<(outs), (ins ProtoIdent:$ident),
-            "$ident", [(CallPrototype (i32 texternalsym:$ident))]>;
-
 
 foreach t = [I32RT, I64RT] in {
   defvar inst_name = "MOV" # t.Size # "_PARAM";
@@ -2477,8 +2465,8 @@ let isTerminator=1 in {
 
   let isBranch=1 in {
     def CBranch : NVPTXInst<(outs),
-                              (ins B1:$a, brtarget:$target, BranchFlag:$not),
-                              "@${not}$a bra \t$target;",
+                              (ins B1:$a, brtarget:$target, BranchFlag:$negate),
+                              "@${negate}$a bra \t$target;",
                               [(brcond i1:$a, bb:$target)]>;
 
     let isBarrier=1 in

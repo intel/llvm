@@ -4,7 +4,7 @@
 // UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: V1-only
 
-// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21766
 
 // RUN: %{build} -o %t.out

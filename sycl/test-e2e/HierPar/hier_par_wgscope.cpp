@@ -1,10 +1,6 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Test hangs on AMD
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 //==- hier_par_wgscope.cpp --- hierarchical parallelism test for WG scope---==//
 //

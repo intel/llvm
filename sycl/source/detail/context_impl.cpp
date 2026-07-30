@@ -576,38 +576,45 @@ context_impl::get_default_memory_pool(const context &Context,
   return MemPoolImplPtr;
 }
 
-bool context_impl::supportsReusableEvents() {
-  std::lock_guard<std::mutex> Lock{MReusableEventsSupportMutex};
-  if (MReusableEventsSupport) {
-    return *MReusableEventsSupport;
+bool context_impl::allDevicesSupport(ur_device_info_t Info,
+                                     std::optional<bool> &Cache,
+                                     std::mutex &CacheMutex) {
+  {
+    std::lock_guard<std::mutex> Lock(CacheMutex);
+    if (Cache)
+      return *Cache;
   }
 
-  MReusableEventsSupport = std::all_of(
-      MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
-        ur_bool_t ReusableEventsSupport = false;
-        ur_result_t Result =
-            getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-                DevImpl->getHandleRef(),
-                UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
-                sizeof(ReusableEventsSupport), &ReusableEventsSupport, nullptr);
-        return (Result == UR_RESULT_SUCCESS) && ReusableEventsSupport;
-      });
+  bool Result =
+      std::all_of(MDevices.cbegin(), MDevices.cend(),
+                  [this, Info](detail::device_impl *DevImpl) {
+                    ur_bool_t Supported = false;
+                    ur_result_t Res =
+                        getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+                            DevImpl->getHandleRef(), Info, sizeof(Supported),
+                            &Supported, nullptr);
+                    return (Res == UR_RESULT_SUCCESS) && Supported;
+                  });
 
-  return *MReusableEventsSupport;
+  std::lock_guard<std::mutex> Lock(CacheMutex);
+  if (!Cache)
+    Cache = Result;
+  return *Cache;
+}
+
+bool context_impl::supportsReusableEvents() {
+  return allDevicesSupport(UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
+                           MReusableEventsSupport, MReusableEventsSupportMutex);
 }
 
 bool context_impl::supportsEventProfiling() {
-  std::lock_guard<std::mutex> Lock{MEventProfilingSupportMutex};
-  if (MEventProfilingSupport) {
-    return *MEventProfilingSupport;
-  }
+  return allDevicesSupport(UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP,
+                           MEventProfilingSupport, MEventProfilingSupportMutex);
+}
 
-  MEventProfilingSupport = std::all_of(
-      MDevices.cbegin(), MDevices.cend(), [](detail::device_impl *DevImpl) {
-        return DevImpl->has(aspect::ext_oneapi_per_event_profiling);
-      });
-
-  return *MEventProfilingSupport;
+bool context_impl::supportsIPCEvents() {
+  return allDevicesSupport(UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP,
+                           MIPCEventSupport, MIPCEventSupportMutex);
 }
 
 } // namespace detail

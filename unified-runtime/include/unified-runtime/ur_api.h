@@ -961,6 +961,19 @@ typedef enum ur_result_t {
   UR_RESULT_ERROR_INVALID_SPEC_ID = 70,
   /// A graph object is not valid.
   UR_RESULT_ERROR_INVALID_GRAPH = 71,
+  /// An operation is not supported during graph capture.
+  UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED = 72,
+  /// An operation failed and invalidated the graph capture session.
+  UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED = 73,
+  /// An operation failed because it would merge two graph capture sessions.
+  UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT = 74,
+  /// The command list is not in graph capture mode.
+  UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING = 75,
+  /// The graph contains unjoined forks.
+  UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS = 76,
+  /// An operation failed because it uses a graph-internal counter-based
+  /// event outside of the graph.
+  UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT = 77,
   /// Invalid Command-Buffer
   UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,
   /// Sync point is not valid for the command-buffer

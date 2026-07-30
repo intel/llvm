@@ -12,7 +12,7 @@
 #include "command_list_manager.hpp"
 #include "ur.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 template <size_t N>
 std::array<ur_command_list_manager, N> createCommandListManagers(
@@ -203,4 +203,5 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt(
 
   return UR_RESULT_SUCCESS;
 }
-} // namespace v2
+
+} // namespace ur::level_zero::v2
