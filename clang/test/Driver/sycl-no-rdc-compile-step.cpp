@@ -12,7 +12,7 @@
 // RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu \
 // RUN:   -fsycl -fno-sycl-rdc -c %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-COMPILE %s
-// CHK-COMPILE: clang-linker-wrapper{{.*}} "--sycl-device-link"{{.*}} "--no-sycl-rdc"
+// CHK-COMPILE: clang-linker-wrapper{{.*}} "--no-sycl-rdc"{{.*}} "--sycl-device-link"
 // CHK-COMPILE: "-fsycl-include-target-binary"
 // CHK-COMPILE-NOT: -fembed-offload-object
 

@@ -26,12 +26,6 @@
 // RUN:   | FileCheck -check-prefix=CHK-AOT-NO-RDC %s
 // CHK-AOT-NO-RDC: clang-linker-wrapper{{.*}} "--no-sycl-rdc"
 
-// Test compilation step.
-// RUN: not %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -fno-sycl-rdc %t.cpp -c -o %t.o 2>&1 \
-// RUN:    | FileCheck -check-prefix=CHK-COMPILE-STEP-ERROR %s
-
-// CHK-COMPILE-STEP-ERROR: error: argument unused during compilation: '-fno-sycl-rdc' [-Werror,-Wunused-command-line-argument]
-
 // Verify pipeline with --offload-new-driver -fno-sycl-rdc.
 // RUN: touch %t1.cpp
 // RUN: touch %t2.cpp
@@ -46,19 +40,21 @@
 // CHECK-PIPELINE: 6: backend, {5}, ir, (device-sycl)
 // CHECK-PIPELINE: 7: offload, "device-sycl (spir64-unknown-unknown)" {6}, ir
 // CHECK-PIPELINE: 8: llvm-offload-binary, {7}, image, (device-sycl)
-// CHECK-PIPELINE: 9: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {8}, ir
-// CHECK-PIPELINE: 10: backend, {9}, assembler, (host-sycl)
-// CHECK-PIPELINE: 11: assembler, {10}, object, (host-sycl)
-// CHECK-PIPELINE: 12: input, "{{.*}}2.cpp", c++, (host-sycl)
-// CHECK-PIPELINE: 13: preprocessor, {12}, c++-cpp-output, (host-sycl)
-// CHECK-PIPELINE: 14: compiler, {13}, ir, (host-sycl)
-// CHECK-PIPELINE: 15: input, "{{.*}}2.cpp", c++, (device-sycl)
-// CHECK-PIPELINE: 16: preprocessor, {15}, c++-cpp-output, (device-sycl)
-// CHECK-PIPELINE: 17: compiler, {16}, ir, (device-sycl)
-// CHECK-PIPELINE: 18: backend, {17}, ir, (device-sycl)
-// CHECK-PIPELINE: 19: offload, "device-sycl (spir64-unknown-unknown)" {18}, ir
-// CHECK-PIPELINE: 20: llvm-offload-binary, {19}, image, (device-sycl)
-// CHECK-PIPELINE: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {14}, "device-sycl (x86_64-unknown-linux-gnu)" {20}, ir
-// CHECK-PIPELINE: 22: backend, {21}, assembler, (host-sycl)
-// CHECK-PIPELINE: 23: assembler, {22}, object, (host-sycl)
-// CHECK-PIPELINE: 24: clang-linker-wrapper, {11, 23}, image, (host-sycl)
+// CHECK-PIPELINE: 9: clang-linker-wrapper, {8}, image, (device-sycl)
+// CHECK-PIPELINE: 10: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {9}, ir
+// CHECK-PIPELINE: 11: backend, {10}, assembler, (host-sycl)
+// CHECK-PIPELINE: 12: assembler, {11}, object, (host-sycl)
+// CHECK-PIPELINE: 13: input, "{{.*}}2.cpp", c++, (host-sycl)
+// CHECK-PIPELINE: 14: preprocessor, {13}, c++-cpp-output, (host-sycl)
+// CHECK-PIPELINE: 15: compiler, {14}, ir, (host-sycl)
+// CHECK-PIPELINE: 16: input, "{{.*}}2.cpp", c++, (device-sycl)
+// CHECK-PIPELINE: 17: preprocessor, {16}, c++-cpp-output, (device-sycl)
+// CHECK-PIPELINE: 18: compiler, {17}, ir, (device-sycl)
+// CHECK-PIPELINE: 19: backend, {18}, ir, (device-sycl)
+// CHECK-PIPELINE: 20: offload, "device-sycl (spir64-unknown-unknown)" {19}, ir
+// CHECK-PIPELINE: 21: llvm-offload-binary, {20}, image, (device-sycl)
+// CHECK-PIPELINE: 22: clang-linker-wrapper, {21}, image, (device-sycl)
+// CHECK-PIPELINE: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {15}, "device-sycl (x86_64-unknown-linux-gnu)" {22}, ir
+// CHECK-PIPELINE: 24: backend, {23}, assembler, (host-sycl)
+// CHECK-PIPELINE: 25: assembler, {24}, object, (host-sycl)
+// CHECK-PIPELINE: 26: clang-linker-wrapper, {12, 25}, image, (host-sycl)
