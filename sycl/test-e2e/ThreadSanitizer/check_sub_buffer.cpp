@@ -23,7 +23,7 @@ int main() {
     sycl::buffer<int> sub_buf(buf, {size_x / 2}, {size_x / 2});
 
     q.submit([&](sycl::handler &cgh) {
-       auto accessor = sub_buf.get_access<sycl::access::mode::read_write>(cgh);
+       auto accessor = sub_buf.get_access<sycl::access_mode::read_write>(cgh);
        cgh.parallel_for<class Test>(sycl::nd_range<1>(size_x / 2, 1),
                                     [=](sycl::nd_item<1> it) {
                                       accessor[0] += it.get_global_linear_id();

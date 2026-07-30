@@ -17,7 +17,7 @@ int main() {
 
   sycl::buffer<int, 1> buf1(sycl::range<1>(1));
   q.submit([&](sycl::handler &h) {
-     auto array1 = buf1.get_access<sycl::access::mode::read_write>(h);
+     auto array1 = buf1.get_access<sycl::access_mode::read_write>(h);
      h.single_task<class MyKernel>([=]() { foo(array1[0], array1[0]); });
    }).wait();
   // CHECK: use-of-uninitialized-value
