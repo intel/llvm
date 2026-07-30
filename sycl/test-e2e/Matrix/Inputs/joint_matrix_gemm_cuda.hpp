@@ -114,7 +114,7 @@ void test(queue &q) {
       buffer<bfloat16, 1> bufB(B, range<1>(Big_K * Big_N));
       q.submit([&](handler &cgh) {
         accessor<bfloat16, 1, access_mode::write, target::device> accA(bufA,
-                                                                        cgh);
+                                                                       cgh);
 
         cgh.parallel_for<KernelName<Tm, Tc, class copyA, M, K, N, layout_A,
                                     layout_B, layout_C>>(
@@ -125,7 +125,7 @@ void test(queue &q) {
       });
       q.submit([&](handler &cgh) {
         accessor<bfloat16, 1, access_mode::write, target::device> accB(bufB,
-                                                                        cgh);
+                                                                       cgh);
 
         cgh.parallel_for<KernelName<Tm, Tc, class copyB, M, K, N, layout_A,
                                     layout_B, layout_C>>(
