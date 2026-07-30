@@ -27,22 +27,9 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
     clReleaseEvent(LastSubmission);
   }
 
-  cl_context CLContext = hContext->CLContext;
-  cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
-  try {
-    cl_int Res =
-        cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
-            CLContext,
-            cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
-            cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
+  if (CLCommandBuffer) {
+    [[maybe_unused]] cl_int Res = CLReleaseCommandBufferKHR(CLCommandBuffer);
     assert(Res == CL_SUCCESS);
-    (void)Res;
-  } catch (...) {
-    assert(false && "Failed to look up clReleaseCommandBufferKHR");
-  }
-
-  if (clReleaseCommandBufferKHR) {
-    clReleaseCommandBufferKHR(CLCommandBuffer);
   }
 }
 
@@ -60,6 +47,12 @@ urCommandBufferCreateExp(ur_context_handle_t hContext,
           CLContext,
           cast(ur::cl::getAdapter())->fnCache.clCreateCommandBufferKHRCache,
           cl_ext::CreateCommandBufferName, &clCreateCommandBufferKHR));
+  cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
+          CLContext,
+          cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
+          cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR));
 
   const bool IsUpdatable = pCommandBufferDesc->isUpdatable;
 
@@ -108,6 +101,8 @@ urCommandBufferCreateExp(ur_context_handle_t hContext,
     auto URCommandBuffer = std::make_unique<ur_exp_command_buffer_handle_t_>(
         QueuePtr, cast(hContext), cast(hDevice), CLCommandBuffer, IsUpdatable,
         IsInOrder);
+    URCommandBuffer->CLCreateCommandBufferKHR = clCreateCommandBufferKHR;
+    URCommandBuffer->CLReleaseCommandBufferKHR = clReleaseCommandBufferKHR;
     *phCommandBuffer = cast(URCommandBuffer.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
