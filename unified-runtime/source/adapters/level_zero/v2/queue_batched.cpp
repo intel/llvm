@@ -863,12 +863,6 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
       getEvent(lockedBatch, phEvent));
 }
 
-// Batched submission defers the tag to the device until the batch is flushed,
-// so command_submit meaningfully precedes execution: record a submission
-// timestamp (recordSubmit=true). command_start/command_end still come from the
-// GPU-written timestamp.
-//
-
 ur_result_t ur_queue_batched_t::enqueueTimestampRecordingExp(
     bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
@@ -880,8 +874,7 @@ ur_result_t ur_queue_batched_t::enqueueTimestampRecordingExp(
   markIssuedCommandInBatch(lockedBatch);
 
   UR_CALL(lockedBatch->getListManager().appendTimestampRecordingExp(
-      false, waitListView, getEvent(lockedBatch, phEvent),
-      /*recordSubmit=*/true));
+      false, waitListView, getEvent(lockedBatch, phEvent)));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));

@@ -544,8 +544,7 @@ public:
     return commandListManagers.lock()[commandListId]
         .appendTimestampRecordingExp(
             blocking, waitListView,
-            createEventIfRequested(eventPool.get(), phEvent, this),
-            /*recordSubmit=*/false);
+            createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
   ur_result_t

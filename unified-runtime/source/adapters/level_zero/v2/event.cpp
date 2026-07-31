@@ -56,11 +56,10 @@ uint64_t event_profiling_data_t::getEventEndTimestamp() {
   assert(zeTimerResolution);
   assert(timestampMaxValue);
 
-  // recordedSubmitTimestamp is the wrap-around reference; it is 0 when no
-  // submission timestamp was recorded, in which case no adjustment is applied.
+  // A timestamp-recording event holds a single GPU-written global timestamp,
+  // so there is no separate start value to detect a wrap-around against.
   adjustedEventEndTimestamp =
-      adjustEndEventTimestamp(recordedSubmitTimestamp, recordEventEndTimestamp,
-                              timestampMaxValue, zeTimerResolution);
+      (recordEventEndTimestamp & timestampMaxValue) * zeTimerResolution;
 
   return adjustedEventEndTimestamp;
 }
@@ -77,37 +76,22 @@ void event_profiling_data_t::reset() {
   // context) and the timstamp is already wrriten, so there's no race-condition
   // possible.
   adjustedEventEndTimestamp = 0;
-  recordedSubmitTimestamp = 0;
   timestampRecorded = false;
 }
 
-void event_profiling_data_t::initTimestampRecording(ur_device_handle_t hDevice,
-                                                    bool recordSubmit) {
+void event_profiling_data_t::initTimestampRecording(
+    ur_device_handle_t hDevice) {
   zeTimerResolution = hDevice->getTimerResolution();
   timestampMaxValue = hDevice->getTimestampMask();
-
-  // Recording a submission timestamp requires an extra device query whose cost
-  // dominates the tag latency, so only do it when requested (batched queues).
-  if (recordSubmit) {
-    UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
-        common_cast(hDevice), &recordedSubmitTimestamp, nullptr));
-  }
-
   timestampRecorded = true;
 }
 
-void ur_event_handle_t_::initTimestampRecording(bool recordSubmit) {
+void ur_event_handle_t_::initTimestampRecording() {
   // queue and device must be set before calling this
   assert(hQueue);
   assert(hDevice);
 
-  profilingData.initTimestampRecording(hDevice, recordSubmit);
-}
-
-uint64_t event_profiling_data_t::getEventSubmitTimestamp() {
-  // Fall back to the completion timestamp when no submission time was recorded.
-  return recordedSubmitTimestamp ? recordedSubmitTimestamp
-                                 : getEventEndTimestamp();
+  profilingData.initTimestampRecording(hDevice);
 }
 
 bool event_profiling_data_t::recordingStarted() const {
@@ -157,10 +141,6 @@ void ur_event_handle_t_::onWaitListUse() {
   if (batchGeneration) {
     hQueue->onEventWaitListUse(batchGeneration.value());
   }
-}
-
-uint64_t ur_event_handle_t_::getEventSubmitTimestamp() {
-  return profilingData.getEventSubmitTimestamp();
 }
 
 uint64_t ur_event_handle_t_::getEventEndTimestamp() {
@@ -354,10 +334,11 @@ ur_result_t urEventGetProfilingInfo(
     switch (propName) {
     case UR_PROFILING_INFO_COMMAND_QUEUED:
     case UR_PROFILING_INFO_COMMAND_SUBMIT:
-      return returnValue(event->getEventSubmitTimestamp());
     case UR_PROFILING_INFO_COMMAND_START:
     case UR_PROFILING_INFO_COMMAND_END:
     case UR_PROFILING_INFO_COMMAND_COMPLETE:
+      // The tag is an empty command, so all timestamps are the single
+      // GPU-written completion time.
       return returnValue(event->getEventEndTimestamp());
     default:
       UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");

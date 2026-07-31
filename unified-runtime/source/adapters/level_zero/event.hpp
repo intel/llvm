@@ -216,12 +216,6 @@ struct ur_event_handle_t_ : ur_object_t {
   // Indicates within creation of proxy event.
   bool IsCreatingHostProxyEvent = {false};
 
-  // Submission timestamp for a tag event, captured at enqueue via
-  // urDeviceGetGlobalTimestamps. Recorded only for batched queues, where
-  // submission is deferred; 0 otherwise (command_submit then equals the
-  // GPU-written timestamp).
-  uint64_t RecordEventSubmitTimestamp = 0;
-
   // The GPU-written global timestamp for a timestamp-recording event. Set to a
   // non-zero adjusted value once the end-timestamp has been fetched from the
   // queue; IsTimestamped tells whether the event is timestamp-recording.

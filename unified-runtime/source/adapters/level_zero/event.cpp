@@ -564,13 +564,10 @@ ur_result_t urEventGetProfilingInfo(
   // We don't support user events with timestamps due to requiring the UrQueue.
   if (isTimestampedEvent && Event->UrQueue) {
     switch (PropName) {
+    // The tag is an empty command, so all timestamps are the single
+    // GPU-written completion time.
     case UR_PROFILING_INFO_COMMAND_QUEUED:
     case UR_PROFILING_INFO_COMMAND_SUBMIT:
-      // When no submission timestamp was recorded, fall through to report the
-      // completion time for command_submit as well.
-      if (Event->RecordEventSubmitTimestamp)
-        return ReturnValue(Event->RecordEventSubmitTimestamp);
-      [[fallthrough]];
     case UR_PROFILING_INFO_COMMAND_START:
     case UR_PROFILING_INFO_COMMAND_END:
     case UR_PROFILING_INFO_COMMAND_COMPLETE: {
@@ -588,7 +585,8 @@ ur_result_t urEventGetProfilingInfo(
         return UR_RESULT_ERROR_UNKNOWN;
       auto &EndTimeRecording = Entry->second;
 
-      // End time needs to be adjusted for resolution and valid bits.
+      // End time needs to be adjusted for resolution and valid bits. A single
+      // timestamp has no separate start value to detect wrap-around against.
       uint64_t ContextEndTime =
           (EndTimeRecording & TimestampMaxValue) * ZeTimerResolution;
 
@@ -596,15 +594,6 @@ ur_result_t urEventGetProfilingInfo(
       // return it.
       if (ContextEndTime == 0)
         return ReturnValue(ContextEndTime);
-
-      // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
-      // Note, it will not report correct time if there were multiple wrap
-      // arounds, and the longer term plan is to enlarge the capacity of the
-      // HW timestamps. Only batched queues record a submission timestamp to
-      // compare against.
-      if (Event->RecordEventSubmitTimestamp &&
-          ContextEndTime < Event->RecordEventSubmitTimestamp)
-        ContextEndTime += TimestampMaxValue * ZeTimerResolution;
 
       // Now that we have the result, there is no need to keep it in the queue
       // anymore, so we cache it on the event and evict the record from the
@@ -757,8 +746,6 @@ ur_result_t urEnqueueTimestampRecordingExp(
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-  ur_device_handle_t Device = Queue->Device;
-
   bool UseCopyEngine = false;
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
@@ -779,23 +766,11 @@ ur_result_t urEnqueueTimestampRecordingExp(
   ze_event_handle_t ZeEvent = OutEventInternal->ZeEvent;
   OutEventInternal->WaitList = TmpWaitList;
 
-  // Reset the timestamps, in case they have been previously used.
-  OutEventInternal->RecordEventSubmitTimestamp = 0;
+  // Reset the end timestamp, in case it has been previously used.
   OutEventInternal->RecordEventEndTimestamp = 0;
 
   // Mark this event as timestamped
   OutEventInternal->IsTimestamped = true;
-
-  // Batched submission defers the tag to the device until the batch is flushed,
-  // so command_submit meaningfully precedes execution: record a submission
-  // timestamp. Immediate queues skip this query (its cost dominates the tag
-  // latency) and report the GPU-written timestamp for command_submit too.
-  if (!Queue->UsingImmCmdLists) {
-    uint64_t DeviceSubmitTimestamp = 0;
-    UR_CALL(ur::level_zero::urDeviceGetGlobalTimestamps(
-        common_cast(Device), &DeviceSubmitTimestamp, nullptr));
-    OutEventInternal->RecordEventSubmitTimestamp = DeviceSubmitTimestamp;
-  }
 
   // Create a new entry in the queue's recordings.
   Queue->EndTimeRecordings[*OutEventInternalPtr] = 0;
@@ -1512,7 +1487,6 @@ ur_result_t ur::level_zero::v1::ur_event_handle_t_::reset() {
   completionBatch = std::nullopt;
   OriginAllocEvent = nullptr;
   IsTimestamped = false;
-  RecordEventSubmitTimestamp = 0;
   RecordEventEndTimestamp = 0;
 
   if (!isHostVisible())
