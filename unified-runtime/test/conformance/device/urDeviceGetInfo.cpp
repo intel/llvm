@@ -2631,6 +2631,15 @@ TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
 
 // This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
+  // TODO: Re-enable once the XE Kernel Mode Driver supports the FAN APIs on
+  // this device (see KMD Jira VLK-92189). zesFanGetState
+  // (ZES_FAN_SPEED_UNITS_PERCENT) started to return
+  // ZE_RESULT_ERROR_UNSUPPORTED_FEATURE on Arc(TM) B580 after the User Mode
+  // Driver was updated to v26.27.39122.11 in commit
+  // 9b65cb732c7ead19408867357fd7224809396706.
+  // Issue tracker: https://github.com/intel/llvm/issues/22812
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Arc(TM) B580"});
+
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_FAN_SPEED;
 
