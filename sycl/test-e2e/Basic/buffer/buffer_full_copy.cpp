@@ -70,7 +70,7 @@ void check_fill(sycl::queue &Queue) {
 
   auto e = Queue.submit([&](sycl::handler &cgh) {
     auto a = buf_1.template get_access<sycl::access_mode::write>(cgh, size / 2,
-                                                                  offset);
+                                                                 offset);
     cgh.fill(a, (float)1337.0);
   });
   e.wait();

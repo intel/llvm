@@ -53,7 +53,7 @@ bool test1d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access_mode::read>(cgh);
       s::accessor<dataT, 1, s::access_mode::write> resultDataAcc(resultDataBuf,
-                                                                  cgh);
+                                                                 cgh);
 
       cgh.single_task<test_1d_class>([=]() {
         dataT RetColor = imageAcc.read(coord, testSampler);
@@ -88,7 +88,7 @@ bool test2d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access_mode::read>(cgh);
       s::accessor<dataT, 1, s::access_mode::write> resultDataAcc(resultDataBuf,
-                                                                  cgh);
+                                                                 cgh);
 
       cgh.single_task<test_2d_class>([=]() {
         dataT RetColor = imageAcc.read(coord, testSampler);
@@ -123,7 +123,7 @@ bool test3d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access_mode::read>(cgh);
       s::accessor<dataT, 1, s::access_mode::write> resultDataAcc(resultDataBuf,
-                                                                  cgh);
+                                                                 cgh);
 
       cgh.single_task<test_3d_class>([=]() {
         dataT RetColor = imageAcc.read(coord, testSampler);
