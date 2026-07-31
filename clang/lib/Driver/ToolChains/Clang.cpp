@@ -11288,7 +11288,11 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
       ",+SPV_INTEL_fp_max_error"
-      ",+SPV_INTEL_memory_access_aliasing";
+      ",+SPV_INTEL_memory_access_aliasing"
+      ",+SPV_INTEL_fp_conversions"
+      ",+SPV_EXT_float8"
+      ",+SPV_KHR_bfloat16"
+      ",+SPV_INTEL_float4";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
