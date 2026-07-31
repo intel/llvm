@@ -626,8 +626,14 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
   mai.allocationSize = size;
   mai.memoryTypeIndex = memoryTypeIndex;
 
+  // Use dedicated allocation whenever backing an exportable image, not only
+  // when the driver reports it as required (some drivers under-report this for
+  // external memory).
+  const bool useDedicated =
+      requiresDedicatedAllocation || (exportable && image != VK_NULL_HANDLE);
+
   VkMemoryDedicatedAllocateInfoKHR dedicatedInfo{};
-  if (requiresDedicatedAllocation) {
+  if (useDedicated) {
     dedicatedInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
     dedicatedInfo.image = image;
     dedicatedInfo.buffer = VK_NULL_HANDLE;
@@ -642,7 +648,7 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
 #else
     emai.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif
-    if (requiresDedicatedAllocation) {
+    if (useDedicated) {
       dedicatedInfo.pNext = &emai;
     } else {
       mai.pNext = &emai;
