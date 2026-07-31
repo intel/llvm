@@ -1667,8 +1667,10 @@ void ur::level_zero::v1::ur_queue_handle_t_::clearEndTimeRecordings() {
     // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
     // Note, it will not report correct time if there were multiple wrap
     // arounds, and the longer term plan is to enlarge the capacity of the
-    // HW timestamps.
-    if (ContextEndTime < Event->RecordEventStartTimestamp)
+    // HW timestamps. Only batched queues record a submission timestamp to
+    // compare against.
+    if (Event->RecordEventSubmitTimestamp &&
+        ContextEndTime < Event->RecordEventSubmitTimestamp)
       ContextEndTime += TimestampMaxValue * ZeTimerResolution;
 
     // Store it in the event.

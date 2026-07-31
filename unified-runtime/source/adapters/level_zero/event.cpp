@@ -563,13 +563,17 @@ ur_result_t urEventGetProfilingInfo(
   // handle, so we short-circuit the return.
   // We don't support user events with timestamps due to requiring the UrQueue.
   if (isTimestampedEvent && Event->UrQueue) {
-    uint64_t ContextStartTime = Event->RecordEventStartTimestamp;
     switch (PropName) {
     case UR_PROFILING_INFO_COMMAND_QUEUED:
     case UR_PROFILING_INFO_COMMAND_SUBMIT:
-      return ReturnValue(ContextStartTime);
+      // When no submission timestamp was recorded, fall through to report the
+      // completion time for command_submit as well.
+      if (Event->RecordEventSubmitTimestamp)
+        return ReturnValue(Event->RecordEventSubmitTimestamp);
+      [[fallthrough]];
+    case UR_PROFILING_INFO_COMMAND_START:
     case UR_PROFILING_INFO_COMMAND_END:
-    case UR_PROFILING_INFO_COMMAND_START: {
+    case UR_PROFILING_INFO_COMMAND_COMPLETE: {
       // If RecordEventEndTimestamp on the event is non-zero it means it has
       // collected the result of the queue already. In that case it has been
       // adjusted and is ready for immediate return.
@@ -596,8 +600,10 @@ ur_result_t urEventGetProfilingInfo(
       // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
       // Note, it will not report correct time if there were multiple wrap
       // arounds, and the longer term plan is to enlarge the capacity of the
-      // HW timestamps.
-      if (ContextEndTime < ContextStartTime)
+      // HW timestamps. Only batched queues record a submission timestamp to
+      // compare against.
+      if (Event->RecordEventSubmitTimestamp &&
+          ContextEndTime < Event->RecordEventSubmitTimestamp)
         ContextEndTime += TimestampMaxValue * ZeTimerResolution;
 
       // Now that we have the result, there is no need to keep it in the queue
@@ -608,10 +614,6 @@ ur_result_t urEventGetProfilingInfo(
 
       return ReturnValue(ContextEndTime);
     }
-    case UR_PROFILING_INFO_COMMAND_COMPLETE:
-      UR_LOG(ERR, "urEventGetProfilingInfo: "
-                  "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
       UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -777,16 +779,23 @@ ur_result_t urEnqueueTimestampRecordingExp(
   ze_event_handle_t ZeEvent = OutEventInternal->ZeEvent;
   OutEventInternal->WaitList = TmpWaitList;
 
-  // Reset the end timestamp, in case it has been previously used.
+  // Reset the timestamps, in case they have been previously used.
+  OutEventInternal->RecordEventSubmitTimestamp = 0;
   OutEventInternal->RecordEventEndTimestamp = 0;
-
-  uint64_t DeviceStartTimestamp = 0;
-  UR_CALL(ur::level_zero::urDeviceGetGlobalTimestamps(
-      common_cast(Device), &DeviceStartTimestamp, nullptr));
-  OutEventInternal->RecordEventStartTimestamp = DeviceStartTimestamp;
 
   // Mark this event as timestamped
   OutEventInternal->IsTimestamped = true;
+
+  // Batched submission defers the tag to the device until the batch is flushed,
+  // so command_submit meaningfully precedes execution: record a submission
+  // timestamp. Immediate queues skip this query (its cost dominates the tag
+  // latency) and report the GPU-written timestamp for command_submit too.
+  if (!Queue->UsingImmCmdLists) {
+    uint64_t DeviceSubmitTimestamp = 0;
+    UR_CALL(ur::level_zero::urDeviceGetGlobalTimestamps(
+        common_cast(Device), &DeviceSubmitTimestamp, nullptr));
+    OutEventInternal->RecordEventSubmitTimestamp = DeviceSubmitTimestamp;
+  }
 
   // Create a new entry in the queue's recordings.
   Queue->EndTimeRecordings[*OutEventInternalPtr] = 0;
@@ -1503,7 +1512,7 @@ ur_result_t ur::level_zero::v1::ur_event_handle_t_::reset() {
   completionBatch = std::nullopt;
   OriginAllocEvent = nullptr;
   IsTimestamped = false;
-  RecordEventStartTimestamp = 0;
+  RecordEventSubmitTimestamp = 0;
   RecordEventEndTimestamp = 0;
 
   if (!isHostVisible())
