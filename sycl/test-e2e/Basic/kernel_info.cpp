@@ -49,7 +49,7 @@ int main() {
   kernel krn = kb.get_kernel(kernelID);
 
   q.submit([&](handler &cgh) {
-    auto acc = buf.get_access<access::mode::read_write>(cgh);
+    auto acc = buf.get_access<access_mode::read_write>(cgh);
     cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 

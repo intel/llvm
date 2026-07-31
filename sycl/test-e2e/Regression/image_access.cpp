@@ -24,7 +24,7 @@ int main() {
     sycl::queue Queue;
 
     Queue.submit([&](sycl::handler &CGH) {
-      sycl::accessor<sycl::int4, 1, sycl::access::mode::read,
+      sycl::accessor<sycl::int4, 1, sycl::access_mode::read,
                      sycl::access::target::image,
                      sycl::access::placeholder::false_t>
           A(Image, CGH);
@@ -32,7 +32,7 @@ int main() {
     });
     Queue.wait_and_throw();
 
-    sycl::accessor<sycl::int4, 1, sycl::access::mode::read,
+    sycl::accessor<sycl::int4, 1, sycl::access_mode::read,
                    sycl::access::target::host_image,
                    sycl::access::placeholder::false_t>
         A(Image);

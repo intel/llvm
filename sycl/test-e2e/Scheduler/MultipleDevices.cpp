@@ -24,21 +24,21 @@ int multidevice_test(queue MyQueue1, queue MyQueue2) {
   buffer<int, 1> BufD(range<1>{N});
 
   MyQueue1.submit([&](handler &cgh) {
-    auto A = BufA.get_access<access::mode::write>(cgh);
+    auto A = BufA.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class init_a>(
         range<1>{N}, [=](id<1> index) { A[index[0]] = index[0]; });
   });
 
   MyQueue2.submit([&](handler &cgh) {
-    auto B = BufB.get_access<access::mode::write>(cgh);
+    auto B = BufB.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class init_b>(
         range<1>{N}, [=](id<1> index) { B[index[0]] = N - index[0]; });
   });
 
   MyQueue2.submit([&](handler &cgh) {
-    auto A = BufA.get_access<access::mode::read>(cgh);
-    auto B = BufB.get_access<access::mode::read_write>(cgh);
-    auto C = BufC.get_access<access::mode::write>(cgh);
+    auto A = BufA.get_access<access_mode::read>(cgh);
+    auto B = BufB.get_access<access_mode::read_write>(cgh);
+    auto C = BufC.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class op1>(range<1>{N}, [=](id<1> index) {
       B[index[0]] = B[index[0]] + A[index[0]];
       C[index[0]] = B[index[0]] - index[0];
@@ -46,15 +46,15 @@ int multidevice_test(queue MyQueue1, queue MyQueue2) {
   });
 
   MyQueue2.submit([&](handler &cgh) {
-    auto D = BufD.get_access<access::mode::write>(cgh);
+    auto D = BufD.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class init_d>(range<1>{N},
                                    [=](id<1> index) { D[index[0]] = 1; });
   });
 
   MyQueue1.submit([&](handler &cgh) {
-    auto B = BufB.get_access<access::mode::read>(cgh);
-    auto C = BufC.get_access<access::mode::read>(cgh);
-    auto D = BufD.get_access<access::mode::read_write>(cgh);
+    auto B = BufB.get_access<access_mode::read>(cgh);
+    auto C = BufC.get_access<access_mode::read>(cgh);
+    auto D = BufD.get_access<access_mode::read_write>(cgh);
     cgh.parallel_for<class op2>(range<1>{N}, [=](id<1> index) {
       D[index[0]] = D[index[0]] + B[index[0]] - C[index[0]];
     });
