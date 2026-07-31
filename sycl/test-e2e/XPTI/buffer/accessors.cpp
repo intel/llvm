@@ -25,7 +25,7 @@ int main() {
   sycl::nd_range<1> NDRange(Buf.size(), Buf.size());
 
   Queue.submit([&](sycl::handler &cgh) {
-    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID1:.+]]|2015|1024|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID1:.+]]|2015|1024|{{.*}}accessors.cpp:[[# @LINE + 2]]:13
     auto A1 =
         Buf.get_access<sycl::access_mode::read, target::constant_buffer>(cgh);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID2:.*]]|2014|1025|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
@@ -34,7 +34,7 @@ int main() {
     sycl::local_accessor<int, 1> A3(Range, cgh);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.*]]|2014|1027|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
     auto A4 = Buf.get_access<sycl::access_mode::discard_write>(cgh);
-    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.*]]|2014|1028|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.*]]|2014|1028|{{.*}}accessors.cpp:[[# @LINE + 2]]:13
     auto A5 =
         Buf.get_access<sycl::access_mode::discard_read_write, target::device>(
             cgh);
@@ -55,15 +55,15 @@ int main() {
   { sycl::host_accessor HA(Buf, sycl::write_only); }
   // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID9:.*]]|2018|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:25
   { sycl::host_accessor HA(Buf, sycl::read_write); }
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID10:.*]]|2018|1027|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID10:.*]]|2018|1027|{{.*}}accessors.cpp:[[# @LINE + 2]]:19
   {
     auto HA = Buf.get_access<sycl::access_mode::discard_write>();
   }
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID11:.*]]|2018|1028|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID11:.*]]|2018|1028|{{.*}}accessors.cpp:[[# @LINE + 2]]:19
   {
     auto HA = Buf.get_access<sycl::access_mode::discard_read_write>();
   }
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID12:.*]]|2018|1029|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID12:.*]]|2018|1029|{{.*}}accessors.cpp:[[# @LINE + 2]]:19
   {
     auto HA = Buf.get_access<sycl::access_mode::atomic>();
   }
