@@ -9248,25 +9248,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   addOpenMPHostOffloadingArgs(C, JA, Args, CmdArgs);
 
-  // For all the host SYCL offloading compile jobs we need to pass the targets
-  // information using -fsycl-targets= option.
-  if (isa<CompileJobAction>(JA) && JA.isHostOffloading(Action::OFK_SYCL)) {
-    SmallString<128> TargetInfo("-fsycl-targets=");
-
-    if (Arg *Tgts = Args.getLastArg(options::OPT_offload_targets_EQ)) {
-      for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
-        if (i)
-          TargetInfo += ',';
-        // We need to get the string from the triple because it may be not
-        // exactly the same as the one we get directly from the arguments.
-        llvm::Triple T(Tgts->getValue(i));
-        TargetInfo += T.getTriple();
-      }
-    } else
-      // Use the default.
-      TargetInfo += C.getDriver().getSYCLDeviceTriple().normalize();
-    CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
-  }
   if (Args.hasFlag(options::OPT_fdevirtualize_speculatively,
                    options::OPT_fno_devirtualize_speculatively,
                    /*Default value*/ false))

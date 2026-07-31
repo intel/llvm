@@ -31,7 +31,7 @@ int main() {
         {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
     auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-      auto AccA = BufferA.get_access<access::mode::read>(
+      auto AccA = BufferA.get_access<access_mode::read>(
           CGH, range<1>(Size - Offset), id<1>(Offset));
       CGH.copy(AccA, DataB.data());
     });

@@ -22,8 +22,8 @@ using namespace sycl;
 class TestFnObj {
 public:
   TestFnObj(buffer<int> &buf, handler &cgh)
-      : data(buf.get_access<access::mode::write>(cgh)) {}
-  accessor<int, 1, access::mode::write, access::target::device> data;
+      : data(buf.get_access<access_mode::write>(cgh)) {}
+  accessor<int, 1, access_mode::write, access::target::device> data;
   void operator()(id<1> item) const { data[item] = item[0]; }
 };
 
