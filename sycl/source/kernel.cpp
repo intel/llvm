@@ -63,9 +63,7 @@ __SYCL_KERNEL_INFO_INST(num_args, uint32_t)
 __SYCL_KERNEL_INFO_INST(attributes, std::string)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_KERNEL_INFO_INST(function_name, std::string)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_KERNEL_INFO_INST(reference_count, uint32_t)
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_KERNEL_INFO_INST(context, sycl::context)
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #undef __SYCL_KERNEL_INFO_INST

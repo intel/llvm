@@ -33,16 +33,17 @@ template <auto *Func> int test_free_function_kernel_id(sycl::context &ctxt) {
   return res;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <auto *Func>
 int test_kernel_bundle_ctxt(sycl::context &ctxt, std::string_view fname) {
   sycl::kernel_id id = syclexp::get_kernel_id<Func>();
   auto exe_bndl =
       syclexp::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
-  const bool res =
-      exe_bndl.has_kernel(id) &&
-      exe_bndl.get_kernel(id)
-              .template get_info<sycl::info::kernel::function_name>() == fname;
+  bool res = exe_bndl.has_kernel(id);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  res = res && exe_bndl.get_kernel(id)
+                   .template get_info<sycl::info::kernel::function_name>() ==
+                   fname;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   if (!res)
     std::cout
         << FFTestMark
@@ -59,10 +60,12 @@ int test_kernel_bundle_ctxt_dev(sycl::context &ctxt, sycl::device &dev,
   auto exe_bndl =
       syclexp::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt,
                                                                        {dev});
-  const bool res =
-      exe_bndl.has_kernel(id) &&
-      exe_bndl.get_kernel(id)
-              .template get_info<sycl::info::kernel::function_name>() == fname;
+  bool res = exe_bndl.has_kernel(id);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  res = res && exe_bndl.get_kernel(id)
+                   .template get_info<sycl::info::kernel::function_name>() ==
+                   fname;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   if (!res)
     std::cout << FFTestMark
               << "test_kernel_bundle_ctxt_dev failed: bundle does not contain "
@@ -71,7 +74,6 @@ int test_kernel_bundle_ctxt_dev(sycl::context &ctxt, sycl::device &dev,
               << fname << std::endl;
   return res;
 }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 int main() {
   sycl::queue q;
@@ -80,11 +82,9 @@ int main() {
 
   int ret = test_free_function_kernel_id<func_range>(ctxt);
   ret |= test_free_function_kernel_id<func_single>(ctxt);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   ret |= test_kernel_bundle_ctxt<func_range>(ctxt, "func_range");
   ret |= test_kernel_bundle_ctxt<func_single>(ctxt, "func_single");
   ret |= test_kernel_bundle_ctxt_dev<func_range>(ctxt, dev, "func_range");
   ret |= test_kernel_bundle_ctxt_dev<func_single>(ctxt, dev, "func_single");
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   return ret;
 }
