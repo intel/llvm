@@ -5,22 +5,26 @@
 /// wrapSYCLBinariesFromFile to zstd-compress each SYCL device image and tag
 /// it with BIF_Compressed.
 
-// RUN: %clangxx -### -fsycl --offload-new-driver --offload-compress \
+// RUN: %clangxx -### -fsycl --no-offloadlib -fno-sycl-instrument-device-code \
+// RUN:     --offload-new-driver --offload-compress \
 // RUN:     --offload-compression-level=3 %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-COMPRESS
 // CHECK-COMPRESS: {{.*}}clang-linker-wrapper{{.*}}"--compress"{{.*}}"--compression-level=3"
 
-// RUN: %clangxx -### -fsycl --offload-new-driver %s 2>&1 \
+// RUN: %clangxx -### -fsycl --no-offloadlib -fno-sycl-instrument-device-code \
+// RUN:     --offload-new-driver %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-NO-COMPRESS
 // CHECK-NO-COMPRESS-NOT: {{.*}}clang-linker-wrapper{{.*}}"--compress"
 
 // --no-offload-compress overrides an earlier --offload-compress.
-// RUN: %clangxx -### -fsycl --offload-new-driver --offload-compress \
+// RUN: %clangxx -### -fsycl --no-offloadlib -fno-sycl-instrument-device-code \
+// RUN:     --offload-new-driver --offload-compress \
 // RUN:     --no-offload-compress %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-NO-COMPRESS
 
 // ...and vice versa: a later --offload-compress wins over --no-offload-compress.
-// RUN: %clangxx -### -fsycl --offload-new-driver --no-offload-compress \
+// RUN: %clangxx -### -fsycl --no-offloadlib -fno-sycl-instrument-device-code \
+// RUN:     --offload-new-driver --no-offload-compress \
 // RUN:     --offload-compress %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-COMPRESS-LAST
 // CHECK-COMPRESS-LAST: {{.*}}clang-linker-wrapper{{.*}}"--compress"
