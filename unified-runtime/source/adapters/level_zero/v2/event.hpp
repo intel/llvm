@@ -28,10 +28,13 @@ class event_pool;
 struct event_profiling_data_t {
   event_profiling_data_t(ze_event_handle_t hZeEvent) : hZeEvent(hZeEvent) {}
 
-  // Prepare the event to hold a single GPU-written global timestamp: cache the
-  // device timer resolution/mask and mark the event as timestamp-recording.
-  void initTimestampRecording(ur_device_handle_t hDevice);
+  // Cache the device timer resolution/mask and mark the event as
+  // timestamp-recording. When recordSubmit is set, also capture a submission
+  // timestamp for command_submit; otherwise command_submit reports the
+  // GPU-written timestamp like command_start/command_end.
+  void initTimestampRecording(ur_device_handle_t hDevice, bool recordSubmit);
 
+  uint64_t getEventSubmitTimestamp();
   uint64_t getEventEndTimestamp();
   uint64_t *eventEndTimestampAddr();
 
@@ -44,6 +47,8 @@ struct event_profiling_data_t {
 private:
   ze_event_handle_t hZeEvent;
 
+  // Submission timestamp captured at enqueue; 0 if none was recorded.
+  uint64_t recordedSubmitTimestamp = 0;
   uint64_t recordEventEndTimestamp = 0;
   uint64_t adjustedEventEndTimestamp = 0;
 
@@ -127,14 +132,16 @@ public:
   // Get the device associated with this event
   ur_device_handle_t getDevice() const;
 
-  // Mark this event as recording a single GPU-written global timestamp,
-  // obtainable via urEventGetProfilingInfo. setQueue must be called first.
-  void initTimestampRecording();
+  // Mark this event as recording a GPU-written global timestamp, obtainable via
+  // urEventGetProfilingInfo. setQueue must be called first. recordSubmit also
+  // captures a separate submission timestamp for command_submit.
+  void initTimestampRecording(bool recordSubmit);
 
   // Get pointer to the timestamp storage, and ze event handle.
   // Caller is responsible for signaling the event once the timestamp is ready.
   std::pair<uint64_t *, ze_event_handle_t> getEventEndTimestampAndHandle();
 
+  uint64_t getEventSubmitTimestamp();
   uint64_t getEventEndTimestamp();
 
   ur::RefCount RefCount;

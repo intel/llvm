@@ -410,7 +410,7 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (isProfilingTagEvent()) {
-    // A tag event has a single device timestamp; all fields return it.
+    // Tag events report command_submit through the adapter.
     return get_event_profiling_info<info::event_profiling::command_submit>(
         this->getHandle(), this->getAdapter());
   }
@@ -607,8 +607,7 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  // Tag events use their single device timestamp for all fields, so there is
-  // no host-side submission time to record.
+  // Tag events obtain command_submit from the adapter.
   if (!MIsProfilingEnabled || MProfilingTagEvent)
     return;
 

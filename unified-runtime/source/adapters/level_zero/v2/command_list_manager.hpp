@@ -212,7 +212,8 @@ struct ur_command_list_manager {
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent);
   ur_result_t appendTimestampRecordingExp(bool blocking,
                                           wait_list_view &waitListView,
-                                          ur_event_handle_t phEvent);
+                                          ur_event_handle_t phEvent,
+                                          bool recordSubmit);
   ur_result_t
   appendCommandBufferExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                          wait_list_view &waitListView,

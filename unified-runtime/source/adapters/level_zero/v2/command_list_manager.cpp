@@ -593,7 +593,8 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy2D(
 }
 
 ur_result_t ur_command_list_manager::appendTimestampRecordingExp(
-    bool blocking, wait_list_view &waitListView, ur_event_handle_t phEvent) {
+    bool blocking, wait_list_view &waitListView, ur_event_handle_t phEvent,
+    bool recordSubmit) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendTimestampRecordingExp");
 
   if (!phEvent) {
@@ -602,7 +603,7 @@ ur_result_t ur_command_list_manager::appendTimestampRecordingExp(
 
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
-  phEvent->initTimestampRecording();
+  phEvent->initTimestampRecording(recordSubmit);
 
   auto [timestampPtr, zeSignalEvent] = phEvent->getEventEndTimestampAndHandle();
 

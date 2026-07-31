@@ -56,38 +56,58 @@ uint64_t event_profiling_data_t::getEventEndTimestamp() {
   assert(zeTimerResolution);
   assert(timestampMaxValue);
 
-  // A timestamp-recording event holds a single GPU-written global timestamp,
-  // so there is no separate start value to detect a wrap-around against.
+  // recordedSubmitTimestamp is the wrap-around reference; it is 0 when no
+  // submission timestamp was recorded, in which case no adjustment is applied.
   adjustedEventEndTimestamp =
-      (recordEventEndTimestamp & timestampMaxValue) * zeTimerResolution;
+      adjustEndEventTimestamp(recordedSubmitTimestamp, recordEventEndTimestamp,
+                              timestampMaxValue, zeTimerResolution);
 
   return adjustedEventEndTimestamp;
 }
 
 void event_profiling_data_t::reset() {
-  // This ensures that the event is considered as not timestamped.
-  // We can't touch recordEventEndTimestamp as it may still be overwritten by
-  // the driver. When the event is reused and initTimestampRecording is called
-  // again, adjustedEventEndTimestamp will be recomputed correctly as we wait
-  // for the event to be signaled before reading it.
-  // If the event is reused on another queue, the original queue must have been
-  // destroyed (and the event pool released back to the context) and the
-  // timestamp is already written, so no race-condition is possible.
+  // This ensures that the event is consider as not timestamped.
+  // We can't touch the recordEventEndTimestamp
+  // as it may still be overwritten by the driver.
+  // In case event is resued and initTimestampRecording
+  // is called again, adjustedEventEndTimestamp will always be updated correctly
+  // to the new value as we wait for the event to be signaled.
+  // If the event is reused on another queue, this means that the original
+  // queue must have been destroyed (and the even pool released back to the
+  // context) and the timstamp is already wrriten, so there's no race-condition
+  // possible.
   adjustedEventEndTimestamp = 0;
+  recordedSubmitTimestamp = 0;
   timestampRecorded = false;
 }
 
-void event_profiling_data_t::initTimestampRecording(
-    ur_device_handle_t hDevice) {
+void event_profiling_data_t::initTimestampRecording(ur_device_handle_t hDevice,
+                                                    bool recordSubmit) {
   zeTimerResolution = hDevice->getTimerResolution();
   timestampMaxValue = hDevice->getTimestampMask();
+
+  // Recording a submission timestamp requires an extra device query whose cost
+  // dominates the tag latency, so only do it when requested (batched queues).
+  if (recordSubmit) {
+    UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
+        common_cast(hDevice), &recordedSubmitTimestamp, nullptr));
+  }
+
   timestampRecorded = true;
 }
 
-void ur_event_handle_t_::initTimestampRecording() {
+void ur_event_handle_t_::initTimestampRecording(bool recordSubmit) {
+  // queue and device must be set before calling this
   assert(hQueue);
   assert(hDevice);
-  profilingData.initTimestampRecording(hDevice);
+
+  profilingData.initTimestampRecording(hDevice, recordSubmit);
+}
+
+uint64_t event_profiling_data_t::getEventSubmitTimestamp() {
+  // Fall back to the completion timestamp when no submission time was recorded.
+  return recordedSubmitTimestamp ? recordedSubmitTimestamp
+                                 : getEventEndTimestamp();
 }
 
 bool event_profiling_data_t::recordingStarted() const {
@@ -137,6 +157,10 @@ void ur_event_handle_t_::onWaitListUse() {
   if (batchGeneration) {
     hQueue->onEventWaitListUse(batchGeneration.value());
   }
+}
+
+uint64_t ur_event_handle_t_::getEventSubmitTimestamp() {
+  return profilingData.getEventSubmitTimestamp();
 }
 
 uint64_t ur_event_handle_t_::getEventEndTimestamp() {
@@ -324,12 +348,13 @@ ur_result_t urEventGetProfilingInfo(
 
   UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
-  // For timestamp-recording events the GPU wrote a single global timestamp.
-  // All profiling fields return that value: submit == start == end.
+  // For timestamped events we have the timestamps ready directly on the event
+  // handle, so we short-circuit the return.
   if (isTimestampedEvent) {
     switch (propName) {
     case UR_PROFILING_INFO_COMMAND_QUEUED:
     case UR_PROFILING_INFO_COMMAND_SUBMIT:
+      return returnValue(event->getEventSubmitTimestamp());
     case UR_PROFILING_INFO_COMMAND_START:
     case UR_PROFILING_INFO_COMMAND_END:
     case UR_PROFILING_INFO_COMMAND_COMPLETE:
