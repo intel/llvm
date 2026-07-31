@@ -32,9 +32,9 @@ bool checkEqual(marray<T, N> A, marray<T, N> B) {
       buffer<T, 1> input_buff(&input, 1);                                      \
       buffer<T, 1> res_buff(&res[0], sycl::range<1>(2));                       \
       deviceQueue.submit([&](handler &cgh) {                                   \
-        accessor<T, 1, access::mode::write, target::device> res_acc(res_buff,  \
-                                                                    cgh);      \
-        accessor<T, 1, access::mode::read, target::device> input_acc(          \
+        accessor<T, 1, access_mode::write, target::device> res_acc(res_buff,   \
+                                                                   cgh);       \
+        accessor<T, 1, access_mode::read, target::device> input_acc(           \
             input_buff, cgh);                                                  \
         cgh.single_task([=]() {                                                \
           res_acc[0] = sycl::native::func(input_acc[0]);                       \
@@ -54,9 +54,9 @@ bool checkEqual(marray<T, N> A, marray<T, N> B) {
       buffer<T, 1> input_buff(&input[0], range<1>(2));                         \
       buffer<T, 1> res_buff(&res[0], range<1>(2));                             \
       deviceQueue.submit([&](handler &cgh) {                                   \
-        accessor<T, 1, access::mode::write, target::device> res_acc(res_buff,  \
-                                                                    cgh);      \
-        accessor<T, 1, access::mode::read, target::device> input_acc(          \
+        accessor<T, 1, access_mode::write, target::device> res_acc(res_buff,   \
+                                                                   cgh);       \
+        accessor<T, 1, access_mode::read, target::device> input_acc(           \
             input_buff, cgh);                                                  \
         cgh.single_task([=]() {                                                \
           res_acc[0] = sycl::native::func(input_acc[0], input_acc[1]);         \

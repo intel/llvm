@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
       sycl::buffer<container_t, 1> buf(output.data(), output.size());
 
       q.submit([&](sycl::handler &cgh) {
-         auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+         auto acc = buf.get_access<sycl::access_mode::write>(cgh);
          if (i % 2 != 0)
            cgh.set_specialization_constant<ConstID>(REDEF_VAL);
          cgh.single_task<TestKernel>([=](kernel_handler kh) SYCL_ESIMD_KERNEL {

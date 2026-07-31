@@ -75,10 +75,9 @@ static bool isBannedOpenCLDevice(cl_device_id device) {
 
 namespace ur::opencl {
 
-UR_DLLEXPORT ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
-                                           ur_platform_info_t propName,
-                                           size_t propSize, void *pPropValue,
-                                           size_t *pSizeRet) {
+ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
+                              ur_platform_info_t propName, size_t propSize,
+                              void *pPropValue, size_t *pSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pSizeRet);
   const cl_int CLPropName = mapURPlatformInfoToCL(propName);
@@ -106,7 +105,7 @@ UR_DLLEXPORT ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
   }
 }
 
-UR_DLLEXPORT ur_result_t
+ur_result_t
 urPlatformGetApiVersion([[maybe_unused]] ur_platform_handle_t hPlatform,
                         ur_api_version_t *pVersion) {
   *pVersion = UR_API_VERSION_CURRENT;

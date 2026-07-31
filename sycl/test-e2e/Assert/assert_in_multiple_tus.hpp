@@ -29,7 +29,7 @@ void enqueueKernel_1_fromFile1(queue *Q) {
   sycl::buffer<int, 1> Buf(numOfItems);
 
   Q->submit([&](handler &CGH) {
-    auto Acc = Buf.template get_access<mode::read_write>(CGH);
+    auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
     CGH.parallel_for<class Kernel_1>(
         sycl::nd_range(Buf.get_range(), sycl::range<1>(4)),
