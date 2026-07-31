@@ -243,6 +243,18 @@ are needed to pass along this information.
 
 *Table: Ahead of Time Info*
 
+### NoRDC Mode support
+
+For the Old Offload Model support of NoRDC Mode see [NonRelocatableDeviceCode.md](NonRelocatableDeviceCode.md).
+
+The default compiler behavior is -fsycl-rdc, which incorporates linking of device code. If -fno-sycl-rdc is specified, the compiler skips linking of device code and performs offload processing on every module individually.
+
+A follow-up patch will add support for specifying `-fno-sycl-rdc` at the compile step
+(i.e. `clang++ --offload-new-driver -fsycl -fno-sycl-rdc -c`), matching the old offload
+model's usage pattern. This will be implemented by invoking `clang-linker-wrapper
+--sycl-device-link --no-sycl-rdc` per translation unit at compile time to finalize each
+TU's device code independently, embedding the result directly into the host object.
+
 #### Format of the --device-compiler Option
 The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:
 - `<kind>` : specifies the offloading kind (e.g., sycl, hip, openmp) and is optional.
