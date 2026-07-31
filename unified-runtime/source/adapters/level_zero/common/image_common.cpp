@@ -366,9 +366,11 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
       (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
-  std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
+  // Exclusive lock: the map below is mutated; unlock() (not release()) is
+  // required so the device mutex is actually released afterwards.
+  std::unique_lock<ur_shared_mutex> Lock(hDevice->Mutex);
   hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage.get();
-  Lock.release();
+  Lock.unlock();
   ZeImage.release();
 
   return UR_RESULT_SUCCESS;
@@ -1167,16 +1169,18 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
   (void)hDevice;
   UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
+  // Exclusive lock: the map below is mutated; unlock() (not release()) is
+  // required so the device mutex is actually released afterwards.
+  std::unique_lock<ur_shared_mutex> Lock(hDevice->Mutex);
   auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
 
   if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
     auto *handle = item->second;
     hDevice->ZeOffsetToImageHandleMap.erase(item);
-    Lock.release();
+    Lock.unlock();
     ZE2UR_CALL(zeImageDestroy, (handle));
   } else {
-    Lock.release();
+    Lock.unlock();
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
@@ -1505,8 +1509,22 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
     pNext = const_cast<void *>(BaseDesc->pNext);
   }
 
-  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
-             (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(
+      UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
+      (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
+
+  // A D3D11 fence shares the same NT-handle semantics as a D3D12 fence. Some
+  // drivers do not yet accept ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_D3D11_FENCE; retry
+  // such handles as a D3D12 fence rather than failing the import.
+  if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE &&
+      SemDesc.flags == ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_D3D11_FENCE) {
+    SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_D3D12_FENCE;
+    ZeResult = ZE_CALL_NOCHECK(
+        UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
+        (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
+  }
+  if (ZeResult != ZE_RESULT_SUCCESS)
+    return ze2urResult(ZeResult);
   *phExternalSemaphoreHandle =
       (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
 
