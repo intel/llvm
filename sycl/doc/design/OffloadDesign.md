@@ -263,11 +263,12 @@ clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 input2.cpp -c -o object
 clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 -fno-sycl-rdc object1.o object2.o -o a.out   # -fno-sycl-rdc is specified
 ```
 
-A follow-up patch will add support for specifying `-fno-sycl-rdc` at the compile step
-(i.e. `clang++ --offload-new-driver -fsycl -fno-sycl-rdc -c`), matching the old offload
-model's usage pattern. This will be implemented by invoking `clang-linker-wrapper
---sycl-device-link --no-sycl-rdc` per translation unit at compile time to finalize each
-TU's device code independently, embedding the result directly into the host object.
+Specifying `-fno-sycl-rdc` at the compile step
+(i.e. `clang++ --offload-new-driver -fsycl -fno-sycl-rdc -c`) is also supported, matching
+the old offload model's usage pattern. In this case `clang-linker-wrapper
+--sycl-device-link --no-sycl-rdc` is invoked per translation unit at compile time to
+finalize each TU's device code independently, embedding the result directly into the host
+object.
 
 #### Format of the --device-compiler Option
 The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:

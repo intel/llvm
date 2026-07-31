@@ -12179,10 +12179,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // When invoked as a per-TU device finalizer at compile time
       // (-fno-sycl-rdc -c), the linker wrapper must run in device-link-only
       // mode: execute the full SYCL pipeline but skip the host linker.
-      // TY_Image output identifies this as the per-TU finalize action
-      // (BuildOffloadingActions) rather than the final link-time invocation.
+      // isDeviceOffloading(OFK_SYCL) distinguishes the per-TU finalizer
+      // (OFK_SYCL, from BuildOffloadingActions) from the final link-time
+      // invocation (OFK_Host) -- both produce TY_Image so output type alone
+      // is not a reliable discriminator.
       if (!Args.hasArg(options::OPT_fsycl_link_EQ) &&
-          JA.getType() == types::TY_Image)
+          JA.isDeviceOffloading(Action::OFK_SYCL))
         CmdArgs.push_back("--sycl-device-link");
     }
 

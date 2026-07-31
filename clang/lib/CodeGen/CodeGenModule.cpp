@@ -1278,7 +1278,7 @@ void CodeGenModule::Release() {
                                   (*BinaryOrErr)->getBufferSize());
       if (llvm::Error E = llvm::offloading::wrapSYCLBinaries(
               getModule(), Buffer, llvm::offloading::SYCLJITOptions{}))
-        getDiags().Report(diag::err_cannot_open_file)
+        getDiags().Report(diag::err_fe_linking_module)
             << getCodeGenOpts().SYCLTargetBinaryFileName
             << llvm::toString(std::move(E));
     }
