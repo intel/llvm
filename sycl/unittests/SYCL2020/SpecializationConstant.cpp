@@ -14,14 +14,14 @@
 
 #include <gtest/gtest.h>
 
-class TestKernel;
+class SpecConstTestKernel;
 const static sycl::specialization_id<int> SpecConst1{42};
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 template <>
-struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
+struct KernelInfo<SpecConstTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return "SpecializationConstant_TestKernel";
   }
@@ -68,7 +68,7 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
 
-  sycl::kernel_id TestKernelID = sycl::get_kernel_id<TestKernel>();
+  sycl::kernel_id TestKernelID = sycl::get_kernel_id<SpecConstTestKernel>();
   auto DevImage =
       std::find_if(KernelBundle.begin(), KernelBundle.end(),
                    [&](auto Image) { return Image.has_kernel(TestKernelID); });
@@ -98,7 +98,7 @@ TEST(SpecializationConstant, DefaultValuesAreOverriden) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
 
-  sycl::kernel_id TestKernelID = sycl::get_kernel_id<TestKernel>();
+  sycl::kernel_id TestKernelID = sycl::get_kernel_id<SpecConstTestKernel>();
   auto DevImage =
       std::find_if(KernelBundle.begin(), KernelBundle.end(),
                    [&](auto Image) { return Image.has_kernel(TestKernelID); });
@@ -152,7 +152,7 @@ TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
         FAIL() << "Unexpected non-SYCL exception was thrown.";
         throw;
       }
-      CGH.single_task<TestKernel>([]() {});
+      CGH.single_task<SpecConstTestKernel>([]() {});
     });
   } catch (const sycl::exception &e) {
     if (static_cast<sycl::errc>(e.code().value()) == sycl::errc::invalid) {
@@ -196,7 +196,7 @@ TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
         FAIL() << "Unexpected non-SYCL exception was thrown.";
         throw;
       }
-      CGH.single_task<TestKernel>([]() {});
+      CGH.single_task<SpecConstTestKernel>([]() {});
     });
   } catch (const sycl::exception &e) {
     if (static_cast<sycl::errc>(e.code().value()) == sycl::errc::invalid) {
@@ -239,7 +239,7 @@ TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
         FAIL() << "Unexpected non-SYCL exception was thrown.";
         throw;
       }
-      CGH.single_task<TestKernel>([]() {});
+      CGH.single_task<SpecConstTestKernel>([]() {});
     });
   } catch (const sycl::exception &e) {
     if (static_cast<sycl::errc>(e.code().value()) == sycl::errc::invalid) {
