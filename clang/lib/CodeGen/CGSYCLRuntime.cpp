@@ -14,9 +14,12 @@
 #include "CodeGenFunction.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <assert.h>
 
 using namespace clang;
@@ -129,6 +132,27 @@ bool CGSYCLRuntime::actOnGlobalVarEmit(CodeGenModule &CGM, const VarDecl &D,
                         Twine(RegAttr->getNumber()).str());
   // TODO consider reversing the error/success return values
   return true;
+}
+
+void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
+  if (!CGM.getLangOpts().SYCLIsHost ||
+      CGM.getCodeGenOpts().SYCLTargetBinaryFileName.empty())
+    return;
+  auto BinaryOrErr = CGM.getFileSystem()->getBufferForFile(
+      CGM.getCodeGenOpts().SYCLTargetBinaryFileName, /*MaxSize=*/-1,
+      /*RequiresNullTerminator=*/false);
+  if (std::error_code EC = BinaryOrErr.getError()) {
+    CGM.getDiags().Report(diag::err_cannot_open_file)
+        << CGM.getCodeGenOpts().SYCLTargetBinaryFileName << EC.message();
+    return;
+  }
+  llvm::ArrayRef<char> Buffer((*BinaryOrErr)->getBufferStart(),
+                              (*BinaryOrErr)->getBufferSize());
+  if (llvm::Error E = llvm::offloading::wrapSYCLBinaries(
+          CGM.getModule(), Buffer, llvm::offloading::SYCLJITOptions{}))
+    CGM.getDiags().Report(diag::err_fe_linking_module)
+        << CGM.getCodeGenOpts().SYCLTargetBinaryFileName
+        << llvm::toString(std::move(E));
 }
 
 bool Util::matchQualifiedTypeName(const CXXRecordDecl *RecTy,
