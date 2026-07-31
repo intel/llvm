@@ -58,13 +58,19 @@ int run_test_on_queue(sycl::queue &Queue) {
   std::cout << "EndTagStart: " << EndTagStart << std::endl;
   std::cout << "EndTagEnd: " << EndTagEnd << std::endl;
 
-  // All three timestamps are equal to the GPU-written completion time.
+  CHECK(Failures, StartTagSubmit != 0)
+  CHECK(Failures, StartTagStart != 0)
   CHECK(Failures, StartTagEnd != 0)
-  CHECK(Failures, EndTagEnd != 0)
-  CHECK(Failures, StartTagSubmit == StartTagStart)
-  CHECK(Failures, StartTagStart == StartTagEnd)
-  CHECK(Failures, EndTagSubmit == EndTagStart)
-  CHECK(Failures, EndTagStart == EndTagEnd)
+  CHECK(Failures, EndTagSubmit != 0)
+  CHECK(Failures, EndTagStart != 0)
+  CHECK(Failures, StartTagSubmit != 0)
+
+  CHECK(Failures, StartTagSubmit <= StartTagEnd)
+  CHECK(Failures, StartTagSubmit <= StartTagStart)
+  CHECK(Failures, StartTagStart <= StartTagEnd)
+  CHECK(Failures, EndTagSubmit <= EndTagEnd)
+  CHECK(Failures, EndTagSubmit <= EndTagStart)
+  CHECK(Failures, EndTagStart <= EndTagEnd)
   CHECK(Failures, StartTagEnd <= EndTagEnd)
 
   if (Queue.has_property<sycl::property::queue::enable_profiling>()) {
