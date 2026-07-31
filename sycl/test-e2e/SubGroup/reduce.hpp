@@ -20,8 +20,8 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
     buffer<T> buf(G);
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-      auto acc = buf.template get_access<access::mode::read_write>(cgh);
+      auto sgsizeacc = sgsizebuf.get_access<access_mode::read_write>(cgh);
+      auto acc = buf.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<SpecializationKernelName>(
           NdRange, [=](nd_item<1> NdItem) {
             sycl::sub_group sg = NdItem.get_sub_group();
