@@ -7,27 +7,27 @@
 // RUN: touch %t.cpp
 
 // Default (no flag): RDC is ON by default for SYCL, so --no-sycl-rdc should NOT appear.
-// RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl %t.cpp 2>&1 \
+// RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl --no-offloadlib -fno-sycl-instrument-device-code %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DEFAULT %s
 // CHK-DEFAULT-NOT: --no-sycl-rdc
 
 // -fno-sycl-rdc: --no-sycl-rdc should appear.
-// RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl-rdc %t.cpp 2>&1 \
+// RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl-rdc --no-offloadlib -fno-sycl-instrument-device-code %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-RDC %s
 // CHK-NO-RDC: clang-linker-wrapper{{.*}} "--no-sycl-rdc"
 
 // AOT Intel GPU target, default RDC: --no-sycl-rdc should NOT appear.
-// RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=intel_gpu_pvc %t.cpp 2>&1 \
+// RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=intel_gpu_pvc --no-offloadlib -fno-sycl-instrument-device-code %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-AOT-RDC %s
 // CHK-AOT-RDC-NOT: --no-sycl-rdc
 
 // AOT Intel GPU target + -fno-sycl-rdc: --no-sycl-rdc should appear.
-// RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=intel_gpu_pvc -fno-sycl-rdc %t.cpp 2>&1 \
+// RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=intel_gpu_pvc -fno-sycl-rdc --no-offloadlib -fno-sycl-instrument-device-code %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-AOT-NO-RDC %s
 // CHK-AOT-NO-RDC: clang-linker-wrapper{{.*}} "--no-sycl-rdc"
 
 // Test compilation step.
-// RUN: not %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -fno-sycl-rdc %t.cpp -c -o %t.o 2>&1 \
+// RUN: not %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -fno-sycl-rdc --no-offloadlib -fno-sycl-instrument-device-code %t.cpp -c -o %t.o 2>&1 \
 // RUN:    | FileCheck -check-prefix=CHK-COMPILE-STEP-ERROR %s
 
 // CHK-COMPILE-STEP-ERROR: error: argument unused during compilation: '-fno-sycl-rdc' [-Werror,-Wunused-command-line-argument]

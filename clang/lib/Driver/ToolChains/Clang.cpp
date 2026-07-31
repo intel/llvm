@@ -12157,7 +12157,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // Propagate [no-]rdc mode to the linker wrapper for the SYCL case.
     // The default behaviour is rdc mode ON, which requires no special flags.
     // In order to enable non-rdc mode, we pass --no-sycl-rdc to the linker
-    // wrapper. Note: -f[no-]sycl-rdc is an alias of [no-]gpu_rdc.
+    // wrapper. Note: -f[no-]sycl-rdc is an alias of -f[no-]gpu-rdc.
     if (!Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                       /*default=*/true))
       CmdArgs.push_back("--no-sycl-rdc");
