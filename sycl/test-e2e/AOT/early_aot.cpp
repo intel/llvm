@@ -2,9 +2,8 @@
 
 // REQUIRES: ocloc, gpu, target-spir
 
-// Note: Temporary. New Offload Model requires -fno-sycl-rdc to be specified
-// at linking step but Old Offload Model requires -fno-sycl-rdc to be
-// specified at compilation step.
+// Note: New Offload Model temporarily requires -fno-sycl-rdc to be specified
+// at the linking step. Old Offload Model requires it at the compilation step.
 
 // Build the early AOT device binaries
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %if !new-offload-model %{ -fno-sycl-rdc %} -c -DADD_CPP %s -o %t_add.o
