@@ -48,7 +48,7 @@ template <typename T, unsigned VL> bool test(queue q) {
     nd_range<1> NDRange{range<1>{GlobalRange}, range<1>{LocalRange}};
     q.submit([&](handler &CGH) {
        auto LocalAcc = local_accessor<T, 1>(Size, CGH);
-       auto Acc = buf.template get_access<access::mode::read_write>(CGH);
+       auto Acc = buf.template get_access<access_mode::read_write>(CGH);
        CGH.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
          uint32_t GID = Item.get_global_id(0);
          uint32_t LID = Item.get_local_id(0);

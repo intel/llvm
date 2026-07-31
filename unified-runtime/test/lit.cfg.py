@@ -22,7 +22,17 @@ config.test_exec_root = path.join(config.ur_obj_root, "test")
 
 # Default test configuration - unit tests (that use formats.GoogleTest) use a different test suite specified by
 # lit.cfg.py (which does not inherit from this one)
-config.test_format = lit.formats.ShTest(True)
+#
+# force_execute_external is required to keep using external shell execution
+# (needed by these tests, e.g. LD_LIBRARY_PATH manipulation and %maybe-v1/
+# %maybe-v2 RUN-line prefixes) on newer lit versions (LLVM-23+) where
+# ShTest(execute_external=True) alone is deprecated and raises a ValueError.
+# Older lit releases (e.g. the lit==18.1.8 PyPI package used by some CI jobs)
+# don't recognize this keyword argument at all, so fall back gracefully.
+try:
+    config.test_format = lit.formats.ShTest(True, force_execute_external=True)
+except TypeError:
+    config.test_format = lit.formats.ShTest(True)
 config.suffixes = [".test"]
 
 

@@ -53,6 +53,7 @@ int main() {
   (void)Queue.get();
 
   cl_sampler ClSampler;
+  // expected-warning@+2 {{sampler has been removed in SYCL 2020}}
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::sampler'}}
   sycl::sampler Sampler{ClSampler, Ctx};
   (void)Sampler;

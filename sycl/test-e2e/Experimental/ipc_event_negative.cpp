@@ -42,7 +42,7 @@ int main() {
   // 2. get on an imported event -> errc::invalid (cannot be re-exported).
   {
     sycl::event Producer =
-        exp::make_event(Ctx, exp::properties{exp::enable_ipc});
+        exp::make_event(Ctx, exp::properties{exp::enable_ipc{true}});
     exp::enqueue_signal_event(Q, Producer);
     Producer.wait();
     ipc::handle H = ipc::event::get(Producer);

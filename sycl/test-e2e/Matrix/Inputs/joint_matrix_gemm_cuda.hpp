@@ -113,8 +113,8 @@ void test(queue &q) {
       buffer<bfloat16, 1> bufA(A, range<1>(Big_M * Big_K));
       buffer<bfloat16, 1> bufB(B, range<1>(Big_K * Big_N));
       q.submit([&](handler &cgh) {
-        accessor<bfloat16, 1, access::mode::write, target::device> accA(bufA,
-                                                                        cgh);
+        accessor<bfloat16, 1, access_mode::write, target::device> accA(bufA,
+                                                                       cgh);
 
         cgh.parallel_for<KernelName<Tm, Tc, class copyA, M, K, N, layout_A,
                                     layout_B, layout_C>>(
@@ -124,8 +124,8 @@ void test(queue &q) {
             });
       });
       q.submit([&](handler &cgh) {
-        accessor<bfloat16, 1, access::mode::write, target::device> accB(bufB,
-                                                                        cgh);
+        accessor<bfloat16, 1, access_mode::write, target::device> accB(bufB,
+                                                                       cgh);
 
         cgh.parallel_for<KernelName<Tm, Tc, class copyB, M, K, N, layout_A,
                                     layout_B, layout_C>>(
@@ -142,10 +142,10 @@ void test(queue &q) {
     buffer<Td, 1> bufD(D, range<1>(Big_M * Big_N));
 
     q.submit([&](handler &cgh) {
-      accessor<Tm, 1, access::mode::read, target::device> accA(bufA, cgh);
-      accessor<Tm, 1, access::mode::read, target::device> accB(bufB, cgh);
-      accessor<Tc, 1, access::mode::read, target::device> accC(bufC, cgh);
-      accessor<Td, 1, access::mode::write, target::device> accD(bufD, cgh);
+      accessor<Tm, 1, access_mode::read, target::device> accA(bufA, cgh);
+      accessor<Tm, 1, access_mode::read, target::device> accB(bufB, cgh);
+      accessor<Tc, 1, access_mode::read, target::device> accC(bufC, cgh);
+      accessor<Td, 1, access_mode::write, target::device> accD(bufD, cgh);
 
       range<2> LocalRange = {1, N_THREADS_PER_MATRIX_OP};
       range<2> GlobalRange = {Sub_Tiles_M,

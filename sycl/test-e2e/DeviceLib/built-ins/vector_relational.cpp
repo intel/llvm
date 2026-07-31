@@ -20,7 +20,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isequalF4F4>([=]() {
           AccR[0] = s::isequal(s::float4{0.5f, 0.6f, NAN, INFINITY},
                                s::float4{0.5f, 0.5f, 0.5f, 0.5f});
@@ -45,7 +45,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isnotequalF4F4>([=]() {
           AccR[0] = s::isnotequal(s::float4{0.5f, 0.6f, NAN, INFINITY},
                                   s::float4{0.5f, 0.5f, 0.5f, 0.5f});
@@ -70,7 +70,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isgreaterF4F4>([=]() {
           AccR[0] = s::isgreater(s::float4{0.5f, 0.6f, NAN, INFINITY},
                                  s::float4{0.5f, 0.5f, 0.5f, 0.5f});
@@ -95,7 +95,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isgreaterequalF4F4>([=]() {
           AccR[0] = s::isgreaterequal(s::float4{0.5f, 0.6f, NAN, INFINITY},
                                       s::float4{0.5f, 0.5f, 0.5f, 0.5f});
@@ -120,7 +120,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class islessF4F4>([=]() {
           AccR[0] = s::isless(s::float4{0.5f, 0.4f, NAN, INFINITY},
                               s::float4{0.5f, 0.5f, 0.5f, 0.5f});
@@ -145,7 +145,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class islessequalF4F4>([=]() {
           AccR[0] = s::islessequal(s::float4{0.5f, 0.4f, NAN, INFINITY},
                                    s::float4{0.5f, 0.5f, 0.5f, 0.5f});
@@ -170,7 +170,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class islessgreaterF4F4>([=]() {
           AccR[0] = s::islessgreater(s::float4{0.5f, 0.4f, NAN, INFINITY},
                                      s::float4{0.5f, 0.5f, 0.5f, INFINITY});
@@ -196,7 +196,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isfiniteF4F4>([=]() {
           AccR[0] = s::isfinite(s::float4{0.5f, 0.4f, NAN, INFINITY});
         });
@@ -220,7 +220,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isinfF4F4>([=]() {
           AccR[0] = s::isinf(s::float4{0.5f, 0.4f, NAN, INFINITY});
         });
@@ -244,7 +244,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isnanF4F4>([=]() {
           AccR[0] = s::isnan(s::float4{0.5f, 0.4f, NAN, INFINITY});
         });
@@ -268,7 +268,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isnormalF4F4>([=]() {
           AccR[0] = s::isnormal(s::float4{0.5f, 0.4f, NAN, INFINITY});
         });
@@ -292,7 +292,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isorderedF4F4>([=]() {
           AccR[0] = s::isordered(s::float4{0.5f, 0.6f, NAN, INFINITY},
                                  s::float4{0.5f, 0.5f, 0.5f, 0.5f});
@@ -317,7 +317,7 @@ int main() {
       s::buffer<s::int4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isunorderedF4F4>([=]() {
           AccR[0] = s::isunordered(s::float4{0.5f, 0.6f, NAN, INFINITY},
                                    s::float4{0.5f, 0.5f, 0.5f, 0.5f});
@@ -342,7 +342,7 @@ int main() {
       s::buffer<s::int3, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class signbitF3>([=]() {
           AccR[0] = s::signbit(s::float3{0.5f, -12.0f, INFINITY});
         });
@@ -365,7 +365,7 @@ int main() {
       s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class anyI4>([=]() {
           AccR[0] = s::any(s::int4{-12, -12, 0, 1});
         });
@@ -384,7 +384,7 @@ int main() {
       s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class anyI4negative>([=]() {
           AccR[0] = s::any(s::int4{-12, -12, -12, -12});
         });
@@ -403,7 +403,7 @@ int main() {
       s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class anyI4zero>([=]() {
           AccR[0] = s::any(s::int4{0, 0, 0, 0});
         });
@@ -422,7 +422,7 @@ int main() {
       s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class anyI4positive>([=]() {
           AccR[0] = s::any(s::int4{12, 12, 12, 12});
         });
@@ -441,7 +441,7 @@ int main() {
       s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class allI4>([=]() {
           AccR[0] = s::all(s::int4{-12, -12, -12, -12});
           // Infinity (positive or negative) or Nan are not integers.
@@ -463,7 +463,7 @@ int main() {
       s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class allI4negative>([=]() {
           AccR[0] = s::all(s::int4{-12, -12, -12, -12});
         });
@@ -482,7 +482,7 @@ int main() {
       s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class allI4zero>([=]() {
           AccR[0] = s::all(s::int4{0, 0, 0, 0});
         });
@@ -501,7 +501,7 @@ int main() {
       s::buffer<int, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class allI4positive>([=]() {
           AccR[0] = s::all(s::int4{12, 12, 12, 12});
         });
@@ -519,7 +519,7 @@ int main() {
       s::buffer<s::float4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class bitselectF4F4F4>([=]() {
           AccR[0] = s::bitselect(s::float4{112.112f, 12.12f, 0, 0.0f},
                                  s::float4{34.34f, 23.23f, 1, 0.0f},
@@ -546,7 +546,7 @@ int main() {
       s::buffer<s::float4, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class selectF4F4I4>([=]() {
           AccR[0] = s::select(s::float4{112.112f, 34.34f, 112.112f, 34.34f},
                               s::float4{34.34f, 112.112f, 34.34f, 112.112f},
@@ -579,10 +579,10 @@ int main() {
       s::buffer<s::vec<int, 4>> R(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccA = A.get_access<s::access::mode::read>(cgh);
-        auto AccB = B.get_access<s::access::mode::read>(cgh);
-        auto AccM = M.get_access<s::access::mode::read>(cgh);
-        auto AccR = R.get_access<s::access::mode::write>(cgh);
+        auto AccA = A.get_access<s::access_mode::read>(cgh);
+        auto AccB = B.get_access<s::access_mode::read>(cgh);
+        auto AccM = M.get_access<s::access_mode::read>(cgh);
+        auto AccR = R.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class selectI4I4U4>(
             [=]() { AccR[0] = s::select(AccA[0], AccB[0], AccM[0]); });
       });

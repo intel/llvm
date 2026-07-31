@@ -34,9 +34,9 @@ int main() {
     buffer<float, 2> ABuf{GlobalRange}, BBuf{GlobalRange}, CBuf{GlobalRange};
 
     Queue.submit([&](sycl::handler &cgh) {
-      auto A = ABuf.get_access<access::mode::read_write>(cgh);
-      auto B = BBuf.get_access<access::mode::read>(cgh);
-      auto C = CBuf.get_access<access::mode::read>(cgh);
+      auto A = ABuf.get_access<access_mode::read_write>(cgh);
+      auto B = BBuf.get_access<access_mode::read>(cgh);
+      auto C = CBuf.get_access<access_mode::read>(cgh);
       cgh.parallel_for<kernel_sg>(
           nd_range<2>(GlobalRange, range<2>(10, 20)), [=](nd_item<2> index) {
             const id<2> GlobalID = index.get_global_id();
