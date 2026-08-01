@@ -10,7 +10,7 @@
 // RUN:   -fsycl -fno-sycl-rdc -c %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-COMPILE --implicit-check-not=-fembed-offload-object %s
 // CHK-COMPILE: clang-linker-wrapper{{.*}} "--no-sycl-rdc"{{.*}} "--sycl-device-link"
-// CHK-COMPILE: "-fsycl-include-target-binary"
+// CHK-COMPILE: "-fsycl-is-host"{{.*}} "-fsycl-include-target-binary"
 
 // Default RDC -c: -fembed-offload-object appears, no -fsycl-include-target-binary or --no-sycl-rdc.
 // RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu \
