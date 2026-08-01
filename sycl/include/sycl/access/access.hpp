@@ -23,10 +23,10 @@ enum class target {
   global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = device,
   constant_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2015,
   local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
-  image __SYCL_DEPRECATED("removed in SYCL 2020") = 2017,
+  image __SYCL2020_DEPRECATED("removed in SYCL 2020") = 2017,
   host_buffer __SYCL2020_DEPRECATED("use 'host_accessor' instead") = 2018,
-  host_image __SYCL_DEPRECATED("removed in SYCL 2020") = 2019,
-  image_array __SYCL_DEPRECATED("removed in SYCL 2020") = 2020,
+  host_image __SYCL2020_DEPRECATED("removed in SYCL 2020") = 2019,
+  image_array __SYCL2020_DEPRECATED("removed in SYCL 2020") = 2020,
   host_task = 2021,
 };
 
@@ -40,7 +40,7 @@ enum class mode {
 };
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-enum class __SYCL_DEPRECATED("Removed in SYCL 2020") fence_space {
+enum class __SYCL2020_DEPRECATED("Removed in SYCL 2020") fence_space {
   local_space = 0,
   global_space = 1,
   global_and_local = 2
