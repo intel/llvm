@@ -85,15 +85,13 @@ add_custom_target(rtc-prepare-resources
 )
 
 add_custom_command(
-  OUTPUT ${SYCL_JIT_RESOURCE_CPP}
+  OUTPUT ${SYCL_JIT_RESOURCE_CPP} ${SYCL_JIT_RESOURCE_SHARD_CPPS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT} --shard-dir ${SYCL_JIT_RESOURCE_SHARD_DIR} --num-shards ${SYCL_JIT_RESOURCE_NUM_SHARDS}
   DEPENDS
   rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_DEPS}
   ${SYCL_JIT_RESOURCE_FILES}
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
-  BYPRODUCTS
-  ${SYCL_JIT_RESOURCE_SHARD_CPPS}
 )
 
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"
