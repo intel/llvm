@@ -2,14 +2,14 @@
 
 // REQUIRES: ocloc, gpu, target-spir
 
-// Note: The Old Offload Model requires -fno-sycl-rdc at the compilation step.
-// The New Offload Model accepts -fno-sycl-rdc at both the compile and link
-// steps; the RUN lines below pass it at the link step for compatibility.
+// Note: For early AOT, -fno-sycl-rdc must be specified at the compilation step
+// for the Old Offload Model. The New Offload Model supports -fno-sycl-rdc at
+// both the compile and link steps.
 
 // Build the early AOT device binaries
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %if !new-offload-model %{ -fno-sycl-rdc %} -c -DADD_CPP %s -o %t_add.o
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %if !new-offload-model %{ -fno-sycl-rdc %} -c -DSUB_CPP %s -o %t_sub.o
-// RUN: %clangxx -fsycl %if new-offload-model %{ -fno-sycl-rdc %} -DMAIN_CPP %s %t_add.o %t_sub.o -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DADD_CPP %s -o %t_add.o
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DSUB_CPP %s -o %t_sub.o
+// RUN: %clangxx -fsycl -fno-sycl-rdc -DMAIN_CPP %s %t_add.o %t_sub.o -o %t.out
 
 // RUN: %{run} %t.out
 
