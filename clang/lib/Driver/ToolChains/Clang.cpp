@@ -9154,13 +9154,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fcuda-include-gpubinary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
     } else if (IsSYCL && !IsRDCMode) {
-      // SYCL no-RDC (-fno-sycl-rdc): device image was finalized per-TU by
-      // clang-linker-wrapper --sycl-device-link. Pass it to host CodeGen via
-      // -fsycl-include-target-binary so wrapSYCLBinaries embeds and registers
-      // it at compile time. -fembed-offload-object is intentionally NOT used:
-      // that would defer processing to link time, defeating the purpose.
-      // Note: this block is only reached during the host cc1 compile step;
-      // at final link time HostOffloadingInputs is empty for SYCL no-RDC.
+      // SYCL no-RDC: per-TU finalized device image, embed at compile time.
       assert(HostOffloadingInputs.size() == 1 && "One finalized image per TU");
       CmdArgs.push_back("-fsycl-include-target-binary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
