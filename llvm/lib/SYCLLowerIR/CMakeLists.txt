@@ -4,11 +4,10 @@ if (NOT TARGET LLVMGenXIntrinsics)
   find_package(LLVMGenXIntrinsics QUIET)
 
   if (NOT LLVMGenXIntrinsics_FOUND)
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/wenju-he/vc-intrinsics)
 
-    # Date: July 29, 2026
-    # Fix build: migrate remaining Instruction* insert-point calls to InsertPosition
-    set(LLVMGenXIntrinsics_GIT_TAG cb205786f9f9d93ea536c35327cf424c1ea30860)
+    # Fix build: remove use of deprecated typed-pointer creation APIs
+    set(LLVMGenXIntrinsics_GIT_TAG 263153866b14acbbad2c7863e47e0c5c4915abde)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
