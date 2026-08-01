@@ -5,10 +5,7 @@
 
 // RUN: touch %t.cpp
 
-// --- CHECK 1: -fno-sycl-rdc -c ---
-// Per-TU finalize: clang-linker-wrapper must be invoked with --sycl-device-link
-// and --no-sycl-rdc. Host cc1 must receive -fsycl-include-target-binary.
-// -fembed-offload-object must NOT appear (device code is not deferred).
+// -fno-sycl-rdc -c: per-TU linker-wrapper with --sycl-device-link, host cc1 gets -fsycl-include-target-binary.
 // RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu \
 // RUN:   -fsycl -fno-sycl-rdc -c %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-COMPILE %s
@@ -16,9 +13,7 @@
 // CHK-COMPILE: "-fsycl-include-target-binary"
 // CHK-COMPILE-NOT: -fembed-offload-object
 
-// --- CHECK 2: default RDC -c (no flag) ---
-// Default RDC path: -fembed-offload-object must appear (raw bitcode deferred to
-// link time). -fsycl-include-target-binary and --no-sycl-rdc must NOT appear.
+// Default RDC -c: -fembed-offload-object appears, no -fsycl-include-target-binary or --no-sycl-rdc.
 // RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu \
 // RUN:   -fsycl -c %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RDC %s
@@ -26,9 +21,7 @@
 // CHK-RDC-NOT: -fsycl-include-target-binary
 // CHK-RDC-NOT: --no-sycl-rdc
 
-// --- CHECK 3: -fno-sycl-rdc at link step (regression for PR #22832) ---
-// At link time --no-sycl-rdc is forwarded to clang-linker-wrapper.
-// --sycl-device-link must NOT appear for the final link invocation.
+// -fno-sycl-rdc at link step: --no-sycl-rdc forwarded, --sycl-device-link must NOT appear.
 // RUN: touch %t.o
 // RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu \
 // RUN:   -fsycl -fno-sycl-rdc %t.o 2>&1 \
