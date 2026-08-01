@@ -2828,6 +2828,7 @@ private:
 
 public:
   std::optional<std::uint64_t> getStdLibCxxVersion();
+  void setStdLibCxxVersion(std::uint64_t Version);
   bool NeedsStdLibCxxWorkaroundBefore(std::uint64_t FixedVersion);
 
 private:
@@ -2988,6 +2989,9 @@ private:
   // Pragmas.
   void HandlePragmaDirective(PragmaIntroducer Introducer);
 
+  // Cached identifiers used to implement __set_pp_state.
+  IdentifierInfo *Ident__GLIBCXX__;
+
 public:
   void HandlePragmaOnce(Token &OnceTok);
   void HandlePragmaMark(Token &MarkTok);
@@ -2999,7 +3003,12 @@ public:
   void HandlePragmaIncludeAlias(Token &Tok);
   void HandlePragmaModuleBuild(Token &Tok);
   void HandlePragmaHdrstop(Token &Tok);
+  void HandlePragmaSetPPState(PragmaIntroducer Introducer, Token &Tok);
   IdentifierInfo *ParsePragmaPushOrPopMacro(Token &Tok);
+
+  /// Check whether this is a macro name that can be used as an argument to
+  /// '#pragma clang __set_pp_state'.
+  bool isPragmaSetPPStateMacro(IdentifierInfo *II);
 
   // Return true and store the first token only if any CommentHandler
   // has inserted some tokens and getCommentRetentionState() is false.

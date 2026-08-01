@@ -58,7 +58,7 @@ void fixCallingConv(Function *F) { F->setCallingConv(llvm::CallingConv::C); }
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
                             Type *StatePtrType, llvm::Constant *StateArgTLS) {
   LLVMContext &Ctx = F->getContext();
-  Type *NativeCPUArgDescPtrType = PointerType::getUnqual(NativeCPUArgDescType);
+  Type *NativeCPUArgDescPtrType = PointerType::getUnqual(Ctx);
 
   // Create function signature
   // Todo: we need to ensure that the kernel name is not mangled as a type
@@ -305,7 +305,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Todo: fix this check since we are emitting the state type in the pass now
   if (!StateType)
     return PreservedAnalyses::all();
-  Type *StatePtrType = PointerType::get(StateType, NativeCPUGlobalAS);
+  Type *StatePtrType = PointerType::get(M.getContext(), NativeCPUGlobalAS);
 
   llvm::Constant *CurrentStatePointerTLS = nullptr;
 

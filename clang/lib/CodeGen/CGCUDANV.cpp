@@ -292,8 +292,9 @@ llvm::FunctionType *CGNVCUDARuntime::getCallbackFnTy() const {
 llvm::FunctionType *CGNVCUDARuntime::getRegisterLinkedBinaryFnTy() const {
   auto *CallbackFnTy = getCallbackFnTy();
   auto *RegisterGlobalsFnTy = getRegisterGlobalsFnTy();
-  llvm::Type *Params[] = {RegisterGlobalsFnTy->getPointerTo(), PtrTy,
-                          PtrTy, CallbackFnTy->getPointerTo()};
+  llvm::Type *Params[] = {
+      llvm::PointerType::getUnqual(RegisterGlobalsFnTy->getContext()), PtrTy,
+      PtrTy, llvm::PointerType::getUnqual(CallbackFnTy->getContext())};
   return llvm::FunctionType::get(VoidTy, Params, false);
 }
 
@@ -641,7 +642,7 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
   //                             int, uint3*, uint3*, dim3*, dim3*, int*)
   llvm::Type *RegisterFuncParams[] = {
       PtrTy, PtrTy, PtrTy, PtrTy, IntTy,
-      PtrTy, PtrTy, PtrTy, PtrTy, IntTy->getPointerTo()};
+      PtrTy, PtrTy, PtrTy, PtrTy, llvm::PointerType::getUnqual(Context)};
   llvm::FunctionCallee RegisterFunc = CGM.CreateRuntimeFunction(
       llvm::FunctionType::get(IntTy, RegisterFuncParams, false),
       addUnderscoredPrefixToName("RegisterFunction"));
@@ -664,7 +665,7 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
         NullPtr,
         NullPtr,
         NullPtr,
-        llvm::ConstantPointerNull::get(IntTy->getPointerTo())};
+        llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(Context))};
     Builder.CreateCall(RegisterFunc, Args);
   }
 

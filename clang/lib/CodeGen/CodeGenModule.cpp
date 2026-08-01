@@ -586,8 +586,8 @@ CodeGenModule::CodeGenModule(ASTContext &C,
       llvm::PointerType::get(LLVMContext, DL.getAllocaAddrSpace());
   GlobalsInt8PtrTy =
       llvm::PointerType::get(LLVMContext, DL.getDefaultGlobalsAddressSpace());
-  DefaultInt8PtrTy =
-      Int8Ty->getPointerTo(getContext().getTargetAddressSpace(LangAS::Default));
+  DefaultInt8PtrTy = llvm::PointerType::get(
+      LLVMContext, getContext().getTargetAddressSpace(LangAS::Default));
   ProgramPtrTy =
       llvm::PointerType::get(LLVMContext, DL.getProgramAddressSpace());
   ConstGlobalsPtrTy = llvm::PointerType::get(
@@ -598,8 +598,8 @@ CodeGenModule::CodeGenModule(ASTContext &C,
     // SPIR-V targets default address space pointers are needed.
     GlobalsInt8PtrTy = DefaultInt8PtrTy;
     // Pointer to runtime globals such as virtual tables.
-    RuntimeGlobalsInt8PtrTy = Int8Ty->getPointerTo(
-        getContext().getTargetAddressSpace(LangAS::opencl_global));
+    RuntimeGlobalsInt8PtrTy = llvm::PointerType::get(
+        LLVMContext, getContext().getTargetAddressSpace(LangAS::opencl_global));
   } else {
     RuntimeGlobalsInt8PtrTy = GlobalsInt8PtrTy;
   }
@@ -1471,6 +1471,21 @@ void CodeGenModule::Release() {
   if (WCharWidth != getTriple().getDefaultWCharSize())
     getModule().addModuleFlag(llvm::Module::Error, "wchar_size",
                               static_cast<uint32_t>(WCharWidth));
+
+  // Record the floating-point ABI as a module flag when it differs from the
+  // target default. softfp collapses to soft.
+  llvm::FloatABI::ABIType FloatABI =
+      llvm::StringSwitch<llvm::FloatABI::ABIType>(CodeGenOpts.FloatABI)
+          .Cases({"soft", "softfp"}, llvm::FloatABI::Soft)
+          .Case("hard", llvm::FloatABI::Hard)
+          .Default(llvm::FloatABI::Default);
+  if (FloatABI != llvm::FloatABI::Default &&
+      FloatABI != getTriple().getDefaultFloatABI()) {
+    getModule().addModuleFlag(
+        llvm::Module::Error, "float-abi",
+        llvm::MDString::get(getLLVMContext(),
+                            llvm::FloatABI::getABITypeName(FloatABI)));
+  }
 
   if (getTriple().isOSzOS()) {
     getModule().addModuleFlag(llvm::Module::Warning,

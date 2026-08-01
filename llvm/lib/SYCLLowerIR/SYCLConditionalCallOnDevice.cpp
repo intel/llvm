@@ -81,9 +81,8 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
 
     // Create a new function type with an additional function pointer argument
     SmallVector<Type *, 4> NewParamTypes;
-    Type *FActionType = FAction->getType();
-    NewParamTypes.push_back(
-        PointerType::getUnqual(FActionType)); // Add function pointer to FAction
+    NewParamTypes.push_back(PointerType::getUnqual(
+        FAction->getContext())); // Add function pointer to FAction
     FunctionType *OldFCallerType = FCaller->getFunctionType();
     for (Type *Ty : OldFCallerType->params())
       NewParamTypes.push_back(Ty);

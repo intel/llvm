@@ -228,7 +228,7 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
     Order = 3;
   else
     Order = 0;
-  PointerType *Int8PtrAS4Ty = PointerType::get(IntegerType::get(Ctx, 8), 4);
+  PointerType *Int8PtrAS4Ty = PointerType::get(Ctx, 4);
   Ptr = CastInst::CreatePointerBitCastOrAddrSpaceCast(Ptr, Int8PtrAS4Ty, "",
                                                       Position->getIterator());
   Value *MemOrder = ConstantInt::get(Int32Ty, Order);
