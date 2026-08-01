@@ -26,6 +26,17 @@
 // RUN:   | FileCheck -check-prefix=CHK-AOT-NO-RDC %s
 // CHK-AOT-NO-RDC: clang-linker-wrapper{{.*}} "--no-sycl-rdc"
 
+// -fno-sycl-rdc -flto -c: per-TU device link still happens, --sycl-device-link present.
+// RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl-rdc -flto -c %t.cpp 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-RDC-LTO-C %s
+// CHK-NO-RDC-LTO-C: clang-linker-wrapper{{.*}} "--no-sycl-rdc"{{.*}} "--sycl-device-link"
+
+// -fno-sycl-rdc -flto (link step): --sycl-device-link should NOT appear.
+// RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl-rdc -flto %t.cpp 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-RDC-LTO %s
+// CHK-NO-RDC-LTO: clang-linker-wrapper{{.*}} "--no-sycl-rdc"
+// CHK-NO-RDC-LTO-NOT: --sycl-device-link
+
 // Verify pipeline with --offload-new-driver -fno-sycl-rdc.
 // RUN: touch %t1.cpp
 // RUN: touch %t2.cpp
