@@ -63,7 +63,7 @@ class sampler_impl;
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(sampler)
-    __SYCL_DEPRECATED("sampler has been removed in SYCL 2020") sampler {
+    __SYCL2020_DEPRECATED("sampler has been removed in SYCL 2020") sampler {
   friend sycl::detail::ImplUtils;
 
 public:
