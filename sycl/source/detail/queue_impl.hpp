@@ -212,12 +212,15 @@ public:
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     verifyProps(PropList);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    // The discard_events property is incompatible with enable_profiling.
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     // The following commented section provides a guideline on how to use the
     // TLS enabled mechanism to create a tracepoint and notify using XPTI. This

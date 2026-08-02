@@ -36,7 +36,11 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_MATRIX 1
 #define SYCL_EXT_ONEAPI_ASSERT 1
 #define SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS 1
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Advertise the deprecated discard queue events extension in non-preview
+// builds.
 #define SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS 1
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #define SYCL_EXT_ONEAPI_QUEUE_PRIORITY 1
 #define SYCL_EXT_ONEAPI_ENQUEUE_BARRIER 1
 #define SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES 1
