@@ -14,7 +14,7 @@
 template <typename F, typename B>
 void run(sycl::queue &q, B &buf, const F &func) {
   auto e = q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.template get_access<sycl::access::mode::write>(cgh);
+    auto acc = buf.template get_access<sycl::access_mode::write>(cgh);
     cgh.single_task([=]() { func(acc); });
   });
   e.wait();
@@ -29,11 +29,11 @@ int main() {
   sycl::buffer<int, 1> bufB(B, 1);
 
   run(q, bufA,
-      [&](const sycl::accessor<int, 1, sycl::access::mode::write> &acc) {
+      [&](const sycl::accessor<int, 1, sycl::access_mode::write> &acc) {
         acc[0] = 0;
       });
   run(q, bufB,
-      [&](const sycl::accessor<int, 1, sycl::access::mode::write> &acc) {
+      [&](const sycl::accessor<int, 1, sycl::access_mode::write> &acc) {
         acc[0] *= 2;
       });
 

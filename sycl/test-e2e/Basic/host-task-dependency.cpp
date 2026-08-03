@@ -27,10 +27,9 @@ struct Context {
 
 S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
   S::event Event = Ctx->Queue.submit([&](S::handler &CGH) {
-    S::host_accessor<int, 1, S::access::mode::read> CopierSrcAcc(Ctx->Buf1,
+    S::host_accessor<int, 1, S::access_mode::read> CopierSrcAcc(Ctx->Buf1, CGH);
+    S::host_accessor<int, 1, S::access_mode::write> CopierDstAcc(Ctx->Buf2,
                                                                  CGH);
-    S::host_accessor<int, 1, S::access::mode::write> CopierDstAcc(Ctx->Buf2,
-                                                                  CGH);
 
     auto CopierHostTask = [=] {
       for (size_t Idx = 0; Idx < CopierDstAcc.size(); ++Idx)
@@ -54,21 +53,21 @@ S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
 void Thread1Fn(Context *Ctx) {
   // 0. initialize resulting buffer with apriori wrong result
   {
-    S::host_accessor<int, 1, S::access::mode::write> Acc(Ctx->Buf1);
+    S::host_accessor<int, 1, S::access_mode::write> Acc(Ctx->Buf1);
 
     for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -1;
   }
 
   {
-    S::host_accessor<int, 1, S::access::mode::write> Acc(Ctx->Buf2);
+    S::host_accessor<int, 1, S::access_mode::write> Acc(Ctx->Buf2);
 
     for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -2;
   }
 
   {
-    S::host_accessor<int, 1, S::access::mode::write> Acc(Ctx->Buf3);
+    S::host_accessor<int, 1, S::access_mode::write> Acc(Ctx->Buf3);
 
     for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -3;
@@ -76,7 +75,7 @@ void Thread1Fn(Context *Ctx) {
 
   // 1. submit task writing to buffer 1
   Ctx->Queue.submit([&](S::handler &CGH) {
-    S::accessor<int, 1, S::access::mode::write, S::access::target::device>
+    S::accessor<int, 1, S::access_mode::write, S::access::target::device>
         GeneratorAcc(Ctx->Buf1, CGH);
 
     auto GeneratorKernel = [GeneratorAcc] {
@@ -92,9 +91,9 @@ void Thread1Fn(Context *Ctx) {
 
   // 3. submit simple task to move data between two buffers
   Ctx->Queue.submit([&](S::handler &CGH) {
-    S::accessor<int, 1, S::access::mode::read, S::access::target::device>
-        SrcAcc(Ctx->Buf2, CGH);
-    S::accessor<int, 1, S::access::mode::write, S::access::target::device>
+    S::accessor<int, 1, S::access_mode::read, S::access::target::device> SrcAcc(
+        Ctx->Buf2, CGH);
+    S::accessor<int, 1, S::access_mode::write, S::access::target::device>
         DstAcc(Ctx->Buf3, CGH);
 
     CGH.depends_on(HostTaskEvent);
@@ -109,7 +108,7 @@ void Thread1Fn(Context *Ctx) {
 
   // 4. check data in buffer #3
   {
-    S::host_accessor<int, 1, S::access::mode::read> Acc(Ctx->Buf3);
+    S::host_accessor<int, 1, S::access_mode::read> Acc(Ctx->Buf3);
 
     bool Failure = false;
 
@@ -154,7 +153,7 @@ void test() {
 
   // 3. check via host accessor that buf 2 contains valid data
   {
-    S::host_accessor<int, 1, S::access::mode::read> ResultAcc(Ctx.Buf2);
+    S::host_accessor<int, 1, S::access_mode::read> ResultAcc(Ctx.Buf2);
 
     bool Failure = false;
     for (size_t Idx = 0; Idx < ResultAcc.size(); ++Idx) {

@@ -45,6 +45,11 @@ ur_result_t SafeAllocate(ur_context_handle_t Context, ur_device_handle_t Device,
                          uptr Size, const ur_usm_desc_t *Properties,
                          ur_usm_pool_handle_t Pool, AllocType Type,
                          void **Allocated) {
+  if (!Device &&
+      (Type == AllocType::DEVICE_USM || Type == AllocType::MEM_BUFFER ||
+       Type == AllocType::SHARED_USM)) {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
   DeviceType DevieType =
       Device ? GetDeviceType(Context, Device) : DeviceType::UNKNOWN;
   switch (Type) {

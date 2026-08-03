@@ -28,8 +28,8 @@ template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
     buffer<T> addbuf(data.data(), range<1>(G));
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      auto addacc = addbuf.template get_access<access::mode::read_write>(cgh);
-      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
+      auto addacc = addbuf.template get_access<access_mode::read_write>(cgh);
+      auto sgsizeacc = sgsizebuf.get_access<access_mode::read_write>(cgh);
 
       cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
         sycl::sub_group SG = NdItem.get_sub_group();
