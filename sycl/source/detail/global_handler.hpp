@@ -10,7 +10,6 @@
 
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
-#include <sycl/feature_test.hpp>
 
 #include <memory>
 #include <unordered_map>
@@ -22,9 +21,6 @@ class platform_impl;
 class context_impl;
 class Scheduler;
 class ProgramManager;
-#if SYCL_EXT_JIT_ENABLE
-class jit_compiler;
-#endif
 class Sync;
 class adapter_impl;
 class ods_target_list;
@@ -59,9 +55,6 @@ public:
   Scheduler &getScheduler();
   bool isSchedulerAlive() const;
   ProgramManager &getProgramManager();
-#if SYCL_EXT_JIT_ENABLE
-  jit_compiler &getJITCompiler();
-#endif
   Sync &getSync();
   std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
 
@@ -117,9 +110,6 @@ private:
 
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;
-#if SYCL_EXT_JIT_ENABLE
-  InstWithLock<jit_compiler> MJITCompiler;
-#endif
   InstWithLock<Sync> MSync;
   InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;
   InstWithLock<
