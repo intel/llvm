@@ -546,25 +546,8 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
         _launchPropList->pNext);
   }
 
-  // Only look up USM function pointer if we have POINTER args
-  clSetKernelArgMemPointerINTEL_fn SetKernelArgMemPointerPtr = nullptr;
-  bool hasPointerArgs = false;
-  for (uint32_t i = 0; i < numArgs; i++) {
-    if (pArgs[i].type == UR_EXP_KERNEL_ARG_TYPE_POINTER) {
-      hasPointerArgs = true;
-      break;
-    }
-  }
   auto Queue = cast(hQueue);
   auto Kernel = cast(hKernel);
-  if (hasPointerArgs) {
-    UR_RETURN_ON_FAILURE(
-        cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
-            Queue->Context->CLContext,
-            cast(ur::cl::getAdapter())
-                ->fnCache.clSetKernelArgMemPointerINTELCache,
-            cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
-  }
 
   for (uint32_t i = 0; i < numArgs; i++) {
     switch (pArgs[i].type) {
@@ -588,7 +571,10 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-      CL_RETURN_ON_FAILURE(SetKernelArgMemPointerPtr(
+      if (!Kernel->clSetKernelArgMemPointerINTEL) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      }
+      CL_RETURN_ON_FAILURE(Kernel->clSetKernelArgMemPointerINTEL(
           Kernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
           pArgs[i].value.pointer));
       break;
