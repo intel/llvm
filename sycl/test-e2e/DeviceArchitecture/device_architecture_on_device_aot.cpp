@@ -22,7 +22,7 @@ int main() {
 
     // test if_architecture_is
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      auto acc = buf.get_access<access_mode::read_write>(cgh);
       cgh.single_task([=]() {
         if_architecture_is<architecture::x86_64>([&]() {
           acc[0] = 1;
@@ -32,7 +32,7 @@ int main() {
 
     // test else_if_architecture_is
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      auto acc = buf.get_access<access_mode::read_write>(cgh);
       cgh.single_task([=]() {
         if_architecture_is<architecture::intel_gpu_dg1>([&]() {
           acc[1] = 0;
@@ -44,7 +44,7 @@ int main() {
 
     // test otherwise
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      auto acc = buf.get_access<access_mode::read_write>(cgh);
       cgh.single_task([=]() {
         if_architecture_is<architecture::intel_gpu_dg1>([&]() {
           acc[2] = 0;
@@ -55,7 +55,7 @@ int main() {
     // test more than one architecture template parameter is passed to
     // if_architecture_is
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      auto acc = buf.get_access<access_mode::read_write>(cgh);
       cgh.single_task([=]() {
         if_architecture_is<architecture::intel_gpu_dg1, architecture::x86_64>(
             [&]() { acc[3] = 4; })

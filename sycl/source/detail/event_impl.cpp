@@ -41,6 +41,10 @@ void event_impl::initContextIfNeeded() {
 
 event_impl::~event_impl() {
   try {
+    if (MIPCHandleData) {
+      getAdapter().call<UrApiKind::urIPCPutEventHandleExp>(
+          MContext->getHandleRef(), MIPCHandleData);
+    }
     auto Handle = this->getHandle();
     if (Handle)
       getAdapter().call<UrApiKind::urEventRelease>(Handle);
@@ -235,6 +239,19 @@ void event_impl::materializeIPCEvent() {
   setHandle(createDeviceUrEvent(Device));
   // Leaves MIsDefaultConstructed set so a later signal still runs through
   // getHandleReusable.
+}
+
+std::pair<void *, size_t> event_impl::getOrCreateIPCHandle() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  if (!MIPCHandleData) {
+    void *HandlePtr = nullptr;
+    size_t HandleSize = 0;
+    getAdapter().call<UrApiKind::urIPCGetEventHandleExp>(
+        getHandle(), &HandlePtr, &HandleSize);
+    MIPCHandleData = HandlePtr;
+    MIPCHandleDataSize = HandleSize;
+  }
+  return {MIPCHandleData, MIPCHandleDataSize};
 }
 
 ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {

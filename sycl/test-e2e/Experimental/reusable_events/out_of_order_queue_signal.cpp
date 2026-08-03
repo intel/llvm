@@ -21,7 +21,7 @@ int main() {
   sycl::buffer<int> buf(data.data(), sycl::range<1>(N));
 
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class OutOfOrderOp1>(
         sycl::range<1>(N), [=](sycl::id<1> idx) { acc[idx] = 5; });
   });

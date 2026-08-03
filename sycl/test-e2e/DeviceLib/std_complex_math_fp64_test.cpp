@@ -11,8 +11,8 @@
 
 using std::complex;
 namespace s = sycl;
-constexpr s::access::mode sycl_read = s::access::mode::read;
-constexpr s::access::mode sycl_write = s::access::mode::write;
+constexpr s::access_mode sycl_read = s::access_mode::read;
+constexpr s::access_mode sycl_write = s::access_mode::write;
 
 template <typename T> bool approx_equal_cmplx(complex<T> x, complex<T> y) {
   return approx_equal_fp(x.real(), y.real()) &&

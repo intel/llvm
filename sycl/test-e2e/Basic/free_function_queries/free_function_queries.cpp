@@ -32,12 +32,12 @@ int main() {
       sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
       q.submit([&](sycl::handler &cgh) {
-        sycl::accessor<int, 1, sycl::access::mode::write,
+        sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
-            acc(buf.get_access<sycl::access::mode::write>(cgh));
-        sycl::accessor<int, 1, sycl::access::mode::write,
+            acc(buf.get_access<sycl::access_mode::write>(cgh));
+        sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
-            results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
+            results_acc(results_buf.get_access<sycl::access_mode::write>(cgh));
         cgh.parallel_for<class IdTest>(n, [=](sycl::id<1> i) {
           auto that_id = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
           results_acc[0] = that_id.get_global_id() == i;
@@ -66,12 +66,12 @@ int main() {
       sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
       q.submit([&](sycl::handler &cgh) {
-        sycl::accessor<int, 1, sycl::access::mode::write,
+        sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
-            acc(buf.get_access<sycl::access::mode::write>(cgh));
-        sycl::accessor<int, 1, sycl::access::mode::write,
+            acc(buf.get_access<sycl::access_mode::write>(cgh));
+        sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
-            results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
+            results_acc(results_buf.get_access<sycl::access_mode::write>(cgh));
         cgh.parallel_for<class ItemTest>(n, [=](auto i) {
           static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
                         "lambda arg type is unexpected");
@@ -104,12 +104,12 @@ int main() {
       sycl::queue q;
       sycl::id<1> offset(1);
       q.submit([&](sycl::handler &cgh) {
-        sycl::accessor<int, 1, sycl::access::mode::write,
+        sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
-            acc(buf.get_access<sycl::access::mode::write>(cgh));
-        sycl::accessor<int, 1, sycl::access::mode::write,
+            acc(buf.get_access<sycl::access_mode::write>(cgh));
+        sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
-            results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
+            results_acc(results_buf.get_access<sycl::access_mode::write>(cgh));
         cgh.parallel_for<class ItemOffsetTest>(
             sycl::range<1>{n}, offset, [=](sycl::item<1, true> i) {
               auto that_id =

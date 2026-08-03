@@ -113,7 +113,7 @@ void runDeviceTests(device dev, context ctxt, queue q, T val) {
   {
     buffer<T, 1> buf{&out[0], range<1>{N}};
     q.submit([&](handler &h) {
-       auto acc = buf.template get_access<access::mode::write>(h);
+       auto acc = buf.template get_access<access_mode::write>(h);
        h.parallel_for<usm_device_transfer<T>>(
            range<1>(N), [=](id<1> item) { acc[item] = array[item]; });
      }).wait();
@@ -134,7 +134,7 @@ void runDeviceTests(device dev, context ctxt, queue q, T val) {
   {
     buffer<T, 1> buf{&out[0], range<1>{N}};
     q.submit([&](handler &h) {
-       auto acc = buf.template get_access<access::mode::write>(h);
+       auto acc = buf.template get_access<access_mode::write>(h);
        h.parallel_for<usm_aligned_device_transfer<T>>(
            range<1>(N), [=](id<1> item) { acc[item] = array[item]; });
      }).wait();
