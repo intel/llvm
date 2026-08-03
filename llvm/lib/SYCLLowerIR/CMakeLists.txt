@@ -4,7 +4,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
   find_package(LLVMGenXIntrinsics QUIET)
 
   if (NOT LLVMGenXIntrinsics_FOUND)
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/vc-intrinsics/vc-intrinsics)
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
     # Fix build: remove use of deprecated typed-pointer creation APIs
     set(LLVMGenXIntrinsics_GIT_TAG 93d4a7bea95f5f717b3d33f972d54799a22ff548)
