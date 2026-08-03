@@ -2716,10 +2716,8 @@ TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
   ASSERT_EQ(property_size, sizeof(uint32_t));
 
   uint32_t property_value = 0;
-  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
-                                             property_size, &property_value,
-                                             nullptr),
-                             property_value);
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
 }
 
 TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
