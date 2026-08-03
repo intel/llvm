@@ -2,6 +2,9 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
+// XFAIL: windows && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
@@ -20,11 +23,9 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 template <typename InteropMemHandleT>
 void runSycl(const sycl::device &syclDevice, sycl::range<2> globalSize,
              sycl::range<2> localSize, InteropMemHandleT extMemInHandle,
-             InteropMemHandleT extMemOutHandle) {
+             InteropMemHandleT extMemOutHandle, size_t imgSizeBytes) {
 
   sycl::queue syclQueue{syclDevice};
-
-  const size_t imgSizeBytes = globalSize.size() * sizeof(float);
 
 #ifdef _WIN32
   syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemInDesc{
@@ -120,6 +121,11 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
   VkImage vkOutputImage;
   VkDeviceMemory vkOutputImageMemory;
 
+  // The imported allocation size must match the image's real (tiling-padded)
+  // memory requirement, not the element-count size, or the SYCL import
+  // under-describes the image on drivers that pad. Captured below.
+  size_t importSizeBytes = imgSizeBytes;
+
   // Initialize image input data.
   std::vector<float> inputVec(imgSizeElems, 0.f);
   for (int i = 0; i < imgSizeElems; ++i) {
@@ -129,20 +135,27 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
 
   // Create/allocate device images.
   {
+    // STORAGE usage is required: SYCL accesses the imported image as a storage
+    // image, and only that usage bit yields a layout compatible with the
+    // storage-image reads/writes the kernel performs. Without it the import is
+    // laid out for transfer only and reads land at the wrong offset.
     vkInputImage = vkutil::createImage(imgType, imgInFormat, imgExtent,
-                                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                       VK_IMAGE_USAGE_STORAGE_BIT |
+                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                        1 /*mipLevels*/);
     VkMemoryRequirements memRequirements;
     auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
         vkInputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
+    importSizeBytes = std::max<size_t>(imgSizeBytes, memRequirements.size);
     vkInputImageMemory = vkutil::allocateDeviceMemory(
         imgSizeBytes, inputImageMemoryTypeIndex, vkInputImage);
     VK_CHECK_CALL(vkBindImageMemory(vk_device, vkInputImage, vkInputImageMemory,
                                     0 /*memoryOffset*/));
 
     vkOutputImage = vkutil::createImage(imgType, imgOutFormat, imgExtent,
-                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                        VK_IMAGE_USAGE_STORAGE_BIT |
+                                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                             VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                         1 /*mipLevels*/);
     VkMemoryRequirements outputMemRequirements;
@@ -264,7 +277,7 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
 
   // Call into SYCL to fetch from input image, and populate the output image.
   printString("Calling into SYCL with interop memory handles\n");
-  runSycl(syclDevice, dims, localSize, imgMemIn, imgMemOut);
+  runSycl(syclDevice, dims, localSize, imgMemIn, imgMemOut, importSizeBytes);
 
   // Copy image memory to temporary staging buffer, and back to host.
   printString("Copying image memory to host\n");

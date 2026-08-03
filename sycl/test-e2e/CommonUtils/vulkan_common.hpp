@@ -626,6 +626,18 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
   mai.allocationSize = size;
   mai.memoryTypeIndex = memoryTypeIndex;
 
+  // A tiled image's real backing size is padded beyond width*height*texel and
+  // is only known from vkGetImageMemoryRequirements; the caller's element-count
+  // based `size` under-allocates on drivers that pad (e.g. DG2). Grow the
+  // allocation to the image requirement so the bind is spec-valid and the
+  // exported handle describes the whole image.
+  if (image != VK_NULL_HANDLE) {
+    VkMemoryRequirements imageReq{};
+    vkGetImageMemoryRequirements(vk_device, image, &imageReq);
+    if (imageReq.size > mai.allocationSize)
+      mai.allocationSize = imageReq.size;
+  }
+
   // Use dedicated allocation whenever backing an exportable image, not only
   // when the driver reports it as required (some drivers under-report this for
   // external memory).
