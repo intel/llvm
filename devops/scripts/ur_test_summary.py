@@ -206,7 +206,7 @@ def _extract_tests_from_xml_by_filter(
 
     if tests:
         print(
-            f"Note: Found {len(tests)} {test_type_name} tests in XML file",
+            f"Note: Found {len(tests)} {test_type_name} tests in XML: {xml_path}",
             file=sys.stderr,
         )
 

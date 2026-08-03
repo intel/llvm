@@ -92,15 +92,24 @@ runs:
       LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
       XML_FILE: ${{ steps.run_tests.outputs.xml_file }}
     run: |
+      set -f  # Disable glob expansion
       mkdir -p test_artifacts
       
       if [ -f "$LOG_FILE" ]; then
         cp "$LOG_FILE" test_artifacts/
       fi
       
+      echo "Debug: XML_FILE=$XML_FILE"
+      echo "Debug: Checking if file exists..."
       if [ -n "$XML_FILE" ] && [ -f "$XML_FILE" ]; then
+        echo "Debug: File exists, copying..."
         cp "$XML_FILE" test_artifacts/
+      else
+        echo "Debug: XML_FILE is empty or file does not exist"
       fi
+      
+      echo "Debug: Contents of test_artifacts/:"
+      ls -la test_artifacts/
 
   - name: Upload test artifacts
     if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs.skip_artifacts != '1') }}

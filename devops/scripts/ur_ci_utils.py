@@ -25,25 +25,32 @@ class TestConfig:
 
 def find_xml_file(search_path: str, xml_name: str) -> str:
     """Find XML file - checks search_path and common fallback locations."""
+    print(f"DEBUG_FIND: Called with search_path={search_path!r}, xml_name={xml_name!r}", flush=True)
+
     if ".." in search_path or not search_path:
+        print(f"DEBUG_FIND: Rejected due to validation", flush=True)
         return ""
 
     search_root = Path(search_path)
+    print(
+        f"DEBUG_FIND: search_root={search_root}, exists={search_root.exists()}, is_dir={search_root.is_dir() if search_root.exists() else 'N/A'}",
+        flush=True,
+    )
 
     # Handle wildcard for adapter-specific tests (searches in adapter subfolders)
     if xml_name == "*.xml":
-        print(f"Note: Searching for XML files in adapter subfolders", file=sys.stderr)
+        print(f"DEBUG_XML: Searching in {search_root}", flush=True)
         if search_root.exists() and search_root.is_dir():
             # Search in adapter subfolders: level_zero, cuda, hip, etc.
             found_files = list(search_root.rglob("*.xml"))
-            print(f"Debug: rglob found {len(found_files)} files", file=sys.stderr)
+            print(f"DEBUG_XML: rglob found {len(found_files)} files", flush=True)
             for xml_path in found_files:
-                print(f"Debug: File name={xml_path.name}, full={xml_path}, is_file={xml_path.is_file()}", file=sys.stderr)
+                print(f"DEBUG_XML: name={xml_path.name}, type={type(xml_path).__name__}", flush=True)
                 if xml_path.is_file():
                     abs_path = xml_path.absolute()
-                    print(f"Note: Found XML at: {abs_path}", file=sys.stderr)
+                    print(f"DEBUG_XML: Returning {abs_path}", flush=True)
                     return str(abs_path)
-        print(f"Warning: No XML files found in {search_root}", file=sys.stderr)
+        print(f"DEBUG_XML: No XML files found in {search_root}", flush=True)
         return ""
 
     # Standard search for named XML files
@@ -197,9 +204,13 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         return 0
 
     # Find XML file and output absolute path (not wildcard pattern)
+    print(f"DEBUG: About to search for XML: search_path={config.xml_search_path}, xml_name={config.xml_name}", flush=True)
     xml_file = find_xml_file(config.xml_search_path, config.xml_name)
+    print(f"DEBUG: find_xml_file returned: {xml_file!r}", flush=True)
     if xml_file:
         print(f"xml_file={xml_file}", flush=True)
+    else:
+        print(f"DEBUG: xml_file is empty or None", flush=True)
 
     return result.returncode
 
