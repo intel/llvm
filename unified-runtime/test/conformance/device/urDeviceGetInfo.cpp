@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <unordered_map>
 
 #include <uur/fixtures.h>
@@ -2691,16 +2692,18 @@ TEST_P(urDeviceGetInfoTest, SuccessLuid) {
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
-  ASSERT_EQ(property_size, sizeof(std::array<unsigned char, 8>));
+  constexpr size_t luid_size = 8;
+  ASSERT_EQ(property_size, sizeof(std::array<unsigned char, luid_size>));
 
-  std::array<unsigned char, 8> property_value{};
+  std::array<unsigned char, luid_size> property_value{};
   ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
                                  property_value.data(), nullptr));
 
-  const bool is_all_zeros =
-      std::all_of(property_value.begin(), property_value.end(),
-                  [](unsigned char value) { return value == 0; });
-  ASSERT_FALSE(is_all_zeros);
+  uint64_t luid_as_uint64 = 0;
+  std::memcpy(&luid_as_uint64, property_value.data(), sizeof(luid_as_uint64));
+  const bool is_power_of_two =
+      luid_as_uint64 != 0u && (luid_as_uint64 & (luid_as_uint64 - 1)) == 0u;
+  ASSERT_TRUE(is_power_of_two);
 }
 
 TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
