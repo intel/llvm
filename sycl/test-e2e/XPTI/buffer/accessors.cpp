@@ -35,8 +35,8 @@ int main() {
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.*]]|2014|1027|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
     auto A4 = Buf.get_access<sycl::access_mode::write>(cgh, sycl::no_init);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.*]]|2014|1028|{{.*}}accessors.cpp:[[# @LINE + 2]]:13
-    auto A5 =
-        Buf.get_access<sycl::access_mode::read_write, target::device>(cgh, sycl::no_init);
+    auto A5 = Buf.get_access<sycl::access_mode::read_write, target::device>(
+        cgh, sycl::no_init);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID6:.*]]|2014|1029|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
     auto A6 = Buf.get_access<sycl::access_mode::atomic>(cgh);
     cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::nd_item<1>) {

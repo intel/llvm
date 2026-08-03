@@ -391,7 +391,8 @@ int main() {
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
       Queue.submit([&](sycl::handler &cgh) {
-        auto dev_acc = buf.get_access<sycl::access_mode::write>(cgh, sycl::no_init);
+        auto dev_acc =
+            buf.get_access<sycl::access_mode::write>(cgh, sycl::no_init);
 
         cgh.parallel_for<class test_discard_write>(
             sycl::range<1>{3}, [=](sycl::id<1> index) { dev_acc[index] = 42; });
