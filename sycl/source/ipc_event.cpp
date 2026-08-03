@@ -74,23 +74,14 @@ __SYCL_EXPORT handle get(const sycl::event &Evt) {
   // before the first signal.
   EvtImpl->materializeIPCEvent();
 
-  sycl::detail::context_impl &CtxImpl = EvtImpl->getContextImpl();
-  sycl::detail::adapter_impl &Adapter = CtxImpl.getAdapter();
-
-  void *HandlePtr = nullptr;
-  size_t HandleSize = 0;
-  Adapter.call<sycl::detail::UrApiKind::urIPCGetEventHandleExp>(
-      EvtImpl->getHandle(), &HandlePtr, &HandleSize);
-
+  auto [HandlePtr, HandleSize] = EvtImpl->getOrCreateIPCHandle();
   return {HandlePtr, HandleSize};
 }
 
 __SYCL_EXPORT void put(handle &IpcHandle, const sycl::context &Ctx) {
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
-  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
-
-  Adapter.call<sycl::detail::UrApiKind::urIPCPutEventHandleExp>(
-      CtxImpl->getHandleRef(), IpcHandle.MData);
+  // No-op: the exported handle is released when the event is destroyed.
+  (void)IpcHandle;
+  (void)Ctx;
 }
 
 } // namespace ext::oneapi::experimental::ipc::event
