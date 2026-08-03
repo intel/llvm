@@ -26,7 +26,7 @@ int main() {
   buffer<int, 1> OutBuf(1);
   buffer<int, 1> InBuf(49 * 5);
   Q.submit([&](handler &CGH) {
-     auto In = InBuf.get_access<access::mode::read>(CGH);
+     auto In = InBuf.get_access<access_mode::read>(CGH);
      auto Redu = reduction(OutBuf, CGH, 0, BOp,
                            {property::reduction::initialize_to_identity{}});
      CGH.parallel_for<class DiscardSum>(

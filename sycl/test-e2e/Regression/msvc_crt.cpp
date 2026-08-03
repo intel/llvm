@@ -27,7 +27,7 @@ int main() {
     buffer<int, 1> b(data, range<1>(3), {property::buffer::use_host_ptr()});
     queue q;
     q.submit([&](handler &cgh) {
-      auto B = b.get_access<access::mode::write>(cgh);
+      auto B = b.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class test>(range<1>(3), [=](id<1> idx) { B[idx] = 1; });
     });
   }

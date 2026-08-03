@@ -34,9 +34,9 @@ void verify_add(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
   buffer<half, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_add>(
         r, [=](id<1> index) { C[index] = A[index] + B[index]; });
   });
@@ -49,9 +49,9 @@ void verify_min(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
   buffer<half, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_min>(
         r, [=](id<1> index) { C[index] = A[index] - B[index]; });
   });
@@ -64,9 +64,9 @@ void verify_mul(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
   buffer<half, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_mul>(
         r, [=](id<1> index) { C[index] = A[index] * B[index]; });
   });
@@ -79,9 +79,9 @@ void verify_div(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
   buffer<half, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_div>(
         r, [=](id<1> index) { C[index] = A[index] / B[index]; });
   });
@@ -94,7 +94,7 @@ void verify_vec(queue &q) {
   int a = 0;
   buffer<int, 1> e(&a, range<1>(1));
   q.submit([&](sycl::handler &cgh) {
-    auto E = e.get_access<access::mode::write>(cgh);
+    auto E = e.get_access<access_mode::write>(cgh);
     cgh.single_task<class vec_of_half>([=]() {
       if (int(hvec.s0()) != 999 || int(hvec.s1()) != 999)
         E[0] = 1;
