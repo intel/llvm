@@ -3043,6 +3043,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
     os << "UR_DEVICE_INFO_LINKER_AVAILABLE";
     break;
+  case UR_DEVICE_INFO_EXECUTION_CAPABILITIES:
+    os << "UR_DEVICE_INFO_EXECUTION_CAPABILITIES";
+    break;
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
     os << "UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES";
     break;
@@ -4226,6 +4229,21 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << (const void *)(tptr) << " (";
 
     os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
+    const ur_device_exec_capability_flags_t *tptr =
+        (const ur_device_exec_capability_flags_t *)ptr;
+    if (sizeof(ur_device_exec_capability_flags_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_device_exec_capability_flags_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    ur::details::printFlag<ur_device_exec_capability_flag_t>(os, *tptr);
 
     os << ")";
   } break;
