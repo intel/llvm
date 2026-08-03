@@ -26,8 +26,10 @@ runs:
       # Run tests via Python (handles validation, config, cmake execution)
       # Use temp file instead of command substitution to preserve outputs even on error
       OUTPUTS_FILE=$(mktemp)
-      python3 -u devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE" 2>&1 || true
+      set +e  # Don't exit on error
+      python3 -u devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE" 2>&1
       EXIT_CODE=$?
+      set -e  # Re-enable exit on error
       
       echo "Debug: Captured output file size: $(wc -l < "$OUTPUTS_FILE") lines"
       echo "Debug: Outputs in file:"
