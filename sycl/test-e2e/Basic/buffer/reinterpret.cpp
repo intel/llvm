@@ -39,7 +39,7 @@ void execute_kernel(sycl::queue &cmd_queue, std::vector<OldType> &data,
 
   cmd_queue.submit([&](sycl::handler &cgh) {
     auto rb_acc =
-        reinterpret_subbuf.template get_access<sycl::access::mode::write>(cgh);
+        reinterpret_subbuf.template get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<KernelName>(
         reinterpret_subbuf.get_range(),
         [=](sycl::id<dim> index) { rb_acc[index] = val; });
@@ -61,7 +61,7 @@ int main() {
   sycl::buffer<unsigned int, 1> buf_i(r1);
   auto buf_char = buf_i.reinterpret<unsigned char>(r2);
   cmd_queue.submit([&](sycl::handler &cgh) {
-    auto acc = buf_char.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf_char.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class chars>(r2,
                                   [=](sycl::id<1> i) { acc[i] = UCHAR_MAX; });
   });
@@ -81,7 +81,7 @@ int main() {
   sycl::buffer<unsigned int, 1> buf_1d(r1d);
   auto buf_2d = buf_1d.reinterpret<unsigned int>(r2d);
   cmd_queue.submit([&](sycl::handler &cgh) {
-    auto acc2d = buf_2d.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc2d = buf_2d.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class ones>(r2d, [=](sycl::item<2> itemID) {
       size_t i = itemID.get_id(0);
       size_t j = itemID.get_id(1);
@@ -194,7 +194,7 @@ int main() {
 
       cmd_queue.submit([&](sycl::handler &cgh) {
         auto rb_acc =
-            reinterpret_subbuf.get_access<sycl::access::mode::write>(cgh);
+            reinterpret_subbuf.get_access<sycl::access_mode::write>(cgh);
         cgh.parallel_for<class foo_3>(
             reinterpret_subbuf.get_range(),
             [=](sycl::id<1> index) { rb_acc[index] = 13; });

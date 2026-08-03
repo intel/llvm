@@ -21,7 +21,7 @@ int main() {
   buffer<int, 1> BufA{Range};
 
   Q.submit([&](handler &Cgh) {
-    auto AccA = BufA.get_access<access::mode::read_write>(Cgh);
+    auto AccA = BufA.get_access<access_mode::read_write>(Cgh);
     Cgh.parallel_for<Foo>(Range, [=](id<1> Idx) { AccA[Idx] = Idx[0]; });
   });
 
@@ -29,7 +29,7 @@ int main() {
     // Check access mode flags
     // CHECK: <--- urEnqueueMemBufferMap
     // CHECK: .mapFlags = UR_MAP_FLAG_READ
-    auto AccA = BufA.get_access<access::mode::read>();
+    auto AccA = BufA.get_access<access_mode::read>();
     for (std::size_t I = 0; I < Size; ++I) {
       assert(AccA[I] == I);
     }
@@ -38,13 +38,13 @@ int main() {
     // CHECK: <--- urEnqueueMemUnmap
     // CHECK: <--- urEnqueueMemBufferMap
     // CHECK: .mapFlags = UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE
-    auto AccA = BufA.get_access<access::mode::write>();
+    auto AccA = BufA.get_access<access_mode::write>();
     for (std::size_t I = 0; I < Size; ++I)
       AccA[I] = 2 * I;
   }
 
   // CHECK-NOT: <--- urEnqueueMemBufferMap
-  auto AccA = BufA.get_access<access::mode::read>();
+  auto AccA = BufA.get_access<access_mode::read>();
   for (std::size_t I = 0; I < Size; ++I) {
     assert(AccA[I] == 2 * I);
   }
