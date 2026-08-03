@@ -12,7 +12,7 @@
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
-using acc_w = accessor<int, 2, access::mode::write, access::target::device>;
+using acc_w = accessor<int, 2, access_mode::write, access::target::device>;
 
 int main() {
 
