@@ -91,8 +91,7 @@ jobs:
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
       run: |
         mkdir build && cd build
-        cmake -DBASE_LLVM_VERSION=23.0.0 \
-            -DCMAKE_CXX_COMPILER=clang++-${{ env.LLVM_VERSION }} \
+        cmake -DCMAKE_CXX_COMPILER=clang++-${{ env.LLVM_VERSION }} \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" ${{ github.workspace }}
 
     - name: Run clang-format
