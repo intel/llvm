@@ -43,10 +43,10 @@ struct ur_device_handle_t_ : handle_base {
 
   ~ur_device_handle_t_() {
     if (ParentDevice) {
-      // This does not need protected by a lock; this destructor can only run
-      // exactly once. However, to prevent issues with the OpenCL handle being
-      // reused, CLDevice must still be alive here.
-      Platform->SubDevices.erase(CLDevice);
+      {
+        std::lock_guard lock{Platform->SubDevicesLock};
+        Platform->SubDevices.erase(CLDevice);
+      }
       [[maybe_unused]] auto Res = clReleaseDevice(CLDevice);
       assert(Res == CL_SUCCESS);
     }

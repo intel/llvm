@@ -69,7 +69,7 @@ void test_local_accessor() {
   sycl::buffer<cl_int, 1> b(init, N_wg);
 
   q.submit([&](handler &cgh) {
-    auto acc_global = b.get_access<access::mode::write>(cgh);
+    auto acc_global = b.get_access<access_mode::write>(cgh);
     local_accessor<float, 1> acc_local(N_slm, cgh);
 
     cgh.set_arg(0, acc_global);

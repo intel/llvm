@@ -21,9 +21,9 @@ void matrix_multiply(big_matrix<Tc, M, N> &C, big_matrix<Ta, M, K> &A,
   queue q;
   size_t sg_size = get_sg_size<kernel_name>(q);
   q.submit([&](handler &cgh) {
-     auto accC = bufC.template get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.template get_access<access::mode::read_write>(cgh);
-     auto accB = bufB.template get_access<access::mode::read_write>(cgh);
+     auto accC = bufC.template get_access<access_mode::read_write>(cgh);
+     auto accA = bufA.template get_access<access_mode::read_write>(cgh);
+     auto accB = bufB.template get_access<access_mode::read_write>(cgh);
 
      cgh.parallel_for<kernel_name>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),

@@ -297,9 +297,11 @@ public:
     detail::workGroupBarrier();
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
+  __SYCL_DEPRECATED("Removed in SYCL 2020")
   void mem_fence(
       [[maybe_unused]]
       typename std::enable_if_t<accessMode == access::mode::read ||
@@ -320,6 +322,7 @@ public:
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
 #endif
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Asynchronously copies a number of elements specified by \p numElements
   /// from the source pointed by \p src to destination pointed by \p dest

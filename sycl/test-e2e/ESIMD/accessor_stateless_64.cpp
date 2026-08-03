@@ -36,7 +36,7 @@ int main(void) {
               << "\n";
 
     q.submit([&](handler &cgh) {
-       auto PA = bufa.get_access<access::mode::read_write>(cgh);
+       auto PA = bufa.get_access<access_mode::read_write>(cgh);
        cgh.single_task<class Test>([=]() SYCL_ESIMD_KERNEL {
          uint64_t offset = (Size - VL) * sizeof(uint64_t);
          simd<uint64_t, VL> va;

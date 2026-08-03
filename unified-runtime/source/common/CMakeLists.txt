@@ -73,7 +73,7 @@ if ((UR_STATIC_ADAPTER_L0 AND UR_BUILD_ADAPTER_L0) OR
         # A statically-linked UMF must also link hwloc statically; otherwise it
         # requires a system hwloc that isn't present on every platform (e.g.
         # macOS), breaking the link.
-        set(UMF_LINK_HWLOC_STATICALLY ON)
+        set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
     endif()
 endif()
   
@@ -84,6 +84,10 @@ if(UR_USE_EXTERNAL_UMF)
 endif()
 if(umf_FOUND)
   message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
+  # Promote umf::umf and umf::umf_headers IMPORTED targets to global scope so
+  # sibling subdirectories (loader, adapters) can link against them.
+  set_target_properties(umf::umf PROPERTIES IMPORTED_GLOBAL TRUE)
+  set_target_properties(umf::umf_headers PROPERTIES IMPORTED_GLOBAL TRUE)
   # Add an alias matching the FetchContent case
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
@@ -107,9 +111,6 @@ else()
   set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
-  if(UMF_LINK_HWLOC_STATICALLY)
-    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
-  endif()
 
   FetchContent_MakeAvailable(unified-memory-framework)
   FetchContent_GetProperties(unified-memory-framework)

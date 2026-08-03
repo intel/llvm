@@ -303,8 +303,8 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
       double etime = 0;
       if (block_size == 16 && MZ >= 16) {
         auto e = q.submit([&](handler &cgh) {
-          auto accInput = imgM.get_access<uint4, access::mode::read>(cgh);
-          auto accOutput = imgM.get_access<uint4, access::mode::write>(cgh);
+          auto accInput = imgM.get_access<uint4, access_mode::read>(cgh);
+          auto accOutput = imgM.get_access<uint4, access_mode::write>(cgh);
           cgh.parallel_for<class K16>(
               Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
                 transpose16(accInput, accOutput, MZ, ndi.get_global_id(0),
@@ -315,8 +315,8 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
         etime = esimd_test::report_time("kernel time", e, e);
       } else if (block_size == 8) {
         auto e = q.submit([&](handler &cgh) {
-          auto accInput = imgM.get_access<uint4, access::mode::read>(cgh);
-          auto accOutput = imgM.get_access<uint4, access::mode::write>(cgh);
+          auto accInput = imgM.get_access<uint4, access_mode::read>(cgh);
+          auto accOutput = imgM.get_access<uint4, access_mode::write>(cgh);
           cgh.parallel_for<class K08>(
               Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
                 transpose8(accInput, accOutput, MZ, ndi.get_global_id(0),

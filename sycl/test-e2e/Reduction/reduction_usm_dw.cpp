@@ -43,7 +43,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
 
   // Compute.
   Q.submit([&](handler &CGH) {
-     auto In = InBuf.template get_access<access::mode::read>(CGH);
+     auto In = InBuf.template get_access<access_mode::read>(CGH);
 
      auto Redu = reduction(ReduVarPtr, Identity, BOp,
                            {property::reduction::initialize_to_identity{}});
@@ -58,7 +58,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
   if (AllocType == usm::alloc::device) {
     buffer<T, 1> Buf(&ComputedOut, range<1>(1));
     Q.submit([&](handler &CGH) {
-       auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
+       auto OutAcc = Buf.template get_access<access_mode::discard_write>(CGH);
        CGH.single_task<USMKName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();

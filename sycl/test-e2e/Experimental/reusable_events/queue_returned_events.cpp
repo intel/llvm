@@ -19,7 +19,7 @@ int main() {
   sycl::buffer<int> buf(data.data(), sycl::range<1>(N));
 
   auto event = q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class QueueEvent>(sycl::range<1>(N),
                                        [=](sycl::id<1> idx) { acc[idx] = 42; });
   });

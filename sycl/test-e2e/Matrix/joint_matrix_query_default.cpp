@@ -62,9 +62,9 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
   queue q;
   q.submit([&](handler &cgh) {
-     auto accC = bufC.get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.get_access<access::mode::read_write>(cgh);
-     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+     auto accC = bufC.get_access<access_mode::read_write>(cgh);
+     auto accA = bufA.get_access<access_mode::read_write>(cgh);
+     auto accB = bufB.get_access<access_mode::read_write>(cgh);
 
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),

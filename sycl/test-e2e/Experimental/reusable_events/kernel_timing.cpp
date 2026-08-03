@@ -25,14 +25,14 @@ int main() {
   std::vector<int> data(N, 1);
   sycl::buffer<int> buf(data.data(), sycl::range<1>(N));
 
-  syclex::properties PropList{syclex::enable_profiling};
+  syclex::properties PropList{syclex::enable_profiling{true}};
   auto start_event = syclex::make_event(ctx, PropList);
   auto end_event = syclex::make_event(ctx, PropList);
 
   syclex::enqueue_signal_event(q, start_event);
 
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class TimingKernel1>(sycl::range<1>(N),
                                           [=](sycl::id<1> idx) {
                                             for (int i = 0; i < 100; ++i) {
@@ -42,7 +42,7 @@ int main() {
   });
 
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class TimingKernel2>(sycl::range<1>(N),
                                           [=](sycl::id<1> idx) {
                                             for (int i = 0; i < 100; ++i) {
