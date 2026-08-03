@@ -24,7 +24,7 @@ void submit(sycl::queue &queue, sycl::kernel &kernel) {
     sycl::buffer<int, 1> result_buf{data, sycl::range<1>{DIMS}};
     queue.submit([&](sycl::handler &cgh) {
       auto result_acc =
-          result_buf.get_access<sycl::access_mode::write>(cgh, sycl::no_init);
+          result_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.set_arg(0, result_acc);
       cgh.parallel_for(sycl::range<1>{DIMS}, kernel);
     });
@@ -50,8 +50,8 @@ void run_test(size_t numThreads) {
     sycl::buffer<int, 1> result_buf{sycl::range<1>{DIMS}};
     queue
         .submit([&](sycl::handler &cgh) {
-          auto result_acc = result_buf.get_access<sycl::access_mode::write>(
-              cgh, sycl::no_init);
+          auto result_acc =
+              result_buf.get_access(cgh, sycl::write_only, sycl::no_init);
           cgh.parallel_for<kernel_set_value>(
               sycl::range<1>{DIMS},
               [=](sycl::id<1> idx) { result_acc[idx] = idx[0]; });
