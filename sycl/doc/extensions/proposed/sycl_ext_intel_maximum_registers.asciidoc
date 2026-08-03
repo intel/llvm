@@ -55,10 +55,6 @@ Interfaces defined in this specification may not be implemented yet or may be in
 The specification itself may also change in incompatible ways before it is finalized.
 **Shipping software products should not rely on APIs defined in this specification.**
 
-== Backend support status
-
-This extension is not yet implemented.
-
 == Overview
 
 This extension adds new kernel properties which allow an application to choose
