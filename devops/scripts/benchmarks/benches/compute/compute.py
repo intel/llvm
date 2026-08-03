@@ -13,7 +13,18 @@ from utils.logger import log
 
 from ..base import Benchmark, Suite
 from .compute_benchmark import ComputeBenchmark
-from .compute_enums import RUNTIMES, PROFILERS, KERNEL_NAME, runtime_to_tag_name
+from .compute_enums import (
+    COMPUTE_BENCHMARK_RUNTIMES,
+    KERNEL_NAME,
+    NATIVE_GRAPH_RUNTIMES,
+    PROFILERS,
+    RUNTIMES,
+    SUBMIT_KERNEL_RUNTIMES,
+    SYCL_AND_LEVEL_ZERO_RUNTIMES,
+    SYCL_RUNTIMES,
+    TORCH_BENCHMARK_RUNTIMES,
+    runtime_to_tag_name,
+)
 from .compute_metadata import ComputeMetadataGenerator
 from .compute_torch import *
 
@@ -26,6 +37,16 @@ def runtime_to_name(runtime: RUNTIMES) -> str:
         RUNTIMES.UR: "Unified Runtime",
         RUNTIMES.OFFLOAD: "Offload",
     }[runtime]
+
+
+def offload_enabled() -> bool:
+    return bool(options.offload_install_dir and options.offload_include_dir)
+
+
+def submit_kernel_runtimes() -> list[RUNTIMES]:
+    if offload_enabled():
+        return SUBMIT_KERNEL_RUNTIMES.copy()
+    return COMPUTE_BENCHMARK_RUNTIMES.copy()
 
 
 class ComputeBench(Suite):
@@ -45,25 +66,6 @@ class ComputeBench(Suite):
 
     def setup(self) -> None:
         if options.sycl is None:
-            return
-
-        if self._project is None:
-            src_override = (
-                Path(options.compute_benchmarks_source_dir)
-                if options.compute_benchmarks_source_dir
-                else None
-            )
-            self._project = GitProject(
-                self.git_url(),
-                self.git_hash(),
-                Path(options.workdir),
-                "compute-benchmarks",
-                use_installdir=False,
-                src_dir_override=src_override,
-            )
-
-        if not self._project.needs_rebuild():
-            log.info(f"Rebuilding {self._project.name} skipped")
             return
 
         extra_args = [
@@ -90,12 +92,41 @@ class ComputeBench(Suite):
                 "-DBUILD_OCL=OFF",
             ]
 
-        if options.offload_install_dir and options.offload_include_dir:
+        if offload_enabled():
             extra_args += [
                 "-DBUILD_OL=ON",
                 f"-DOFFLOAD_INSTALL_DIR={options.offload_install_dir}",
                 f"-DOFFLOAD_INCLUDE_DIR={options.offload_include_dir}",
             ]
+
+        if self._project is None:
+            src_override = (
+                Path(options.compute_benchmarks_source_dir)
+                if options.compute_benchmarks_source_dir
+                else None
+            )
+            use_build_cache = src_override is not None or offload_enabled()
+            build_cache_key = (
+                {
+                    "build_type": "RelWithDebInfo" if is_gdb_mode else "Release",
+                    "cmake_args": extra_args,
+                }
+                if use_build_cache
+                else None
+            )
+            self._project = GitProject(
+                self.git_url(),
+                self.git_hash(),
+                Path(options.workdir),
+                "compute-benchmarks",
+                use_installdir=False,
+                src_dir_override=src_override,
+                build_cache_key=build_cache_key,
+            )
+
+        if not self._project.needs_rebuild():
+            log.info(f"Rebuilding {self._project.name} skipped")
+            return
 
         self._project.configure(extra_args, add_sycl=True)
         self._project.build(add_sycl=True)
@@ -126,7 +157,7 @@ class ComputeBench(Suite):
         long_kernel_exec_time_ooo = [20, 200]
 
         submit_kernel_params = product(
-            list(RUNTIMES),
+            submit_kernel_runtimes(),
             [0, 1],  # in_order_queue
             [0, 1],  # measure_completion
             [0, 1],  # use_events
@@ -168,14 +199,14 @@ class ComputeBench(Suite):
 
         # Add SinKernelGraph benchmarks
         sin_kernel_graph_params = product(
-            list(RUNTIMES),
+            COMPUTE_BENCHMARK_RUNTIMES,
             [0, 1],  # with_graphs
             [5, 100],  # num_kernels
         )
         for runtime, with_graphs, num_kernels in sin_kernel_graph_params:
             if (
                 (options.ur_adapter != "level_zero_v2")
-                and (runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW)
+                and runtime in SYCL_RUNTIMES
                 and (with_graphs == 1)
             ):
                 # old adapter doesn't support graph mode for SYCL
@@ -185,7 +216,7 @@ class ComputeBench(Suite):
             )
 
         # Add ULLS benchmarks
-        for runtime in list(RUNTIMES):
+        for runtime in COMPUTE_BENCHMARK_RUNTIMES:
             if runtime == RUNTIMES.SYCL:
                 benches.append(
                     UllsEmptyKernel(
@@ -197,7 +228,7 @@ class ComputeBench(Suite):
 
         # Add GraphApiSubmitGraph benchmarks
         submit_graph_params = product(
-            list(RUNTIMES),
+            COMPUTE_BENCHMARK_RUNTIMES,
             [0, 1],  # in_order_queue
             self._submit_graph_num_kernels,
             [0, 1],  # measure_completion_time
@@ -212,7 +243,7 @@ class ComputeBench(Suite):
         ) in submit_graph_params:
             # SYCL only supports graph mode, UR & L0 support both emulated
             # and non-emulated graph APIs.
-            if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
+            if runtime in SYCL_RUNTIMES:
                 emulate_graphs = [0]
             else:  # level-zero and unified-runtime
                 # SubmitGraph with L0 / UR graph segfaults on PVC
@@ -325,7 +356,7 @@ class ComputeBench(Suite):
             ]
 
         # Add TorchSingleQueue benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+        for runtime in TORCH_BENCHMARK_RUNTIMES:
             for profiler_type in list(PROFILERS):
 
                 def createTorchSingleQueueBench(variant_name: str, **kwargs):
@@ -385,7 +416,7 @@ class ComputeBench(Suite):
                 ]
 
         # Add TorchMultiQueue benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+        for runtime in TORCH_BENCHMARK_RUNTIMES:
             for profiler_type, measure_completion in product(list(PROFILERS), [0, 1]):
 
                 def createTorchMultiQueueBench(variant_name: str, **kwargs):
@@ -423,7 +454,7 @@ class ComputeBench(Suite):
                 ]
 
         # Add TorchSlmSize benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+        for runtime in TORCH_BENCHMARK_RUNTIMES:
             for profiler_type, measure_completion in product(list(PROFILERS), [0, 1]):
 
                 def createTorchSlmSizeBench(variant_name: str, **kwargs):
@@ -459,7 +490,7 @@ class ComputeBench(Suite):
                 ]
 
         # Add TorchMemoryReuse benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+        for runtime in TORCH_BENCHMARK_RUNTIMES:
             for profiler_type in list(PROFILERS):
 
                 def createTorchMemoryReuseBench(variant_name: str, **kwargs):
@@ -503,7 +534,7 @@ class ComputeBench(Suite):
                 ]
 
         # Add TorchLinearKernelSize benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+        for runtime in TORCH_BENCHMARK_RUNTIMES:
             for profiler_type in list(PROFILERS):
 
                 def createTorchLinearKernelSizeBench(variant_name: str, **kwargs):
@@ -543,7 +574,7 @@ class ComputeBench(Suite):
                 ]
 
         # Add TorchEventRecordWait benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+        for runtime in TORCH_BENCHMARK_RUNTIMES:
             for profiler_type in list(PROFILERS):
                 benches.append(
                     TorchEventRecordWait(
@@ -558,7 +589,7 @@ class ComputeBench(Suite):
                 )
 
         # Add TorchEventRecordQuery benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+        for runtime in TORCH_BENCHMARK_RUNTIMES:
             for profiler_type in list(PROFILERS):
                 benches.append(
                     TorchEventRecordQuery(
@@ -577,12 +608,14 @@ class ComputeBench(Suite):
         # Note: Graph benchmarks segfault on pvc on L0
         #
         device_arch = getattr(options, "device_architecture", "")
+        torch_graph_runtimes = (
+            SYCL_RUNTIMES
+            if "pvc" in device_arch
+            else TORCH_BENCHMARK_RUNTIMES
+        )
 
         # Add TorchGraphSingleQueue benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            if "pvc" in device_arch and runtime == RUNTIMES.LEVEL_ZERO:
-                continue
-
+        for runtime in torch_graph_runtimes:
             for profiler_type, kernel_name in product(
                 list(PROFILERS), list(KERNEL_NAME)
             ):
@@ -624,9 +657,7 @@ class ComputeBench(Suite):
                 ]
 
         # Add TorchGraphMultiQueue benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            if "pvc" in device_arch and runtime == RUNTIMES.LEVEL_ZERO:
-                continue
+        for runtime in torch_graph_runtimes:
             for profiler_type in list(PROFILERS):
 
                 def createTorchGraphMultiQueueBench(variant_name: str, **kwargs):
@@ -660,10 +691,7 @@ class ComputeBench(Suite):
                 ]
 
         # Add TorchGraphVllmMock benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            if "pvc" in device_arch and runtime == RUNTIMES.LEVEL_ZERO:
-                continue
-
+        for runtime in torch_graph_runtimes:
             for profiler_type in list(PROFILERS):
 
                 def createTorchGraphVllmMockBench(variant_name: str, **kwargs):
@@ -748,7 +776,7 @@ class ComputeBenchCoreSuite(ComputeBench):
     def benchmarks(self) -> list[Benchmark]:
         core_benches = []
         submit_kernel_params = product(
-            list(RUNTIMES),
+            submit_kernel_runtimes(),
             [0, 1],  # in_order_queue
             list(PROFILERS),
         )
@@ -866,10 +894,14 @@ class SubmitKernel(ComputeBenchmark):
         return (0.0, None)
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
-        runtimes = super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
-        if options.offload_install_dir and options.offload_include_dir:
-            runtimes.append(RUNTIMES.OFFLOAD)
-        return runtimes
+        if offload_enabled():
+            return SUBMIT_KERNEL_RUNTIMES.copy()
+        return COMPUTE_BENCHMARK_RUNTIMES.copy()
+
+    def _extra_env_vars(self) -> dict:
+        if self._runtime == RUNTIMES.OFFLOAD and options.force_offload_plugin:
+            return {"FORCE_OFFLOAD_PLUGIN": options.force_offload_plugin}
+        return {}
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
@@ -1315,7 +1347,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self._native_str = (
             " native recording"
             if self._emulate_graphs == 0
-            and (runtime == RUNTIMES.UR or runtime == RUNTIMES.LEVEL_ZERO)
+            and runtime in NATIVE_GRAPH_RUNTIMES
             else ""
         )
         self._ioq_str = "in order" if self._in_order_queue else "out of order"
@@ -1360,7 +1392,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         ]
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
-        return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
+        return COMPUTE_BENCHMARK_RUNTIMES.copy()
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
@@ -1412,7 +1444,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         return [runtime_to_tag_name(self._runtime), "micro", "latency", "submit"]
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
-        return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
+        return SYCL_AND_LEVEL_ZERO_RUNTIMES.copy()
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
@@ -1465,7 +1497,7 @@ class UllsKernelSwitch(ComputeBenchmark):
         return [runtime_to_tag_name(self._runtime), "micro", "latency", "submit"]
 
     def _supported_runtimes(self):
-        return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
+        return SYCL_AND_LEVEL_ZERO_RUNTIMES.copy()
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)

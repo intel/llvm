@@ -873,9 +873,6 @@ if __name__ == "__main__":
             parser.error("Specified --offload-include-dir is not a valid path")
         options.offload_install_dir = os.path.abspath(args.offload_install_dir)
         options.offload_include_dir = os.path.abspath(args.offload_include_dir)
-    if options.force_offload_plugin:
-        options.extra_env_vars["FORCE_OFFLOAD_PLUGIN"] = options.force_offload_plugin
-
     # Initialize GitHub summary tracking
     execution_stats = {
         "total_tests": 0,

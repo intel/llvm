@@ -2,6 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,8 +12,7 @@ from utils.logger import log
 from utils.utils import run
 from options import options
 
-# Marker file written into build_dir after a successful build. Records a
-# fingerprint of the source tree so reruns can skip rebuilding.
+# Marker file written into build_dir after a successful cached build.
 BUILD_COMPLETE_MARKER = "benchmark_build_complete.json"
 
 
@@ -27,6 +27,7 @@ class GitProject:
         no_suffix_src: bool = False,
         shallow_clone: bool = True,
         src_dir_override: Path | None = None,
+        build_cache_key: dict | None = None,
     ) -> None:
         self._url = url
         self._ref = ref
@@ -36,6 +37,7 @@ class GitProject:
         self._no_suffix_src = no_suffix_src
         self._shallow_clone = shallow_clone
         self._src_dir_override = src_dir_override
+        self._build_cache_key = build_cache_key
         self._rebuild_needed = self._setup_repo()
 
     @property
@@ -61,31 +63,70 @@ class GitProject:
     def _build_marker_path(self) -> Path:
         return self.build_dir / BUILD_COMPLETE_MARKER
 
+    @property
+    def _uses_build_cache(self) -> bool:
+        return (
+            self._src_dir_override is not None or self._build_cache_key is not None
+        )
+
     def _source_fingerprint(self) -> dict | None:
         """Fingerprint the source tree for build-completion tracking.
 
-        Returns a dict with the current commit and `git status --porcelain`
-        output, or None if src_dir is not a git repository (in which case the
-        caller should always rebuild).
+        Returns the current commit and a content hash of tracked and untracked
+        source files, or None if src_dir is not a git repository.
         """
         try:
             commit = run("git rev-parse HEAD", cwd=self.src_dir).stdout.decode().strip()
-            status = (
-                run("git status --porcelain", cwd=self.src_dir).stdout.decode().strip()
-            )
+            source_files = run(
+                "git ls-files --cached --others --exclude-standard -z",
+                cwd=self.src_dir,
+            ).stdout.split(b"\0")
+
+            source_hash = hashlib.sha256()
+            for relative_path in sorted(path for path in source_files if path):
+                source_hash.update(len(relative_path).to_bytes(8, "big"))
+                source_hash.update(relative_path)
+
+                path = self.src_dir / os.fsdecode(relative_path)
+                stat = path.lstat()
+                source_hash.update(stat.st_mode.to_bytes(8, "big"))
+                if path.is_symlink():
+                    target = os.fsencode(os.readlink(path))
+                    source_hash.update(len(target).to_bytes(8, "big"))
+                    source_hash.update(target)
+                elif path.is_file():
+                    source_hash.update(stat.st_size.to_bytes(8, "big"))
+                    with open(path, "rb") as source_file:
+                        for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
+                            source_hash.update(chunk)
+                else:
+                    submodule_status = run(
+                        ["git", "-C", str(path), "status", "--porcelain=v2", "--branch"],
+                        cwd=self.src_dir,
+                    ).stdout
+                    source_hash.update(submodule_status)
         except Exception as e:
             log.debug(
                 f"Could not fingerprint source for {self._name} at {self.src_dir}: {e}"
             )
             return None
-        return {"commit": commit, "status": status}
+        return {"commit": commit, "source_hash": source_hash.hexdigest()}
+
+    def _build_fingerprint(self) -> dict | None:
+        source = self._source_fingerprint()
+        if source is None:
+            return None
+        return {"source": source, "build_cache_key": self._build_cache_key}
 
     def mark_build_complete(self) -> None:
-        """Record a build-complete marker so reruns can skip rebuilding.
+        """Record a build-complete marker when build caching is enabled.
 
         No-op when the source is not a git repository (nothing to fingerprint).
         """
-        fingerprint = self._source_fingerprint()
+        if not self._uses_build_cache:
+            return
+
+        fingerprint = self._build_fingerprint()
         if fingerprint is None:
             return
         try:
@@ -103,10 +144,24 @@ class GitProject:
         except Exception:
             return None
 
+    def _clear_build_marker(self) -> None:
+        if not self._uses_build_cache:
+            return
+        try:
+            self._build_marker_path.unlink(missing_ok=True)
+        except OSError as e:
+            log.debug(f"Failed to clear build-complete marker for {self._name}: {e}")
+
     def needs_rebuild(self) -> bool:
         if options.offline:
             log.debug("Rebuild is disabled due to --offline option.")
             return False
+
+        if self._rebuild_needed:
+            log.debug(
+                f"Rebuild needed because new sources were detected for project {self._name}."
+            )
+            return True
 
         dir_to_check = self.install_dir if self._use_installdir else self.build_dir
 
@@ -119,7 +174,15 @@ class GitProject:
             )
             return True
 
-        fingerprint = self._source_fingerprint()
+        if not self._uses_build_cache:
+            log.debug(f"{dir_to_check} exists and is not empty, no rebuild needed.")
+            return False
+
+        if os.environ.get("LLVM_BENCHMARKS_UNIT_TESTING") == "1":
+            log.debug(f"Cached build of {self._name} is reused during unit testing.")
+            return False
+
+        fingerprint = self._build_fingerprint()
         if fingerprint is None:
             log.debug(
                 f"Source for {self._name} is not a git repository, rebuild needed."
@@ -159,6 +222,7 @@ class GitProject:
         if extra_args:
             cmd.extend(extra_args)
 
+        self._clear_build_marker()
         run(cmd, add_sycl=add_sycl)
 
     def build(

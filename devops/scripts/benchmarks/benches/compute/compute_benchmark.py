@@ -14,7 +14,12 @@ from utils.logger import log
 from utils.result import Result
 
 from ..base import Benchmark, Suite
-from .compute_enums import RUNTIMES, PROFILERS
+from .compute_enums import (
+    CUDA_COMPATIBLE_RUNTIMES,
+    DEFAULT_BENCHMARK_RUNTIMES,
+    PROFILERS,
+    RUNTIMES,
+)
 
 
 class ComputeBenchmark(Benchmark):
@@ -124,10 +129,7 @@ class ComputeBenchmark(Benchmark):
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
         """Base runtimes supported by this benchmark, can be overridden."""
-        # By default, support all runtimes except SYCL_PREVIEW and OFFLOAD.
-        # OFFLOAD (liboffload) only provides a SubmitKernel binary, so it is
-        # opted into explicitly by that benchmark rather than supported by default.
-        return [r for r in RUNTIMES if r not in (RUNTIMES.SYCL_PREVIEW, RUNTIMES.OFFLOAD)]
+        return DEFAULT_BENCHMARK_RUNTIMES.copy()
 
     def _extra_env_vars(self) -> dict:
         return {}
@@ -145,12 +147,14 @@ class ComputeBenchmark(Benchmark):
 
     def __enabled_runtimes(self) -> list[RUNTIMES]:
         """Runtimes available given the current configuration."""
-        # Start with all supported runtimes and apply configuration filters
         runtimes = self._supported_runtimes()
 
-        # Remove Level Zero if using CUDA backend
         if options.ur_adapter == "cuda":
-            runtimes = [r for r in runtimes if r != RUNTIMES.LEVEL_ZERO]
+            return [
+                runtime
+                for runtime in CUDA_COMPATIBLE_RUNTIMES
+                if runtime in runtimes
+            ]
 
         return runtimes
 
