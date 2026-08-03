@@ -13,7 +13,6 @@ template <typename... Ts> class KNameGroup;
 template <typename T, bool B> class KName;
 
 constexpr access_mode RW = access_mode::read_write;
-constexpr access_mode DW = access_mode::discard_write;
 
 template <typename RangeT>
 void printNVarsTestLabel(const RangeT &Range, bool ToCERR = false) {
