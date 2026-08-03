@@ -44,7 +44,6 @@ event_impl::~event_impl() {
     if (MIPCHandleData) {
       getAdapter().call<UrApiKind::urIPCPutEventHandleExp>(
           MContext->getHandleRef(), MIPCHandleData);
-      MIPCHandleData = nullptr;
     }
     auto Handle = this->getHandle();
     if (Handle)

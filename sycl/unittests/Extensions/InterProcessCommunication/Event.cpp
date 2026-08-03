@@ -195,7 +195,7 @@ TEST_F(IPCEventTests, GetCallsURAndReturnsHandle) {
     ASSERT_EQ(Data.size(), DummyHandleDataSize);
     EXPECT_EQ(memcmp(Data.data(), DummyHandleData, DummyHandleDataSize), 0);
   }
-  // The handle is released via put on destruction  and the materialized UR
+  // The handle is released via put on destruction and the materialized UR
   // event is released too.
   EXPECT_EQ(urIPCPutEventHandleExp_counter, 1);
   EXPECT_EQ(urEventRelease_counter, 1);
