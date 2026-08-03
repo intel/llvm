@@ -15,6 +15,7 @@
 // loads pre-compiled kernels from a SPIR-V file and runs them.
 #include <iostream>
 
+#include <CL/cl.h>
 #include <array>
 #include <cassert>
 #include <fstream>

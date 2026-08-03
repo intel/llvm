@@ -63,9 +63,9 @@ ur_result_t ur_kernel_handle_t_::makeWithNative(native_type NativeKernel,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
-               ur_kernel_handle_t *phKernel) {
+ur_result_t urKernelCreate(ur_program_handle_t hProgram,
+                           const char *pKernelName,
+                           ur_kernel_handle_t *phKernel) {
   try {
     auto Program = cast(hProgram);
     cl_int CLResult;
@@ -91,9 +91,9 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize, const ur_kernel_arg_local_properties_t *) {
+ur_result_t urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                                size_t argSize,
+                                const ur_kernel_arg_local_properties_t *) {
   auto Kernel = cast(hKernel);
 
   CL_RETURN_ON_FAILURE(clSetKernelArg(
@@ -131,11 +131,9 @@ static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
-                                                    ur_kernel_info_t propName,
-                                                    size_t propSize,
-                                                    void *pPropValue,
-                                                    size_t *pPropSizeRet) {
+ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
+                            ur_kernel_info_t propName, size_t propSize,
+                            void *pPropValue, size_t *pPropSizeRet) {
   auto Kernel = cast(hKernel);
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
@@ -191,10 +189,11 @@ static cl_int mapURKernelGroupInfoToCL(ur_kernel_group_info_t URPropName) {
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
-                     ur_kernel_group_info_t propName, size_t propSize,
-                     void *pPropValue, size_t *pPropSizeRet) {
+ur_result_t urKernelGetGroupInfo(ur_kernel_handle_t hKernel,
+                                 ur_device_handle_t hDevice,
+                                 ur_kernel_group_info_t propName,
+                                 size_t propSize, void *pPropValue,
+                                 size_t *pPropSizeRet) {
   auto Kernel = cast(hKernel);
   auto Device = cast(hDevice);
   // From the CL spec for GROUP_INFO_GLOBAL: "If device is not a custom device
@@ -239,10 +238,10 @@ mapURKernelSubGroupInfoToCL(ur_kernel_sub_group_info_t URPropName) {
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
-                        ur_kernel_sub_group_info_t propName, size_t,
-                        void *pPropValue, size_t *pPropSizeRet) {
+ur_result_t urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel,
+                                    ur_device_handle_t hDevice,
+                                    ur_kernel_sub_group_info_t propName, size_t,
+                                    void *pPropValue, size_t *pPropSizeRet) {
   auto Kernel = cast(hKernel);
   auto Device = cast(hDevice);
 
@@ -343,14 +342,13 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
+ur_result_t urKernelRetain(ur_kernel_handle_t hKernel) {
   auto Kernel = cast(hKernel);
   Kernel->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelRelease(ur_kernel_handle_t hKernel) {
+ur_result_t urKernelRelease(ur_kernel_handle_t hKernel) {
   auto Kernel = cast(hKernel);
   if (Kernel->RefCount.release()) {
     delete Kernel;
@@ -409,9 +407,10 @@ static ur_result_t usmSetIndirectAccess(ur_kernel_handle_t hKernel) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
-    ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName, size_t propSize,
-    const ur_kernel_exec_info_properties_t *, const void *pPropValue) {
+ur_result_t urKernelSetExecInfo(ur_kernel_handle_t hKernel,
+                                ur_kernel_exec_info_t propName, size_t propSize,
+                                const ur_kernel_exec_info_properties_t *,
+                                const void *pPropValue) {
   auto Kernel = cast(hKernel);
 
   switch (propName) {
@@ -438,15 +437,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
-    ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
+ur_result_t urKernelGetNativeHandle(ur_kernel_handle_t hKernel,
+                                    ur_native_handle_t *phNativeKernel) {
   auto Kernel = cast(hKernel);
 
   *phNativeKernel = reinterpret_cast<ur_native_handle_t>(Kernel->CLKernel);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     [[maybe_unused]] ur_kernel_handle_t hKernel,
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] uint32_t workDim,
@@ -456,7 +455,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
+ur_result_t urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ur_context_handle_t hContext,
     ur_program_handle_t hProgram,
     [[maybe_unused]] const ur_kernel_native_properties_t *pProperties,
@@ -473,10 +472,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
-    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    size_t *pSuggestedLocalWorkSize) {
+ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
+                                              ur_queue_handle_t hQueue,
+                                              uint32_t workDim,
+                                              const size_t *pGlobalWorkOffset,
+                                              const size_t *pGlobalWorkSize,
+                                              size_t *pSuggestedLocalWorkSize) {
   auto Kernel = cast(hKernel);
   auto Queue = cast(hQueue);
   cl_device_id Device;
@@ -501,7 +502,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+ur_result_t urKernelGetSuggestedLocalWorkSizeWithArgs(
     ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
@@ -559,8 +560,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
       pSuggestedLocalWorkSize);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
-    ur_kernel_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
+ur_result_t
+urKernelSetSpecializationConstants(ur_kernel_handle_t, uint32_t,
+                                   const ur_specialization_constant_info_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

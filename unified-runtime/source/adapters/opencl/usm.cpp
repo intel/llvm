@@ -24,13 +24,6 @@ void AllocDeleterCallback(cl_event event, cl_int, void *pUserData) {
   delete Info;
 }
 
-namespace umf {
-ur_result_t getProviderNativeError(const char *, int32_t) {
-  // TODO: implement when UMF supports OpenCL
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
-
 inline cl_mem_alloc_flags_intel
 hostDescToClFlags(const ur_usm_host_desc_t &desc) {
   cl_mem_alloc_flags_intel allocFlags = 0;
@@ -101,9 +94,9 @@ usmDescToCLMemProperties(const ur_base_desc_t *Desc,
 
 namespace ur::opencl {
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMHostAlloc(ur_context_handle_t Context, const ur_usm_desc_t *pUSMDesc,
-               ur_usm_pool_handle_t, size_t size, void **ppMem) {
+ur_result_t urUSMHostAlloc(ur_context_handle_t Context,
+                           const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
+                           size_t size, void **ppMem) {
 
   auto hContext = cast(Context);
 
@@ -151,10 +144,10 @@ urUSMHostAlloc(ur_context_handle_t Context, const ur_usm_desc_t *pUSMDesc,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMDeviceAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
-                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
-                 size_t size, void **ppMem) {
+ur_result_t urUSMDeviceAlloc(ur_context_handle_t Context,
+                             ur_device_handle_t hDevice,
+                             const ur_usm_desc_t *pUSMDesc,
+                             ur_usm_pool_handle_t, size_t size, void **ppMem) {
 
   auto hContext = cast(Context);
   auto Device = cast(hDevice);
@@ -203,10 +196,10 @@ urUSMDeviceAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMSharedAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
-                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
-                 size_t size, void **ppMem) {
+ur_result_t urUSMSharedAlloc(ur_context_handle_t Context,
+                             ur_device_handle_t hDevice,
+                             const ur_usm_desc_t *pUSMDesc,
+                             ur_usm_pool_handle_t, size_t size, void **ppMem) {
 
   auto hContext = cast(Context);
   auto Device = cast(hDevice);
@@ -254,8 +247,7 @@ urUSMSharedAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t Context,
-                                              void *pMem) {
+ur_result_t urUSMFree(ur_context_handle_t Context, void *pMem) {
 
   auto hContext = cast(Context);
 
@@ -277,10 +269,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t Context,
   return RetVal;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
-    ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
-    const void *pPattern, size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueUSMFill(ur_queue_handle_t hQueue, void *ptr,
+                             size_t patternSize, const void *pPattern,
+                             size_t size, uint32_t numEventsInWaitList,
+                             const ur_event_handle_t *phEventWaitList,
+                             ur_event_handle_t *phEvent) {
 
   auto Queue = cast(hQueue);
 
@@ -341,14 +334,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
                                  numEventsInWaitList, CLWaitEvents.data(),
                                  &CopyEvent));
 
+  std::unique_ptr<ur_event_handle_t_> UREvent;
   if (phEvent) {
     // Since we're releasing this in the callback above we need to retain it
     // here to keep the user copy alive.
     CL_RETURN_ON_FAILURE(clRetainEvent(CopyEvent));
     try {
-      auto UREvent = std::make_unique<ur_event_handle_t_>(
-          CopyEvent, Queue->Context, Queue);
-      *phEvent = cast(UREvent.release());
+      UREvent = std::make_unique<ur_event_handle_t_>(CopyEvent, Queue->Context,
+                                                     Queue);
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
@@ -372,13 +365,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     CL_RETURN_ON_FAILURE(ClErr);
   }
 
+  if (phEvent) {
+    *phEvent = cast(UREvent.release());
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
-    ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
-    size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueUSMMemcpy(ur_queue_handle_t hQueue, bool blocking,
+                               void *pDst, const void *pSrc, size_t size,
+                               uint32_t numEventsInWaitList,
+                               const ur_event_handle_t *phEventWaitList,
+                               ur_event_handle_t *phEvent) {
 
   auto Queue = cast(hQueue);
 
@@ -505,7 +503,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         }
         // We are going to release this event in our callback so we need to
         // retain if the user wants a copy.
-        CL_RETURN_ON_FAILURE(clRetainEvent(FinalCopyEvent));
+        cl_int RetainResult = clRetainEvent(FinalCopyEvent);
+        if (RetainResult != CL_SUCCESS) {
+          ur::opencl::urEventRelease(*phEvent);
+          *phEvent = nullptr;
+          CL_RETURN_ON_FAILURE(RetainResult);
+        }
       }
 
       // This self destructs taking the event and allocation with it.
@@ -520,6 +523,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       if (CLErr != CL_SUCCESS) {
         // We can attempt to recover gracefully by attempting to wait for the
         // copy to finish and deleting the info struct here.
+        if (phEvent) {
+          ur::opencl::urEventRelease(*phEvent);
+          *phEvent = nullptr;
+        }
         clWaitForEvents(1, &HostCopyEvent);
         delete DeleterInfo;
         clReleaseEvent(HostCopyEvent);
@@ -542,7 +549,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
+ur_result_t urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
     [[maybe_unused]] size_t size,
     [[maybe_unused]] ur_usm_migration_flags_t flags,
@@ -608,10 +615,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
-    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
-    [[maybe_unused]] size_t size, [[maybe_unused]] ur_usm_advice_flags_t advice,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueUSMAdvise(ur_queue_handle_t hQueue,
+                               [[maybe_unused]] const void *pMem,
+                               [[maybe_unused]] size_t size,
+                               [[maybe_unused]] ur_usm_advice_flags_t advice,
+                               ur_event_handle_t *phEvent) {
 
   auto Queue = cast(hQueue);
 
@@ -642,7 +650,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   */
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
+ur_result_t urEnqueueUSMFill2D(
     [[maybe_unused]] ur_queue_handle_t hQueue, [[maybe_unused]] void *pMem,
     [[maybe_unused]] size_t pitch, [[maybe_unused]] size_t patternSize,
     [[maybe_unused]] const void *pPattern, [[maybe_unused]] size_t width,
@@ -653,11 +661,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
-    ur_queue_handle_t hQueue, bool blocking, void *pDst, size_t dstPitch,
-    const void *pSrc, size_t srcPitch, size_t width, size_t height,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+ur_result_t urEnqueueUSMMemcpy2D(ur_queue_handle_t hQueue, bool blocking,
+                                 void *pDst, size_t dstPitch, const void *pSrc,
+                                 size_t srcPitch, size_t width, size_t height,
+                                 uint32_t numEventsInWaitList,
+                                 const ur_event_handle_t *phEventWaitList,
+                                 ur_event_handle_t *phEvent) {
 
   auto Queue = cast(hQueue);
 
@@ -726,9 +735,9 @@ mapCLUSMTypeToUR(const cl_unified_shared_memory_type_intel &Type) {
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
-    ur_context_handle_t Context, const void *pMem, ur_usm_alloc_info_t propName,
-    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+ur_result_t urUSMGetMemAllocInfo(ur_context_handle_t Context, const void *pMem,
+                                 ur_usm_alloc_info_t propName, size_t propSize,
+                                 void *pPropValue, size_t *pPropSizeRet) {
 
   auto hContext = cast(Context);
 
@@ -779,104 +788,93 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMImportExp([[maybe_unused]] ur_context_handle_t Context,
-               [[maybe_unused]] void *HostPtr, [[maybe_unused]] size_t Size) {
+ur_result_t urUSMImportExp([[maybe_unused]] ur_context_handle_t Context,
+                           [[maybe_unused]] void *HostPtr,
+                           [[maybe_unused]] size_t Size) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMReleaseExp([[maybe_unused]] ur_context_handle_t Context,
-                [[maybe_unused]] void *HostPtr) {
+ur_result_t urUSMReleaseExp([[maybe_unused]] ur_context_handle_t Context,
+                            [[maybe_unused]] void *HostPtr) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMPoolCreate([[maybe_unused]] ur_context_handle_t hContext,
-                [[maybe_unused]] ur_usm_pool_desc_t *pPoolDesc,
-                [[maybe_unused]] ur_usm_pool_handle_t *ppPool) {
+ur_result_t urUSMPoolCreate([[maybe_unused]] ur_context_handle_t hContext,
+                            [[maybe_unused]] ur_usm_pool_desc_t *pPoolDesc,
+                            [[maybe_unused]] ur_usm_pool_handle_t *ppPool) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMPoolRetain([[maybe_unused]] ur_usm_pool_handle_t pPool) {
+ur_result_t urUSMPoolRetain([[maybe_unused]] ur_usm_pool_handle_t pPool) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMPoolRelease([[maybe_unused]] ur_usm_pool_handle_t pPool) {
+ur_result_t urUSMPoolRelease([[maybe_unused]] ur_usm_pool_handle_t pPool) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
-    [[maybe_unused]] ur_usm_pool_handle_t hPool,
-    [[maybe_unused]] ur_usm_pool_info_t propName,
-    [[maybe_unused]] size_t propSize, [[maybe_unused]] void *pPropValue,
-    [[maybe_unused]] size_t *pPropSizeRet) {
+ur_result_t urUSMPoolGetInfo([[maybe_unused]] ur_usm_pool_handle_t hPool,
+                             [[maybe_unused]] ur_usm_pool_info_t propName,
+                             [[maybe_unused]] size_t propSize,
+                             [[maybe_unused]] void *pPropValue,
+                             [[maybe_unused]] size_t *pPropSizeRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t,
-                                                       ur_device_handle_t,
-                                                       ur_usm_pool_desc_t *,
-                                                       ur_usm_pool_handle_t *) {
+ur_result_t urUSMPoolCreateExp(ur_context_handle_t, ur_device_handle_t,
+                               ur_usm_pool_desc_t *, ur_usm_pool_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t,
-                                                        ur_device_handle_t,
-                                                        ur_usm_pool_handle_t) {
+ur_result_t urUSMPoolDestroyExp(ur_context_handle_t, ur_device_handle_t,
+                                ur_usm_pool_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
-                                                        ur_usm_pool_info_t,
-                                                        void *, size_t) {
+ur_result_t urUSMPoolSetInfoExp(ur_usm_pool_handle_t, ur_usm_pool_info_t,
+                                void *, size_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
+ur_result_t urUSMPoolGetDefaultDevicePoolExp(ur_context_handle_t,
+                                             ur_device_handle_t,
+                                             ur_usm_pool_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t,
-                                                        ur_usm_pool_info_t,
-                                                        void *, size_t *) {
+ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t, ur_usm_pool_info_t,
+                                void *, size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
+ur_result_t urUSMPoolGetDevicePoolExp(ur_context_handle_t, ur_device_handle_t,
+                                      ur_usm_pool_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t) {
+ur_result_t urUSMPoolSetDevicePoolExp(ur_context_handle_t, ur_device_handle_t,
+                                      ur_usm_pool_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
-                                                       ur_device_handle_t,
-                                                       ur_usm_pool_handle_t,
-                                                       size_t) {
+ur_result_t urUSMPoolTrimToExp(ur_context_handle_t, ur_device_handle_t,
+                               ur_usm_pool_handle_t, size_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
-                                                          void *, const void *,
-                                                          size_t) {
+ur_result_t urUSMContextMemcpyExp(ur_context_handle_t, void *, const void *,
+                                  size_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+ur_result_t urUSMHostAllocRegisterExp(
     ur_context_handle_t /*hContext*/, void * /*pHostMem*/, size_t /*size*/,
     const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
-    ur_context_handle_t /*hContext*/, void * /*pHostMem*/) {
+ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t /*hContext*/,
+                                        void * /*pHostMem*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

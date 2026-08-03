@@ -16,6 +16,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+
+#include "loader/ur_adapter_search.hpp"
 #else
 #include <dlfcn.h>
 #endif
@@ -50,13 +52,31 @@ static void loadOCLLibraryImpl() {
   OCLLibHandle =
       LoadLibraryExA("OpenCL.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (!OCLLibHandle) {
-    DWORD error = GetLastError();
-    UR_LOG(ERR,
-           "Failed to load OpenCL.dll from system directory (error code: {})",
-           error);
-    return;
+    DWORD sysError = GetLastError();
+    UR_LOG(DEBUG,
+           "Failed to load OpenCL.dll from system directory (error code: "
+           "{}), trying the directory containing this module",
+           sysError);
+
+    if (auto moduleDir = ur_loader::getLoaderLibPath()) {
+      auto oclDllPath = (*moduleDir / "OpenCL.dll").string();
+      OCLLibHandle = LoadLibraryExA(oclDllPath.c_str(), NULL,
+                                    LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
+                                        LOAD_LIBRARY_SEARCH_SYSTEM32);
+    }
+
+    if (!OCLLibHandle) {
+      DWORD dirError = GetLastError();
+      UR_LOG(ERR,
+             "Failed to load OpenCL.dll from the module directory (error code: "
+             "{})",
+             dirError);
+      return;
+    }
+    UR_LOG(DEBUG, "Successfully loaded OpenCL.dll from the module directory");
+  } else {
+    UR_LOG(DEBUG, "Successfully loaded OpenCL.dll from system directory");
   }
-  UR_LOG(DEBUG, "Successfully loaded OpenCL.dll");
 #else
   OCLLibHandle = dlopen("libOpenCL.so.1", RTLD_NOW | RTLD_LOCAL);
   if (!OCLLibHandle) {

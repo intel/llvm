@@ -13,9 +13,14 @@ RUN zypper --non-interactive refresh && \
       automake \
       libtool \
       awk \
-      git && \
+      git \
+      gzip \
+      ccache && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
     zypper clean --all
+
+COPY scripts/build_zstd.sh /build_zstd.sh
+RUN /build_zstd.sh
 
 COPY scripts/create-sycl-user.sh /user-setup.sh
 RUN /user-setup.sh

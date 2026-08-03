@@ -16,8 +16,8 @@ int main() {
     buffer<int32_t, 1> buf(&data, range<1>(1));
 
     testQueue.submit([&](handler &cgh) {
-      auto globAcc = buf.template get_access<access::mode::atomic>(cgh);
-      auto resultAcc = resultBuf.template get_access<access::mode::write>(cgh);
+      auto globAcc = buf.template get_access<access_mode::atomic>(cgh);
+      auto resultAcc = resultBuf.template get_access<access_mode::write>(cgh);
       cgh.single_task<class foo>([=]() {
         auto a = globAcc[0];
         char result = 0;

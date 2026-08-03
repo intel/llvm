@@ -73,8 +73,8 @@ void testcopyD2HImage() {
   // image with write accessor to it in kernel
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
-  constexpr auto SYCLRead = sycl::access::mode::read;
-  constexpr auto SYCLWrite = sycl::access::mode::write;
+  constexpr auto SYCLRead = sycl::access_mode::read;
+  constexpr auto SYCLWrite = sycl::access_mode::write;
 
   const sycl::range<1> ImgSize_1D(width);
   // for a buffer, a range<2> would be  (height, width).
@@ -162,8 +162,8 @@ void testcopyH2DImage() {
 
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
-  constexpr auto SYCLRead = sycl::access::mode::read;
-  constexpr auto SYCLWrite = sycl::access::mode::write;
+  constexpr auto SYCLRead = sycl::access_mode::read;
+  constexpr auto SYCLWrite = sycl::access_mode::write;
 
   const sycl::range<1> ImgSize_1D(width);
   // for a buffer, a range<2> would be  (height, width).

@@ -60,7 +60,7 @@ int main() {
     sycl::buffer<int, 1> Buf{sycl::range{1}};
     Q.submit([&](sycl::handler &CGH) {
       CGH.use_kernel_bundle(ExecBundle);
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class Kernel3Name>([=](sycl::kernel_handler KH) {
         Acc[0] = KH.get_specialization_constant<SpecConst2>();
       });
@@ -72,7 +72,7 @@ int main() {
   {
     sycl::buffer<TestStruct, 1> Buf{sycl::range{1}};
     Q.submit([&](sycl::handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(CGH);
       CGH.set_specialization_constant<SpecConst3>(TestStruct{1, 2});
       const auto SC = CGH.get_specialization_constant<SpecConst4>();
       assert(SC == 42);

@@ -364,6 +364,14 @@ fill_copy_args(detail::handler_impl *impl,
                  DestOffset, DestExtent, CopyExtent);
 }
 
+static std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+getNativeGraphImpl(queue_impl &Queue) {
+  ur_exp_graph_handle_t UrGraphHandle = nullptr;
+  Queue.getAdapter().call<UrApiKind::urQueueGetGraphExp>(Queue.getHandleRef(),
+                                                         &UrGraphHandle);
+  return Queue.getContextImpl().getNativeGraph(UrGraphHandle);
+}
+
 } // namespace detail
 
 handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
@@ -638,7 +646,8 @@ detail::EventImplPtr handler::finalize() {
         std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::EnqueueNativeCommand:
-  case detail::CGType::CodeplayHostTask: {
+  case detail::CGType::CodeplayHostTask:
+  case detail::CGType::NativeHostTask: {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(
@@ -763,12 +772,31 @@ detail::EventImplPtr handler::finalize() {
   // Because command graph case is handled right above.
   assert(Queue);
 
-  // Native graph recording limitation
   if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "SYCL host_task is not supported in native recording mode. Use "
-        "zeCommandListAppendHostFunction as a workaround.");
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Only restricted host tasks may be captured in "
+                          "native recording mode. The restricted host tasks "
+                          "API needs to be used and support in the backend "
+                          "required on this device.");
+  }
+
+  // Host tasks in native recording mode are captured into the native graph
+  // rather than submitted to the scheduler.
+  if (type == detail::CGType::NativeHostTask && Queue->isNativeRecording()) {
+    auto GraphImpl = detail::getNativeGraphImpl(*Queue);
+    assert(GraphImpl && "Native graph handle expired while recording");
+
+    auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
+    // Store callback in the graph to manage its lifetime
+    auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
+        std::make_unique<detail::EnqueueHostTaskData>(
+            detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask)));
+
+    Queue->getAdapter().call<detail::UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), detail::NativeHostTask<false>, CallbackData,
+        nullptr, 0, nullptr, nullptr);
+
+    return detail::event_impl::create_completed_host_event();
   }
   if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
     throw sycl::exception(
@@ -1685,9 +1713,23 @@ void handler::SetHostTask(std::function<void()> Func) {
 void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
   range<1> r(1);
   setNDRangeDescriptor(detail::nd_range_view(r));
-  impl->MHostTask.reset(
-      new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
-                           true));
+  impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+  detail::queue_impl *Queue = impl->get_queue_or_null();
+  if (Queue) {
+    detail::adapter_impl &Adapter = getContextImpl().getAdapter();
+    ur_bool_t NativeHostTaskSupport = false;
+
+    const ur_result_t Res = Adapter.call_nocheck<UrApiKind::urDeviceGetInfo>(
+        detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+        UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
+        sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
+    if (Res == UR_RESULT_SUCCESS && NativeHostTaskSupport) {
+      setType(detail::CGType::NativeHostTask);
+      return;
+    }
+  }
+
   setType(detail::CGType::CodeplayHostTask);
 }
 

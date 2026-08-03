@@ -92,7 +92,9 @@ context::get_info() const {
 #define __SYCL_CONTEXT_INFO_INST(NAME, RETURN_T)                               \
   template __SYCL_EXPORT RETURN_T context::get_info<info::context::NAME>()     \
       const;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_CONTEXT_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_CONTEXT_INFO_INST(platform, sycl::platform)
 __SYCL_CONTEXT_INFO_INST(devices, std::vector<sycl::device>)
 __SYCL_CONTEXT_INFO_INST(atomic_memory_order_capabilities,

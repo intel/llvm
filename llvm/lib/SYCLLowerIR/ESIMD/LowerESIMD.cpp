@@ -1232,7 +1232,7 @@ static bool translateVStore(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
 
 static bool translateFMADD(CallInst &CI) {
   IRBuilder<> Builder(&CI);
-  Instruction *FMAI = Builder.CreateIntrinsic(
+  Instruction *FMAI = Builder.CreateIntrinsicWithoutFolding(
       CI.getType(), Intrinsic::fma,
       {CI.getArgOperand(0), CI.getArgOperand(1), CI.getArgOperand(2)});
   FMAI->setDebugLoc(CI.getDebugLoc());

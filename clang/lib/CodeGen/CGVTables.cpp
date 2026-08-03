@@ -1006,6 +1006,14 @@ llvm::GlobalVariable *CodeGenVTables::GenerateConstructionVTable(
   llvm::GlobalVariable *VTable =
       CGM.CreateOrReplaceCXXRuntimeVariable(Name, VTType, Linkage, Align);
 
+  // dynamic_cast assumes the vtable address is unique; see
+  // https://github.com/llvm/llvm-project/pull/200108. The address is
+  // insignificant either when no RTTI is emitted or for a weak vtable on a
+  // target that may duplicate vtables. In those cases the vtable can be marked
+  // unnamed_addr.
+  if (!CGM.shouldEmitRTTI() || CGM.mayVTableBeDuplicated(VTable->getLinkage()))
+    VTable->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+
   llvm::Constant *RTTI = CGM.GetAddrOfRTTIDescriptor(
       CGM.getContext().getCanonicalTagType(Base.getBase()));
 
@@ -1089,6 +1097,7 @@ void CodeGenVTables::GenerateRelativeVTableAlias(llvm::GlobalVariable *VTable,
     assert(VTableAlias->getLinkage() == Linkage);
   }
   VTableAlias->setVisibility(VTable->getVisibility());
+  VTableAlias->setUnnamedAddr(VTable->getUnnamedAddr());
 
   // Both of these will now imply dso_local for the vtable.
   if (!VTable->hasComdat()) {
@@ -1217,6 +1226,13 @@ CodeGenModule::getVTableLinkage(const CXXRecordDecl *RD) {
   }
 
   llvm_unreachable("Invalid TemplateSpecializationKind!");
+}
+
+bool CodeGenModule::mayVTableBeDuplicated(
+    llvm::GlobalValue::LinkageTypes Linkage) const {
+  return getTarget().getVTableUniqueness() ==
+             VTableUniquenessKind::UniqueIfStrongLinkage &&
+         llvm::GlobalValue::isWeakForLinker(Linkage);
 }
 
 /// This is a callback from Sema to tell us that a particular vtable is

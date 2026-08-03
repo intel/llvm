@@ -338,9 +338,10 @@ ur_result_t ur_mem_handle_t_::makeWithNative(native_type NativeMem,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
-    ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
-    const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
+ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
+                              ur_mem_flags_t flags, size_t size,
+                              const ur_buffer_properties_t *pProperties,
+                              ur_mem_handle_t *phBuffer) {
   auto Context = cast(hContext);
   cl_int RetErr = CL_INVALID_OPERATION;
   if (pProperties) {
@@ -412,10 +413,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
-    ur_context_handle_t hContext, ur_mem_flags_t flags,
-    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    void *pHost, ur_mem_handle_t *phMem) {
+ur_result_t urMemImageCreate(ur_context_handle_t hContext, ur_mem_flags_t flags,
+                             const ur_image_format_t *pImageFormat,
+                             const ur_image_desc_t *pImageDesc, void *pHost,
+                             ur_mem_handle_t *phMem) {
 
   auto Context = cast(hContext);
   cl_int RetErr = CL_INVALID_OPERATION;
@@ -440,10 +441,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
-    ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
-    ur_buffer_create_type_t bufferCreateType, const ur_buffer_region_t *pRegion,
-    ur_mem_handle_t *phMem) {
+ur_result_t urMemBufferPartition(ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
+                                 ur_buffer_create_type_t bufferCreateType,
+                                 const ur_buffer_region_t *pRegion,
+                                 ur_mem_handle_t *phMem) {
 
   auto Buffer = cast(hBuffer);
   cl_int RetErr = CL_INVALID_OPERATION;
@@ -483,13 +484,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   return mapCLErrorToUR(RetErr);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
-    ur_mem_handle_t hMem, ur_device_handle_t, ur_native_handle_t *phNativeMem) {
+ur_result_t urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t,
+                                 ur_native_handle_t *phNativeMem) {
   auto Mem = cast(hMem);
   return getNativeHandle(Mem->CLMemory, phNativeMem);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+ur_result_t urMemBufferCreateWithNativeHandle(
     ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
     const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
   cl_mem NativeHandle = reinterpret_cast<cl_mem>(hNativeMem);
@@ -501,7 +502,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+ur_result_t urMemImageCreateWithNativeHandle(
     ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
@@ -515,11 +516,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
-                                                 ur_mem_info_t propName,
-                                                 size_t propSize,
-                                                 void *pPropValue,
-                                                 size_t *pPropSizeRet) {
+ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
+                         size_t propSize, void *pPropValue,
+                         size_t *pPropSizeRet) {
 
   auto Memory = cast(hMemory);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
@@ -549,11 +548,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
-                                                      ur_image_info_t propName,
-                                                      size_t propSize,
-                                                      void *pPropValue,
-                                                      size_t *pPropSizeRet) {
+ur_result_t urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t propName,
+                              size_t propSize, void *pPropValue,
+                              size_t *pPropSizeRet) {
 
   auto Memory = cast(hMemory);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
@@ -578,13 +575,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
+ur_result_t urMemRetain(ur_mem_handle_t hMem) {
   auto Mem = cast(hMem);
   Mem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
+ur_result_t urMemRelease(ur_mem_handle_t hMem) {
   auto Mem = cast(hMem);
   if (Mem->RefCount.release()) {
     delete Mem;
@@ -592,47 +589,42 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(ur_context_handle_t,
-                                                         void *, void **,
-                                                         size_t *) {
+ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *, void **,
+                                 size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(ur_context_handle_t,
-                                                         void *) {
+ur_result_t urIPCPutMemHandleExp(ur_context_handle_t, void *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(ur_context_handle_t,
-                                                          ur_device_handle_t,
-                                                          void *, size_t,
-                                                          void **) {
+ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t, ur_device_handle_t,
+                                  void *, size_t, void **) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
-                                                           void *) {
+ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
-    ur_context_handle_t, ur_physical_mem_handle_t, void **, size_t *) {
+ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t,
+                                     ur_physical_mem_handle_t, void **,
+                                     size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urIPCPutPhysMemHandleExp(ur_context_handle_t, const void *) {
+ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t, const void *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urIPCOpenPhysMemHandleExp(ur_context_handle_t, ur_device_handle_t, const void *,
-                          size_t, ur_physical_mem_handle_t *) {
+ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t, ur_device_handle_t,
+                                      const void *, size_t,
+                                      ur_physical_mem_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urIPCClosePhysMemHandleExp(ur_context_handle_t, ur_physical_mem_handle_t) {
+ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t,
+                                       ur_physical_mem_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

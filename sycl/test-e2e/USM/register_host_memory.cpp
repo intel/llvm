@@ -14,6 +14,8 @@
 //    code (device writes to a read_only range are undefined behavior and are
 //    therefore not exercised).
 
+#include "Inputs/register_host_memory_helpers.hpp"
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
 #include <sycl/usm.hpp>
@@ -24,22 +26,9 @@
 
 #if defined(_WIN32)
 #include <malloc.h>
-#include <windows.h>
-#else
-#include <unistd.h>
 #endif
 
 namespace syclexp = sycl::ext::oneapi::experimental;
-
-static size_t getHostPageSize() {
-#if defined(_WIN32)
-  SYSTEM_INFO Info;
-  GetSystemInfo(&Info);
-  return static_cast<size_t>(Info.dwPageSize);
-#else
-  return static_cast<size_t>(sysconf(_SC_PAGESIZE));
-#endif
-}
 
 static void *allocatePageAligned(size_t Alignment, size_t Size) {
 #if defined(_WIN32)
@@ -64,8 +53,7 @@ int main() {
   const size_t PageSize = getHostPageSize();
   const size_t NumElems = 1024;
   // Round the byte size up to a multiple of the page size as required.
-  size_t NumBytes = NumElems * sizeof(int);
-  NumBytes = (NumBytes + PageSize - 1) & ~(PageSize - 1);
+  const size_t NumBytes = roundUpToPage(NumElems * sizeof(int), PageSize);
 
   int *Data = static_cast<int *>(allocatePageAligned(PageSize, NumBytes));
   assert(Data != nullptr && "host allocation failed");

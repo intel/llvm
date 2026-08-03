@@ -2,6 +2,9 @@
 // RUN: %{run} %t.out
 // REQUIRES: opencl, opencl_icd
 
+#define CL_ENABLE_BETA_EXTENSIONS
+#include <CL/cl.h>
+#include <CL/cl_ext.h>
 #include <sycl/backend.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/ext/oneapi/experimental/graph.hpp>

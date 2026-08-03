@@ -51,7 +51,8 @@ void foo(queue &q, int n, bool profiling_enabled) {
       const char *expected_msg =
           "Profiling information is unavailable as the "
           "queue associated with the event does not have "
-          "the 'enable_profiling' property.";
+          "the 'enable_profiling' property or the event "
+          "was not created with the 'enable_profiling' property.";
       assert(std::strcmp(e.what(), expected_msg) == 0 &&
              "Exception message does not match expected message");
     }

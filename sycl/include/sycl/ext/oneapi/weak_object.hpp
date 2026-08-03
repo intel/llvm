@@ -30,7 +30,7 @@ namespace detail {
 using namespace ::sycl::detail;
 
 // Helper for creating ranges for empty weak_objects.
-template <int Dims> static range<Dims> createDummyRange() {
+template <int Dims> range<Dims> createDummyRange() {
   static_assert(Dims >= 0 && Dims < 4, "Invalid dimensionality in range.");
   if constexpr (Dims == 0)
     return {};
