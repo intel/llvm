@@ -108,7 +108,8 @@ implementation-defined.
 On devices that support two GRF sizes, implementations typically select the
 smaller size by default.
 
-A kernel may be defined with at most one of these GRF-setting properties.
+The two properties defined below and the properties from link:../proposed/sycl_ext_intel_maximum_registers.asciidoc[sycl_ext_intel_maximum_registers] are all mutually exclusive.
+A kernel may be decorated with at most one of these properties.
 
 [_Note_: Using these properties to select a larger GRF size may impose a lower
 limit on the kernel's maximum work-group size.
