@@ -531,18 +531,11 @@ if __name__ == "__main__":
         default=options.compute_benchmarks_source_dir,
     )
     parser.add_argument(
-        "--offload-install-dir",
+        "--offload-prefix",
         type=str,
-        help="Directory containing libLLVMOffload (-> OFFLOAD_INSTALL_DIR). "
-        "Set together with --offload-include-dir to enable the OFFLOAD SubmitKernel benchmark.",
-        default=options.offload_install_dir,
-    )
-    parser.add_argument(
-        "--offload-include-dir",
-        type=str,
-        help="Directory containing OffloadAPI.h (-> OFFLOAD_INCLUDE_DIR). "
-        "Set together with --offload-install-dir to enable the OFFLOAD SubmitKernel benchmark.",
-        default=options.offload_include_dir,
+        help="LLVM install prefix containing libLLVMOffload in lib and OffloadAPI.h "
+        "in include/offload. Enables the OFFLOAD SubmitKernel benchmark.",
+        default=options.offload_prefix,
     )
     parser.add_argument(
         "--force-offload-plugin",
@@ -813,8 +806,7 @@ if __name__ == "__main__":
     options.offline = args.offline
     options.redownload = args.redownload
     options.compute_benchmarks_source_dir = args.compute_benchmarks_source_dir
-    options.offload_install_dir = args.offload_install_dir
-    options.offload_include_dir = args.offload_include_dir
+    options.offload_prefix = args.offload_prefix
     options.force_offload_plugin = args.force_offload_plugin
     options.sycl = args.sycl
     options.iterations = args.iterations
@@ -862,17 +854,15 @@ if __name__ == "__main__":
         if not os.path.isdir(args.compute_benchmarks_source_dir):
             parser.error("Specified --compute-benchmarks-source-dir is not a valid path")
         options.compute_benchmarks_source_dir = os.path.abspath(args.compute_benchmarks_source_dir)
-    if args.offload_install_dir is not None or args.offload_include_dir is not None:
-        if args.offload_install_dir is None or args.offload_include_dir is None:
+    if args.offload_prefix is not None:
+        offload_prefix = os.path.abspath(args.offload_prefix)
+        if not os.path.isdir(os.path.join(offload_prefix, "lib")):
+            parser.error("Specified --offload-prefix does not contain a lib directory")
+        if not os.path.isdir(os.path.join(offload_prefix, "include", "offload")):
             parser.error(
-                "--offload-install-dir and --offload-include-dir must both be defined together"
+                "Specified --offload-prefix does not contain an include/offload directory"
             )
-        if not os.path.isdir(args.offload_install_dir):
-            parser.error("Specified --offload-install-dir is not a valid path")
-        if not os.path.isdir(args.offload_include_dir):
-            parser.error("Specified --offload-include-dir is not a valid path")
-        options.offload_install_dir = os.path.abspath(args.offload_install_dir)
-        options.offload_include_dir = os.path.abspath(args.offload_include_dir)
+        options.offload_prefix = offload_prefix
     # Initialize GitHub summary tracking
     execution_stats = {
         "total_tests": 0,

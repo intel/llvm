@@ -118,7 +118,7 @@ For example `--filter "graph_api_*"`
 
 When a build using local source or offload options finishes successfully, a JSON build-complete marker (`benchmark_build_complete.json`) is written into the project's build directory. It records the source contents and relevant build configuration. On subsequent runs the build is skipped when both still match, so editing source files or changing build options triggers a rebuild automatically. If `--compute-benchmarks-source-dir` points at a directory that is **not** a git repository, the benchmarks are always rebuilt.
 
-`--offload-install-dir <dir>` / `--offload-include-dir <dir>` - directories providing liboffload: the library dir containing `libLLVMOffload` (passed as `OFFLOAD_INSTALL_DIR`) and the header dir containing `OffloadAPI.h` (passed as `OFFLOAD_INCLUDE_DIR`). Both must be set together. When set, the OFFLOAD (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled. For an LLVM install tree built with `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF` these are typically `<install>/lib` and `<install>/include/offload`.
+`--offload-prefix <dir>` - LLVM install prefix providing liboffload. The library is read from `<dir>/lib` (passed as `OFFLOAD_INSTALL_DIR`) and headers from `<dir>/include/offload` (passed as `OFFLOAD_INCLUDE_DIR`). When set, the OFFLOAD (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled.
 
 `--force-offload-plugin <name>` - backend name (`level_zero`, `cuda`, `amdgpu`, or `host`) exported as the `FORCE_OFFLOAD_PLUGIN` environment variable for the benchmark executable process. The OFFLOAD benchmark uses it to select the offload device by backend.
 

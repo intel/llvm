@@ -40,7 +40,7 @@ def runtime_to_name(runtime: RUNTIMES) -> str:
 
 
 def offload_enabled() -> bool:
-    return bool(options.offload_install_dir and options.offload_include_dir)
+    return bool(options.offload_prefix)
 
 
 def submit_kernel_runtimes() -> list[RUNTIMES]:
@@ -95,8 +95,8 @@ class ComputeBench(Suite):
         if offload_enabled():
             extra_args += [
                 "-DBUILD_OL=ON",
-                f"-DOFFLOAD_INSTALL_DIR={options.offload_install_dir}",
-                f"-DOFFLOAD_INCLUDE_DIR={options.offload_include_dir}",
+                f"-DOFFLOAD_INSTALL_DIR={Path(options.offload_prefix) / 'lib'}",
+                f"-DOFFLOAD_INCLUDE_DIR={Path(options.offload_prefix) / 'include' / 'offload'}",
             ]
 
         if self._project is None:
