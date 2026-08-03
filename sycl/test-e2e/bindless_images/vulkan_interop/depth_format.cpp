@@ -20,6 +20,8 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+// imgSizeBytes is now passed in: it must be the real (tiling-padded) import
+// size, not globalSize.size()*sizeof(float).
 template <typename InteropMemHandleT>
 void runSycl(const sycl::device &syclDevice, sycl::range<2> globalSize,
              sycl::range<2> localSize, InteropMemHandleT extMemInHandle,
@@ -121,9 +123,7 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
   VkImage vkOutputImage;
   VkDeviceMemory vkOutputImageMemory;
 
-  // The imported allocation size must match the image's real (tiling-padded)
-  // memory requirement, not the element-count size, or the SYCL import
-  // under-describes the image on drivers that pad. Captured below.
+  // Real import size; set to the image memory requirement below.
   size_t importSizeBytes = imgSizeBytes;
 
   // Initialize image input data.
@@ -135,10 +135,8 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
 
   // Create/allocate device images.
   {
-    // STORAGE usage is required: SYCL accesses the imported image as a storage
-    // image, and only that usage bit yields a layout compatible with the
-    // storage-image reads/writes the kernel performs. Without it the import is
-    // laid out for transfer only and reads land at the wrong offset.
+    // STORAGE_BIT: SYCL reads/writes this as a storage image; without it the
+    // layout is transfer-only and imported reads land at the wrong offset.
     vkInputImage = vkutil::createImage(imgType, imgInFormat, imgExtent,
                                        VK_IMAGE_USAGE_STORAGE_BIT |
                                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -147,12 +145,15 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
     VkMemoryRequirements memRequirements;
     auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
         vkInputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
+    // Import must describe the whole (padded) allocation the driver requires.
     importSizeBytes = std::max<size_t>(imgSizeBytes, memRequirements.size);
     vkInputImageMemory = vkutil::allocateDeviceMemory(
         imgSizeBytes, inputImageMemoryTypeIndex, vkInputImage);
     VK_CHECK_CALL(vkBindImageMemory(vk_device, vkInputImage, vkInputImageMemory,
                                     0 /*memoryOffset*/));
 
+    // STORAGE_BIT: same as input image; the kernel writes it as a storage
+    // image.
     vkOutputImage = vkutil::createImage(imgType, imgOutFormat, imgExtent,
                                         VK_IMAGE_USAGE_STORAGE_BIT |
                                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -277,6 +278,7 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
 
   // Call into SYCL to fetch from input image, and populate the output image.
   printString("Calling into SYCL with interop memory handles\n");
+  // Pass the real import size so the SYCL import matches the Vulkan allocation.
   runSycl(syclDevice, dims, localSize, imgMemIn, imgMemOut, importSizeBytes);
 
   // Copy image memory to temporary staging buffer, and back to host.
