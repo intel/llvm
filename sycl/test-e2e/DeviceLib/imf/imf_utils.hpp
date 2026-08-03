@@ -7,6 +7,8 @@
 #include <iostream>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/half_type.hpp>
 #include <type_traits>
 
 #if defined(__SPIR__) || defined(__SPIRV__)

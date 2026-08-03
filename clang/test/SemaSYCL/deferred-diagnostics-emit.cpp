@@ -33,7 +33,7 @@ int calledFromKernel(int a) {
   // expected-error@+1 {{'__float128' is not supported on this target}}
   __float128 malFloat = 40;
 
-  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
   variadic(5);
 
   return a + 20;
@@ -164,7 +164,7 @@ void setup_sycl_operation(const T VA[]) {
       foo<__int128_t>();
 
       // ========= variadic
-      //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+      //expected-error@+1 {{SYCL device code does not support variadic functions}}
       variadic(5);
     });
   });
@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
       // expected-error@+1 {{'__float128' is not supported on this target}}
       __float128 badFloat = 40; // this SHOULD  trigger a diagnostic
 
-      //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+      //expected-error@+1 {{SYCL device code does not support variadic functions}}
       variadic(5);
 
       // expected-note@+1 {{called by 'operator()'}}

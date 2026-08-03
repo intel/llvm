@@ -13,6 +13,7 @@
 #include <cmath>
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/vector.hpp>
 #include <unordered_set>
 

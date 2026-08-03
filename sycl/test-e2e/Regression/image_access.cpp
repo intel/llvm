@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -Wno-error=deprecated-declarations
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 //==-------------- image_access.cpp - SYCL image accessors test  -----------==//
@@ -24,7 +24,7 @@ int main() {
     sycl::queue Queue;
 
     Queue.submit([&](sycl::handler &CGH) {
-      sycl::accessor<sycl::int4, 1, sycl::access::mode::read,
+      sycl::accessor<sycl::int4, 1, sycl::access_mode::read,
                      sycl::access::target::image,
                      sycl::access::placeholder::false_t>
           A(Image, CGH);
@@ -32,7 +32,7 @@ int main() {
     });
     Queue.wait_and_throw();
 
-    sycl::accessor<sycl::int4, 1, sycl::access::mode::read,
+    sycl::accessor<sycl::int4, 1, sycl::access_mode::read,
                    sycl::access::target::host_image,
                    sycl::access::placeholder::false_t>
         A(Image);

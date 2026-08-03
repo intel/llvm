@@ -24,6 +24,11 @@ template <typename DataT, int NumElements> class __SYCL_EBO vec;
 template <typename DataT, std::size_t N> class marray;
 
 namespace detail {
+
+template <int N>
+inline constexpr bool is_allowed_vec_size_v =
+    N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16;
+
 #if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
@@ -66,16 +71,18 @@ template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
 
 template <typename T, typename = void>
 struct is_ext_vector : std::false_type {};
-template <typename T, typename = void>
-struct is_valid_type_for_ext_vector : std::false_type {};
+template <typename T, int N, typename = void>
+struct is_valid_type_length_for_ext_vector : std::false_type {};
 #if defined(__has_extension)
 #if __has_extension(attribute_ext_vector_type)
 template <typename T, int N>
 using ext_vector = T __attribute__((ext_vector_type(N)));
 template <typename T, int N>
 struct is_ext_vector<ext_vector<T, N>> : std::true_type {};
-template <typename T>
-struct is_valid_type_for_ext_vector<T, std::void_t<ext_vector<T, 2>>>
+template <typename T, int N>
+struct is_valid_type_length_for_ext_vector<
+    T, N,
+    std::enable_if_t<is_allowed_vec_size_v<N>, std::void_t<ext_vector<T, N>>>>
     : std::true_type {};
 #endif
 #endif
@@ -83,7 +90,10 @@ template <typename T>
 inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
 template <typename T>
 inline constexpr bool is_valid_type_for_ext_vector_v =
-    is_valid_type_for_ext_vector<T>::value;
+    is_valid_type_length_for_ext_vector<T, 2>::value;
+template <typename T, int N>
+inline constexpr bool is_valid_type_length_for_ext_vector_v =
+    is_valid_type_length_for_ext_vector<T, N>::value;
 
 template <typename> struct is_swizzle : std::false_type {};
 #if __SYCL_USE_LIBSYCL8_VEC_IMPL
@@ -157,11 +167,6 @@ struct element_type<T __attribute__((ext_vector_type(N)))> {
 #endif
 #endif
 template <typename T> using element_type_t = typename element_type<T>::type;
-
-template <int N>
-inline constexpr bool is_allowed_vec_size_v =
-    N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16;
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

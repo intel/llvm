@@ -33,6 +33,7 @@
 // RUN: %{run-unfiltered-devices} %t.out %t.cache1 44 1 | FileCheck %s -DVAL=44
 
 // CHECK: Result: [[VAL]]
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

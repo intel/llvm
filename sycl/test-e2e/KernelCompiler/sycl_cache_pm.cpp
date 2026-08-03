@@ -27,6 +27,7 @@
 // CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
 // CHECK-READ-FROM-CACHE-NOT: [Persistent Cache]: device binary has been cached
 // CHECK-READ-FROM-CACHE: [Persistent Cache]: using cached device binary
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

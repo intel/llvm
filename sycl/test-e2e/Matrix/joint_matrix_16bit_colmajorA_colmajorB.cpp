@@ -20,6 +20,7 @@
 
 // XFAIL: run-mode && gpu-intel-dg2
 // XFAIL-TRACKER: GSD-5768
+#include <iostream>
 
 #include "common.hpp"
 
@@ -40,9 +41,9 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   std::cout << "subgroup size " << sg_size << " ";
 
   q.submit([&](handler &cgh) {
-     auto accC = bufC.get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.template get_access<access::mode::read_write>(cgh);
-     auto accB = bufB.template get_access<access::mode::read_write>(cgh);
+     auto accC = bufC.get_access<access_mode::read_write>(cgh);
+     auto accA = bufA.template get_access<access_mode::read_write>(cgh);
+     auto accB = bufB.template get_access<access_mode::read_write>(cgh);
 
      cgh.parallel_for<class imatrix<T2, TM, TN, TK>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),

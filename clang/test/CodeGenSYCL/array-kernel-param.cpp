@@ -32,7 +32,7 @@ int main() {
   });
 }
 // CHECK-LABEL: define weak_odr spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8IntArray(
-// CHECK-SAME: ptr noundef byval([[STRUCT___WRAPPER_CLASS:%.*]]) align 4 [[_ARG_ARRAY:%.*]]) #[[ATTR0:[0-9]+]] comdat !srcloc [[META12:![0-9]+]] !kernel_arg_buffer_location [[META13:![0-9]+]] {
+// CHECK-SAME: ptr noundef byval([[STRUCT___WRAPPER_CLASS:%.*]]) align 4 [[_ARG_ARRAY:%.*]]) #[[ATTR0:[0-9]+]] comdat !srcloc [[META12:![0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[__SYCLKERNEL:%.*]] = alloca [[CLASS_ANON:%.*]], align 4
 // CHECK-NEXT:    [[__SYCLKERNEL_ASCAST:%.*]] = addrspacecast ptr [[__SYCLKERNEL]] to ptr addrspace(4)
@@ -72,7 +72,7 @@ int main() {
 //
 //
 // CHECK-LABEL: define weak_odr spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E8PtrArray(
-// CHECK-SAME: ptr noundef byval([[STRUCT___WRAPPER_CLASS_0:%.*]]) align 8 [[_ARG_ARRAYOFPOINTERS:%.*]]) #[[ATTR0]] comdat !srcloc [[META14:![0-9]+]] !kernel_arg_buffer_location [[META13]] {
+// CHECK-SAME: ptr noundef byval([[STRUCT___WRAPPER_CLASS_0:%.*]]) align 8 [[_ARG_ARRAYOFPOINTERS:%.*]]) #[[ATTR0]] comdat !srcloc [[META13:![0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[__SYCLKERNEL:%.*]] = alloca [[CLASS_ANON_1:%.*]], align 8
 // CHECK-NEXT:    [[__SYCLKERNEL_ASCAST:%.*]] = addrspacecast ptr [[__SYCLKERNEL]] to ptr addrspace(4)
@@ -96,7 +96,7 @@ int main() {
 //
 //
 // CHECK-LABEL: define internal spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_ENKUlvE_clEv(
-// CHECK-SAME: ptr addrspace(4) noundef align 8 dereferenceable_or_null(16) [[THIS:%.*]]) #[[ATTR1]] align 2 !srcloc [[META14]] {
+// CHECK-SAME: ptr addrspace(4) noundef align 8 dereferenceable_or_null(16) [[THIS:%.*]]) #[[ATTR1]] align 2 !srcloc [[META13]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // CHECK-NEXT:    [[LOCAL:%.*]] = alloca i32, align 4

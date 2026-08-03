@@ -13,12 +13,15 @@
 
 // Test case for the sycl_ext_oneapi_kernel_compiler_spirv extension. This test
 // loads pre-compiled kernels from a SPIR-V file and runs them.
+#include <iostream>
 
+#include <CL/cl.h>
 #include <array>
 #include <cassert>
 #include <fstream>
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 

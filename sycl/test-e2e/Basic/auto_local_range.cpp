@@ -1,5 +1,6 @@
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <cstdlib>
 #include <sycl/detail/core.hpp>

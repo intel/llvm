@@ -8,6 +8,7 @@
 // REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>

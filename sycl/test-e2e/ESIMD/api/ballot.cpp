@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 
 // This test checks esimd::ballot function.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -37,8 +38,8 @@ template <class T, int N> bool test(queue &Q) {
     buffer<decltype(Res), 1> RB(&Res, range<1>(1));
 
     auto E = Q.submit([&](handler &CGH) {
-      auto In = PB.template get_access<access::mode::read>(CGH);
-      auto Out = RB.template get_access<access::mode::write>(CGH);
+      auto In = PB.template get_access<access_mode::read>(CGH);
+      auto Out = RB.template get_access<access_mode::write>(CGH);
 
       CGH.parallel_for(sycl::range<1>{1}, [=](id<1>) SYCL_ESIMD_KERNEL {
         simd<T, N> Mask;

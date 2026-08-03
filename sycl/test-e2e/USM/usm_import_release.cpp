@@ -73,7 +73,7 @@ int main() {
   int *dst;
   auto dev = q.get_device();
 
-  if (dev.get_info<sycl::info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     // Test system memory to/from USM host memory
     MALLOC(src);
     USM_MALLOC(temp, host);
@@ -81,7 +81,7 @@ int main() {
     test_memcpy(q, src, init_on_host, temp, dst, check_on_host);
   }
 
-  if (dev.get_info<sycl::info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     // Test system memory to/from USM shared memory
     MALLOC(src);
     USM_MALLOC(temp, shared);
@@ -89,7 +89,7 @@ int main() {
     test_memcpy(q, src, init_on_host, temp, dst, check_on_host);
   }
 
-  if (dev.get_info<sycl::info::device::usm_device_allocations>()) {
+  if (dev.has(aspect::usm_device_allocations)) {
     // Test system memory to/from USM device memory
     MALLOC(src);
     USM_MALLOC(temp, device);

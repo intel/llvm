@@ -16,6 +16,7 @@
 // The test verifies esimd::gather() functions accepting Local ACCESSOR
 // and optional compile-time esimd::properties.
 // The gather() calls in this test can use  VS > 1 (number of loads per offset).
+#include <iostream>
 
 #include "Inputs/gather.hpp"
 

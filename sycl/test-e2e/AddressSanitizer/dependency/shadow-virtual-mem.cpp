@@ -4,6 +4,7 @@
 
 // Test for the assumption behide DevASAN shadow memory for L0GPU , which is it
 // is okay to access VirtualMem from different device/context.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

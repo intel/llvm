@@ -1,6 +1,8 @@
 // REQUIRES: linux
 // FIXME: Flaky on HIP and cuda
-// UNSUPPORTED: hip || cuda
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
+// UNSUPPORTED: cuda
 // RUN: %{build} -o %t.out %threads_lib
 //
 // XFAIL: (opencl && gpu)

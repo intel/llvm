@@ -10,6 +10,7 @@
 
 // Test that the wait with a barrier is fully batched, i.e. it doesn't cause
 // extra submissions.
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/backend.hpp>

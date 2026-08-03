@@ -28,7 +28,6 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
-#include <algorithm> // for find_if
 #include <array>      // for array
 #include <cstddef>    // for std::byte
 #include <cstring>    // for size_t, memcpy
@@ -247,6 +246,8 @@ public:
   size_t ext_oneapi_get_device_global_size(const std::string &name) {
     return ext_oneapi_get_device_global_size(detail::string_view{name});
   }
+
+  std::vector<char> ext_oneapi_get_content() const;
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -548,6 +549,18 @@ public:
             typename = std::enable_if_t<_State == bundle_state::executable>>
   size_t ext_oneapi_get_device_global_size(const std::string &name) {
     return detail::kernel_bundle_plain::ext_oneapi_get_device_global_size(name);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_content
+  //  Serializes the kernel_bundle into the SYCLBIN binary format. See
+  //  sycl_ext_oneapi_syclbin for details. Available for any non-source state.
+  /////////////////////////
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
+  std::vector<char> ext_oneapi_get_content() const {
+    return detail::kernel_bundle_plain::ext_oneapi_get_content();
   }
 
 private:
@@ -1014,12 +1027,12 @@ struct include_files
     record.emplace_back(name, content);
   }
   void add(const std::string &name, const std::string &content) {
-    if (std::find_if(record.begin(), record.end(), [&name](auto &p) {
-          return p.first == name;
-        }) != record.end()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Include file '" + name +
-                                "' is already registered");
+    for (auto &p : record) {
+      if (p.first == name) {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Include file '" + name +
+                                  "' is already registered");
+      }
     }
     record.emplace_back(name, content);
   }

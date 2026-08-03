@@ -6,6 +6,7 @@
 // unsuppored on device.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 
 void foo(sycl::half &value) { value += sycl::half(1.0f); }
 

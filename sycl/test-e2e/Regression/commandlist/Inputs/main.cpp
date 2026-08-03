@@ -2,6 +2,7 @@
 
 #include <sycl/properties/all_properties.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>

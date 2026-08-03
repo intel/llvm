@@ -7,6 +7,7 @@
 
 // Disable test due to flacky failures
 // UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22225
 
 #include <sycl/detail/core.hpp>
 
@@ -17,7 +18,7 @@ public:
     sycl::queue Queue{Device};
     sycl::buffer<int, 1> Buf{sycl::range<1>{16}};
     Queue.submit([&](sycl::handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class Dummy>([=]() { Acc[0] = 42; });
     });
   }

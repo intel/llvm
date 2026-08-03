@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 #include "sycl/detail/core.hpp"
+#include <sycl/group_barrier.hpp>
 #include <vector>
 
 using namespace sycl;
@@ -26,7 +27,7 @@ int main() {
             int pos = idx & 1;
             int opp = pos ^ 1;
             local_acc[pos] = acc[idx];
-            item.barrier(access::fence_space::local_space);
+            group_barrier(item.get_group());
             acc[idx] = local_acc[opp];
           });
     });

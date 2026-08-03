@@ -17,6 +17,7 @@
 // lvalue select function.
 // The test verifies that selected values can be changed with avoid to change
 // values, that hasn't beed selected.
+#include <iostream>
 
 #include "functions_1d_select.hpp"
 

@@ -145,6 +145,9 @@ etors:
     - name: EXP_IMAGE_COPY_REGION
       desc: $x_exp_image_copy_region_t
       value: "0x2007"
+    - name: EXP_WIN32_NAME
+      desc: $x_exp_win32_name_t
+      value: "0x2008"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -275,6 +278,24 @@ members:
     - type: void*
       name: handle
       desc: "[in] A win32 file handle."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Windows specific named object"
+details:
+    - "An NT object name identifying a shareable Win32 object (e.g. the name
+       passed to `ID3D12Device::CreateSharedHandle` or to
+       `CreateEvent`/`CreateSemaphore`). The adapter is expected to open the
+       named object on the caller's behalf (equivalent to the application
+       calling `OpenSharedHandleByName` and then importing by handle)."
+    - "Adapters that do not support importing by name must return
+       $X_RESULT_ERROR_UNSUPPORTED_FEATURE. Adapters that do not implement
+       this entry point at all will return $X_RESULT_ERROR_UNINITIALIZED."
+name: $x_exp_win32_name_t
+base: $x_base_desc_t
+members:
+    - type: const void*
+      name: name
+      desc: "[in] NT object name (null-terminated wide string)."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Describes mipmap sampler properties"

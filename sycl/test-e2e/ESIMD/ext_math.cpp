@@ -15,6 +15,7 @@
 // - argument type - half, float
 // - math function - sin, cos, ..., div_ieee, pow
 // - SYCL vs ESIMD APIs
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -345,10 +346,10 @@ bool test(queue &Q, const std::string &Name, InitF Init = InitNarrow<T>{},
     sycl::range<1> LocalRange{1};
 
     auto E = Q.submit([&](handler &CGH) {
-      auto PA = BufA.template get_access<access::mode::read>(CGH);
-      auto PC = BufC.template get_access<access::mode::write>(CGH);
+      auto PA = BufA.template get_access<access_mode::read>(CGH);
+      auto PC = BufC.template get_access<access_mode::write>(CGH);
       if constexpr (IsBinOp) {
-        auto PB = BufB.template get_access<access::mode::read>(CGH);
+        auto PB = BufB.template get_access<access_mode::read>(CGH);
         BinaryDeviceFunc<T, N, Op, Kernel, decltype(PA), decltype(PC)> F(PA, PB,
                                                                          PC);
         CGH.parallel_for(nd_range<1>{GlobalRange, LocalRange}, F);

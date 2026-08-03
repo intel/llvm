@@ -1,4 +1,4 @@
-prefix=@CMAKE_INSTALL_PREFIX@
+prefix=${pcfiledir}/../..
 includedir=${prefix}/@SYCL_INCLUDE_DIR@
 libdir=${prefix}/lib@LLVM_LIBDIR_SUFFIX@
 sycl_version=@SYCL_VERSION_STRING@

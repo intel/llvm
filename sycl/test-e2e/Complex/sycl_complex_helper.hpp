@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iomanip>
+#include <iostream>
 
 #define SYCL_EXT_ONEAPI_COMPLEX
 #include <sycl/detail/core.hpp>

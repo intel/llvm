@@ -21,6 +21,7 @@
 // guaranteed to be two's complement:
 //  - https://llvm.org/docs/LangRef.html
 //  - https://bugs.llvm.org/show_bug.cgi?id=950
+#include <iostream>
 
 #include "operator_bitwise_not.hpp"
 

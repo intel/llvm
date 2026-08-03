@@ -41,7 +41,7 @@ int main() {
   return 0;
 }
 //.
-// CHECK: attributes #[[ATTR0:[0-9]+]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+// CHECK: attributes #[[ATTR0:[0-9]+]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}function-attrs.cpp" }
 // CHECK: attributes #[[ATTR1]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "uniform-work-group-size" }
 // CHECK: attributes #[[ATTR2]] = { convergent nounwind "uniform-work-group-size" }
 //.

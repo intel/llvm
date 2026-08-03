@@ -2,12 +2,17 @@
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
-// UNSUPPORTED: ze_debug, level_zero_v2_adapter
+// UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
+// UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: V1-only; V2 does not preserve zeCommandListClose/
 // zeCommandQueueExecuteCommandLists flush points.
 
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
+
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22188
 
 // To test batching on out-of-order queue:
 // Set batching to 4 explicitly

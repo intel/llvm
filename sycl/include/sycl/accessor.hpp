@@ -10,7 +10,8 @@
 
 #include <sycl/access/access.hpp>                     // for target, mode
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
-#include <sycl/detail/common.hpp>                     // for code_location
+#include <sycl/detail/code_location.hpp>              // for code_location
+#include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>                    // for __SYCL_SPECIAL...
 #include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT

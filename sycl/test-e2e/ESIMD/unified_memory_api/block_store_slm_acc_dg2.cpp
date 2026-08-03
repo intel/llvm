@@ -14,6 +14,7 @@
 // and using optional compile-time esimd::properties and local accessors.
 // The slm_block_store() calls in this test use the mask operand and
 // requires DG2 features.
+#include <iostream>
 
 #include "Inputs/block_store.hpp"
 

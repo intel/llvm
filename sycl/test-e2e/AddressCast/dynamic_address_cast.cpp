@@ -8,6 +8,8 @@
 
 // Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit
 // UNSUPPORTED: cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22224
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -31,10 +33,10 @@ int main() {
   Queue
       .submit([&](sycl::handler &cgh) {
         auto GlobalAccessor =
-            GlobalBuffer.get_access<sycl::access::mode::read_write>(cgh);
+            GlobalBuffer.get_access<sycl::access_mode::read_write>(cgh);
         auto LocalAccessor = sycl::local_accessor<int>(1, cgh);
         auto ResultAccessor =
-            ResultBuffer.get_access<sycl::access::mode::write>(cgh);
+            ResultBuffer.get_access<sycl::access_mode::write>(cgh);
         cgh.parallel_for<class Kernel>(
             sycl::nd_range<1>(NItems, 1), [=](sycl::nd_item<1> Item) {
               bool Success = true;

@@ -9,7 +9,9 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
+#include <iosfwd>      // for ostream
 #include <string_view> // for string_view
 
 namespace sycl {
@@ -36,6 +38,8 @@ using backend_input_t =
 template <backend Backend, typename SYCLObjectT>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
+
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be);
 
 namespace detail {
 inline std::string_view get_backend_name_no_vendor(backend Backend) {

@@ -1,4 +1,4 @@
-// UNSUPPORTED: windows || target-amd
+// UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
 // RUN: not --crash env SYCL_TRACE_TERMINATE_ON_WARNING=1 %{run} sycl-trace --verify %t.out | FileCheck %s
 

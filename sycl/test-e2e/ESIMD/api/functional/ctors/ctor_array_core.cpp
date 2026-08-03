@@ -15,6 +15,7 @@
 //  - construct fixed-size array that filled with reference values
 //  - use std::move() to provide it to simd constructor
 //  - bitwise compare expected and retrieved values
+#include <iostream>
 
 #include "ctor_array.hpp"
 

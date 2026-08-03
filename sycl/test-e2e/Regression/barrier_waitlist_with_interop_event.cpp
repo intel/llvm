@@ -2,6 +2,7 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 #include <level_zero/ze_api.h>
 #include <sycl/detail/core.hpp>
@@ -16,7 +17,7 @@ using namespace sycl;
 
 int main() {
   sycl::queue Queue;
-  if (!Queue.get_device().get_info<info::device::usm_shared_allocations>())
+  if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations))
     return 0;
 
   const size_t N = 1024;

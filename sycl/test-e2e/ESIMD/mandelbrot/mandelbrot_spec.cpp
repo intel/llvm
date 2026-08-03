@@ -13,6 +13,7 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{run} %t.out %t.dir/output_spec.ppm %S/golden_hw.ppm 512 -2.09798 -1.19798 0.004 4.0
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -143,7 +144,7 @@ int main(int argc, char *argv[]) {
     for (int iter = 0; iter <= num_iters; ++iter) {
       auto e = q.submit([&](sycl::handler &cgh) {
         auto accOutput =
-            imgOutput.get_access<uint4, sycl::access::mode::write>(cgh);
+            imgOutput.get_access<uint4, sycl::access_mode::write>(cgh);
 
         cgh.set_specialization_constant<CrunchConst>(crunch);
         cgh.set_specialization_constant<XoffConst>(xoff);

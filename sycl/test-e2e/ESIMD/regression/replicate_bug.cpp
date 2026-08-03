@@ -10,6 +10,7 @@
 //
 // This is a regression test for a bug in simd::replicate_w interface:
 // call v.replicate_w<VL, 1>(1) should broadcast second element of v VL times.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

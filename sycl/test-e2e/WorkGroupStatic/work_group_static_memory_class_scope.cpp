@@ -5,6 +5,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/work_group_static.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <cassert>
 #include <vector>
@@ -49,13 +50,13 @@ int main() {
     buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 
     Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
       Cgh.parallel_for<KernelA>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             LocalMem::localIDBuff[Item.get_local_linear_id()] =
                 Item.get_local_linear_id();
 
-            Item.barrier();
+            sycl::group_barrier(Item.get_group());
             // Check that the memory is accessible from other work-items
             size_t LocalIdx = Item.get_local_linear_id() ^ 1;
             size_t GlobalIdx = Item.get_global_linear_id() ^ 1;
@@ -73,7 +74,7 @@ int main() {
     buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 
     Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
       Cgh.parallel_for<KernelB>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             sycl::ext::oneapi::experimental::work_group_static<int> localIDBuff;
@@ -81,7 +82,7 @@ int main() {
             if (Item.get_group().leader())
               localIDBuff = id;
 
-            Item.barrier();
+            sycl::group_barrier(Item.get_group());
             // Check that the memory is accessible from other work-items
             size_t GlobalIdx = Item.get_global_linear_id();
             Acc[GlobalIdx] = localIDBuff;

@@ -15,6 +15,7 @@
 
 // RUN: %{build} -Wno-error=unsupported-floating-point-opt %{fpflags} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "Inputs/lsc_usm_store.hpp"
 

@@ -10,7 +10,8 @@
 // targets, and that compilation occurs for those targets.
 
 // UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20988
+// UNSUPPORTED-INTENDED: This test is specific to the old offload model. See
+// below for more info and a test for the new offload model.
 //
 // Explanation: Old offloading model was accepting compilation of a fat binary
 // for AOT target without specifying specific device. In that case specific

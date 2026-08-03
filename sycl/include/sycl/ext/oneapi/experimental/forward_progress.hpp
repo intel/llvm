@@ -8,6 +8,10 @@
 
 #pragma once
 
+#include <sycl/detail/info_desc_traits.hpp>
+
+#include <vector>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
@@ -22,6 +26,29 @@ enum class execution_scope {
   work_group,
   root_group,
 };
+
+namespace info::device {
+
+// RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
+template <execution_scope CoordinationScope>
+struct work_group_progress_capabilities
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
+  using return_type = std::vector<forward_progress_guarantee>;
+};
+
+template <execution_scope CoordinationScope>
+struct sub_group_progress_capabilities
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
+  using return_type = std::vector<forward_progress_guarantee>;
+};
+
+template <execution_scope CoordinationScope>
+struct work_item_progress_capabilities
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
+  using return_type = std::vector<forward_progress_guarantee>;
+};
+
+} // namespace info::device
 
 } // namespace experimental
 } // namespace oneapi

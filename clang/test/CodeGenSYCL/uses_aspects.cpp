@@ -71,7 +71,7 @@ void foo() {
 // CHECK: !sycl_types_that_use_aspects = !{![[TYPE1:[0-9]+]], ![[TYPE2:[0-9]+]]}
 // CHECK: [[TYPE1]] = !{!"class.Type1WithAspect", i32 1}
 // CHECK: [[TYPE2]] = !{!"class.Type2WithAspect", i32 5, i32 1}
-// CHECK: [[EMPTYASPECTS]] = !{}
 // CHECK: [[ASPECTS1]] = !{i32 1}
 // CHECK: [[ASPECTS2]] = !{i32 5, i32 2}
+// CHECK: [[EMPTYASPECTS]] = !{}
 // CHECK: [[ASPECTS3]] = !{i32 0}

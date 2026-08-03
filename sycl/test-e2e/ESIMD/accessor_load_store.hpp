@@ -8,6 +8,7 @@
 //
 // The test checks functionality of the scalar load/store accessor-based ESIMD
 // intrinsics.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -49,7 +50,7 @@ template <typename T> bool test(queue q, size_t size) {
     range<1> glob_range{size};
 
     auto e = q.submit([&](handler &cgh) {
-      auto acc = buf.template get_access<access::mode::read_write>(cgh);
+      auto acc = buf.template get_access<access_mode::read_write>(cgh);
       Kernel<T> kernel(acc);
       cgh.parallel_for(glob_range, kernel);
     });

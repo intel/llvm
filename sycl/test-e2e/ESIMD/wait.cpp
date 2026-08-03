@@ -13,6 +13,7 @@
 // The function is basically a NOP. It creates explicit scoreboard dependency
 // to avoid code motion across wait() and preserve the value computation even
 // if it is unused.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

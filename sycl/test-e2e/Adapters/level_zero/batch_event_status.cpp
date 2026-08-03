@@ -7,6 +7,9 @@
 // UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 
+// UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
+
 // RUN: %{build} -o %t.out
 
 // Set batching to 4 explicitly
@@ -34,7 +37,6 @@
 // CHECK-NOT:  zeCommandQueueExecuteCommandLists
 // CHECK-NOT: Test Fail
 // CHECK: Test Pass
-// UNSUPPORTED: ze_debug
 
 #include <cassert>
 #include <chrono>

@@ -50,22 +50,22 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
 extern "C" int printf(const char *fmt, ...);
 
 int main() {
-  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
   kernel_single_task<class fake_kernel>([]() { foo(6); });
-  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
   kernel_single_task<class fake_kernel>([]() { bar(9.0); });
 
 #if defined(PRINTF_INVALID_DECL)
-  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
   kernel_single_task<class fake_kernel>([]() { A::__spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
-  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
   kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
 
   // Check that default printf is not allowed.
-  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
   kernel_single_task<class fake_kernel>([]() { printf("Hello world! %d%d\n", 4, 2); });
 #elif defined(PRINTF_INVALID_DEF)
-  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
   kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
 #else
   kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });

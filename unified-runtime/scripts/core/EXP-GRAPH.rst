@@ -44,6 +44,7 @@ Functions
    * ${x}GraphExecutableGraphDestroyExp
    * ${x}GraphIsEmptyExp
    * ${x}GraphDumpContentsExp
+   * ${x}GraphGetIdExp
 * Queue
    * ${x}QueueBeginGraphCaptureExp
    * ${x}QueueBeginCaptureIntoGraphExp
@@ -75,6 +76,9 @@ Changelog
 | 1.4       | Add ${x}GraphSetDestructionCallbackExp to   |
 |           | register user callbacks invoked on graph    |
 |           | destruction.                                |
++-----------+---------------------------------------------+
+| 1.5       | Add ${x}GraphGetIdExp to retrieve a         |
+|           | process-unique identifier for a graph.      |
 +-----------+---------------------------------------------+
 
 Support

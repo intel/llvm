@@ -29,8 +29,8 @@ int main() {
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
 
-  constexpr auto SYCLRead = sycl::access::mode::read;
-  constexpr auto SYCLWrite = sycl::access::mode::write;
+  constexpr auto SYCLRead = sycl::access_mode::read;
+  constexpr auto SYCLWrite = sycl::access_mode::write;
 
   const sycl::range<2> Img1Size(4, 4);
   const sycl::range<2> Img2Size(4, 4);
@@ -95,7 +95,7 @@ int main() {
     constexpr int dims = 1;
 
     using data_img = sycl::float4;
-    constexpr auto mode_img = sycl::access::mode::read;
+    constexpr auto mode_img = sycl::access_mode::read;
     constexpr auto target_img = sycl::target::image;
     const auto range_img = sycl::range<dims>(3);
     auto image = sycl::image<dims>(sycl::image_channel_order::rgba,
@@ -126,7 +126,7 @@ int main() {
     sycl::queue Q;
     Q.submit([&](sycl::handler &CGH) {
        auto ImgAcc =
-           Img.get_access<sycl::float4, sycl::access::mode::write>(CGH);
+           Img.get_access<sycl::float4, sycl::access_mode::write>(CGH);
 
        sycl::nd_range<2> Rng(sycl::range<2>(NX, NY), sycl::range<2>(16, 16));
 

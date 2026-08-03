@@ -1,0 +1,35 @@
+; REQUIRES: spirv-as
+
+; NonSemantic.Shader.DebugInfo.300 is unknown to this translator. Check if we
+; skip it.
+
+; RUN: spirv-as %s --target-env spv1.0 -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpExtension "SPV_KHR_non_semantic_info"
+       %dbg  = OpExtInstImport "NonSemantic.Shader.DebugInfo.300"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn "f"
+               OpDecorate %fn LinkageAttributes "f" Export
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+     %u_lang = OpConstant %uint 6
+     %u_ver  = OpConstant %uint 65536
+     %u_dwv  = OpConstant %uint 4
+       %file = OpString "test.cpp"
+       %fnTy = OpTypeFunction %void
+        %src = OpExtInst %void %dbg 35 %file
+         %cu = OpExtInst %void %dbg 1 %u_ver %u_dwv %src %u_lang
+         %fn = OpFunction %void None %fnTy
+        %ent = OpLabel
+                OpReturn
+                OpFunctionEnd
+
+; CHECK-LABEL: define spir_func void @f()
+; CHECK-NEXT:    ret void
+; CHECK-NOT: !DICompileUnit
+; CHECK-NOT: !llvm.dbg.cu

@@ -2,6 +2,7 @@
 // REQUIRES: aspect-fp64
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>

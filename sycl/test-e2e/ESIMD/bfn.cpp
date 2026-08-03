@@ -12,6 +12,7 @@
 // This test checks binary function (bfn) operations. Combinations of
 // - argument type - uint16_t, uint32_t.
 // - binary function - several binary functins with three operands (~, &, |, ^).
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

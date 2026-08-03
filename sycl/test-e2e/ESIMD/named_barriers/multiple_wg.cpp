@@ -16,6 +16,7 @@
 // SLM and surface size is 16 bytes, 8 bytes per group.
 // Each work-group contain 2 threads: 1 producer and 1 consumer.
 // Producers store to SLM; consumers read SLM and store data to surface.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -48,7 +49,7 @@ bool test(QueueTY q) {
     sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
     auto e = q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::write>(cgh);
+      auto acc = buf.get_access<access_mode::write>(cgh);
       cgh.parallel_for<KernelID<case_num>>(
           Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             // 1 named barrier, id 0 reserved for unnamed

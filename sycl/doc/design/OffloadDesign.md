@@ -243,6 +243,18 @@ are needed to pass along this information.
 
 *Table: Ahead of Time Info*
 
+### NoRDC Mode support
+
+For the Old Offload Model support of NoRDC Mode see [NonRelocatableDeviceCode.md](NonRelocatableDeviceCode.md).
+
+The default compiler behavior is -fsycl-rdc, which incorporates linking of device code. If -fno-sycl-rdc is specified, the compiler skips linking of device code and performs offload processing on every module individually.
+
+A follow-up patch will add support for specifying `-fno-sycl-rdc` at the compile step
+(i.e. `clang++ --offload-new-driver -fsycl -fno-sycl-rdc -c`), matching the old offload
+model's usage pattern. This will be implemented by invoking `clang-linker-wrapper
+--sycl-device-link --no-sycl-rdc` per translation unit at compile time to finalize each
+TU's device code independently, embedding the result directly into the host object.
+
 #### Format of the --device-compiler Option
 The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:
 - `<kind>` : specifies the offloading kind (e.g., sycl, hip, openmp) and is optional.
@@ -250,6 +262,21 @@ The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<tri
 - `<value>` : contains the arguments to be passed to the backend compiler.
 
 In clang-linker-wrapper, the `<kind>` and `<triple>` are matched against the current compilation target. Only arguments that match both the offloading kind and target triple will be passed to the backend compiler. If `<kind>` is not specified, the arguments will match any offloading kind; if `<triple>` is not specified, the arguments will match any target triple; and if neither is specified, the arguments will be applied to all targets. 
+
+To support multiple device architectures, a new `--device-compiler` option must be specified for each device. For example, to compile for Ponte Vecchio (PVC) and Skylake (SKL) architectures and put them in a fat binary, the user must add the following two `--device-compiler` options:
+
+`--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options ...`
+
+`--device-compiler=sycl:spir64_gen-unknown-unknown=-device skl -options ...`
+
+Device specific options for each of the device architectures should be specified after `-device <name>`.
+
+Here is an example of a clang-linker-wrapper invocation where ther user wants to create a fat binary with PVC and SKL architectures to be run on a x86_64 Linux host. In addition, they would like to enable aggressive mathematical optimizations and are tolerant for slightly imprecise floating-point values just for SKL, that is, use the `-cl-unsafe-math-optimizations` flag. For PVC, they would like to enable the multiply and add instruction usage (`-cl-mad-enable`). The source binaries are called host.o and kernel.o and the output should be called out.exe.
+
+`clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu
+ --device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options "-cl-mad-enable"
+ --device-compiler=sycl:spir64_gen-unknown-unknown=-device skl -options "-cl-unsafe-math-optimizations" -- /usr/bin/ld
+host.o kernel.o -o out.exe`
 
 #### Other Supported Options
 To complete the support needed for the various targets using the

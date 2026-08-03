@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 //
 // The test checks main functionality of esimd::saturate function.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -82,8 +83,8 @@ bool test(queue q) {
     sycl::buffer<To, 1> dst_buf(dm.dst, N);
 
     auto e = q.submit([&](handler &cgh) {
-      auto src_acc = src_buf.template get_access<access::mode::read>(cgh);
-      auto dst_acc = dst_buf.template get_access<access::mode::write>(cgh);
+      auto src_acc = src_buf.template get_access<access_mode::read>(cgh);
+      auto dst_acc = dst_buf.template get_access<access_mode::write>(cgh);
 
       cgh.single_task([=]() SYCL_ESIMD_KERNEL {
         simd<From, N> x(src_acc, 0);

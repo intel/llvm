@@ -107,6 +107,7 @@ set(LLVM_TEST_DEPENDS
   llvm-exegesis
   llvm-extract
   llvm-foreach
+  llvm-extract-bundle-entry
   llvm-gsymutil
   llvm-ir2vec
   llvm-isel-fuzzer
@@ -258,6 +259,10 @@ if (LLVM_INCLUDE_SPIRV_TOOLS_TESTS)
   list(APPEND LLVM_TEST_DEPENDS spirv-val)
   list(APPEND LLVM_TEST_DEPENDS spirv-as)
   list(APPEND LLVM_TEST_DEPENDS spirv-link)
+endif()
+
+if(LLVM_IR2VEC_TEST_PYTHON_BINDINGS)
+  list(APPEND LLVM_TEST_DEPENDS ir2vec)
 endif()
 
 add_custom_target(llvm-test-depends DEPENDS ${LLVM_TEST_DEPENDS} UnitTests)

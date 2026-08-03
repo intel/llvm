@@ -55,8 +55,8 @@
 ; CHECK-DEFAULT: @s = addrspace(2) constant i16 1, align 2
 ; CHECK-DEFAULT: @i = addrspace(2) constant i32 2, align 4
 ; CHECK-DEFAULT: @l = addrspace(2) constant i64 3, align 8
-; CHECK-DEFAULT: @h = addrspace(2) constant half 0xH3800, align 2
-; CHECK-DEFAULT: @f = addrspace(2) constant float 0x40015C2900000000, align 4
+; CHECK-DEFAULT: @h = addrspace(2) constant half 5.000000e-01, align 2
+; CHECK-DEFAULT: @f = addrspace(2) constant float 2.170000e+00, align 4
 ; CHECK-DEFAULT: @d = addrspace(2) constant double 3.140000e+00, align 8
 ; CHECK-DEFAULT: @ss = addrspace(1) global %struct.S { i8 98, double 6.280000e+00 }, align 8
 
@@ -66,15 +66,15 @@
 ; CHECK-SPEC: @s = addrspace(2) constant i16 22, align 2
 ; CHECK-SPEC: @i = addrspace(2) constant i32 33, align 4
 ; CHECK-SPEC: @l = addrspace(2) constant i64 44, align 8
-; CHECK-SPEC: @h = addrspace(2) constant half 0xH4580, align 2
-; CHECK-SPEC: @f = addrspace(2) constant float 0x401A666660000000, align 4
+; CHECK-SPEC: @h = addrspace(2) constant half 5.500000e+00, align 2
+; CHECK-SPEC: @f = addrspace(2) constant float 6.600000e+00, align 4
 ; CHECK-SPEC: @d = addrspace(2) constant double 7.700000e+00, align 8
 ; CHECK-SPEC: @ss = addrspace(1) global %struct.S { i8 0, double 8.800000e+00 }, align 8
 
-; CHECK-HEX: @h = addrspace(2) constant half 0xH1234, align 2
+; CHECK-HEX: @h = addrspace(2) constant half 7.572170e-04, align 2
 ; Float literals are represented as doubles, so 0x12345678 becomes the value below.
-; CHECK-HEX: @f = addrspace(2) constant float 0x3A468ACF00000000, align 4
-; CHECK-HEX: @d = addrspace(2) constant double 0x12345678ABCDEF00, align 8
+; CHECK-HEX: @f = addrspace(2) constant float f0x12345678, align 4
+; CHECK-HEX: @d = addrspace(2) constant double f0x12345678ABCDEF00, align 8
 
 ; SPIR-V
 ; Version: 1.0

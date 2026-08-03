@@ -17,7 +17,7 @@
 #define _CLC_CONSTFN __attribute__((const))
 #define _CLC_CONST __attribute__((const))
 
-#if defined(CLC_CLSPV)
+#if defined(__VULKAN__)
 #define _CLC_DEF __attribute__((noinline)) __attribute__((clspv_libclc_builtin))
 #elif defined(CLC_NATIVE_CPU)
 #define _CLC_DEF __attribute__((always_inline)) __attribute__((libclc_call))

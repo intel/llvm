@@ -171,6 +171,7 @@ bool SPIRVEntry::isEndOfBlock() const {
   case OpReturn:
   case OpReturnValue:
   case OpUnreachable:
+  case OpAbortKHR:
     return true;
   default:
     return false;

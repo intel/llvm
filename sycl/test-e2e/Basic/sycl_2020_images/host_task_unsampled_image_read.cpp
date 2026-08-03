@@ -3,6 +3,7 @@
 // RUN: %{run-unfiltered-devices} %t.out
 
 // Tests for direct read of unsampled_image using host accessors.
+#include <iostream>
 
 #include "common.hpp"
 

@@ -53,8 +53,6 @@ struct resource_win32_handle {
 // Windows external name type
 struct resource_win32_name {
   const void *name;
-  void *device; // ID3D12Device* (ID3D12Device1 or higher) for opening the
-                // named handle via OpenSharedHandleByName
 };
 
 /// Opaque external memory descriptor type

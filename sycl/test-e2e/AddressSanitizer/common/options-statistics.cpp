@@ -3,6 +3,7 @@
 // RUN: %{run} %t 2>&1 | FileCheck %s
 // RUN: env UR_LAYER_ASAN_OPTIONS="print_stats:1;quarantine_size_mb:1" %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-STATS %s
 // RUN: env UR_LAYER_ASAN_OPTIONS="print_stats:1;quarantine_size_mb:0" %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-STATS %s
+#include <iostream>
 #include <sycl/usm.hpp>
 
 /// This test is used to check enabling/disabling memory overhead statistics

@@ -14,10 +14,6 @@
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
 
-// <ostream> is required for the inline operator<< below. Including it adds
-// non-trivial compile-time overhead; kept here for backwards compatibility
-// only so this header stays self-contained.
-#include <ostream>
 #include <sycl/ext/intel/experimental/esimd/tfloat32.hpp>
 
 /// @cond ESIMD_DETAIL
@@ -77,11 +73,9 @@ template <> struct scalar_conversion_traits<tfloat32> {
   }
 };
 
-// Misc
-inline std::ostream &operator<<(std::ostream &O, tfloat32 const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
-}
+// Stream operator for this type is intentionally not provided in the
+// public header. Pulling <ostream> here would drag iostream machinery into
+// device compilation.
 
 template <> struct is_esimd_arithmetic_type<tfloat32, void> : std::true_type {};
 

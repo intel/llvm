@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <iostream>
 
 #include "../../esimd_test_utils.hpp"
 
@@ -280,7 +281,7 @@ bool test_acc(queue &q, const Config &cfg) {
       buffer<T, 1> arr_buf(arr, range<1>(size));
       auto e = q.submit([&](handler &cgh) {
         auto arr_acc =
-            arr_buf.template get_access<access::mode::read_write>(cgh);
+            arr_buf.template get_access<access_mode::read_write>(cgh);
         cgh.parallel_for(rng, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
           int i = ndi.get_global_id(0);
           simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),

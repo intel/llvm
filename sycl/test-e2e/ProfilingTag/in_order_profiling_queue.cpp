@@ -11,6 +11,7 @@
 // Bug in OpenCL GPU driver causes fallback solution to return end time later
 // than the submission of the following work.
 // UNSUPPORTED: opencl && gpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22229
 
 // HIP backend currently returns invalid values for submission time queries.
 // UNSUPPORTED: hip

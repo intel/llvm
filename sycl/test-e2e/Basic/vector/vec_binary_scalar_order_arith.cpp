@@ -4,6 +4,7 @@
 // Checks scalar/vec arithmetic operator ordering.
 
 #include "vec_binary_scalar_order.hpp"
+#include <sycl/half_type.hpp>
 
 #define CHECK_SIZES_AND_COMMON_OPS(Q, C, T)                                    \
   CHECK_SIZES(Q, Failures, T, false, +)                                        \

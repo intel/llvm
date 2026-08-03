@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <iomanip>
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 double get_ulp(double X) {

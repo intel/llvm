@@ -12,7 +12,12 @@
 #include "unified-runtime/ur_api.h"
 #include "ur_interface_loader.hpp"
 
-#include "helpers/kernel_helpers.hpp"
+#include "common/api.hpp"
+#include "common/helpers/kernel_helpers.hpp"
+#include "common/platform.hpp"
+#include "common/sampler.hpp"
+
+namespace ur::level_zero::v1 {
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel) {
@@ -30,12 +35,11 @@ ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
   return UR_RESULT_SUCCESS;
 }
 
-namespace ur::level_zero {
-
 ur_result_t urKernelGetSuggestedLocalWorkSize(
-    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
-    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    ::ur_kernel_handle_t hKernelOpque, ::ur_queue_handle_t hQueueOpque,
+    uint32_t workDim, [[maybe_unused]] const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
+  auto hQueue = v1_cast(hQueueOpque);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
@@ -46,7 +50,8 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
 
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(hQueue->Device->ZeDevice, hKernel, &ZeKernel));
+  UR_CALL(
+      getZeKernel(hQueue->Device->ZeDevice, v1_cast(hKernelOpque), &ZeKernel));
 
   UR_CALL(getSuggestedLocalWorkSize(hQueue->Device, ZeKernel, GlobalWorkSize3D,
                                     LocalWorkSize));
@@ -56,13 +61,13 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
 }
 
 ur_result_t urKernelGetSuggestedLocalWorkSizeWithArgs(
-    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    [[maybe_unused]] uint32_t numArgs,
+    ::ur_kernel_handle_t hKernelOpque, ::ur_queue_handle_t hQueueOpque,
+    uint32_t workDim, const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, [[maybe_unused]] uint32_t numArgs,
     [[maybe_unused]] const ur_exp_kernel_arg_properties_t *pArgs,
     size_t *pSuggestedLocalWorkSize) {
-  return ur::level_zero::urKernelGetSuggestedLocalWorkSize(
-      hKernel, hQueue, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+  return ur::level_zero::v1::urKernelGetSuggestedLocalWorkSize(
+      hKernelOpque, hQueueOpque, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pSuggestedLocalWorkSize);
 }
 
@@ -126,7 +131,7 @@ ur_result_t urKernelSetArgMemObjHelper(
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
-  ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
+  auto *UrMem = ArgValue;
 
   ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
   if (Properties) {
@@ -155,20 +160,19 @@ ur_result_t urKernelSetArgMemObjHelper(
 
 // forward declaration of the old enqueue function to call after setting all the
 // arguments
-static ur_result_t
-urEnqueueKernelLaunch(ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                      uint32_t WorkDim, const size_t *GlobalWorkOffset,
-                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-                      const ur_kernel_launch_ext_properties_t *LaunchPropList,
-                      uint32_t NumEventsInWaitList,
-                      const ur_event_handle_t *EventWaitList,
-                      ur_event_handle_t *OutEvent);
+static ur_result_t urEnqueueKernelLaunch(
+    ::ur_queue_handle_t QueueOpque, ::ur_kernel_handle_t KernelOpque,
+    uint32_t WorkDim, const size_t *GlobalWorkOffset,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    const ur_kernel_launch_ext_properties_t *LaunchPropList,
+    uint32_t NumEventsInWaitList, const ::ur_event_handle_t *EventWaitListOpque,
+    ::ur_event_handle_t *OutEventOpque);
 
 ur_result_t urEnqueueKernelLaunchWithArgsExp(
     /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
+    ::ur_queue_handle_t QueueOpque,
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] number of dimensions, from 1 to 3, to specify the global and
     /// work-group work-items
     uint32_t workDim,
@@ -196,10 +200,11 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     /// events that must be complete before the kernel execution. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
-    const ur_event_handle_t *EventWaitList,
+    const ::ur_event_handle_t *EventWaitListOpque,
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
-    ur_event_handle_t *OutEvent) {
+    ::ur_event_handle_t *OutEventOpque) {
+  auto Kernel = v1_cast(KernelOpque);
   {
     std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
     for (uint32_t i = 0; i < NumArgs; i++) {
@@ -220,13 +225,15 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
         ur_kernel_arg_mem_obj_properties_t Properties = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
             Args[i].value.memObjTuple.flags};
-        UR_CALL(urKernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
-                                           Args[i].value.memObjTuple.hMem));
+        UR_CALL(urKernelSetArgMemObjHelper(
+            Kernel, Args[i].index, &Properties,
+            v1_cast(Args[i].value.memObjTuple.hMem)));
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                          &Args[i].value.sampler->ZeSampler));
+        UR_CALL(urKernelSetArgValueHelper(
+            Kernel, Args[i].index, Args[i].size,
+            &ur::level_zero::common_cast(Args[i].value.sampler)->ZeSampler));
         break;
       }
       default:
@@ -235,16 +242,17 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     }
   }
   // Normalize so each dimension has at least one work item
-  return urEnqueueKernelLaunch(Queue, Kernel, workDim, GlobalWorkOffset,
-                               GlobalWorkSize, LocalWorkSize, LaunchPropList,
-                               NumEventsInWaitList, EventWaitList, OutEvent);
+  return urEnqueueKernelLaunch(QueueOpque, KernelOpque, workDim,
+                               GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
+                               LaunchPropList, NumEventsInWaitList,
+                               EventWaitListOpque, OutEventOpque);
 }
 
 static ur_result_t urEnqueueKernelLaunch(
     /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
+    ::ur_queue_handle_t QueueOpque,
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] number of dimensions, from 1 to 3, to specify the global and
     /// work-group work-items
     uint32_t WorkDim,
@@ -268,10 +276,14 @@ static ur_result_t urEnqueueKernelLaunch(
     /// events that must be complete before the kernel execution. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
-    const ur_event_handle_t *EventWaitList,
+    const ::ur_event_handle_t *EventWaitListOpque,
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
-    ur_event_handle_t *OutEvent) {
+    ::ur_event_handle_t *OutEventOpque) {
+  auto Queue = v1_cast(QueueOpque);
+  auto Kernel = v1_cast(KernelOpque);
+  auto EventWaitListInternal = v1_cast(EventWaitListOpque);
+  auto OutEventInternal = v1_cast(OutEventOpque);
   using ZeKernelLaunchFuncT = ze_result_t (*)(
       ze_command_list_handle_t, ze_kernel_handle_t, const ze_group_count_t *,
       ze_event_handle_t, uint32_t, ze_event_handle_t *);
@@ -310,7 +322,7 @@ static ur_result_t urEnqueueKernelLaunch(
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
       Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
-    UR_CALL(setKernelGlobalOffset(Queue->Context, ZeKernel, WorkDim,
+    UR_CALL(setKernelGlobalOffset(v1_cast(Queue->Context), ZeKernel, WorkDim,
                                   GlobalWorkOffset));
   }
 
@@ -324,7 +336,7 @@ static ur_result_t urEnqueueKernelLaunch(
       ur_mem_handle_t MemObj = *MemObjPtr;
       if (MemObj) {
         UR_CALL(MemObj->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                       Queue->Device, EventWaitList,
+                                       Queue->Device, EventWaitListInternal,
                                        NumEventsInWaitList));
       }
     } else {
@@ -347,23 +359,25 @@ static ur_result_t urEnqueueKernelLaunch(
   bool UseCopyEngine = false;
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+      NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      true /* AllowBatching */, nullptr /*ForcedCmdQueue*/));
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList,
+      EventWaitListInternal, true /* AllowBatching */,
+      nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent{};
-  bool IsInternal = OutEvent == nullptr;
-  ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+  bool IsInternal = OutEventInternal == nullptr;
+  ur_event_handle_t *Event =
+      OutEventInternal ? OutEventInternal : &InternalEvent;
 
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_KERNEL_LAUNCH,
                                        CommandList, IsInternal, false));
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList,
+                         NumEventsInWaitList, EventWaitListInternal,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
@@ -375,7 +389,7 @@ static ur_result_t urEnqueueKernelLaunch(
   // is in use. Once the event has been signalled, the code in
   // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
   // reference count on the kernel, using the kernel saved in CommandData.
-  UR_CALL(ur::level_zero::urKernelRetain(Kernel));
+  UR_CALL(ur::level_zero::v1::urKernelRetain(KernelOpque));
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
@@ -423,9 +437,9 @@ static ur_result_t urEnqueueKernelLaunch(
 
 ur_result_t urEnqueueDeviceGlobalVariableWrite(
     /// [in] handle of the queue to submit to.
-    ur_queue_handle_t Queue,
+    ::ur_queue_handle_t QueueOpque,
     /// [in] handle of the program containing the device global variable.
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in] the unique identifier for the device global variable.
     const char *Name,
     /// [in] indicates if this operation should block.
@@ -442,16 +456,17 @@ ur_result_t urEnqueueDeviceGlobalVariableWrite(
     /// events that must be complete before the kernel execution. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
-    const ur_event_handle_t *EventWaitList,
+    const ::ur_event_handle_t *EventWaitListOpque,
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
-    ur_event_handle_t *Event) {
+    ::ur_event_handle_t *EventOpque) {
+  auto Queue = v1_cast(QueueOpque);
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
   // Find global variable pointer
   size_t GlobalVarSize = 0;
   void *GlobalVarPtr = nullptr;
   ze_module_handle_t ZeModule =
-      Program->getZeModuleHandle(Queue->Device->ZeDevice);
+      common_cast(ProgramOpque)->getZeModuleHandle(Queue->Device->ZeDevice);
   ZE2UR_CALL(zeModuleGetGlobalPointer,
              (ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
@@ -463,10 +478,11 @@ ur_result_t urEnqueueDeviceGlobalVariableWrite(
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src);
+  auto Context = Queue->Context;
+  bool PreferCopyEngine = !IsDevicePointer(Context, Src);
   // For better performance, Copy Engines are not preferred given Shared
   // pointers on DG2.
-  if (Queue->Device->isDG2() && IsSharedPointer(Queue->Context, Src)) {
+  if (Queue->Device->isDG2() && IsSharedPointer(Context, Src)) {
     PreferCopyEngine = false;
   }
 
@@ -476,14 +492,15 @@ ur_result_t urEnqueueDeviceGlobalVariableWrite(
   return enqueueMemCopyHelper(UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE, Queue,
                               ur_cast<char *>(GlobalVarPtr) + Offset,
                               BlockingWrite, Count, Src, NumEventsInWaitList,
-                              EventWaitList, Event, PreferCopyEngine);
+                              v1_cast(EventWaitListOpque), v1_cast(EventOpque),
+                              PreferCopyEngine);
 }
 
 ur_result_t urEnqueueDeviceGlobalVariableRead(
     /// [in] handle of the queue to submit to.
-    ur_queue_handle_t Queue,
+    ::ur_queue_handle_t QueueOpque,
     /// [in] handle of the program containing the device global variable.
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     const char
         /// [in] the unique identifier for the device global variable.
         *Name,
@@ -501,13 +518,14 @@ ur_result_t urEnqueueDeviceGlobalVariableRead(
     /// events that must be complete before the kernel execution. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
-    const ur_event_handle_t *EventWaitList,
+    const ::ur_event_handle_t *EventWaitListOpque,
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
-    ur_event_handle_t *Event) {
+    ::ur_event_handle_t *EventOpque) {
+  auto Queue = v1_cast(QueueOpque);
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
   ze_module_handle_t ZeModule =
-      Program->getZeModuleHandle(Queue->Device->ZeDevice);
+      common_cast(ProgramOpque)->getZeModuleHandle(Queue->Device->ZeDevice);
   // Find global variable pointer
   size_t GlobalVarSize = 0;
   void *GlobalVarPtr = nullptr;
@@ -522,10 +540,11 @@ ur_result_t urEnqueueDeviceGlobalVariableRead(
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Dst);
+  auto Context = Queue->Context;
+  bool PreferCopyEngine = !IsDevicePointer(Context, Dst);
   // For better performance, Copy Engines are not preferred given Shared
   // pointers on DG2.
-  if (Queue->Device->isDG2() && IsSharedPointer(Queue->Context, Dst)) {
+  if (Queue->Device->isDG2() && IsSharedPointer(Context, Dst)) {
     PreferCopyEngine = false;
   }
 
@@ -535,20 +554,22 @@ ur_result_t urEnqueueDeviceGlobalVariableRead(
   return enqueueMemCopyHelper(
       UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ, Queue, Dst, BlockingRead, Count,
       ur_cast<char *>(GlobalVarPtr) + Offset, NumEventsInWaitList,
-      EventWaitList, Event, PreferCopyEngine);
+      v1_cast(EventWaitListOpque), v1_cast(EventOpque), PreferCopyEngine);
 }
 
 ur_result_t urKernelCreate(
     /// [in] handle of the program instance
-    ur_program_handle_t Program,
+    ::ur_program_handle_t ProgramOpque,
     /// [in] pointer to null-terminated string.
     const char *KernelName,
     /// [out] pointer to handle of kernel object created.
-    ur_kernel_handle_t *RetKernel) {
+    ::ur_kernel_handle_t *RetKernelOpque) {
+  auto Program = common_cast(ProgramOpque);
+  auto RetKernel = v1_cast(RetKernelOpque);
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   try {
     ur_kernel_handle_t_ *UrKernel = new ur_kernel_handle_t_(true, Program);
-    *RetKernel = reinterpret_cast<ur_kernel_handle_t>(UrKernel);
+    *RetKernel = UrKernel;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -607,7 +628,7 @@ ur_result_t urKernelCreate(
 
 ur_result_t urKernelSetArgValue(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
     /// [in] size of argument type
@@ -616,8 +637,9 @@ ur_result_t urKernelSetArgValue(
     const ur_kernel_arg_value_properties_t * /*Properties*/,
     /// [in] argument value represented as matching arg type.
     const void *PArgValue) {
+  auto Kernel = v1_cast(KernelOpque);
 
-  UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(KernelOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
@@ -638,7 +660,7 @@ ur_result_t urKernelSetArgValue(
 
 ur_result_t urKernelSetArgLocal(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
     /// [in] size of the local buffer to be allocated by the runtime
@@ -646,15 +668,15 @@ ur_result_t urKernelSetArgLocal(
     /// [in][optional] argument properties
     const ur_kernel_arg_local_properties_t * /*Properties*/) {
 
-  UR_CALL(ur::level_zero::urKernelSetArgValue(Kernel, ArgIndex, ArgSize,
-                                              nullptr, nullptr));
+  UR_CALL(ur::level_zero::v1::urKernelSetArgValue(KernelOpque, ArgIndex,
+                                                  ArgSize, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urKernelGetInfo(
     /// [in] handle of the Kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] name of the Kernel property to query
     ur_kernel_info_t ParamName,
     /// [in] the size of the Kernel property value.
@@ -667,15 +689,16 @@ ur_result_t urKernelGetInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *PropSizeRet) {
+  auto Kernel = v1_cast(KernelOpque);
 
   UrReturnHelper ReturnValue(PropSize, KernelInfo, PropSizeRet);
 
   std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   switch (ParamName) {
   case UR_KERNEL_INFO_CONTEXT:
-    return ReturnValue(ur_context_handle_t{Kernel->Program->Context});
+    return ReturnValue(::ur_context_handle_t{Kernel->Program->Context});
   case UR_KERNEL_INFO_PROGRAM:
-    return ReturnValue(ur_program_handle_t{Kernel->Program});
+    return ReturnValue(::ur_program_handle_t{common_cast(Kernel->Program)});
   case UR_KERNEL_INFO_FUNCTION_NAME:
     try {
       std::string &KernelName = Kernel->ZeKernelName.get();
@@ -737,9 +760,9 @@ ur_result_t urKernelGetInfo(
 
 ur_result_t urKernelGetGroupInfo(
     /// [in] handle of the Kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] handle of the Device object
-    ur_device_handle_t Device,
+    ::ur_device_handle_t DeviceOpque,
     /// [in] name of the work Group property to query
     ur_kernel_group_info_t ParamName,
     /// [in] size of the Kernel Work Group property value
@@ -750,6 +773,8 @@ ur_result_t urKernelGetGroupInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *ParamValueSizeRet) {
+  auto Kernel = v1_cast(KernelOpque);
+  auto Device = common_cast(DeviceOpque);
   UrReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
@@ -825,9 +850,9 @@ ur_result_t urKernelGetGroupInfo(
 
 ur_result_t urKernelGetSubGroupInfo(
     /// [in] handle of the Kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] handle of the Device object
-    ur_device_handle_t /*Device*/,
+    ::ur_device_handle_t /*Device*/,
     /// [in] name of the SubGroup property to query
     ur_kernel_sub_group_info_t PropName,
     /// [in] size of the Kernel SubGroup property value
@@ -838,6 +863,7 @@ ur_result_t urKernelGetSubGroupInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *PropSizeRet) {
+  auto Kernel = v1_cast(KernelOpque);
 
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
 
@@ -859,7 +885,8 @@ ur_result_t urKernelGetSubGroupInfo(
 
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
-    ur_kernel_handle_t Kernel) {
+    ::ur_kernel_handle_t KernelOpque) {
+  auto Kernel = v1_cast(KernelOpque);
   Kernel->RefCount.retain();
 
   return UR_RESULT_SUCCESS;
@@ -867,7 +894,8 @@ ur_result_t urKernelRetain(
 
 ur_result_t urKernelRelease(
     /// [in] handle for the Kernel to release
-    ur_kernel_handle_t Kernel) {
+    ::ur_kernel_handle_t KernelOpque) {
+  auto Kernel = v1_cast(KernelOpque);
   if (!Kernel->RefCount.release())
     return UR_RESULT_SUCCESS;
 
@@ -888,7 +916,7 @@ ur_result_t urKernelRelease(
   }
   Kernel->ZeKernelMap.clear();
   if (IndirectAccessTrackingEnabled) {
-    UR_CALL(ur::level_zero::urContextRelease(KernelProgram->Context));
+    UR_CALL(ur::level_zero::v1::urContextRelease(KernelProgram->Context));
   }
   // do a release on the program this kernel was part of without delete of the
   // program handle
@@ -901,7 +929,7 @@ ur_result_t urKernelRelease(
 
 ur_result_t urKernelSetArgPointer(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
     /// [in][optional] argument properties
@@ -909,14 +937,15 @@ ur_result_t urKernelSetArgPointer(
     /// [in][optional] SVM pointer to memory location holding the argument
     /// value. If null then argument value is considered null.
     const void *ArgValue) {
-  UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  auto Kernel = v1_cast(KernelOpque);
+  UR_ASSERT(KernelOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   {
     std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
     // In multi-device context instead of setting pointer arguments immediately
     // across all device kernels, store them as pending so they can be resolved
     // per-device at enqueue time. This ensures the correct handle is used for
     // the device of the queue.
-    if (Kernel->Program->Context->getDevices().size() > 1) {
+    if (v1_cast(Kernel->Program->Context)->getDevices().size() > 1) {
       if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
         return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
       }
@@ -928,14 +957,14 @@ ur_result_t urKernelSetArgPointer(
   }
 
   // KernelSetArgValue is expecting a pointer to the argument
-  UR_CALL(ur::level_zero::urKernelSetArgValue(
-      Kernel, ArgIndex, sizeof(const void *), nullptr, &ArgValue));
+  UR_CALL(ur::level_zero::v1::urKernelSetArgValue(
+      KernelOpque, ArgIndex, sizeof(const void *), nullptr, &ArgValue));
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urKernelSetExecInfo(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] name of the execution attribute
     ur_kernel_exec_info_t PropName,
     /// [in] size in byte the attribute value
@@ -945,6 +974,7 @@ ur_result_t urKernelSetExecInfo(
     /// [in][range(0, propSize)] pointer to memory location holding the property
     /// value.
     const void *PropValue) {
+  auto Kernel = v1_cast(KernelOpque);
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   for (auto &ZeKernel : Kernel->ZeKernels) {
@@ -983,32 +1013,35 @@ ur_result_t urKernelSetExecInfo(
 
 ur_result_t urKernelSetArgSampler(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
     /// [in][optional] argument properties
     const ur_kernel_arg_sampler_properties_t * /*Properties*/,
     /// [in] handle of Sampler object.
-    ur_sampler_handle_t ArgValue) {
+    ::ur_sampler_handle_t ArgValueOpque) {
+  auto Kernel = v1_cast(KernelOpque);
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
-  ZE2UR_CALL(zeKernelSetArgumentValue, (Kernel->ZeKernel, ArgIndex,
-                                        sizeof(void *), &ArgValue->ZeSampler));
+  ZE2UR_CALL(zeKernelSetArgumentValue,
+             (Kernel->ZeKernel, ArgIndex, sizeof(void *),
+              &ur::level_zero::common_cast(ArgValueOpque)->ZeSampler));
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urKernelSetArgMemObj(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
     /// [in][optional] pointer to Memory object properties.
     const ur_kernel_arg_mem_obj_properties_t *Properties,
     /// [in][optional] handle of Memory object.
-    ur_mem_handle_t ArgValue) {
+    ::ur_mem_handle_t ArgValueOpque) {
+  auto Kernel = v1_cast(KernelOpque);
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   // The ArgValue may be a NULL pointer in which case a NULL value is used for
@@ -1018,7 +1051,7 @@ ur_result_t urKernelSetArgMemObj(
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
-  ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
+  auto UrMem = v1_cast(ArgValueOpque);
 
   ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
   if (Properties) {
@@ -1045,9 +1078,10 @@ ur_result_t urKernelSetArgMemObj(
 
 ur_result_t urKernelGetNativeHandle(
     /// [in] handle of the kernel.
-    ur_kernel_handle_t Kernel,
+    ::ur_kernel_handle_t KernelOpque,
     /// [out] a pointer to the native handle of the kernel.
-    ur_native_handle_t *NativeKernel) {
+    ::ur_native_handle_t *NativeKernel) {
+  auto Kernel = v1_cast(KernelOpque);
   std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
 
   *NativeKernel = reinterpret_cast<ur_native_handle_t>(Kernel->ZeKernel);
@@ -1055,9 +1089,11 @@ ur_result_t urKernelGetNativeHandle(
 }
 
 ur_result_t urKernelSuggestMaxCooperativeGroupCount(
-    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
-    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
-    uint32_t *pGroupCountRet) {
+    ::ur_kernel_handle_t hKernelOpque, ::ur_device_handle_t hDeviceOpque,
+    uint32_t workDim, const size_t *pLocalWorkSize,
+    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
+  auto hKernel = v1_cast(hKernelOpque);
+  auto hDevice = common_cast(hDeviceOpque);
   (void)dynamicSharedMemorySize;
   std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
 
@@ -1079,12 +1115,13 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
 
 ur_result_t urKernelCreateWithNativeHandle(
     /// [in] the native handle of the kernel.
-    ur_native_handle_t NativeKernel,
+    ::ur_native_handle_t NativeKernel,
     /// [in] handle of the context object
-    ur_context_handle_t Context, ur_program_handle_t Program,
+    ::ur_context_handle_t ContextOpque, ::ur_program_handle_t ProgramOpque,
     const ur_kernel_native_properties_t *Properties,
     /// [out] pointer to the handle of the kernel object created.
-    ur_kernel_handle_t *RetKernel) {
+    ::ur_kernel_handle_t *RetKernelOpque) {
+  auto Program = common_cast(ProgramOpque);
   if (!Program) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
@@ -1092,14 +1129,15 @@ ur_result_t urKernelCreateWithNativeHandle(
   ur_kernel_handle_t_ *Kernel = nullptr;
   try {
     auto OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
-    Kernel = new ur_kernel_handle_t_(ZeKernel, OwnNativeHandle, Context);
+    Kernel = new ur_kernel_handle_t_(ZeKernel, OwnNativeHandle,
+                                     v1_cast(ContextOpque));
     if (OwnNativeHandle) {
       // If ownership is passed to the adapter we need to pass the kernel
       // to this vector which is then used during ZeKernelRelease.
       Kernel->ZeKernels.push_back(ZeKernel);
     }
 
-    *RetKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+    *v1_cast(RetKernelOpque) = Kernel;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1115,7 +1153,7 @@ ur_result_t urKernelCreateWithNativeHandle(
 
 ur_result_t urKernelSetSpecializationConstants(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t /*Kernel*/,
+    ::ur_kernel_handle_t /*Kernel*/,
     /// [in] the number of elements in the pSpecConstants array
     uint32_t /*Count*/,
     const ur_specialization_constant_info_t
@@ -1127,15 +1165,13 @@ ur_result_t urKernelSetSpecializationConstants(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-} // namespace ur::level_zero
-
 ur_result_t ur_kernel_handle_t_::initialize() {
   // Retain the program and context to show it's used by this kernel.
-  UR_CALL(ur::level_zero::urProgramRetain(Program));
+  UR_CALL(ur::level_zero::urProgramRetain(common_cast(Program)));
 
   if (IndirectAccessTrackingEnabled)
     // TODO: do piContextRetain without the guard
-    UR_CALL(ur::level_zero::urContextRetain(Program->Context));
+    UR_CALL(ur::level_zero::v1::urContextRetain(Program->Context));
 
   // Set up how to obtain kernel properties when needed.
   ZeKernelProperties.Compute = [this](ze_kernel_properties_t &Properties) {
@@ -1154,3 +1190,5 @@ ur_result_t ur_kernel_handle_t_::initialize() {
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::level_zero::v1

@@ -2,6 +2,7 @@
 // This test was taken from
 // `sycl/test-e2e/Adapter/interop-level-zero-get-native-mem.cpp` This test has
 // been simplified to only work with signle device.
+#include <iostream>
 
 #include "../graph_common.hpp"
 // Level-Zero
@@ -85,8 +86,7 @@ int main() {
           BufferInteropInput, Context);
 
       auto NodeA = add_node(Graph, Queue, [&](sycl::handler &CGH) {
-        auto Acc =
-            BufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+        auto Acc = BufferInterop.get_access<sycl::access_mode::read_write>(CGH);
         CGH.single_task<class SimpleKernel6>([=]() {
           for (int i = 0; i < 12; i++) {
             Acc[i] = 99;
@@ -99,7 +99,7 @@ int main() {
           [&](sycl::handler &CGH) {
             depends_on_helper(CGH, NodeA);
             auto Acc =
-                BufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+                BufferInterop.get_access<sycl::access_mode::read_write>(CGH);
             CGH.single_task<class SimpleKernel7>([=]() {
               for (int i = 0; i < 12; i++) {
                 Acc[i] *= 2;
@@ -112,7 +112,7 @@ int main() {
           Graph, Queue,
           [&](handler &CGH) {
             depends_on_helper(CGH, NodeB);
-            auto BufferAcc = BufferInterop.get_access<access::mode::write>(CGH);
+            auto BufferAcc = BufferInterop.get_access<access_mode::write>(CGH);
             CGH.host_task([=](const interop_handle &IH) {
               void *DevicePtr =
                   IH.get_native_mem<backend::ext_oneapi_level_zero>(BufferAcc);

@@ -10,6 +10,7 @@
 //
 // With immediate command lists the command lists are recycled between queues in
 // a context.
+#include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
 

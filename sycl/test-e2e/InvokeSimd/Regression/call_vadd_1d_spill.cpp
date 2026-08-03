@@ -5,8 +5,8 @@
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
-// GSD-10143
 // UNSUPPORTED: gpu
+// UNSUPPORTED-INTENDED: Won't fix. See GSD-10143.
 
 // Tests invoke_simd support in the compiler/headers
 /* This program is basically an extension of the standard vector addition
@@ -93,16 +93,16 @@ bool test(QueueTY q, float *A, float *B, float *C, float *P, float *Q, float *R,
     sycl::range<1> LocalRange{VL};
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read>(cgh);
-      auto PB = bufb.get_access<access::mode::read>(cgh);
-      auto PP = bufp.get_access<access::mode::read>(cgh);
-      auto PQ = bufq.get_access<access::mode::read>(cgh);
-      auto PR = bufr.get_access<access::mode::read>(cgh);
-      auto PX = bufx.get_access<access::mode::read>(cgh);
-      auto PY = bufy.get_access<access::mode::read>(cgh);
-      auto PZ = bufz.get_access<access::mode::read>(cgh);
+      auto PA = bufa.get_access<access_mode::read>(cgh);
+      auto PB = bufb.get_access<access_mode::read>(cgh);
+      auto PP = bufp.get_access<access_mode::read>(cgh);
+      auto PQ = bufq.get_access<access_mode::read>(cgh);
+      auto PR = bufr.get_access<access_mode::read>(cgh);
+      auto PX = bufx.get_access<access_mode::read>(cgh);
+      auto PY = bufy.get_access<access_mode::read>(cgh);
+      auto PZ = bufz.get_access<access_mode::read>(cgh);
 
-      auto PC = bufc.get_access<access::mode::write>(cgh);
+      auto PC = bufc.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<TestID<Size, VL, use_invoke_simd, CaseNum>>(
           nd_range<1>(GlobalRange, LocalRange),

@@ -9,6 +9,7 @@
 // It first tests a graph made exclusively of memory operations,
 // then tests a graph made of kernels.
 #define GRAPH_TESTS_VERBOSE_PRINT 0
+#include <iostream>
 
 #include "../graph_common.hpp"
 
@@ -47,9 +48,9 @@ int main() {
     CopyGraph.begin_recording(Queue);
 
     Queue.submit([&](sycl::handler &Cgh) {
-      accessor<int, 1, access::mode::read, access::target::device> AccessorFrom(
+      accessor<int, 1, access_mode::read, access::target::device> AccessorFrom(
           BufferFrom, Cgh, range<1>(Size));
-      accessor<int, 1, access::mode::write, access::target::device> AccessorTo(
+      accessor<int, 1, access_mode::write, access::target::device> AccessorTo(
           BufferTo, Cgh, range<1>(Size));
       Cgh.copy(AccessorFrom, AccessorTo);
     });

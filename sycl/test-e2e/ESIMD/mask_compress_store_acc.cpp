@@ -10,6 +10,7 @@
 // RUN: %{run} %t.out
 
 // This is a basic test to validate the compressed store API.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -34,7 +35,7 @@ template <int N> bool test() {
 
     auto e = Queue.submit([&](sycl::handler &cgh) {
       auto OutputAcc_out =
-          OutputAcc_buffer.get_access<access::mode::read_write>(cgh);
+          OutputAcc_buffer.get_access<access_mode::read_write>(cgh);
 
       auto kernel = ([=]() [[intel::sycl_explicit_simd]] {
         simd<uint32_t, N> Input(1, 1);

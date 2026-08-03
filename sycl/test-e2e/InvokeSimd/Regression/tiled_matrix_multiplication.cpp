@@ -35,6 +35,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <functional>
 #include <iostream>
@@ -159,7 +160,7 @@ int main(void) {
 
                   // After computation, synchronize again, to ensure all
                   // reads from local memory tile are complete.
-                  ndi.barrier();
+                  sycl::group_barrier(ndi.get_group());
                 } // END outer loop
               } else {
                 int res = SPMD_CALLEE_doVadd(acc_a[m][n], acc_b[m][n]);

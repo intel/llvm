@@ -27,6 +27,7 @@
 #include <sycl/exception_list.hpp>                  // for queue_impl
 #include <sycl/group.hpp>                           // for workGroup...
 #include <sycl/group_algorithm.hpp>                 // for reduce_ov...
+#include <sycl/group_barrier.hpp>
 #include <sycl/handler.hpp>                         // for handler
 #include <sycl/id.hpp>                              // for getDeline...
 #include <sycl/kernel.hpp>                          // for auto_name
@@ -44,7 +45,6 @@
 #include <sycl/sycl_span.hpp>                       // for dynamic_e...
 #include <sycl/usm.hpp>                             // for malloc_de...
 
-#include <algorithm>   // for min
 #include <array>       // for array
 #include <assert.h>    // for assert
 #include <cstddef>     // for size_t
@@ -1425,7 +1425,7 @@ void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
     // Otherwise we have no guarantee and we need to first reduce the amount of
     // work to fit into the local memory.
     size_t WGSize = NDIt.get_local_range().size();
-    AdjustedWorkSize = std::min(WorkSize, WGSize);
+    AdjustedWorkSize = WorkSize < WGSize ? WorkSize : WGSize;
     if (LID < AdjustedWorkSize) {
       auto LocalSum = AccessFunc(LID);
       for (size_t I = LID + WGSize; I < WorkSize; I += WGSize)
@@ -1644,7 +1644,7 @@ struct NDRangeReduction<
 
           // Ensure item 0 is finished with LocalReds before next iteration
           if (E != NElements - 1) {
-            NDIt.barrier();
+            group_barrier(NDIt.get_group());
           }
         }
 
@@ -1884,7 +1884,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
           // Ensure item 0 is finished with LocalReds before next iteration
           if (E != NElements - 1) {
-            NDIt.barrier();
+            group_barrier(NDIt.get_group());
           }
         }
       });
@@ -1988,7 +1988,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
               // Ensure item 0 is finished with LocalReds before next iteration
               if (E != NElements - 1) {
-                NDIt.barrier();
+                group_barrier(NDIt.get_group());
               }
             }
           });
@@ -2240,7 +2240,7 @@ void reduCGFuncImplArrayHelper(nd_item<Dims> NDIt, LocalAccT LocalReds,
 
     // Ensure item 0 is finished with LocalReds before next iteration
     if (E != NElements - 1) {
-      NDIt.barrier();
+      group_barrier(NDIt.get_group());
     }
   }
 }
@@ -2437,7 +2437,7 @@ void reduAuxCGFuncImplArrayHelper(nd_item<Dims> NDIt, size_t LID, size_t GID,
 
     // Ensure item 0 is finished with LocalReds before next iteration
     if (E != NElements - 1) {
-      NDIt.barrier();
+      group_barrier(NDIt.get_group());
     }
   }
 }
@@ -2710,12 +2710,12 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   size_t PrefWGSize = reduGetPreferredWGSize(CGH, OneElemSize);
 
   size_t NWorkItems = Range.size();
-  size_t WGSize = std::min(NWorkItems, PrefWGSize);
+  size_t WGSize = NWorkItems < PrefWGSize ? NWorkItems : PrefWGSize;
   size_t NWorkGroups = NWorkItems / WGSize;
   if (NWorkItems % WGSize)
     NWorkGroups++;
   size_t MaxNWorkGroups = NumConcurrentWorkGroups;
-  NWorkGroups = std::min(NWorkGroups, MaxNWorkGroups);
+  NWorkGroups = NWorkGroups < MaxNWorkGroups ? NWorkGroups : MaxNWorkGroups;
   size_t NDRItems = NWorkGroups * WGSize;
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 

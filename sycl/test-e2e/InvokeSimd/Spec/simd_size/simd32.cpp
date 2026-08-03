@@ -16,6 +16,7 @@
  *
  * This test also runs with all types of VISA link time optimizations enabled.
  */
+#include <iostream>
 
 #include "Inputs/common.hpp"
 

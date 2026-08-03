@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // This test checks that accessor-based memory accesses work correctly in ESIMD.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -35,8 +36,8 @@ int main() {
       std::cout << "Running on "
                 << q.get_device().get_info<sycl::info::device::name>() << "\n";
 
-      auto acc0 = buf0.get_access<access::mode::read_write>(cgh);
-      auto acc1 = buf1.get_access<access::mode::write>(cgh);
+      auto acc0 = buf0.get_access<access_mode::read_write>(cgh);
+      auto acc1 = buf1.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<class Test>(range<1>(1),
                                    [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {

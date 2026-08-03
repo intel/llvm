@@ -31,6 +31,17 @@
 // NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-sycl-std={{.*}}"
 // NO-FOOTER: clang{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[INTHEADER]]"
 
+/// Check that integration header can be disabled
+// RUN:  %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-use-header %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix NO-HEADER --implicit-check-not "-fsycl-int-header" %s
+// NO-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-footer=[[INTFOOTER:.+\.h]]" "-sycl-std={{.*}}"
+// NO-HEADER: clang{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-footer" "[[INTFOOTER]]"
+
+/// Check that both integration header anf foooter can be disabled
+// RUN:  %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-use-header -fno-sycl-use-footer %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix NO-BOTH --implicit-check-not "-fsycl-int-header" --implicit-check-not "-fsycl-int-footer" %s
+// NO-BOTH: clang{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std={{.*}}"
+
 /// Check phases without integration footer
 // RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES -check-prefix COMMON-PHASES %s

@@ -24,6 +24,8 @@
 // CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
 // CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
 // CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
+#include <CL/cl.h>
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

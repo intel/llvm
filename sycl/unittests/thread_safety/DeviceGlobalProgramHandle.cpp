@@ -81,9 +81,6 @@ struct KernelInfo<DevGlobHandleTestKernel>
 static sycl::unittest::MockDeviceImage generateHandleTestImage() {
   using namespace sycl::unittest;
 
-  sycl::detail::device_global_map::add(&g_TestDevGlobal,
-                                       DevGlobHandleTestGlobalName);
-
   MockPropertySet PropSet;
   MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DevGlobHandleTestGlobalName, sizeof(DevGlobElem),
@@ -159,6 +156,11 @@ static ur_result_t blocking_urProgramBuildExp(void *) {
 class DeviceGlobalProgramHandleTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    // Register the device_global here rather than during static initialization
+    // to avoid static initialization order fiasco with GlobalHandler
+    sycl::detail::device_global_map::add(&g_TestDevGlobal,
+                                         DevGlobHandleTestGlobalName);
+
     {
       std::lock_guard<std::mutex> HLock(g_HandlesMtx);
       g_CapturedHandles.clear();

@@ -8,14 +8,14 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <sycl/builtins.hpp>
 
 namespace s = sycl;
 
 int main() {
   s::queue myQueue;
 
-  if (myQueue.get_device()
-          .get_info<s::info::device::usm_shared_allocations>()) {
+  if (myQueue.get_device().has(s::aspect::usm_shared_allocations)) {
     // fract with unified shared memory
     {
       float r{0};

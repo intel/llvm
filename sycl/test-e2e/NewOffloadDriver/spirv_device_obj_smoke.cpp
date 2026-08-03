@@ -5,6 +5,7 @@
 // RUN: %{run} %t.out
 
 // This test verifies SPIR-V based fat objects.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

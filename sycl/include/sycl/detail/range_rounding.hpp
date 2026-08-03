@@ -11,14 +11,13 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/device.hpp>
 #include <sycl/ext/oneapi/kernel_properties.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/range.hpp>
 
+#include <limits>
 #include <tuple>
 #include <type_traits>
 
@@ -26,6 +25,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+class device;
 
 namespace detail {
 
@@ -158,6 +158,8 @@ bool __SYCL_EXPORT DisableRangeRounding();
 
 bool __SYCL_EXPORT RangeRoundingTrace();
 
+__SYCL_EXPORT void reportAdjustedRange(int Dim, size_t From, size_t To);
+
 template <int Dims>
 std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange,
                                               const device &Device) {
@@ -227,9 +229,9 @@ std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange,
 
   bool DidAdjust = false;
   auto Adjust = [&](int Dim, size_t Value) {
-    if (RangeRoundingTrace())
-      std::cout << "parallel_for range adjusted at dim " << Dim << " from "
-                << RoundedRange[Dim] << " to " << Value << std::endl;
+    if (RangeRoundingTrace()) {
+      reportAdjustedRange(Dim, RoundedRange[Dim], Value);
+    }
     RoundedRange[Dim] = Value;
     DidAdjust = true;
   };

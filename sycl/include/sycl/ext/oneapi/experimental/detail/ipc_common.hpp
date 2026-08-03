@@ -8,11 +8,39 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
+
+namespace sycl {
+inline namespace _V1 {
+
+namespace ext::oneapi::experimental {
+
+// Shared by the inter-process-communication extensions.
+struct enable_ipc
+    : detail::run_time_property_key<enable_ipc, detail::PropKind::EnableIPC> {
+  constexpr enable_ipc(bool enable = true) : value(enable) {}
+  bool value;
+};
+
+using enable_ipc_key = enable_ipc;
+
+inline bool operator==(const enable_ipc &lhs, const enable_ipc &rhs) {
+  return lhs.value == rhs.value;
+}
+inline bool operator!=(const enable_ipc &lhs, const enable_ipc &rhs) {
+  return !(lhs == rhs);
+}
+
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl
+
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 
 #include <sycl/context.hpp>
-#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/event.hpp>
 
 #include <cstddef>
 #include <vector>
@@ -32,6 +60,20 @@ namespace ext::oneapi::experimental::ipc::memory {
 __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
 __SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
 } // namespace ext::oneapi::experimental::ipc::memory
+
+namespace ext::oneapi::experimental {
+class physical_mem;
+} // namespace ext::oneapi::experimental
+
+namespace ext::oneapi::experimental::ipc::physical_memory {
+__SYCL_EXPORT handle get(physical_mem &physmem);
+__SYCL_EXPORT void put(handle &ipc_handle, const sycl::context &ctx);
+} // namespace ext::oneapi::experimental::ipc::physical_memory
+
+namespace ext::oneapi::experimental::ipc::event {
+__SYCL_EXPORT handle get(const sycl::event &Evt);
+__SYCL_EXPORT void put(handle &IpcHandle, const sycl::context &Ctx);
+} // namespace ext::oneapi::experimental::ipc::event
 
 namespace ext::oneapi::experimental::ipc {
 
@@ -59,6 +101,12 @@ private:
   friend __SYCL_EXPORT handle memory::get(void *Ptr, const sycl::context &Ctx);
   friend __SYCL_EXPORT void memory::put(handle &HandleData,
                                         const sycl::context &Ctx);
+  friend __SYCL_EXPORT handle physical_memory::get(physical_mem &physmem);
+  friend __SYCL_EXPORT void physical_memory::put(handle &ipc_handle,
+                                                 const sycl::context &ctx);
+  friend __SYCL_EXPORT handle event::get(const sycl::event &Evt);
+  friend __SYCL_EXPORT void event::put(handle &IpcHandle,
+                                       const sycl::context &Ctx);
 };
 
 } // namespace ext::oneapi::experimental::ipc

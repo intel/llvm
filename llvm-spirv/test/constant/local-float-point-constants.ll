@@ -49,6 +49,6 @@ define double @getConstantFP64() {
 ; CHECK: ReturnValue [[#FP64_CONST]]
 ; CHECK: FunctionEnd
 
-; CHECK-LLVM: ret half 0xH3C4D
-; CHECK-LLVM: ret float 0x3FD27C8BE0000000
-; CHECK-LLVM: ret double 0x4F2DE42B8C68F3F1
+; CHECK-LLVM: ret half 1.075200e+00
+; CHECK-LLVM: ret float f0x3E93E45F
+; CHECK-LLVM: ret double f0x4F2DE42B8C68F3F1

@@ -10,6 +10,7 @@
 //
 // The test checks negation (operator!) of a simd object.
 // The operation `!v` is equivalent to `v == 0`;
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -36,8 +37,8 @@ bool test(queue q, const std::array<T, VL> &input,
     range<1> glob_range{1};
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufA.template get_access<access::mode::read>(cgh);
-      auto PB = bufB.template get_access<access::mode::write>(cgh);
+      auto PA = bufA.template get_access<access_mode::read>(cgh);
+      auto PB = bufB.template get_access<access_mode::write>(cgh);
       cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
         using namespace sycl::ext::intel::esimd;
         simd<T, VL> va;

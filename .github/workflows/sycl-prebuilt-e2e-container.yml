@@ -109,7 +109,7 @@ jobs:
           echo LD_LIBRARY_PATH=$PWD/toolchain/lib:$LD_LIBRARY_PATH >> $GITHUB_ENV
           echo PATH=$PWD/toolchain/bin:$PATH >> $GITHUB_ENV
       - run: |
-          sycl-ls
+          dpsycl-ls
       - name: Run E2E tests
         uses: ./devops/actions/run-tests/linux/e2e
         timeout-minutes: 20

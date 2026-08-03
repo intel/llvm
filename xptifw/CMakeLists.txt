@@ -79,7 +79,7 @@ endif()
 # Install CMake config files
 include(CMakePackageConfigHelpers)
 set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
-set(LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX})
+set(LIB_INSTALL_DIR lib${LLVM_LIBDIR_SUFFIX})
 set(CONFIG_INSTALL_DIR ${LIB_INSTALL_DIR}/cmake/xptifw)
 
 configure_package_config_file(

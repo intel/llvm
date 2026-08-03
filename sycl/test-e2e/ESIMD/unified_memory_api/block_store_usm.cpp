@@ -12,6 +12,7 @@
 // and optional compile-time esimd::properties.
 // The block_store() calls in this test do not use cache-hint
 // properties to not impose using PVC features.
+#include <iostream>
 
 #include "Inputs/block_store.hpp"
 

@@ -1,7 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// L0 adapter incorrectly reports memory leaks because it doesn't take into
-// account direct calls to the L0 API.
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-INTENDED: L0 adapter incorrectly reports memory leaks because it
+// doesn't take into account direct calls to the L0 API.
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out %S/../Inputs/Kernels/saxpy.spv
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG

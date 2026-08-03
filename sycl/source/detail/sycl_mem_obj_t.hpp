@@ -70,7 +70,7 @@ public:
               const size_t SizeInBytes, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
-  SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
+  SYCLMemObjT(OpenCLMemT MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(ur::cast<ur_native_handle_t>(MemObject), SyclContext,

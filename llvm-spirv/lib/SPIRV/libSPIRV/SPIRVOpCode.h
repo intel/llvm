@@ -123,10 +123,8 @@ inline bool isCvtOpCode(Op OpCode) {
 }
 
 inline bool isIntelCvtOpCode(Op OpCode) {
-  return OpCode == internal::OpClampConvertFToFINTEL ||
-         OpCode == internal::OpClampConvertFToSINTEL ||
+  return OpCode == internal::OpClampConvertFToSINTEL ||
          OpCode == internal::OpStochasticRoundFToFINTEL ||
-         OpCode == internal::OpClampStochasticRoundFToFINTEL ||
          OpCode == internal::OpClampStochasticRoundFToSINTEL;
 }
 
@@ -267,8 +265,8 @@ inline bool isSpecConstantOpCode(Op OpCode) {
 inline bool isConstantOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpConstantTrue <= OC && OC <= OpSpecConstantOp) || OC == OpUndef ||
-         OC == OpConstantPipeStorage || OC == OpConstantFunctionPointerINTEL ||
-         isSpecConstantOpCode(OpCode);
+         OC == OpPoisonKHR || OC == OpConstantPipeStorage ||
+         OC == OpConstantFunctionPointerINTEL || isSpecConstantOpCode(OpCode);
 }
 
 inline bool isModuleScopeAllowedOpCode(Op OpCode) {

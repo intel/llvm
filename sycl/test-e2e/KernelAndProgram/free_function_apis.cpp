@@ -2,6 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include <algorithm>
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>

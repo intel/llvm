@@ -5,7 +5,8 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
+#include <sycl/info/kernel.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/nd_item.hpp>
@@ -13,6 +14,7 @@
 #include <sycl/sub_group.hpp>
 #include <sycl/usm.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 
@@ -23,7 +25,7 @@ namespace kernels {
 
 template <class T, size_t Dim>
 using sycl_global_accessor =
-    sycl::accessor<T, Dim, sycl::access::mode::read_write,
+    sycl::accessor<T, Dim, sycl::access_mode::read_write,
                    sycl::access::target::global_buffer>;
 
 class TestKernel {
@@ -52,7 +54,7 @@ int main() {
   sycl::buffer<value_type, 1> buf{sycl::range<1>{1}};
   auto launchRange = sycl::nd_range<1>{sycl::range<1>{1}, sycl::range<1>{1}};
   q.submit([&](sycl::handler &cgh) {
-     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
      cgh.parallel_for<class kernels::TestKernel>(launchRange,
                                                  kernels::TestKernel{acc});
    }).wait();
