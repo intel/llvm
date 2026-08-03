@@ -21,7 +21,7 @@ int main() {
   {
     buffer<int, 1> Buf{&Val, range<1>(1)};
     Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access_mode::discard_write>(Cgh);
+      auto Acc = Buf.get_access<access_mode::write>(Cgh, sycl::no_init);
       Cgh.single_task<Foo>([=]() { Acc[0] = Gold; });
     });
   }

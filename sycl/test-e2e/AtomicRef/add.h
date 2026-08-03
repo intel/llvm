@@ -34,7 +34,7 @@ void add_fetch_local_test(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
        auto out =
-           output_buf.template get_access<access_mode::discard_write>(cgh);
+           output_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
        local_accessor<T, 1> loc(1, cgh);
 
        cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> it) {
@@ -83,7 +83,7 @@ void add_fetch_test(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
        auto out =
-           output_buf.template get_access<access_mode::discard_write>(cgh);
+           output_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
          auto atm = AtomicRef < T,
@@ -166,7 +166,7 @@ void add_plus_equal_test(queue q, size_t N) {
     q.submit([&](handler &cgh) {
       auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
       auto out =
-          output_buf.template get_access<access_mode::discard_write>(cgh);
+          output_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
         auto atm = AtomicRef < T,
@@ -249,7 +249,7 @@ void add_pre_inc_test(queue q, size_t N) {
     q.submit([&](handler &cgh) {
       auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
       auto out =
-          output_buf.template get_access<access_mode::discard_write>(cgh);
+          output_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
         auto atm = AtomicRef < T,
@@ -331,7 +331,7 @@ void add_post_inc_test(queue q, size_t N) {
     q.submit([&](handler &cgh) {
       auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
       auto out =
-          output_buf.template get_access<access_mode::discard_write>(cgh);
+          output_buf.template get_access<access_mode::write>(cgh, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
         auto atm = AtomicRef < T,
