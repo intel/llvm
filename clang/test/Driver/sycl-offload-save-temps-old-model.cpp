@@ -40,3 +40,16 @@
 // RUN: | FileCheck %s --check-prefix=CHK_LLVM_PASSES
 // CHK_LLVM_PASSES-NOT: clang{{.*}} "-triple" "spir64-unknown-unknown" {{.*}} "-disable-llvm-passes"
 // CHK_LLVM_PASSES: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-disable-llvm-passes"
+
+/// -fsycl-targets= must never appear in any host cc1 invocation. It is not
+/// consumed by the host compile and passing it (an alias for --offload-targets=)
+/// triggers spurious OpenMP target triple validation on SYCL-specific names
+/// like 'intel_gpu_pvc', causing: error: OpenMP target is invalid: 'intel_gpu_pvc'
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHK-NO-FSYCL-TARGETS-IN-HOST-BC
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=intel_gpu_pvc -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHK-NO-FSYCL-TARGETS-IN-HOST-BC
+/// Verify the host compile step emitting BC is present but without -fsycl-targets=.
+/// The NOT must precede the positive match so FileCheck scans the same line window.
+// CHK-NO-FSYCL-TARGETS-IN-HOST-BC-NOT: "-fsycl-is-host"{{.*}}"-emit-llvm-bc"{{.*}}"-fsycl-targets=
+// CHK-NO-FSYCL-TARGETS-IN-HOST-BC: clang{{.*}} "-fsycl-is-host"{{.*}} "-emit-llvm-bc"{{.*}} "-o" "{{.*}}.bc"

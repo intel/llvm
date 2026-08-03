@@ -85,8 +85,8 @@ void do_conv(buffer<float, 2> in, buffer<float, 2> out, CP coeff_provider) {
   queue myQueue;
 
   myQueue.submit([&](handler &cgh) {
-    auto in_acc = in.template get_access<access::mode::read>(cgh);
-    auto out_acc = out.template get_access<access::mode::write>(cgh);
+    auto in_acc = in.template get_access<access_mode::read>(cgh);
+    auto out_acc = out.template get_access<access_mode::write>(cgh);
 
     // Set the coefficient of the convolution as constant.
     // This will build a specific kernel the coefficient available as literals.

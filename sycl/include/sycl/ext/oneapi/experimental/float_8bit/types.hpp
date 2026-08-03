@@ -13,6 +13,7 @@
 #include <sycl/multi_ptr.hpp>
 
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/detail/fp_conversion_common.hpp>
 #include <sycl/khr/static_addrspace_cast.hpp>
 #include <sycl/marray.hpp>
 
@@ -105,27 +106,10 @@ namespace ext::oneapi::experimental {
 
 enum class saturation { none, finite };
 
-enum class rounding {
-  to_even,
-  upward,
-  toward_zero,
-};
-
-struct stochastic_seed {
-  explicit stochastic_seed(uint32_t *pseed) : pseed(pseed) {}
-  uint32_t *const pseed;
-};
+// `rounding`, `stochastic_seed`, and `detail::BitWidth` are shared with the
+// other narrow-FP conversion extensions; see fp_conversion_common.hpp.
 
 namespace detail {
-
-template <typename T> static inline int BitWidth(T x) noexcept {
-  int width = 0;
-  while (x != 0u) {
-    ++width;
-    x >>= 1;
-  }
-  return width;
-}
 
 template <typename ToT> struct DirectBinary16Traits;
 

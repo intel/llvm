@@ -775,8 +775,12 @@ bool SPIRVRegularizeLLVMBase::regularize() {
               llvm::toCABI(Cmpxchg->getSuccessOrdering()));
           auto FailureOrder = static_cast<OCLMemOrderKind>(
               llvm::toCABI(Cmpxchg->getFailureOrdering()));
-          Value *EqualSem = getInt32(M, OCLMemOrderMap::map(SuccessOrder));
-          Value *UnequalSem = getInt32(M, OCLMemOrderMap::map(FailureOrder));
+          unsigned SCMask =
+              getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
+          Value *EqualSem =
+              getInt32(M, OCLMemOrderMap::map(SuccessOrder) | SCMask);
+          Value *UnequalSem =
+              getInt32(M, OCLMemOrderMap::map(FailureOrder) | SCMask);
           Value *Val = Cmpxchg->getNewValOperand();
           Value *Comparator = Cmpxchg->getCompareOperand();
 

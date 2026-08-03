@@ -188,13 +188,14 @@ int main() {
     // Copy back the values and verify.
     int *CopyBack = sycl::malloc_shared<int>(NewVecSize, Q);
 
-    // TODO: Level-zero (excluding on PVC) does not currently allow copy across
-    //       virtual memory ranges, even if they are consequtive.
+    // TODO: Level-zero (excluding on PVC) and HIP do not currently allow copy
+    //       across virtual memory ranges, even if they are consequtive.
     syclext::architecture DevArch =
         Q.get_device().get_info<syclext::info::device::architecture>();
-    if (Q.get_backend() == sycl::backend::ext_oneapi_level_zero &&
-        DevArch != syclext::architecture::intel_gpu_pvc &&
-        DevArch != syclext::architecture::intel_gpu_pvc_vg) {
+    if ((Q.get_backend() == sycl::backend::ext_oneapi_level_zero &&
+         DevArch != syclext::architecture::intel_gpu_pvc &&
+         DevArch != syclext::architecture::intel_gpu_pvc_vg) ||
+        Q.get_backend() == sycl::backend::ext_oneapi_hip) {
       Q.parallel_for(sycl::range<1>{NewVecSize}, [=](sycl::id<1> Idx) {
          CopyBack[Idx] = VecDataPtr[Idx];
        }).wait_and_throw();

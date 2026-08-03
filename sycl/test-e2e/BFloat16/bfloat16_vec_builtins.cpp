@@ -81,8 +81,7 @@ bool check(bool a, bool b) { return (a != b); }
   { /* On Device */                                                            \
     buffer<int> err_buf(&err, 1);                                              \
     q.submit([&](handler &cgh) {                                               \
-       accessor<int, 1, access::mode::write, target::device> ERR(err_buf,      \
-                                                                 cgh);         \
+       accessor<int, 1, access_mode::write, target::device> ERR(err_buf, cgh); \
        cgh.single_task([=]() { OPTEST(NAME, SZ, RETTY, INPVAL) });             \
      }).wait();                                                                \
   }                                                                            \
@@ -131,7 +130,7 @@ void test() {
   {
     buffer<int> err_buf(&err, 1);
     q.submit([&](handler &cgh) {
-       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh);
+       accessor<int, 1, access_mode::write, target::device> ERR(err_buf, cgh);
        cgh.single_task([=]() {
          vec<bfloat16, 3> arg{1.0f, nan, 2.0f};
          vec<int16_t, 3> res = sycl::ext::oneapi::experimental::isnan(arg);
@@ -220,7 +219,7 @@ void test() {
   {
     buffer<int> err_buf(&err, 1);
     q.submit([&](handler &cgh) {
-       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh);
+       accessor<int, 1, access_mode::write, target::device> ERR(err_buf, cgh);
        cgh.single_task([=]() {
          vec<bfloat16, 3> arg1, arg2, arg3;
          bfloat16 inpVal1 = 1.0f;

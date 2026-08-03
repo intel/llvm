@@ -18,7 +18,7 @@ template <typename T> void assert_close(const T &C, const float ref) {
 void verify_conv_implicit(queue &q, buffer<float, 1> &a, range<1> &r,
                           const float ref) {
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read_write>(cgh);
+    auto A = a.get_access<access_mode::read_write>(cgh);
     cgh.parallel_for<class calc_conv>(r, [=](id<1> index) {
       sycl::ext::oneapi::bfloat16 AVal{A[index]};
       A[index] = AVal;
@@ -31,7 +31,7 @@ void verify_conv_implicit(queue &q, buffer<float, 1> &a, range<1> &r,
 void verify_conv_explicit(queue &q, buffer<float, 1> &a, range<1> &r,
                           const float ref) {
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read_write>(cgh);
+    auto A = a.get_access<access_mode::read_write>(cgh);
     cgh.parallel_for<class calc_conv_impl>(r, [=](id<1> index) {
       sycl::ext::oneapi::bfloat16 AVal = A[index];
       A[index] = float(AVal);
@@ -46,9 +46,9 @@ void verify_add(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
   buffer<float, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_add_expl>(r, [=](id<1> index) {
       sycl::ext::oneapi::bfloat16 AVal{A[index]};
       sycl::ext::oneapi::bfloat16 BVal{B[index]};
@@ -65,9 +65,9 @@ void verify_sub(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
   buffer<float, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_sub>(r, [=](id<1> index) {
       sycl::ext::oneapi::bfloat16 AVal{A[index]};
       sycl::ext::oneapi::bfloat16 BVal{B[index]};
@@ -83,8 +83,8 @@ void verify_minus(queue &q, buffer<float, 1> &a, range<1> &r, const float ref) {
   buffer<float, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_minus>(r, [=](id<1> index) {
       sycl::ext::oneapi::bfloat16 AVal{A[index]};
       sycl::ext::oneapi::bfloat16 CVal = -AVal;
@@ -100,9 +100,9 @@ void verify_mul(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
   buffer<float, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_mul>(r, [=](id<1> index) {
       sycl::ext::oneapi::bfloat16 AVal{A[index]};
       sycl::ext::oneapi::bfloat16 BVal{B[index]};
@@ -119,9 +119,9 @@ void verify_div(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
   buffer<float, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc_div>(r, [=](id<1> index) {
       sycl::ext::oneapi::bfloat16 AVal{A[index]};
       sycl::ext::oneapi::bfloat16 BVal{B[index]};
@@ -138,9 +138,9 @@ void verify_logic(queue &q, buffer<float, 1> &a, buffer<float, 1> &b,
   buffer<float, 1> c{r};
 
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class logic>(r, [=](id<1> index) {
       sycl::ext::oneapi::bfloat16 AVal{A[index]};
       sycl::ext::oneapi::bfloat16 BVal{B[index]};

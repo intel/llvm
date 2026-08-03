@@ -169,7 +169,7 @@ protected:
 
 TEST_F(IPCPhysMemTests, IPCGetPut) {
   {
-    syclexp::properties PropList{syclexp::enable_ipc};
+    syclexp::properties PropList{syclexp::enable_ipc{true}};
     syclexp::physical_mem PhysMem{Dev, Ctxt, PhysMemSize, PropList};
 
     syclexp::ipc::handle IPCMemHandle =
@@ -251,7 +251,7 @@ TEST_F(IPCPhysMemTests, IPCGetNoFlagEnableIpc) {
 
 TEST_F(IPCPhysMemTests, IPCCreateDevNoAspect) {
   mock::getCallbacks().set_after_callback("urDeviceGetInfo", nullptr);
-  syclexp::properties PropList{syclexp::enable_ipc};
+  syclexp::properties PropList{syclexp::enable_ipc{true}};
   bool exception = false;
 
   try {

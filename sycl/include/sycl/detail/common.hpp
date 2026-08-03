@@ -57,7 +57,7 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
 // or ranges classes. When extending the new values are filled with
 // DefaultValue, truncation just removes extra values.
 template <int NewDim, int DefaultValue, template <int> class T, int OldDim>
-static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
+T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
   T<NewDim> NewObj = detail::InitializedVal<NewDim, T>::template get<0>();
   const int CopyDims = NewDim > OldDim ? OldDim : NewDim;
   for (int I = 0; I < CopyDims; ++I)

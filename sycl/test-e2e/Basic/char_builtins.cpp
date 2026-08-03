@@ -46,9 +46,9 @@ template <typename T> int doCharTest(const T *A, const T *B, T *C) {
     buffer<T> BBuf(B, BufferSize);
     buffer<T> CBuf(C, BufferSize);
     Q.submit([&](handler &CGH) {
-      auto AAcc = ABuf.template get_access<access::mode::read>(CGH);
-      auto BAcc = BBuf.template get_access<access::mode::read>(CGH);
-      auto CAcc = CBuf.template get_access<access::mode::write>(CGH);
+      auto AAcc = ABuf.template get_access<access_mode::read>(CGH);
+      auto BAcc = BBuf.template get_access<access_mode::read>(CGH);
+      auto CAcc = CBuf.template get_access<access_mode::write>(CGH);
       CGH.single_task<>([=]() {
         CAcc[0] = clz(AAcc[0]);
         CAcc[1] = ctz(AAcc[1]);
@@ -69,7 +69,7 @@ template <typename T> int doCharTest(const T *A, const T *B, T *C) {
   {
     buffer<T> ABuf(A, BufferSize);
     Q.submit([&](handler &CGH) {
-      auto AAcc = ABuf.template get_access<access::mode::read_write>(CGH);
+      auto AAcc = ABuf.template get_access<access_mode::read_write>(CGH);
       local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
 
       nd_range<1> NDR{range<1>(NElems), range<1>(WorkGroupSize)};

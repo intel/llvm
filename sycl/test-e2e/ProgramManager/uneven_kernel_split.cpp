@@ -1,11 +1,9 @@
 // REQUIRES: any-device-is-cpu, gpu, opencl-aot, ocloc, target-spir, opencl-cpu-rt
 
-// UNSUPPORTED: linux
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17305
-
-// XFAIL: windows && !new-offload-model
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20127
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
+// New offload model uses AOT flags at compile time, the old offload model at
+// link time.
+// DEFINE: %{gpu_compile_flags} = %if !new-offload-model %{-Wno-unused-command-line-argument%}
+// DEFINE: %{link_flags} = %if new-offload-model %{-Wno-unused-command-line-argument%}
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -I %S/Inputs/ %S/uneven_kernel_split.cpp -c -o %t.o
 // RUN: %clangxx -fsycl %{intel_gpu_aot_targets} -I %S/Inputs/ %S/Inputs/gpu_kernel1.cpp -c -o %t1.o

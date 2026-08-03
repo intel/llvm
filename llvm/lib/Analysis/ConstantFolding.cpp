@@ -2356,7 +2356,6 @@ Constant *constantFoldVectorReduce(Intrinsic::ID IID, Constant *Op) {
   if (!VT)
     return nullptr;
 
-  // TODO: Handle undef.
   auto *EltC = dyn_cast_or_null<ConstantInt>(Op->getAggregateElement(0U));
   if (!EltC)
     return nullptr;
@@ -3788,8 +3787,6 @@ static Constant *ConstantFoldIntrinsicCall2(Intrinsic::ID IntrinsicID, Type *Ty,
     case Intrinsic::smin:
     case Intrinsic::umax:
     case Intrinsic::umin:
-      if (!C0 && !C1)
-        return UndefValue::get(Ty);
       if (!C0 || !C1)
         return MinMaxIntrinsic::getSaturationPoint(IntrinsicID, Ty);
       return ConstantInt::get(
@@ -3866,8 +3863,6 @@ static Constant *ConstantFoldIntrinsicCall2(Intrinsic::ID IntrinsicID, Type *Ty,
     }
     case Intrinsic::uadd_sat:
     case Intrinsic::sadd_sat:
-      if (!C0 && !C1)
-        return UndefValue::get(Ty);
       if (!C0 || !C1)
         return Constant::getAllOnesValue(Ty);
       if (IntrinsicID == Intrinsic::uadd_sat)
@@ -3876,8 +3871,6 @@ static Constant *ConstantFoldIntrinsicCall2(Intrinsic::ID IntrinsicID, Type *Ty,
         return ConstantInt::get(Ty, C0->sadd_sat(*C1));
     case Intrinsic::usub_sat:
     case Intrinsic::ssub_sat:
-      if (!C0 && !C1)
-        return UndefValue::get(Ty);
       if (!C0 || !C1)
         return Constant::getNullValue(Ty);
       if (IntrinsicID == Intrinsic::usub_sat)
@@ -3918,11 +3911,11 @@ static Constant *ConstantFoldIntrinsicCall2(Intrinsic::ID IntrinsicID, Type *Ty,
     case Intrinsic::pdep:
       if (!C0 || !C1)
         return Constant::getNullValue(Ty);
-      return ConstantInt::get(Ty, APIntOps::expandBits(*C0, *C1));
+      return ConstantInt::get(Ty, APIntOps::pdep(*C0, *C1));
     case Intrinsic::pext:
       if (!C0 || !C1)
         return Constant::getNullValue(Ty);
-      return ConstantInt::get(Ty, APIntOps::compressBits(*C0, *C1));
+      return ConstantInt::get(Ty, APIntOps::pext(*C0, *C1));
     case Intrinsic::amdgcn_wave_reduce_umin:
     case Intrinsic::amdgcn_wave_reduce_umax:
     case Intrinsic::amdgcn_wave_reduce_max:

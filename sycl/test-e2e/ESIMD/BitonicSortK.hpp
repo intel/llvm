@@ -604,8 +604,8 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
       buffer<uint32_t, 1> bufo(pOutputs, range<1>(size));
       // enqueue sort265 kernel
       auto e = pQueue_->submit([&](handler &cgh) {
-        auto acci = bufi.get_access<access::mode::read>(cgh);
-        auto acco = bufo.get_access<access::mode::write>(cgh);
+        auto acci = bufi.get_access<access_mode::read>(cgh);
+        auto acco = bufo.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class Sort256>(
             SortGlobalRange * SortLocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
               using namespace sycl::ext::intel::esimd;
@@ -649,7 +649,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
         for (int j = i; j >= 8; j--) {
           buffer<uint32_t, 1> buf(pOutputs, range<1>(size));
           mergeEvent[k] = pQueue_->submit([&](handler &cgh) {
-            auto acc = buf.get_access<access::mode::read_write>(cgh);
+            auto acc = buf.get_access<access_mode::read_write>(cgh);
             cgh.parallel_for<class Merge>(
                 MergeGlobalRange * MergeLocalRange,
                 [=](id<1> tid) SYCL_ESIMD_KERNEL {

@@ -18,7 +18,7 @@ namespace ns {
 template <int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
 void nsNdRangeFreeFunc(
-    sycl::accessor<int, Dims, sycl::access::mode::read_write> Accessor,
+    sycl::accessor<int, Dims, sycl::access_mode::read_write> Accessor,
     int Value) {
   auto Item = syclext::this_work_item::get_nd_item<Dims>().get_global_id();
   Accessor[Item] = Value;
@@ -28,11 +28,11 @@ void nsNdRangeFreeFunc(
 template <int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
 void ndRangeFreeFuncMultipleParameters(
-    sycl::accessor<int, Dims, sycl::access::mode::read,
+    sycl::accessor<int, Dims, sycl::access_mode::read,
                    sycl::access::target::device>
         InputAAcc,
     sycl::accessor<int, Dims> InputBAcc,
-    sycl::accessor<int, Dims, sycl::access::mode::write> ResultAcc) {
+    sycl::accessor<int, Dims, sycl::access_mode::write> ResultAcc) {
   auto Item = syclext::this_work_item::get_nd_item<Dims>().get_global_id();
   ResultAcc[Item] = InputAAcc[Item] + InputBAcc[Item];
 }
@@ -97,13 +97,13 @@ int runNdRangeTestMultipleParameters(sycl::queue &Queue, sycl::context &Context,
     sycl::buffer<int, Dims> ResultBuffer(ResultData.data(),
                                          NdRange.get_global_range());
     Queue.submit([&](sycl::handler &Handler) {
-      sycl::accessor<int, Dims, sycl::access::mode::read,
+      sycl::accessor<int, Dims, sycl::access_mode::read,
                      sycl::access::target::device>
           InputAAcc{InputABuffer, Handler};
-      sycl::accessor<int, Dims, sycl::access::mode::read,
+      sycl::accessor<int, Dims, sycl::access_mode::read,
                      sycl::access::target::device>
           InputBAcc{InputBBuffer, Handler};
-      sycl::accessor<int, Dims, sycl::access::mode::write> ResultAcc{
+      sycl::accessor<int, Dims, sycl::access_mode::write> ResultAcc{
           ResultBuffer, Handler};
       Handler.set_args(InputAAcc, InputBAcc, ResultAcc);
       Handler.parallel_for(NdRange, UsedKernel);

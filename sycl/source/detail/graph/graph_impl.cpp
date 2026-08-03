@@ -139,7 +139,8 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
 /// @param PartitionNum Number to propagate.
 void propagatePartitionUp(node_impl &Node, int PartitionNum) {
   if (((Node.MPartitionNum != -1) && (Node.MPartitionNum <= PartitionNum)) ||
-      (Node.MCGType == sycl::detail::CGType::CodeplayHostTask)) {
+      Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+      Node.MCGType == sycl::detail::CGType::NativeHostTask) {
     return;
   }
   Node.MPartitionNum = PartitionNum;
@@ -157,7 +158,8 @@ void propagatePartitionUp(node_impl &Node, int PartitionNum) {
 /// are encountered as successors to the node Node.
 void propagatePartitionDown(node_impl &Node, int PartitionNum,
                             std::list<node_impl *> &HostTaskList) {
-  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+      Node.MCGType == sycl::detail::CGType::NativeHostTask) {
     if (Node.MPartitionNum != -1) {
       HostTaskList.push_front(&Node);
     }
@@ -195,7 +197,8 @@ void exec_graph_impl::makePartitions() {
   std::list<node_impl *> HostTaskList;
   // find all the host-tasks in the graph
   for (node_impl &Node : nodes()) {
-    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+        Node.MCGType == sycl::detail::CGType::NativeHostTask) {
       HostTaskList.push_back(&Node);
     }
   }
@@ -268,7 +271,8 @@ void exec_graph_impl::makePartitions() {
         Node.MSamePartitionPredecessors = countPredecessorsInPartition(Node);
         if (Node.MSamePartitionPredecessors == 0) {
           Partition->MRoots.insert(&Node);
-          if (Node.MCGType == CGType::CodeplayHostTask) {
+          if (Node.MCGType == CGType::CodeplayHostTask ||
+              Node.MCGType == CGType::NativeHostTask) {
             Partition->MIsHostTask = true;
           }
         }
@@ -355,10 +359,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
 
     Result = Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphCreateExp>(
         ContextImpl.getHandleRef(), &MNativeGraphHandle);
-    if (Result != UR_RESULT_SUCCESS) {
-      throw sycl::exception(sycl::make_error_code(errc::runtime),
-                            "Failed to create native UR graph");
-    }
+    Adapter.checkUrResult(Result, "Failed to create native UR graph");
     assert(MNativeGraphHandle != nullptr &&
            "Native UR graph handle should not be null if graph creation "
            "succeeded");
@@ -386,7 +387,13 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
 
 graph_impl::~graph_impl() {
   try {
-    clearQueues(false /*Needs lock*/);
+    // Handle any exception when ending capture, so we avoid throwing
+    // and can still try to destroy the graph object when native recording.
+    try {
+      clearQueues(false /*Needs lock*/);
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
+    }
     for (auto &MemObj : MMemObjs) {
       MemObj->markNoLongerBeingUsedInGraph();
     }
@@ -400,10 +407,7 @@ graph_impl::~graph_impl() {
       ur_result_t Result =
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDestroyExp>(
               MNativeGraphHandle);
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to destroy native UR graph");
-      }
+      Adapter.checkUrResult(Result, "Failed to destroy native UR graph");
       MNativeGraphHandle = nullptr;
     }
     for (auto &Cb : MDestructionCallbacks) {
@@ -696,10 +700,8 @@ void graph_impl::setDestructionCallback(std::function<void()> Callback) {
           delete Fn;
         },
         Data.get());
-    if (Result != UR_RESULT_SUCCESS) {
-      throw sycl::exception(sycl::make_error_code(errc::runtime),
-                            "Failed to register graph destruction callback");
-    }
+    Adapter.checkUrResult(Result,
+                          "Failed to register graph destruction callback");
     Data.release();
   } else {
     MDestructionCallbacks.push_back(std::move(Callback));
@@ -726,23 +728,18 @@ void graph_impl::clearQueues(bool NeedsLock) {
   for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
       if (MNativeGraphHandle) {
-        // End native UR graph capture
-        auto UrQueue = ValidQueue->getHandleRef();
-        ur_exp_graph_handle_t CapturedGraph = nullptr;
-        context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
-        sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
-        ur_result_t Result = Adapter.call_nocheck<
-            sycl::detail::UrApiKind::urQueueEndGraphCaptureExp>(UrQueue,
-                                                                &CapturedGraph);
-        if (Result != UR_RESULT_SUCCESS) {
-          throw sycl::exception(sycl::make_error_code(errc::runtime),
-                                "Failed to end native graph capture");
-        }
+        auto EndResult = ValidQueue->endNativeRecording();
+        getContextImpl().getAdapter().checkUrResult(
+            EndResult.Result, "Error when ending native graph capture");
         // CapturedGraph should be the same as MNativeGraphHandle
       } else {
         // Only call setCommandGraph for traditional recording
         ValidQueue->setCommandGraph(nullptr);
       }
+    } else if (MNativeGraphHandle) {
+      // The primary recording queue was destroyed by the user. We must update
+      // the context that the recording is over.
+      getContextImpl().nativeRecordingEnded();
     }
   }
 }
@@ -754,13 +751,10 @@ bool graph_impl::empty() const {
   }
 
   bool IsEmptyResult = true;
-  if (getSyclObjImpl(MContext)
-          ->getAdapter()
-          .call_nocheck<UrApiKind::urGraphIsEmptyExp>(
-              MNativeGraphHandle, &IsEmptyResult) != UR_RESULT_SUCCESS) {
-    throw sycl::exception(sycl::make_error_code(errc::runtime),
-                          "Failed to check if graph is empty");
-  }
+  sycl::detail::adapter_impl &Adapter = getContextImpl().getAdapter();
+  ur_result_t Result = Adapter.call_nocheck<UrApiKind::urGraphIsEmptyExp>(
+      MNativeGraphHandle, &IsEmptyResult);
+  Adapter.checkUrResult(Result, "Failed to check if graph is empty");
   return IsEmptyResult;
 }
 
@@ -898,22 +892,16 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
 
     // Use native UR graph recording if enabled
     if (MNativeGraphHandle) {
-      auto UrQueue = Queue.getHandleRef();
-      context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
-      sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
-
       if (Queue.isNativeRecording()) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "Queue is already in native graph capture mode");
       }
-
-      ur_result_t Result = Adapter.call_nocheck<
-          sycl::detail::UrApiKind::urQueueBeginCaptureIntoGraphExp>(
-          UrQueue, MNativeGraphHandle);
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to begin native UR graph capture");
+      auto BeginResult = Queue.beginNativeRecording(MNativeGraphHandle);
+      if (BeginResult.RecordingActive) {
+        addQueue(Queue);
       }
+      getContextImpl().getAdapter().checkUrResult(
+          BeginResult.Result, "Failed to begin native UR graph capture");
     } else {
       // Non-native recording path
       if (AcquireQueueLock) {
@@ -921,8 +909,8 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
       } else {
         Queue.setCommandGraphUnlocked(shared_from_this());
       }
+      addQueue(Queue);
     }
-    addQueue(Queue);
   }
 }
 
@@ -1173,10 +1161,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
             .call_nocheck<sycl::detail::UrApiKind::urGraphInstantiateGraphExp>(
                 GraphImpl->getNativeGraphHandle(),
                 &MNativeExecutableGraphHandle);
-    if (Result != UR_RESULT_SUCCESS) {
-      throw sycl::exception(sycl::make_error_code(errc::runtime),
-                            "Failed to instantiate native UR executable graph");
-    }
+    Adapter.checkUrResult(Result,
+                          "Failed to instantiate native UR executable graph");
   } else {
     // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
     duplicateNodes();
@@ -1207,9 +1193,9 @@ exec_graph_impl::~exec_graph_impl() {
       ur_result_t Res = Adapter.call_nocheck<
           sycl::detail::UrApiKind::urGraphExecutableGraphDestroyExp>(
           MNativeExecutableGraphHandle);
-      if (Res == UR_RESULT_SUCCESS) {
-        MNativeExecutableGraphHandle = nullptr;
-      }
+      Adapter.checkUrResult(Res,
+                            "Failed to destroy native UR executable graph");
+      MNativeExecutableGraphHandle = nullptr;
     }
 
     // Clean up any graph-owned allocations that were allocated
@@ -2310,22 +2296,14 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
       // End native UR graph capture
       assert(impl->getNativeGraphHandle() &&
              "Native graph handle must be valid when ending native recording");
-      auto UrQueue = QueueImpl.getHandleRef();
-      ur_exp_graph_handle_t CapturedGraph = nullptr;
-      context_impl &ContextImpl =
-          *sycl::detail::getSyclObjImpl(impl->getContext());
-      sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
-      ur_result_t Result =
-          Adapter
-              .call_nocheck<sycl::detail::UrApiKind::urQueueEndGraphCaptureExp>(
-                  UrQueue, &CapturedGraph);
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to end native UR graph capture");
+      auto EndResult = QueueImpl.endNativeRecording();
+      if (!EndResult.RecordingActive) {
+        impl->removeQueue(QueueImpl);
       }
-      assert(CapturedGraph == impl->getNativeGraphHandle() &&
+      impl->getContextImpl().getAdapter().checkUrResult(
+          EndResult.Result, "Error when ending native graph capture");
+      assert(EndResult.CapturedGraph == impl->getNativeGraphHandle() &&
              "Captured graph handle must match the graph's native handle");
-      impl->removeQueue(QueueImpl);
     }
   } else {
     // Traditional recording path

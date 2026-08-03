@@ -27,7 +27,7 @@ int main() {
     sycl::buffer<int, 1> A_Buf(A_Data, sycl::range<1>(10));
 
     Q.submit([&](sycl::handler &Cgh) {
-      auto A_Acc = A_Buf.get_access<sycl::access::mode::write>(Cgh);
+      auto A_Acc = A_Buf.get_access<sycl::access_mode::write>(Cgh);
       Cgh.parallel_for(sycl::range<1>{5},
                        [=](sycl::id<1> index) { A_Acc[index] = 5; });
     });
@@ -40,8 +40,8 @@ int main() {
     sycl::buffer<int, 1> C_Buf(C_Data, sycl::range<1>(10));
 
     Q.submit([&](sycl::handler &Cgh) {
-      auto B_Acc = B_Buf.get_access<sycl::access::mode::read_write>(Cgh);
-      auto C_Acc = C_Buf.get_access<sycl::access::mode::read>(Cgh);
+      auto B_Acc = B_Buf.get_access<sycl::access_mode::read_write>(Cgh);
+      auto C_Acc = C_Buf.get_access<sycl::access_mode::read>(Cgh);
       Cgh.parallel_for(sycl::range<1>{5}, [=](sycl::id<1> index) {
         B_Acc[index] += C_Acc[index];
       });
@@ -55,8 +55,8 @@ int main() {
     sycl::buffer<int, 1> C_Buf(C_Data, sycl::range<1>(10));
 
     Q.submit([&](sycl::handler &Cgh) {
-      auto B_Acc = B_Buf.get_access<sycl::access::mode::read>(Cgh);
-      auto C_Acc = C_Buf.get_access<sycl::access::mode::write>(Cgh);
+      auto B_Acc = B_Buf.get_access<sycl::access_mode::read>(Cgh);
+      auto C_Acc = C_Buf.get_access<sycl::access_mode::write>(Cgh);
       Cgh.parallel_for(sycl::range<1>{5},
                        [=](sycl::id<1> index) { C_Acc[index] = B_Acc[index]; });
     });
