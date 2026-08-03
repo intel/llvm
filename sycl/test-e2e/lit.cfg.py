@@ -722,7 +722,10 @@ INTEL_GPU_SHORT_NAMES = {
     "intel_gpu_mtl_h": "mtl-h",
     "intel_gpu_arl_u": "arl-u",
     "intel_gpu_arl_s": "arl-s",
-    "intel_gpu_arl_h": "arl-h",
+    # intel_gpu_arl_h maps to ocloc device 'xe_lpgplus_b0', which the ocloc
+    # shipped in the CI image doesn't recognize. Re-enable once CI ocloc
+    # supports it.
+    # "intel_gpu_arl_h": "arl-h",
     "intel_gpu_bmg_g21": "bmg-g21",
     "intel_gpu_bmg": "bmg",
     "intel_gpu_lnl_m": "lnl-m",

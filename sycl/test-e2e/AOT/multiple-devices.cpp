@@ -27,8 +27,10 @@
 
 // REQUIRES: opencl-aot, ocloc, any-device-is-cpu, any-device-is-gpu, target-spir, opencl-cpu-rt
 
-// Produce a fat object for all targets (generic SPIR-V, CPU, GPU)
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen %S/Inputs/aot.cpp -c -o %t.o
+// Produce a fat object for all targets (generic SPIR-V, CPU, GPU). The GPU
+// side uses per-device intel_gpu_* targets so the object contains matching
+// per-device images that the link commands below can select against.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64,%{intel_gpu_aot_targets} %S/Inputs/aot.cpp -c -o %t.o
 
 // Verify that AOT compilation occurs for the targets (GPU, CPU)
 // specified in the link command line. Note that generic SPIR-V compilation
