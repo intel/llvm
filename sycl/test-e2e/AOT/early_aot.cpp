@@ -1,9 +1,8 @@
 // Test early-AOT behaviors with -fsycl -fno-sycl-rdc.  This targets spir64_gen
 
 // REQUIRES: ocloc, gpu, target-spir
-
-// Note: New Offload Model temporarily requires -fno-sycl-rdc to be specified
-// at the linking step. Old Offload Model requires it at the compilation step.
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: CMPLRLLVM-51875
 
 // Build the early AOT device binaries
 // RUN: %clangxx -fsycl -fsycl-targets=%{intel_gpu_aot_targets} -fno-sycl-rdc -c -DADD_CPP %s -o %t_add.o
