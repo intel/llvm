@@ -127,12 +127,11 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
 
   bool UseCopyEngine = false;
 
-  // External semaphore operations must not be deferred in a batch. With
-  // regular (non-immediate) command lists, batching leaves the append sitting
-  // in the queue's open command list until some unrelated event flushes it.
-  // For a signal that means the external consumer may never observe it; for a
-  // wait it means the external producer's signal cannot release a command
-  // list that was never submitted, which can deadlock.
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external producer's
+  // signal cannot release a command list that was never submitted and can
+  // deadlock.
   bool OkToBatch = false;
 
   auto phEventWaitListInternal = v1_cast(phEventWaitListOpque);
@@ -196,12 +195,10 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
 
   bool UseCopyEngine = false;
 
-  // External semaphore operations must not be deferred in a batch. With
-  // regular (non-immediate) command lists, batching leaves the append sitting
-  // in the queue's open command list until some unrelated event flushes it.
-  // For a signal that means the external consumer may never observe it; for a
-  // wait it means the external producer's signal cannot release a command
-  // list that was never submitted, which can deadlock.
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external consumer may
+  // never observe the signal.
   bool OkToBatch = false;
 
   auto phEventWaitListInternal = v1_cast(phEventWaitListOpque);
