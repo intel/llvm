@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -Wno-error=deprecated-declarations
 // RUN: %{run} %t.out
 #include <sycl/atomic.hpp>
 #include <sycl/detail/core.hpp>
@@ -14,11 +14,9 @@ template <typename T> void kernel_func(T val) {
   buffer<T, 1> buf(&data, range<1>(1));
 
   testQueue.submit([&](handler &cgh) {
-    auto GlobAcc = buf.template get_access<access_mode::read_write>(cgh);
+    auto GlobAcc = buf.template get_access<access_mode::atomic>(cgh);
     cgh.single_task<class foo<T>>([=]() {
-      sycl::atomic_ref<T, sycl::memory_order::relaxed,
-                       sycl::memory_scope::device>
-          a(GlobAcc[0]);
+      auto a = GlobAcc[0];
       T var = a.load();
     });
   });
