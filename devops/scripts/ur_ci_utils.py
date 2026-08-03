@@ -25,7 +25,10 @@ class TestConfig:
 
 def find_xml_file(search_path: str, xml_name: str) -> str:
     """Find XML file - checks search_path and common fallback locations."""
-    print(f"DEBUG_FIND: Called with search_path={search_path!r}, xml_name={xml_name!r}", flush=True)
+    print(
+        f"DEBUG_FIND: Called with search_path={search_path!r}, xml_name={xml_name!r}",
+        flush=True,
+    )
 
     if ".." in search_path or not search_path:
         print(f"DEBUG_FIND: Rejected due to validation", flush=True)
@@ -45,7 +48,10 @@ def find_xml_file(search_path: str, xml_name: str) -> str:
             found_files = list(search_root.rglob("*.xml"))
             print(f"DEBUG_XML: rglob found {len(found_files)} files", flush=True)
             for xml_path in found_files:
-                print(f"DEBUG_XML: name={xml_path.name}, type={type(xml_path).__name__}", flush=True)
+                print(
+                    f"DEBUG_XML: name={xml_path.name}, type={type(xml_path).__name__}",
+                    flush=True,
+                )
                 if xml_path.is_file():
                     abs_path = xml_path.absolute()
                     print(f"DEBUG_XML: Returning {abs_path}", flush=True)
@@ -164,10 +170,15 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         return 1
 
     env = os.environ.copy()
+
+    # Generate unique XML name to avoid literal *.xml filename
+    xml_output_name = f"{test_type.replace('-', '_')}_results.xml"
+    xml_output_path = Path(config.xml_search_path) / xml_output_name
+
     env["LIT_OPTS"] = (
         "--show-unsupported --show-pass --show-xfail --no-progress-bar "
         "--succinct --timeout 120 -j 50 --time-tests --show-flakypass "
-        f"--show-skipped --xunit-xml-output {config.xml_name}"
+        f"--show-skipped --xunit-xml-output {xml_output_name}"
     )
     if config.lit_filter_out:
         env["LIT_FILTER_OUT"] = config.lit_filter_out
@@ -203,14 +214,9 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         print("skip_artifacts=1", flush=True)
         return 0
 
-    # Find XML file and output absolute path (not wildcard pattern)
-    print(f"DEBUG: About to search for XML: search_path={config.xml_search_path}, xml_name={config.xml_name}", flush=True)
-    xml_file = find_xml_file(config.xml_search_path, config.xml_name)
-    print(f"DEBUG: find_xml_file returned: {xml_file!r}", flush=True)
-    if xml_file:
-        print(f"xml_file={xml_file}", flush=True)
-    else:
-        print(f"DEBUG: xml_file is empty or None", flush=True)
+    # XML file path with concrete name (not wildcard)
+    if xml_output_path.exists():
+        print(f"xml_file={xml_output_path.absolute()}", flush=True)
 
     return result.returncode
 
