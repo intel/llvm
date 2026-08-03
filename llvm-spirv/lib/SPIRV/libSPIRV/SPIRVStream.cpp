@@ -297,7 +297,13 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
     M.setInvalid();
   }
 
-  assert(!IS.bad() && !IS.fail() && "SPIRV stream fails");
+  if (IS.bad() || IS.fail()) {
+    M.getErrorLog().checkError(false, SPIRVEC_InvalidModule,
+                               "input SPIR-V module has a truncated "
+                               "instruction (stream failed mid-read)");
+    M.setInvalid();
+    return nullptr;
+  }
   return Entry;
 }
 

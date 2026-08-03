@@ -1004,7 +1004,14 @@ SPIRVEntry *SPIRVModuleImpl::getEntry(SPIRVId Id) const {
 
 SPIRVExtInstSetKind SPIRVModuleImpl::getBuiltinSet(SPIRVId SetId) const {
   auto Loc = IdToInstSetMap.find(SetId);
-  assert(Loc != IdToInstSetMap.end() && "Invalid builtin set id");
+  if (Loc == IdToInstSetMap.end()) {
+    const_cast<SPIRVModuleImpl *>(this)->getErrorLog().checkError(
+        false, SPIRVEC_InvalidModule,
+        "input SPIR-V module references an unknown extended instruction set "
+        "id " +
+            std::to_string(SetId));
+    return SPIRVEIS_Count;
+  }
   return Loc->second;
 }
 

@@ -116,7 +116,12 @@ void SPIRVFunction::decode(std::istream &I) {
       break;
     }
     default:
-      assert(0 && "Invalid SPIRV format");
+      Module->getErrorLog().checkError(false, SPIRVEC_InvalidModule,
+                                       "unexpected opcode " +
+                                           std::to_string(Decoder.OpCode) +
+                                           " in function definition");
+      Module->setInvalid();
+      return;
     }
   }
 }
@@ -142,6 +147,13 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
     }
 
     SPIRVEntry *Entry = Decoder.getEntry();
+    if (!Entry) {
+      Module->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
+                                       "failed to decode instruction in "
+                                       "basic block");
+      Module->setInvalid();
+      return false;
+    }
 
     if (Decoder.OpCode == OpLine) {
       std::shared_ptr<const SPIRVLine> L(static_cast<SPIRVLine *>(Entry));
