@@ -571,9 +571,9 @@ urUSMPoolDestroyExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(
-    ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName, void *pPropValue,
-    size_t) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
+                    void *pPropValue, size_t) {
   hipMemPoolAttr attr;
 
   // All current values are expected to be of size uint64_t.
@@ -612,8 +612,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
 
   try {
     hipMemPool_t HipPool;
-    UR_CHECK_ERROR(
-        hipDeviceGetDefaultMemPool(&HipPool, hDevice->getIndex()));
+    UR_CHECK_ERROR(hipDeviceGetDefaultMemPool(&HipPool, hDevice->getIndex()));
 
     *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(hContext, hDevice, HipPool));
