@@ -38,9 +38,6 @@ namespace detail {
 class jit_compiler {
 
 public:
-  jit_compiler();
-  ~jit_compiler() = default;
-
   ur_kernel_handle_t
   materializeSpecConstants(queue_impl &Queue,
                            const RTDeviceBinaryImage *BinImage,
@@ -57,7 +54,14 @@ public:
 
   bool isAvailable() { return Available; }
 
+  static jit_compiler &get_instance() {
+    static jit_compiler instance{};
+    return instance;
+  }
+
 private:
+  jit_compiler();
+  ~jit_compiler() = default;
   jit_compiler(const jit_compiler &) = delete;
   jit_compiler(jit_compiler &&) = delete;
   jit_compiler &operator=(const jit_compiler &) = delete;

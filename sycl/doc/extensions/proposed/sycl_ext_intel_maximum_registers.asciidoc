@@ -1,4 +1,4 @@
-= sycl_ext_intel_grf_size
+= sycl_ext_intel_maximum_registers
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -21,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2026 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -50,19 +50,10 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is an experimental extension specification, intended to provide early access
-to features and gather community feedback. Interfaces defined in this specification
-are implemented in DPC++, but they are not finalized and may change incompatibly in
-future versions of DPC++ without prior notice. **Shipping software products should not
-rely on APIs defined in this specification.**
-
-== Backend support status
-
-This extension is currently implemented in {dpcpp} only for Intel GPU devices and
-only when using the Level Zero backend or OpenCL backend.
-Attempting to use this extension in kernels that run on other devices or
-backends may result in undefined behavior.  Be aware that the compiler
-is not able to issue a diagnostic to warn you if this happens.
+This is a proposed extension specification, intended to gather community feedback.
+Interfaces defined in this specification may not be implemented yet or may be in a preliminary state.
+The specification itself may also change in incompatible ways before it is finalized.
+**Shipping software products should not rely on APIs defined in this specification.**
 
 == Overview
 
@@ -76,6 +67,8 @@ requirements, but it can also introduce trade-offs that reduce performance.
 Applications should generally rely on the compiler's default selection unless
 profiling demonstrates a benefit from specifying a different GRF size.
 
+This extension is similar to link:../experimental/sycl_ext_intel_grf_size.asciidoc[sycl_ext_intel_grf_size]
+but the mechanism by which the GRF size specification is communicated from {dpcpp} to the runtime differs.
 
 == Specification
 
@@ -83,7 +76,7 @@ profiling demonstrates a benefit from specifying a different GRF size.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_INTEL_GRF_SIZE` to one of the values defined in the table
+macro `SYCL_EXT_INTEL_MAXIMUM_REGISTERS` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -108,7 +101,7 @@ implementation-defined.
 On devices that support two GRF sizes, implementations typically select the
 smaller size by default.
 
-The two properties defined below and the properties from link:../proposed/sycl_ext_intel_maximum_registers.asciidoc[sycl_ext_intel_maximum_registers] are all mutually exclusive.
+The two properties defined below and the properties from link:../experimental/sycl_ext_intel_grf_size.asciidoc[sycl_ext_intel_grf_size] are all mutually exclusive.
 A kernel may be decorated with at most one of these properties.
 
 [_Note_: Using these properties to select a larger GRF size may impose a lower
@@ -124,15 +117,15 @@ _{endnote}_]
 ----
 namespace sycl::ext::intel::experimental {
 
-struct grf_size_key {
+struct maximum_registers_key {
   template <unsigned int Size>
   using value_t = 
-      oneapi::experimental::property_value<grf_size_key, 
+      oneapi::experimental::property_value<maximum_registers_key, 
                                            std::integral_constant<unsigned int, Size>>;
 };
 
 template <unsigned int Size>
-inline constexpr grf_size_key::value_t<Size> grf_size;
+inline constexpr maximum_registers_key::value_t<Size> maximum_registers;
 
 } // namespace sycl::ext::intel::experimental
 ----
@@ -147,12 +140,12 @@ which the kernel is submitted, as defined by the table below.
 ----
 namespace sycl::ext::intel::experimental {
 
-struct grf_size_automatic_key {
+struct maximum_registers_automatic_key {
   using value_t = 
-      oneapi::experimental::property_value<grf_size_automatic_key>;
+      oneapi::experimental::property_value<maximum_registers_automatic_key>;
 };
 
-inline constexpr grf_size_automatic_key::value_t grf_size_automatic;
+inline constexpr maximum_registers_automatic_key::value_t maximum_registers_automatic;
 
 } // namespace sycl::ext::intel::experimental
 ----
@@ -196,7 +189,7 @@ struct Kernel1 {
   void operator()(sycl::nd_item<1> it) const { /* ... */ }
 
   auto get(syclex::properties_tag) const {
-    return syclex::properties{intelex::grf_size<256>};
+    return syclex::properties{intelex::maximum_registers<256>};
   }
 };
 
@@ -206,7 +199,7 @@ struct Kernel2 {
   void operator()(sycl::nd_item<1> it) const { /* ... */ }
 
   auto get(syclex::properties_tag) const {
-    return syclex::properties{intelex::grf_size_automatic};
+    return syclex::properties{intelex::maximum_registers_automatic};
   }
 };
 
@@ -232,13 +225,13 @@ namespace syclex = sycl::ext::oneapi::experimental;
 namespace intelex = sycl::ext::intel::experimental;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size<256>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::maximum_registers<256>))
 void kernel1() {
   /* ... */
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::grf_size_automatic))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::maximum_registers_automatic))
 void kernel2() {
   /* ... */
 }

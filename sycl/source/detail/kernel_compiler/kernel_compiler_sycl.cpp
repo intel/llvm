@@ -13,7 +13,6 @@
 #include <numeric> // std::accumulate
 
 #if SYCL_EXT_JIT_ENABLE
-#include <detail/global_handler.hpp>
 #include <detail/jit_compiler.hpp>
 #endif
 
@@ -35,7 +34,7 @@ userArgsAsString(const std::vector<sycl::detail::string_view> &UserArguments) {
 
 bool SYCL_JIT_Compilation_Available() {
 #if SYCL_EXT_JIT_ENABLE
-  return sycl::detail::GlobalHandler::instance().getJITCompiler().isAvailable();
+  return sycl::detail::jit_compiler::get_instance().isAvailable();
 #else
   return false;
 #endif
@@ -51,7 +50,7 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_Compile(
   static std::atomic_uintptr_t CompilationCounter;
   std::string CompilationID = "rtc_" + std::to_string(CompilationCounter++);
   std::vector<std::string> UserArgStrings{UserArgs.begin(), UserArgs.end()};
-  return sycl::detail::GlobalHandler::instance().getJITCompiler().compileSYCL(
+  return sycl::detail::jit_compiler::get_instance().compileSYCL(
       CompilationID, SYCLSource, IncludePairs, UserArgStrings, LogPtr, Format);
 #else
   throw sycl::exception(sycl::errc::build,
@@ -61,9 +60,7 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_Compile(
 
 void SYCL_JIT_Destroy([[maybe_unused]] sycl_device_binaries Binaries) {
 #if SYCL_EXT_JIT_ENABLE
-  sycl::detail::GlobalHandler::instance()
-      .getJITCompiler()
-      .destroyDeviceBinaries(Binaries);
+  sycl::detail::jit_compiler::get_instance().destroyDeviceBinaries(Binaries);
 #else
   throw sycl::exception(sycl::errc::invalid,
                         "kernel_compiler via sycl-jit is not available");
