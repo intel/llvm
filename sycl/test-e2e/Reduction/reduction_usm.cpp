@@ -52,7 +52,7 @@ int test(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
        }
      };
 
-     auto In = InBuf.template get_access<access::mode::read>(CGH);
+     auto In = InBuf.template get_access<access_mode::read>(CGH);
      auto Redu = CreateReduction();
      CGH.parallel_for<USMKName<Name, class Test>>(
          NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
@@ -65,7 +65,7 @@ int test(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
   if (AllocType == usm::alloc::device) {
     buffer<T, 1> Buf(&ComputedOut, range<1>(1));
     Q.submit([&](handler &CGH) {
-       auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
+       auto OutAcc = Buf.template get_access<access_mode::discard_write>(CGH);
        CGH.single_task<USMKName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();

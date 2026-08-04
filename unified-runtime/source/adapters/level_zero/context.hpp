@@ -22,11 +22,14 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/interfaces.hpp"
 #include "queue.hpp"
 #include "usm.hpp"
 
 #include "common/ur_ref_count.hpp"
 #include <umf_helpers.hpp>
+
+namespace ur::level_zero::v1 {
 
 struct l0_command_list_cache_info {
   ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
@@ -54,32 +57,20 @@ typedef struct _ze_intel_event_sync_mode_exp_desc_t {
 
 extern const bool UseUSMAllocator;
 
-struct ur_context_handle_t_ : ur_object {
+struct ur_context_handle_t_ : ur_context_common_t {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
-      : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
-        NumDevices{NumDevices}, DefaultPool{this, nullptr, !UseUSMAllocator},
+      : ur_context_common_t(ZeContext, {Devs, Devs + NumDevices},
+                            NumDevices ? Devs[0]->Platform : nullptr),
+        DefaultPool{this, nullptr, !UseUSMAllocator},
         AsyncPool{this, nullptr, !UseUSMAllocator} {
     OwnNativeHandle = OwnZeContext;
   }
 
   ur_context_handle_t_(ze_context_handle_t ZeContext)
-      : ZeContext{ZeContext}, DefaultPool{this, nullptr, !UseUSMAllocator},
+      : ur_context_common_t(ZeContext, {}, nullptr),
+        DefaultPool{this, nullptr, !UseUSMAllocator},
         AsyncPool{this, nullptr, !UseUSMAllocator} {}
-
-  // A L0 context handle is primarily used during creation and management of
-  // resources that may be used by multiple devices.
-  // This field is only set at ur_context_handle_t creation time, and cannot
-  // change. Therefore it can be accessed without holding a lock on this
-  // ur_context_handle_t.
-  const ze_context_handle_t ZeContext{};
-
-  // Keep the PI devices this PI context was created for.
-  // This field is only set at ur_context_handle_t creation time, and cannot
-  // change. Therefore it can be accessed without holding a lock on this
-  // ur_context_handle_t. const std::vector<ur_device_handle_t> Devices;
-  std::vector<ur_device_handle_t> Devices;
-  uint32_t NumDevices{};
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
@@ -190,12 +181,6 @@ struct ur_context_handle_t_ : ur_object {
 
   // Finalize the PI context
   ur_result_t finalize();
-
-  // Return the Platform, which is the same for all devices in the context
-  ur_platform_handle_t getPlatform() const;
-
-  // Get vector of devices from this context
-  const std::vector<ur_device_handle_t> &getDevices() const;
 
   // Get index of the free slot in the available pool. If there is no available
   // pool then create new one. The HostVisible parameter tells if we need a
@@ -350,13 +335,6 @@ struct ur_context_handle_t_ : ur_object {
       const ur_event_handle_t *EventWaitList, bool AllowBatching,
       ze_command_queue_handle_t *ForcedCmdQueue);
 
-  // Checks if Device is covered by this context.
-  // For that the Device or its root devices need to be in the context.
-  bool isValidDevice(ur_device_handle_t Device) const;
-
-  // Get handle to the L0 context
-  ze_context_handle_t getZeHandle() const;
-
   ur::RefCount RefCount;
 
 private:
@@ -411,3 +389,5 @@ private:
 // mutex guarding the container with contexts because the context can be removed
 // from the list of tracked contexts.
 ur_result_t ContextReleaseHelper(ur_context_handle_t Context);
+
+} // namespace ur::level_zero::v1

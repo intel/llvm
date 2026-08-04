@@ -19,7 +19,7 @@ int main() {
     // Ensure that a simple kernel gets run when instrumented with
     // ITT start/finish annotations and ITT wg_barrier/wi_resume annotations.
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      auto acc = buf.get_access<access_mode::read_write>(cgh);
       local_accessor<int, 1> local_acc(local_range, cgh);
       cgh.parallel_for<class simple_barrier_kernel>(
           nd_range<1>(num_items, local_range), [=](nd_item<1> item) {

@@ -83,7 +83,7 @@ template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
 
     buffer<T, 1> OutBuf(A, range<1>(size));
     q.submit([&](handler &cgh) {
-       auto OutAcc = OutBuf.template get_access<access::mode::read_write>(cgh);
+       auto OutAcc = OutBuf.template get_access<access_mode::read_write>(cgh);
        auto LocalAcc = local_accessor<T, 1>(VL * NUM_RGBA_CHANNELS, cgh);
 
        cgh.parallel_for(Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {

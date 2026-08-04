@@ -26,8 +26,8 @@ template <typename T> int runTests(sycl::aspect ExtAspect) {
     return 0;
   }
 
-  constexpr access::mode RW = access::mode::read_write;
-  constexpr access::mode DW = access::mode::discard_write;
+  constexpr access_mode RW = access_mode::read_write;
+  constexpr access_mode DW = access_mode::discard_write;
 
   tests<class A1, T>(Q, 1, 77, std::multiplies<T>{}, 4, 4, init_to_identity());
   tests<class A2, T>(Q, 1, 77, std::multiplies<T>{}, 4, 8);

@@ -1,8 +1,6 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-INTENDED: L0 adapter incorrectly reports memory leaks because it
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22478
 // doesn't take into account direct calls to L0 API.
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
@@ -88,8 +86,7 @@ void test_copyback_and_free(
           BufferInteropInput, Context);
 
       auto Event = Queue1.submit([&](sycl::handler &CGH) {
-        auto Acc =
-            BufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+        auto Acc = BufferInterop.get_access<sycl::access_mode::read_write>(CGH);
         CGH.single_task<class SimpleKernel6>([=]() {
           for (int i = 0; i < 12; i++) {
             Acc[i] = 99;
@@ -100,8 +97,7 @@ void test_copyback_and_free(
 
       // Submit in a different context
       Queue2.submit([&](sycl::handler &CGH) {
-        auto Acc =
-            BufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+        auto Acc = BufferInterop.get_access<sycl::access_mode::read_write>(CGH);
         CGH.single_task<class SimpleKernel7>([=]() {
           for (int i = 0; i < 12; i++) {
             Acc[i] *= 2;

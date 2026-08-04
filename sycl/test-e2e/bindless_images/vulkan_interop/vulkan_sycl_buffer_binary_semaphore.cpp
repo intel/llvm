@@ -5,7 +5,7 @@
 // Linux fix tracked by GSD-12371, landed in driver 38362.
 // REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
 
-// UNSUPPORTED: linux && run-mode
+// UNSUPPORTED: linux && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
