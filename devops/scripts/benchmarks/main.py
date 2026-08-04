@@ -852,8 +852,12 @@ if __name__ == "__main__":
         options.output_directory = os.path.abspath(args.output_dir)
     if args.compute_benchmarks_source_dir is not None:
         if not os.path.isdir(args.compute_benchmarks_source_dir):
-            parser.error("Specified --compute-benchmarks-source-dir is not a valid path")
-        options.compute_benchmarks_source_dir = os.path.abspath(args.compute_benchmarks_source_dir)
+            parser.error(
+                "Specified --compute-benchmarks-source-dir is not a valid path"
+            )
+        options.compute_benchmarks_source_dir = os.path.abspath(
+            args.compute_benchmarks_source_dir
+        )
     if args.offload_prefix is not None:
         offload_prefix = os.path.abspath(args.offload_prefix)
         if not os.path.isdir(os.path.join(offload_prefix, "lib")):

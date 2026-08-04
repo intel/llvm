@@ -609,9 +609,7 @@ class ComputeBench(Suite):
         #
         device_arch = getattr(options, "device_architecture", "")
         torch_graph_runtimes = (
-            SYCL_RUNTIMES
-            if "pvc" in device_arch
-            else TORCH_BENCHMARK_RUNTIMES
+            SYCL_RUNTIMES if "pvc" in device_arch else TORCH_BENCHMARK_RUNTIMES
         )
 
         # Add TorchGraphSingleQueue benchmarks
@@ -1346,8 +1344,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self._emulate_graphs = emulate_graphs
         self._native_str = (
             " native recording"
-            if self._emulate_graphs == 0
-            and runtime in NATIVE_GRAPH_RUNTIMES
+            if self._emulate_graphs == 0 and runtime in NATIVE_GRAPH_RUNTIMES
             else ""
         )
         self._ioq_str = "in order" if self._in_order_queue else "out of order"

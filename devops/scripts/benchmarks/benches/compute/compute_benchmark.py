@@ -151,9 +151,7 @@ class ComputeBenchmark(Benchmark):
 
         if options.ur_adapter == "cuda":
             return [
-                runtime
-                for runtime in CUDA_COMPATIBLE_RUNTIMES
-                if runtime in runtimes
+                runtime for runtime in CUDA_COMPATIBLE_RUNTIMES if runtime in runtimes
             ]
 
         return runtimes

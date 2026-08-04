@@ -65,9 +65,7 @@ class GitProject:
 
     @property
     def _uses_build_cache(self) -> bool:
-        return (
-            self._src_dir_override is not None or self._build_cache_key is not None
-        )
+        return self._src_dir_override is not None or self._build_cache_key is not None
 
     def _source_fingerprint(self) -> dict | None:
         """Fingerprint the source tree for build-completion tracking.
@@ -101,7 +99,14 @@ class GitProject:
                             source_hash.update(chunk)
                 else:
                     submodule_status = run(
-                        ["git", "-C", str(path), "status", "--porcelain=v2", "--branch"],
+                        [
+                            "git",
+                            "-C",
+                            str(path),
+                            "status",
+                            "--porcelain=v2",
+                            "--branch",
+                        ],
                         cwd=self.src_dir,
                     ).stdout
                     source_hash.update(submodule_status)
