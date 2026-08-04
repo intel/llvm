@@ -843,9 +843,16 @@ ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
   auto lockedBatch = currentCmdLists.lock();
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
+  UR_CALL(lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
       hSemaphore, hasWaitValue, waitValue, waitListView,
-      getEvent(lockedBatch, phEvent));
+      getEvent(lockedBatch, phEvent)));
+
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external producer's
+  // signal cannot release a command list that was never submitted and can
+  // deadlock.
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
@@ -858,9 +865,16 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
   auto lockedBatch = currentCmdLists.lock();
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getListManager().bindlessImagesSignalExternalSemaphoreExp(
-      hSemaphore, hasSignalValue, signalValue, waitListView,
-      getEvent(lockedBatch, phEvent));
+  UR_CALL(
+      lockedBatch->getListManager().bindlessImagesSignalExternalSemaphoreExp(
+          hSemaphore, hasSignalValue, signalValue, waitListView,
+          getEvent(lockedBatch, phEvent)));
+
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external consumer may
+  // never observe the signal.
+  return renewBatchUnlocked(lockedBatch);
 }
 
 // In case of queues with batched submissions, which use regular command lists
