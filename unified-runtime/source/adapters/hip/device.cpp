@@ -978,8 +978,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(ur_bool_t{false});
-  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
-    return ReturnValue(ur_bool_t{false});
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
+    int VirtualMemSupport = getAttribute(
+        hDevice, hipDeviceAttributeVirtualMemoryManagementSupported);
+    return ReturnValue(static_cast<ur_bool_t>(VirtualMemSupport));
+  }
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:

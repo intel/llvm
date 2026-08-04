@@ -95,10 +95,10 @@ bool test_default_values(sycl::queue q) {
 
   q.submit([&](sycl::handler &cgh) {
     cgh.use_kernel_bundle(exec_bundle);
-    auto int_acc = int_buffer.get_access<sycl::access::mode::write>(cgh);
-    auto float_acc = float_buffer.get_access<sycl::access::mode::write>(cgh);
+    auto int_acc = int_buffer.get_access<sycl::access_mode::write>(cgh);
+    auto float_acc = float_buffer.get_access<sycl::access_mode::write>(cgh);
     auto custom_type_acc =
-        custom_type_buffer.get_access<sycl::access::mode::write>(cgh);
+        custom_type_buffer.get_access<sycl::access_mode::write>(cgh);
     cgh.single_task<TestDefaultValuesKernel>([=](sycl::kernel_handler kh) {
       int_acc[0] = kh.get_specialization_constant<int_id>();
       float_acc[0] = kh.get_specialization_constant<float_id>();
@@ -236,10 +236,10 @@ bool test_set_and_get_on_device(sycl::queue q) {
 
   q.submit([&](sycl::handler &cgh) {
     cgh.use_kernel_bundle(exec_bundle);
-    auto int_acc = int_buffer.get_access<sycl::access::mode::write>(cgh);
-    auto float_acc = float_buffer.get_access<sycl::access::mode::write>(cgh);
+    auto int_acc = int_buffer.get_access<sycl::access_mode::write>(cgh);
+    auto float_acc = float_buffer.get_access<sycl::access_mode::write>(cgh);
     auto custom_type_acc =
-        custom_type_buffer.get_access<sycl::access::mode::write>(cgh);
+        custom_type_buffer.get_access<sycl::access_mode::write>(cgh);
 
     cgh.single_task<TestSetAndGetOnDevice>([=](sycl::kernel_handler kh) {
       int_acc[0] = kh.get_specialization_constant<int_id>();

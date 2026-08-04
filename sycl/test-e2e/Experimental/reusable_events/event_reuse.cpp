@@ -23,7 +23,7 @@ int main() {
 
   // First operation
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class Kernel1>(sycl::range<1>(N),
                                     [=](sycl::id<1> idx) { acc[idx] = 1; });
   });
@@ -32,7 +32,7 @@ int main() {
 
   // Reuse event for second operation
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class Kernel2>(
         sycl::range<1>(N), [=](sycl::id<1> idx) { acc[idx] = acc[idx] + 10; });
   });
@@ -41,7 +41,7 @@ int main() {
 
   // Reuse event for third operation
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class Kernel3>(
         sycl::range<1>(N), [=](sycl::id<1> idx) { acc[idx] = acc[idx] * 2; });
   });
