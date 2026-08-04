@@ -48,6 +48,20 @@ static ur_result_t urUsmP2PChangePeerAccessExp(ur_device_handle_t commandDevice,
   UR_LOG(INFO, "user tries to {} peer access to memory of {} from {}",
          (isAdding ? "enable" : "disable"), *peerDevice, *commandDevice);
 
+  if (!restrictUsmResidencyToP2P()) {
+    // The restrictive P2P/residency feature is disabled (the default), so
+    // P2P access is always considered enabled for connectable peers and USM
+    // allocations are always resident on all of them. Ignore the requested
+    // state change and report success, matching the behavior of the Level
+    // Zero V1 adapter.
+    UR_LOG(INFO,
+           "ignored {} peer access to memory of {} from {}, because P2P is "
+           "always enabled unless SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P is "
+           "set",
+           (isAdding ? "enabling" : "disabling"), *peerDevice, *commandDevice);
+    return UR_RESULT_SUCCESS;
+  }
+
   {
     const auto expectedPeerStatus =
         isAdding ? ur_device_handle_t_::PeerStatus::DISABLED
