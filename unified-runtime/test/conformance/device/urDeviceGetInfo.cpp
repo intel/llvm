@@ -2707,12 +2707,15 @@ TEST_P(urDeviceGetInfoTest, SuccessLuid) {
 TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_NODE_MASK;
-  uint32_t property_value = 0;
+
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urDeviceGetInfo(device, property_name, property_size, &property_value,
-                      &property_size),
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
 
   const bool is_power_of_two =
       property_value != 0 && (property_value & (property_value - 1)) == 0;
