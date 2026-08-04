@@ -2558,8 +2558,16 @@ static ur_result_t SetKernelParamsAndLaunch(
   if (IsCooperative) {
     property_list.flags |= UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
   }
-  // If there is no implicit arg, let the driver handle it via a property
-  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+  // If there is no implicit arg, let the driver handle it via a property.
+  // Only do so when the kernel actually consumes dynamic work group (scratch)
+  // memory. A launch may request a work_group_scratch_size for a kernel that
+  // never calls get_work_group_scratch_memory() (e.g. a scratch size attached
+  // to a shared launch_config reused across kernels); such a kernel has no
+  // implicit local arg and no way to use the memory, so requesting it is a
+  // no-op. Sending the launch property in that case would be rejected by
+  // backends (e.g. Level Zero) that do not support the driver-property path.
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value() &&
+      DeviceKernelInfo.getWorkGroupDynamicLocalMem()) {
     workgroup_property.stype =
         UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY;
     workgroup_property.pNext = nullptr;
@@ -2792,10 +2800,15 @@ ur_result_t enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
-  // If there is no implicit arg, let the driver handle it via a property
-  // which is not yet supported!
+  // If there is no implicit arg, the driver-property path would be needed,
+  // which is not yet supported here. Only diagnose when the kernel actually
+  // consumes dynamic work group (scratch) memory; a launch that merely
+  // requests a scratch size for a kernel that never uses it (e.g. a scratch
+  // size attached to a shared launch_config reused across kernels) is a no-op
+  // and must not be rejected.
   if (CommandGroup.MKernelWorkGroupMemorySize &&
-      !ImplicitLocalArg.has_value()) {
+      !ImplicitLocalArg.has_value() &&
+      CommandGroup.MDeviceKernelInfo.getWorkGroupDynamicLocalMem()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "Setting work group scratch memory size is not yet supported "

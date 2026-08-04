@@ -1,5 +1,7 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} %S/SumKernel.cc %S/ProductKernel.cc -o %t.out
 // RUN: %{run} %t.out
+
 #include <iostream>
 
 #include "ProductKernel.hpp"
@@ -7,10 +9,13 @@
 #include <cassert>
 #include <numeric>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
+namespace syclexp = sycl::ext::oneapi::experimental;
 
 // Add declarations again to test the compiler with multiple declarations of the
 // same free function kernel in the translation unit.
@@ -74,6 +79,31 @@ int main() {
       ++failed;
     }
   }
+
+  // Launch using the nd_launch API specialized for free function kernels.
+  constexpr int N = 1024;
+  float *y = sycl::malloc_shared<float>(N, Q);
+  float *x = sycl::malloc_shared<float>(N, Q);
+  for (int i = 0; i < N; ++i) {
+    x[i] = 1.0f;
+    y[i] = 1.0f;
+  }
+
+  // NEW direct-enqueue path, launched from a TU that has only the DECL
+  syclexp::nd_launch(Q,
+                     sycl::nd_range<1>{sycl::range<1>{N}, sycl::range<1>{32}},
+                     syclexp::kernel_function<SumKernel::sumUSM>, y, x, N);
+  Q.wait();
+
+  for (int i = 0; i < N; ++i) {
+    if (y[i] != 2.0f) {
+      std::cout << "Failed at index " << i << ": " << y[i] << "!=" << 2.0f
+                << std::endl;
+      ++failed;
+    }
+  }
+  sycl::free(x, Q);
+  sycl::free(y, Q);
 
   return failed;
 }
