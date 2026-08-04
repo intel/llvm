@@ -30,8 +30,8 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    auto entry_points =
-        uur::KernelsEnvironment::instance->GetEntryPointNames("cpy_and_mult_usm");
+    auto entry_points = uur::KernelsEnvironment::instance->GetEntryPointNames(
+        "cpy_and_mult_usm");
     ASSERT_FALSE(entry_points.empty());
     kernel_name = entry_points[0];
     ASSERT_FALSE(kernel_name.empty());
