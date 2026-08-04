@@ -2687,37 +2687,39 @@ TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
 
 TEST_P(urDeviceGetInfoTest, SuccessLuid) {
   size_t property_size = 0;
+  constexpr size_t luid_size = 8;
+  std::array<unsigned char, luid_size> property_value{};
   const ur_device_info_t property_name = UR_DEVICE_INFO_LUID;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      urDeviceGetInfo(device, property_name, property_size,
+                      property_value.data(), &property_size),
       property_name);
-  constexpr size_t luid_size = 8;
+
   ASSERT_EQ(property_size, sizeof(std::array<unsigned char, luid_size>));
 
-  std::array<unsigned char, luid_size> property_value{};
-  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
-                                 property_value.data(), nullptr));
-
-  uint64_t luid_as_uint64 = 0;
-  std::memcpy(&luid_as_uint64, property_value.data(), sizeof(luid_as_uint64));
-  const bool is_power_of_two =
-      luid_as_uint64 != 0u && (luid_as_uint64 & (luid_as_uint64 - 1)) == 0u;
-  ASSERT_TRUE(is_power_of_two);
+  const bool is_all_zeros =
+      std::all_of(property_value.begin(), property_value.end(),
+                  [](unsigned char value) { return value == 0; });
+  ASSERT_FALSE(is_all_zeros);
 }
 
 TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_NODE_MASK;
-
+  uint32_t property_value = 0;
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      urDeviceGetInfo(device, property_name, property_size, &property_value,
+                      &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
 
-  uint32_t property_value = 0;
-  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
-                                 &property_value, nullptr));
+  const bool is_power_of_two =
+      property_value != 0 && (property_value & (property_value - 1)) == 0;
+  if (!is_power_of_two) {
+    GTEST_LOG_(WARNING) << "UR_DEVICE_INFO_NODE_MASK is not a power of two: "
+                        << property_value;
+  }
 }
 
 TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
@@ -2807,6 +2809,7 @@ TEST_P(urDeviceGetInfoComponentDevicesTest, SuccessComponentDevices) {
       ASSERT_EQ(property_size, 0);
 
       std::vector<ur_device_handle_t> componentDevices(property_size);
+
       ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
                                      componentDevices.data(), nullptr));
 

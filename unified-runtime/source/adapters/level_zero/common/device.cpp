@@ -1508,11 +1508,16 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LUID: {
-    // LUID is only available on Windows.
-    // Intel extension for device LUID. This returns the LUID as
-    // std::array<std::byte, 8>. For details about this extension,
+  case UR_DEVICE_INFO_LUID:
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // LUID and Device node mask are only available on Windows.
+    // Intel extension for device LUID and node mask. This returns the LUID as
+    // std::array<std::byte, 8> the node mask as uint32_t.
+    // For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
+    // Node mask is provided through the L0 LUID extension so support for this
+    // extension must be checked.
     if (Device->Platform->ZeLUIDSupported) {
       ze_device_properties_t DeviceProp = {};
       DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
@@ -1538,44 +1543,15 @@ ur_result_t urDeviceGetInfo(
           break;
         }
       }
-      if (isAllZeros) {
+      if (LuidDesc.nodeMask == 0 || isAllZeros) {
         return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       }
 
-      return ReturnValue(LUID, sizeof(LUID));
-    } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-    }
-  }
-  case UR_DEVICE_INFO_NODE_MASK: {
-    // Device node mask is only available on Windows.
-    // Intel extension for device node mask. This returns the node mask as
-    // uint32_t. For details about this extension,
-    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-
-    // Node mask is provided through the L0 LUID extension so support for this
-    // extension must be checked.
-    if (Device->Platform->ZeLUIDSupported) {
-      ze_device_properties_t DeviceProp = {};
-      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-      ze_device_luid_ext_properties_t LuidDesc = {};
-      LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
-      DeviceProp.pNext = (void *)&LuidDesc;
-
-      const auto ZeResult = zeDeviceGetProperties(ZeDevice, &DeviceProp);
-      if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      if (ParamName == UR_DEVICE_INFO_LUID) {
+        return ReturnValue(LUID, sizeof(LUID));
+      } else {
+        return ReturnValue(LuidDesc.nodeMask);
       }
-      if (ZeResult != ZE_RESULT_SUCCESS) {
-        return ze2urResult(ZeResult);
-      }
-
-      // If the node mask is zero the extension is present but not usable
-      // on this platform (e.g. Linux).
-      if (LuidDesc.nodeMask == 0) {
-        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-      }
-      return ReturnValue(LuidDesc.nodeMask);
     } else {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
