@@ -174,11 +174,14 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         print(f"::error::{e}", file=sys.stderr)
         return 1
 
+    # Convert to Path and ensure all operations are relative to workspace
+    workspace_path = Path(workspace).resolve()
+    
     env = os.environ.copy()
 
     # Generate unique XML name to avoid literal *.xml filename
     xml_output_name = f"{test_type.replace('-', '_')}_results.xml"
-    xml_output_path = (Path(config.xml_search_path) / xml_output_name).absolute()
+    xml_output_path = (workspace_path / config.xml_search_path / xml_output_name).absolute()
 
     # Ensure XML output directory exists
     xml_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -195,30 +198,33 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
     jobs = calculate_jobs()
     cmake_cmd = ["cmake", "--build", build_dir, "-j", str(jobs), "--", config.target]
 
+    # Construct absolute log file path
+    log_file_path = workspace_path / config.log_file
+
     # Output configuration for GitHub Actions (always, before tests run)
-    print(f"log_file={config.log_file}", flush=True)
-    print(f"xml_search_path={config.xml_search_path}", flush=True)
+    print(f"log_file={log_file_path}", flush=True)
+    print(f"xml_search_path={workspace_path / config.xml_search_path}", flush=True)
     sys.stdout.flush()  # Ensure outputs are written before subprocess
 
     print(f"Running: {' '.join(cmake_cmd)}", file=sys.stderr)
-    print(f"Log: {config.log_file}, Jobs: {jobs}", file=sys.stderr)
+    print(f"Log: {log_file_path}, Jobs: {jobs}", file=sys.stderr)
     print(f"Expected XML: {xml_output_path}", file=sys.stderr)
 
     try:
-        with open(config.log_file, "w", encoding="utf-8") as log:
+        with open(log_file_path, "w", encoding="utf-8") as log:
             # Use cmake with validated arguments - no user input, safe list form
             result = subprocess.run(  # nosec B603 B607
-                cmake_cmd, stdout=log, stderr=subprocess.STDOUT, env=env, cwd="."
+                cmake_cmd, stdout=log, stderr=subprocess.STDOUT, env=env, cwd=workspace_path
             )
     except Exception as e:
         print(f"::error::Test execution failed: {e}", file=sys.stderr)
         return 1
 
-    if not Path(config.log_file).exists() or Path(config.log_file).stat().st_size == 0:
+    if not log_file_path.exists() or log_file_path.stat().st_size == 0:
         print("::error::No log generated", file=sys.stderr)
         return 1
 
-    if test_type == "adapter-specific" and not check_log_has_tests(config.log_file):
+    if test_type == "adapter-specific" and not check_log_has_tests(str(log_file_path)):
         print("No adapter-specific tests found", file=sys.stderr)
         print("skip_artifacts=1", flush=True)
         return 0

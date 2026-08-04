@@ -162,6 +162,10 @@ jobs:
         
         echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
 
+    - name: Check NVML version compatibility
+      if: ${{ inputs.adapter_name == 'CUDA' }}
+      run: python3 devops/scripts/check_nvml_version.py
+
     - name: Test adapter specific
       uses: ./devops/actions/run-tests/ur
       with:

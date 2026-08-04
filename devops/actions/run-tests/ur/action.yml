@@ -57,7 +57,7 @@ runs:
         exit 0
       fi
 
-      echo "::group::Full Test Log"
+      echo "::group::Test Log"
       python3 devops/scripts/ur_test_summary.py filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
       echo "::endgroup::"
 
@@ -76,6 +76,8 @@ runs:
     env:
       LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
       XML_FILE: ${{ steps.run_tests.outputs.xml_file }}
+      ARTIFACT_NAME: ${{ inputs.artifact_name }}
+      WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     run: |
       if [ ! -f "$LOG_FILE" ]; then
         echo "::warning::Test log not found"
@@ -88,6 +90,15 @@ runs:
       fi
 
       python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
+      
+      # Add link to artifacts if they will be uploaded
+      if [ -n "$ARTIFACT_NAME" ]; then
+        echo ""
+        echo "---"
+        echo ""
+        echo "Test artifacts (full logs, XML) will be available at:"
+        echo "$WORKFLOW_URL"
+      fi
 
   - name: Copy artifacts
     if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs.skip_artifacts != '1') }}
