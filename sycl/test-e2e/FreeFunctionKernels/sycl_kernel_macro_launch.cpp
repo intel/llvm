@@ -8,9 +8,10 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
-// CUDA-`<<<>>>`-style bare-name launch via the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro. The existing
-// enqueue-function API (nd_launch / single_task taking a kernel_function<Func>
-// selector) is kept unchanged; SYCL_EXT_ONEAPI_KERNEL_FUNCTION(name, args...) expands to
+// CUDA-`<<<>>>`-style bare-name launch via the SYCL_EXT_ONEAPI_KERNEL_FUNCTION
+// macro. The existing enqueue-function API (nd_launch / single_task taking a
+// kernel_function<Func> selector) is kept unchanged;
+// SYCL_EXT_ONEAPI_KERNEL_FUNCTION(name, args...) expands to
 //   kernel_function<__builtin_sycl_launch_kernel(name, args...)>, args...
 // so the compiler deduces the kernel's template arguments / resolves the
 // overload from the launch arguments while the launched SPIR-V kernel remains
@@ -38,7 +39,9 @@ void store42(int *p) { *p = 42; }
 // Templated single_task.
 template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
-void store_one(T *p) { *p = T{1}; }
+void store_one(T *p) {
+  *p = T{1};
+}
 
 // Non-templated nd_range.
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
@@ -90,12 +93,14 @@ void fill(float *p, float v, int n) {
     p[i] = v;
 }
 
-// A SYCL_EXT_ONEAPI_KERNEL_FUNCTION launch from inside an ordinary function template, so the launch
-// arguments are dependent and the macro's builtin call is deferred to
-// instantiation (regression guard: this dependent-context use previously
-// crashed the front end before the builtin call was made type-dependent).
+// A SYCL_EXT_ONEAPI_KERNEL_FUNCTION launch from inside an ordinary function
+// template, so the launch arguments are dependent and the macro's builtin call
+// is deferred to instantiation (regression guard: this dependent-context use
+// previously crashed the front end before the builtin call was made
+// type-dependent).
 template <typename T>
-void run_axpy(sycl::queue q, sycl::nd_range<1> r, T *y, const T *x, T a, int n) {
+void run_axpy(sycl::queue q, sycl::nd_range<1> r, T *y, const T *x, T a,
+              int n) {
   syclexp::nd_launch(q, r, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(axpy, y, x, a, n));
 }
 
@@ -147,8 +152,8 @@ int main() {
   for (int i = 0; i < N; ++i)
     assert(y[i] == a * static_cast<float>(i) + 1.0f);
 
-  // Zero launch arguments: SYCL_EXT_ONEAPI_KERNEL_FUNCTION(tick) must expand without a dangling
-  // comma and launch cleanly.
+  // Zero launch arguments: SYCL_EXT_ONEAPI_KERNEL_FUNCTION(tick) must expand
+  // without a dangling comma and launch cleanly.
   syclexp::single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(tick));
   q.wait();
 
@@ -158,7 +163,8 @@ int main() {
   // general).
   for (int i = 0; i < N; ++i)
     y[i] = 0.0f;
-  syclexp::nd_launch(q, r, SYCL_EXT_ONEAPI_KERNEL_FUNCTION((fill_val<1>), y, 7.0f, N));
+  syclexp::nd_launch(
+      q, r, SYCL_EXT_ONEAPI_KERNEL_FUNCTION((fill_val<1>), y, 7.0f, N));
   q.wait();
   for (int i = 0; i < N; ++i)
     assert(y[i] == 7.0f);
@@ -191,7 +197,8 @@ int main() {
   for (int i = 0; i < N; ++i)
     y[i] = 2.0f;
   syclexp::submit(q, [&](sycl::handler &h) {
-    syclexp::nd_launch(h, r, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(scale, y, 3.0f, N));
+    syclexp::nd_launch(h, r,
+                       SYCL_EXT_ONEAPI_KERNEL_FUNCTION(scale, y, 3.0f, N));
   });
   q.wait();
   for (int i = 0; i < N; ++i)
@@ -201,7 +208,8 @@ int main() {
   for (int i = 0; i < N; ++i)
     y[i] = 2.0f;
   syclexp::launch_config<sycl::nd_range<1>> cfg{r};
-  syclexp::nd_launch(q, cfg, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(scale, y, 4.0f, N));
+  syclexp::nd_launch(q, cfg,
+                     SYCL_EXT_ONEAPI_KERNEL_FUNCTION(scale, y, 4.0f, N));
   q.wait();
   for (int i = 0; i < N; ++i)
     assert(y[i] == 8.0f);
