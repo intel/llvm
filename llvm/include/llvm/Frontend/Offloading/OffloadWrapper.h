@@ -68,9 +68,14 @@ struct SYCLJITOptions {
 /// as global symbols and registers the images with the SYCL Runtime.
 /// \param Options Compiler and linker options to be encoded for the later
 ///  use by a runtime for JIT compilation. Not used for AOT.
+/// \param SectionName ELF section to store the binary in. Defaults to
+///  ".llvm.offloading" so the linker-wrapper picks it up at link time.
+///  Pass a different name to prevent link-time re-processing (e.g. for
+///  per-TU finalized no-RDC images that are already fully compiled).
 LLVM_ABI llvm::Error
 wrapSYCLBinaries(llvm::Module &M, llvm::ArrayRef<char> Buffer,
-                 SYCLJITOptions Options = SYCLJITOptions());
+                 SYCLJITOptions Options = SYCLJITOptions(),
+                 llvm::StringRef SectionName = ".llvm.offloading");
 
 } // namespace offloading
 } // namespace llvm

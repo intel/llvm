@@ -148,8 +148,11 @@ void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
   }
   llvm::ArrayRef<char> Buffer((*BinaryOrErr)->getBufferStart(),
                               (*BinaryOrErr)->getBufferSize());
+  // Use a non-.llvm.offloading section - for sycl-no-rdc at compile time, the
+  // device image is already finalized and must not be re-processed at link time.
   if (llvm::Error E = llvm::offloading::wrapSYCLBinaries(
-          CGM.getModule(), Buffer, llvm::offloading::SYCLJITOptions{}))
+          CGM.getModule(), Buffer, llvm::offloading::SYCLJITOptions{},
+          ".sycl_offloading.device_image"))
     CGM.getDiags().Report(diag::err_fe_linking_module)
         << CGM.getCodeGenOpts().SYCLTargetBinaryFileName
         << llvm::toString(std::move(E));
