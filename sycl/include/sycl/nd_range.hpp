@@ -93,7 +93,7 @@ public:
 
   friend bool operator!=(const nd_range<Dimensions> &lhs,
                          const nd_range<Dimensions> &rhs) {
-    return !(*this == rhs);
+    return !(lhs == rhs);
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
