@@ -21,6 +21,14 @@ class nd_range_view;
 }
 } // namespace detail
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// remove this __NOEXCEPT macro on next release, and replace with noexcept
+// directly
+#define __NOEXCEPT
+#else
+#define __NOEXCEPT noexcept
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 /// Defines the iteration domain of both the work-groups and the overall
 /// dispatch.
 ///
@@ -39,21 +47,25 @@ private:
 public:
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   nd_range(range<Dimensions> globalSize, range<Dimensions> localSize,
-           id<Dimensions> offset)
-      : globalSize(globalSize), localSize(localSize), offset(offset) {}
+           id<Dimensions> offset) __NOEXCEPT : globalSize(globalSize),
+                                               localSize(localSize),
+                                               offset(offset) {}
 
-  nd_range(range<Dimensions> globalSize, range<Dimensions> localSize)
-      : globalSize(globalSize), localSize(localSize), offset(id<Dimensions>()) {
+  nd_range(range<Dimensions> globalSize, range<Dimensions> localSize) __NOEXCEPT
+      : globalSize(globalSize),
+        localSize(localSize),
+        offset(id<Dimensions>()) {}
+
+  range<Dimensions> get_global_range() const __NOEXCEPT { return globalSize; }
+
+  range<Dimensions> get_local_range() const __NOEXCEPT { return localSize; }
+
+  range<Dimensions> get_group_range() const __NOEXCEPT {
+    return globalSize / localSize;
   }
 
-  range<Dimensions> get_global_range() const { return globalSize; }
-
-  range<Dimensions> get_local_range() const { return localSize; }
-
-  range<Dimensions> get_group_range() const { return globalSize / localSize; }
-
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  id<Dimensions> get_offset() const { return offset; }
+  id<Dimensions> get_offset() const __NOEXCEPT { return offset; }
 
   // Common special member functions for by-value semantics
   nd_range(const nd_range<Dimensions> &rhs) = default;
@@ -63,6 +75,7 @@ public:
   nd_range() = default;
 
   // Common member functions for by-value semantics
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const nd_range<Dimensions> &rhs) const {
     return (rhs.globalSize == this->globalSize) &&
            (rhs.localSize == this->localSize) && (rhs.offset == this->offset);
@@ -71,6 +84,18 @@ public:
   bool operator!=(const nd_range<Dimensions> &rhs) const {
     return !(*this == rhs);
   }
+#else
+  friend bool operator==(const nd_range<Dimensions> &lhs,
+                         const nd_range<Dimensions> &rhs) {
+    return (lhs.globalSize == rhs.globalSize) &&
+           (lhs.localSize == rhs.localSize) && (lhs.offset == rhs.offset);
+  }
+
+  friend bool operator!=(const nd_range<Dimensions> &lhs,
+                         const nd_range<Dimensions> &rhs) {
+    return !(*this == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   friend class sycl::_V1::detail::nd_range_view;
 };
