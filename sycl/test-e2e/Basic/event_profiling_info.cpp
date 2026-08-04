@@ -53,9 +53,9 @@ int main() {
     // buffer copy
     queue copyQueue{Dev, sycl::property::queue::enable_profiling()};
     event copyEvent = copyQueue.submit([&](sycl::handler &Cgh) {
-      accessor<int, 1, access::mode::read, access::target::device> AccessorFrom(
+      accessor<int, 1, access_mode::read, access::target::device> AccessorFrom(
           BufferFrom, Cgh, range<1>(Size));
-      accessor<int, 1, access::mode::write, access::target::device> AccessorTo(
+      accessor<int, 1, access_mode::write, access::target::device> AccessorTo(
           BufferTo, Cgh, range<1>(Size));
       Cgh.copy(AccessorFrom, AccessorTo);
     });

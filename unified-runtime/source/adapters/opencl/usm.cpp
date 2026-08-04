@@ -334,14 +334,14 @@ ur_result_t urEnqueueUSMFill(ur_queue_handle_t hQueue, void *ptr,
                                  numEventsInWaitList, CLWaitEvents.data(),
                                  &CopyEvent));
 
+  std::unique_ptr<ur_event_handle_t_> UREvent;
   if (phEvent) {
     // Since we're releasing this in the callback above we need to retain it
     // here to keep the user copy alive.
     CL_RETURN_ON_FAILURE(clRetainEvent(CopyEvent));
     try {
-      auto UREvent = std::make_unique<ur_event_handle_t_>(
-          CopyEvent, Queue->Context, Queue);
-      *phEvent = cast(UREvent.release());
+      UREvent = std::make_unique<ur_event_handle_t_>(CopyEvent, Queue->Context,
+                                                     Queue);
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
@@ -363,6 +363,10 @@ ur_result_t urEnqueueUSMFill(ur_queue_handle_t hQueue, void *ptr,
     delete Info;
     clReleaseEvent(CopyEvent);
     CL_RETURN_ON_FAILURE(ClErr);
+  }
+
+  if (phEvent) {
+    *phEvent = cast(UREvent.release());
   }
 
   return UR_RESULT_SUCCESS;
@@ -499,7 +503,12 @@ ur_result_t urEnqueueUSMMemcpy(ur_queue_handle_t hQueue, bool blocking,
         }
         // We are going to release this event in our callback so we need to
         // retain if the user wants a copy.
-        CL_RETURN_ON_FAILURE(clRetainEvent(FinalCopyEvent));
+        cl_int RetainResult = clRetainEvent(FinalCopyEvent);
+        if (RetainResult != CL_SUCCESS) {
+          ur::opencl::urEventRelease(*phEvent);
+          *phEvent = nullptr;
+          CL_RETURN_ON_FAILURE(RetainResult);
+        }
       }
 
       // This self destructs taking the event and allocation with it.
@@ -514,6 +523,10 @@ ur_result_t urEnqueueUSMMemcpy(ur_queue_handle_t hQueue, bool blocking,
       if (CLErr != CL_SUCCESS) {
         // We can attempt to recover gracefully by attempting to wait for the
         // copy to finish and deleting the info struct here.
+        if (phEvent) {
+          ur::opencl::urEventRelease(*phEvent);
+          *phEvent = nullptr;
+        }
         clWaitForEvents(1, &HostCopyEvent);
         delete DeleterInfo;
         clReleaseEvent(HostCopyEvent);

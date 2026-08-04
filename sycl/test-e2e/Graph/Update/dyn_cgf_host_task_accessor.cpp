@@ -71,7 +71,7 @@ int main() {
 
     // Create two different command groups for the host task
     auto CGFA = [&](handler &CGH) {
-      auto AccC = BufferC.get_access<access::mode::read_write,
+      auto AccC = BufferC.get_access<access_mode::read_write,
                                      access::target::host_task>(CGH);
       CGH.host_task([=]() {
         for (size_t i = 0; i < Size; i++) {
@@ -80,7 +80,7 @@ int main() {
       });
     };
     auto CGFB = [&](handler &CGH) {
-      auto AccC = BufferC.get_access<access::mode::read_write,
+      auto AccC = BufferC.get_access<access_mode::read_write,
                                      access::target::host_task>(CGH);
       CGH.host_task([=]() {
         for (size_t i = 0; i < Size; i++) {

@@ -21,7 +21,7 @@ int main() {
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
 
-  constexpr auto SYCLWrite = sycl::access::mode::write;
+  constexpr auto SYCLWrite = sycl::access_mode::write;
 
   const sycl::range<2> ImgSize(4, 4);
 

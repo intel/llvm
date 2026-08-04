@@ -19,7 +19,7 @@ int main() {
   {
     sycl::buffer<double, 1> Buf{sycl::range{1}};
     q.submit([&](sycl::handler &cgh) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(cgh);
       cgh.set_specialization_constant<test_id_1>(1);
       cgh.single_task<class Kernel1>([=](sycl::kernel_handler kh) {
         Acc[0] = kh.get_specialization_constant<test_id_1>();

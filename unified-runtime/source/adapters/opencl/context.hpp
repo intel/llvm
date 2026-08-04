@@ -45,7 +45,11 @@ struct ur_context_handle_t_ : handle_base {
     // clear the ext function pointer cache. This isn't foolproof sadly but it
     // should drastically reduce the chances of the pathological case described
     // in the comments in common.hpp.
-    cast(ur::cl::getAdapter())->fnCache.clearCache(CLContext);
+    try {
+      cast(ur::cl::getAdapter())->fnCache.clearCache(CLContext);
+    } catch (...) {
+      assert(false && "Failed to clear OpenCL extension function cache");
+    }
 
     for (uint32_t i = 0; i < DeviceCount; i++) {
       ur::opencl::urDeviceRelease(cast(Devices[i]));

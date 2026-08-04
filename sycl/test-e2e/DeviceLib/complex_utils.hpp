@@ -309,9 +309,9 @@ int device_complex_test_mul(sycl::queue &deviceQueue,
         complex_mul_result.data(), numOfMulOutput);
     deviceQueue.submit([&](sycl::handler &cgh) {
       auto complex_mul_access =
-          buffer_complex_mul.template get_access<sycl::access::mode::read>(cgh);
+          buffer_complex_mul.template get_access<sycl::access_mode::read>(cgh);
       auto complex_mul_res_access =
-          buffer_complex_mul_res.template get_access<sycl::access::mode::write>(
+          buffer_complex_mul_res.template get_access<sycl::access_mode::write>(
               cgh);
       cgh.single_task<class DeviceComplexMulTest>([=]() {
         size_t i, j;
@@ -349,9 +349,9 @@ int device_complex_test_div(sycl::queue &deviceQueue,
         complex_div_result.data(), numOfDivOutput);
     deviceQueue.submit([&](sycl::handler &cgh) {
       auto complex_div_access =
-          buffer_complex_div.template get_access<sycl::access::mode::read>(cgh);
+          buffer_complex_div.template get_access<sycl::access_mode::read>(cgh);
       auto complex_div_res_access =
-          buffer_complex_div_res.template get_access<sycl::access::mode::write>(
+          buffer_complex_div_res.template get_access<sycl::access_mode::write>(
               cgh);
       cgh.single_task<class DeviceComplexDivTest>([=]() {
         size_t i, j;

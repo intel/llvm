@@ -20,7 +20,7 @@ int main() {
       s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class fminF2F2>([=]() {
           AccR[0] = s::fmin(s::float2{0.5f, 3.4f}, s::float2{2.3f, 0.4f});
         });
@@ -39,7 +39,7 @@ int main() {
       s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class fabsF2>([=]() {
           AccR[0] = s::fabs(s::float2{-1.0f, 2.0f});
         });
@@ -58,7 +58,7 @@ int main() {
       s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class floorF2>([=]() {
           AccR[0] = s::floor(s::float2{1.4f, 2.8f});
         });
@@ -77,7 +77,7 @@ int main() {
       s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class ceilF2>([=]() {
           AccR[0] = s::ceil(s::float2{1.4f, 2.8f});
         });
@@ -99,8 +99,8 @@ int main() {
 
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
-        auto AccI = BufI.get_access<s::access::mode::read_write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
+        auto AccI = BufI.get_access<s::access_mode::read_write>(cgh);
         cgh.single_task<class fractF2GF2>([=]() {
           s::global_ptr<s::float2> Iptr(AccI);
           AccR[0] = s::fract(s::float2{1.5f, 2.5f}, Iptr);
@@ -128,8 +128,8 @@ int main() {
       s::buffer<s::float2, 1> BufI(&i, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
-        auto AccI = BufI.get_access<s::access::mode::read_write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
+        auto AccI = BufI.get_access<s::access_mode::read_write>(cgh);
         cgh.single_task<class fractF2PF2>([=]() {
           s::float2 temp(0.0);
           s::private_ptr<s::float2> Iptr(&temp);
@@ -157,7 +157,7 @@ int main() {
       s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
         cgh.single_task<class lgamma_rF2>([=]() {
           AccR[0] = s::lgamma(s::float2{10.f, -2.4f});
         });
@@ -180,8 +180,8 @@ int main() {
       s::buffer<s::int2, 1> BufI(&i, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
-        auto AccI = BufI.get_access<s::access::mode::read_write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
+        auto AccI = BufI.get_access<s::access_mode::read_write>(cgh);
         cgh.single_task<class lgamma_rF2PF2>([=]() {
           s::int2 temp(0.0);
           s::private_ptr<s::int2> Iptr(&temp);

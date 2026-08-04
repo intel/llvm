@@ -58,7 +58,7 @@ bool test_accessor_array_in_struct(queue &myQueue) {
 
   myQueue.submit([&](handler &cgh) {
     using Accessor =
-        accessor<int, 1, access::mode::read_write, access::target::device>;
+        accessor<int, 1, access_mode::read_write, access::target::device>;
 
     struct S {
       int w;
@@ -68,11 +68,11 @@ bool test_accessor_array_in_struct(queue &myQueue) {
       int z;
     } S = {3,
            3,
-           {in_buffer1.get_access<access::mode::read_write>(cgh),
-            in_buffer2.get_access<access::mode::read_write>(cgh)},
+           {in_buffer1.get_access<access_mode::read_write>(cgh),
+            in_buffer2.get_access<access_mode::read_write>(cgh)},
            7,
            7};
-    auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
+    auto output_accessor = out_buffer.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class accessor_array_in_struct>(
         num_items, [=](sycl::id<1> index) {
@@ -103,8 +103,8 @@ bool test_templated_array_in_struct(queue &myQueue) {
 
   myQueue.submit([&](handler &cgh) {
     using Accessor =
-        accessor<int, 1, access::mode::read_write, access::target::device>;
-    auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
+        accessor<int, 1, access_mode::read_write, access::target::device>;
+    auto output_accessor = out_buffer.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class templated_array_in_struct>(
         num_items, [=](sycl::id<1> index) {

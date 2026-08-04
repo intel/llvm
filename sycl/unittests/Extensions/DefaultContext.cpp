@@ -34,13 +34,16 @@ void test_default_context_enabled() {
 
   ASSERT_EQ(Queue1.get_context(), Queue2.get_context());
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   ASSERT_EQ(Dev1.get_platform().ext_oneapi_get_default_context(),
             Dev2.get_platform().ext_oneapi_get_default_context());
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   ASSERT_EQ(Dev1.get_platform().khr_get_default_context(),
             Dev2.get_platform().khr_get_default_context());
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void test_default_context_disabled() {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
@@ -55,6 +58,7 @@ void test_default_context_disabled() {
   ASSERT_TRUE(catchException)
       << "ext_oneapi_get_default_context did not throw an exception";
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 TEST(DefaultContextTest, DefaultContextTest) {
   using namespace sycl::detail;
@@ -65,6 +69,7 @@ TEST(DefaultContextTest, DefaultContextTest) {
   test_default_context_enabled();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
   using namespace sycl::detail;
   using namespace sycl::unittest;
@@ -81,6 +86,7 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
   sycl::detail::enable_ext_oneapi_default_context(true);
   test_default_context_enabled();
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 TEST(DefaultContextTest, DefaultContextValueChangedAfterQueueCreated) {
   sycl::detail::enable_ext_oneapi_default_context(false);
