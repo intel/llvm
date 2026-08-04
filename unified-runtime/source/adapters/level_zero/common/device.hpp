@@ -23,6 +23,7 @@
 #include "common/ur_ref_count.hpp"
 #include "helpers/shared_helpers.hpp"
 #include "interfaces.hpp"
+#include "ur_util.hpp"
 #include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
 #include <ze_api.h>
@@ -34,6 +35,20 @@ typedef size_t DeviceId;
 
 struct ur_device_handle_t_;
 typedef struct ur_device_handle_t_ *ur_device_handle_t;
+
+// Controls whether USM device memory residency on peer devices is restricted
+// to peers with explicitly enabled P2P access (see
+// urUsmP2P(Enable|Disable)PeerAccessExp). This is disabled by default, which
+// means P2P access is treated as enabled for all connectable peers and USM
+// allocations are made resident on all of them. Set
+// SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=1 to opt into the restrictive
+// behavior, requiring P2P access to be explicitly enabled for a peer before
+// USM allocations become resident on it.
+inline bool restrictUsmResidencyToP2P() {
+  static const bool RestrictUsmResidencyToP2P =
+      getenv_tobool("SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P", false);
+  return RestrictUsmResidencyToP2P;
+}
 
 enum EventsScope {
   // All events are created host-visible.
