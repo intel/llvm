@@ -642,7 +642,7 @@ public:
   /// a pair of (Start, Size), where Start points to the beginning of the
   /// embedded data and Size is its length in bytes.
   std::pair<Constant *, Constant *> embedBinary(ArrayRef<char> Buffer,
-                                               StringRef SectionName) {
+                                                StringRef SectionName) {
     Constant *Arr = ConstantDataArray::get(C, Buffer);
     GlobalVariable *BinaryGV = new GlobalVariable(
         M, Arr->getType(), /*isConstant=*/true, GlobalValue::InternalLinkage,
