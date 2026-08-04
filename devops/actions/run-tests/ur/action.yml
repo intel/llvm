@@ -57,7 +57,9 @@ runs:
         exit 0
       fi
       
+      echo "::group::Full Test Log"
       python3 devops/scripts/ur_test_summary.py filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
+      echo "::endgroup::"
   
   - name: Report test failures
     if: steps.run_tests.outcome != 'success'

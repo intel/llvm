@@ -13,9 +13,16 @@
 // Test that always passes
 TEST(CIValidation, test_pass) { EXPECT_EQ(42, 42); }
 
-// Test that always fails
+// Test that always fails with detailed error information
 TEST(CIValidation, test_fail) {
-  EXPECT_EQ(42, 41) << "Test failed: expected 42, got 41";
+  int expected = 42;
+  int actual = 0;  // Changed to 0 to make the mismatch more obvious
+  
+  EXPECT_EQ(expected, actual) 
+    << "Memory allocation test failed!" << std::endl
+    << "Expected value: " << expected << std::endl
+    << "Actual value: " << actual << std::endl
+    << "This simulates a real test failure with detailed diagnostics";
 }
 
 // Test expected to fail (XFAIL equivalent in Google Test)

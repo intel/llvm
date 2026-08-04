@@ -177,7 +177,7 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
 
     env["LIT_OPTS"] = (
         "--show-unsupported --show-pass --show-xfail --no-progress-bar "
-        "--succinct --timeout 120 -j 50 --time-tests --show-flakypass "
+        "-v --timeout 120 -j 50 --time-tests --show-flakypass "
         f"--show-skipped --xunit-xml-output {xml_output_name}"
     )
     if config.lit_filter_out:

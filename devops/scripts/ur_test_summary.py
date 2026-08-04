@@ -102,7 +102,11 @@ def extract_error_details(lines: List[str]) -> List[str]:
         if FAIL_TIMEOUT_PATTERN.match(line):
             in_error = True
 
-        if in_error and TEST_LIST_HEADER_PATTERN.match(line):
+        # Stop at test list headers or timing summaries
+        if in_error and (
+            TEST_LIST_HEADER_PATTERN.match(line)
+            or line.strip() in ("Slowest Tests:", "Tests Times:", "Test Times:")
+        ):
             break
 
         if in_error:
