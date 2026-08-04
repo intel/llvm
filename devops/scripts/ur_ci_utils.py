@@ -176,12 +176,14 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
 
     # Convert to Path and ensure all operations are relative to workspace
     workspace_path = Path(workspace).resolve()
-    
+
     env = os.environ.copy()
 
     # Generate unique XML name to avoid literal *.xml filename
     xml_output_name = f"{test_type.replace('-', '_')}_results.xml"
-    xml_output_path = (workspace_path / config.xml_search_path / xml_output_name).absolute()
+    xml_output_path = (
+        workspace_path / config.xml_search_path / xml_output_name
+    ).absolute()
 
     # Ensure XML output directory exists
     xml_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -214,7 +216,11 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         with open(log_file_path, "w", encoding="utf-8") as log:
             # Use cmake with validated arguments - no user input, safe list form
             result = subprocess.run(  # nosec B603 B607
-                cmake_cmd, stdout=log, stderr=subprocess.STDOUT, env=env, cwd=workspace_path
+                cmake_cmd,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env=env,
+                cwd=workspace_path,
             )
     except Exception as e:
         print(f"::error::Test execution failed: {e}", file=sys.stderr)
