@@ -55,7 +55,7 @@ public:
     return m_DeviceKernelInfoMap;
   }
 
-  std::unordered_map<std::string_view, int> &getKernelNameRefCount() {
+  std::unordered_map<std::string, int> &getKernelNameRefCount() {
     return m_KernelNameRefCount;
   }
 
