@@ -112,6 +112,7 @@ template <> std::string info_to_string(info::local_mem_type info) {
     return unknown_info_to_string(info);
   }
 }
+
 template <> std::string info_to_string(info::execution_capability info) {
   switch (info) {
   case info::execution_capability::exec_kernel:
@@ -122,6 +123,7 @@ template <> std::string info_to_string(info::execution_capability info) {
     return unknown_info_to_string(info);
   }
 }
+
 template <> std::string info_to_string(info::partition_property info) {
   switch (info) {
   case info::partition_property::no_partition:
@@ -316,6 +318,17 @@ int main() {
       dev, "Is compiler available");
   print_info<info::device::is_linker_available, bool>(dev,
                                                       "Is linker available");
+  try {
+    print_info<info::device::execution_capabilities,
+               std::vector<info::execution_capability>>(
+        dev, "Execution capabilities");
+    assert(backend == sycl::backend::opencl &&
+           "An exception is expected for non OpenCL backend");
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid &&
+           backend != sycl::backend::opencl && "Unexpected exception");
+  }
+
   print_info<info::device::queue_profiling, bool>(dev, "Queue profiling");
   print_info<info::device::built_in_kernels, std::vector<std::string>>(
       dev, "Built in kernels");
