@@ -2716,6 +2716,7 @@ TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
   uint32_t property_value = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
                                  &property_value, nullptr));
+  ASSERT_NE(property_value, 0);
 
   const bool is_power_of_two =
       property_value != 0 && (property_value & (property_value - 1)) == 0;
