@@ -30,8 +30,10 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    kernel_name = uur::KernelsEnvironment::instance->GetEntryPointNames(
-        "cpy_and_mult_usm")[0];
+    auto entry_points =
+        uur::KernelsEnvironment::instance->GetEntryPointNames("cpy_and_mult_usm");
+    ASSERT_FALSE(entry_points.empty());
+    kernel_name = entry_points[0];
     ASSERT_FALSE(kernel_name.empty());
     ASSERT_SUCCESS(urKernelCreate(program, kernel_name.c_str(), &kernel));
 
@@ -129,9 +131,25 @@ struct urEnqueueUSMOperationsOrderingIOQTest
                               allocation_size, ptr);
     };
 
-    EXPECT_SUCCESS(alloc_one(&values1));
-    EXPECT_SUCCESS(alloc_one(&values2));
-    EXPECT_SUCCESS(alloc_one(&values3));
+    const auto res1 = alloc_one(&values1);
+    const auto res2 = alloc_one(&values2);
+    const auto res3 = alloc_one(&values3);
+    EXPECT_SUCCESS(res1);
+    EXPECT_SUCCESS(res2);
+    EXPECT_SUCCESS(res3);
+    if (res1 != UR_RESULT_SUCCESS || res2 != UR_RESULT_SUCCESS ||
+        res3 != UR_RESULT_SUCCESS || !values1 || !values2 || !values3) {
+      if (values1) {
+        (void)urUSMFree(context, values1);
+      }
+      if (values2) {
+        (void)urUSMFree(context, values2);
+      }
+      if (values3) {
+        (void)urUSMFree(context, values3);
+      }
+      return true;
+    }
 
     std::vector<uint32_t> input(array_size);
     std::iota(input.begin(), input.end(), 0u);
