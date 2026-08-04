@@ -4804,9 +4804,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
     replaceDbgDeclare(AI, LocalStackBaseAlloca, DIB, DIExprFlags, Desc.Offset);
     Value *NewAllocaPtr = IRB.CreatePtrAdd(
         LocalStackBase, ConstantInt::get(IntptrTy, Desc.Offset));
-    NewAllocaPtr = TargetTriple.isSPIROrSPIRV()
-                       ? IRB.CreateAddrSpaceCast(NewAllocaPtr, AI->getType())
-                       : NewAllocaPtr;
+    if (NewAllocaPtr->getType() != AI->getType())
+      NewAllocaPtr = IRB.CreateAddrSpaceCast(NewAllocaPtr, AI->getType());
     AI->replaceAllUsesWith(NewAllocaPtr);
     NewAllocaPtrs.push_back(NewAllocaPtr);
   }
