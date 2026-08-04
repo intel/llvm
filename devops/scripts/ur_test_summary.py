@@ -524,10 +524,10 @@ def show_statistics_and_lists(config: SummaryConfig) -> None:
 
 
 def _validate_log_path(path: str) -> None:
-    if ".." in path or path.startswith("/"):
+    """Validate log file path. Allows absolute paths but blocks path traversal."""
+    if ".." in path:
         print(
-            f"Error: Invalid log file path "
-            f"(absolute paths and '..' not allowed): {path}",
+            f"Error: Invalid log file path (path traversal not allowed): {path}",
             file=sys.stderr,
         )
         sys.exit(1)
