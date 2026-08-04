@@ -43,7 +43,7 @@ void check_on_device(queue q, int *arr) {
   {
     buffer<int, 1> buf{&out[0], range<1>{N}};
     q.submit([&](handler &h) {
-       auto acc = buf.template get_access<access::mode::write>(h);
+       auto acc = buf.template get_access<access_mode::write>(h);
        h.parallel_for<class usm_device_transfer>(
            range<1>(N), [=](id<1> item) { acc[item] = arr[item]; });
      }).wait();

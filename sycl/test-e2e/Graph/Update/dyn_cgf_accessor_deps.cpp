@@ -24,20 +24,20 @@ int main() {
       {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
   auto RootNode = Graph.add([&](handler &CGH) {
-    auto Acc = Buf.get_access<access::mode::write>(CGH);
+    auto Acc = Buf.get_access<access_mode::write>(CGH);
     CGH.parallel_for(Size, [=](item<1> Item) { Acc[Item.get_id()] = 1; });
   });
 
   int PatternA = 42;
   auto CGFA = [&](handler &CGH) {
-    auto Acc = Buf.get_access<access::mode::read_write>(CGH);
+    auto Acc = Buf.get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(Size,
                      [=](item<1> Item) { Acc[Item.get_id()] += PatternA; });
   };
 
   int PatternB = 0xA;
   auto CGFB = [&](handler &CGH) {
-    auto Acc = Buf.get_access<access::mode::read_write>(CGH);
+    auto Acc = Buf.get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(Size,
                      [=](item<1> Item) { Acc[Item.get_id()] += PatternB; });
   };
@@ -46,7 +46,7 @@ int main() {
   auto DynamicCGNode = Graph.add(DynamicCG);
 
   auto LeafNode = Graph.add([&](handler &CGH) {
-    auto Acc = Buf.get_access<access::mode::read>(CGH);
+    auto Acc = Buf.get_access<access_mode::read>(CGH);
     CGH.parallel_for(
         Size, [=](item<1> Item) { Ptr[Item.get_id()] = Acc[Item.get_id()]; });
   });

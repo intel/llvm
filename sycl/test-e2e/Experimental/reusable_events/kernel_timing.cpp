@@ -32,7 +32,7 @@ int main() {
   syclex::enqueue_signal_event(q, start_event);
 
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class TimingKernel1>(sycl::range<1>(N),
                                           [=](sycl::id<1> idx) {
                                             for (int i = 0; i < 100; ++i) {
@@ -42,7 +42,7 @@ int main() {
   });
 
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class TimingKernel2>(sycl::range<1>(N),
                                           [=](sycl::id<1> idx) {
                                             for (int i = 0; i < 100; ++i) {

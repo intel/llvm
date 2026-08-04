@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
     for (int iter = 0; iter <= num_iters; ++iter) {
       auto e = q.submit([&](sycl::handler &cgh) {
         auto accOutput =
-            imgOutput.get_access<uint4, sycl::access::mode::write>(cgh);
+            imgOutput.get_access<uint4, sycl::access_mode::write>(cgh);
 
         cgh.set_specialization_constant<CrunchConst>(crunch);
         cgh.set_specialization_constant<XoffConst>(xoff);

@@ -40,7 +40,7 @@ int main() {
     // Submit a command group to the queue
     Q.submit([&](sycl::handler &cgh) {
       // Get access to the buffers
-      auto accessC = bufferC.get_access<sycl::access::mode::write>(cgh);
+      auto accessC = bufferC.get_access<sycl::access_mode::write>(cgh);
 
       // Execute the kernel
       cgh.parallel_for<class vector_addition>(

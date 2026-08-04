@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
 
   try {
     queue.submit([&](sycl::handler &cgh) {
-      auto r_acc = r.template get_access<sycl::access::mode::write>(cgh);
+      auto r_acc = r.template get_access<sycl::access_mode::write>(cgh);
       cgh.parallel_for<class Test>(
           sycl::range<1>{nsamples / SIMD_WIDTH},
           [=](sycl::item<1> item) SYCL_ESIMD_KERNEL {
