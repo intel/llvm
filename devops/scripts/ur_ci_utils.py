@@ -35,8 +35,10 @@ def find_xml_file(search_path: str, xml_name: str) -> str:
         return ""
 
     search_root = Path(search_path)
+    is_dir = search_root.is_dir() if search_root.exists() else "N/A"
     print(
-        f"DEBUG_FIND: search_root={search_root}, exists={search_root.exists()}, is_dir={search_root.is_dir() if search_root.exists() else 'N/A'}",
+        f"DEBUG_FIND: search_root={search_root}, "
+        f"exists={search_root.exists()}, is_dir={is_dir}",
         flush=True,
     )
 
@@ -135,7 +137,10 @@ def get_test_config(test_type: str, build_dir: str) -> TestConfig:
             log_file="adapter_tests.log",
             xml_name="*.xml",  # Wildcard - adapters may have different XML names
             xml_search_path=f"{build_dir}/test/adapters",
-            lit_filter_out="(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)",
+            lit_filter_out=(
+                "(adapters/level_zero/memcheck.test|"
+                "adapters/level_zero/v2/deferred_kernel_memcheck.test)"
+            ),
         )
     elif test_type == "conformance":
         return TestConfig(
@@ -173,12 +178,15 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
 
     # Generate unique XML name to avoid literal *.xml filename
     xml_output_name = f"{test_type.replace('-', '_')}_results.xml"
-    xml_output_path = Path(config.xml_search_path) / xml_output_name
+    xml_output_path = (Path(config.xml_search_path) / xml_output_name).absolute()
+
+    # Ensure XML output directory exists
+    xml_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     env["LIT_OPTS"] = (
         "--show-unsupported --show-pass --show-xfail --no-progress-bar "
         "-v --timeout 120 -j 50 --time-tests --show-flakypass "
-        f"--show-skipped --xunit-xml-output {xml_output_name}"
+        f"--show-skipped --xunit-xml-output {xml_output_path}"
     )
     if config.lit_filter_out:
         env["LIT_FILTER_OUT"] = config.lit_filter_out
@@ -194,6 +202,7 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
 
     print(f"Running: {' '.join(cmake_cmd)}", file=sys.stderr)
     print(f"Log: {config.log_file}, Jobs: {jobs}", file=sys.stderr)
+    print(f"Expected XML: {xml_output_path}", file=sys.stderr)
 
     try:
         with open(config.log_file, "w", encoding="utf-8") as log:
@@ -215,8 +224,20 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         return 0
 
     # XML file path with concrete name (not wildcard)
+    print(f"Debug: Checking for XML at {xml_output_path}", file=sys.stderr)
+    print(f"Debug: XML exists: {xml_output_path.exists()}", file=sys.stderr)
+    if xml_output_path.parent.exists():
+        print(f"Debug: Parent directory contents:", file=sys.stderr)
+        for item in xml_output_path.parent.iterdir():
+            print(f"  {item.name}", file=sys.stderr)
+
     if xml_output_path.exists():
         print(f"xml_file={xml_output_path.absolute()}", flush=True)
+    else:
+        print(
+            f"Warning: Expected XML file not found at {xml_output_path}",
+            file=sys.stderr,
+        )
 
     return result.returncode
 

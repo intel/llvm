@@ -17,8 +17,8 @@ TEST(CIValidation, test_pass) { EXPECT_EQ(42, 42); }
 TEST(CIValidation, test_fail) {
   int expected = 42;
   int actual = 0;  // Changed to 0 to make the mismatch more obvious
-  
-  EXPECT_EQ(expected, actual) 
+
+  EXPECT_EQ(expected, actual)
     << "Memory allocation test failed!" << std::endl
     << "Expected value: " << expected << std::endl
     << "Actual value: " << actual << std::endl

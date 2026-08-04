@@ -121,7 +121,7 @@ def extract_statistics(lines: List[str]) -> List[str]:
 
 
 def extract_time_summary(lines: List[str]) -> TimingSummary:
-    """Extract test timing from LIT --time-tests output (slowest tests and histogram)."""
+    """Extract timing from LIT --time-tests (slowest tests and histogram)."""
     result: TimingSummary = {"slowest": [], "histogram": []}
     current_section = None
     skip_next_hr = False
@@ -225,7 +225,7 @@ def extract_skipped_from_xml(xml_path: str) -> List[str]:
 
 
 def extract_excluded_from_xml(xml_path: str) -> List[str]:
-    """Extract excluded test names from LIT xunit XML (marked as 'Test not selected')."""
+    """Extract excluded tests from LIT xunit XML ('Test not selected')."""
     return _extract_tests_from_xml_by_filter(
         xml_path, include_test_not_selected=True, test_type_name="excluded"
     )
@@ -370,11 +370,17 @@ def _display_skipped_tests(
 
         skipped_xml = extract_skipped_from_xml(xml_file)
         if skipped_xml:
-            note = f"Note: Using XML data (log header claimed {declared_count}, but found {actual_count} lines)."
+            note = (
+                f"Note: Using XML data (log header claimed "
+                f"{declared_count}, but found {actual_count} lines)."
+            )
             _print_test_group("Skipped Tests", skipped_xml, note)
             count = len(skipped_xml)
         else:
-            note = f"Warning: Log header claimed {declared_count} skipped, but found {actual_count} lines."
+            note = (
+                f"Warning: Log header claimed {declared_count} skipped, "
+                f"but found {actual_count} lines)."
+            )
             _print_test_group("Skipped Tests", skipped_from_log, note)
             count = actual_count
 
@@ -388,7 +394,11 @@ def _display_skipped_tests(
             _print_test_group("Skipped Tests", skipped_xml)
             return len(skipped_xml)
 
-        note = f"Warning: Could not extract individual skipped test names.\nStatistics show {stats_count} skipped tests, but they are not available in the output."
+        note = (
+            f"Warning: Could not extract individual skipped test names.\n"
+            f"Statistics show {stats_count} skipped tests, but they are not "
+            f"available in the output."
+        )
         _print_test_group("Skipped Tests", [], note, count=stats_count)
         return stats_count
 
@@ -445,7 +455,8 @@ def _validate_test_counts(
     if total_discovered != sum_categories:
         print()
         print(
-            f"::warning::Test count mismatch: Total Discovered = {total_discovered}, but sum of all categories = {sum_categories}"
+            f"::warning::Test count mismatch: Total Discovered = "
+            f"{total_discovered}, but sum of all categories = {sum_categories}"
         )
         print(
             f"Warning: {total_discovered - sum_categories} tests are unaccounted for."
@@ -515,7 +526,8 @@ def show_statistics_and_lists(config: SummaryConfig) -> None:
 def _validate_log_path(path: str) -> None:
     if ".." in path or path.startswith("/"):
         print(
-            f"Error: Invalid log file path (absolute paths and '..' not allowed): {path}",
+            f"Error: Invalid log file path "
+            f"(absolute paths and '..' not allowed): {path}",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -537,7 +549,8 @@ def _validate_optional_path(
         sys.exit(1)
     if not allow_absolute and path.startswith("/"):
         print(
-            f"Error: Invalid {path_type} file path (absolute paths not allowed): {path}",
+            f"Error: Invalid {path_type} file path "
+            f"(absolute paths not allowed): {path}",
             file=sys.stderr,
         )
         sys.exit(1)

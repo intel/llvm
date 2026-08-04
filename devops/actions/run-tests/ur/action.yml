@@ -30,11 +30,11 @@ runs:
       python3 -u devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE" 2>&1
       EXIT_CODE=$?
       set -e  # Re-enable exit on error
-      
+
       echo "Debug: Captured output file size: $(wc -l < "$OUTPUTS_FILE") lines"
       echo "Debug: Outputs in file:"
       grep -E "^(log_file|xml_file|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE" || echo "Warning: No outputs found"
-      
+
       # Parse Python output and set GitHub Actions outputs (not env for security)
       while IFS='=' read -r key value; do
         if [ -n "$key" ] && [ -n "$value" ]; then
@@ -42,7 +42,7 @@ runs:
           echo "  Set output: $key=$value"
         fi
       done < <(grep -E "^(log_file|xml_file|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE")
-      
+
       rm -f "$OUTPUTS_FILE"
       exit $EXIT_CODE
 
@@ -56,11 +56,11 @@ runs:
         echo "::warning::Test log not found"
         exit 0
       fi
-      
+
       echo "::group::Full Test Log"
       python3 devops/scripts/ur_test_summary.py filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
       echo "::endgroup::"
-  
+
   - name: Report test failures
     if: steps.run_tests.outcome != 'success'
     shell: bash
@@ -69,7 +69,7 @@ runs:
     run: |
       python3 devops/scripts/ur_test_summary.py extract-errors "$LOG_FILE"
       exit 1
-  
+
   - name: Test summary
     if: ${{ always() }}
     shell: bash
@@ -81,12 +81,12 @@ runs:
         echo "::warning::Test log not found"
         exit 0
       fi
-      
+
       if [ ! -s "$LOG_FILE" ]; then
         echo "::warning::Test log is empty"
         exit 0
       fi
-      
+
       python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
 
   - name: Copy artifacts
@@ -97,12 +97,15 @@ runs:
       XML_FILE: ${{ steps.run_tests.outputs.xml_file }}
     run: |
       set -f  # Disable glob expansion
+
+      # Clean artifacts directory to avoid mixing files from different test runs
+      rm -rf test_artifacts
       mkdir -p test_artifacts
-      
+
       if [ -f "$LOG_FILE" ]; then
         cp "$LOG_FILE" test_artifacts/
       fi
-      
+
       echo "Debug: XML_FILE=$XML_FILE"
       echo "Debug: Checking if file exists..."
       if [ -n "$XML_FILE" ] && [ -f "$XML_FILE" ]; then
@@ -110,8 +113,13 @@ runs:
         cp "$XML_FILE" test_artifacts/
       else
         echo "Debug: XML_FILE is empty or file does not exist"
+        if [ -n "$XML_FILE" ]; then
+          echo "Debug: Expected XML at: $XML_FILE"
+          echo "Debug: Parent directory contents:"
+          ls -la "$(dirname "$XML_FILE")" 2>/dev/null || echo "Parent directory does not exist"
+        fi
       fi
-      
+
       echo "Debug: Contents of test_artifacts/:"
       ls -la test_artifacts/
 
