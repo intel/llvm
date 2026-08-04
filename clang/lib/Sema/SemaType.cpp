@@ -8547,6 +8547,8 @@ static bool isPermittedNeonBaseType(QualType &Ty, VectorKind VecKind, Sema &S) {
     return false;
 
   llvm::Triple Triple = S.Context.getTargetInfo().getTriple();
+  if(S.getLangOpts().SYCLIsDevice)
+    Triple = S.Context.getAuxTargetInfo()->getTriple();
 
   // Signed poly is mathematically wrong, but has been baked into some ABIs by
   // now.
@@ -8558,8 +8560,9 @@ static bool isPermittedNeonBaseType(QualType &Ty, VectorKind VecKind, Sema &S) {
       // AArch64 polynomial vectors are unsigned.
       return BTy->getKind() == BuiltinType::UChar ||
              BTy->getKind() == BuiltinType::UShort ||
-             BTy->getKind() == BuiltinType::ULong ||
-             BTy->getKind() == BuiltinType::ULongLong;
+             ((BTy->getKind() == BuiltinType::ULong ||
+               BTy->getKind() == BuiltinType::ULongLong) &&
+              S.Context.getTypeSize(BTy) == 64);
     } else {
       // AArch32 polynomial vectors are signed.
       return BTy->getKind() == BuiltinType::SChar ||
