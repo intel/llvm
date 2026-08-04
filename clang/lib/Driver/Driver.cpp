@@ -8342,13 +8342,9 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
   } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
              tools::SYCL::shouldDoPerObjectFileLinking(C) &&
              !isa<LinkJobAction>(HostAction)) {
-    // SYCL -fno-sycl-rdc at compile time (-c): finalize this TU's device code
-    // immediately via clang-linker-wrapper --sycl-device-link --no-sycl-rdc,
-    // producing a self-contained device image. The image is passed to the host
-    // cc1 via -fsycl-include-target-binary and embedded+registered at compile
-    // time. The final link step does no SYCL device work. This mirrors the
-    // CUDA/HIP -fno-gpu-rdc per-TU finalize model; downstream uses
-    // clang-linker-wrapper instead of clang-sycl-linker.
+    // SYCL -fno-sycl-rdc at compile time: finalize each TU's device code
+    // immediately via clang-linker-wrapper --sycl-device-link, embedding the
+    // result into the host object via -fsycl-include-target-binary.
     Action *PackagerAction =
         C.MakeAction<OffloadPackagerJobAction>(OffloadActions, types::TY_Image);
     ActionList AL{PackagerAction};
