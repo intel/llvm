@@ -112,7 +112,16 @@ template <> std::string info_to_string(info::local_mem_type info) {
     return unknown_info_to_string(info);
   }
 }
-
+template <> std::string info_to_string(info::execution_capability info) {
+  switch (info) {
+  case info::execution_capability::exec_kernel:
+    return "exec_kernel";
+  case info::execution_capability::exec_native_kernel:
+    return "exec_native_kernel";
+  default:
+    return unknown_info_to_string(info);
+  }
+}
 template <> std::string info_to_string(info::partition_property info) {
   switch (info) {
   case info::partition_property::no_partition:
