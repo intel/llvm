@@ -2692,12 +2692,13 @@ TEST_P(urDeviceGetInfoTest, SuccessLuid) {
   const ur_device_info_t property_name = UR_DEVICE_INFO_LUID;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urDeviceGetInfo(device, property_name, property_size,
-                      property_value.data(), &property_size),
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
   ASSERT_EQ(property_size, sizeof(std::array<unsigned char, luid_size>));
 
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 property_value.data(), nullptr));
   const bool is_all_zeros =
       std::all_of(property_value.begin(), property_value.end(),
                   [](unsigned char value) { return value == 0; });
