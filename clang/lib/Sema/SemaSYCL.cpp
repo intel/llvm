@@ -5917,8 +5917,8 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
 }
 
-// Handle __builtin_sycl_launch_kernel(name, launch-args...). The SYCL_EXT_ONEAPI_KERNEL_FUNCTION
-// launch macro expands to
+// Handle __builtin_sycl_launch_kernel(name, launch-args...). The
+// SYCL_EXT_ONEAPI_KERNEL_FUNCTION launch macro expands to
 //
 //   kernel_function<__builtin_sycl_launch_kernel(name, args...)>, args...
 //
@@ -5935,9 +5935,9 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
 ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
   if (TheCall->getNumArgs() < 1) {
     // The builtin needs at least the kernel-name argument. This is unreachable
-    // through the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro (NAME is mandatory); the
-    // guard only protects the getArg(0) below for a direct zero-argument call.
-    // Reuse the generic builtin arg-count diagnostic (as the sibling
+    // through the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro (NAME is mandatory);
+    // the guard only protects the getArg(0) below for a direct zero-argument
+    // call. Reuse the generic builtin arg-count diagnostic (as the sibling
     // __builtin_sycl_is_kernel family does) rather than a bespoke one.
     Diag(TheCall->getBeginLoc(), diag::err_builtin_invalid_argument_count) << 1;
     return ExprError();
@@ -5952,11 +5952,12 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
   // created this builtin call with a dependent result type and skipped custom
   // type checking, so we simply return it; this handler re-runs on the
   // instantiated, concrete-typed call. The deferred call keeps its BuiltinFn
-  // placeholder callee; the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro wraps the builtin in a unary plus
-  // so the enclosing kernel_function<...> NTTP argument is a UnaryOperator (a
-  // plain prvalue that does not recurse into this dependent CallExpr) rather
-  // than the CallExpr itself, which is what keeps classification off
-  // CallExpr::getCallReturnType and avoids a front-end crash.
+  // placeholder callee; the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro wraps the
+  // builtin in a unary plus so the enclosing kernel_function<...> NTTP argument
+  // is a UnaryOperator (a plain prvalue that does not recurse into this
+  // dependent CallExpr) rather than the CallExpr itself, which is what keeps
+  // classification off CallExpr::getCallReturnType and avoids a front-end
+  // crash.
   if (KernelNameExpr->isTypeDependent() || KernelNameExpr->isValueDependent() ||
       Expr::hasAnyTypeDependentArguments(LaunchArgs))
     return TheCall;
@@ -5965,10 +5966,9 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
   // reuses the real C++ machinery so diagnostics (no viable overload,
   // ambiguity, non-deducible template parameter) are emitted at the launch
   // site for free.
-  ExprResult Call =
-      SemaRef.BuildCallExpr(/*Scope=*/nullptr, KernelNameExpr,
-                            KernelNameExpr->getBeginLoc(), LaunchArgs,
-                            TheCall->getRParenLoc());
+  ExprResult Call = SemaRef.BuildCallExpr(/*Scope=*/nullptr, KernelNameExpr,
+                                          KernelNameExpr->getBeginLoc(),
+                                          LaunchArgs, TheCall->getRParenLoc());
   if (Call.isInvalid())
     return ExprError();
 
@@ -6008,9 +6008,9 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
   // emitted SPIR-V kernel is therefore the real user function (no wrapper) and
   // the runtime launch path is unchanged.
   QualType FnPtrTy = getASTContext().getPointerType(ResolvedFn->getType());
-  ExprResult FnRef = SemaRef.BuildDeclRefExpr(
-      ResolvedFn, ResolvedFn->getType(), VK_LValue,
-      KernelNameExpr->getBeginLoc());
+  ExprResult FnRef =
+      SemaRef.BuildDeclRefExpr(ResolvedFn, ResolvedFn->getType(), VK_LValue,
+                               KernelNameExpr->getBeginLoc());
   if (FnRef.isInvalid())
     return ExprError();
   return SemaRef.ImpCastExprToType(FnRef.get(), FnPtrTy,
