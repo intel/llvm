@@ -1852,7 +1852,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       removeFromMultimapByVal(m_KernelIDs2BinImage, DKIIt->second.getKernelID(),
                               Img);
 
-      auto RefCountIt = m_KernelNameRefCount.find(Name);
+      auto RefCountIt = m_KernelNameRefCount.find(std::string(Name));
       assert(RefCountIt != m_KernelNameRefCount.end());
       int &RefCount = RefCountIt->second;
       assert(RefCount > 0);

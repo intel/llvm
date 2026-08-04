@@ -442,7 +442,9 @@ protected:
   /// Used for checking if the last image referencing the kernel name
   /// is removed in order to trigger cleanup of kernel specific information.
   /// Access must be guarded by the m_ImgMapsMutex mutex.
-  std::unordered_map<std::string_view, int> m_KernelNameRefCount;
+  // Uses std::string keys (not string_view) because the backing storage for
+  // kernel names lives in DSO offload tables that may be unmapped on dlclose.
+  std::unordered_map<std::string, int> m_KernelNameRefCount;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
   /// from kernel bundles.
