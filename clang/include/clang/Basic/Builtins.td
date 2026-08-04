@@ -5317,6 +5317,21 @@ def SYCLIsNDRangeKernel : LangBuiltin<"SYCL_LANG"> {
   let Prototype = "bool(...)";
 }
 
+// Resolves a (possibly overloaded / templated) free-function-kernel name
+// against the provided argument types using ordinary C++ overload resolution
+// and template-argument deduction, and evaluates to a pointer to the resolved
+// specialization. Used by the SYCL_KERNEL(name, args...) launch macro to fill
+// the `kernel_function<Func>` non-type template parameter of the enqueue
+// functions from a bare kernel name, e.g.
+//   nd_launch(q, range, SYCL_KERNEL(iota, 3.14f, p));
+// Arg 0 is the unresolved kernel name; the remaining args are the launch
+// arguments (consumed only to drive deduction, never evaluated).
+def SYCLLaunchKernel : LangBuiltin<"SYCL_LANG"> {
+  let Spellings = ["__builtin_sycl_launch_kernel"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void(...)";
+}
+
 // HLSL
 def HLSLAddUint64: LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_adduint64"];

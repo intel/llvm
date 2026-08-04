@@ -391,6 +391,16 @@ public:
   void ProcessFreeFunction(FunctionDecl *FD);
   void finalizeFreeFunctionKernels();
 
+  /// Handle the '__builtin_sycl_launch_kernel' builtin. Arg 0 of \p TheCall is
+  /// a (possibly overloaded / templated) SYCL free-function-kernel name; the
+  /// remaining args are the launch arguments. Resolves the name against those
+  /// argument types using ordinary C++ overload resolution / template argument
+  /// deduction, verifies the result is a free function kernel, and evaluates to
+  /// a pointer to the resolved specialization (usable as the `auto *Func`
+  /// non-type template parameter of the enqueue-function launch path). Used by
+  /// the SYCL_KERNEL(name, args...) launch macro.
+  ExprResult BuildSYCLLaunchKernelCall(CallExpr *TheCall);
+
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
   ExprResult BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,

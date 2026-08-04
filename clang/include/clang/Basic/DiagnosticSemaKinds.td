@@ -13955,6 +13955,12 @@ def err_sycl_add_ir_attribute_invalid_value : Error<
 def err_sycl_add_ir_attribute_invalid_filter : Error<
   "initializer list in the first argument of %0 must contain only string "
   "literals">;
+// Bare-name free-function-kernel launch (__builtin_sycl_launch_kernel, used by
+// the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro).
+def err_sycl_launch_kernel_not_free_function : Error<
+  "the function resolved by '__builtin_sycl_launch_kernel' is not a SYCL free "
+  "function kernel; it must be declared with 'sycl-nd-range-kernel' or "
+  "'sycl-single-task-kernel' compile time properties">;
 def warn_sycl_old_and_new_kernel_attributes : Warning<
   "kernel has both attribute %0 and kernel properties; if the kernel "
   "properties contains the property \"%1\" it will be ignored">,

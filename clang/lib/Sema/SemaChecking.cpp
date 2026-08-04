@@ -4190,6 +4190,9 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     break;
   }
+
+  case Builtin::BI__builtin_sycl_launch_kernel:
+    return SYCL().BuildSYCLLaunchKernelCall(TheCall);
   }
 
   if (getLangOpts().HLSL && HLSL().CheckBuiltinFunctionCall(BuiltinID, TheCall))
