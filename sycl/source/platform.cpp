@@ -23,7 +23,7 @@ inline namespace _V1 {
 
 platform::platform() : platform(default_selector_v) {}
 
-platform::platform(cl_platform_id PlatformId) {
+platform::platform(OpenCLPlatformT PlatformId) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
@@ -41,7 +41,7 @@ platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
 }
 
-cl_platform_id platform::get() const { return impl->get(); }
+OpenCLPlatformT platform::get() const { return impl->get(); }
 
 bool platform::has_extension(detail::string_view ExtName) const {
   return impl->has_extension(std::string(std::string_view(ExtName)));
@@ -71,7 +71,9 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 #define __SYCL_PLATFORM_INFO_INST(NAME, RETURN_T)                              \
   template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
   platform::get_info_impl<info::platform::NAME>() const;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_PLATFORM_INFO_INST(profile, std::string)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_PLATFORM_INFO_INST(version, std::string)
 __SYCL_PLATFORM_INFO_INST(name, std::string)
 __SYCL_PLATFORM_INFO_INST(vendor, std::string)
@@ -89,12 +91,14 @@ context platform::khr_get_default_context() const {
       impl->khr_get_default_context());
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 context platform::ext_oneapi_get_default_context() const {
   if (!detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
     throw std::runtime_error("SYCL default contexts are not enabled");
 
   return khr_get_default_context();
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 std::vector<device> platform::ext_oneapi_get_composite_devices() const {
   // Only GPU architectures can be composite devices.

@@ -32,9 +32,9 @@ void max_local_test(queue q, size_t N) {
     buffer<T> cum_buf(&cum, 1);
     buffer<T> output_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-       auto cum = cum_buf.template get_access<access::mode::read_write>(cgh);
+       auto cum = cum_buf.template get_access<access_mode::read_write>(cgh);
        auto out =
-           output_buf.template get_access<access::mode::discard_write>(cgh);
+           output_buf.template get_access<access_mode::discard_write>(cgh);
        local_accessor<T, 1> loc(1, cgh);
 
        cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> it) {
@@ -83,9 +83,9 @@ void max_global_test(queue q, size_t N) {
     buffer<T> output_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto val = val_buf.template get_access<access::mode::read_write>(cgh);
+      auto val = val_buf.template get_access<access_mode::read_write>(cgh);
       auto out =
-          output_buf.template get_access<access::mode::discard_write>(cgh);
+          output_buf.template get_access<access_mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
         auto atm = AtomicRef < T,

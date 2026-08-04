@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/detail/ipc_common.hpp>
 #include <sycl/queue.hpp>
 
 namespace sycl {
@@ -26,13 +27,6 @@ namespace ext::oneapi::experimental {
 
 enum class address_access_mode : char { none = 0, read = 1, read_write = 2 };
 
-struct enable_ipc_key : detail::compile_time_property_key<
-                            detail::PropKind::PhysicalMemoryEnableIPC> {
-  using value_t = property_value<enable_ipc_key>;
-};
-
-inline constexpr enable_ipc_key::value_t enable_ipc;
-
 class __SYCL_EXPORT physical_mem
     : public sycl::detail::OwnerLessBase<physical_mem> {
   friend sycl::detail::ImplUtils;
@@ -43,7 +37,10 @@ public:
                size_t NumBytes,
                const PropertyListT &PropList = empty_properties_t{}) {
 
-    bool EnableIPC = PropList.template has_property<enable_ipc_key>();
+    bool EnableIPC = false;
+    if constexpr (PropertyListT::template has_property<enable_ipc_key>()) {
+      EnableIPC = PropList.template get_property<enable_ipc_key>().value;
+    }
 
     create(SyclDevice, SyclContext, NumBytes, EnableIPC);
   }

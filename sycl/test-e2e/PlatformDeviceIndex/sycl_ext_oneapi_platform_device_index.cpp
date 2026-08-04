@@ -4,6 +4,7 @@
 // RUN: %{run} %t.out
 
 #include "../helpers.hpp"
+#include <CL/cl.h>
 
 #include <level_zero/ze_api.h>
 #include <sycl/detail/core.hpp>

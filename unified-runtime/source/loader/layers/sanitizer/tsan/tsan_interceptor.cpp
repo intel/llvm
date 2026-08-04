@@ -94,7 +94,17 @@ ur_result_t DeviceInfo::allocShadowMemory() {
                                                      &ShadowContext));
   Shadow = GetShadowMemory(ShadowContext, Handle, Type);
   assert(Shadow && "Failed to get shadow memory");
-  UR_CALL(Shadow->Setup());
+  auto Result = Shadow->Setup();
+  // Release the shadow context if the operation failed or if the device type is
+  // CPU. Note that the singleton CPU shadow does not store per-device contexts.
+  if (Result != UR_RESULT_SUCCESS || Type == DeviceType::CPU) {
+    [[maybe_unused]] auto ReleaseResult =
+        getContext()->urDdiTable.Context.pfnRelease(ShadowContext);
+    assert(ReleaseResult == UR_RESULT_SUCCESS);
+  }
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
   UR_LOG_L(getContext()->logger, INFO, "ShadowMemory(Global): {} - {}",
            (void *)Shadow->ShadowBegin, (void *)Shadow->ShadowEnd);
   return UR_RESULT_SUCCESS;
@@ -143,6 +153,11 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
     UR_CALL(SafeAllocate(Context, Device, Size, Params.USMDesc, Params.Pool,
                          Type, &Allocated));
   } else {
+    // Check if the device is not NULL as AllocExportableMemoryExp requires it
+    if (!Device) {
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
     UR_CALL(
         getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp(
             Context, Device, Params.Alignment, Size, Params.HandleTypeToExport,

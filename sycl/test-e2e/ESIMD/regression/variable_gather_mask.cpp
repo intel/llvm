@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
     sycl::buffer<int, 1> Bbuf(B, range<1>(VL));
 
     return q.submit([&](handler &cgh) {
-      auto b = Bbuf.template get_access<access::mode::read_write>(cgh);
+      auto b = Bbuf.template get_access<access_mode::read_write>(cgh);
       KernelAcc kernel(b);
       cgh.single_task(kernel);
     });

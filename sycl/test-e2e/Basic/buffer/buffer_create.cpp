@@ -15,6 +15,7 @@
 // UNSUPPORTED: linux && arch-intel_gpu_mtl_u
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 
+#include <CL/cl.h>
 #include <iostream>
 #include <level_zero/ze_api.h>
 #include <sycl/detail/core.hpp>

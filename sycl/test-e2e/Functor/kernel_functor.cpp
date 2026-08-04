@@ -14,7 +14,7 @@
 
 #include <cassert>
 
-constexpr auto sycl_read_write = sycl::access::mode::read_write;
+constexpr auto sycl_read_write = sycl::access_mode::read_write;
 constexpr auto sycl_device = sycl::access::target::device;
 
 // Case 1:

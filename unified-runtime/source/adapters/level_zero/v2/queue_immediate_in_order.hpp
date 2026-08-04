@@ -9,7 +9,7 @@
 #pragma once
 
 #include "../common.hpp"
-#include "../device.hpp"
+#include "../common/device.hpp"
 
 #include "common/ur_ref_count.hpp"
 #include "context.hpp"
@@ -24,9 +24,9 @@
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
-struct ur_queue_immediate_in_order_t : ur_object, ur_queue_t_ {
+struct ur_queue_immediate_in_order_t : ur_object_t, ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
@@ -67,14 +67,12 @@ public:
     return commandListManager.lock()->appendEventsWait(
         waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
   ur_result_t
   enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
                                   uint32_t numEventsInWaitList,
                                   const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) override {
-    return enqueueEventsWaitWithBarrier(numEventsInWaitList, phEventWaitList,
-                                        phEvent);
-  }
+                                  ur_event_handle_t *phEvent) override;
 
   ur_result_t enqueueMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
                                    size_t offset, size_t size, void *pDst,
@@ -585,4 +583,4 @@ public:
   ur::RefCount RefCount;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

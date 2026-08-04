@@ -57,7 +57,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(MemObject));
+    retainOpenCLMemObject(MemObject);
   }
 }
 
@@ -113,7 +113,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(MemObject));
+    retainOpenCLMemObject(MemObject);
   }
 }
 

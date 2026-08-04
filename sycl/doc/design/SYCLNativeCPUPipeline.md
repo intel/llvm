@@ -190,7 +190,7 @@ For a simple kernel of the form:
 with original incoming IR of:
 
 ```llvm
-define weak_odr dso_local spir_kernel void @_Z6Sample(ptr noundef align 4 %_arg_c_ptr, ptr noundef align 4 %_arg_a_ptr, ptr noundef align 4 %_arg_b_ptr) local_unnamed_addr #1 comdat !srcloc !74 !kernel_arg_buffer_location !75 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
+define weak_odr dso_local spir_kernel void @_Z6Sample(ptr noundef align 4 %_arg_c_ptr, ptr noundef align 4 %_arg_a_ptr, ptr noundef align 4 %_arg_b_ptr) local_unnamed_addr #1 comdat !srcloc !74 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
 entry:
   %0 = load i64, ptr @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !78
   %arrayidx.i = getelementptr inbounds i32, ptr %_arg_a_ptr, i64 %0
@@ -209,7 +209,7 @@ entry:
 The resulting IR from a typical kernel with a `sycl::range` of dimension 1 is:
 
 ```llvm
-define weak dso_local void @_Z6Sample.NativeCPUKernel(ptr noundef align 4 %0, ptr noundef align 4 %1, ptr noundef align 4 %2, ptr %3) local_unnamed_addr #3 !srcloc !74 !kernel_arg_buffer_location !75 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
+define weak dso_local void @_Z6Sample.NativeCPUKernel(ptr noundef align 4 %0, ptr noundef align 4 %1, ptr noundef align 4 %2, ptr %3) local_unnamed_addr #3 !srcloc !74 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
 entry:
   %ncpu_builtin = call ptr @_Z13get_global_idmP15nativecpu_state(ptr %3)
   %4 = load i64, ptr %ncpu_builtin, align 32, !noalias !78

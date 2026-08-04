@@ -264,7 +264,8 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
     - name: Check E2E test requirements
-      if: ${{ !cancelled() && !contains(inputs.changes, 'sycl') }}
+      # sle15sp4 uses gcc 7.5.0 which has too many failures here.
+      if: ${{ !cancelled() && !contains(inputs.changes, 'sycl') && inputs.build_image != 'ghcr.io/intel/llvm/sle15sp4_build:latest' }}
       run: |
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
@@ -326,7 +327,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia"
 
     - name: Build E2E tests with NewOffloadModel
@@ -341,7 +342,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia" --param enable_new_offload_model=True
 
     - name: Build E2E tests with SPIR-V Backend
@@ -352,7 +353,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_spirv_backend_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
         extra_lit_opts: --param spirv-backend=True
 
     - name: Build E2E tests in Preview Mode
@@ -363,5 +364,5 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_preview_artifact }}
-        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
         extra_lit_opts: --param test-preview-mode=True

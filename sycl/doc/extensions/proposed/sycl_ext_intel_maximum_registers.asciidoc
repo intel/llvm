@@ -1,0 +1,247 @@
+= sycl_ext_intel_maximum_registers
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2026 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 11 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+== Status
+
+This is a proposed extension specification, intended to gather community feedback.
+Interfaces defined in this specification may not be implemented yet or may be in a preliminary state.
+The specification itself may also change in incompatible ways before it is finalized.
+**Shipping software products should not rely on APIs defined in this specification.**
+
+== Overview
+
+This extension adds new kernel properties which allow an application to choose
+the size of the general register file (GRF) that the compiler uses when
+generating device code for a kernel.
+
+These properties are intended for advanced performance tuning.
+Increasing the GRF size may improve performance for kernels with high register
+requirements, but it can also introduce trade-offs that reduce performance.
+Applications should generally rely on the compiler's default selection unless
+profiling demonstrates a benefit from specifying a different GRF size.
+
+This extension is similar to link:../experimental/sycl_ext_intel_grf_size.asciidoc[sycl_ext_intel_grf_size]
+but the mechanism by which the GRF size specification is communicated from {dpcpp} to the runtime differs.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_MAXIMUM_REGISTERS` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Properties
+
+This extension adds the properties listed below, which applications can use
+when defining a kernel to select the kernel's GRF size.
+When a kernel is defined without either property, the GRF size is
+implementation-defined.
+On devices that support two GRF sizes, implementations typically select the
+smaller size by default.
+
+The two properties defined below and the properties from link:../experimental/sycl_ext_intel_grf_size.asciidoc[sycl_ext_intel_grf_size] are all mutually exclusive.
+A kernel may be decorated with at most one of these properties.
+
+[_Note_: Using these properties to select a larger GRF size may impose a lower
+limit on the kernel's maximum work-group size.
+Applications can query the maximum work-group size for the kernel via the
+`info::kernel_device_specific::work_group_size` information descriptor, which is
+defined in the core SYCL specification.
+_{endnote}_]
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+
+struct maximum_registers_key {
+  template <unsigned int Size>
+  using value_t = 
+      oneapi::experimental::property_value<maximum_registers_key, 
+                                           std::integral_constant<unsigned int, Size>>;
+};
+
+template <unsigned int Size>
+inline constexpr maximum_registers_key::value_t<Size> maximum_registers;
+
+} // namespace sycl::ext::intel::experimental
+----
+
+Indicates that the kernel should be compiled with a GRF size of `Size`.
+The value `Size` must be one of the legal GRF size values for the device to
+which the kernel is submitted, as defined by the table below.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+
+struct maximum_registers_automatic_key {
+  using value_t = 
+      oneapi::experimental::property_value<maximum_registers_automatic_key>;
+};
+
+inline constexpr maximum_registers_automatic_key::value_t maximum_registers_automatic;
+
+} // namespace sycl::ext::intel::experimental
+----
+
+Indicates that the compiler should use a heuristic to determine the GRF size for
+the kernel.
+This property gives the compiler more freedom to chooes a larger GRF size
+compared to kernels that are not defined with any GRF property.
+
+=== Legal GRF sizes for Intel devices
+
+The following table lists the legal GRF sizes for some Intel devices.
+
+[%header,cols="1,5"]
+|===
+|GPU |Supported Values
+| PVC | 128 (small register file), 256 (large register file)
+| DG2 | 128 (small register file), 256 (large register file)
+| CRI | 128, 256, 512
+|===
+
+Providing a GRF size that is not consistent with the supported values results in
+undefined behavior.
+
+
+== Examples
+
+=== Basic usage
+
+A simple example of using this extension is below.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+
+struct Kernel1 {
+  Kernel1() {}
+
+  void operator()(sycl::nd_item<1> it) const { /* ... */ }
+
+  auto get(syclex::properties_tag) const {
+    return syclex::properties{intelex::maximum_registers<256>};
+  }
+};
+
+struct Kernel2 {
+  Kernel2() {}
+
+  void operator()(sycl::nd_item<1> it) const { /* ... */ }
+
+  auto get(syclex::properties_tag) const {
+    return syclex::properties{intelex::maximum_registers_automatic};
+  }
+};
+
+int main() {
+  sycl::queue q;
+
+  sycl::nd_range ndr{{256},{16}};
+  q.parallel_for(ndr, Kernel1{}).wait();
+  q.parallel_for(ndr, Kernel2{}).wait();
+}
+----
+
+=== Usage with a free function kernel
+
+An example using this extension with free function kernels
+(link:../experimental/sycl_ext_oneapi_free_function_kernels.asciidoc[
+sycl_ext_oneapi_free_function_kernels]).
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::maximum_registers<256>))
+void kernel1() {
+  /* ... */
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((intelex::maximum_registers_automatic))
+void kernel2() {
+  /* ... */
+}
+
+int main() {
+  sycl::queue q;
+
+  sycl::nd_range ndr{{256},{16}};
+  syclex::nd_launch(q, ndr, syclex::kernel_function<kernel1>);
+  syclex::nd_launch(q, ndr, syclex::kernel_function<kernel2>);
+  q.wait();
+}
+----

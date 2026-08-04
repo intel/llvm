@@ -117,7 +117,7 @@ public:
   using EnableIfNotConstIterator =
       std::enable_if_t<!iterator_to_const_type_t<T>::value, T>;
 
-  buffer_impl(cl_mem MemObject, const context &SyclContext,
+  buffer_impl(OpenCLMemT MemObject, const context &SyclContext,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
       : buffer_impl(ur::cast<ur_native_handle_t>(MemObject), SyclContext,

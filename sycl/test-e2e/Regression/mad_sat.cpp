@@ -27,7 +27,7 @@ int main() {
     sycl::buffer<inte64_x3, 1> buffer(1);
 
     testQueue.submit([&](sycl::handler &h) {
-      auto resultPtr = buffer.template get_access<sycl::access::mode::write>(h);
+      auto resultPtr = buffer.template get_access<sycl::access_mode::write>(h);
       h.single_task<class k3>([=]() {
         resultPtr[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);
       });
@@ -51,7 +51,7 @@ int main() {
     sycl::buffer<inte64_x4, 1> buffer(1);
 
     testQueue.submit([&](sycl::handler &h) {
-      auto resultPtr = buffer.template get_access<sycl::access::mode::write>(h);
+      auto resultPtr = buffer.template get_access<sycl::access_mode::write>(h);
       h.single_task<class k4>([=]() {
         resultPtr[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);
       });
@@ -82,7 +82,7 @@ int main() {
     sycl::buffer<inte64_x8, 1> buffer(1);
 
     testQueue.submit([&](sycl::handler &h) {
-      auto resultPtr = buffer.template get_access<sycl::access::mode::write>(h);
+      auto resultPtr = buffer.template get_access<sycl::access_mode::write>(h);
       h.single_task<class k8>([=]() {
         resultPtr[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);
       });
@@ -125,7 +125,7 @@ int main() {
     sycl::buffer<inte64_x16, 1> buffer(1);
 
     testQueue.submit([&](sycl::handler &h) {
-      auto resultPtr = buffer.template get_access<sycl::access::mode::write>(h);
+      auto resultPtr = buffer.template get_access<sycl::access_mode::write>(h);
 
       h.single_task<class k16>([=]() {
         resultPtr[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);

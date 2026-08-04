@@ -67,8 +67,8 @@ void checkReadSampler(char *host_ptr, s::sampler Sampler, s::float4 Coord,
     s::queue myQueue;
     s::buffer<s::float4, 1> ReadDataBuf(&ReadData, s::range<1>(1));
     myQueue.submit([&](s::handler &cgh) {
-      auto ReadAcc = Img.get_access<s::float4, s::access::mode::read>(cgh);
-      s::accessor<s::float4, 1, s::access::mode::write> ReadDataBufAcc(
+      auto ReadAcc = Img.get_access<s::float4, s::access_mode::read>(cgh);
+      s::accessor<s::float4, 1, s::access_mode::write> ReadDataBufAcc(
           ReadDataBuf, cgh);
 
       cgh.single_task<class kernel_class<i>>([=]() {

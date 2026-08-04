@@ -20,7 +20,7 @@ $_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E10KernelName = comdat any
 @_ZL9SpecConst = internal addrspace(1) constant %"class.cl::sycl::specialization_id" zeroinitializer, align 4
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E10KernelName() local_unnamed_addr #0 comdat !kernel_arg_buffer_location !5 !sycl_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E10KernelName() local_unnamed_addr #0 comdat !sycl_kernel_omit_args !6 {
 entry:
   %tmp.i = alloca %struct.TestStruct, align 4
   %tmp.ascast.i = addrspacecast %struct.TestStruct* %tmp.i to %struct.TestStruct addrspace(4)*
@@ -56,7 +56,6 @@ attributes #4 = { convergent }
 !2 = !{!"clang version 14.0.0"}
 !3 = !{i32 1, !"wchar_size", i32 4}
 !4 = !{i32 7, !"frame-pointer", i32 2}
-!5 = !{i32 -1}
 !6 = !{i1 true}
 
 ; We expect the following in the descriptor list for SpecConst:

@@ -8,7 +8,7 @@ int main() {
     sycl::buffer<int, 1> buf(&data, sycl::range<1>(1));
 
     q.submit([&](sycl::handler &h) {
-       auto acc = buf.get_access<sycl::access::mode::write>(h);
+       auto acc = buf.get_access<sycl::access_mode::write>(h);
        h.single_task([=]() { acc[0] = 42; });
      }).wait();
   }

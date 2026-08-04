@@ -7,6 +7,7 @@ on:
     branches:
     - sycl
     - sycl-rel-**
+    - llvmspirv_pulldown
 
   pull_request:
     branches:
@@ -16,9 +17,9 @@ on:
     - .github/workflows/sycl-linux-build.yml
     - .github/workflows/sycl-linux-run-tests.yml
     - .github/workflows/sycl-macos-build-and-test.yml
-    - ./devops/actions/cleanup
-    - ./devops/actions/cached_checkout
-    - ./devops/dependencies.json
+    - devops/actions/cleanup/**
+    - devops/actions/cached_checkout/**
+    - devops/dependencies.json
 
 concurrency:
   #  Cancel a currently running workflow from the same PR or commit hash.

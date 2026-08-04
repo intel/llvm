@@ -31,7 +31,7 @@ int main() {
   size_t MaxWGSize =
       Q.get_device().get_info<info::device::max_work_group_size>();
 
-  constexpr access::mode RW = access::mode::read_write;
+  constexpr access_mode RW = access_mode::read_write;
   // Fast-reduce and Fast-atomics. Try various range types/sizes.
   tests<class A1, int>(Q, 0, 99, std::plus<int>{}, range<1>(1));
   tests<class A2, int>(Q, 0, 99, std::plus<>{}, range<1>(2));

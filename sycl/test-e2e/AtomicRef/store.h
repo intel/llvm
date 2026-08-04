@@ -29,7 +29,7 @@ void store_global_test(queue q, size_t N) {
   {
     buffer<T> store_buf(&store, 1);
     q.submit([&](handler &cgh) {
-      auto st = store_buf.template get_access<access::mode::read_write>(cgh);
+      auto st = store_buf.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
         auto atm = AtomicRef<T, memory_order::relaxed, scope, space>(st[0]);
@@ -82,7 +82,7 @@ void store_local_test(queue q, size_t N) {
   {
     buffer<T> store_buf(&store, 1);
     q.submit([&](handler &cgh) {
-      auto st = store_buf.template get_access<access::mode::read_write>(cgh);
+      auto st = store_buf.template get_access<access_mode::read_write>(cgh);
       local_accessor<T, 1> loc(1, cgh);
       cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> it) {
         size_t gid = it.get_global_id(0);

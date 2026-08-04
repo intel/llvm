@@ -8,6 +8,12 @@ from templates import helper as th
     x=tags['$x']
     X=x.upper()
     Adapter=adapter.upper()
+    adapter_namespace={
+        'level_zero': 'ur::level_zero::v1',
+        'level_zero_v2': 'ur::level_zero::v2',
+    }.get(adapter, 'ur::'+adapter)
+    is_level_zero = adapter in ('level_zero', 'level_zero_v2')
+
 %>//===--------- ${n}_interface_loader.cpp - Level Zero Adapter ------------===//
 //
 //
@@ -35,8 +41,11 @@ static ur_result_t validateProcInputs(ur_api_version_t version, void *pDdiTable)
   return UR_RESULT_SUCCESS;
 }
 
+%if is_level_zero:
+#include "ur_interface_loader_common_forwarders.hpp"
+%endif
 #ifdef UR_STATIC_ADAPTER_${Adapter}
-namespace ${n}::${adapter} {
+namespace ${adapter_namespace} {
 #else
 extern "C" {
 #endif
@@ -60,7 +69,7 @@ ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${tbl['export']['name']}(
 %if 'guard' in obj and 'guard' not in tbl:
 #if ${obj['guard']}
 %endif
-    pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = ${n}::${adapter}::${th.make_func_name(n, tags, obj)};
+    pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = ${adapter_namespace + '::' if is_level_zero else ''}${th.make_func_name(n, tags, obj)};
 %if 'guard' in obj and 'guard' not in tbl:
 #endif // ${obj['guard']}
 %endif
@@ -75,7 +84,7 @@ ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${tbl['export']['name']}(
 %endfor
 
 #ifdef UR_STATIC_ADAPTER_${Adapter}
-} // namespace ur::${adapter}
+} // namespace ${adapter_namespace}
 #else
 } // extern "C"
 #endif
@@ -89,7 +98,7 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
   ur_result_t result;
 
 #ifdef UR_STATIC_ADAPTER_${Adapter}
-#define NAMESPACE_ ::ur::${adapter}
+#define NAMESPACE_ ::${adapter_namespace}
 #else
 #define NAMESPACE_
 #endif
@@ -113,7 +122,7 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
 }
 
 
-namespace ur::${adapter} {
+namespace ${adapter_namespace} {
 const ${x}_dditable_t *ddi_getter::value() {
   static std::once_flag flag;
   static ${x}_dditable_t table;
@@ -127,4 +136,4 @@ ur_result_t urAdapterGetDdiTables(${x}_dditable_t *ddi) {
   return populateDdiTable(ddi);
 }
 #endif
-}
+} // namespace ${adapter_namespace}
