@@ -26,22 +26,29 @@ int main() {
 
     Q.submit([&](sycl::handler &CGH) {
       // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:22
-      auto A1 = UImg.get_access<sycl::uint4, mode::read,
+      auto A1 = UImg.get_access<sycl::uint4, sycl::access_mode::read,
                                 sycl::image_target::host_task>(CGH);
     });
 
     Q.submit([&](sycl::handler &CGH) {
       // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:22
-      auto A1 = UImg.get_access<sycl::uint4, mode::write,
+      auto A1 = UImg.get_access<sycl::uint4, sycl::access_mode::write,
                                 sycl::image_target::host_task>(CGH);
     });
 
-    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:22
-    { auto HA = UImg.get_host_access<sycl::int4, mode::read>(); }
-    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:22
-    { auto HA = UImg.get_host_access<sycl::float4, mode::write>(); }
-    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1026|{{.*}}vec{{.*}}|8|{{.*}}accessors.cpp:[[# @LINE + 1]]:22
-    { auto HA = UImg.get_host_access<sycl::half4, mode::read_write>(); }
+    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 2]]:22
+    {
+      auto HA = UImg.get_host_access<sycl::int4, sycl::access_mode::read>();
+    }
+    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 2]]:22
+    {
+      auto HA = UImg.get_host_access<sycl::float4, sycl::access_mode::write>();
+    }
+    // CHECK:{{[0-9]+}}|Construct host unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1026|{{.*}}vec{{.*}}|8|{{.*}}accessors.cpp:[[# @LINE + 3]]:16
+    {
+      auto HA =
+          UImg.get_host_access<sycl::half4, sycl::access_mode::read_write>();
+    }
   }
   // CHECK:{{[0-9]+}}|Destruct image|[[UIMGID]]
 

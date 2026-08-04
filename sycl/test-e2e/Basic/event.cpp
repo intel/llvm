@@ -70,7 +70,7 @@ int main() {
     float Scalar = 2.0;
     sycl::buffer<float, 1> Buf(&Data, sycl::range<1>(1));
     auto Event = Queue.submit([&](sycl::handler &cgh) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(cgh);
 
       cgh.single_task<class test_event>([=]() { Acc[0] = Scalar; });
     });

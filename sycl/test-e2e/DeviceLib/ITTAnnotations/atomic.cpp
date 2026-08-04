@@ -19,9 +19,9 @@ int main() {
     // ITT start/finish annotations and ITT atomic start/finish annotations.
     q.submit([&](handler &cgh) {
       auto source_acc =
-          source_buf.template get_access<access::mode::read_write>(cgh);
+          source_buf.template get_access<access_mode::read_write>(cgh);
       auto target_acc =
-          target_buf.template get_access<access::mode::discard_write>(cgh);
+          target_buf.template get_access<access_mode::discard_write>(cgh);
       cgh.single_task<class simple_atomic_kernel>([=]() {
         auto source_atomic =
             atomic_ref<int, memory_order::relaxed, memory_scope::device,

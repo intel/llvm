@@ -63,7 +63,7 @@ int main(void) {
               << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read_write>(cgh);
+      auto PA = bufa.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class SYCLKernelSingleGRF>(Size,
                                                   [=](id<1> i) { PA[i] += 2; });
     });
@@ -90,7 +90,7 @@ int main(void) {
               << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read_write>(cgh);
+      auto PA = bufa.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class SYCLKernelSpecifiedGRF>(Size,
                                                      KernelFunctor(PA, prop));
     });

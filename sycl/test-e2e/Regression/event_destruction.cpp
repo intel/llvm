@@ -21,7 +21,7 @@ int main() {
   sycl::buffer<int, 1> Buf(1);
   for (size_t Idx = 0; Idx < ITERS; ++Idx) {
     auto Event = Q.submit([&](sycl::handler &cgh) {
-      auto Acc = Buf.get_access<sycl::access::mode::write>(cgh);
+      auto Acc = Buf.get_access<sycl::access_mode::write>(cgh);
       cgh.single_task([=]() { Acc[0] = 1; });
     });
     Event.wait();

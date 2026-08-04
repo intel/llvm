@@ -30,12 +30,12 @@ int main() {
       sycl::queue q;
       sycl::nd_range<1> NDR(sycl::range<1>{n}, sycl::range<1>{2});
       q.submit([&](sycl::handler &cgh) {
-        sycl::accessor<int, 1, sycl::access::mode::write,
+        sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
-            acc(buf.get_access<sycl::access::mode::write>(cgh));
-        sycl::accessor<int, 1, sycl::access::mode::write,
+            acc(buf.get_access<sycl::access_mode::write>(cgh));
+        sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
-            results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
+            results_acc(results_buf.get_access<sycl::access_mode::write>(cgh));
         cgh.parallel_for<class NdItemTest>(NDR, [=](auto nd_i) {
           static_assert(std::is_same<decltype(nd_i), sycl::nd_item<1>>::value,
                         "lambda arg type is unexpected");
