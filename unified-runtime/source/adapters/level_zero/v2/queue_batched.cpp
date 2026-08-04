@@ -904,10 +904,17 @@ ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().bindlessImagesWaitExternalSemaphoreExp(
+  UR_CALL(lockedBatch->getActiveBatch().bindlessImagesWaitExternalSemaphoreExp(
       hSemaphore, hasWaitValue, waitValue, waitListView,
       createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+                                    lockedBatch->getCurrentGeneration())));
+
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external producer's
+  // signal cannot release a command list that was never submitted and can
+  // deadlock.
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
@@ -921,10 +928,17 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().bindlessImagesSignalExternalSemaphoreExp(
-      hSemaphore, hasSignalValue, signalValue, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+  UR_CALL(
+      lockedBatch->getActiveBatch().bindlessImagesSignalExternalSemaphoreExp(
+          hSemaphore, hasSignalValue, signalValue, waitListView,
+          createEventIfRequestedRegular(phEvent,
+                                    lockedBatch->getCurrentGeneration())));
+
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external consumer may
+  // never observe the signal.
+  return renewBatchUnlocked(lockedBatch);
 }
 
 // In case of queues with batched submissions, which use regular command lists

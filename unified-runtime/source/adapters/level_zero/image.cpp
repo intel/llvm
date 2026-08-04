@@ -119,8 +119,12 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
 
   bool UseCopyEngine = false;
 
-  // We want to batch these commands to avoid extra submissions (costly)
-  bool OkToBatch = true;
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external producer's
+  // signal cannot release a command list that was never submitted and can
+  // deadlock.
+  bool OkToBatch = false;
 
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
@@ -177,8 +181,11 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
 
   bool UseCopyEngine = false;
 
-  // We want to batch these commands to avoid extra submissions (costly)
-  bool OkToBatch = true;
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external consumer may
+  // never observe the signal.
+  bool OkToBatch = false;
 
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
