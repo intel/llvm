@@ -65,14 +65,6 @@ public:
   nd_range() = default;
 
   // Common member functions for by-value semantics
-  bool operator==(const nd_range<Dimensions> &rhs) const {
-    return (rhs.globalSize == this->globalSize) &&
-           (rhs.localSize == this->localSize) && (rhs.offset == this->offset);
-  }
-
-  bool operator!=(const nd_range<Dimensions> &rhs) const {
-    return !(*this == rhs);
-  }
   friend bool operator==(const nd_range<Dimensions> &lhs,
                          const nd_range<Dimensions> &rhs) {
     return (lhs.globalSize == rhs.globalSize) &&
