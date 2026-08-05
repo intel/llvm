@@ -17,8 +17,10 @@
 #include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Linker/Linker.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <assert.h>
 
@@ -146,17 +148,31 @@ void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
         << CGM.getCodeGenOpts().SYCLTargetBinaryFileName << EC.message();
     return;
   }
-  llvm::ArrayRef<char> Buffer((*BinaryOrErr)->getBufferStart(),
-                              (*BinaryOrErr)->getBufferSize());
-  // Use a non-.llvm.offloading section - for sycl-no-rdc at compile time, the
-  // device image is already finalized and must not be re-processed at link
-  // time.
-  if (llvm::Error E = llvm::offloading::wrapSYCLBinaries(
-          CGM.getModule(), Buffer, llvm::offloading::SYCLJITOptions{},
-          ".sycl_offloading.device_image"))
+  // The input is a wrapper bitcode module produced by clang-linker-wrapper
+  // --sycl-device-link. It already contains the correct __sycl.tgt_bin_desc
+  // structure and __sycl_register_lib constructor. Link it directly into the
+  // host module so the SYCL runtime finds the device image at program startup.
+  llvm::LLVMContext &Ctx = CGM.getModule().getContext();
+  llvm::Expected<std::unique_ptr<llvm::Module>> DevModOrErr =
+      llvm::parseBitcodeFile((*BinaryOrErr)->getMemBufferRef(), Ctx);
+  if (!DevModOrErr) {
     CGM.getDiags().Report(diag::err_fe_linking_module)
         << CGM.getCodeGenOpts().SYCLTargetBinaryFileName
-        << llvm::toString(std::move(E));
+        << llvm::toString(DevModOrErr.takeError());
+    return;
+  }
+  // Propagate the host data layout so the linker doesn't warn about mismatched
+  // layouts (the wrapper .bc is created without a data layout set).
+  (*DevModOrErr)->setDataLayout(CGM.getModule().getDataLayout());
+  // Install a diagnostic handler that routes DK_Linker diagnostics through
+  // clang's diagnostic engine. The default handler asserts CurLinkModule is
+  // set, which is only true inside BackendConsumer's LinkModules loop.
+  Ctx.setDiagnosticHandler(std::make_unique<llvm::DiagnosticHandler>());
+  if (llvm::Linker::linkModules(CGM.getModule(), std::move(*DevModOrErr)))
+    CGM.getDiags().Report(diag::err_fe_linking_module)
+        << CGM.getCodeGenOpts().SYCLTargetBinaryFileName
+        << "linking wrapper bitcode into host module failed";
+  Ctx.setDiagnosticHandler(nullptr);
 }
 
 bool Util::matchQualifiedTypeName(const CXXRecordDecl *RecTy,

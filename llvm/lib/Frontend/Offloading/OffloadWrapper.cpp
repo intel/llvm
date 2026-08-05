@@ -641,14 +641,13 @@ public:
   /// Embeds \p Buffer (a raw OffloadBinary) as a global constant and returns
   /// a pair of (Start, Size), where Start points to the beginning of the
   /// embedded data and Size is its length in bytes.
-  std::pair<Constant *, Constant *> embedBinary(ArrayRef<char> Buffer,
-                                                StringRef SectionName) {
+  std::pair<Constant *, Constant *> embedBinary(ArrayRef<char> Buffer) {
     Constant *Arr = ConstantDataArray::get(C, Buffer);
     GlobalVariable *BinaryGV = new GlobalVariable(
         M, Arr->getType(), /*isConstant=*/true, GlobalValue::InternalLinkage,
         Arr, ".sycl_offloading.binary");
     BinaryGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-    BinaryGV->setSection(SectionName);
+    BinaryGV->setSection(".llvm.offloading");
 
     IntegerType *Int64Ty = Type::getInt64Ty(C);
     Constant *Zero = ConstantInt::get(Int64Ty, 0);
@@ -750,10 +749,9 @@ Error offloading::wrapHIPBinary(Module &M, ArrayRef<char> Image,
 }
 
 Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M, ArrayRef<char> Buffer,
-                                         SYCLJITOptions Options,
-                                         StringRef SectionName) {
+                                         SYCLJITOptions Options) {
   SYCLWrapper W(M, Options);
-  auto [Start, Size] = W.embedBinary(Buffer, SectionName);
+  auto [Start, Size] = W.embedBinary(Buffer);
   W.createRegisterFatbinFunction(Start, Size);
   W.createUnregisterFunction(Start, Size);
   return Error::success();

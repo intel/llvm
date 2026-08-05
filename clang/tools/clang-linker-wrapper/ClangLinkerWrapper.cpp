@@ -2790,6 +2790,18 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         MD.SplitModules = std::move(Modules);
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
+      } else if (Args.hasArg(OPT_sycl_device_link)) {
+        // For per-TU -fno-sycl-rdc compile-step finalization, output the
+        // wrapper bitcode directly. The host cc1 will link this .bc into the
+        // host module via -fsycl-include-target-binary, so the SYCL
+        // registration IR (constructors calling __sycl_register_lib) is
+        // emitted correctly without compiling to an intermediate host object.
+        Expected<StringRef> OutputFile =
+            sycl::wrapSYCLBinariesFromFile(Modules, LinkerArgs,
+                                           /*IsEmbeddedIR=*/false);
+        if (!OutputFile)
+          return OutputFile.takeError();
+        AppendImageToWrapperOutput(*OutputFile);
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
         Expected<StringRef> OutputFile =
