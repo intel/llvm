@@ -130,7 +130,7 @@ public:
   using sycl::detail::queue_impl::MStreamsServiceEvents;
 };
 
-TEST_F(SchedulerTest, StreamAUXCmdsWait) {
+TEST_F(SchedulerTest, StreamAUXCmdsWaitDependencies) {
   sycl::unittest::UrMock<> Mock;
 
   {
@@ -162,27 +162,26 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.empty())
         << "No stream service events are expected to left after wait";
   }
+}
 
-  {
-    sycl::platform Plt = sycl::platform();
-    sycl::queue Q(Plt.get_devices()[0]);
-    auto &QueueImpl =
-        static_cast<QueueImplProxyT &>(*detail::getSyclObjImpl(Q));
+TEST_F(SchedulerTest, StreamAUXCmdsWaitInQueueWait) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEventWait",
+                                           &urEventsWaitRedefineCheckCalled);
 
-    mock::getCallbacks().set_before_callback("urEventWait",
-                                             &urEventsWaitRedefineCheckCalled);
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+  auto &QueueImpl = static_cast<QueueImplProxyT &>(*detail::getSyclObjImpl(Q));
 
-    ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
+  ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
+  auto EventImpl = sycl::detail::event_impl::create_device_event(QueueImpl);
+  EventImpl->setHandle(UREvent);
 
-    auto EventImpl = sycl::detail::event_impl::create_device_event(QueueImpl);
-    EventImpl->setHandle(UREvent);
+  QueueImpl.registerStreamServiceEvent(EventImpl);
+  QueueImpl.wait();
 
-    QueueImpl.registerStreamServiceEvent(EventImpl);
-    QueueImpl.wait();
-
-    ASSERT_TRUE(GpiEventsWaitRedefineCalled)
-        << "No stream service events are expected to left after wait";
-  }
+  ASSERT_TRUE(GpiEventsWaitRedefineCalled)
+      << "No stream service events are expected to left after wait";
 }
 
 TEST_F(SchedulerTest, CommandsWaitForEvents) {
