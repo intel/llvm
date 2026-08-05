@@ -560,53 +560,42 @@ ur_result_t urEventGetProfilingInfo(
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
 
   // For timestamped events we have the timestamps ready directly on the event
-  // handle, so we short-circuit the return.
+  // handle, so we short-circuit the return. The tag is an empty command, so
+  // all timestamps (queued, submit, start, end, complete) are the single
+  // GPU-written completion time.
   // We don't support user events with timestamps due to requiring the UrQueue.
   if (isTimestampedEvent && Event->UrQueue) {
-    switch (PropName) {
-    // The tag is an empty command, so all timestamps are the single
-    // GPU-written completion time.
-    case UR_PROFILING_INFO_COMMAND_QUEUED:
-    case UR_PROFILING_INFO_COMMAND_SUBMIT:
-    case UR_PROFILING_INFO_COMMAND_START:
-    case UR_PROFILING_INFO_COMMAND_END:
-    case UR_PROFILING_INFO_COMMAND_COMPLETE: {
-      // If RecordEventEndTimestamp on the event is non-zero it means it has
-      // collected the result of the queue already. In that case it has been
-      // adjusted and is ready for immediate return.
-      if (Event->RecordEventEndTimestamp)
-        return ReturnValue(Event->RecordEventEndTimestamp);
+    // If RecordEventEndTimestamp on the event is non-zero it means it has
+    // collected the result of the queue already. In that case it has been
+    // adjusted and is ready for immediate return.
+    if (Event->RecordEventEndTimestamp)
+      return ReturnValue(Event->RecordEventEndTimestamp);
 
-      // Otherwise we need to collect it from the queue.
-      auto Entry = Event->UrQueue->EndTimeRecordings.find(Event);
+    // Otherwise we need to collect it from the queue.
+    auto Entry = Event->UrQueue->EndTimeRecordings.find(Event);
 
-      // Unexpected state if there is no end-time record.
-      if (Entry == Event->UrQueue->EndTimeRecordings.end())
-        return UR_RESULT_ERROR_UNKNOWN;
-      auto &EndTimeRecording = Entry->second;
+    // Unexpected state if there is no end-time record.
+    if (Entry == Event->UrQueue->EndTimeRecordings.end())
+      return UR_RESULT_ERROR_UNKNOWN;
+    auto &EndTimeRecording = Entry->second;
 
-      // End time needs to be adjusted for resolution and valid bits. A single
-      // timestamp has no separate start value to detect wrap-around against.
-      uint64_t ContextEndTime =
-          (EndTimeRecording & TimestampMaxValue) * ZeTimerResolution;
+    // End time needs to be adjusted for resolution and valid bits. A single
+    // timestamp has no separate start value to detect wrap-around against.
+    uint64_t ContextEndTime =
+        (EndTimeRecording & TimestampMaxValue) * ZeTimerResolution;
 
-      // If the result is 0, we have not yet gotten results back and so we just
-      // return it.
-      if (ContextEndTime == 0)
-        return ReturnValue(ContextEndTime);
-
-      // Now that we have the result, there is no need to keep it in the queue
-      // anymore, so we cache it on the event and evict the record from the
-      // queue.
-      Event->RecordEventEndTimestamp = ContextEndTime;
-      Event->UrQueue->EndTimeRecordings.erase(Entry);
-
+    // If the result is 0, we have not yet gotten results back and so we just
+    // return it.
+    if (ContextEndTime == 0)
       return ReturnValue(ContextEndTime);
-    }
-    default:
-      UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
+
+    // Now that we have the result, there is no need to keep it in the queue
+    // anymore, so we cache it on the event and evict the record from the
+    // queue.
+    Event->RecordEventEndTimestamp = ContextEndTime;
+    Event->UrQueue->EndTimeRecordings.erase(Entry);
+
+    return ReturnValue(ContextEndTime);
   }
 
   ze_kernel_timestamp_result_t tsResult;

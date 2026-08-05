@@ -329,21 +329,11 @@ ur_result_t urEventGetProfilingInfo(
   UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   // For timestamped events we have the timestamps ready directly on the event
-  // handle, so we short-circuit the return.
+  // handle, so we short-circuit the return. The tag is an empty command, so
+  // all timestamps (queued, submit, start, end, complete) are the single
+  // GPU-written completion time.
   if (isTimestampedEvent) {
-    switch (propName) {
-    case UR_PROFILING_INFO_COMMAND_QUEUED:
-    case UR_PROFILING_INFO_COMMAND_SUBMIT:
-    case UR_PROFILING_INFO_COMMAND_START:
-    case UR_PROFILING_INFO_COMMAND_END:
-    case UR_PROFILING_INFO_COMMAND_COMPLETE:
-      // The tag is an empty command, so all timestamps are the single
-      // GPU-written completion time.
-      return returnValue(event->getEventEndTimestamp());
-    default:
-      UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
+    return returnValue(event->getEventEndTimestamp());
   }
 
   auto hDevice = event->getDevice();
