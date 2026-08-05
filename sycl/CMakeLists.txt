@@ -657,7 +657,20 @@ foreach(component IN LISTS SYCL_TOOLCHAIN_DEPLOY_COMPONENTS)
     endforeach()
   else()
     set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
-    sycl_add_install_command("${component}" "${component}" "${INSTALL_SCRIPT}" "")
+    set(COMPONENT_DEPS "")
+    if("${component}" STREQUAL "unified-memory-framework" AND TARGET umf)
+      # The "umf" shared library is only linked (and thus only guaranteed to
+      # be built) as a side effect of building sycl-toolchain when a
+      # statically-linked Level Zero adapter pulls it in (see
+      # unified-runtime/source/loader/CMakeLists.txt). On configurations
+      # where nothing links against it (e.g. macOS, which only builds the
+      # OpenCL adapter), ninja never builds the "umf" target on its own, yet
+      # this install step unconditionally tries to deploy it, causing a
+      # "file INSTALL cannot find ... libumf*.dylib" failure. Depend on it
+      # explicitly so the component can always be installed.
+      set(COMPONENT_DEPS "umf")
+    endif()
+    sycl_add_install_command("${component}" "${component}" "${INSTALL_SCRIPT}" "${COMPONENT_DEPS}")
   endif()
 endforeach()
 
