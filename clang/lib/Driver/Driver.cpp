@@ -1030,8 +1030,7 @@ static TripleSet inferOffloadToolchains(Compilation &C,
           << "CUDA" << Arch;
       return {};
     }
-    if (Kind == Action::OFK_OpenMP && (ID.isIntelCPU() || ID.isIntelGPU() ||
-                                       ID.isUnknown() || ID.isUnused())) {
+    if (Kind == Action::OFK_OpenMP && (ID.isUnknown() || ID.isUnused())) {
       C.getDriver().Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch)
           << Arch;
       return {};
