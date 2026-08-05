@@ -272,12 +272,12 @@ After the barrier completes, a "tag" operation sets the status of `evt` to
 `info::event_command_status::complete`.
 
 The event's timestamp information is also set if the queue `q` was created with
-the `property::queue::enable_profiling property` or if the event `e` was created
-with the `ext::oneapi::experimental::enable_profiling` property.
+the `property::queue::enable_profiling` property or if the event `evt` was
+created with the `ext::oneapi::experimental::enable_profiling` property.
 Because the operation represented by the event is an empty command, the
 `info::event_profiling::command_start` timestamp is equivalent to the
 `info::event_profiling::command_end` timestamp, which reflects the time at which
-the event becomes signaled (enters the "compete" state).
+the event becomes signaled (enters the "complete" state).
 Applications are discouraged from using the
 `info::event_profiling::command_submit` timestamp, whose value is some time
 between the point when the host thread calls `enqueue_signal_event` and the
@@ -310,13 +310,13 @@ It is _not_ necessary for the context of _E_ to match the context of _Q_.
 If an event _E_ is used as a command dependency for some command _C_ (e.g. via
 `handler::depends_on`), the dependency is captured at the point when _C_ is
 submitted.
-It is legal to reassociated the event _E_ to a new command via
+It is legal to reassociate the event _E_ to a new command via
 `enqueue_signal_event` even before command _C_ completes.
 Doing so does _not_ change the dependency for command _C_.
 
 If another host thread is blocked waiting for event _E_ to complete via
-`event:wait` or `event::wait_and_throw` when event _E_ is reassociated with a
-new command via `enqueue_signal_event`, the behavior of the `event:wait` or
+`event::wait` or `event::wait_and_throw` when event _E_ is reassociated with a
+new command via `enqueue_signal_event`, the behavior of the `event::wait` or
 `event::wait_and_throw` call is undefined.
 
 The core SYCL specification defines a default constructor for the `event`
@@ -429,7 +429,7 @@ The mapping is not so straightforward for OpenCL because OpenCL APIs return an
 event when a command is submitted, rather than taking an event as input.
 
 * The `make_event` function has no direct mapping to OpenCL.
-  Instead, this function just creates SYCL `event` object with no underlying
+  Instead, this function just creates a SYCL `event` object with no underlying
   OpenCL event.
 * Devices on the OpenCL backend are expected to return `false` for
   `aspect::ext_oneapi_per_event_profiling`, unless we create some OpenCL
@@ -489,9 +489,9 @@ This extension has been implemented with the following limitations:
   functions cannot be dependent on any commands which use cross-context
   event dependencies.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  function cannot be dependent on any commands using `sycl::stream`.
+  functions cannot be dependent on any commands using `sycl::stream`.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  function cannot be dependent on the following methods from the
+  functions cannot be dependent on the following methods from the
   link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[
   sycl_ext_oneapi_memcpy2d] extension: `queue::ext_oneapi_memcpy2d`,
   `queue::ext_oneapi_copy2d`, `handler::ext_oneapi_memcpy2d`,
