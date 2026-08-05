@@ -524,36 +524,65 @@ def show_statistics_and_lists(config: SummaryConfig) -> None:
 
 
 def _validate_log_path(path: str) -> None:
-    """Validate log file path. Allows absolute paths but blocks path traversal."""
-    if ".." in path:
-        print(
-            f"Error: Invalid log file path (path traversal not allowed): {path}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if not Path(path).exists():
-        print(f"Error: Log file not found: {path}", file=sys.stderr)
+    """Validate log file path. Uses Path.resolve() to detect encoded path traversal."""
+    try:
+        # Resolve path to detect encoded forms of path traversal (e.g., %2e%2e)
+        resolved = Path(path).resolve(strict=False)
+
+        # Check for path traversal in original string (simple check)
+        if ".." in path:
+            print(
+                f"Error: Invalid log file path (path traversal not allowed): {path}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        # Verify file exists
+        if not resolved.exists():
+            print(f"Error: Log file not found: {path}", file=sys.stderr)
+            sys.exit(1)
+    except (OSError, ValueError) as e:
+        print(f"Error: Invalid log file path: {path} ({e})", file=sys.stderr)
         sys.exit(1)
 
 
 def _validate_optional_path(
     path: str, path_type: str, allow_absolute: bool = False
 ) -> str:
+    """Validate optional file path.
+
+    Uses Path.resolve() to detect encoded path traversal.
+    """
     if not path:
         return ""
-    if ".." in path:
+
+    try:
+        # Resolve path to detect encoded forms of path traversal
+        Path(path).resolve(strict=False)
+
+        # Check for path traversal in original string
+        if ".." in path:
+            print(
+                f"Error: Invalid {path_type} file path (path traversal): {path}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        # Check absolute path restriction
+        if not allow_absolute and path.startswith("/"):
+            print(
+                f"Error: Invalid {path_type} file path "
+                f"(absolute paths not allowed): {path}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    except (OSError, ValueError) as e:
         print(
-            f"Error: Invalid {path_type} file path (path traversal): {path}",
+            f"Error: Invalid {path_type} file path: {path} ({e})",
             file=sys.stderr,
         )
         sys.exit(1)
-    if not allow_absolute and path.startswith("/"):
-        print(
-            f"Error: Invalid {path_type} file path "
-            f"(absolute paths not allowed): {path}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+
     return path
 
 

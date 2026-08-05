@@ -5,11 +5,25 @@ import sys
 import os
 import subprocess  # nosec B404
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-MAX_LINES_TO_SCAN = 1000
-MAX_JOBS = 16
+MAX_LINES_TO_SCAN = 1000  # Scan first 1k lines when checking if log contains tests
+# Rationale: LIT outputs "-- Testing: N tests, M workers --" at the START of run,
+# typically within first 50 lines. 1000 lines provides safety margin for cmake
+# build output that may precede test execution.
+# Risk: If cmake/build produces >1000 lines of output before LIT starts, we may
+# miss "Testing:" marker and incorrectly skip artifacts for adapter-specific tests.
+# Historical data shows typical logs have <100 lines before "Testing:" marker.
+
+MAX_JOBS = 16  # Cap on parallel cmake build jobs (nproc/3 capped at this value)
+# Rationale: Controls `cmake --build -j N` parallelism, NOT test execution
+# (LIT uses separate `-j 50` in LIT_OPTS). Prevents resource exhaustion:
+#   - Memory: Each cmake job can use ~500MB-1GB during compilation/linking
+#   - I/O: Too many parallel builds can saturate disk on shared CI runners
+#   - On 96-core machines: nproc/3 = 32, capped to 16 to stay under ~16GB peak
+# Tuning: If builds are I/O bound, consider lowering. If CPU bound, can increase
+# but monitor peak memory usage (OOM kills observed above 20 on some runners).
 
 
 @dataclass
@@ -18,80 +32,8 @@ class TestConfig:
 
     target: str
     log_file: str
-    xml_name: str
     xml_search_path: str
     lit_filter_out: Optional[str] = None
-
-
-def find_xml_file(search_path: str, xml_name: str) -> str:
-    """Find XML file - checks search_path and common fallback locations."""
-    print(
-        f"DEBUG_FIND: Called with search_path={search_path!r}, xml_name={xml_name!r}",
-        flush=True,
-    )
-
-    if ".." in search_path or not search_path:
-        print(f"DEBUG_FIND: Rejected due to validation", flush=True)
-        return ""
-
-    search_root = Path(search_path)
-    is_dir = search_root.is_dir() if search_root.exists() else "N/A"
-    print(
-        f"DEBUG_FIND: search_root={search_root}, "
-        f"exists={search_root.exists()}, is_dir={is_dir}",
-        flush=True,
-    )
-
-    # Handle wildcard for adapter-specific tests (searches in adapter subfolders)
-    if xml_name == "*.xml":
-        print(f"DEBUG_XML: Searching in {search_root}", flush=True)
-        if search_root.exists() and search_root.is_dir():
-            # Search in adapter subfolders: level_zero, cuda, hip, etc.
-            found_files = list(search_root.rglob("*.xml"))
-            print(f"DEBUG_XML: rglob found {len(found_files)} files", flush=True)
-            for xml_path in found_files:
-                print(
-                    f"DEBUG_XML: name={xml_path.name}, type={type(xml_path).__name__}",
-                    flush=True,
-                )
-                if xml_path.is_file():
-                    abs_path = xml_path.absolute()
-                    print(f"DEBUG_XML: Returning {abs_path}", flush=True)
-                    return str(abs_path)
-        print(f"DEBUG_XML: No XML files found in {search_root}", flush=True)
-        return ""
-
-    # Standard search for named XML files
-    search_locations = [
-        search_root / xml_name,  # Primary: configured path
-        search_root.parent / xml_name,  # Fallback: parent dir
-        search_root.parent.parent / xml_name,  # Fallback: build root
-    ]
-
-    print(
-        f"Note: Searching for {xml_name} in {len(search_locations)} locations:",
-        file=sys.stderr,
-    )
-    for i, xml_path in enumerate(search_locations, 1):
-        print(f"  {i}. {xml_path}", file=sys.stderr)
-        try:
-            if xml_path.exists() and xml_path.is_file():
-                print(f"Note: Found XML at: {xml_path.absolute()}", file=sys.stderr)
-                return str(xml_path.absolute())
-        except (OSError, ValueError):
-            pass
-
-    # Fallback: recursive search in build directory (slower but thorough)
-    build_root = search_root.parent.parent
-    if build_root.exists() and build_root.is_dir():
-        print(f"Note: Attempting recursive search in {build_root}", file=sys.stderr)
-        for xml_path in build_root.rglob(xml_name):
-            if xml_path.is_file():
-                print(f"Note: Found XML at: {xml_path.absolute()}", file=sys.stderr)
-                return str(xml_path.absolute())
-
-    print(f"Warning: XML file {xml_name} not found in any location", file=sys.stderr)
-    return ""
 
 
 def validate_build_dir(build_dir: str, workspace: Optional[str] = None) -> bool:
@@ -99,7 +41,9 @@ def validate_build_dir(build_dir: str, workspace: Optional[str] = None) -> bool:
     if not build_dir or ".." in build_dir or build_dir.startswith("/"):
         return False
 
-    dangerous_chars = {";", "&", "#", "$", "|", "`", "\\"}
+    # Block shell metacharacters, quotes, and control characters
+    # to prevent injection in f-strings, env vars, and logs
+    dangerous_chars = {";", "&", "#", "$", "|", "`", "\\", "'", '"', "\n", "\r"}
     if any(c in build_dir for c in dangerous_chars):
         return False
 
@@ -135,7 +79,6 @@ def get_test_config(test_type: str, build_dir: str) -> TestConfig:
         return TestConfig(
             target="check-unified-runtime-adapter",
             log_file="adapter_tests.log",
-            xml_name="*.xml",  # Wildcard - adapters may have different XML names
             xml_search_path=f"{build_dir}/test/adapters",
             lit_filter_out=(
                 "(adapters/level_zero/memcheck.test|"
@@ -146,7 +89,6 @@ def get_test_config(test_type: str, build_dir: str) -> TestConfig:
         return TestConfig(
             target="check-unified-runtime-conformance",
             log_file="conformance_tests.log",
-            xml_name="conformance_results.xml",
             xml_search_path=f"{build_dir}/test/conformance",
         )
     else:
@@ -158,7 +100,8 @@ def calculate_jobs() -> int:
     try:
         nproc = os.cpu_count() or 4
         return min(nproc // 3, MAX_JOBS)
-    except Exception:
+    except (OSError, AttributeError):
+        # Fallback if cpu_count fails or returns unexpected value
         return 4
 
 
@@ -169,19 +112,19 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         return 1
 
     try:
-        config = get_test_config(test_type, build_dir)
+        config: TestConfig = get_test_config(test_type, build_dir)
     except ValueError as e:
         print(f"::error::{e}", file=sys.stderr)
         return 1
 
     # Convert to Path and ensure all operations are relative to workspace
-    workspace_path = Path(workspace).resolve()
+    workspace_path: Path = Path(workspace).resolve()
 
-    env = os.environ.copy()
+    env: Dict[str, str] = os.environ.copy()
 
     # Generate unique XML name to avoid literal *.xml filename
-    xml_output_name = f"{test_type.replace('-', '_')}_results.xml"
-    xml_output_path = (
+    xml_output_name: str = f"{test_type.replace('-', '_')}_results.xml"
+    xml_output_path: Path = (
         workspace_path / config.xml_search_path / xml_output_name
     ).absolute()
 
@@ -197,11 +140,19 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         env["LIT_FILTER_OUT"] = config.lit_filter_out
     env["ZE_ENABLE_LOADER_DEBUG_TRACE"] = "1"
 
-    jobs = calculate_jobs()
-    cmake_cmd = ["cmake", "--build", build_dir, "-j", str(jobs), "--", config.target]
+    jobs: int = calculate_jobs()
+    cmake_cmd: List[str] = [
+        "cmake",
+        "--build",
+        build_dir,
+        "-j",
+        str(jobs),
+        "--",
+        config.target,
+    ]
 
     # Construct absolute log file path
-    log_file_path = workspace_path / config.log_file
+    log_file_path: Path = workspace_path / config.log_file
 
     # Output configuration for GitHub Actions (always, before tests run)
     print(f"log_file={log_file_path}", flush=True)
@@ -215,14 +166,16 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
     try:
         with open(log_file_path, "w", encoding="utf-8") as log:
             # Use cmake with validated arguments - no user input, safe list form
-            result = subprocess.run(  # nosec B603 B607
+            result: subprocess.CompletedProcess = subprocess.run(  # nosec B603 B607
                 cmake_cmd,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 env=env,
                 cwd=workspace_path,
             )
-    except Exception as e:
+    except (OSError, PermissionError) as e:
+        # OSError: cmake not found, invalid cwd, file I/O errors
+        # PermissionError: no write permission for log file
         print(f"::error::Test execution failed: {e}", file=sys.stderr)
         return 1
 
@@ -234,14 +187,6 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
         print("No adapter-specific tests found", file=sys.stderr)
         print("skip_artifacts=1", flush=True)
         return 0
-
-    # XML file path with concrete name (not wildcard)
-    print(f"Debug: Checking for XML at {xml_output_path}", file=sys.stderr)
-    print(f"Debug: XML exists: {xml_output_path.exists()}", file=sys.stderr)
-    if xml_output_path.parent.exists():
-        print(f"Debug: Parent directory contents:", file=sys.stderr)
-        for item in xml_output_path.parent.iterdir():
-            print(f"  {item.name}", file=sys.stderr)
 
     if xml_output_path.exists():
         print(f"xml_file={xml_output_path.absolute()}", flush=True)
@@ -261,14 +206,7 @@ def main() -> None:
 
     command = sys.argv[1]
 
-    if command == "find-xml":
-        if len(sys.argv) < 4:
-            print(f"Error: find-xml <search_path> <xml_name>", file=sys.stderr)
-            sys.exit(1)
-        result = find_xml_file(sys.argv[2], sys.argv[3])
-        print(result, flush=True)
-
-    elif command == "validate-build-dir":
+    if command == "validate-build-dir":
         if len(sys.argv) < 3:
             print(f"Error: validate-build-dir <build_dir> [workspace]", file=sys.stderr)
             sys.exit(1)

@@ -31,10 +31,6 @@ runs:
       EXIT_CODE=$?
       set -e  # Re-enable exit on error
 
-      echo "Debug: Captured output file size: $(wc -l < "$OUTPUTS_FILE") lines"
-      echo "Debug: Outputs in file:"
-      grep -E "^(log_file|xml_file|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE" || echo "Warning: No outputs found"
-
       # Parse Python output and set GitHub Actions outputs (not env for security)
       while IFS='=' read -r key value; do
         if [ -n "$key" ] && [ -n "$value" ]; then
@@ -90,7 +86,7 @@ runs:
       fi
 
       python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
-      
+
       # Add link to artifacts if they will be uploaded
       if [ -n "$ARTIFACT_NAME" ]; then
         echo ""
@@ -117,22 +113,9 @@ runs:
         cp "$LOG_FILE" test_artifacts/
       fi
 
-      echo "Debug: XML_FILE=$XML_FILE"
-      echo "Debug: Checking if file exists..."
       if [ -n "$XML_FILE" ] && [ -f "$XML_FILE" ]; then
-        echo "Debug: File exists, copying..."
         cp "$XML_FILE" test_artifacts/
-      else
-        echo "Debug: XML_FILE is empty or file does not exist"
-        if [ -n "$XML_FILE" ]; then
-          echo "Debug: Expected XML at: $XML_FILE"
-          echo "Debug: Parent directory contents:"
-          ls -la "$(dirname "$XML_FILE")" 2>/dev/null || echo "Parent directory does not exist"
-        fi
       fi
-
-      echo "Debug: Contents of test_artifacts/:"
-      ls -la test_artifacts/
 
   - name: Upload test artifacts
     if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs.skip_artifacts != '1') }}
