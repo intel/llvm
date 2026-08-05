@@ -17,7 +17,7 @@ namespace kernels {
 
 template <class T, size_t Dim>
 using sycl_global_accessor =
-    sycl::accessor<T, Dim, sycl::access::mode::read_write,
+    sycl::accessor<T, Dim, sycl::access_mode::read_write,
                    sycl::access::target::global_buffer>;
 
 class TestKernel {
@@ -74,7 +74,7 @@ int main() {
   auto LaunchRange = sycl::nd_range<1>{sycl::range<1>{MaxWorkGroupSizeActual},
                                        sycl::range<1>{MaxWorkGroupSizeActual}};
   Q.submit([&](sycl::handler &cgh) {
-     auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto Acc = Buf.get_access<sycl::access_mode::read_write>(cgh);
      cgh.parallel_for<class kernels::TestKernel>(LaunchRange,
                                                  kernels::TestKernel{Acc});
    }).wait();

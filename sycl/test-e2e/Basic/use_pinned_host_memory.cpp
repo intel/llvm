@@ -20,7 +20,7 @@ int main() {
 
   sycl::queue Q;
   Q.submit([&](sycl::handler &CGH) {
-    auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
+    auto Acc = Buf.get_access<sycl::access_mode::read_write>(CGH);
     CGH.single_task<class init_a>([=]() {});
   });
 

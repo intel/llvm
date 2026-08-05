@@ -18,20 +18,20 @@
 #include "lockable.hpp"
 #include "memory.hpp"
 
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/image_common.hpp"
 #include "../common/latency_tracker.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../image_common.hpp"
 
 #include "../program.hpp"
-#include "../ur_interface_loader.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ur.hpp"
+#include "ur_interface_loader.hpp"
 #include "ze_api.h"
 #include <cstddef>
 #include <cstdint>
 #include <tuple>
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 ur_queue_batched_t::ur_queue_batched_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
@@ -843,9 +843,16 @@ ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
   auto lockedBatch = currentCmdLists.lock();
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
+  UR_CALL(lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
       hSemaphore, hasWaitValue, waitValue, waitListView,
-      getEvent(lockedBatch, phEvent));
+      getEvent(lockedBatch, phEvent)));
+
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external producer's
+  // signal cannot release a command list that was never submitted and can
+  // deadlock.
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
@@ -858,9 +865,16 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
   auto lockedBatch = currentCmdLists.lock();
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getListManager().bindlessImagesSignalExternalSemaphoreExp(
-      hSemaphore, hasSignalValue, signalValue, waitListView,
-      getEvent(lockedBatch, phEvent));
+  UR_CALL(
+      lockedBatch->getListManager().bindlessImagesSignalExternalSemaphoreExp(
+          hSemaphore, hasSignalValue, signalValue, waitListView,
+          getEvent(lockedBatch, phEvent)));
+
+  // External semaphore operations must not be deferred in a batch. Batching
+  // leaves the append sitting in the queue's open regular command list until
+  // some unrelated event flushes it, which means the external consumer may
+  // never observe the signal.
+  return renewBatchUnlocked(lockedBatch);
 }
 
 // In case of queues with batched submissions, which use regular command lists
@@ -1102,4 +1116,4 @@ ur_result_t ur_queue_batched_t::enqueueHostTaskExp(
       this->getEvent(batchLocked, phEvent));
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

@@ -58,7 +58,7 @@ double _Complex catanh(double _Complex z);
 }
 
 namespace s = sycl;
-constexpr s::access::mode sycl_write = s::access::mode::write;
+constexpr s::access_mode sycl_write = s::access_mode::write;
 
 bool approx_equal_cmplx_d(double _Complex x, double _Complex y) {
   return approx_equal_fp(__real__ x, __real__ y) &&

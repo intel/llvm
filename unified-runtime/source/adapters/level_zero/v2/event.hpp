@@ -19,11 +19,11 @@
 #include "common/ur_ref_count.hpp"
 #include "event_provider.hpp"
 
+namespace ur::level_zero::v2 {
+
 using ur_event_generation_t = int64_t;
 
-namespace v2 {
 class event_pool;
-}
 
 struct event_profiling_data_t {
   event_profiling_data_t(ze_event_handle_t hZeEvent) : hZeEvent(hZeEvent) {}
@@ -54,7 +54,7 @@ private:
   bool timestampRecorded = false;
 };
 
-struct ur_event_handle_t_ : ur_object {
+struct ur_event_handle_t_ : v2::ur_object_t {
 public:
   // The variant alternative encodes how the L0 event handle is torn down:
   // - cache_borrowed_event: pooled event; it is returned to the pool.
@@ -165,3 +165,5 @@ protected:
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
 };
+
+} // namespace ur::level_zero::v2

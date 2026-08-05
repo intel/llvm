@@ -182,7 +182,7 @@ This extension adds the following property, which can be used with `make_event`:
 namespace sycl::ext::oneapi::experimental {
 
 struct enable_profiling {
-  enable_profiling(bool enable);  (1)
+  enable_profiling(bool enable = true);  (1)
 };
 using enable_profiling_key = enable_profiling;
 
@@ -272,22 +272,25 @@ After the barrier completes, a "tag" operation sets the status of `evt` to
 `info::event_command_status::complete`.
 
 The event's timestamp information is also set if the queue `q` was created with
-the `property::queue::enable_profiling` property or if the event `e` was created
+the `property::queue::enable_profiling property` or if the event `e` was created
 with the `ext::oneapi::experimental::enable_profiling` property.
-The event's `info::event_profiling::command_submit` timestamp reflects the time
-at which `enqueue_signal_event` is called.
-The event's `info::event_profiling::command_end` timestamp reflects the time at
-which the event enters the "complete" state.
-The event's `info::event_profiling::command_start` timestamp reflects the time
-that the tag operation starts executing.
-This timestamp is between the `info::event_profiling::command_submit` and
-`info::event_profiling::command_end` timestamps.
+Because the operation represented by the event is an empty command, the
+`info::event_profiling::command_start` timestamp is equivalent to the
+`info::event_profiling::command_end` timestamp, which reflects the time at which
+the event becomes signaled (enters the "compete" state).
+Applications are discouraged from using the
+`info::event_profiling::command_submit` timestamp, whose value is some time
+between the point when the host thread calls `enqueue_signal_event` and the
+`command_start` timestamp.
+
+[_Note:_ An implementation may simply set all three timestamps to the same
+value.
+_{endnote}_]
 
 It is unspecified whether the event ever has the
 `info::event_command_status::running` status.
 Implementations are encouraged to transition the event directly from the
-"submitted" status to the "complete" status and are encouraged to set the
-"command_start" timestamp to the same value as the "command_end" timestamp.
+"submitted" status to the "complete" status.
 
 _Throws:_
 
@@ -297,18 +300,6 @@ _Throws:_
    was created with the `enable_profiling` property that enables profiling
    timestamps and if the device associated with `q` does not have
    `aspect::ext_oneapi_per_event_profiling`.
-
-[_Note:_ In order to understand why the "command_start" and "command_end"
-timestamps are encouraged to be the same, think of the tag operation as an empty
-kernel with an implicit set of dependencies on all previous commands in the
-same queue.
-This theoretical kernel starts executing when the dependencies are resolved.
-Since the kernel is empty, the end time is the same as the start time.
-The "command_start" and "command_end" timestamps are not required to be the
-same, though, in order to accommodate an implementation where the tag operation
-is implemented by submitting an actual kernel, which has non-zero execution
-time.
-_{endnote}_]
 
 === Interaction with other event APIs
 
@@ -357,13 +348,13 @@ int main() {
   sycl::event e = syclex::make_event(ctxt);
 
   // Launch a kernel on `q1` and then signal an event when the kernel completes.
-  syclex::parallel_for(q1, {N}, [=](sycl::item<> it) { /* ... */ });
+  syclex::parallel_for(q1, sycl::range{N}, [=](sycl::item<> it) { /* ... */ });
   syclex::enqueue_signal_event(q1, e);
 
   // Add a dependency on `q2` which waits for the kernel on `q1` to complete.
   // Then launch a kernel on `q2`.
   syclex::enqueue_wait_event(q2, e);
-  syclex::parallel_for(q2, {N}, [=](sycl::item<> it) { /* ... */ });
+  syclex::parallel_for(q2, sycl::range{N}, [=](sycl::item<> it) { /* ... */ });
 
   // Reassociate the same event with the kernel on `q2`.
   syclex::enqueue_signal_event(q2, e);
@@ -399,8 +390,8 @@ int main() {
   sycl::event end = syclex::make_event(ctxt, syclex::enable_profiling{true});
 
   syclex::enqueue_signal_event(q, start);
-  sycl::parallel_for(q, {N}, [=](auto i) { /* first kernel */ });
-  sycl::parallel_for(q, {N}, [=](auto i) { /* second kernel */ });
+  syclex::parallel_for(q, sycl::range{N}, [=](auto i) { /* first kernel */ });
+  syclex::parallel_for(q, sycl::range{N}, [=](auto i) { /* second kernel */ });
   syclex::enqueue_signal_event(q, end);
 
   q.wait();

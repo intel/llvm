@@ -17,12 +17,20 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 // Shared by the inter-process-communication extensions.
-struct enable_ipc_key
-    : detail::compile_time_property_key<detail::PropKind::EnableIPC> {
-  using value_t = property_value<enable_ipc_key>;
+struct enable_ipc
+    : detail::run_time_property_key<enable_ipc, detail::PropKind::EnableIPC> {
+  constexpr enable_ipc(bool enable = true) : value(enable) {}
+  bool value;
 };
 
-inline constexpr enable_ipc_key::value_t enable_ipc;
+using enable_ipc_key = enable_ipc;
+
+inline bool operator==(const enable_ipc &lhs, const enable_ipc &rhs) {
+  return lhs.value == rhs.value;
+}
+inline bool operator!=(const enable_ipc &lhs, const enable_ipc &rhs) {
+  return !(lhs == rhs);
+}
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

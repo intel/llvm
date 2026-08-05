@@ -373,7 +373,7 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
       }
     };
 
-    auto In = InBuf.template get_access<access::mode::read>(CGH);
+    auto In = InBuf.template get_access<access_mode::read>(CGH);
     auto Redu = CreateReduction();
     if constexpr (IsRange)
       CGH.parallel_for<Name>(Range, Redu, [=](item<Dims> Id, auto &Sum) {
@@ -484,7 +484,7 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
        }
      };
 
-     auto In = InBuf.template get_access<access::mode::read>(CGH);
+     auto In = InBuf.template get_access<access_mode::read>(CGH);
      auto Redu = CreateReduction();
      CGH.parallel_for<TName<Name, class Test>>(
          Range, Redu, [=](item<Dims> Id, auto &Sum) {
@@ -498,7 +498,7 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
   if (AllocType == usm::alloc::device) {
     buffer<T, 1> Buf(&ComputedOut, range<1>(1));
     Q.submit([&](handler &CGH) {
-       auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
+       auto OutAcc = Buf.template get_access<access_mode::discard_write>(CGH);
        CGH.single_task<TName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();

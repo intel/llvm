@@ -72,8 +72,8 @@ inline ur_result_t createUREvent(cl_event Event, ur_context_handle_t Context,
     try {
       auto UREvent =
           std::make_unique<ur_event_handle_t_>(Event, cast(Context), UrQueue);
+      UR_RETURN_ON_FAILURE(UrQueue->storeLastEvent(cast(UREvent.get())));
       *ReturnedEvent = cast(UREvent.release());
-      UR_RETURN_ON_FAILURE(UrQueue->storeLastEvent(*ReturnedEvent));
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {

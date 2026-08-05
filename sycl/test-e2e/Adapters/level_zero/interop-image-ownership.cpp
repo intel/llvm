@@ -123,7 +123,7 @@ void test(sycl::ext::oneapi::level_zero::ownership Ownership) {
 
       Queue.submit([&](sycl::handler &cgh) {
         auto write_acc =
-            Image_2D.get_access<pixelT, sycl::access::mode::write>(cgh);
+            Image_2D.get_access<pixelT, sycl::access_mode::write>(cgh);
 
         cgh.parallel_for(ImgRange_2D, [=](sycl::item<2> Item) {
           auto location = sycl::int2{Item[0], Item[1]};
