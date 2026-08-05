@@ -7,13 +7,6 @@ on:
   schedule:
     # 1:15 hour after SYCL nightly, every day after weekday (we built in the morning the next day)
     - cron: '15 4 * * 2-6'
-  # Run on pull requests only when a benchmark-related files were changed.
-  pull_request:
-    # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
-    paths:
-      - 'devops/scripts/benchmarks/**'
-      - 'devops/actions/run-tests/benchmark/**'
-      - '.github/workflows/sycl-ur-perf-benchmarking.yml'
   workflow_dispatch:
     inputs:
       preset:

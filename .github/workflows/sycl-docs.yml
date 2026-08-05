@@ -3,14 +3,6 @@ name: Generate documentation
 on:
   schedule:
   - cron: 0 1 * * *
-  pull_request:
-    branches:
-    - sycl
-    paths:
-    - '.github/workflows/sycl-docs.yml'
-    - 'clang/docs/**'
-    - 'sycl/doc/**'
-    - 'devops/scripts/benchmarks/html/**'
   push:
     branches:
     - sycl

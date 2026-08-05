@@ -4,12 +4,7 @@ permissions:
   contents: read
 
 on:
-  pull_request:
-    branches:
-      - main
-      - sycl
-      - sycl-rel-**
-      - 'users/**'
+  workflow_dispatch:
 
 jobs:
   code_formatter:

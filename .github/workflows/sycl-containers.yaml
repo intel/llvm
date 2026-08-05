@@ -15,15 +15,6 @@ on:
       - 'devops/scripts/install_build_tools.sh'
       - 'devops/scripts/install_vulkan.sh'
       - '.github/workflows/sycl-containers.yaml'
-  pull_request:
-    paths:
-      - 'devops/actions/build_container/**'
-      - 'devops/containers/**'
-      - 'devops/dependencies.json'
-      - 'devops/scripts/install_drivers.sh'
-      - 'devops/scripts/install_build_tools.sh'
-      - 'devops/scripts/install_vulkan.sh'
-      - '.github/workflows/sycl-containers.yaml'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.

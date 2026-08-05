@@ -5,11 +5,6 @@ name: Trivy
 permissions: read-all
 
 on:
-  pull_request:
-    paths:
-      - 'devops/containers/**'
-      - 'devops/.trivyignore.yaml'
-      - '.github/workflows/sycl-trivy.yml'
   workflow_dispatch:
 
 jobs:

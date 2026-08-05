@@ -15,12 +15,6 @@ on:
     paths:
       - '.github/workflows/**/*.yml'
       - 'devops/actions/**/*.yml'
-  pull_request:
-    branches:
-      - sycl
-    paths:
-      - '.github/workflows/**/*.yml'
-      - 'devops/actions/**/*.yml'
 
 permissions: {}
 

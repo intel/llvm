@@ -2,12 +2,6 @@ name: CI sycl-rel container
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'devops/actions/build_container/**'
-      - 'devops/containers/release_build.DockerFile'
-      - 'devops/scripts/create-sycl-user.sh'
-      - '.github/workflows/sycl-rel-container.yaml'
 
 permissions: read-all
 

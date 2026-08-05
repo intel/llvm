@@ -1,13 +1,7 @@
 name: clang-tidy
 
 on:
-  pull_request:
-    branches:
-      - sycl
-    paths:
-      - "**/*.cpp"
-      - "**/*.h"
-      - "**/*.hpp"
+  workflow_dispatch:
 
 
 concurrency:

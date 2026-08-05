@@ -1,6 +1,10 @@
 name: Reusable SYCL macOS build and test workflow
 
 on:
+  pull_request:
+    branches:
+    - sycl
+    - sycl-rel-**
   workflow_call:
     inputs:
       build_ref:
@@ -26,8 +30,8 @@ jobs:
     name: Build
     runs-on: macos-latest
     env:
-      CCACHE_DIR: $GITHUB_WORKSPACE/build_cache_${{ inputs.build_cache_suffix }}
-      CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
+      CCACHE_DIR: $GITHUB_WORKSPACE/build_cache_${{ inputs.build_cache_suffix || 'default' }}
+      CCACHE_MAXSIZE: ${{ inputs.build_cache_size || '2G' }}
     steps:
     - name: Install dependencies
       run: brew install ccache ninja hwloc zstd
@@ -37,9 +41,9 @@ jobs:
         path: src
     - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
-        path: build_cache_${{ inputs.build_cache_suffix }}
-        key: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-${{ github.sha }}
-        restore-keys: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-
+        path: build_cache_${{ inputs.build_cache_suffix || 'default' }}
+        key: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix || 'default' }}-${{ github.sha }}
+        restore-keys: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix || 'default' }}-
     - name: Configure
       env:
         ARGS: ${{ inputs.build_configure_extra_args }}
