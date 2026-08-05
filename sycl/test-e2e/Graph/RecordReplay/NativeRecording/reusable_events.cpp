@@ -25,9 +25,8 @@ void run_test(bool ProfileEvent) {
 
   QueueStateVerifier verifier(Queue1, Queue2);
 
-  exp_ext::properties ProfProps{exp_ext::enable_profiling};
-  event Ev = ProfileEvent ? exp_ext::make_event(Ctx, ProfProps)
-                          : exp_ext::make_event(Ctx);
+  exp_ext::properties ProfProps{exp_ext::enable_profiling{ProfileEvent}};
+  event Ev = exp_ext::make_event(Ctx, ProfProps);
 
   const size_t N = 1024;
   int *Data = malloc_device<int>(N, Dev, Ctx);
