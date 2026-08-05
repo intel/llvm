@@ -303,7 +303,7 @@ void GlobalHandler::drainThreadPool() {
 }
 
 #if defined(_WIN32)
-inline bool shutdown_win_early_exit(bool ProcessExiting = true) {
+bool GlobalHandler::winEarlyExitCheck(bool ProcessExiting = true) {
   // In Windows ExitProcess all non host threads are forcibly terminated prior
   // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
   // threads being active. In such cases, making XPTI or backend calls at
@@ -345,7 +345,7 @@ void shutdown_early(bool CanJoinThreads = true) {
   GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
 
 #ifdef _WIN32
-  if (shutdown_win_early_exit(CanJoinThreads))
+  if (GlobalHandler::winEarlyExitCheck(CanJoinThreads))
     return;
 #endif
 
@@ -386,7 +386,7 @@ void shutdown_late() {
     return;
 
 #ifdef _WIN32
-  if (shutdown_win_early_exit())
+  if (GlobalHandler::winEarlyExitCheck())
     return;
 #endif
 

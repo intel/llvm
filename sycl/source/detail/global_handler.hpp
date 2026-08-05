@@ -105,6 +105,10 @@ private:
     SpinLock Lock;
   };
 
+#ifdef _WIN32
+  static bool winEarlyExitCheck(bool);
+#endif
+
   template <typename T, typename... Types>
   T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
