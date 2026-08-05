@@ -1,7 +1,13 @@
+import re
+
 from lit.BooleanExpression import BooleanExpression
 
 
 class E2EExpr(BooleanExpression):
+    build_specific_feature_patterns = [
+        re.compile(r"level_zero_sdk_\d+_\d+$"),
+    ]
+
     build_specific_features = {
         "run-mode",
         "build-mode",
@@ -52,6 +58,13 @@ class E2EExpr(BooleanExpression):
         "new-offload-model",
     }
 
+    @staticmethod
+    def is_build_specific(feature):
+        return feature in E2EExpr.build_specific_features or any(
+            pattern.match(feature)
+            for pattern in E2EExpr.build_specific_feature_patterns
+        )
+
     def __init__(self, string, variables, build_only_mode, final_unknown_value):
         BooleanExpression.__init__(self, string, variables)
         self.build_only_mode = build_only_mode
@@ -77,7 +90,7 @@ class E2EExpr(BooleanExpression):
     def parseMATCH(self):
         token = self.token
         BooleanExpression.parseMATCH(self)
-        if token not in E2EExpr.build_specific_features and self.build_only_mode:
+        if not E2EExpr.is_build_specific(token) and self.build_only_mode:
             self.unknown = True
         else:
             self.unknown = False
@@ -122,7 +135,7 @@ class E2EExpr(BooleanExpression):
 
     @staticmethod
     def check_build_features(variables):
-        rt_features = [x for x in variables if x not in E2EExpr.build_specific_features]
+        rt_features = [x for x in variables if not E2EExpr.is_build_specific(x)]
         if rt_features:
             raise ValueError(
                 "Runtime features: "
@@ -190,6 +203,16 @@ class TestE2EExpr(unittest.TestCase):
         with self.assertRaises(ValueError):
             E2EExpr.check_build_features({"build-only", "rt-feature"})
         E2EExpr.check_build_features({"build-mode"})
+
+    def test_level_zero_sdk_features(self):
+        detected = {"level_zero_sdk_1_{}".format(minor) for minor in range(15)}
+        E2EExpr.check_build_features({"level_zero_dev_kit"} | detected)
+
+        # Any major/minor pair should matche
+        self.assertTrue(E2EExpr.is_build_specific("level_zero_sdk_2_130"))
+        # The pattern must not accept malformed names.
+        self.assertFalse(E2EExpr.is_build_specific("level_zero_sdk_1"))
+        self.assertFalse(E2EExpr.is_build_specific("level_zero_sdk_1_14_0"))
 
 
 if __name__ == "__main__":
