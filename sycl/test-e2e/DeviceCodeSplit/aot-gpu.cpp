@@ -1,4 +1,4 @@
-// REQUIRES: ocloc, gpu, target-spir, !gpu-intel-gen12
+// REQUIRES: ocloc, gpu, target-spir, gpu-intel-dg2
 //
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_source \
 // RUN:   -fsycl-targets=intel_gpu_dg2 \

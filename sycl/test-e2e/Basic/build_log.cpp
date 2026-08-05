@@ -1,6 +1,6 @@
-// REQUIRES: opencl || level_zero, gpu, ocloc
-// UNSUPPORTED: arch-intel_gpu_dg2
-// UNSUPPORTED-INTENDED: see https://github.com/intel/llvm/pull/20643
+// REQUIRES: opencl || level_zero, gpu, ocloc, gpu-intel-dg2
+// UNSUPPORTED-INTENDED: The test builds only an intel_gpu_dg2 AOT image and
+// checks the runtime build log; it can only run on DG2 hardware.
 
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2 %s -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=2 %{run} %t.out 2>&1 | FileCheck %s

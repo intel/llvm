@@ -27,43 +27,45 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
 // ******************************
 //
+// The remaining two blocks AOT-compile only for DG2 (acm_g10/g11), so their
+// %{run-unfiltered-devices} invocations require DG2 hardware to execute.
 // REDEFINE: %{build_cmd} = %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 %s
 // ******************************
 // Check the logs first.
-// RUN: %{run-aux} %{build_cmd} -DVALUE=1 -o %t.out
-// RUN: %{run-aux} rm -rf %t/cache_dir/*
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} %{build_cmd} -DVALUE=1 -o %t.out %}
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} rm -rf %t/cache_dir/* %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ %}
 
 //
 // Now try to substitute the cached image and verify it is actually taken and
 // the code/binary there is executed.
-// RUN: %{run-aux} mv %t/cache_dir/*/*/*/*/*.bin %t.value1.bin
-// RUN: %{run-aux} rm -rf %t/cache_dir/*
-// RUN: %{run-aux} %{build_cmd} -DVALUE=2 -o %t.out
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT2
-// RUN: %{run-aux} mv %t.value1.bin %t/cache_dir/*/*/*/*/*.bin
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} mv %t/cache_dir/*/*/*/*/*.bin %t.value1.bin %}
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} rm -rf %t/cache_dir/* %}
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} %{build_cmd} -DVALUE=2 -o %t.out %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT2 %}
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} mv %t.value1.bin %t/cache_dir/*/*/*/*/*.bin %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1 %}
 // ******************************
 //
 // REDEFINE: %{build_cmd} = %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10,intel_gpu_acm_g11 %s
 // ******************************
 // Check the logs first.
-// RUN: %{run-aux} %{build_cmd} -DVALUE=1 -o %t.out
-// RUN: %{run-aux} rm -rf %t/cache_dir/*
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} %{build_cmd} -DVALUE=1 -o %t.out %}
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} rm -rf %t/cache_dir/* %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ %}
 //
 // Now try to substitute the cached image and verify it is actually taken and
 // the code/binary there is executed.
-// RUN: %{run-aux} mv %t/cache_dir/*/*/*/*/*.bin %t.value1.bin
-// RUN: %{run-aux} rm -rf %t/cache_dir/*
-// RUN: %{run-aux} %{build_cmd} -DVALUE=2 -o %t.out
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT2
-// RUN: %{run-aux} mv %t.value1.bin %t/cache_dir/*/*/*/*/*.bin
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} mv %t/cache_dir/*/*/*/*/*.bin %t.value1.bin %}
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} rm -rf %t/cache_dir/* %}
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} %{build_cmd} -DVALUE=2 -o %t.out %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT2 %}
+// RUN: %if gpu-intel-dg2 %{ %{run-aux} mv %t.value1.bin %t/cache_dir/*/*/*/*/*.bin %}
+// RUN: %if gpu-intel-dg2 %{ %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1 %}
 // ******************************
 
 // CHECK-CACHE-WRITE: [Persistent Cache]: device binary has been cached

@@ -12,8 +12,9 @@
 // RUN: %{run} %t.out
 
 // CPU AOT targets host isa, so we compile on the run system instead.
+// The GPU-side image is intel_gpu_dg2, so gate execution on DG2 hardware.
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64,intel_gpu_dg2 %s -o %t.out
-// RUN: %{run} %t.out
+// RUN: %if gpu-intel-dg2 %{ %{run} %t.out %}
 
 #include "bfloat16_example.hpp"
 

@@ -718,10 +718,13 @@ INTEL_GPU_SHORT_NAMES = {
     "intel_gpu_pvc": "pvc",
     "intel_gpu_pvc_vg": "pvc-vg",
     "intel_gpu_mtl_u": "mtl-u",
-    "intel_gpu_mtl_s": "mtl-s",
+    # mtl_s, arl_u, arl_s all collapse to mtl_u in
+    # clang/lib/Basic/OffloadArch.cpp, so listing more than one produces
+    # duplicate offload triples that clang-offload-bundler rejects.
+    # "intel_gpu_mtl_s": "mtl-s",
     "intel_gpu_mtl_h": "mtl-h",
-    "intel_gpu_arl_u": "arl-u",
-    "intel_gpu_arl_s": "arl-s",
+    # "intel_gpu_arl_u": "arl-u",
+    # "intel_gpu_arl_s": "arl-s",
     # "intel_gpu_arl_h": "arl-h",
     "intel_gpu_bmg_g21": "bmg-g21",
     "intel_gpu_bmg": "bmg",
