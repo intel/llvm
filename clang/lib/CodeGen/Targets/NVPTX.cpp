@@ -260,8 +260,7 @@ static OffloadArch getOffloadArch(CodeGenModule &CGM) {
 }
 
 static bool supportsGridConstant(OffloadArch Arch) {
-  assert((Arch.isUnknown() || IsNVIDIAOffloadArch(Arch)) &&
-         "Unexpected architecture");
+  assert((Arch.isUnknown() || Arch.isNVPTX()) && "Unexpected architecture");
   return !Arch.isUnknown() &&
          llvm::NVPTX::getSmVersion(Arch.nvptxKind()) >= 700;
 }

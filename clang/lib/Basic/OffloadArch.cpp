@@ -203,10 +203,10 @@ llvm::Triple OffloadArchToTriple(const llvm::Triple &DefaultToolchainTriple,
   if (ID.isAMDGPU())
     return llvm::Triple("amdgcn-amd-amdhsa");
 
-  if (IsIntelCPUOffloadArch(ID))
+  if (ID.isIntelCPU())
     return llvm::Triple("spir64_x86_64-unknown-unknown");
 
-  if (IsIntelGPUOffloadArch(ID))
+  if (ID.isIntelGPU())
     return llvm::Triple("spir64_gen-unknown-unknown");
 
   return {};

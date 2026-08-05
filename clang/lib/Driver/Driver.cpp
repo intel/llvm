@@ -1020,19 +1020,18 @@ static TripleSet inferOffloadToolchains(Compilation &C,
       ID = StringToOffloadArch(
           getProcessorFromTargetID(llvm::Triple("amdgcn-amd-amdhsa"), Arch));
 
-    if (Kind == Action::OFK_HIP && !IsAMDOffloadArch(ID)) {
+    if (Kind == Action::OFK_HIP && !ID.isAMDGPU() && !ID.isSPIRV()) {
       C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
           << "HIP" << Arch;
       return {};
     }
-    if (Kind == Action::OFK_Cuda && !IsNVIDIAOffloadArch(ID)) {
+    if (Kind == Action::OFK_Cuda && !ID.isNVPTX()) {
       C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
           << "CUDA" << Arch;
       return {};
     }
-    if (Kind == Action::OFK_OpenMP &&
-        (IsIntelCPUOffloadArch(ID) || IsIntelGPUOffloadArch(ID) ||
-         ID.isUnknown() || ID.isUnused())) {
+    if (Kind == Action::OFK_OpenMP && (ID.isIntelCPU() || ID.isIntelGPU() ||
+                                       ID.isUnknown() || ID.isUnused())) {
       C.getDriver().Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch)
           << Arch;
       return {};
@@ -6104,7 +6103,7 @@ class OffloadingActionBuilder final {
           if (TargetBE->isNVPTX()) {
             // CUDA arch also applies to AMDGCN ...
             OffloadArch Arch = StringToOffloadArch(ArchStr);
-            if (Arch.isUnknown() || !IsNVIDIAOffloadArch(Arch)) {
+            if (Arch.isUnknown() || !Arch.isNVPTX()) {
               C.getDriver().Diag(clang::diag::err_drv_cuda_bad_gpu_arch)
                   << ArchStr;
               continue;
@@ -7706,32 +7705,32 @@ static StringRef getCanonicalArchString(Compilation &C,
   // expecting the triple to be only NVPTX / AMDGPU.
   OffloadArch Arch =
       StringToOffloadArch(getProcessorFromTargetID(Triple, ArchStr));
-  if (Triple.isNVPTX() && (Arch.isUnknown() || !IsNVIDIAOffloadArch(Arch))) {
+  if (Triple.isNVPTX() && (Arch.isUnknown() || !Arch.isNVPTX())) {
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "CUDA" << ArchStr;
     return StringRef();
   } else if (Triple.isAMDGPU() &&
-             (Arch.isUnknown() || !IsAMDOffloadArch(Arch))) {
+             (Arch.isUnknown() || (!Arch.isAMDGPU() && !Arch.isSPIRV()))) {
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "HIP" << ArchStr;
     return StringRef();
   } else if (Triple.isSPIRAOT() &&
              Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-             (Arch.isUnknown() || !IsIntelGPUOffloadArch(Arch))) {
+             (Arch.isUnknown() || !Arch.isIntelGPU())) {
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "spir64_gen" << ArchStr;
     return StringRef();
   } else if (Triple.isSPIRAOT() &&
              Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64 &&
-             (Arch.isUnknown() || !IsIntelCPUOffloadArch(Arch))) {
+             (Arch.isUnknown() || !Arch.isIntelCPU())) {
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "spir64_x86_64" << ArchStr;
     return StringRef();
   }
-  if (IsNVIDIAOffloadArch(Arch))
+  if (Arch.isNVPTX())
     return Args.MakeArgStringRef(OffloadArchToString(Arch));
 
-  if (IsAMDOffloadArch(Arch)) {
+  if (Arch.isAMDGPU() || Arch.isSPIRV()) {
     llvm::StringMap<bool> Features;
     std::optional<StringRef> Arch = parseTargetID(Triple, ArchStr, &Features);
     if (!Arch) {
@@ -7740,11 +7739,11 @@ static StringRef getCanonicalArchString(Compilation &C,
     }
     return Args.MakeArgStringRef(getCanonicalTargetID(*Arch, Features));
   }
-  if (IsIntelGPUOffloadArch(Arch)) {
+  if (Arch.isIntelGPU()) {
     return Args.MakeArgStringRef(ArchStr);
   }
 
-  if (IsIntelCPUOffloadArch(Arch)) {
+  if (Arch.isIntelCPU()) {
     return Args.MakeArgStringRef(ArchStr);
   }
 
@@ -7814,8 +7813,9 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
             Diag(clang::diag::err_drv_invalid_sycl_target) << SYCLTargetValue;
             continue;
           }
-          if (IsIntelGPUOffloadArch(StringToOffloadArch(
-                  getProcessorFromTargetID(TC.getTriple(), Device->data()))))
+          if (StringToOffloadArch(
+                  getProcessorFromTargetID(TC.getTriple(), Device->data()))
+                  .isIntelGPU())
             Arch = Device->data();
         } else if (auto Device = tools::SYCL::gen::isGPUTarget<
                        tools::SYCL::gen::NvidiaGPU>(SYCLTargetValue)) {

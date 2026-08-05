@@ -168,15 +168,6 @@ public:
   }
 };
 
-inline bool IsNVIDIAOffloadArch(OffloadArch A) { return A.isNVPTX(); }
-inline bool IsAMDOffloadArch(OffloadArch A) {
-  // amdgcnspirv is compiled through the AMDGPU toolchain.
-  return A.isAMDGPU() || A.isSPIRV();
-}
-inline bool IsIntelCPUOffloadArch(OffloadArch A) { return A.isIntelCPU(); }
-inline bool IsIntelGPUOffloadArch(OffloadArch A) { return A.isIntelGPU(); }
-inline bool IsIntelOffloadArch(OffloadArch A) { return A.isIntel(); }
-
 // Check if the given Arch value is a Generic AMD GPU.
 // Currently GFX*_GENERIC AMD GPUs do not support SYCL offloading.
 // This is used to filter out GFX*_GENERIC AMD GPUs in
