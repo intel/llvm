@@ -302,18 +302,8 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-// Note: this function can be called on Windows twice:
-//  1) when library is unloaded via FreeLibrary
-//  2) when process is being terminated
-void shutdown_early(bool CanJoinThreads = true) {
-  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-  if (!GlobalHandler::RTGlobalObjHandler)
-    return;
-
-  // Now that we are shutting down, we will no longer defer MemObj releases.
-  GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
-
 #if defined(_WIN32)
+inline bool shutdown_win_early_exit(bool ProcessExiting = true) {
   // In Windows ExitProcess all non host threads are forcibly terminated prior
   // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
   // threads being active. In such cases, making XPTI or backend calls at
@@ -321,10 +311,9 @@ void shutdown_early(bool CanJoinThreads = true) {
   // it is best to not unload the backend after thread destruction.
 #if defined(XPTI_ENABLE_INSTRUMENTATION)
   if (xptiTraceEnabled())
-    return;
+    return true;
 #endif
-  // Process is exiting
-  if (CanJoinThreads) {
+  if (ProcessExiting) {
     // Level zero relies on unloading cleanup for UR_L0_LEAKS_DEBUG
     // functionality on Windows so don't exit early for L0 platforms.
     if (auto PlatformCache =
@@ -337,9 +326,27 @@ void shutdown_early(bool CanJoinThreads = true) {
       // If spawned threads using the Windows CRT are forcibly killed, this
       // can prevent stdout buffer being flushed at the program end.
       std::fflush(stdout);
-      return;
+      return true;
     }
   }
+  return false;
+}
+#endif
+
+// Note: this function can be called on Windows twice:
+//  1) when library is unloaded via FreeLibrary
+//  2) when process is being terminated
+void shutdown_early(bool CanJoinThreads = true) {
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+  if (!GlobalHandler::RTGlobalObjHandler)
+    return;
+
+  // Now that we are shutting down, we will no longer defer MemObj releases.
+  GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
+
+#ifdef _WIN32
+  if (shutdown_win_early_exit(CanJoinThreads))
+    return;
 #endif
 
   // Ensure neither host task is working so that no default context is accessed
@@ -378,29 +385,9 @@ void shutdown_late() {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
-#if defined(_WIN32)
-  // In Windows ExitProcess all non host threads are forcibly terminated prior
-  // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
-  // threads being active. In such cases, making XPTI or backend calls at
-  // DLL_PROCESS_DETACH can lead to hangs or memory corruption. Because of this
-  // it is best to not unload the backend after thread destruction.
-#if defined(XPTI_ENABLE_INSTRUMENTATION)
-  if (xptiTraceEnabled())
+#ifdef _WIN32
+  if (shutdown_win_early_exit())
     return;
-#endif
-  // Level zero relies on unloading cleanup for UR_L0_LEAKS_DEBUG
-  // functionality on Windows so don't exit early for L0 platforms.
-  if (auto PlatformCache =
-          GlobalHandler::RTGlobalObjHandler->getPlatformCache();
-      !std::any_of(PlatformCache.begin(), PlatformCache.end(),
-                   [](const std::shared_ptr<platform_impl> &p) {
-                     return p->getBackend() == backend::ext_oneapi_level_zero;
-                   })) {
-    // If spawned threads using the Windows CRT are forcibly killed, this can
-    // prevent stdout buffer being flushed at the program end.
-    std::fflush(stdout);
-    return;
-  }
 #endif
 
   // First, release resources, that may access adapters.
