@@ -26,8 +26,11 @@ TEST(QueueProperties, ValidDatalessProperties) {
   sycl::unittest::UrMock<> Mock;
   DatalessQueuePropertyCheck<sycl::property::queue::in_order>();
   DatalessQueuePropertyCheck<sycl::property::queue::enable_profiling>();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Check the deprecated discard_events property in non-preview builds.
   DatalessQueuePropertyCheck<
       sycl::ext::oneapi::property::queue::discard_events>();
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   DatalessQueuePropertyCheck<
       sycl::ext::oneapi::property::queue::priority_normal>();
   DatalessQueuePropertyCheck<
