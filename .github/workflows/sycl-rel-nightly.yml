@@ -3,13 +3,10 @@ name: SYCL Release Branch Nightly
 on:
   workflow_dispatch:
     inputs:
-      sycl_build_info:
+      add_build_date:
         description: |
-          Compiler build info, e.g. "X.Y.Z release"
-      pre_release:
-        description: PRE_RELEASE CMake variable value (e.g. 0 or 1)
-        required: false
-        default: '0'
+          Adds the build date to the version. Set to 0 for release builds.
+        default: '1'
 
 
 permissions: read-all
@@ -22,19 +19,11 @@ jobs:
     steps:
     - id: get_info
       run: |
-        if [ "${{ inputs.pre_release }}" = "0" ]; then
-          # Do not pass build info for release builds.
-          info="-DPRE_RELEASE=0"
-        else
-          if [ -n "${{ inputs.sycl_build_info }}" ]; then
-            info='-DSYCL_BUILD_INFO="${{ inputs.sycl_build_info }}"'
-          else
-            date=$(date +'%Y-%m-%d')
-            info="-DSYCL_BUILD_INFO=\"Nightly $date\""
-          fi
+        if [ "${{ inputs.add_build_date }}" = "1" ]; then
+          date=$(date +'%Y-%m-%d')
+          info="-DSYCL_BUILD_INFO=\"Nightly $date\""
+          echo "info=$info" >> $GITHUB_OUTPUT
         fi
-
-        echo "info=$info" >> $GITHUB_OUTPUT
 
   ubuntu2204_build:
     needs: get_build_info
