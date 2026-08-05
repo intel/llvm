@@ -110,7 +110,7 @@ jobs:
   # The idea is to ensure that the code works with both CUDA versions.
   build_ubuntu2204:
     needs: [detect_changes]
-    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -143,7 +143,7 @@ jobs:
         echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
 
   E2E:
-    needs: [build, detect_changes, compat_read_exclude]
+    needs: [build, build_ubuntu2204, detect_changes, compat_read_exclude]
     if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     permissions:
       contents: write
@@ -164,8 +164,12 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
             env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc_lts"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_lts_drivers:latest
+            toolchain_artifact: ${{ needs.build_ubuntu2204.outputs.toolchain_artifact }}
+            toolchain_artifact_filename: ${{ needs.build_ubuntu2204.outputs.toolchain_artifact_filename }}
+            toolchain_decompress_command: ${{ needs.build_ubuntu2204.outputs.toolchain_decompress_command }}
           - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
@@ -205,9 +209,9 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      toolchain_artifact: ${{ matrix.toolchain_artifact || needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ matrix.toolchain_artifact_filename || needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ matrix.toolchain_decompress_command || needs.build.outputs.toolchain_decompress_command }}
       binaries_artifact: ${{ matrix.binaries_artifact || 'e2e_bin' }}
       testing_mode: 'run-only'
 
