@@ -2790,7 +2790,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         MD.SplitModules = std::move(Modules);
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
-      } else if (Args.hasArg(OPT_sycl_device_link)) {
+      } else if (Args.hasArg(OPT_sycl_device_link) &&
+                 Args.hasArg(OPT_no_sycl_rdc)) {
         // For per-TU -fno-sycl-rdc compile-step finalization, output the
         // wrapper bitcode directly. The host cc1 will link this .bc into the
         // host module via -fsycl-include-target-binary, so the SYCL
