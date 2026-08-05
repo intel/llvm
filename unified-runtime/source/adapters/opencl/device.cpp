@@ -1482,6 +1482,9 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
       CL_RETURN_ON_FAILURE(
           clGetDeviceInfo(Device->CLDevice, CL_DEVICE_NODE_MASK_KHR,
                           sizeof(cl_uint), &nodeMask, nullptr));
+      if (nodeMask == 0) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
 
       return ReturnValue(nodeMask);
     }
