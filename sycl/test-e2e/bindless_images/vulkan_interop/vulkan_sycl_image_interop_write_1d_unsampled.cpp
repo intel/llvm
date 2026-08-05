@@ -9,6 +9,11 @@
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
 
+// UNSUPPORTED: level_zero_v2_adapter && (arch-intel_gpu_arl_u || arch-intel_gpu_arl_s || arch-intel_gpu_arl_h)
+// UNSUPPORTED-TRACKER: On ARL with the Level Zero V2 adapter, the process
+// crashes with SIGSEGV during teardown after every subtest reports SUCCESS.
+// All subtests complete correctly; the crash is in shutdown.
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 /*
