@@ -6,8 +6,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Fix build: remove use of deprecated typed-pointer creation APIs
-    set(LLVMGenXIntrinsics_GIT_TAG 93d4a7bea95f5f717b3d33f972d54799a22ff548)
+    set(LLVMGenXIntrinsics_GIT_TAG 546cf38639d042a860e44f22508d58788188f8c8)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
