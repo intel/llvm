@@ -10,11 +10,13 @@
 
 #include <sycl/__spirv/spirv_ops_subgroup.hpp>
 #include <sycl/detail/address_space_cast.hpp>
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/id.hpp>                         // for id
-#include <sycl/memory_enums.hpp>               // for memory_scope
+
+#include <sycl/id.hpp>           // for id
+#include <sycl/memory_enums.hpp> // for memory_scope
 #include <sycl/nd_item.hpp>
 #include <sycl/range.hpp> // for range
 
@@ -43,7 +45,7 @@ struct sub_group {
 
   /* --- common interface members --- */
 
-  id_type get_local_id() const {
+  id_type get_local_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupLocalInvocationId();
 #else
@@ -52,7 +54,7 @@ struct sub_group {
 #endif
   }
 
-  linear_id_type get_local_linear_id() const {
+  linear_id_type get_local_linear_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
@@ -61,7 +63,7 @@ struct sub_group {
 #endif
   }
 
-  range_type get_local_range() const {
+  range_type get_local_range() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupSize();
 #else
@@ -70,7 +72,7 @@ struct sub_group {
 #endif
   }
 
-  range_type get_max_local_range() const {
+  range_type get_max_local_range() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupMaxSize();
 #else
@@ -79,7 +81,7 @@ struct sub_group {
 #endif
   }
 
-  id_type get_group_id() const {
+  id_type get_group_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupId();
 #else
@@ -88,7 +90,7 @@ struct sub_group {
 #endif
   }
 
-  linear_id_type get_group_linear_id() const {
+  linear_id_type get_group_linear_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
@@ -97,7 +99,7 @@ struct sub_group {
 #endif
   }
 
-  range_type get_group_range() const {
+  range_type get_group_range() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInNumSubgroups();
 #else
@@ -111,7 +113,7 @@ struct sub_group {
   __SYCL_DEPRECATED(
       "Sub-group barrier with no arguments is deprecated."
       "Use sycl::group_barrier with the sub-group as the argument instead.")
-  void barrier() const {
+  void barrier() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_ControlBarrier(
         __spv::Scope::Subgroup, __spv::Scope::Subgroup,
@@ -128,7 +130,7 @@ struct sub_group {
   __SYCL_DEPRECATED(
       "Sub-group barrier accepting fence_space is deprecated."
       "Use sycl::group_barrier with the sub-group as the argument instead.")
-  void barrier(access::fence_space accessSpace) const {
+  void barrier(access::fence_space accessSpace) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
     __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
@@ -141,7 +143,7 @@ struct sub_group {
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  linear_id_type get_group_linear_range() const {
+  linear_id_type get_group_linear_range() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
@@ -150,7 +152,7 @@ struct sub_group {
 #endif
   }
 
-  linear_id_type get_local_linear_range() const {
+  linear_id_type get_local_linear_range() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
@@ -159,7 +161,7 @@ struct sub_group {
 #endif
   }
 
-  bool leader() const {
+  bool leader() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return get_local_linear_id() == 0;
 #else
@@ -169,7 +171,7 @@ struct sub_group {
   }
 
   // Common member functions for by-value semantics
-  friend bool operator==(const sub_group &lhs, const sub_group &rhs) {
+  friend bool operator==(const sub_group &lhs, const sub_group &rhs) noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return lhs.get_group_id() == rhs.get_group_id();
 #else
@@ -180,7 +182,7 @@ struct sub_group {
 #endif
   }
 
-  friend bool operator!=(const sub_group &lhs, const sub_group &rhs) {
+  friend bool operator!=(const sub_group &lhs, const sub_group &rhs) noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return !(lhs == rhs);
 #else
@@ -194,10 +196,11 @@ struct sub_group {
 protected:
   template <int dimensions> friend class sycl::nd_item;
   friend sub_group ext::oneapi::this_work_item::get_sub_group();
-  sub_group() = default;
+  sub_group() noexcept = default;
 };
 
-template <int Dimensions> sub_group nd_item<Dimensions>::get_sub_group() const {
+template <int Dimensions>
+sub_group nd_item<Dimensions>::get_sub_group() const noexcept {
   return sub_group();
 }
 

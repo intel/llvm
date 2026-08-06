@@ -116,7 +116,7 @@ public:
   }
 
   // Out-of-class definition in sub_group.hpp
-  sub_group get_sub_group() const;
+  sub_group get_sub_group() const noexcept;
 
   size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
     size_t Id = get_group_id()[Dimension];
