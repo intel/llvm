@@ -1,7 +1,7 @@
 """Orchestrate UR test execution."""
 import os
 import sys
-import subprocess
+import subprocess  # nosec B404 - Used safely with list args, no shell=True
 from pathlib import Path
 from typing import List, Optional
 

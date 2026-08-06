@@ -27,7 +27,7 @@ runs:
       # Use temp file instead of command substitution to preserve outputs even on error
       OUTPUTS_FILE=$(mktemp)
       set +e  # Don't exit on error
-      python3 -u devops/scripts/ur_ci_utils.py run-tests "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE" 2>&1
+      python3 -u devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE" 2>&1
       EXIT_CODE=$?
       set -e  # Re-enable exit on error
 
@@ -54,7 +54,7 @@ runs:
       fi
 
       echo "::group::Test Log"
-      python3 devops/scripts/ur_test_summary.py filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
+      python3 devops/scripts/ur-test filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
       echo "::endgroup::"
 
   - name: Report test failures
@@ -63,7 +63,7 @@ runs:
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
     run: |
-      python3 devops/scripts/ur_test_summary.py extract-errors "$LOG_FILE"
+      python3 devops/scripts/ur-test extract-errors "$LOG_FILE"
       exit 1
 
   - name: Test summary
@@ -85,7 +85,7 @@ runs:
         exit 0
       fi
 
-      python3 devops/scripts/ur_test_summary.py show-summary "$LOG_FILE" "${XML_FILE:-}"
+      python3 devops/scripts/ur-test summary "$LOG_FILE" "${XML_FILE:-}"
 
       # Add link to artifacts if they will be uploaded
       if [ -n "$ARTIFACT_NAME" ]; then
