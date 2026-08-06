@@ -3,6 +3,7 @@
 // This addresses CMPLRLLVM-77222 where free function kernels caused ~3x bloat.
 //
 // Compile to object file (bundled)
+// REQUIRES: linux
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 -c %s -o %t.o
 //
 // Extract host object
