@@ -54,6 +54,12 @@ class SummaryConfig:
     xml_file: Optional[str] = None
 
 
+# LIT Output Format Compatibility:
+# These patterns parse text output from LLVM LIT (llvm-lit).
+# Tested with: LLVM 15+ (stable format since ~2010)
+# LIT flags used: --verbose --time-tests --show-unsupported --show-pass --show-xfail
+# If LIT changes output format in future versions, update these patterns accordingly.
+# For structured data (test counts, skipped tests), prefer using --xunit-xml-output.
 FAIL_TIMEOUT_PATTERN = re.compile(r"^(FAIL|TIMEOUT):")
 TEST_LIST_HEADER_PATTERN = re.compile(
     r"^(Passed|Unsupported|Failed|Expectedly Failed|"
@@ -69,9 +75,17 @@ TEST_CATEGORY_PATTERN = re.compile(r"^([A-Za-z]+(?: [A-Za-z]+)*) Tests \((\d+)\)
 TEST_NOT_SELECTED_MSG = "Test not selected"
 SEPARATOR_WIDTH = 70
 
+# Timing section headers that LIT outputs
+SLOWEST_TESTS_HEADER = "Slowest Tests:"
+TEST_TIMES_HEADERS = ("Tests Times:", "Test Times:")  # LIT uses both variants
+
 
 def read_log_file(log_path: str) -> List[str]:
-    """Read log file and return lines."""
+    """Read log file and return lines.
+
+    Raises:
+        OSError: If file cannot be read.
+    """
     try:
         # Try strict decoding first
         with open(log_path, "r", encoding="utf-8", errors="strict") as f:
@@ -86,11 +100,9 @@ def read_log_file(log_path: str) -> List[str]:
             with open(log_path, "r", encoding="utf-8", errors="replace") as f:
                 return f.readlines()
         except OSError as e:
-            print(f"Error reading log file: {e}", file=sys.stderr)
-            sys.exit(1)
+            raise OSError(f"Cannot read log file: {e}") from e
     except OSError as e:
-        print(f"Error reading log file: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise OSError(f"Cannot read log file: {e}") from e
 
 
 def extract_error_details(lines: List[str]) -> List[str]:
@@ -105,7 +117,8 @@ def extract_error_details(lines: List[str]) -> List[str]:
         # Stop at test list headers or timing summaries
         if in_error and (
             TEST_LIST_HEADER_PATTERN.match(line)
-            or line.strip() in ("Slowest Tests:", "Tests Times:", "Test Times:")
+            or line.strip() == SLOWEST_TESTS_HEADER
+            or line.strip() in TEST_TIMES_HEADERS
         ):
             break
 
@@ -129,11 +142,11 @@ def extract_time_summary(lines: List[str]) -> TimingSummary:
     for line in lines:
         stripped = line.strip()
 
-        if stripped == "Slowest Tests:":
+        if stripped == SLOWEST_TESTS_HEADER:
             current_section = "slowest"
             skip_next_hr = True
             continue
-        elif stripped == "Tests Times:" or stripped == "Test Times:":
+        elif stripped in TEST_TIMES_HEADERS:
             current_section = "histogram"
             skip_next_hr = True
             continue
@@ -160,30 +173,31 @@ def extract_time_summary(lines: List[str]) -> TimingSummary:
     return result
 
 
-def _should_include_test(message: str, include_test_not_selected: bool) -> bool:
-    has_test_not_selected = TEST_NOT_SELECTED_MSG in message
-    if include_test_not_selected:
-        return has_test_not_selected
-    return not has_test_not_selected
-
-
 def _format_test_name(classname: str, name: str) -> str:
     if classname and name:
         return f"{classname}.{name}"
     return name
 
 
-def _extract_tests_from_xml_by_filter(
-    xml_path: str, include_test_not_selected: bool, test_type_name: str
-) -> List[str]:
-    """Extract tests from LIT xunit XML by filtering on 'Test not selected' message."""
+def extract_tests_from_xml(xml_path: str) -> Tuple[List[str], List[str]]:
+    """Extract skipped and excluded tests from LIT xunit XML.
+
+    Parses XML once and separates tests into two categories:
+    - Skipped: tests with <skipped> element (excluding 'Test not selected')
+    - Excluded: tests with 'Test not selected' message (from LIT_FILTER_OUT)
+
+    Returns:
+        Tuple of (skipped_tests, excluded_tests)
+    """
     if not xml_path:
-        return []
+        return [], []
     if not Path(xml_path).exists():
         print(f"Note: XML file not found: {xml_path}", file=sys.stderr)
-        return []
+        return [], []
 
-    tests = []
+    skipped = []
+    excluded = []
+
     try:
         tree = ET.parse(xml_path)
         root = tree.getroot()
@@ -194,41 +208,36 @@ def _extract_tests_from_xml_by_filter(
                 continue
 
             message = skipped_elem.get("message", "")
-            if not _should_include_test(message, include_test_not_selected):
-                continue
-
             test_name = _format_test_name(
                 testcase.get("classname", ""), testcase.get("name", "")
             )
-            if test_name:
-                tests.append(test_name)
+
+            if not test_name:
+                continue
+
+            # Separate by message type
+            if TEST_NOT_SELECTED_MSG in message:
+                excluded.append(test_name)
+            else:
+                skipped.append(test_name)
 
     except ET.ParseError as e:
         print(f"Warning: Failed to parse XML file {xml_path}: {e}", file=sys.stderr)
     except (OSError, ValueError) as e:
         print(f"Warning: Error reading XML file {xml_path}: {e}", file=sys.stderr)
 
-    if tests:
+    if skipped:
         print(
-            f"Note: Found {len(tests)} {test_type_name} tests in XML: {xml_path}",
+            f"Note: Found {len(skipped)} skipped tests in XML: {xml_path}",
+            file=sys.stderr,
+        )
+    if excluded:
+        print(
+            f"Note: Found {len(excluded)} excluded tests in XML: {xml_path}",
             file=sys.stderr,
         )
 
-    return tests
-
-
-def extract_skipped_from_xml(xml_path: str) -> List[str]:
-    """Extract skipped test names from LIT xunit XML (excludes 'Test not selected')."""
-    return _extract_tests_from_xml_by_filter(
-        xml_path, include_test_not_selected=False, test_type_name="skipped"
-    )
-
-
-def extract_excluded_from_xml(xml_path: str) -> List[str]:
-    """Extract excluded tests from LIT xunit XML ('Test not selected')."""
-    return _extract_tests_from_xml_by_filter(
-        xml_path, include_test_not_selected=True, test_type_name="excluded"
-    )
+    return skipped, excluded
 
 
 def extract_test_lists(
@@ -288,7 +297,7 @@ def filter_log_for_display(lines: List[str]) -> List[str]:
             skip_until_empty = True
             continue
 
-        if stripped in ["Slowest Tests:", "Tests Times:", "Test Times:"]:
+        if stripped == SLOWEST_TESTS_HEADER or stripped in TEST_TIMES_HEADERS:
             in_timing = True
             continue
 
@@ -351,7 +360,7 @@ def _display_skipped_tests(
     test_lists: TestLists,
     declared_counts: TestCounts,
     stats: List[str],
-    xml_file: Optional[str],
+    skipped_xml: List[str],
 ) -> int:
     skipped_from_log = test_lists.get("Skipped", test_lists.get("Unsupported", []))
     declared_count = declared_counts.get(
@@ -368,7 +377,6 @@ def _display_skipped_tests(
             test_lists.pop("Unsupported", None)
             return actual_count
 
-        skipped_xml = extract_skipped_from_xml(xml_file)
         if skipped_xml:
             note = (
                 f"Note: Using XML data (log header claimed "
@@ -389,7 +397,6 @@ def _display_skipped_tests(
         return count
 
     elif stats_count:
-        skipped_xml = extract_skipped_from_xml(xml_file)
         if skipped_xml:
             _print_test_group("Skipped Tests", skipped_xml)
             return len(skipped_xml)
@@ -406,7 +413,7 @@ def _display_skipped_tests(
 
 
 def _display_excluded_tests(
-    test_lists: TestLists, stats: List[str], xml_file: Optional[str]
+    test_lists: TestLists, stats: List[str], excluded_xml: List[str]
 ) -> int:
     excluded_from_log = test_lists.get("Excluded", [])
     stats_count = _get_count_from_stats(stats, ["Excluded"])
@@ -416,7 +423,6 @@ def _display_excluded_tests(
         test_lists.pop("Excluded", None)
         return len(excluded_from_log)
 
-    excluded_xml = extract_excluded_from_xml(xml_file)
     if excluded_xml:
         _print_test_group("Excluded Tests", excluded_xml)
         return len(excluded_xml)
@@ -489,7 +495,7 @@ def _display_timing_summary(lines: List[str]) -> None:
         print()
 
     if time_info["slowest"]:
-        print("Slowest Tests:")
+        print(SLOWEST_TESTS_HEADER)
         print("-" * SEPARATOR_WIDTH)
         for line in time_info["slowest"]:
             print(line)
@@ -512,10 +518,13 @@ def show_statistics_and_lists(config: SummaryConfig) -> None:
     total_discovered = _get_count_from_stats(stats, ["Total Discovered"])
     test_lists, declared_counts = extract_test_lists(config.log_lines)
 
+    # Parse XML once to extract both skipped and excluded tests
+    skipped_xml, excluded_xml = extract_tests_from_xml(config.xml_file)
+
     displayed_skipped = _display_skipped_tests(
-        test_lists, declared_counts, stats, config.xml_file
+        test_lists, declared_counts, stats, skipped_xml
     )
-    displayed_excluded = _display_excluded_tests(test_lists, stats, config.xml_file)
+    displayed_excluded = _display_excluded_tests(test_lists, stats, excluded_xml)
     _display_remaining_categories(test_lists)
     _validate_test_counts(
         total_discovered, test_lists, displayed_skipped, displayed_excluded
@@ -524,26 +533,29 @@ def show_statistics_and_lists(config: SummaryConfig) -> None:
 
 
 def _validate_log_path(path: str) -> None:
-    """Validate log file path. Uses Path.resolve() to detect encoded path traversal."""
+    """Validate log file path. Uses Path.resolve() to detect encoded path traversal.
+
+    Raises:
+        ValueError: If path is invalid or uses path traversal.
+        OSError: If path resolution fails.
+    """
     try:
         # Resolve path to detect encoded forms of path traversal (e.g., %2e%2e)
         resolved = Path(path).resolve(strict=False)
 
         # Check for path traversal in original string (simple check)
         if ".." in path:
-            print(
-                f"Error: Invalid log file path (path traversal not allowed): {path}",
-                file=sys.stderr,
+            raise ValueError(
+                f"Invalid log file path (path traversal not allowed): {path}"
             )
-            sys.exit(1)
 
         # Verify file exists
         if not resolved.exists():
-            print(f"Error: Log file not found: {path}", file=sys.stderr)
-            sys.exit(1)
+            raise ValueError(f"Log file not found: {path}")
     except (OSError, ValueError) as e:
-        print(f"Error: Invalid log file path: {path} ({e})", file=sys.stderr)
-        sys.exit(1)
+        if isinstance(e, ValueError):
+            raise
+        raise OSError(f"Invalid log file path: {path} ({e})") from e
 
 
 def _validate_optional_path(
@@ -552,6 +564,10 @@ def _validate_optional_path(
     """Validate optional file path.
 
     Uses Path.resolve() to detect encoded path traversal.
+
+    Raises:
+        ValueError: If path is invalid, uses traversal, or violates absolute path rules.
+        OSError: If path resolution fails.
     """
     if not path:
         return ""
@@ -562,60 +578,68 @@ def _validate_optional_path(
 
         # Check for path traversal in original string
         if ".." in path:
-            print(
-                f"Error: Invalid {path_type} file path (path traversal): {path}",
-                file=sys.stderr,
+            raise ValueError(
+                f"Invalid {path_type} file path (path traversal): {path}"
             )
-            sys.exit(1)
 
         # Check absolute path restriction
         if not allow_absolute and path.startswith("/"):
-            print(
-                f"Error: Invalid {path_type} file path "
-                f"(absolute paths not allowed): {path}",
-                file=sys.stderr,
+            raise ValueError(
+                f"Invalid {path_type} file path (absolute paths not allowed): {path}"
             )
-            sys.exit(1)
     except (OSError, ValueError) as e:
-        print(
-            f"Error: Invalid {path_type} file path: {path} ({e})",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        if isinstance(e, ValueError):
+            raise
+        raise OSError(f"Invalid {path_type} file path: {path} ({e})") from e
 
     return path
 
 
-def main() -> None:
-    if len(sys.argv) < 3:
-        print(f"Error: {sys.argv[0]} <command> <log_file> [xml_file]", file=sys.stderr)
-        sys.exit(1)
+def main() -> int:
+    """Entry point for ur_test_summary CLI.
 
-    command = sys.argv[1]
+    Returns:
+        0 on success, 1 on error.
+    """
+    try:
+        if len(sys.argv) < 3:
+            print(
+                f"Error: {sys.argv[0]} <command> <log_file> [xml_file]",
+                file=sys.stderr,
+            )
+            return 1
 
-    log_file = sys.argv[2]
-    _validate_log_path(log_file)
-    lines = read_log_file(log_file)
+        command = sys.argv[1]
 
-    if command == "extract-errors":
-        for line in extract_error_details(lines):
-            print(line, end="")
+        log_file = sys.argv[2]
+        _validate_log_path(log_file)
+        lines = read_log_file(log_file)
 
-    elif command == "filter-log":
-        for line in filter_log_for_display(lines):
-            print(line, end="")
+        if command == "extract-errors":
+            for line in extract_error_details(lines):
+                print(line, end="")
 
-    elif command == "show-summary":
-        xml_file = _validate_optional_path(
-            sys.argv[3] if len(sys.argv) > 3 else None, "XML", allow_absolute=True
-        )
-        config = SummaryConfig(log_lines=lines, xml_file=xml_file)
-        show_statistics_and_lists(config)
+        elif command == "filter-log":
+            for line in filter_log_for_display(lines):
+                print(line, end="")
 
-    else:
-        print(f"Error: Unknown command '{command}'", file=sys.stderr)
-        sys.exit(1)
+        elif command == "show-summary":
+            xml_file = _validate_optional_path(
+                sys.argv[3] if len(sys.argv) > 3 else None, "XML", allow_absolute=True
+            )
+            config = SummaryConfig(log_lines=lines, xml_file=xml_file)
+            show_statistics_and_lists(config)
+
+        else:
+            print(f"Error: Unknown command '{command}'", file=sys.stderr)
+            return 1
+
+        return 0
+
+    except (OSError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

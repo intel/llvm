@@ -32,7 +32,6 @@ class TestConfig:
 
     target: str
     log_file: str
-    xml_search_path: str
     lit_filter_out: Optional[str] = None
 
 
@@ -61,7 +60,8 @@ def validate_build_dir(build_dir: str, workspace: Optional[str] = None) -> bool:
 def check_log_has_tests(log_file: str) -> bool:
     """Check if log file contains test results."""
     try:
-        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+        # Try strict decoding first
+        with open(log_file, "r", encoding="utf-8", errors="strict") as f:
             for _ in range(MAX_LINES_TO_SCAN):
                 line = f.readline()
                 if not line:
@@ -69,6 +69,24 @@ def check_log_has_tests(log_file: str) -> bool:
                 if "Testing:" in line:
                     return True
         return False
+    except UnicodeDecodeError:
+        # Fallback to replacement and log warning
+        print(
+            f"Warning: Log file {log_file} contains non-UTF-8 characters, "
+            f"replacing with U+FFFD",
+            file=sys.stderr,
+        )
+        try:
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                for _ in range(MAX_LINES_TO_SCAN):
+                    line = f.readline()
+                    if not line:
+                        break
+                    if "Testing:" in line:
+                        return True
+            return False
+        except OSError:
+            return False
     except OSError:
         return False
 
@@ -79,7 +97,6 @@ def get_test_config(test_type: str, build_dir: str) -> TestConfig:
         return TestConfig(
             target="check-unified-runtime-adapter",
             log_file="adapter_tests.log",
-            xml_search_path=f"{build_dir}/test/adapters",
             lit_filter_out=(
                 "(adapters/level_zero/memcheck.test|"
                 "adapters/level_zero/v2/deferred_kernel_memcheck.test)"
@@ -89,7 +106,6 @@ def get_test_config(test_type: str, build_dir: str) -> TestConfig:
         return TestConfig(
             target="check-unified-runtime-conformance",
             log_file="conformance_tests.log",
-            xml_search_path=f"{build_dir}/test/conformance",
         )
     else:
         raise ValueError(f"Invalid test_type: {test_type}")
@@ -123,14 +139,21 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
     env: Dict[str, str] = os.environ.copy()
 
     # Generate unique XML name to avoid literal *.xml filename
+    # Write directly to build_dir to avoid hardcoded subdirectory assumptions
     xml_output_name: str = f"{test_type.replace('-', '_')}_results.xml"
-    xml_output_path: Path = (
-        workspace_path / config.xml_search_path / xml_output_name
-    ).absolute()
+    xml_output_path: Path = (workspace_path / build_dir / xml_output_name).absolute()
 
     # Ensure XML output directory exists
     xml_output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # LIT test execution configuration
+    # Flags chosen for CI visibility and compatibility with ur_test_summary.py parser:
+    # - verbose output (-v) for detailed test information
+    # - timeout 120s per test (typical tests finish <60s)
+    # - parallel execution (-j 50) on CI runners with adequate resources
+    # - timing data (--time-tests) for performance monitoring
+    # - comprehensive test visibility (--show-unsupported/pass/xfail/skipped/flakypass)
+    # Format stable since LLVM 15+. If LIT changes, update ur_test_summary.py patterns.
     env["LIT_OPTS"] = (
         "--show-unsupported --show-pass --show-xfail --no-progress-bar "
         "-v --timeout 120 -j 50 --time-tests --show-flakypass "
@@ -155,8 +178,7 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
     log_file_path: Path = workspace_path / config.log_file
 
     # Output configuration for GitHub Actions (always, before tests run)
-    print(f"log_file={log_file_path}", flush=True)
-    print(f"xml_search_path={workspace_path / config.xml_search_path}", flush=True)
+    print(f"log-file={log_file_path}", flush=True)
     sys.stdout.flush()  # Ensure outputs are written before subprocess
 
     print(f"Running: {' '.join(cmake_cmd)}", file=sys.stderr)
@@ -185,41 +207,46 @@ def run_ur_tests(test_type: str, build_dir: str, workspace: str) -> int:
 
     if test_type == "adapter-specific" and not check_log_has_tests(str(log_file_path)):
         print("No adapter-specific tests found", file=sys.stderr)
-        print("skip_artifacts=1", flush=True)
+        print("skip-artifacts=1", flush=True)
         return 0
 
     if xml_output_path.exists():
-        print(f"xml_file={xml_output_path.absolute()}", flush=True)
+        print(f"xml-file={xml_output_path.absolute()}", flush=True)
     else:
         print(
-            f"Warning: Expected XML file not found at {xml_output_path}",
+            f"::warning::Expected XML file not found at {xml_output_path}",
             file=sys.stderr,
         )
 
     return result.returncode
 
 
-def main() -> None:
+def main() -> int:
+    """Entry point for ur_ci_utils CLI.
+
+    Returns:
+        0 on success, 1 on error, 2 on test failure.
+    """
     if len(sys.argv) < 2:
         print(f"Error: {sys.argv[0]} <command> [args...]", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
     command = sys.argv[1]
 
     if command == "validate-build-dir":
         if len(sys.argv) < 3:
             print(f"Error: validate-build-dir <build_dir> [workspace]", file=sys.stderr)
-            sys.exit(1)
+            return 1
         workspace = sys.argv[3] if len(sys.argv) > 3 else None
         is_valid = validate_build_dir(sys.argv[2], workspace)
-        sys.exit(0 if is_valid else 1)
+        return 0 if is_valid else 1
 
     elif command == "check-log-has-tests":
         if len(sys.argv) < 3:
             print(f"Error: check-log-has-tests <log_file>", file=sys.stderr)
-            sys.exit(1)
+            return 1
         has_tests = check_log_has_tests(sys.argv[2])
-        sys.exit(0 if has_tests else 1)
+        return 0 if has_tests else 1
 
     elif command == "run-tests":
         if len(sys.argv) < 5:
@@ -227,14 +254,14 @@ def main() -> None:
                 f"Error: run-tests <test_type> <build_dir> <workspace>",
                 file=sys.stderr,
             )
-            sys.exit(1)
+            return 1
         exit_code = run_ur_tests(sys.argv[2], sys.argv[3], sys.argv[4])
-        sys.exit(exit_code)
+        return exit_code
 
     else:
         print(f"Error: Unknown command '{command}'", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

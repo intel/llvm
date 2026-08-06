@@ -37,7 +37,7 @@ runs:
           echo "$key=$value" >> $GITHUB_OUTPUT
           echo "  Set output: $key=$value"
         fi
-      done < <(grep -E "^(log_file|xml_file|xml_search_path|skip_artifacts)=" "$OUTPUTS_FILE")
+      done < <(grep -E "^(log-file|xml-file|skip-artifacts)=" "$OUTPUTS_FILE")
 
       rm -f "$OUTPUTS_FILE"
       exit $EXIT_CODE
@@ -46,7 +46,7 @@ runs:
     if: ${{ always() }}
     shell: bash
     env:
-      LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
     run: |
       if [ ! -f "$LOG_FILE" ]; then
         echo "::warning::Test log not found"
@@ -61,7 +61,7 @@ runs:
     if: steps.run_tests.outcome != 'success'
     shell: bash
     env:
-      LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
     run: |
       python3 devops/scripts/ur_test_summary.py extract-errors "$LOG_FILE"
       exit 1
@@ -70,8 +70,8 @@ runs:
     if: ${{ always() }}
     shell: bash
     env:
-      LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
-      XML_FILE: ${{ steps.run_tests.outputs.xml_file }}
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
+      XML_FILE: ${{ steps.run_tests.outputs['xml-file'] || 'adapter_tests_results.xml' }}
       ARTIFACT_NAME: ${{ inputs.artifact_name }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     run: |
@@ -97,11 +97,11 @@ runs:
       fi
 
   - name: Copy artifacts
-    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs.skip_artifacts != '1') }}
+    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
     shell: bash
     env:
-      LOG_FILE: ${{ steps.run_tests.outputs.log_file }}
-      XML_FILE: ${{ steps.run_tests.outputs.xml_file }}
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
+      XML_FILE: ${{ steps.run_tests.outputs['xml-file'] || 'adapter_tests_results.xml' }}
     run: |
       set -f  # Disable glob expansion
 
@@ -118,7 +118,7 @@ runs:
       fi
 
   - name: Upload test artifacts
-    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs.skip_artifacts != '1') }}
+    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
     with:
       name: ${{ inputs.artifact_name }}
