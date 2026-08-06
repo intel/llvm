@@ -205,6 +205,17 @@ TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest,
   ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
   ASSERT_FALSE(isEnabled);
 
+  // Replaying the captured graph must execute the copy that was recorded on
+  // the forked queue, proving it really became part of the graph.
+  ur_exp_executable_graph_handle_t exGraph = nullptr;
+  ASSERT_SUCCESS(urGraphInstantiateGraphExp(graph, &exGraph));
+
+  ASSERT_SUCCESS(urEnqueueGraphExp(queue1, exGraph, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue1));
+
+  EXPECT_EQ(*ptr2_data, 0xdeadbeefU);
+
+  EXPECT_SUCCESS(urGraphExecutableGraphDestroyExp(exGraph));
   ASSERT_SUCCESS(urUSMFree(context, ptr1));
   ASSERT_SUCCESS(urUSMFree(context, ptr2));
 }
