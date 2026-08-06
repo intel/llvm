@@ -670,7 +670,8 @@ public:
     ur_result_t Result = UR_RESULT_SUCCESS;
   };
 
-  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph);
+  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph,
+                                             bool LockQueue);
 
   NativeRecordingResult endNativeRecording();
 

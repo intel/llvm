@@ -896,7 +896,8 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "Queue is already in native graph capture mode");
       }
-      auto BeginResult = Queue.beginNativeRecording(MNativeGraphHandle);
+      auto BeginResult =
+          Queue.beginNativeRecording(MNativeGraphHandle, AcquireQueueLock);
       if (BeginResult.RecordingActive) {
         addQueue(Queue);
       }
