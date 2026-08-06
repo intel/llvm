@@ -427,8 +427,7 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (isProfilingTagEvent()) {
-    // For profiling tag events we rely on the submission time reported as
-    // the start time has undefined behavior.
+    // Tag events report command_submit through the adapter.
     return get_event_profiling_info<info::event_profiling::command_submit>(
         this->getHandle(), this->getAdapter());
   }
@@ -625,7 +624,8 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled && !MProfilingTagEvent)
+  // Tag events obtain command_submit from the adapter.
+  if (!MIsProfilingEnabled || MProfilingTagEvent)
     return;
 
   if (std::shared_ptr<queue_impl> Queue =

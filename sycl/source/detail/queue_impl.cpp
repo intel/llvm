@@ -518,6 +518,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     ResEvent->setWorkerQueue(weak_from_this());
     ResEvent->setPotentiallyNativeRecorded(
         getContextImpl().isNativeRecordingActive());
+    if (EventForReuse)
+      ResEvent->markAsProfilingTagEvent();
     ResEvent->setSubmissionTime();
     ResEvent->setEnqueued();
     ResEvent->setStateIncomplete();
