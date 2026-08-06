@@ -208,9 +208,10 @@ class TestE2EExpr(unittest.TestCase):
         detected = {"level_zero_sdk_1_{}".format(minor) for minor in range(15)}
         E2EExpr.check_build_features({"level_zero_dev_kit"} | detected)
 
-        # Any major/minor pair should matche
+        # Any major/minor pair should match
         self.assertTrue(E2EExpr.is_build_specific("level_zero_sdk_2_130"))
-        # The pattern must not accept malformed names.
+
+        # reject build malformed SDK values
         self.assertFalse(E2EExpr.is_build_specific("level_zero_sdk_1"))
         self.assertFalse(E2EExpr.is_build_specific("level_zero_sdk_1_14_0"))
 
