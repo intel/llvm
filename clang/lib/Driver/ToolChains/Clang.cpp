@@ -9159,7 +9159,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fcuda-include-gpubinary");
     CmdArgs.push_back(CudaDeviceInput->getFilename());
   } else if (!HostOffloadingInputs.empty()) {
-    if ((IsCuda || IsHIP) && !IsRDCMode) {
+    if ((IsCuda || IsHIP) &&
+        (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi))) {
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
       CmdArgs.push_back("-fcuda-include-gpubinary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
@@ -9175,6 +9176,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fcuda_short_ptr,
                      options::OPT_fno_cuda_short_ptr, false))
       CmdArgs.push_back("-fcuda-short-ptr");
+    if (Args.hasArg(options::OPT_cuda_emit_nvcc_abi))
+      CmdArgs.push_back("--cuda-emit-nvcc-abi");
   }
 
   if (IsCuda || IsHIP) {
