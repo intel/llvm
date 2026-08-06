@@ -12,7 +12,7 @@ from ..models.test_data import TimingSummary
 from ..parsers.log_parser import extract_time_summary
 
 
-class TestResultDisplay:
+class ConsoleOutput:
     """Format test results for console output."""
 
     @staticmethod
@@ -23,7 +23,7 @@ class TestResultDisplay:
         count: Optional[int] = None
     ) -> None:
         """Print a collapsible GitHub Actions group with test list.
-        
+
         Args:
             title: Group title.
             tests: List of test names to display.
@@ -42,7 +42,7 @@ class TestResultDisplay:
     @staticmethod
     def print_statistics(stats: List[str]) -> None:
         """Print statistics section.
-        
+
         Args:
             stats: List of statistics lines.
         """
@@ -55,7 +55,7 @@ class TestResultDisplay:
     @staticmethod
     def print_timing_summary(lines: List[str]) -> None:
         """Print timing information section.
-        
+
         Args:
             lines: Log lines containing timing information.
         """
@@ -94,10 +94,10 @@ class TestResultDisplay:
 
 def filter_log_for_display(lines: List[str]) -> List[str]:
     """Filter log to remove statistics, test lists, and timing sections.
-    
+
     Args:
         lines: Original log lines.
-    
+
     Returns:
         Filtered log lines suitable for display.
     """

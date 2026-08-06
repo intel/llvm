@@ -10,8 +10,7 @@ from .test_data import (
 from .config import (
     TestConfig,
     TestExecutionContext,
-    SummaryConfig,
-    SummaryConfigLegacy,
+    SummaryConfigFromLines,
 )
 
 __all__ = [
@@ -22,6 +21,5 @@ __all__ = [
     "ExcludedTestsResult",
     "TestConfig",
     "TestExecutionContext",
-    "SummaryConfig",
-    "SummaryConfigLegacy",
+    "SummaryConfigFromLines",
 ]

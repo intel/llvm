@@ -9,11 +9,11 @@ class PathValidator:
     @staticmethod
     def validate_build_dir(build_dir: str, workspace: Optional[str] = None) -> bool:
         """Validate build directory is safe and within workspace.
-        
+
         Args:
             build_dir: Build directory path to validate.
             workspace: Optional workspace root path for containment check.
-        
+
         Returns:
             True if build_dir is safe, False otherwise.
         """
@@ -39,12 +39,12 @@ class PathValidator:
     @staticmethod
     def validate_log_path(path: str) -> None:
         """Validate log file path.
-        
+
         Uses Path.resolve() to detect encoded path traversal.
-        
+
         Args:
             path: Log file path to validate.
-        
+
         Raises:
             ValueError: If path is invalid or uses path traversal.
             OSError: If path resolution fails.
@@ -72,19 +72,20 @@ class PathValidator:
         path: str, path_type: str, allow_absolute: bool = False
     ) -> str:
         """Validate optional file path.
-        
+
         Uses Path.resolve() to detect encoded path traversal.
-        
+
         Args:
             path: File path to validate (empty string is valid).
             path_type: Type of path for error messages (e.g., 'XML', 'log').
             allow_absolute: Whether to allow absolute paths.
-        
+
         Returns:
             The validated path (empty string if input was empty).
-        
+
         Raises:
-            ValueError: If path is invalid, uses traversal, or violates absolute path rules.
+            ValueError: If path is invalid, uses traversal, or violates
+                absolute path rules.
             OSError: If path resolution fails.
         """
         if not path:
@@ -116,20 +117,20 @@ class PathValidator:
     @staticmethod
     def ensure_within_workspace(path: Path, workspace: Path) -> Path:
         """Ensure path is within workspace (security check).
-        
+
         Args:
             path: Path to check.
             workspace: Workspace root path.
-        
+
         Returns:
             Resolved path if it's within workspace.
-        
+
         Raises:
             ValueError: If path is outside workspace.
         """
         resolved = path.resolve()
         workspace_resolved = workspace.resolve()
-        
+
         try:
             resolved.relative_to(workspace_resolved)
             return resolved

@@ -23,7 +23,6 @@ DEFAULT_LIT_JOBS = 50
 
 # Test Type Identifiers
 TEST_TYPE_ADAPTER_SPECIFIC = "adapter-specific"
-TEST_TYPE_UNIT = "unit"
 
 # Display Strings
 TEST_NOT_SELECTED_MSG = "Test not selected"

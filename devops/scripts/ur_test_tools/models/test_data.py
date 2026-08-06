@@ -4,7 +4,7 @@ from typing import TypedDict, List
 
 class TestLists(TypedDict, total=False):
     """Type definition for test list dictionary.
-    
+
     Each key represents a test category, and the value is a list of test names
     belonging to that category.
     """
@@ -19,7 +19,7 @@ class TestLists(TypedDict, total=False):
 
 class TestCounts(TypedDict, total=False):
     """Type definition for test count dictionary.
-    
+
     Each key represents a test category, and the value is the count of tests
     in that category.
     """
@@ -34,7 +34,7 @@ class TestCounts(TypedDict, total=False):
 
 class TimingSummary(TypedDict):
     """Type definition for test timing summary.
-    
+
     Contains information about test execution times.
     """
 
@@ -44,7 +44,7 @@ class TimingSummary(TypedDict):
 
 class SkippedTestsResult(TypedDict):
     """Result of skipped tests analysis.
-    
+
     Attributes:
         tests: List of skipped test names.
         count: Total count of skipped tests.
@@ -60,7 +60,7 @@ class SkippedTestsResult(TypedDict):
 
 class ExcludedTestsResult(TypedDict):
     """Result of excluded tests analysis.
-    
+
     Attributes:
         tests: List of excluded test names.
         count: Total count of excluded tests.

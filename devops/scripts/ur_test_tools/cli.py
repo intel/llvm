@@ -3,25 +3,96 @@ import sys
 import os
 from pathlib import Path
 
-from .models.config import SummaryConfigLegacy, TestConfig, TestExecutionContext
+from .models.config import SummaryConfigFromLines, TestConfig, TestExecutionContext
 from .validation.path_validator import PathValidator
 from .parsers.log_parser import (
     read_log_file,
     extract_error_details,
 )
-from .formatters.display import filter_log_for_display
-from .orchestration.summary_generator import show_statistics_and_lists
-from .orchestration.test_runner import (
+from .outputs.console import filter_log_for_display
+from .summary_generator import print_test_summary
+from .test_runner import (
     TestRunner,
     get_test_config,
     check_log_has_tests,
 )
-from .formatters.github_actions import GitHubActionsOutput
+from .outputs.github_actions import GitHubActionsOutput
+
+
+def main() -> int:
+    """Unified CLI entry point.
+
+    Routes commands to appropriate handlers based on first argument.
+
+    Returns:
+        0 on success, 1 on error, >0 on test failure.
+    """
+    if len(sys.argv) < 2:
+        print("Usage: ur-test <command> [args...]", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Test execution commands:", file=sys.stderr)
+        print(
+            "  run <type> <build_dir> <workspace>    Run UR tests",
+            file=sys.stderr
+        )
+        print(
+            "  validate <build_dir> <workspace>      "
+            "Validate build directory",
+            file=sys.stderr
+        )
+        print(
+            "  check-log <log_file>                  "
+            "Check if log has tests",
+            file=sys.stderr
+        )
+        print("", file=sys.stderr)
+        print("Summary commands:", file=sys.stderr)
+        print(
+            "  summary <log_file> [xml_file]         Show test summary",
+            file=sys.stderr
+        )
+        print(
+            "  extract-errors <log_file>             Extract error details",
+            file=sys.stderr
+        )
+        print(
+            "  filter-log <log_file>                 "
+            "Filter log for display",
+            file=sys.stderr
+        )
+        return 1
+
+    command = sys.argv[1]
+
+    # Route to ci_utils commands
+    if command in ("run", "validate", "check-log"):
+        # Map friendly names to internal command names
+        command_map = {
+            "run": "run-tests",
+            "validate": "validate-build-dir",
+            "check-log": "check-log-has-tests",
+        }
+        sys.argv[1] = command_map[command]
+        return main_ci_utils()
+
+    # Route to test_summary commands
+    elif command in ("summary", "extract-errors", "filter-log"):
+        # Map friendly names to internal command names
+        command_map = {
+            "summary": "show-summary",
+        }
+        sys.argv[1] = command_map.get(command, command)
+        return main_test_summary()
+
+    else:
+        print(f"Error: Unknown command '{command}'", file=sys.stderr)
+        print("Run 'ur-test' without arguments for usage help.", file=sys.stderr)
+        return 1
 
 
 def main_test_summary() -> int:
     """Entry point for ur_test_summary CLI.
-    
+
     Returns:
         0 on success, 1 on error.
     """
@@ -53,11 +124,11 @@ def main_test_summary() -> int:
                 "XML",
                 allow_absolute=True
             )
-            config = SummaryConfigLegacy(
+            config = SummaryConfigFromLines(
                 log_lines=lines,
                 xml_file=xml_file if xml_file else None
             )
-            show_statistics_and_lists(config)
+            print_test_summary(config)
 
         else:
             print(f"Error: Unknown command '{command}'", file=sys.stderr)
@@ -72,7 +143,7 @@ def main_test_summary() -> int:
 
 def main_ci_utils() -> int:
     """Entry point for ur_ci_utils CLI.
-    
+
     Returns:
         0 on success, 1 on error, >0 on test failure.
     """

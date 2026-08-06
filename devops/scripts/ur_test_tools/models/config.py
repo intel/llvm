@@ -7,7 +7,7 @@ from typing import Optional, Dict, List
 @dataclass
 class TestConfig:
     """Test execution configuration.
-    
+
     Attributes:
         target: CMake target to build (e.g., 'check-unified-runtime-adapter').
         log_file: Name of the log file to write test output.
@@ -27,7 +27,7 @@ class TestConfig:
 @dataclass(frozen=True)
 class TestExecutionContext:
     """Context for test execution (immutable).
-    
+
     Attributes:
         test_type: Type of tests to run ('adapter-specific', 'unit').
         build_dir: Path to the build directory.
@@ -48,17 +48,17 @@ class TestExecutionContext:
 
     def validate(self) -> None:
         """Validate all paths are within workspace.
-        
+
         Raises:
             ValueError: If any path is outside workspace or invalid.
         """
         try:
             # Ensure log file is within workspace
             self.log_file_path.resolve().relative_to(self.workspace.resolve())
-            
+
             # Ensure XML output is within workspace
             self.xml_output_path.resolve().relative_to(self.workspace.resolve())
-            
+
             # Ensure build dir is within workspace
             self.build_dir.resolve().relative_to(self.workspace.resolve())
         except ValueError as e:
@@ -66,33 +66,9 @@ class TestExecutionContext:
 
 
 @dataclass
-class SummaryConfig:
-    """Configuration for summary generation.
-    
-    Attributes:
-        log_file: Path to the log file to parse.
-        xml_file: Optional path to XML test results file.
-    """
+class SummaryConfigFromLines:
+    """Configuration for summary generation from parsed log lines.
 
-    log_file: Path
-    xml_file: Optional[Path] = None
-
-    def __post_init__(self):
-        """Validate configuration."""
-        if not self.log_file.exists():
-            raise ValueError(f"Log file not found: {self.log_file}")
-        
-        if self.xml_file is not None and not self.xml_file.exists():
-            raise ValueError(f"XML file not found: {self.xml_file}")
-
-
-@dataclass
-class SummaryConfigLegacy:
-    """Legacy configuration for show_statistics_and_lists function.
-    
-    This is kept for backward compatibility with existing code.
-    Use SummaryConfig for new code.
-    
     Attributes:
         log_lines: List of log file lines.
         xml_file: Optional path to XML file as string.

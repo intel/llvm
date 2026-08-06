@@ -8,17 +8,15 @@ from .models import (
     TestCounts,
     TimingSummary,
     TestConfig,
-    SummaryConfig,
+    SummaryConfigFromLines,
 )
-from .orchestration import (
-    TestRunner,
-    SummaryGenerator,
-)
+from .test_runner import TestRunner
+from .summary_generator import SummaryReporter
 from .validation import (
     PathValidator,
 )
-from .formatters import (
-    TestResultDisplay,
+from .outputs import (
+    ConsoleOutput,
     GitHubActionsOutput,
 )
 
@@ -29,10 +27,10 @@ __all__ = [
     "TestCounts",
     "TimingSummary",
     "TestConfig",
-    "SummaryConfig",
+    "SummaryConfigFromLines",
     "TestRunner",
-    "SummaryGenerator",
+    "SummaryReporter",
     "PathValidator",
-    "TestResultDisplay",
+    "ConsoleOutput",
     "GitHubActionsOutput",
 ]

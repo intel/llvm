@@ -1,6 +1,7 @@
 """Parse LIT text output for test information."""
 import sys
-from typing import List, Tuple
+from pathlib import Path
+from typing import Iterator, List, Tuple
 
 from ..constants import (
     FAIL_TIMEOUT_PATTERN,
@@ -13,43 +14,69 @@ from ..constants import (
 from ..models.test_data import TestLists, TestCounts, TimingSummary
 
 
-def read_log_file(log_path: str) -> List[str]:
-    """Read log file and return lines.
-    
-    Handles UTF-8 decoding with fallback to replacement characters.
-    
+def _read_with_utf8_fallback(path: str, read_func):
+    """Execute read function with UTF-8 fallback on decode error.
+
+    Tries strict UTF-8 decoding first. On UnicodeDecodeError during read,
+    reopens file with replacement mode and logs warning.
+
     Args:
-        log_path: Path to log file.
-    
+        path: Path to file to read.
+        read_func: Callable that takes file handle and returns result.
+
     Returns:
-        List of lines from the file.
-    
+        Result from read_func.
+
     Raises:
-        OSError: If file cannot be read.
+        OSError: If file cannot be opened.
     """
     try:
-        # Try strict decoding first
-        with open(log_path, "r", encoding="utf-8", errors="strict") as f:
-            return f.readlines()
+        with open(path, "r", encoding="utf-8", errors="strict") as f:
+            return read_func(f)
     except UnicodeDecodeError:
-        # Fallback to replacement and log warning
         print(
-            f"Warning: Log contains non-UTF-8 characters, "
+            f"Warning: File contains non-UTF-8 characters, "
             f"replacing with U+FFFD",
             file=sys.stderr,
         )
-        try:
-            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-                return f.readlines()
-        except OSError as e:
-            raise OSError(f"Cannot read log file: {e}") from e
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return read_func(f)
+
+
+def read_log_file(log_path: str) -> List[str]:
+    """Read log file and return lines.
+
+    Handles UTF-8 decoding with fallback to replacement characters.
+    Prints warning for large files (>10 MB).
+
+    Args:
+        log_path: Path to log file.
+
+    Returns:
+        List of lines from the file.
+
+    Raises:
+        OSError: If file cannot be read.
+    """
+    path = Path(log_path)
+    file_size = path.stat().st_size
+
+    if file_size > 10 * 1024 * 1024:  # 10 MB
+        print(
+            f"Large log file: {file_size / (1024 * 1024):.1f} MB. "
+            f"This may indicate a test problem.",
+            file=sys.stderr,
+        )
+
+    try:
+        return _read_with_utf8_fallback(log_path, lambda f: f.readlines())
     except OSError as e:
         raise OSError(f"Cannot read log file: {e}") from e
 
 
 class LITLogParser:
     """Parse LIT (llvm-lit) text output.
-    
+
     Format compatibility: LLVM 15+ (stable since ~2010).
     Parses text output from LLVM LIT with flags:
     --verbose --time-tests --show-unsupported --show-pass --show-xfail
@@ -57,7 +84,7 @@ class LITLogParser:
 
     def __init__(self, lines: List[str]):
         """Initialize parser with log lines.
-        
+
         Args:
             lines: List of log file lines.
         """
@@ -65,7 +92,7 @@ class LITLogParser:
 
     def extract_error_details(self) -> List[str]:
         """Extract error details from FAIL/TIMEOUT entries.
-        
+
         Returns:
             List of lines containing error details.
         """
@@ -91,7 +118,7 @@ class LITLogParser:
 
     def extract_statistics(self) -> List[str]:
         """Extract test statistics from LIT summary.
-        
+
         Returns:
             List of statistics lines.
         """
@@ -99,7 +126,7 @@ class LITLogParser:
 
     def extract_time_summary(self) -> TimingSummary:
         """Extract timing from LIT --time-tests (slowest tests and histogram).
-        
+
         Returns:
             TimingSummary with slowest tests and timing histogram.
         """
@@ -142,7 +169,7 @@ class LITLogParser:
 
     def extract_test_lists(self) -> Tuple[TestLists, TestCounts]:
         """Extract categorized test lists and counts from LIT summary.
-        
+
         Returns:
             Tuple of (test_lists, declared_counts) where:
             - test_lists: Dictionary mapping category names to test lists
@@ -188,7 +215,7 @@ class LITLogParser:
 # Standalone functions for backward compatibility
 def extract_error_details(lines: List[str]) -> List[str]:
     """Extract error details from FAIL/TIMEOUT entries.
-    
+
     Convenience function. For new code, prefer using LITLogParser class.
     """
     parser = LITLogParser(lines)
@@ -197,7 +224,7 @@ def extract_error_details(lines: List[str]) -> List[str]:
 
 def extract_statistics(lines: List[str]) -> List[str]:
     """Extract test statistics from LIT summary.
-    
+
     Convenience function. For new code, prefer using LITLogParser class.
     """
     parser = LITLogParser(lines)
@@ -206,7 +233,7 @@ def extract_statistics(lines: List[str]) -> List[str]:
 
 def extract_time_summary(lines: List[str]) -> TimingSummary:
     """Extract timing from LIT --time-tests.
-    
+
     Convenience function. For new code, prefer using LITLogParser class.
     """
     parser = LITLogParser(lines)
@@ -215,7 +242,7 @@ def extract_time_summary(lines: List[str]) -> TimingSummary:
 
 def extract_test_lists(lines: List[str]) -> Tuple[TestLists, TestCounts]:
     """Extract categorized test lists and counts from LIT summary.
-    
+
     Convenience function. For new code, prefer using LITLogParser class.
     """
     parser = LITLogParser(lines)

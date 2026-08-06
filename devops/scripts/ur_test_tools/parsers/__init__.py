@@ -10,6 +10,7 @@ from .log_parser import (
 )
 from .xml_parser import (
     JUnitXMLParser,
+    ParsedXMLTests,
     extract_tests_from_xml,
 )
 from .stats_parser import get_count_from_stats
@@ -22,6 +23,7 @@ __all__ = [
     "extract_time_summary",
     "extract_test_lists",
     "JUnitXMLParser",
+    "ParsedXMLTests",
     "extract_tests_from_xml",
     "get_count_from_stats",
 ]
