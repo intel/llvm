@@ -46,9 +46,7 @@ void test_kernel(sycl::nd_item<1> item, int *data, int n) {
 
 // Single task free function kernel
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
-void init_kernel(int *ptr, int value) {
-  *ptr = value;
-}
+void init_kernel(int *ptr, int value) { *ptr = value; }
 
 int main() {
   sycl::queue q;
@@ -75,8 +73,8 @@ int main() {
 
   // Alternative: direct queue submission
   sycl::nd_range<1> range{N, 64};
-  syclexp::nd_launch(q, range, syclexp::kernel_function_s<test_kernel>{},
-                     data, N);
+  syclexp::nd_launch(q, range, syclexp::kernel_function_s<test_kernel>{}, data,
+                     N);
 
   q.wait();
 
