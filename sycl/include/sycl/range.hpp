@@ -106,8 +106,6 @@ public:
   }
 #else
 
-// Can't find either of them in documentation, not adding noexcept for these,
-// maybe need to be removed
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   friend range<Dimensions> operator op(const range<Dimensions> &lhs,           \
@@ -172,9 +170,6 @@ public:
     }                                                                          \
     return lhs;                                                                \
   }
-
-  // second overload above is not in documentation, maybe need to be removed or
-  // guarded against __SYCL_DISABLE_ID_TO_INT_CONV__ like the other operators
 
   __SYCL_GEN_OPT(+=)
   __SYCL_GEN_OPT(-=)
