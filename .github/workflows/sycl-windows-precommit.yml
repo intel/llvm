@@ -98,10 +98,13 @@ jobs:
         include:
           - name: New Offload Model / Intel GEN12 Graphics with Level Zero
             runner: '["Windows","gen12"]'
+            intel_gpu_aot_targets: 'intel_gpu_tgllp'
           - name: New Offload Model / Intel Arc Graphics with Level Zero
             runner: '["Windows","arc"]'
+            intel_gpu_aot_targets: 'intel_gpu_dg2'
           - name: New Offload Model / Intel Battlemage Graphics with Level Zero
             runner: '["Windows","bmg"]'
+            intel_gpu_aot_targets: 'intel_gpu_bmg_g21'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -110,4 +113,4 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       testing_mode: run-only
       binaries_artifact: sycl_windows_e2ebin_with_new_offload_model
-      extra_lit_opts: --param enable_new_offload_model=True
+      extra_lit_opts: --param enable_new_offload_model=True --param intel_gpu_aot_targets=${{ matrix.intel_gpu_aot_targets }}

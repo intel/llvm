@@ -15,12 +15,12 @@
 // CHECK-ENABLED-COUNT-2: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
 
 /// Check device traits macros are defined if sycl is enabled: 
-/// In this case the sycl targets are spir64, spir64_gen and the host
+/// In this case the sycl targets are spir64, spir64_x86_64 and the host
 /// target (e.g. x86_64). We expect three occurrences of the macro
 /// definition, one for host and one for each of the two devices.
-// RUN:   %clang -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
+// RUN:   %clang -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_x86_64 -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS %s
-// RUN:   %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
+// RUN:   %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64,spir64_x86_64 -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS %s
 // CHECK-SYCL-TARGETS-COUNT-3: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
 

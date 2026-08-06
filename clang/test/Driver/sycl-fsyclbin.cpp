@@ -116,15 +116,15 @@
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_NOT_IMPLIED
 // CHECK_DEPS_NOT_IMPLIED-NOT: -sycl-allow-device-image-dependencies
 
-/// For AOT spir64_gen, -fsyclbin=input/object additionally implies
+/// For AOT, -fsyclbin=input/object additionally implies
 /// -library-compilation in the backend options so symbols stay
 /// externally visible for runtime cross-image resolution.
-// RUN: %clangxx -fsyclbin=object -fsycl-targets=spir64_gen \
+// RUN: %clangxx -fsyclbin=object -fsycl-targets=intel_gpu_pvc \
 // RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_LIBCOMP_IMPLIED
 // CHECK_LIBCOMP_IMPLIED: -library-compilation
 
-// RUN: %clangxx -fsyclbin=executable -fsycl-targets=spir64_gen \
+// RUN: %clangxx -fsyclbin=executable -fsycl-targets=intel_gpu_pvc \
 // RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_LIBCOMP_NOT_IMPLIED
 // CHECK_LIBCOMP_NOT_IMPLIED-NOT: -library-compilation

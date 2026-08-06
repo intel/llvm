@@ -11,6 +11,13 @@
 // CPU/GPU AOT cross-image link uses a different mechanism (-create-library)
 // that is not yet implemented, so all OpenCL devices are excluded.
 
+// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: On BMG, the intentional negative-case
+// sycl::link({KBObj1, KBObj1Extra, KBObj2}) at Inputs/link.hpp:70 throws
+// "Conflicting kernel definitions" as designed, but the exception escapes
+// past catch(sycl::exception&) and aborts via std::unexpected() — a
+// noexcept violation on the AOT native-link path.
+
 // -- Link two AOT-only object-state SYCLBINs. Unlike link_object.cpp (JIT
 // -- spir64) this compiles for a native AOT target (spir64_gen), so the
 // -- object-state bundles carry native device code images with unresolved
@@ -26,12 +33,10 @@
 // -- exercises the full AOT object-state link-and-run path.
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object \
-// RUN:   -fsycl-targets=spir64_gen \
-// RUN:   -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts \
+// RUN:   -fsycl-targets=%{intel_gpu_aot_targets} \
 // RUN:   %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object \
-// RUN:   -fsycl-targets=spir64_gen \
-// RUN:   -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts \
+// RUN:   -fsycl-targets=%{intel_gpu_aot_targets} \
 // RUN:   %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.export.syclbin %t.import.syclbin

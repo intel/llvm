@@ -26,11 +26,13 @@
 // RUN:   | FileCheck -check-prefix=CHK-AOT-NO-RDC %s
 // CHK-AOT-NO-RDC: clang-linker-wrapper{{.*}} "--no-sycl-rdc"
 
-// Test compilation step.
+// Test compilation step: spir64_gen is no longer supported under the new
+// offload model, so the driver rejects it before -fno-sycl-rdc is even
+// evaluated.
 // RUN: not %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -fno-sycl-rdc --no-offloadlib -fno-sycl-instrument-device-code %t.cpp -c -o %t.o 2>&1 \
 // RUN:    | FileCheck -check-prefix=CHK-COMPILE-STEP-ERROR %s
 
-// CHK-COMPILE-STEP-ERROR: error: argument unused during compilation: '-fno-sycl-rdc' [-Werror,-Wunused-command-line-argument]
+// CHK-COMPILE-STEP-ERROR: error: SYCL target 'spir64_gen' is no longer supported; use '-fsycl-targets=intel_gpu_<device>' with per-device '-Xsycl-target-backend=intel_gpu_<device>' instead
 
 // Verify pipeline with --offload-new-driver -fno-sycl-rdc.
 // RUN: touch %t1.cpp
