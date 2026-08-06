@@ -4494,8 +4494,14 @@ public:
         FreeFunctionSrcLoc(FF->getLocation()) {}
 
   ~FreeFunctionKernelBodyCreator() {
-    CompoundStmt *KernelBody = createFreeFunctionKernelBody();
-    DeclCreator.setBody(KernelBody);
+    // For host compilation, skip creating the wrapper body to reduce object
+    // size. The wrapper (__sycl_kernel_*) won't be called on host, so leaving
+    // it as a declaration-only significantly reduces host object bloat (~3x
+    // size issue).
+    if (SemaSYCLRef.SemaRef.getLangOpts().SYCLIsDevice) {
+      CompoundStmt *KernelBody = createFreeFunctionKernelBody();
+      DeclCreator.setBody(KernelBody);
+    }
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
