@@ -2,6 +2,21 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+# UMF is only ever linked in (statically or dynamically) by the adapters
+# below, either directly (level_zero) or through the ur_umf INTERFACE target
+# (cuda, hip). native_cpu and offload implement USM allocation themselves and
+# do not use UMF. Adapters that don't build (e.g. opencl on a macOS build
+# that only enables "opencl") never reference UMF at all, so there is no
+# need to fetch/build it in that case. UR_BUILD_ADAPTER_ALL builds every
+# adapter, including the UMF-consuming ones, so it also requires UMF.
+if (UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2 OR
+    UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP OR
+    UR_BUILD_ADAPTER_ALL)
+    set(UR_UMF_REQUIRED ON)
+else()
+    set(UR_UMF_REQUIRED OFF)
+endif()
+
 if (UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
     include(FetchLevelZero)
     set(UMF_BUILD_LEVEL_ZERO_PROVIDER ON CACHE INTERNAL "Build Level Zero Provider")
@@ -76,44 +91,52 @@ if ((UR_STATIC_ADAPTER_L0 AND UR_BUILD_ADAPTER_L0) OR
         set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
     endif()
 endif()
-  
+
 set(UR_USE_EXTERNAL_UMF ON CACHE BOOL "Use a pre-built UMF if available")
 
-if(UR_USE_EXTERNAL_UMF)
-  find_package(umf 1.1.0 QUIET)
-endif()
-if(umf_FOUND)
-  message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
-  # Promote umf::umf and umf::umf_headers IMPORTED targets to global scope so
-  # sibling subdirectories (loader, adapters) can link against them.
-  set_target_properties(umf::umf PROPERTIES IMPORTED_GLOBAL TRUE)
-  set_target_properties(umf::umf_headers PROPERTIES IMPORTED_GLOBAL TRUE)
-  # Add an alias matching the FetchContent case
-  add_library(umf::headers ALIAS umf::umf_headers)
-else()
-  set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
-
-  # commit d8763834d68f9545db30bea5d092edd78ad3d748
-  # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Mon Jul 27 15:32:41 2026 +0200
-  #     1.2.0 release
-  set(UMF_TAG v1.2.0)
-
-  if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
-    message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
+# Only fetch/build UMF when some adapter actually links against it
+# (UR_UMF_REQUIRED, computed above from the enabled adapters). On builds where
+# no adapter references umf::umf (e.g. a macOS build that only enables
+# "opencl"), skip it entirely: nothing needs it at build time or at runtime.
+if (UR_UMF_REQUIRED)
+  if(UR_USE_EXTERNAL_UMF)
+    find_package(umf 1.1.0 QUIET)
   endif()
+  if(umf_FOUND)
+    message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
+    # Promote umf::umf and umf::umf_headers IMPORTED targets to global scope so
+    # sibling subdirectories (loader, adapters) can link against them.
+    set_target_properties(umf::umf PROPERTIES IMPORTED_GLOBAL TRUE)
+    set_target_properties(umf::umf_headers PROPERTIES IMPORTED_GLOBAL TRUE)
+    # Add an alias matching the FetchContent case
+    add_library(umf::headers ALIAS umf::umf_headers)
+  else()
+    set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-  include(FetchContent)
-  FetchContent_Declare(unified-memory-framework
-    GIT_REPOSITORY    ${UMF_REPO}
-    GIT_TAG           ${UMF_TAG}
-    )
-  set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
-  set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
-  set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
+    # commit d8763834d68f9545db30bea5d092edd78ad3d748
+    # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Mon Jul 27 15:32:41 2026 +0200
+    #     1.2.0 release
+    set(UMF_TAG v1.2.0)
 
-  FetchContent_MakeAvailable(unified-memory-framework)
-  FetchContent_GetProperties(unified-memory-framework)
+    if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
+      message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
+    endif()
+
+    include(FetchContent)
+    FetchContent_Declare(unified-memory-framework
+      GIT_REPOSITORY    ${UMF_REPO}
+      GIT_TAG           ${UMF_TAG}
+      )
+    set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
+    set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
+    set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
+
+    FetchContent_MakeAvailable(unified-memory-framework)
+    FetchContent_GetProperties(unified-memory-framework)
+  endif()
+else()
+  message(STATUS "No adapter requires UMF, skipping its build")
 endif()
 
 if(UR_ENABLE_LATENCY_HISTOGRAM)
@@ -158,27 +181,31 @@ install(TARGETS ur_common
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-add_library(ur_umf INTERFACE)
-target_sources(ur_umf INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_helpers.hpp>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_pools/disjoint_pool_config_parser.cpp>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ur_pool_manager.hpp>
-)
-
-add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
-
-target_link_libraries(ur_umf INTERFACE
-    umf::umf
-    umf::headers
-)
-
-# Install ur_umf when any static adapter is enabled, so install(EXPORT ...)
-# can resolve it for static consumers.
-if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2 OR UR_STATIC_ADAPTER_OPENCL)
-    install(TARGETS ur_umf
-        EXPORT ${PROJECT_NAME}-targets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+# ur_umf (and the umf::umf target it wraps) only exists when UR_UMF_REQUIRED,
+# i.e. when some adapter actually links against it (see top of this file).
+if (UR_UMF_REQUIRED)
+    add_library(ur_umf INTERFACE)
+    target_sources(ur_umf INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_helpers.hpp>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_pools/disjoint_pool_config_parser.cpp>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ur_pool_manager.hpp>
     )
+
+    add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
+
+    target_link_libraries(ur_umf INTERFACE
+        umf::umf
+        umf::headers
+    )
+
+    # Install ur_umf when any static adapter is enabled, so install(EXPORT ...)
+    # can resolve it for static consumers.
+    if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2 OR UR_STATIC_ADAPTER_OPENCL)
+        install(TARGETS ur_umf
+            EXPORT ${PROJECT_NAME}-targets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        )
+    endif()
 endif()
