@@ -26,6 +26,13 @@
 // RUN: FileCheck %s --input-file %t_host_syms.txt --check-prefix=CHECK-HOST
 //
 // CHECK-HOST-NOT: {{[0-9a-f]+ T .*__sycl_kernel.*test_kernel}}
+//
+// Build to verify the free function kernels still compile and link
+// correctly. Actual device execution is covered by the e2e test suite;
+// sycl/test tests are compile-only and must not depend on a real device.
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t2.out
+
+#include <cassert>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
@@ -49,6 +56,24 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
 void init_kernel(int *ptr, int value) { *ptr = value; }
 
 int main() {
+  // Call test_kernel directly as a plain host function to confirm it
+  // keeps a real, callable definition on the host (not just the device-only
+  // __sycl_kernel_* wrapper).
+  {
+    sycl::id<1> zero{0};
+    sycl::range<1> extent{1};
+    auto group = sycl::detail::Builder::createGroup<1>(extent, extent, zero);
+    auto globalItem =
+        sycl::detail::Builder::createItem<1, true>(extent, zero, zero);
+    auto localItem = sycl::detail::Builder::createItem<1, false>(extent, zero);
+    auto item =
+        sycl::detail::Builder::createNDItem<1>(globalItem, localItem, group);
+
+    int hostData = 20;
+    test_kernel(item, &hostData, 1);
+    assert(hostData == 41);
+  }
+
   sycl::queue q;
   const int N = 64;
 
