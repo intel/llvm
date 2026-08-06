@@ -110,7 +110,11 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMemoryFramework ALIAS ur_umf)
+# ur_umf only exists when some enabled backend actually links UMF (see
+# UR_UMF_REQUIRED in unified-runtime/source/common/CMakeLists.txt).
+if(TARGET ur_umf)
+  add_library(UnifiedMemoryFramework ALIAS ur_umf)
+endif()
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
