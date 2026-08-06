@@ -61,17 +61,17 @@ public:
     return result;
   }
 
-  size_t get(int dimension) const {
+  size_t get(int dimension) const noexcept {
     check_dimension(dimension);
     return common_array[dimension];
   }
 
-  size_t &operator[](int dimension) {
+  size_t &operator[](int dimension) noexcept {
     check_dimension(dimension);
     return common_array[dimension];
   }
 
-  size_t operator[](int dimension) const {
+  size_t operator[](int dimension) const noexcept {
     check_dimension(dimension);
     return common_array[dimension];
   }
