@@ -2810,6 +2810,9 @@ public:
   // User-defined HLSL records or arrays of such records in standard layout
   bool isHLSLStandardLayoutRecordOrArrayOf() const;
 
+#define SPIRV_TYPE(Name, Id, SingletonId) bool is##Id##Type() const;
+#include "clang/Basic/SPIRVTypes.def"
+
   /// Determines if this type, which must satisfy
   /// isObjCLifetimeType(), is implicitly __unsafe_unretained rather
   /// than implicitly __strong.
@@ -3269,6 +3272,9 @@ public:
 // HLSL intangible Types
 #define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) Id,
 #include "clang/Basic/HLSLIntangibleTypes.def"
+// SPIRV types
+#define SPIRV_TYPE(Name, Id, SingletonId) Id,
+#include "clang/Basic/SPIRVTypes.def"
 // All other builtin types
 #define BUILTIN_TYPE(Id, SingletonId) Id,
 #define LAST_BUILTIN_TYPE(Id) LastKind = Id
@@ -9067,6 +9073,12 @@ inline bool Type::isOpenCLSpecificType() const {
     return isSpecificBuiltinType(BuiltinType::Id);                             \
   }
 #include "clang/Basic/HLSLIntangibleTypes.def"
+
+#define SPIRV_TYPE(Name, Id, SingletonId)                                      \
+  inline bool Type::is##Id##Type() const {                                     \
+    return isSpecificBuiltinType(BuiltinType::Id);                             \
+  }
+#include "clang/Basic/SPIRVTypes.def"
 
 inline bool Type::isHLSLBuiltinIntangibleType() const {
 #define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) is##Id##Type() ||
