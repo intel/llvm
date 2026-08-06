@@ -59,7 +59,10 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY 1
 #define SYCL_EXT_ONEAPI_ROOT_GROUP 1
 #define SYCL_EXT_ONEAPI_SRGB 1
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Advertise the deprecated sub-group extension in non-preview builds.
 #define SYCL_EXT_ONEAPI_SUB_GROUP 1
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #define SYCL_EXT_ONEAPI_PROPERTIES 1
 #define SYCL_EXT_ONEAPI_NATIVE_MATH 1
 #define SYCL_EXT_ONEAPI_BFLOAT16 1
