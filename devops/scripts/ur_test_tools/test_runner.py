@@ -18,18 +18,7 @@ from .parsers.log_parser import _read_with_utf8_fallback
 
 
 def get_test_config(test_type: str, build_dir: str) -> TestConfig:
-    """Get test configuration based on test type.
-
-    Args:
-        test_type: Type of tests to run ('adapter-specific', 'conformance').
-        build_dir: Build directory path (unused but kept for compatibility).
-
-    Returns:
-        TestConfig for the specified test type.
-
-    Raises:
-        ValueError: If test_type is invalid.
-    """
+    """Get test configuration for test type."""
     if test_type == "adapter-specific":
         return TestConfig(
             target="check-unified-runtime-adapter",
@@ -49,11 +38,7 @@ def get_test_config(test_type: str, build_dir: str) -> TestConfig:
 
 
 def calculate_jobs() -> int:
-    """Calculate number of parallel jobs (nproc/3 capped at MAX_JOBS).
-
-    Returns:
-        Number of parallel jobs to use for cmake builds.
-    """
+    """Calculate parallel jobs (nproc/3 capped at MAX_JOBS)."""
     try:
         nproc = os.cpu_count() or 4
         return min(nproc // 3, MAX_JOBS)
@@ -63,16 +48,7 @@ def calculate_jobs() -> int:
 
 
 def check_log_has_tests(log_file: str) -> bool:
-    """Check if log file contains test results.
-
-    Scans the first MAX_LINES_TO_SCAN lines looking for "Testing:" marker.
-
-    Args:
-        log_file: Path to log file.
-
-    Returns:
-        True if log contains test results, False otherwise.
-    """
+    """Check if log contains test results."""
     def _scan_for_testing(f):
         for _ in range(MAX_LINES_TO_SCAN):
             line = f.readline()
@@ -89,28 +65,14 @@ def check_log_has_tests(log_file: str) -> bool:
 
 
 class TestRunner:
-    """Execute UR tests with full orchestration.
-
-    Responsibilities clearly separated into focused methods.
-    """
+    """Execute UR tests."""
 
     def __init__(self, context: TestExecutionContext):
-        """Initialize runner with validated context.
-
-        Args:
-            context: Test execution context with all configuration.
-        """
         self.context = context
         self.github_output = GitHubActionsOutput()
 
     def run(self) -> int:
-        """Run tests and return exit code.
-
-        High-level orchestration only - delegates to helper methods.
-
-        Returns:
-            Exit code (0 on success, 1 on error, >0 on test failures).
-        """
+        """Run tests and return exit code."""
         self._setup_environment()
 
         result = self._execute_tests()
@@ -124,7 +86,6 @@ class TestRunner:
         return result.returncode
 
     def _setup_environment(self) -> None:
-        """Configure environment variables for LIT execution."""
         lit_opts = (
             f"--show-unsupported --show-pass --show-xfail --no-progress-bar "
             f"-v --timeout {DEFAULT_LIT_TIMEOUT} -j {DEFAULT_LIT_JOBS} "
@@ -139,11 +100,6 @@ class TestRunner:
         self.context.env["ZE_ENABLE_LOADER_DEBUG_TRACE"] = "1"
 
     def _build_cmake_command(self) -> List[str]:
-        """Build cmake command with validated parameters.
-
-        Returns:
-            cmake command as list of arguments.
-        """
         jobs = calculate_jobs()
         return [
             "cmake",
@@ -156,11 +112,6 @@ class TestRunner:
         ]
 
     def _execute_tests(self) -> Optional[subprocess.CompletedProcess]:
-        """Execute cmake test command.
-
-        Returns:
-            CompletedProcess on success, None on error.
-        """
         cmd = self._build_cmake_command()
 
         print(f"Running: {' '.join(cmd)}", file=sys.stderr)
@@ -190,11 +141,6 @@ class TestRunner:
             return None
 
     def _validate_output(self) -> bool:
-        """Validate test output files were generated.
-
-        Returns:
-            True if output is valid, False otherwise.
-        """
         log_path = self.context.log_file_path
 
         if not log_path.exists() or log_path.stat().st_size == 0:
@@ -204,11 +150,6 @@ class TestRunner:
         return True
 
     def _publish_outputs(self, result: subprocess.CompletedProcess) -> None:
-        """Publish outputs for GitHub Actions.
-
-        Args:
-            result: Completed subprocess result.
-        """
         self.github_output.set_output("log-file", str(self.context.log_file_path))
 
         if (self.context.test_type == TEST_TYPE_ADAPTER_SPECIFIC and

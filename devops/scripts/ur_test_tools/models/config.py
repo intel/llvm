@@ -47,11 +47,6 @@ class TestExecutionContext:
     env: Dict[str, str] = field(default_factory=dict)
 
     def validate(self) -> None:
-        """Validate all paths are within workspace.
-
-        Raises:
-            ValueError: If any path is outside workspace or invalid.
-        """
         try:
             # Ensure log file is within workspace
             self.log_file_path.resolve().relative_to(self.workspace.resolve())

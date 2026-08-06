@@ -12,17 +12,7 @@ def validate_test_counts(
     displayed_skipped: int,
     displayed_excluded: int,
 ) -> None:
-    """Validate test counts add up correctly.
-
-    Prints warnings if the total discovered tests don't match the sum of
-    all test categories.
-
-    Args:
-        total_discovered: Total number of tests discovered (from stats).
-        test_lists: Dictionary of test categories and their test lists.
-        displayed_skipped: Number of skipped tests displayed.
-        displayed_excluded: Number of excluded tests displayed.
-    """
+    """Validate test counts match (prints warnings on mismatch)."""
     if not total_discovered:
         return
 

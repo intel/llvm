@@ -22,14 +22,7 @@ class ConsoleOutput:
         note: str = "",
         count: Optional[int] = None
     ) -> None:
-        """Print a collapsible GitHub Actions group with test list.
-
-        Args:
-            title: Group title.
-            tests: List of test names to display.
-            note: Optional note to display before tests.
-            count: Optional count to override len(tests) in title.
-        """
+        """Print GitHub Actions collapsible group with test list."""
         test_count = count if count is not None else len(tests)
         print(f"::group::{title} ({test_count})")
         if note:
@@ -41,11 +34,7 @@ class ConsoleOutput:
 
     @staticmethod
     def print_statistics(stats: List[str]) -> None:
-        """Print statistics section.
-
-        Args:
-            stats: List of statistics lines.
-        """
+        """Print statistics section."""
         if stats:
             print("=== Test Statistics ===")
             for stat in stats:
@@ -54,11 +43,7 @@ class ConsoleOutput:
 
     @staticmethod
     def print_timing_summary(lines: List[str]) -> None:
-        """Print timing information section.
-
-        Args:
-            lines: Log lines containing timing information.
-        """
+        """Print timing information section."""
         time_info = extract_time_summary(lines)
 
         testing_time = None
@@ -93,14 +78,6 @@ class ConsoleOutput:
 
 
 def filter_log_for_display(lines: List[str]) -> List[str]:
-    """Filter log to remove statistics, test lists, and timing sections.
-
-    Args:
-        lines: Original log lines.
-
-    Returns:
-        Filtered log lines suitable for display.
-    """
     result = []
     skip_until_empty = False
     in_timing = False

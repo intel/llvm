@@ -17,21 +17,12 @@ from .validation.data_validator import validate_test_counts
 
 
 class SummaryReporter:
-    """Generate comprehensive test summary.
-
-    Separates analysis logic from display logic for better testability.
-    """
+    """Generate comprehensive test summary."""
 
     def __init__(self, config: SummaryConfigFromLines):
-        """Initialize generator with configuration.
-
-        Args:
-            config: Summary configuration with log lines and optional XML path.
-        """
         self.config = config
 
     def generate(self) -> None:
-        """Generate and display complete test summary."""
         stats = extract_statistics(self.config.log_lines)
         test_lists, declared_counts = extract_test_lists(self.config.log_lines)
         total_discovered = get_count_from_stats(stats, ["Total Discovered"])
@@ -73,19 +64,7 @@ class SummaryReporter:
         stats: List[str],
         skipped_xml: List[str]
     ) -> SkippedTestsResult:
-        """Analyze skipped tests from multiple sources.
-
-        Simplified priority: XML > Log > Stats.
-        XML is the most reliable source (structured output from LIT).
-
-        Args:
-            test_lists: Test lists from log parsing.
-            stats: Statistics lines from log.
-            skipped_xml: Skipped tests from XML.
-
-        Returns:
-            SkippedTestsResult with tests, count, source, and note.
-        """
+        """Analyze skipped tests (priority: XML > Log > Stats)."""
         skipped_from_log = test_lists.get(
             "Skipped", test_lists.get("Unsupported", [])
         )
@@ -127,16 +106,7 @@ class SummaryReporter:
         declared_counts: TestCounts,
         stats: List[str]
     ) -> None:
-        """Validate skipped test counts for consistency.
-
-        Displays warning only if inconsistencies detected.
-        Silent when counts match.
-
-        Args:
-            result: Analyzed skipped tests result.
-            declared_counts: Declared counts from log headers.
-            stats: Statistics lines from log.
-        """
+        """Validate skipped counts (warns on mismatch)."""
         actual_count = result["count"]
         if actual_count == 0:
             return  # Nothing to validate
@@ -166,13 +136,6 @@ class SummaryReporter:
             )
 
     def _display_skipped_tests(self, result: SkippedTestsResult) -> None:
-        """Display skipped tests result.
-
-        Pure display function - no logic, just formatting.
-
-        Args:
-            result: Skipped tests analysis result.
-        """
         if result["count"] > 0:
             ConsoleOutput.print_test_group(
                 "Skipped Tests",
@@ -182,11 +145,6 @@ class SummaryReporter:
             )
 
     def _cleanup_skipped_from_test_lists(self, test_lists: TestLists) -> None:
-        """Remove skipped tests from lists (explicit side effect).
-
-        Args:
-            test_lists: Test lists dictionary to modify.
-        """
         test_lists.pop("Skipped", None)
         test_lists.pop("Unsupported", None)
 
@@ -196,18 +154,7 @@ class SummaryReporter:
         stats: List[str],
         excluded_xml: List[str]
     ) -> ExcludedTestsResult:
-        """Analyze excluded tests from multiple sources.
-
-        Pure function - no side effects, just returns result.
-
-        Args:
-            test_lists: Test lists from log parsing.
-            stats: Statistics lines from log.
-            excluded_xml: Excluded tests from XML.
-
-        Returns:
-            ExcludedTestsResult with tests, count, source, and note.
-        """
+        """Analyze excluded tests (priority: Log > XML > Stats)."""
         excluded_from_log = test_lists.get("Excluded", [])
         stats_count = get_count_from_stats(stats, ["Excluded"])
 
@@ -247,16 +194,7 @@ class SummaryReporter:
         declared_counts: TestCounts,
         stats: List[str]
     ) -> None:
-        """Validate excluded test counts for consistency.
-
-        Displays warning only if inconsistencies detected.
-        Silent when counts match.
-
-        Args:
-            result: Analyzed excluded tests result.
-            declared_counts: Declared counts from log headers.
-            stats: Statistics lines from log.
-        """
+        """Validate excluded counts (warns on mismatch)."""
         actual_count = result["count"]
         if actual_count == 0:
             return  # Nothing to validate
@@ -284,13 +222,6 @@ class SummaryReporter:
             )
 
     def _display_excluded_tests(self, result: ExcludedTestsResult) -> None:
-        """Display excluded tests result.
-
-        Pure display function - no logic, just formatting.
-
-        Args:
-            result: Excluded tests analysis result.
-        """
         if result["count"] > 0:
             ConsoleOutput.print_test_group(
                 "Excluded Tests",
@@ -300,33 +231,10 @@ class SummaryReporter:
             )
 
     def _cleanup_excluded_from_test_lists(self, test_lists: TestLists) -> None:
-        """Remove excluded tests from lists (explicit side effect).
-
-        Args:
-            test_lists: Test lists dictionary to modify.
-        """
         test_lists.pop("Excluded", None)
 
     def _display_remaining_categories(self, test_lists: TestLists) -> None:
-        """Display all remaining test categories.
-
-        Args:
-            test_lists: Test lists dictionary.
-        """
         for category, tests in test_lists.items():
             if tests:
                 ConsoleOutput.print_test_group(f"{category} Tests", tests)
 
-
-# Standalone function for backward compatibility
-def print_test_summary(config: SummaryConfigFromLines) -> None:
-    """Display test statistics and categorized test lists.
-
-    This is a convenience function that creates a reporter and runs it.
-    For new code, prefer using SummaryReporter class directly.
-
-    Args:
-        config: Summary configuration with log lines and XML file path.
-    """
-    reporter = SummaryReporter(config)
-    reporter.generate()

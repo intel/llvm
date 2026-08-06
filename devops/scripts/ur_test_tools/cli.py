@@ -10,7 +10,7 @@ from .parsers.log_parser import (
     extract_error_details,
 )
 from .outputs.console import filter_log_for_display
-from .summary_generator import print_test_summary
+from .summary_generator import SummaryReporter
 from .test_runner import (
     TestRunner,
     get_test_config,
@@ -20,13 +20,7 @@ from .outputs.github_actions import GitHubActionsOutput
 
 
 def main() -> int:
-    """Unified CLI entry point.
-
-    Routes commands to appropriate handlers based on first argument.
-
-    Returns:
-        0 on success, 1 on error, >0 on test failure.
-    """
+    """Unified CLI entry point."""
     if len(sys.argv) < 2:
         print("Usage: ur-test <command> [args...]", file=sys.stderr)
         print("", file=sys.stderr)
@@ -91,11 +85,7 @@ def main() -> int:
 
 
 def main_test_summary() -> int:
-    """Entry point for ur_test_summary CLI.
-
-    Returns:
-        0 on success, 1 on error.
-    """
+    """Entry point for ur_test_summary CLI."""
     try:
         if len(sys.argv) < 3:
             print(
@@ -128,7 +118,7 @@ def main_test_summary() -> int:
                 log_lines=lines,
                 xml_file=xml_file if xml_file else None
             )
-            print_test_summary(config)
+            SummaryReporter(config).generate()
 
         else:
             print(f"Error: Unknown command '{command}'", file=sys.stderr)
@@ -142,11 +132,7 @@ def main_test_summary() -> int:
 
 
 def main_ci_utils() -> int:
-    """Entry point for ur_ci_utils CLI.
-
-    Returns:
-        0 on success, 1 on error, >0 on test failure.
-    """
+    """Entry point for ur_ci_utils CLI."""
     if len(sys.argv) < 2:
         print(f"Error: {sys.argv[0]} <command> [args...]", file=sys.stderr)
         return 1

@@ -15,21 +15,6 @@ from ..models.test_data import TestLists, TestCounts, TimingSummary
 
 
 def _read_with_utf8_fallback(path: str, read_func):
-    """Execute read function with UTF-8 fallback on decode error.
-
-    Tries strict UTF-8 decoding first. On UnicodeDecodeError during read,
-    reopens file with replacement mode and logs warning.
-
-    Args:
-        path: Path to file to read.
-        read_func: Callable that takes file handle and returns result.
-
-    Returns:
-        Result from read_func.
-
-    Raises:
-        OSError: If file cannot be opened.
-    """
     try:
         with open(path, "r", encoding="utf-8", errors="strict") as f:
             return read_func(f)
@@ -44,20 +29,6 @@ def _read_with_utf8_fallback(path: str, read_func):
 
 
 def read_log_file(log_path: str) -> List[str]:
-    """Read log file and return lines.
-
-    Handles UTF-8 decoding with fallback to replacement characters.
-    Prints warning for large files (>10 MB).
-
-    Args:
-        log_path: Path to log file.
-
-    Returns:
-        List of lines from the file.
-
-    Raises:
-        OSError: If file cannot be read.
-    """
     path = Path(log_path)
     file_size = path.stat().st_size
 
@@ -83,19 +54,9 @@ class LITLogParser:
     """
 
     def __init__(self, lines: List[str]):
-        """Initialize parser with log lines.
-
-        Args:
-            lines: List of log file lines.
-        """
         self.lines = lines
 
     def extract_error_details(self) -> List[str]:
-        """Extract error details from FAIL/TIMEOUT entries.
-
-        Returns:
-            List of lines containing error details.
-        """
         result = []
         in_error = False
 
@@ -117,19 +78,9 @@ class LITLogParser:
         return result
 
     def extract_statistics(self) -> List[str]:
-        """Extract test statistics from LIT summary.
-
-        Returns:
-            List of statistics lines.
-        """
         return [line for line in self.lines if STATS_PATTERN.match(line)]
 
     def extract_time_summary(self) -> TimingSummary:
-        """Extract timing from LIT --time-tests (slowest tests and histogram).
-
-        Returns:
-            TimingSummary with slowest tests and timing histogram.
-        """
         result: TimingSummary = {"slowest": [], "histogram": []}
         current_section = None
         skip_next_hr = False
@@ -168,13 +119,6 @@ class LITLogParser:
         return result
 
     def extract_test_lists(self) -> Tuple[TestLists, TestCounts]:
-        """Extract categorized test lists and counts from LIT summary.
-
-        Returns:
-            Tuple of (test_lists, declared_counts) where:
-            - test_lists: Dictionary mapping category names to test lists
-            - declared_counts: Dictionary mapping category names to declared counts
-        """
         categories: TestLists = {}
         declared_counts: TestCounts = {}
         current_category = None
@@ -214,36 +158,20 @@ class LITLogParser:
 
 # Standalone functions for backward compatibility
 def extract_error_details(lines: List[str]) -> List[str]:
-    """Extract error details from FAIL/TIMEOUT entries.
-
-    Convenience function. For new code, prefer using LITLogParser class.
-    """
     parser = LITLogParser(lines)
     return parser.extract_error_details()
 
 
 def extract_statistics(lines: List[str]) -> List[str]:
-    """Extract test statistics from LIT summary.
-
-    Convenience function. For new code, prefer using LITLogParser class.
-    """
     parser = LITLogParser(lines)
     return parser.extract_statistics()
 
 
 def extract_time_summary(lines: List[str]) -> TimingSummary:
-    """Extract timing from LIT --time-tests.
-
-    Convenience function. For new code, prefer using LITLogParser class.
-    """
     parser = LITLogParser(lines)
     return parser.extract_time_summary()
 
 
 def extract_test_lists(lines: List[str]) -> Tuple[TestLists, TestCounts]:
-    """Extract categorized test lists and counts from LIT summary.
-
-    Convenience function. For new code, prefer using LITLogParser class.
-    """
     parser = LITLogParser(lines)
     return parser.extract_test_lists()
