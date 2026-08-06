@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "unified-runtime/ur_api.h"
+#include "uur/raii.h"
 
 struct urQueueIsGraphCaptureEnabledExpTest : uur::urGraphSupportedExpTest {
   void SetUp() override {
@@ -163,9 +165,31 @@ TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest,
   // Subsequent operation on queue2 without any dependency on queue1. It must
   // remain part of the capture: queue2 should still report recording enabled.
   uur::raii::Event noDepEvent = nullptr;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue2, 0, nullptr, noDepEvent.ptr()));
+  size_t size = 1024;
+  void *ptr1 = nullptr;
+  void *ptr2 = nullptr;
+  ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &ptr1));
+  ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &ptr2));
+
+  // Fill ptr1 with a pattern and clear ptr2 so we can tell whether the copy
+  // was recorded or executed.
+  uint32_t *ptr1_data = static_cast<uint32_t *>(ptr1);
+  uint32_t *ptr2_data = static_cast<uint32_t *>(ptr2);
+  *ptr1_data = 0xdeadbeefU;
+  *ptr2_data = 0U;
+
+  // Submit memcpy operation on queue2 without dependency on queue1. This
+  // operation should be recorded in the capture. It must be non-blocking: a
+  // blocking copy would host-synchronize the capturing command list, which
+  // has nothing to wait for because the copy is only recorded, and the driver
+  // rejects the synchronization.
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue2, false, ptr2, ptr1, size, 0, nullptr,
+                                    noDepEvent.ptr()));
   ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
   ASSERT_TRUE(isEnabled);
+
+  // Verify that the copy is not performed yet (it's recorded but not executed)
+  ASSERT_EQ(*ptr2_data, 0U);
 
   // Join both queue2 operations back to queue1 and finish recording.
   ur_event_handle_t joinEvents[] = {joinEvent.get(), noDepEvent.get()};
@@ -180,4 +204,7 @@ TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest,
   // recording state as well.
   ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
   ASSERT_FALSE(isEnabled);
+
+  ASSERT_SUCCESS(urUSMFree(context, ptr1));
+  ASSERT_SUCCESS(urUSMFree(context, ptr2));
 }
