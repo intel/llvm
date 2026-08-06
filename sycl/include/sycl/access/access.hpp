@@ -16,6 +16,12 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// forward declaration
+enum class access_mode;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 namespace access {
 
 enum class target {
@@ -30,14 +36,21 @@ enum class target {
   host_task = 2021,
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 enum class mode {
   read = 1024,
   write = 1025,
   read_write = 1026,
-  discard_write = 1027,
-  discard_read_write = 1028,
-  atomic = 1029
+  discard_write __SYCL2020_DEPRECATED(
+      "use 'write' with the 'no_init' property instead") = 1027,
+  discard_read_write __SYCL2020_DEPRECATED(
+      "use 'read' with the 'no_init' property instead") = 1028,
+  atomic __SYCL2020_DEPRECATED("use 'atomic_ref' instead") = 1029
 };
+#else
+using mode
+    __SYCL2020_DEPRECATED("use 'access_mode' instead") = sycl::access_mode;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 enum class __SYCL2020_DEPRECATED("Removed in SYCL 2020") fence_space {
@@ -63,7 +76,22 @@ enum class decorated : int { no = 0, yes = 1, legacy = 2 };
 } // namespace access
 
 using access::target;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 using access_mode = access::mode;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+enum class access_mode {
+  read = 1024,
+  write = 1025,
+  read_write = 1026,
+  discard_write __SYCL2020_DEPRECATED(
+      "use 'write' with the 'no_init' property instead") = 1027,
+  discard_read_write __SYCL2020_DEPRECATED(
+      "use 'read' with the 'no_init' property instead") = 1028,
+  atomic __SYCL2020_DEPRECATED("use 'atomic_ref' instead") = 1029
+};
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 enum class image_target : unsigned int { device = 0, host_task = 1 };
 
