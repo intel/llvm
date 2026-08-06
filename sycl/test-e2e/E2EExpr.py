@@ -211,7 +211,7 @@ class TestE2EExpr(unittest.TestCase):
         # Any major/minor pair should match
         self.assertTrue(E2EExpr.is_build_specific("level_zero_sdk_2_130"))
 
-        # reject build malformed SDK values
+        # reject malformed SDK features
         self.assertFalse(E2EExpr.is_build_specific("level_zero_sdk_1"))
         self.assertFalse(E2EExpr.is_build_specific("level_zero_sdk_1_14_0"))
 
