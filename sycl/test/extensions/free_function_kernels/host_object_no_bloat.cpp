@@ -12,6 +12,15 @@
 // Dump symbols to a file and verify wrapper is NOT defined
 // RUN: llvm-nm %t_host.o > %t_host_syms.txt
 //
+// Sanity check that the dump has real content, so the CHECK-NOT below can't
+// pass vacuously (e.g. because of an empty/broken symbol dump). The original
+// kernel functions keep their host definitions; only the __sycl_kernel_*
+// wrapper's body is elided.
+// RUN: FileCheck %s --input-file %t_host_syms.txt --check-prefix=CHECK-HOST-SANITY
+//
+// CHECK-HOST-SANITY-DAG: {{[0-9a-f]+ T _Z11test_kernel}}
+// CHECK-HOST-SANITY-DAG: {{[0-9a-f]+ T _Z11init_kernel}}
+//
 // The wrapper function __sycl_kernel_* should not have type 'T' (defined text).
 // If it appears with 'T', the fix has regressed.
 // RUN: FileCheck %s --input-file %t_host_syms.txt --check-prefix=CHECK-HOST
