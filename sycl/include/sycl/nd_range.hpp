@@ -63,6 +63,7 @@ public:
   nd_range<Dimensions> &operator=(const nd_range<Dimensions> &rhs) = default;
   nd_range<Dimensions> &operator=(nd_range<Dimensions> &&rhs) = default;
   nd_range() = default;
+  ~nd_range() noexcept = default;
 
   // Common member functions for by-value semantics
   friend bool operator==(const nd_range<Dimensions> &lhs,
