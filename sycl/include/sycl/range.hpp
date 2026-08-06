@@ -39,22 +39,23 @@ public:
   /* The following constructor is only available in the range class
   specialization where: Dimensions==1 */
   template <int N = Dimensions>
-  range(typename std::enable_if_t<(N == 1), size_t> dim0) : base(dim0) {}
+  range(typename std::enable_if_t<(N == 1), size_t> dim0) noexcept
+      : base(dim0) {}
 
   /* The following constructor is only available in the range class
   specialization where: Dimensions==2 */
   template <int N = Dimensions>
-  range(typename std::enable_if_t<(N == 2), size_t> dim0, size_t dim1)
+  range(typename std::enable_if_t<(N == 2), size_t> dim0, size_t dim1) noexcept
       : base(dim0, dim1) {}
 
   /* The following constructor is only available in the range class
   specialization where: Dimensions==3 */
   template <int N = Dimensions>
   range(typename std::enable_if_t<(N == 3), size_t> dim0, size_t dim1,
-        size_t dim2)
+        size_t dim2) noexcept
       : base(dim0, dim1, dim2) {}
 
-  size_t size() const {
+  size_t size() const noexcept {
     size_t size = 1;
     for (int i = 0; i < Dimensions; ++i) {
       size *= this->common_array[i];
@@ -63,15 +64,17 @@ public:
   }
 
   range(const range<Dimensions> &rhs) = default;
-  range(range<Dimensions> &&rhs) = default;
+  range(range<Dimensions> &&rhs) noexcept = default;
   range<Dimensions> &operator=(const range<Dimensions> &rhs) = default;
-  range<Dimensions> &operator=(range<Dimensions> &&rhs) = default;
-  range() = default;
+  range<Dimensions> &operator=(range<Dimensions> &&rhs) noexcept = default;
+  range() noexcept = default;
+
+  ~range() noexcept = default;
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT_BASE(op)                                                \
-  friend range<Dimensions> operator op(const range<Dimensions> &lhs,           \
-                                       const range<Dimensions> &rhs) {         \
+  friend range<Dimensions> operator op(                                        \
+      const range<Dimensions> &lhs, const range<Dimensions> &rhs) noexcept {   \
     range<Dimensions> result(lhs);                                             \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs.common_array[i];     \
@@ -85,7 +88,7 @@ public:
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
   friend IntegralType<T, range<Dimensions>> operator op(                       \
-      const range<Dimensions> &lhs, const T &rhs) {                            \
+      const range<Dimensions> &lhs, const T &rhs) noexcept {                   \
     range<Dimensions> result(lhs);                                             \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
@@ -94,7 +97,7 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   friend IntegralType<T, range<Dimensions>> operator op(                       \
-      const T &lhs, const range<Dimensions> &rhs) {                            \
+      const T &lhs, const range<Dimensions> &rhs) noexcept {                   \
     range<Dimensions> result(rhs);                                             \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs op rhs.common_array[i];                     \
@@ -102,6 +105,9 @@ public:
     return result;                                                             \
   }
 #else
+
+// Can't find either of them in documentation, not adding noexcept for these,
+// maybe need to be removed
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   friend range<Dimensions> operator op(const range<Dimensions> &lhs,           \
@@ -144,8 +150,8 @@ public:
 
 // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend range<Dimensions> &operator op(range<Dimensions> &lhs,                \
-                                        const range<Dimensions> &rhs) {        \
+  friend range<Dimensions> &operator op(                                       \
+      range<Dimensions> &lhs, const range<Dimensions> &rhs) noexcept {         \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs[i];                                           \
     }                                                                          \
@@ -157,7 +163,18 @@ public:
       lhs.common_array[i] op rhs;                                              \
     }                                                                          \
     return lhs;                                                                \
+  }                                                                            \
+  template <typename T>                                                        \
+  friend IntegralType<T, range<Dimensions>> operator op(                       \
+      range<Dimensions> &lhs, const T &rhs) noexcept {                         \
+    for (int i = 0; i < Dimensions; ++i) {                                     \
+      lhs.common_array[i] op rhs;                                              \
+    }                                                                          \
+    return lhs;                                                                \
   }
+
+  // second overload above is not in documentation, maybe need to be removed or
+  // guarded against __SYCL_DISABLE_ID_TO_INT_CONV__ like the other operators
 
   __SYCL_GEN_OPT(+=)
   __SYCL_GEN_OPT(-=)
@@ -174,7 +191,8 @@ public:
 
 // OP is unary +, -
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend range<Dimensions> operator op(const range<Dimensions> &rhs) {         \
+  friend range<Dimensions> operator op(                                        \
+      const range<Dimensions> &rhs) noexcept {                                 \
     range<Dimensions> result(rhs);                                             \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = (op rhs.common_array[i]);                       \
@@ -189,7 +207,7 @@ public:
 
 // OP is prefix ++, --
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend range<Dimensions> &operator op(range<Dimensions> &rhs) {              \
+  friend range<Dimensions> &operator op(range<Dimensions> &rhs) noexcept {     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       op rhs.common_array[i];                                                  \
     }                                                                          \
@@ -203,7 +221,7 @@ public:
 
 // OP is postfix ++, --
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend range<Dimensions> operator op(range<Dimensions> &lhs, int) {          \
+  friend range<Dimensions> operator op(range<Dimensions> &lhs, int) noexcept { \
     range<Dimensions> old_lhs(lhs);                                            \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       op lhs.common_array[i];                                                  \
@@ -225,9 +243,9 @@ private:
 };
 
 #ifdef __cpp_deduction_guides
-range(size_t)->range<1>;
-range(size_t, size_t)->range<2>;
-range(size_t, size_t, size_t)->range<3>;
+range(size_t) -> range<1>;
+range(size_t, size_t) -> range<2>;
+range(size_t, size_t, size_t) -> range<3>;
 #endif
 
 } // namespace _V1
