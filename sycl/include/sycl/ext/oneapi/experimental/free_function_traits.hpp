@@ -132,8 +132,9 @@ template <typename T> struct is_device_copyable;
 #define SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED 1
 
 #define SYCL_EXT_ONEAPI_KERNEL_FUNCTION(NAME, ...)                             \
-  ::sycl::ext::oneapi::experimental::kernel_function<+__builtin_sycl_launch_kernel(NAME, ##__VA_ARGS__)>, ##__VA_ARGS__
-
+  ::sycl::ext::oneapi::experimental::kernel_function<                          \
+      +__builtin_sycl_launch_kernel(NAME, ##__VA_ARGS__)>,                     \
+      ##__VA_ARGS__
 #else
 
 // No compiler support (e.g. a plain MSVC/GCC host compile without the SYCL
