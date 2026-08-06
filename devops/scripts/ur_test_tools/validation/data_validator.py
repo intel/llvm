@@ -32,23 +32,4 @@ def validate_test_counts(
             f"::warning::Test count mismatch: Total Discovered = "
             f"{total_discovered}, but sum of all categories = {sum_categories}"
         )
-        print(
-            f"Warning: {total_discovered - sum_categories} tests are "
-            f"unaccounted for."
-        )
-        print(
-            f"This may indicate tests in unexpected categories or "
-            f"parsing issues."
-        )
-        print(f"Categories found: {', '.join(test_lists.keys())}")
-        if displayed_skipped > 0:
-            print(
-                f"(Plus {displayed_skipped} skipped tests "
-                f"displayed separately)"
-            )
-        if displayed_excluded > 0:
-            print(
-                f"(Plus {displayed_excluded} excluded tests "
-                f"displayed separately)"
-            )
         print()
