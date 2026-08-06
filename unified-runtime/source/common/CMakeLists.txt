@@ -100,7 +100,7 @@ set(UR_USE_EXTERNAL_UMF ON CACHE BOOL "Use a pre-built UMF if available")
 # "opencl"), skip it entirely: nothing needs it at build time or at runtime.
 if (UR_UMF_REQUIRED)
   if(UR_USE_EXTERNAL_UMF)
-    find_package(umf 1.1.0 QUIET)
+    find_package(umf 1.2.0 QUIET)
   endif()
   if(umf_FOUND)
     message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
