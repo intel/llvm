@@ -25,6 +25,7 @@
 #include <sycl/range.hpp>                          // for range
 
 #ifndef __SYCL_DEVICE_ONLY__
+#include <exception>
 #include <sycl/exception.hpp>
 
 #include <memory> // for unique_ptr
@@ -137,8 +138,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "get_local_id() is not implemented on host");
+    std::terminate();
 #endif
   }
 

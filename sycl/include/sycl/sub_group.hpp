@@ -23,7 +23,7 @@
 #include <stdint.h> // for uint32_t
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/exception.hpp> // for exception, make_error...
+#include <exception> // for terminate
 #endif
 
 namespace sycl {
@@ -49,8 +49,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupLocalInvocationId();
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -58,8 +57,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -67,8 +65,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupSize();
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -76,8 +73,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupMaxSize();
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -85,8 +81,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupId();
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -94,8 +89,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -103,8 +97,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInNumSubgroups();
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -122,8 +115,7 @@ struct sub_group {
             __spv::MemorySemanticsMask::WorkgroupMemory |
             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -137,8 +129,7 @@ struct sub_group {
                            flags);
 #else
     (void)accessSpace;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -147,8 +138,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -156,8 +146,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -165,8 +154,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return get_local_linear_id() == 0;
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -177,8 +165,7 @@ struct sub_group {
 #else
     (void)lhs;
     (void)rhs;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
@@ -188,8 +175,7 @@ struct sub_group {
 #else
     (void)lhs;
     (void)rhs;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
+    std::terminate();
 #endif
   }
 
