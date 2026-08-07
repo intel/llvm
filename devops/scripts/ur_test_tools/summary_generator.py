@@ -1,4 +1,5 @@
 """Generate test summary reports."""
+
 import sys
 from typing import List
 
@@ -9,8 +10,8 @@ from .models.test_data import (
     SkippedTestsResult,
     ExcludedTestsResult,
 )
-from .parsers.log_parser import extract_statistics, extract_test_lists
-from .parsers.xml_parser import extract_tests_from_xml
+from .parsers.log_parser import LITLogParser
+from .parsers.xml_parser import JUnitXMLParser
 from .parsers.stats_parser import get_count_from_stats
 from .outputs.console import ConsoleOutput
 from .validation.data_validator import validate_test_counts
@@ -23,25 +24,25 @@ class SummaryReporter:
         self.config = config
 
     def generate(self) -> None:
-        stats = extract_statistics(self.config.log_lines)
-        test_lists, declared_counts = extract_test_lists(self.config.log_lines)
+        parser = LITLogParser(self.config.log_lines)
+        stats = parser.extract_statistics()
+        test_lists, declared_counts = parser.extract_test_lists()
         total_discovered = get_count_from_stats(stats, ["Total Discovered"])
 
-        skipped_xml, excluded_xml = extract_tests_from_xml(self.config.xml_file)
+        xml_parser = JUnitXMLParser(self.config.xml_file)
+        parsed_xml = xml_parser.extract_tests_from_xml()
+        skipped_xml = parsed_xml.skipped
+        excluded_xml = parsed_xml.excluded
 
         ConsoleOutput.print_statistics(stats)
 
-        skipped_result = self._analyze_skipped_tests(
-            test_lists, stats, skipped_xml
-        )
+        skipped_result = self._analyze_skipped_tests(test_lists, stats, skipped_xml)
         self._validate_skipped_counts(skipped_result, declared_counts, stats)
         self._display_skipped_tests(skipped_result)
         if skipped_result["count"] > 0:
             self._cleanup_skipped_from_test_lists(test_lists)
 
-        excluded_result = self._analyze_excluded_tests(
-            test_lists, stats, excluded_xml
-        )
+        excluded_result = self._analyze_excluded_tests(test_lists, stats, excluded_xml)
         self._validate_excluded_counts(excluded_result, declared_counts, stats)
         self._display_excluded_tests(excluded_result)
         if excluded_result["count"] > 0:
@@ -53,21 +54,16 @@ class SummaryReporter:
             total_discovered,
             test_lists,
             skipped_result["count"],
-            excluded_result["count"]
+            excluded_result["count"],
         )
 
         ConsoleOutput.print_timing_summary(self.config.log_lines)
 
     def _analyze_skipped_tests(
-        self,
-        test_lists: TestLists,
-        stats: List[str],
-        skipped_xml: List[str]
+        self, test_lists: TestLists, stats: List[str], skipped_xml: List[str]
     ) -> SkippedTestsResult:
         """Analyze skipped tests (priority: XML > Log > Stats)."""
-        skipped_from_log = test_lists.get(
-            "Skipped", test_lists.get("Unsupported", [])
-        )
+        skipped_from_log = test_lists.get("Skipped", test_lists.get("Unsupported", []))
         stats_count = get_count_from_stats(stats, ["Skipped", "Unsupported"])
 
         # Priority 1: XML data (most reliable - structured output)
@@ -76,7 +72,7 @@ class SummaryReporter:
                 tests=skipped_xml,
                 count=len(skipped_xml),
                 source="xml",
-                note=""
+                note="",
             )
 
         # Priority 2: Log data
@@ -85,7 +81,7 @@ class SummaryReporter:
                 tests=skipped_from_log,
                 count=len(skipped_from_log),
                 source="log",
-                note=""
+                note="",
             )
 
         # Priority 3: Stats only (no individual test names)
@@ -94,17 +90,14 @@ class SummaryReporter:
                 tests=[],
                 count=stats_count,
                 source="stats",
-                note="Warning: Test names not available"
+                note="Warning: Test names not available",
             )
 
         # No data available
         return SkippedTestsResult(tests=[], count=0, source="none", note="")
 
     def _validate_skipped_counts(
-        self,
-        result: SkippedTestsResult,
-        declared_counts: TestCounts,
-        stats: List[str]
+        self, result: SkippedTestsResult, declared_counts: TestCounts, stats: List[str]
     ) -> None:
         """Validate skipped counts (warns on mismatch)."""
         actual_count = result["count"]
@@ -132,7 +125,7 @@ class SummaryReporter:
                 f"Warning: Skipped test count mismatch. "
                 f"Using {actual_count} from {result['source']}, "
                 f"but found {sources_str}",
-                file=sys.stderr
+                file=sys.stderr,
             )
 
     def _display_skipped_tests(self, result: SkippedTestsResult) -> None:
@@ -141,7 +134,7 @@ class SummaryReporter:
                 "Skipped Tests",
                 result["tests"],
                 note=result["note"],
-                count=result["count"] if not result["tests"] else None
+                count=result["count"] if not result["tests"] else None,
             )
 
     def _cleanup_skipped_from_test_lists(self, test_lists: TestLists) -> None:
@@ -149,10 +142,7 @@ class SummaryReporter:
         test_lists.pop("Unsupported", None)
 
     def _analyze_excluded_tests(
-        self,
-        test_lists: TestLists,
-        stats: List[str],
-        excluded_xml: List[str]
+        self, test_lists: TestLists, stats: List[str], excluded_xml: List[str]
     ) -> ExcludedTestsResult:
         """Analyze excluded tests (priority: Log > XML > Stats)."""
         excluded_from_log = test_lists.get("Excluded", [])
@@ -164,16 +154,13 @@ class SummaryReporter:
                 tests=excluded_from_log,
                 count=len(excluded_from_log),
                 source="log",
-                note=""
+                note="",
             )
 
         # Priority 2: XML data
         if excluded_xml:
             return ExcludedTestsResult(
-                tests=excluded_xml,
-                count=len(excluded_xml),
-                source="xml",
-                note=""
+                tests=excluded_xml, count=len(excluded_xml), source="xml", note=""
             )
 
         # Priority 3: Stats only (no individual test names)
@@ -182,17 +169,14 @@ class SummaryReporter:
                 tests=[],
                 count=stats_count,
                 source="stats",
-                note="Warning: Test names not available"
+                note="Warning: Test names not available",
             )
 
         # No data available
         return ExcludedTestsResult(tests=[], count=0, source="none", note="")
 
     def _validate_excluded_counts(
-        self,
-        result: ExcludedTestsResult,
-        declared_counts: TestCounts,
-        stats: List[str]
+        self, result: ExcludedTestsResult, declared_counts: TestCounts, stats: List[str]
     ) -> None:
         """Validate excluded counts (warns on mismatch)."""
         actual_count = result["count"]
@@ -218,7 +202,7 @@ class SummaryReporter:
                 f"Warning: Excluded test count mismatch. "
                 f"Using {actual_count} from {result['source']}, "
                 f"but found {sources_str}",
-                file=sys.stderr
+                file=sys.stderr,
             )
 
     def _display_excluded_tests(self, result: ExcludedTestsResult) -> None:
@@ -227,7 +211,7 @@ class SummaryReporter:
                 "Excluded Tests",
                 result["tests"],
                 note=result["note"],
-                count=result["count"] if not result["tests"] else None
+                count=result["count"] if not result["tests"] else None,
             )
 
     def _cleanup_excluded_from_test_lists(self, test_lists: TestLists) -> None:

@@ -43,7 +43,7 @@ class JUnitXMLParser:
         except ET.ParseError as e:
             print(
                 f"Warning: Failed to parse XML file {self.xml_path}: {e}",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return False
         except (OSError, ValueError) as e:
@@ -88,9 +88,3 @@ class JUnitXMLParser:
     def extract_excluded_tests(self) -> List[str]:
         _, excluded = self.extract_tests_from_xml()
         return excluded
-
-
-# Standalone function for backward compatibility
-def extract_tests_from_xml(xml_path: str) -> ParsedXMLTests:
-    parser = JUnitXMLParser(xml_path)
-    return parser.extract_tests_from_xml()

@@ -1,4 +1,5 @@
 """Path validation for security."""
+
 from pathlib import Path
 from typing import Optional
 

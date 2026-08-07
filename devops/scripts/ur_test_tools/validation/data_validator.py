@@ -1,4 +1,5 @@
 """Test data validation."""
+
 import sys
 from typing import TYPE_CHECKING
 

@@ -1,4 +1,5 @@
-"""Orchestrate UR test execution."""
+"""Test execution."""
+
 import os
 import sys
 import subprocess  # nosec B404 - Used safely with list args, no shell=True
@@ -17,7 +18,7 @@ from .outputs.github_actions import GitHubActionsOutput
 from .parsers.log_parser import _read_with_utf8_fallback
 
 
-def get_test_config(test_type: str, build_dir: str) -> TestConfig:
+def get_test_config(test_type: str) -> TestConfig:
     """Get test configuration for test type."""
     if test_type == "adapter-specific":
         return TestConfig(
@@ -43,12 +44,12 @@ def calculate_jobs() -> int:
         nproc = os.cpu_count() or 4
         return min(nproc // 3, MAX_JOBS)
     except (OSError, AttributeError):
-        # Fallback if cpu_count fails or returns unexpected value
         return 4
 
 
 def check_log_has_tests(log_file: str) -> bool:
     """Check if log contains test results."""
+
     def _scan_for_testing(f):
         for _ in range(MAX_LINES_TO_SCAN):
             line = f.readline()
@@ -70,6 +71,7 @@ class TestRunner:
     def __init__(self, context: TestExecutionContext):
         self.context = context
         self.github_output = GitHubActionsOutput()
+        self.jobs = calculate_jobs()
 
     def run(self) -> int:
         """Run tests and return exit code."""
@@ -100,13 +102,12 @@ class TestRunner:
         self.context.env["ZE_ENABLE_LOADER_DEBUG_TRACE"] = "1"
 
     def _build_cmake_command(self) -> List[str]:
-        jobs = calculate_jobs()
         return [
             "cmake",
             "--build",
             str(self.context.build_dir),
             "-j",
-            str(jobs),
+            str(self.jobs),
             "--",
             self.context.config.target,
         ]
@@ -116,19 +117,14 @@ class TestRunner:
 
         print(f"Running: {' '.join(cmd)}", file=sys.stderr)
         print(
-            f"Log: {self.context.log_file_path}, "
-            f"Jobs: {calculate_jobs()}",
-            file=sys.stderr
+            f"Log: {self.context.log_file_path}, Jobs: {self.jobs}", file=sys.stderr
         )
         print(
-            f"Expected XML: {self.context.xml_output_path}",
-            file=sys.stderr
+            f"Expected XML: {self.context.xml_output_path}", file=sys.stderr
         )
 
         try:
-            with open(
-                self.context.log_file_path, "w", encoding="utf-8"
-            ) as log:
+            with open(self.context.log_file_path, "w", encoding="utf-8") as log:
                 return subprocess.run(  # nosec B603 B607
                     cmd,
                     stdout=log,
@@ -152,8 +148,10 @@ class TestRunner:
     def _publish_outputs(self, result: subprocess.CompletedProcess) -> None:
         self.github_output.set_output("log-file", str(self.context.log_file_path))
 
-        if (self.context.test_type == TEST_TYPE_ADAPTER_SPECIFIC and
-                not check_log_has_tests(str(self.context.log_file_path))):
+        if (
+            self.context.test_type == TEST_TYPE_ADAPTER_SPECIFIC
+            and not check_log_has_tests(str(self.context.log_file_path))
+        ):
             print("No adapter-specific tests found", file=sys.stderr)
             self.github_output.set_output("skip-artifacts", "1")
             return

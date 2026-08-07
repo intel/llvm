@@ -1,4 +1,5 @@
 """CLI entry points for UR test tools."""
+
 import sys
 import os
 from pathlib import Path
@@ -6,15 +7,14 @@ from pathlib import Path
 from .models.config import SummaryConfigFromLines, TestConfig, TestExecutionContext
 from .validation.path_validator import PathValidator
 from .parsers.log_parser import (
+    LITLogParser,
     read_log_file,
-    extract_error_details,
 )
-from .outputs.console import filter_log_for_display
+from .outputs.console import ConsoleOutput
 from .summary_generator import SummaryReporter
 from .test_runner import (
     TestRunner,
     get_test_config,
-    check_log_has_tests,
 )
 from .outputs.github_actions import GitHubActionsOutput
 
@@ -22,69 +22,24 @@ from .outputs.github_actions import GitHubActionsOutput
 def main() -> int:
     """Unified CLI entry point."""
     if len(sys.argv) < 2:
-        print("Usage: ur-test <command> [args...]", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Test execution commands:", file=sys.stderr)
-        print(
-            "  run <type> <build_dir> <workspace>    Run UR tests",
-            file=sys.stderr
-        )
-        print(
-            "  validate <build_dir> <workspace>      "
-            "Validate build directory",
-            file=sys.stderr
-        )
-        print(
-            "  check-log <log_file>                  "
-            "Check if log has tests",
-            file=sys.stderr
-        )
-        print("", file=sys.stderr)
-        print("Summary commands:", file=sys.stderr)
-        print(
-            "  summary <log_file> [xml_file]         Show test summary",
-            file=sys.stderr
-        )
-        print(
-            "  extract-errors <log_file>             Extract error details",
-            file=sys.stderr
-        )
-        print(
-            "  filter-log <log_file>                 "
-            "Filter log for display",
-            file=sys.stderr
-        )
+        print("Error: Missing command", file=sys.stderr)
         return 1
 
     command = sys.argv[1]
 
-    # Route to ci_utils commands
-    if command in ("run", "validate", "check-log"):
-        # Map friendly names to internal command names
-        command_map = {
-            "run": "run-tests",
-            "validate": "validate-build-dir",
-            "check-log": "check-log-has-tests",
-        }
-        sys.argv[1] = command_map[command]
-        return main_ci_utils()
+    if command == "run":
+        return main_ci_utils("run-tests")
 
-    # Route to test_summary commands
     elif command in ("summary", "extract-errors", "filter-log"):
-        # Map friendly names to internal command names
-        command_map = {
-            "summary": "show-summary",
-        }
-        sys.argv[1] = command_map.get(command, command)
-        return main_test_summary()
+        internal_cmd = "show-summary" if command == "summary" else command
+        return main_test_summary(internal_cmd)
 
     else:
         print(f"Error: Unknown command '{command}'", file=sys.stderr)
-        print("Run 'ur-test' without arguments for usage help.", file=sys.stderr)
         return 1
 
 
-def main_test_summary() -> int:
+def main_test_summary(command: str) -> int:
     """Entry point for ur_test_summary CLI."""
     try:
         if len(sys.argv) < 3:
@@ -94,29 +49,25 @@ def main_test_summary() -> int:
             )
             return 1
 
-        command = sys.argv[1]
-
         log_file = sys.argv[2]
         PathValidator.validate_log_path(log_file)
         lines = read_log_file(log_file)
+        parser = LITLogParser(lines)
 
         if command == "extract-errors":
-            for line in extract_error_details(lines):
+            for line in parser.extract_error_details():
                 print(line, end="")
 
         elif command == "filter-log":
-            for line in filter_log_for_display(lines):
+            for line in ConsoleOutput.filter_log_for_display(lines):
                 print(line, end="")
 
         elif command == "show-summary":
             xml_file = PathValidator.validate_optional_path(
-                sys.argv[3] if len(sys.argv) > 3 else "",
-                "XML",
-                allow_absolute=True
+                sys.argv[3] if len(sys.argv) > 3 else "", "XML", allow_absolute=True
             )
             config = SummaryConfigFromLines(
-                log_lines=lines,
-                xml_file=xml_file if xml_file else None
+                log_lines=lines, xml_file=xml_file or None
             )
             SummaryReporter(config).generate()
 
@@ -131,50 +82,14 @@ def main_test_summary() -> int:
         return 1
 
 
-def main_ci_utils() -> int:
+def main_ci_utils(command: str) -> int:
     """Entry point for ur_ci_utils CLI."""
-    if len(sys.argv) < 2:
-        print(f"Error: {sys.argv[0]} <command> [args...]", file=sys.stderr)
-        return 1
-
-    command = sys.argv[1]
-
-    if command == "validate-build-dir":
-        return _validate_build_dir_command()
-
-    elif command == "check-log-has-tests":
-        return _check_log_has_tests_command()
-
-    elif command == "run-tests":
+    if command == "run-tests":
         return _run_tests_command()
 
     else:
         print(f"Error: Unknown command '{command}'", file=sys.stderr)
         return 1
-
-
-def _validate_build_dir_command() -> int:
-    """Execute validate-build-dir command."""
-    if len(sys.argv) < 3:
-        print(
-            f"Error: validate-build-dir <build_dir> [workspace]",
-            file=sys.stderr
-        )
-        return 1
-
-    workspace = sys.argv[3] if len(sys.argv) > 3 else None
-    is_valid = PathValidator.validate_build_dir(sys.argv[2], workspace)
-    return 0 if is_valid else 1
-
-
-def _check_log_has_tests_command() -> int:
-    """Execute check-log-has-tests command."""
-    if len(sys.argv) < 3:
-        print(f"Error: check-log-has-tests <log_file>", file=sys.stderr)
-        return 1
-
-    has_tests = check_log_has_tests(sys.argv[2])
-    return 0 if has_tests else 1
 
 
 def _run_tests_command() -> int:
@@ -197,7 +112,7 @@ def _run_tests_command() -> int:
         return 1
 
     try:
-        config = get_test_config(test_type, build_dir)
+        config = get_test_config(test_type)
     except ValueError as e:
         gha.print_error(str(e))
         return 1
@@ -221,7 +136,7 @@ def _run_tests_command() -> int:
         xml_output_path=xml_output_path,
         log_file_path=log_file_path,
         config=config,
-        env=env
+        env=env,
     )
 
     # Validate context

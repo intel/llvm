@@ -1,4 +1,5 @@
 """Parse statistics from LIT output."""
+
 import re
 from typing import List
 

@@ -1,4 +1,5 @@
 """Parse LIT text output for test information."""
+
 import sys
 from pathlib import Path
 from typing import Iterator, List, Tuple
@@ -20,8 +21,7 @@ def _read_with_utf8_fallback(path: str, read_func):
             return read_func(f)
     except UnicodeDecodeError:
         print(
-            f"Warning: File contains non-UTF-8 characters, "
-            f"replacing with U+FFFD",
+            f"Warning: File contains non-UTF-8 characters, replacing with U+FFFD",
             file=sys.stderr,
         )
         with open(path, "r", encoding="utf-8", errors="replace") as f:
@@ -46,12 +46,7 @@ def read_log_file(log_path: str) -> List[str]:
 
 
 class LITLogParser:
-    """Parse LIT (llvm-lit) text output.
-
-    Format compatibility: LLVM 15+ (stable since ~2010).
-    Parses text output from LLVM LIT with flags:
-    --verbose --time-tests --show-unsupported --show-pass --show-xfail
-    """
+    """Parse LIT (llvm-lit) text output for test information."""
 
     def __init__(self, lines: List[str]):
         self.lines = lines
@@ -154,24 +149,3 @@ class LITLogParser:
             declared_counts[current_category] = current_declared_count
 
         return categories, declared_counts
-
-
-# Standalone functions for backward compatibility
-def extract_error_details(lines: List[str]) -> List[str]:
-    parser = LITLogParser(lines)
-    return parser.extract_error_details()
-
-
-def extract_statistics(lines: List[str]) -> List[str]:
-    parser = LITLogParser(lines)
-    return parser.extract_statistics()
-
-
-def extract_time_summary(lines: List[str]) -> TimingSummary:
-    parser = LITLogParser(lines)
-    return parser.extract_time_summary()
-
-
-def extract_test_lists(lines: List[str]) -> Tuple[TestLists, TestCounts]:
-    parser = LITLogParser(lines)
-    return parser.extract_test_lists()

@@ -43,7 +43,7 @@ runs:
       exit $EXIT_CODE
 
   - name: Filter test log
-    if: ${{ always() }}
+    if: ${{ always() && steps.run_tests.outputs['skip-artifacts'] != '1' }}
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
@@ -67,7 +67,7 @@ runs:
       exit 1
 
   - name: Test summary
-    if: ${{ always() }}
+    if: ${{ always() && steps.run_tests.outputs['skip-artifacts'] != '1' }}
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
@@ -82,12 +82,6 @@ runs:
 
       if [ ! -s "$LOG_FILE" ]; then
         echo "::warning::Test log is empty"
-        exit 0
-      fi
-
-      # Skip detailed summary if no tests ran (adapter-specific on wrong platform)
-      if [ "${{ steps.run_tests.outputs['skip-artifacts'] }}" = "1" ]; then
-        echo "No adapter-specific tests found (wrong platform/configuration)"
         exit 0
       fi
 

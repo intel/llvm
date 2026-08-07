@@ -1,4 +1,5 @@
 """Console output formatting for test results."""
+
 from typing import List, Optional
 
 from ..constants import (
@@ -9,7 +10,7 @@ from ..constants import (
     TEST_TIMES_HEADERS,
 )
 from ..models.test_data import TimingSummary
-from ..parsers.log_parser import extract_time_summary
+from ..parsers.log_parser import LITLogParser
 
 
 class ConsoleOutput:
@@ -17,10 +18,7 @@ class ConsoleOutput:
 
     @staticmethod
     def print_test_group(
-        title: str,
-        tests: List[str],
-        note: str = "",
-        count: Optional[int] = None
+        title: str, tests: List[str], note: str = "", count: Optional[int] = None
     ) -> None:
         """Print GitHub Actions collapsible group with test list."""
         test_count = count if count is not None else len(tests)
@@ -44,7 +42,8 @@ class ConsoleOutput:
     @staticmethod
     def print_timing_summary(lines: List[str]) -> None:
         """Print timing information section."""
-        time_info = extract_time_summary(lines)
+        parser = LITLogParser(lines)
+        time_info = parser.extract_time_summary()
 
         testing_time = None
         for line in lines:
@@ -76,44 +75,45 @@ class ConsoleOutput:
 
         print("::endgroup::")
 
+    @staticmethod
+    def filter_log_for_display(lines: List[str]) -> List[str]:
+        """Remove statistics, test lists, and timing from log."""
+        result = []
+        skip_until_empty = False
+        in_timing = False
 
-def filter_log_for_display(lines: List[str]) -> List[str]:
-    result = []
-    skip_until_empty = False
-    in_timing = False
+        for line in lines:
+            stripped = line.strip()
 
-    for line in lines:
-        stripped = line.strip()
+            # Skip statistics lines
+            if STATS_PATTERN.match(line):
+                continue
 
-        # Skip statistics lines
-        if STATS_PATTERN.match(line):
-            continue
+            # Skip test category sections
+            if TEST_CATEGORY_PATTERN.match(line):
+                skip_until_empty = True
+                continue
 
-        # Skip test category sections
-        if TEST_CATEGORY_PATTERN.match(line):
-            skip_until_empty = True
-            continue
+            # Skip timing sections
+            if stripped == SLOWEST_TESTS_HEADER or stripped in TEST_TIMES_HEADERS:
+                in_timing = True
+                continue
 
-        # Skip timing sections
-        if stripped == SLOWEST_TESTS_HEADER or stripped in TEST_TIMES_HEADERS:
-            in_timing = True
-            continue
+            if in_timing and stripped.replace("*", "") == "":
+                in_timing = False
+                continue
 
-        if in_timing and stripped.replace("*", "") == "":
-            in_timing = False
-            continue
+            if in_timing:
+                continue
 
-        if in_timing:
-            continue
+            if stripped.startswith("Testing Time:"):
+                continue
 
-        if stripped.startswith("Testing Time:"):
-            continue
+            if skip_until_empty:
+                if not stripped:
+                    skip_until_empty = False
+                continue
 
-        if skip_until_empty:
-            if not stripped:
-                skip_until_empty = False
-            continue
+            result.append(line)
 
-        result.append(line)
-
-    return result
+        return result

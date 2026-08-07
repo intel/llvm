@@ -1,13 +1,10 @@
 """Type definitions for test data structures."""
+
 from typing import TypedDict, List
 
 
 class TestLists(TypedDict, total=False):
-    """Type definition for test list dictionary.
-
-    Each key represents a test category, and the value is a list of test names
-    belonging to that category.
-    """
+    """Type definition for test list dictionary."""
 
     Passed: List[str]
     Failed: List[str]
@@ -18,11 +15,7 @@ class TestLists(TypedDict, total=False):
 
 
 class TestCounts(TypedDict, total=False):
-    """Type definition for test count dictionary.
-
-    Each key represents a test category, and the value is the count of tests
-    in that category.
-    """
+    """Type definition for test count dictionary."""
 
     Passed: int
     Failed: int
@@ -33,24 +26,14 @@ class TestCounts(TypedDict, total=False):
 
 
 class TimingSummary(TypedDict):
-    """Type definition for test timing summary.
-
-    Contains information about test execution times.
-    """
+    """Type definition for test timing summary."""
 
     slowest: List[str]
     histogram: List[str]
 
 
 class SkippedTestsResult(TypedDict):
-    """Result of skipped tests analysis.
-
-    Attributes:
-        tests: List of skipped test names.
-        count: Total count of skipped tests.
-        source: Source of the data ('log', 'xml', 'stats', or 'none').
-        note: Human-readable explanation or warning message.
-    """
+    """Result of skipped tests analysis."""
 
     tests: List[str]
     count: int
@@ -59,14 +42,7 @@ class SkippedTestsResult(TypedDict):
 
 
 class ExcludedTestsResult(TypedDict):
-    """Result of excluded tests analysis.
-
-    Attributes:
-        tests: List of excluded test names.
-        count: Total count of excluded tests.
-        source: Source of the data ('log', 'xml', 'stats', or 'none').
-        note: Human-readable explanation or warning message.
-    """
+    """Result of excluded tests analysis."""
 
     tests: List[str]
     count: int

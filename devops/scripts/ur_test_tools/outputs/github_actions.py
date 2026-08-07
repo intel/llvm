@@ -1,4 +1,5 @@
 """GitHub Actions-specific output formatting."""
+
 import sys
 
 

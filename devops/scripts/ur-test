@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Unified Runtime test management CLI.
-
-This is the main entry point for all UR test operations including:
-- Test execution (run, validate)
-- Test result analysis (summary, extract-errors)
-- Log processing (filter-log, check-log)
-"""
+"""Unified Runtime test management CLI."""
 
 import sys
 from ur_test_tools.cli import main
