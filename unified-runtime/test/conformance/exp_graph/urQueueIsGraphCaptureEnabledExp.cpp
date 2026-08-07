@@ -7,6 +7,8 @@
 #include "unified-runtime/ur_api.h"
 #include "uur/raii.h"
 
+#include <cstring>
+
 struct urQueueIsGraphCaptureEnabledExpTest : uur::urGraphSupportedExpTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpTest::SetUp());
@@ -218,4 +220,68 @@ TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest,
   EXPECT_SUCCESS(urGraphExecutableGraphDestroyExp(exGraph));
   ASSERT_SUCCESS(urUSMFree(context, ptr1));
   ASSERT_SUCCESS(urUSMFree(context, ptr2));
+}
+
+TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest, ForkJoinBackToState) {
+  bool isEnabled = false;
+
+  // Advance the out-of-order queue's command list selection so the next
+  // operation would not land on the dedicated capture command list by chance.
+  uur::raii::Event preEvent = nullptr;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue2, 0, nullptr, preEvent.ptr()));
+  ASSERT_SUCCESS(urEventWait(1, preEvent.ptr()));
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  // Fork: queue1 produces an event that queue2 waits on, pulling queue2 into
+  // the capture.
+  uur::raii::Event forkEvent = nullptr;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 0, nullptr, forkEvent.ptr()));
+
+  uur::raii::Event joinEvent = nullptr;
+  ASSERT_SUCCESS(
+      urEnqueueEventsWait(queue2, 1, forkEvent.ptr(), joinEvent.ptr()));
+
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_TRUE(isEnabled);
+
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
+  ASSERT_TRUE(isEnabled);
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 1, joinEvent.ptr(), nullptr));
+
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+
+  // Starts capture again on queue1, which should not affect queue2. Queue2 should remain in the default non-capturing state.
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_TRUE(isEnabled);
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+
+  // Enqueue new operation that should be executed immediately on queue2, which is not capturing. This should not trigger any capture state change.
+  uur::raii::Event newEvent = nullptr;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue2, 0, nullptr, newEvent.ptr()));
+  size_t size = 1024;
+  void *ptr1 = nullptr;
+  char pattern[8] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};
+  ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &ptr1));
+  std::memset(ptr1, 0, size);
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue2, ptr1, std::size(pattern), pattern,
+                                  size, 0, nullptr, newEvent.ptr()));
+
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+
+  // Not captured, so the fill must have executed immediately.
+  ASSERT_SUCCESS(urQueueFinish(queue2));
+  EXPECT_EQ(std::memcmp(ptr1, pattern, std::size(pattern)), 0);
+
+  ASSERT_SUCCESS(urUSMFree(context, ptr1));
 }
