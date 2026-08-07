@@ -10,13 +10,15 @@
 
 #pragma once
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/PropertySetIO.h"
 #include <string>
 namespace llvm {
 
 class Function;
-class Module;
 
 namespace sycl {
 
@@ -28,9 +30,24 @@ struct GlobalBinImageProps {
   bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;
 };
-bool isModuleUsingAsan(const Module &M);
-bool isModuleUsingMsan(const Module &M);
-bool isModuleUsingTsan(const Module &M);
+
+inline bool isModuleUsingAsan(const Module &M) {
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__AsanKernelMetadata");
+  });
+}
+
+inline bool isModuleUsingMsan(const Module &M) {
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__MsanKernelMetadata");
+  });
+}
+
+inline bool isModuleUsingTsan(const Module &M) {
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__TsanKernelMetadata");
+  });
+}
 using PropSetRegTy = llvm::util::PropertySetRegistry;
 using EntryPointSet = SetVector<Function *>;
 
