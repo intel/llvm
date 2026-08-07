@@ -353,6 +353,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     PitchedDesc.ptr = reinterpret_cast<void *>(hImageMem);
     if (Sampled) {
       ZeSamplerDesc.pNext = &PitchedDesc;
+    } else if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
+      ZeSrgbDesc.pNext = &PitchedDesc;
     } else {
       BindlessDesc.pNext = &PitchedDesc;
     }
