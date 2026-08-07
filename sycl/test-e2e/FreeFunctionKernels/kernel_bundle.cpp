@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 #include <algorithm>
@@ -40,9 +40,10 @@ int test_kernel_bundle_ctxt(sycl::context &ctxt, std::string_view fname) {
       syclexp::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
   bool res = exe_bndl.has_kernel(id);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  res = res && exe_bndl.get_kernel(id)
-                   .template get_info<sycl::info::kernel::function_name>() ==
-                   fname;
+  res =
+      res &&
+      exe_bndl.get_kernel(id)
+              .template get_info<sycl::info::kernel::function_name>() == fname;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
   if (!res)
     std::cout
@@ -62,9 +63,10 @@ int test_kernel_bundle_ctxt_dev(sycl::context &ctxt, sycl::device &dev,
                                                                        {dev});
   bool res = exe_bndl.has_kernel(id);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  res = res && exe_bndl.get_kernel(id)
-                   .template get_info<sycl::info::kernel::function_name>() ==
-                   fname;
+  res =
+      res &&
+      exe_bndl.get_kernel(id)
+              .template get_info<sycl::info::kernel::function_name>() == fname;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
   if (!res)
     std::cout << FFTestMark

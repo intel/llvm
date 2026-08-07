@@ -52,8 +52,8 @@ struct __SYCL_DEPRECATED("info::kernel::reference_count is deprecated.")
   using return_type = uint32_t;
 };
 struct __SYCL_DEPRECATED("info::kernel::context is deprecated."
-                         "Use kernel::get_context() instead.")
-    context : kernel_traits<UR_KERNEL_INFO_CONTEXT> {
+                         "Use kernel::get_context() instead.") context
+    : kernel_traits<UR_KERNEL_INFO_CONTEXT> {
   using return_type = sycl::context;
 };
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
