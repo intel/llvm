@@ -236,17 +236,6 @@ if(UR_ENABLE_SANITIZER)
         target_sources(ur_loader
             PRIVATE ${symbolizer_sources}
         )
-        # Symbolizer dependencies and libhwloc may emit calls to
-        # _intel_fast_memcpy/_intel_fast_memset. Those are normally provided
-        # by libirc, but libsycl / ur doesn't link them. Use stubs forwarding to
-        # plain memcpy/memset. The stub is compiled with -no-intel-lib, which
-        # add_ur_target_compile_options() already applies to the whole target.
-        if(CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM" AND
-            (UR_ENABLE_SYMBOLIZER OR UMF_LINK_HWLOC_STATICALLY))
-          target_sources(ur_loader PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/intel_fast_mem_stub.c
-            )
-        endif()
         target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
         target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
         target_compile_definitions(ur_loader PRIVATE UR_HAVE_SYMBOLIZER)
@@ -277,5 +266,30 @@ else()
     target_sources(ur_loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/adapter_search.cpp
+    )
+endif()
+
+
+# Symbolizer dependencies and libhwloc may emit calls to
+# _intel_fast_memcpy/_intel_fast_memset. Those are normally provided
+# by libirc, but libsycl / ur doesn't link them. Use stubs forwarding to
+# plain memcpy/memset.
+if(CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM" AND
+    (UR_ENABLE_SYMBOLIZER OR UMF_LINK_HWLOC_STATICALLY))
+    # The stub itself must be built with no-intel-lib, or icx turns the
+    # memcpy/memset it forwards to back into _intel_fast_memcpy/_intel_fast_memset
+    # and each stub becomes an infinite self-recursive jump. Set the option on the
+    # source file rather than relying on the target-wide one from
+    # add_ur_target_compile_options(): that is only applied on the non-MSVC path,
+    # and the flag is spelled differently under the clang-cl driver.
+    if(MSVC)
+        set(_no_intel_lib_flag -Qno-intel-lib=libirc)
+    else()
+        set(_no_intel_lib_flag -no-intel-lib=libirc)
+    endif()
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/intel_fast_mem_stub.c
+        PROPERTIES COMPILE_OPTIONS "${_no_intel_lib_flag}")
+    target_sources(ur_loader PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/intel_fast_mem_stub.c
     )
 endif()
