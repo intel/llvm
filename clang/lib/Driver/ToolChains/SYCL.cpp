@@ -2026,3 +2026,8 @@ SanitizerMask SYCLToolChain::getSupportedSanitizers(
 
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }
+
+VersionTuple SYCLToolChain::computeMSVCVersion(const Driver *D,
+                                               const ArgList &Args) const {
+  return HostTC.computeMSVCVersion(D, Args);
+}
