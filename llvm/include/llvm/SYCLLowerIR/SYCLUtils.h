@@ -19,7 +19,15 @@
 #include <functional>
 
 namespace llvm {
+
+class Module;
+
 namespace sycl {
+
+bool isModuleUsingAsan(const Module &M);
+bool isModuleUsingMsan(const Module &M);
+bool isModuleUsingTsan(const Module &M);
+
 namespace utils {
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
 constexpr char ATTR_SYCL_OPTLEVEL[] = "sycl-optlevel";
