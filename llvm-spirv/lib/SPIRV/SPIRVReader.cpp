@@ -1068,10 +1068,8 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   case OpUConvert:
     CO = IsExt ? Instruction::ZExt : Instruction::Trunc;
     break;
-  case internal::OpClampConvertFToFINTEL:
   case internal::OpClampConvertFToSINTEL:
   case internal::OpStochasticRoundFToFINTEL:
-  case internal::OpClampStochasticRoundFToFINTEL:
   case internal::OpClampStochasticRoundFToSINTEL:
   case OpConvertSToF:
   case OpConvertFToS:
@@ -1101,25 +1099,20 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
           DecorationSaturatedToLargestFloat8NormalConversionEXT);
       if (IsSaturatedFP8) {
         BM->getErrorLog().checkError(
-            (OC == OpFConvert || OC == OpConvertSToF || OC == OpConvertUToF) &&
+            (OC == OpFConvert || OC == OpConvertSToF || OC == OpConvertUToF ||
+             OC == internal::OpStochasticRoundFToFINTEL) &&
                 (DstEnc == FPEncodingWrap::E4M3 ||
                  DstEnc == FPEncodingWrap::E5M2),
             SPIRVEC_InvalidInstruction,
             "SaturatedToLargestFloat8NormalConversionEXT decoration is only "
-            "valid on OpFConvert/OpConvertSToF/OpConvertUToF whose Result "
-            "Type uses Float8E4M3EXT or Float8E5M2EXT encoding.\n");
+            "valid on OpFConvert/OpConvertSToF/OpConvertUToF/"
+            "OpStochasticRoundFToFINTEL whose Result Type uses Float8E4M3EXT "
+            "or Float8E5M2EXT encoding.\n");
       }
       if (IsFP4OrFP8Encoding(SrcEnc) || IsFP4OrFP8Encoding(DstEnc) ||
           SPVSrcTy->isTypeInt(4) || SPVDstTy->isTypeInt(4)) {
-        // SPV_EXT_float8: an OpFConvert to E4M3/E5M2 decorated with
-        // SaturatedToLargestFloat8NormalConversionEXT round-trips through the
-        // ClampConvert<Src>To<E4M3|E5M2>INTEL builtin name. Only the FToF
-        // variant has a corresponding SPV_INTEL_fp_conversions builtin name;
-        // for OpConvertSToF/OpConvertUToF the standard mapping is preserved.
-        SPIRV::SPIRVWord LookupOp = (IsSaturatedFP8 && OC == OpFConvert)
-                                        ? internal::OpClampConvertFToFINTEL
-                                        : OC;
-        FPConversionDesc FPDesc = {SrcEnc, DstEnc, LookupOp};
+        FPConversionDesc FPDesc = {SrcEnc, DstEnc, OC,
+                                   /*Saturate=*/IsSaturatedFP8};
         auto Conv = SPIRV::FPConvertToEncodingMap::rmap(FPDesc);
         std::vector<Value *> Ops = {Src};
         std::vector<Type *> OpsTys = {Src->getType()};
@@ -1130,7 +1123,6 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         std::string MangledName;
         // Translate additional Ops for stochastic conversions.
         if (OC == internal::OpStochasticRoundFToFINTEL ||
-            OC == internal::OpClampStochasticRoundFToFINTEL ||
             OC == internal::OpClampStochasticRoundFToSINTEL) {
           // Seed.
           Ops.emplace_back(transValue(SPVOps[1], F, BB, true));
@@ -1164,11 +1156,11 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         return CI;
       }
     }
-    // These conversions can be done without __builtin_spirv prefixed functions
-    // as their operand and result types have native representation in LLVM IR.
-    if (OC == internal::OpClampConvertFToFINTEL ||
-        OC == internal::OpStochasticRoundFToFINTEL ||
-        OC == internal::OpClampStochasticRoundFToFINTEL)
+    // OpStochasticRoundFToFINTEL has no native LLVM cast equivalent.
+    // For fp4/fp8/int4 types, it is handled via the __builtin_spirv path above.
+    // For the remaining types it is emitted as an
+    // __spirv_StochasticRoundFToFINTEL_R<type> builtin call.
+    if (OC == internal::OpStochasticRoundFToFINTEL)
       return mapValue(BV, transSPIRVBuiltinFromInst(
                               static_cast<SPIRVInstruction *>(BV), BB));
 
@@ -4098,10 +4090,8 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case internal::OpTaskSequenceCreateINTEL:
   case internal::OpConvertHandleToImageINTEL:
   case internal::OpConvertHandleToSampledImageINTEL:
-  case internal::OpClampConvertFToFINTEL:
   case internal::OpClampConvertFToSINTEL:
   case internal::OpStochasticRoundFToFINTEL:
-  case internal::OpClampStochasticRoundFToFINTEL:
   case internal::OpClampStochasticRoundFToSINTEL:
     AddRetTypePostfix = true;
     break;

@@ -26,8 +26,8 @@ int main() {
   // CHECK:{{[0-9]+}}|Associate buffer|[[USERID2]]|[[BEID2:.*]]
   Queue.submit([&](sycl::handler &cgh) {
     // Get write only access to the buffer on a device.
-    auto Accessor1 = Buffer1.get_access<sycl::access::mode::write>(cgh);
-    auto Accessor2 = Buffer2.get_access<sycl::access::mode::write>(cgh);
+    auto Accessor1 = Buffer1.get_access<sycl::access_mode::write>(cgh);
+    auto Accessor2 = Buffer2.get_access<sycl::access_mode::write>(cgh);
     // Execute kernel.
     cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
       Accessor1[WIid] = static_cast<short>(WIid.get(0));

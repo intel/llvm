@@ -752,13 +752,13 @@ public:
     const ToolChain *DependentToolChain = nullptr;
 
     /// The bound architecture of the dependent action.
-    StringRef DependentBoundArch;
+    BoundArch DependentBoundArch;
 
     /// The offload kind of the dependent action.
     const OffloadKind DependentOffloadKind = OFK_None;
 
     DependentActionInfo(const ToolChain *DependentToolChain,
-                        StringRef DependentBoundArch,
+                        BoundArch DependentBoundArch,
                         const OffloadKind DependentOffloadKind)
         : DependentToolChain(DependentToolChain),
           DependentBoundArch(DependentBoundArch),
@@ -778,9 +778,9 @@ public:
                        types::ID Type);
 
   /// Register information about a dependent action.
-  void registerDependentActionInfo(const ToolChain *TC, StringRef BoundArch,
+  void registerDependentActionInfo(const ToolChain *TC, BoundArch BA,
                                    OffloadKind Kind) {
-    DependentActionInfoArray.push_back({TC, BoundArch, Kind});
+    DependentActionInfoArray.push_back({TC, BA, Kind});
   }
 
   /// Return the information about all depending actions.
@@ -1027,7 +1027,7 @@ class ObjcopyJobAction : public JobAction {
   void anchor() override;
 
 public:
-  ObjcopyJobAction(Action *Input, types::ID Type);
+  ObjcopyJobAction(ActionList &Inputs, types::ID Type);
 
   static bool classof(const Action *A) {
     return A->getKind() == ObjcopyJobClass;

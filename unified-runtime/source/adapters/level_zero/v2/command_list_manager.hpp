@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <ze_api.h>
 
+namespace ur::level_zero::v2 {
 struct ur_mem_buffer_t;
 
 struct wait_list_view {
@@ -65,8 +66,8 @@ private:
 };
 
 struct ur_command_list_manager {
-  ur_command_list_manager(ur_context_handle_t context,
-                          ur_device_handle_t device,
+  ur_command_list_manager(ur_context_handle_t hContext,
+                          ur_device_handle_t hDevice,
                           v2::raii::command_list_unique_handle &&commandList);
   ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
@@ -338,3 +339,5 @@ private:
 
   graph_capture_tracking_data_t graphCapture;
 };
+
+} // namespace ur::level_zero::v2

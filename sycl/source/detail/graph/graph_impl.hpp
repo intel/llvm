@@ -325,10 +325,7 @@ public:
       ur_result_t Result =
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDumpContentsExp>(
               MNativeGraphHandle, FilePath.c_str());
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to dump native UR graph contents");
-      }
+      Adapter.checkUrResult(Result, "Failed to dump native UR graph contents");
     } else {
       /// Vector of nodes visited during the graph printing
       std::vector<node_impl *> VisitedNodes;

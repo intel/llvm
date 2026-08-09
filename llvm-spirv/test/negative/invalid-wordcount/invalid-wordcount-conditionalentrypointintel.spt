@@ -1,0 +1,13 @@
+; OpConditionalEntryPointINTEL minimum = 5 (header + condition + execution-model
+; + entry-point + name); the interface ids are variable length. WordCount=4 is
+; malformed.
+; Test that malformed input is rejected early rather than silently causing
+; integer underflow and potential process hang.
+
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s
+; CHECK: InvalidWordCount:
+
+119734787 65536 0 10 0
+2 Capability Kernel
+3 MemoryModel 1 2
+4 ConditionalEntryPointINTEL 1 6 2 3

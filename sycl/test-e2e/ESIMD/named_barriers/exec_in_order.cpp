@@ -59,7 +59,7 @@ bool test(QueueTY q) {
     sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
     auto e = q.submit([&](handler &cgh) {
-      auto acc = buf.template get_access<access::mode::write>(cgh);
+      auto acc = buf.template get_access<access_mode::write>(cgh);
       cgh.parallel_for<KernelID<case_num>>(
           Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             // Threads - 1 named barriers required

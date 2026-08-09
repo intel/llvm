@@ -1,14 +1,14 @@
 ; UNSUPPORTED: expensive_checks
-; RUN: llc -O0 -mtriple=amdgcn--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
+; RUN: llc -O0 -mtriple=amdgpu7.00--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
 ; RUN:   | FileCheck -match-full-lines -strict-whitespace -check-prefix=GCN-O0 %s
-; RUN: llc -O1 -mtriple=amdgcn--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
+; RUN: llc -O1 -mtriple=amdgpu7.00--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
 ; RUN:   | FileCheck -match-full-lines -strict-whitespace -check-prefix=GCN-O1 %s
-; RUN: llc -O1 -mtriple=amdgcn--amdhsa -disable-verify -amdgpu-scalar-ir-passes -amdgpu-sdwa-peephole \
+; RUN: llc -O1 -mtriple=amdgpu7.00--amdhsa -disable-verify -amdgpu-scalar-ir-passes -amdgpu-sdwa-peephole \
 ; RUN:   -amdgpu-load-store-vectorizer -amdgpu-enable-pre-ra-optimizations -amdgpu-loop-prefetch -debug-pass=Structure < %s 2>&1 \
 ; RUN:   | FileCheck -match-full-lines -strict-whitespace -check-prefix=GCN-O1-OPTS %s
-; RUN: llc -O2 -mtriple=amdgcn--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
+; RUN: llc -O2 -mtriple=amdgpu7.00--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
 ; RUN:   | FileCheck -match-full-lines -strict-whitespace -check-prefix=GCN-O2 %s
-; RUN: llc -O3 -mtriple=amdgcn--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
+; RUN: llc -O3 -mtriple=amdgpu7.00--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
 ; RUN:   | FileCheck -match-full-lines -strict-whitespace -check-prefix=GCN-O3 %s
 
 ; REQUIRES: asserts
@@ -60,6 +60,10 @@
 ; GCN-O0-NEXT:      Dominator Tree Construction
 ; GCN-O0-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O0-NEXT:    Lower buffer fat pointer operations to buffer resources
+; GCN-O0-NEXT:      FunctionPass Manager
+; GCN-O0-NEXT:        Dominator Tree Construction
+; GCN-O0-NEXT:        Natural Loop Information
+; GCN-O0-NEXT:        Scalar Evolution Analysis
 ; GCN-O0-NEXT:    AMDGPU lower intrinsics
 ; GCN-O0-NEXT:    FunctionPass Manager
 ; GCN-O0-NEXT:      Lazy Value Information Analysis
@@ -258,6 +262,10 @@
 ; GCN-O1-NEXT:      Block Frequency Analysis
 ; GCN-O1-NEXT:      CodeGen Prepare
 ; GCN-O1-NEXT:    Lower buffer fat pointer operations to buffer resources
+; GCN-O1-NEXT:      FunctionPass Manager
+; GCN-O1-NEXT:        Dominator Tree Construction
+; GCN-O1-NEXT:        Natural Loop Information
+; GCN-O1-NEXT:        Scalar Evolution Analysis
 ; GCN-O1-NEXT:    AMDGPU lower intrinsics
 ; GCN-O1-NEXT:    FunctionPass Manager
 ; GCN-O1-NEXT:      Lazy Value Information Analysis
@@ -573,6 +581,10 @@
 ; GCN-O1-OPTS-NEXT:      Scalar Evolution Analysis
 ; GCN-O1-OPTS-NEXT:      GPU Load and Store Vectorizer
 ; GCN-O1-OPTS-NEXT:    Lower buffer fat pointer operations to buffer resources
+; GCN-O1-OPTS-NEXT:      FunctionPass Manager
+; GCN-O1-OPTS-NEXT:        Dominator Tree Construction
+; GCN-O1-OPTS-NEXT:        Natural Loop Information
+; GCN-O1-OPTS-NEXT:        Scalar Evolution Analysis
 ; GCN-O1-OPTS-NEXT:    AMDGPU lower intrinsics
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
 ; GCN-O1-OPTS-NEXT:      Lazy Value Information Analysis
@@ -898,6 +910,10 @@
 ; GCN-O2-NEXT:      Scalar Evolution Analysis
 ; GCN-O2-NEXT:      GPU Load and Store Vectorizer
 ; GCN-O2-NEXT:    Lower buffer fat pointer operations to buffer resources
+; GCN-O2-NEXT:      FunctionPass Manager
+; GCN-O2-NEXT:        Dominator Tree Construction
+; GCN-O2-NEXT:        Natural Loop Information
+; GCN-O2-NEXT:        Scalar Evolution Analysis
 ; GCN-O2-NEXT:    AMDGPU lower intrinsics
 ; GCN-O2-NEXT:    FunctionPass Manager
 ; GCN-O2-NEXT:      Lazy Value Information Analysis
@@ -1238,6 +1254,10 @@
 ; GCN-O3-NEXT:      Scalar Evolution Analysis
 ; GCN-O3-NEXT:      GPU Load and Store Vectorizer
 ; GCN-O3-NEXT:    Lower buffer fat pointer operations to buffer resources
+; GCN-O3-NEXT:      FunctionPass Manager
+; GCN-O3-NEXT:        Dominator Tree Construction
+; GCN-O3-NEXT:        Natural Loop Information
+; GCN-O3-NEXT:        Scalar Evolution Analysis
 ; GCN-O3-NEXT:    AMDGPU lower intrinsics
 ; GCN-O3-NEXT:    FunctionPass Manager
 ; GCN-O3-NEXT:      Lazy Value Information Analysis

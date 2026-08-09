@@ -9,7 +9,7 @@
 #pragma once
 
 #include "../common.hpp"
-#include "../device.hpp"
+#include "../common/device.hpp"
 #include "common/ur_ref_count.hpp"
 
 #include "context.hpp"
@@ -21,9 +21,9 @@
 #include "lockable.hpp"
 #include "ur/ur.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
-struct ur_queue_immediate_out_of_order_t : ur_object, ur_queue_t_ {
+struct ur_queue_immediate_out_of_order_t : ur_object_t, ur_queue_t_ {
 private:
   // Number of command lists was chosen experimentally as a compromise
   // between number of allowed concurrent launches and overhead of
@@ -654,4 +654,4 @@ public:
   ur::RefCount RefCount;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

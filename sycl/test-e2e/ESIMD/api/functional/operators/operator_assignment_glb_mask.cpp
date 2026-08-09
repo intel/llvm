@@ -48,8 +48,8 @@ int main(void) {
               << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read>(cgh);
-      auto PB = bufb.get_access<access::mode::write>(cgh);
+      auto PA = bufa.get_access<access_mode::read>(cgh);
+      auto PB = bufb.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class Test>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::esimd;

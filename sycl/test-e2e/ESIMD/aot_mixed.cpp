@@ -70,9 +70,9 @@ bool test_esimd(queue q) {
     buffer<float, 1> bufc(C, range<1>(Size));
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read>(cgh);
-      auto PB = bufb.get_access<access::mode::read>(cgh);
-      auto PC = bufc.get_access<access::mode::write>(cgh);
+      auto PA = bufa.get_access<access_mode::read>(cgh);
+      auto PB = bufb.get_access<access_mode::read>(cgh);
+      auto PC = bufc.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class TestESIMD>(
           Size / VL, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::esimd;
@@ -122,9 +122,9 @@ bool test_sycl(queue q) {
     buffer<float, 1> bufc(C, range<1>(Size));
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read>(cgh);
-      auto PB = bufb.get_access<access::mode::read>(cgh);
-      auto PC = bufc.get_access<access::mode::write>(cgh);
+      auto PA = bufa.get_access<access_mode::read>(cgh);
+      auto PB = bufb.get_access<access_mode::read>(cgh);
+      auto PC = bufc.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class TestSYCL>(Size,
                                        [=](id<1> i) { PC[i] = PA[i] + PB[i]; });
     });

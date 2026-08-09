@@ -32,7 +32,7 @@ void add_nodes_to_graph(
   auto HostTaskOp = add_node(
       Graph, Queue,
       [&](handler &CGH) {
-        auto AccC = BufferC.get_access<access::mode::read_write,
+        auto AccC = BufferC.get_access<access_mode::read_write,
                                        access::target::host_task>(CGH);
         depends_on_helper(CGH, LastOperation);
         CGH.host_task([=]() {

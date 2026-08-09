@@ -20,6 +20,7 @@
 #include <cassert>
 #include <condition_variable>
 #include <optional>
+#include <utility>
 
 namespace sycl {
 inline namespace _V1 {
@@ -360,6 +361,14 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
 
+  bool isPotentiallyNativeRecorded() const {
+    return MPotentiallyNativeRecorded;
+  }
+
+  void setPotentiallyNativeRecorded(bool Value) {
+    MPotentiallyNativeRecorded = Value;
+  }
+
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 
   // Sets a command-buffer command when this event represents an enqueue to a
@@ -448,10 +457,19 @@ protected:
   /// True only for events imported via ipc::event::open().
   bool MOpenedFromIpc = false;
 
+  /// Exported IPC handle data for a producer IPC event.
+  void *MIPCHandleData = nullptr;
+  size_t MIPCHandleDataSize = 0;
+
 public:
   bool isIPCEnabled() const noexcept { return MIPCEnabled; }
   bool isOpenedFromIpc() const noexcept { return MOpenedFromIpc; }
   void setIPCEnabled(bool Value) { MIPCEnabled = Value; }
+
+  /// Returns the exported IPC handle data for this producer IPC event,
+  /// obtaining it from the backend on the first call and caching it on the
+  /// event.
+  std::pair<void *, size_t> getOrCreateIPCHandle();
 
 protected:
   /// Indicates that the task associated with this event has been submitted by
@@ -471,6 +489,12 @@ protected:
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
   /// Indicates that the event results from a command graph submission.
   bool MEventFromSubmittedExecCommandBuffer = false;
+
+  /// Set from the context of the worker queue when the event is created for a
+  /// command submission, marking it as potentially captured if a native graph
+  /// recording was active. Used to preserve in-order dependencies that cross
+  /// the native-recording capture boundary.
+  bool MPotentiallyNativeRecorded = false;
 
   // If this event represents a submission to a
   // ur_exp_command_buffer_sync_point_t the sync point for that submission is
