@@ -29,7 +29,7 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  if (!dev.get_info<info::device::usm_device_allocations>())
+  if (!dev.has(aspect::usm_device_allocations))
     return 0;
 
   Node h_cur;

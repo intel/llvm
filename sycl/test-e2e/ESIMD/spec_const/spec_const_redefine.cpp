@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
         cgh.set_specialization_constant<SC1>(9999);
         cgh.set_specialization_constant<SC0>(sc_set[0]);
         cgh.set_specialization_constant<SC1>(sc_set[1]);
-        auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::write>(cgh);
         cgh.single_task<class KernelAAA>(
             [=](kernel_handler kh) SYCL_ESIMD_KERNEL {
               auto SC0Val = kh.get_specialization_constant<SC0>();

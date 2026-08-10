@@ -24,12 +24,12 @@
 // Phase 4: Verify that a device-to-device memcpy succeeds after enabling P2P
 // and that the transferred data matches the fill pattern.
 //
-// REQUIRES: level_zero && two-or-more-gpu-devices
+// UNSUPPORTED: run-mode && !(two-or-more-gpu-devices && level_zero)
 // UNSUPPORTED: level_zero_v1_adapter
 // UNSUPPORTED-INTENDED: Test is specific to the Level Zero v2 adapter.
 //
 // RUN: %{build} -o %t.out
-// RUN: env UR_LOADER_USE_LEVEL_ZERO_V2=1 %{run} %t.out
+// RUN: %if level_zero %{env UR_LOADER_USE_LEVEL_ZERO_V2=1 SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=1 %{run} %t.out %}
 
 #include <iostream>
 #include <vector>

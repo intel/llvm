@@ -7,6 +7,7 @@ struct LinkingCapturesHolder {
   unsigned NumOfUrProgramCreateCalls = 0;
   unsigned NumOfUrProgramCreateWithBinaryCalls = 0;
   unsigned NumOfUrProgramLinkCalls = 0;
+  unsigned NumOfUrProgramDynamicLinkCalls = 0;
   unsigned ProgramUsedToCreateKernel = 0;
   std::vector<unsigned> LinkedPrograms;
 
@@ -22,6 +23,7 @@ struct LinkingCapturesHolder {
     NumOfUrProgramCreateCalls = 0;
     NumOfUrProgramCreateWithBinaryCalls = 0;
     NumOfUrProgramLinkCalls = 0;
+    NumOfUrProgramDynamicLinkCalls = 0;
     ProgramUsedToCreateKernel = 0;
     LinkedPrograms.clear();
   }
@@ -69,6 +71,17 @@ static ur_result_t redefined_urProgramLinkExp(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+static ur_result_t redefined_urProgramDynamicLinkExp(void *pParams) {
+  auto Params = *static_cast<ur_program_dynamic_link_exp_params_t *>(pParams);
+  for (uint32_t I = 0; I < *Params.pcount; ++I) {
+    auto Val = reinterpret_cast<mock::dummy_handle_t>((*Params.pphPrograms)[I])
+                   ->getDataAs<unsigned>();
+    CapturedLinkingData.LinkedPrograms.push_back(Val);
+  }
+  ++CapturedLinkingData.NumOfUrProgramDynamicLinkCalls;
+  return UR_RESULT_SUCCESS;
+}
+
 static ur_result_t redefined_urKernelCreate(void *pParams) {
   auto Params = *static_cast<ur_kernel_create_params_t *>(pParams);
   CapturedLinkingData.ProgramUsedToCreateKernel =
@@ -85,6 +98,8 @@ static void setupRuntimeLinkingMock() {
       "urProgramCreateWithBinary", redefined_urProgramCreateWithBinary);
   mock::getCallbacks().set_replace_callback("urProgramLinkExp",
                                             redefined_urProgramLinkExp);
+  mock::getCallbacks().set_replace_callback("urProgramDynamicLinkExp",
+                                            redefined_urProgramDynamicLinkExp);
   mock::getCallbacks().set_replace_callback("urKernelCreate",
                                             redefined_urKernelCreate);
 }

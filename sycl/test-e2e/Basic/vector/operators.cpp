@@ -49,7 +49,7 @@ int main() {
     {
       s::buffer<vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isequal_vec_op_1_elem>([=]() {
           vec_type vec1(2);
           vec_type vec2(2);
@@ -69,7 +69,7 @@ int main() {
     {
       s::buffer<vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isequal_vec_op_1_elem_scalar>([=]() {
           vec_type vec(2);
           char rhs_scalar = 2;
@@ -95,7 +95,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isequal_vec_op>([=]() {
           s::uint4 vec1(42, 42, 42, 0);
           s::uint4 vec2(0, 42, 42, 0);
@@ -114,7 +114,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isless_vec_op>([=]() {
           s::double4 vec1(0.5, 10.1, 10.2, 10.3);
           s::double4 vec2(10.5, 0.1, 0.2, 0.3);
@@ -133,7 +133,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isgreater_vec_op>([=]() {
           s::char4 vec1(0, 0, 42, 42);
           s::char4 vec2(42, 0, 0, -42);
@@ -152,7 +152,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isnotgreater_vec_op>([=]() {
           s::half4 vec1(0, 0, 42, 42);
           s::half4 vec2(42, 0, 0, -42);
@@ -173,7 +173,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isnotless_vec_op>([=]() {
           s::ulong4 vec1(0, 0, 42, 42);
           s::ulong4 vec2{42, 0, 0, 0};
@@ -192,7 +192,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class isnotequal_vec_op>([=]() {
           s::ushort4 vec1(0, 0, 42, 42);
           s::ushort4 vec2{42, 0, 0, 42};
@@ -211,7 +211,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class logical_and_vec_op>([=]() {
           s::int4 vec1(0, 0, 42, 42);
           s::int4 vec2{42, 0, 0, 42};
@@ -230,7 +230,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class logical_or_vec_op>([=]() {
           s::int4 vec1(0, 0, 42, 42);
           s::int4 vec2{42, 0, 0, 42};
@@ -250,7 +250,7 @@ int main() {
     {
       s::buffer<res_vec_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
-        auto Acc = Buf.get_access<s::access::mode::write>(cgh);
+        auto Acc = Buf.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class as_op>([=]() {
           s::float4 vec1(4.5f, 0, 3.5f, -10.0f);
           Acc[0] = vec1.template as<res_vec_type>();

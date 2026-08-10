@@ -31,7 +31,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     : D(D), InstallationCandidates(), HostTriple(HostTriple) {
   // When -fsycl is active, locate the SYCL runtime library and record its
   // directory in SYCLRTLibPath for use by the linker.
-  StringRef SysRoot = D.SysRoot;
+  [[maybe_unused]] StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
 
 #if 0 // !INTEL_CUSTOMIZATION
@@ -88,8 +88,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME,
                           "libsycl.so");
 
-  if (DriverDir.starts_with(SysRoot) &&
-      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
     // We put driver in bin/compiler, so one more ../ than llorg.
     if (D.getVFS().exists(DriverDir + "/../../lib/libsycl.so"))
       llvm::sys::path::append(DriverDir, "..", "..",
@@ -868,7 +867,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       return &II == &InputFiles[1];
     };
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
       const bool IsSYCLNativeCPU =

@@ -63,9 +63,10 @@ ur_context_handle_t_::makeWithNative(native_type Ctx, uint32_t DevCount,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
-    uint32_t DeviceCount, const ur_device_handle_t *phDevices,
-    const ur_context_properties_t *, ur_context_handle_t *phContext) {
+ur_result_t urContextCreate(uint32_t DeviceCount,
+                            const ur_device_handle_t *phDevices,
+                            const ur_context_properties_t *,
+                            ur_context_handle_t *phContext) {
 
   cl_int Ret;
   std::vector<cl_device_id> CLDevices(DeviceCount);
@@ -92,9 +93,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
   return mapCLErrorToUR(Ret);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
-                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+ur_result_t urContextGetInfo(ur_context_handle_t hContext,
+                             ur_context_info_t propName, size_t propSize,
+                             void *pPropValue, size_t *pPropSizeRet) {
 
   auto Context = cast(hContext);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
@@ -119,8 +120,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextRelease(ur_context_handle_t hContext) {
+ur_result_t urContextRelease(ur_context_handle_t hContext) {
   auto Context = cast(hContext);
   if (Context->RefCount.release()) {
     delete Context;
@@ -129,22 +129,21 @@ urContextRelease(ur_context_handle_t hContext) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextRetain(ur_context_handle_t hContext) {
+ur_result_t urContextRetain(ur_context_handle_t hContext) {
   auto Context = cast(hContext);
   Context->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
-    ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
+ur_result_t urContextGetNativeHandle(ur_context_handle_t hContext,
+                                     ur_native_handle_t *phNativeContext) {
 
   auto Context = cast(hContext);
   *phNativeContext = reinterpret_cast<ur_native_handle_t>(Context->CLContext);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
+ur_result_t urContextCreateWithNativeHandle(
     ur_native_handle_t hNativeContext, ur_adapter_handle_t, uint32_t numDevices,
     const ur_device_handle_t *phDevices,
     const ur_context_native_properties_t *pProperties,
@@ -158,9 +157,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
-    ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
-    void *pUserData) {
+ur_result_t
+urContextSetExtendedDeleter(ur_context_handle_t hContext,
+                            ur_context_extended_deleter_t pfnDeleter,
+                            void *pUserData) {
   if (!cast(ur::cl::getAdapter())->clSetContextDestructorCallbackFn) {
     UR_LOG_L(cast(ur::cl::getAdapter())->log, WARN,
              "clSetContextDestructorCallback not found, consider upgrading the "

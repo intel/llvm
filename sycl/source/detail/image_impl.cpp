@@ -378,14 +378,6 @@ bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
                     "For a 3D image, the depth must be a Value >= 1 and <= "
                     "info::device::image2d_max_depth");
 
-  if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D_ARRAY,
-               UR_MEM_TYPE_IMAGE2D_ARRAY) &&
-      !checkImageValueRange<info::device::image_max_array_size>(Devices,
-                                                                Desc.arraySize))
-    throw exception(make_error_code(errc::invalid),
-                    "For a 1D and 2D image array, the array_size must be a "
-                    "Value >= 1 and <= info::device::image_max_array_size.");
-
   if ((nullptr == UserPtr) && (0 != Desc.rowPitch))
     throw exception(make_error_code(errc::invalid),
                     "The row_pitch must be 0 if host_ptr is nullptr.");

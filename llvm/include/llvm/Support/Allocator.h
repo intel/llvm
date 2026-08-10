@@ -18,6 +18,7 @@
 #define LLVM_SUPPORT_ALLOCATOR_H
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Config/abi-breaking.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/AllocatorBase.h"
 #include "llvm/Support/Compiler.h"
@@ -36,9 +37,7 @@ namespace detail {
 
 // We call out to an external function to actually print the message as the
 // printing code uses Allocator.h in its implementation.
-LLVM_ABI void printBumpPtrAllocatorStats(unsigned NumSlabs,
-                                         size_t BytesAllocated,
-                                         size_t TotalMemory);
+LLVM_ABI void printBumpPtrAllocatorStats(unsigned NumSlabs, size_t TotalMemory);
 
 } // end namespace detail
 
@@ -59,16 +58,11 @@ LLVM_ABI void printBumpPtrAllocatorStats(unsigned NumSlabs,
 ///
 /// The GrowthDelay specifies after how many allocated slabs the allocator
 /// increases the size of the slabs.
-///
-/// MinAlign keeps the bump pointer aligned between allocations: each size is
-/// rounded up to a multiple of MinAlign so the fast path can skip realigning
-/// CurPtr when the requested alignment is no greater than MinAlign.
 template <typename AllocatorT = MallocAllocator, size_t SlabSize = 4096,
-          size_t SizeThreshold = SlabSize, size_t GrowthDelay = 128,
-          size_t MinAlign = 8>
+          size_t SizeThreshold = SlabSize, size_t GrowthDelay = 128>
 class BumpPtrAllocatorImpl
-    : public AllocatorBase<BumpPtrAllocatorImpl<
-          AllocatorT, SlabSize, SizeThreshold, GrowthDelay, MinAlign>>,
+    : public AllocatorBase<BumpPtrAllocatorImpl<AllocatorT, SlabSize,
+                                                SizeThreshold, GrowthDelay>>,
       private detail::AllocatorHolder<AllocatorT> {
   using AllocTy = detail::AllocatorHolder<AllocatorT>;
 
@@ -80,10 +74,6 @@ public:
   static_assert(GrowthDelay > 0,
                 "GrowthDelay must be at least 1 which already increases the"
                 "slab size after each allocated slab.");
-  static_assert(MinAlign > 0 && (MinAlign & (MinAlign - 1)) == 0,
-                "MinAlign must be a power of two");
-  static_assert(MinAlign <= alignof(std::max_align_t),
-                "MinAlign must not exceed the alignment of fresh slabs");
 
   BumpPtrAllocatorImpl() = default;
 
@@ -96,11 +86,12 @@ public:
   BumpPtrAllocatorImpl(BumpPtrAllocatorImpl &&Old)
       : AllocTy(std::move(Old.getAllocator())), CurPtr(Old.CurPtr),
         EndSentinel(Old.EndSentinel), Slabs(std::move(Old.Slabs)),
-        CustomSizedSlabs(std::move(Old.CustomSizedSlabs)),
-        BytesAllocated(Old.BytesAllocated), RedZoneSize(Old.RedZoneSize) {
+        CustomSizedSlabs(std::move(Old.CustomSizedSlabs)) {
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+    RedZoneSize = Old.RedZoneSize;
+#endif
     Old.CurPtr = nullptr;
     Old.EndSentinel = 0;
-    Old.BytesAllocated = 0;
     Old.Slabs.clear();
     Old.CustomSizedSlabs.clear();
   }
@@ -116,15 +107,15 @@ public:
 
     CurPtr = RHS.CurPtr;
     EndSentinel = RHS.EndSentinel;
-    BytesAllocated = RHS.BytesAllocated;
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
     RedZoneSize = RHS.RedZoneSize;
+#endif
     Slabs = std::move(RHS.Slabs);
     CustomSizedSlabs = std::move(RHS.CustomSizedSlabs);
     AllocTy::operator=(std::move(RHS.getAllocator()));
 
     RHS.CurPtr = nullptr;
     RHS.EndSentinel = 0;
-    RHS.BytesAllocated = 0;
     RHS.Slabs.clear();
     RHS.CustomSizedSlabs.clear();
     return *this;
@@ -141,7 +132,6 @@ public:
       return;
 
     // Reset the state.
-    BytesAllocated = 0;
     CurPtr = (char *)Slabs.front();
     EndSentinel = uintptr_t(CurPtr) + SlabSize + 1;
 
@@ -158,20 +148,14 @@ public:
   // Allocate(0, N) is valid, it returns a non-null pointer (which should not
   // be dereferenced).
   LLVM_ATTRIBUTE_RETURNS_NONNULL void *Allocate(size_t Size, Align Alignment) {
-    // Keep track of how many bytes we've allocated.
-    BytesAllocated += Size;
-
     size_t SizeToAllocate = Size;
-#if LLVM_ADDRESS_SANITIZER_BUILD
-    // Add trailing bytes as a "red zone" under ASan.
+#if LLVM_ADDRESS_SANITIZER_BUILD && LLVM_ENABLE_ABI_BREAKING_CHECKS
+    // Add trailing bytes as a "red zone" under ASan. RedZoneSize only exists
+    // when both conditions are true.
     SizeToAllocate += RedZoneSize;
 #endif
-    SizeToAllocate = alignToPowerOf2(SizeToAllocate, MinAlign);
 
-    // CurPtr is already MinAlign-aligned, so only a stricter request realigns.
-    uintptr_t AlignedPtr = uintptr_t(CurPtr);
-    if (Alignment.value() > MinAlign)
-      AlignedPtr = alignAddr(CurPtr, Alignment);
+    uintptr_t AlignedPtr = alignAddr(CurPtr, Alignment);
     uintptr_t AllocEndPtr = AlignedPtr + SizeToAllocate;
     assert(AllocEndPtr >= uintptr_t(CurPtr) &&
            "Alignment + Size must not overflow");
@@ -308,15 +292,14 @@ public:
     return TotalMemory;
   }
 
-  size_t getBytesAllocated() const { return BytesAllocated; }
-
-  void setRedZoneSize(size_t NewSize) {
+  void setRedZoneSize([[maybe_unused]] size_t NewSize) {
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
     RedZoneSize = NewSize;
+#endif
   }
 
   void PrintStats() const {
-    detail::printBumpPtrAllocatorStats(Slabs.size(), BytesAllocated,
-                                       getTotalMemory());
+    detail::printBumpPtrAllocatorStats(Slabs.size(), getTotalMemory());
   }
 
 private:
@@ -335,14 +318,11 @@ private:
   /// Custom-sized slabs allocated for too-large allocation requests.
   SmallVector<std::pair<void *, size_t>, 0> CustomSizedSlabs;
 
-  /// How many bytes we've allocated.
-  ///
-  /// Used so that we can compute how much space was wasted.
-  size_t BytesAllocated = 0;
-
-  /// The number of bytes to put between allocations when running under
-  /// a sanitizer.
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+  /// The number of bytes to put between allocations when running under a
+  /// sanitizer.
   size_t RedZoneSize = 1;
+#endif
 
   static size_t computeSlabSize(unsigned SlabIdx) {
     // Scale the actual allocated slab size based on the number of slabs
@@ -402,13 +382,7 @@ using BumpPtrAllocator = BumpPtrAllocatorImpl<>;
 /// This allows calling the destructor in DestroyAll() and when the allocator is
 /// destroyed.
 template <typename T> class SpecificBumpPtrAllocator {
-  // DestroyAll() walks objects at a fixed sizeof(T) stride, so it needs tight
-  // packing: MinAlign=1 disables the size rounding. (alignof(T) would pack just
-  // as tightly and reuse the default instantiation, but T may be incomplete
-  // here, e.g. SpecificBumpPtrAllocator<MCSectionELF>.)
-  using BumpPtrAllocatorTy =
-      BumpPtrAllocatorImpl<MallocAllocator, 4096, 4096, 128, /*MinAlign=*/1>;
-  BumpPtrAllocatorTy Allocator;
+  BumpPtrAllocator Allocator;
 
 public:
   SpecificBumpPtrAllocator() {
@@ -437,7 +411,7 @@ public:
 
     for (auto I = Allocator.Slabs.begin(), E = Allocator.Slabs.end(); I != E;
          ++I) {
-      size_t AllocatedSlabSize = BumpPtrAllocatorTy::computeSlabSize(
+      size_t AllocatedSlabSize = BumpPtrAllocator::computeSlabSize(
           std::distance(Allocator.Slabs.begin(), I));
       char *Begin = (char *)alignAddr(*I, Align::Of<T>());
       char *End = *I == Allocator.Slabs.back() ? Allocator.CurPtr
@@ -457,14 +431,7 @@ public:
   }
 
   /// Allocate space for an array of objects without constructing them.
-  T *Allocate(size_t num = 1) {
-    // Slabs are max_align_t-aligned and every size is a multiple of alignof(T),
-    // so the bump pointer is already alignof(T)-aligned. Request alignment 1 so
-    // the fast path skips realigning CurPtr; over-aligned T still needs it.
-    if constexpr (alignof(T) <= alignof(std::max_align_t))
-      return static_cast<T *>(Allocator.Allocate(num * sizeof(T), Align()));
-    return Allocator.Allocate<T>(num);
-  }
+  T *Allocate(size_t num = 1) { return Allocator.Allocate<T>(num); }
 
   /// \return An index uniquely and reproducibly identifying
   /// an input pointer \p Ptr in the given allocator.
@@ -477,19 +444,20 @@ public:
 } // end namespace llvm
 
 template <typename AllocatorT, size_t SlabSize, size_t SizeThreshold,
-          size_t GrowthDelay, size_t MinAlign>
+          size_t GrowthDelay>
 void *
 operator new(size_t Size,
              llvm::BumpPtrAllocatorImpl<AllocatorT, SlabSize, SizeThreshold,
-                                        GrowthDelay, MinAlign> &Allocator) {
-  return Allocator.Allocate(
-      Size, std::min(llvm::bit_ceil(Size), alignof(std::max_align_t)));
+                                        GrowthDelay> &Allocator) {
+  return Allocator.Allocate(Size, std::min((size_t)llvm::NextPowerOf2(Size),
+                                           alignof(std::max_align_t)));
 }
 
 template <typename AllocatorT, size_t SlabSize, size_t SizeThreshold,
-          size_t GrowthDelay, size_t MinAlign>
-void operator delete(
-    void *, llvm::BumpPtrAllocatorImpl<AllocatorT, SlabSize, SizeThreshold,
-                                       GrowthDelay, MinAlign> &) {}
+          size_t GrowthDelay>
+void operator delete(void *,
+                     llvm::BumpPtrAllocatorImpl<AllocatorT, SlabSize,
+                                                SizeThreshold, GrowthDelay> &) {
+}
 
 #endif // LLVM_SUPPORT_ALLOCATOR_H

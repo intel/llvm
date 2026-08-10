@@ -12,7 +12,7 @@
 
 namespace ur::opencl {
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
     size_t /*aligment*/, size_t /*size*/,
     ur_exp_external_mem_type_t /*handleTypeToExport*/, void ** /*ppMem*/) {
@@ -20,14 +20,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
-    ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
-    void * /*pMem*/) {
+ur_result_t
+urMemoryExportFreeExportableMemoryExp(ur_context_handle_t /*hContext*/,
+                                      ur_device_handle_t /*hDevice*/,
+                                      void * /*pMem*/) {
   UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+ur_result_t urMemoryExportExportMemoryHandleExp(
     ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
     ur_exp_external_mem_type_t /*handleTypeToExport*/, void * /*pMem*/,
     void * /*pMemHandleRet*/) {
