@@ -397,14 +397,11 @@ public:
   /// Prefix to use for -save-temps output.
   std::string SaveTempsFilePrefix;
 
-  /// Name of file passed with -fcuda-include-gpubinary option to forward to
-  /// CUDA runtime back-end for incorporating them into host-side object file.
-  std::string CudaGpuBinaryFileName;
-
-  /// Name of file passed with -fsycl-include-target-binary option. Used in
-  /// -fno-sycl-rdc mode to embed and register a per-TU finalized SYCL device
-  /// image into the host object at compile time.
-  std::string SYCLTargetBinaryFileName;
+  /// Name of file passed with -foffload-include-binary. The pre-finalized
+  /// device binary is embedded into the host object at compile time; the
+  /// exact embedding mechanism is offload-model specific (e.g. raw fatbinary
+  /// for CUDA/HIP, bitcode link for SYCL).
+  std::string OffloadBinaryFileName;
 
   /// List of filenames passed in using the -fembed-offload-object option. These
   /// are offloading binaries containing device images and metadata.

@@ -174,7 +174,7 @@ CIRGenModule::CIRGenModule(mlir::MLIRContext &mlirContext,
 
   // Set CUDA GPU binary handle.
   if (langOpts.CUDA) {
-    llvm::StringRef cudaBinaryName = codeGenOpts.CudaGpuBinaryFileName;
+    llvm::StringRef cudaBinaryName = codeGenOpts.OffloadBinaryFileName;
     if (!cudaBinaryName.empty()) {
       theModule->setAttr(cir::CIRDialect::getCUDABinaryHandleAttrName(),
                          cir::CUDABinaryHandleAttr::get(

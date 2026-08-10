@@ -9145,18 +9145,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // them in the host compilation depending on the target. If the host inputs
   // are not empty we use the new-driver scheme, otherwise use the old scheme.
   if ((IsCuda || IsHIP) && CudaDeviceInput) {
-    CmdArgs.push_back("-fcuda-include-gpubinary");
+    CmdArgs.push_back("-foffload-include-binary");
     CmdArgs.push_back(CudaDeviceInput->getFilename());
   } else if (!HostOffloadingInputs.empty()) {
-    if ((IsCuda || IsHIP) && !IsRDCMode) {
-      // CUDA/HIP no-RDC: device image finalized per-TU, embed at compile time.
+    if (((IsCuda || IsHIP) || IsSYCL) && !IsRDCMode) {
+      // No-RDC: device image finalized per-TU, embed at compile time.
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
-      CmdArgs.push_back("-fcuda-include-gpubinary");
-      CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
-    } else if (IsSYCL && !IsRDCMode) {
-      // SYCL no-RDC: per-TU finalized device image, embed at compile time.
-      assert(HostOffloadingInputs.size() == 1 && "One finalized image per TU");
-      CmdArgs.push_back("-fsycl-include-target-binary");
+      CmdArgs.push_back("-foffload-include-binary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
     } else {
       // RDC: embed raw device bitcode for cross-TU device link at link time.

@@ -138,14 +138,14 @@ bool CGSYCLRuntime::actOnGlobalVarEmit(CodeGenModule &CGM, const VarDecl &D,
 
 void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
   if (!CGM.getLangOpts().SYCLIsHost ||
-      CGM.getCodeGenOpts().SYCLTargetBinaryFileName.empty())
+      CGM.getCodeGenOpts().OffloadBinaryFileName.empty())
     return;
   auto BinaryOrErr = CGM.getFileSystem()->getBufferForFile(
-      CGM.getCodeGenOpts().SYCLTargetBinaryFileName, /*MaxSize=*/-1,
+      CGM.getCodeGenOpts().OffloadBinaryFileName, /*MaxSize=*/-1,
       /*RequiresNullTerminator=*/false);
   if (std::error_code EC = BinaryOrErr.getError()) {
     CGM.getDiags().Report(diag::err_cannot_open_file)
-        << CGM.getCodeGenOpts().SYCLTargetBinaryFileName << EC.message();
+        << CGM.getCodeGenOpts().OffloadBinaryFileName << EC.message();
     return;
   }
   // The input is a wrapper bitcode module produced by clang-linker-wrapper
@@ -157,7 +157,7 @@ void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
       llvm::parseBitcodeFile((*BinaryOrErr)->getMemBufferRef(), Ctx);
   if (!DevModOrErr) {
     CGM.getDiags().Report(diag::err_fe_linking_module)
-        << CGM.getCodeGenOpts().SYCLTargetBinaryFileName
+        << CGM.getCodeGenOpts().OffloadBinaryFileName
         << llvm::toString(DevModOrErr.takeError());
     return;
   }
@@ -172,7 +172,7 @@ void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
   Ctx.setDiagnosticHandler(std::make_unique<llvm::DiagnosticHandler>());
   if (llvm::Linker::linkModules(CGM.getModule(), std::move(*DevModOrErr)))
     CGM.getDiags().Report(diag::err_fe_linking_module)
-        << CGM.getCodeGenOpts().SYCLTargetBinaryFileName
+        << CGM.getCodeGenOpts().OffloadBinaryFileName
         << "linking wrapper bitcode into host module failed";
   Ctx.setDiagnosticHandler(std::move(OldHandler));
 }

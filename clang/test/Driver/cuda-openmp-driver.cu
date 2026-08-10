@@ -37,4 +37,4 @@
 // RUN: | FileCheck -check-prefix GPU-BINARY %s
 
 // GPU-BINARY: fatbinary{{.*}}"--create" "{{.*}}.fatbin"
-// GPU-BINARY: -cc1{{.*}}-fcuda-include-gpubinary" "{{.*}}.fatbin"
+// GPU-BINARY: -cc1{{.*}}-foffload-include-binary" "{{.*}}.fatbin"

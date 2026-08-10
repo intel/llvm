@@ -8344,7 +8344,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
              !isa<LinkJobAction>(HostAction)) {
     // SYCL -fno-sycl-rdc at compile time: finalize each TU's device code
     // immediately via clang-linker-wrapper --sycl-device-link, embedding the
-    // result into the host object via -fsycl-include-target-binary.
+    // result into the host object via -foffload-include-binary.
     Action *PackagerAction =
         C.MakeAction<OffloadPackagerJobAction>(OffloadActions, types::TY_Image);
     ActionList AL{PackagerAction};

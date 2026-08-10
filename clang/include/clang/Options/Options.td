@@ -9466,12 +9466,15 @@ let Visibility = [CC1Option] in {
 def fcuda_is_device : Flag<["-"], "fcuda-is-device">,
   HelpText<"Generate code for CUDA device">,
   MarshallingInfoFlag<LangOpts<"CUDAIsDevice">>;
+def foffload_include_binary : Separate<["-"], "foffload-include-binary">,
+  HelpText<"Incorporate a pre-finalized device binary into the host object file.">,
+  MarshallingInfoString<CodeGenOpts<"OffloadBinaryFileName">>;
 def fcuda_include_gpubinary : Separate<["-"], "fcuda-include-gpubinary">,
-  HelpText<"Incorporate CUDA device-side binary into host object file.">,
-  MarshallingInfoString<CodeGenOpts<"CudaGpuBinaryFileName">>;
+  HelpText<"Deprecated alias for -foffload-include-binary.">,
+  Alias<foffload_include_binary>;
 def fsycl_include_target_binary : Separate<["-"], "fsycl-include-target-binary">,
-  HelpText<"Incorporate SYCL device-side binary into host object file.">,
-  MarshallingInfoString<CodeGenOpts<"SYCLTargetBinaryFileName">>;
+  HelpText<"Deprecated alias for -foffload-include-binary.">,
+  Alias<foffload_include_binary>;
 def fcuda_allow_variadic_functions : Flag<["-"], "fcuda-allow-variadic-functions">,
   HelpText<"Deprecated; Allow variadic functions in CUDA device code.">;
 def fno_cuda_host_device_constexpr : Flag<["-"], "fno-cuda-host-device-constexpr">,

@@ -164,6 +164,6 @@
 // CHECK: "-cc1"
 // ARCH64-SAME: "-triple" "x86_64-
 // ARCH32-SAME: "-triple" "i386-
-// CHECK-SAME: "-fcuda-include-gpubinary" "[[FATBINARY]]"
+// CHECK-SAME: "-foffload-include-binary" "[[FATBINARY]]"
 
 // CHK-PTXAS-VERBOSE: ptxas{{.*}}" "-v"
