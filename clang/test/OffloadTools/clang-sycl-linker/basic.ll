@@ -118,6 +118,19 @@
 ; AOT-INTEL-GPU-NEXT: sycl-bundle: image kind: o, triple: spirv64, arch: bmg_g21
 ; AOT-INTEL-GPU-NOT:  {{.+}}
 ;
+; Test that --ocloc-path= provides the location of the ocloc tool.
+; RUN: clang-sycl-linker --dry-run -v --module-split-mode=link_unit -arch=bmg_g21 %t/input1.bc %t/input2.bc -o %t/aot-gpu.out 2>&1 \
+; RUN:     --ocloc-path=/my/ocloc/dir \
+; RUN:   | FileCheck %s --check-prefix=AOT-OCLOC-PATH
+; AOT-OCLOC-PATH: "/my/ocloc/dir{{[/\\]+}}ocloc" {{.*}}-device bmg_g21
+;
+; Test the diagnostic emitted when ocloc cannot be found in the given
+; directory.
+; RUN: not clang-sycl-linker -v --module-split-mode=link_unit -arch=bmg_g21 %t/input1.bc %t/input2.bc -o %t/aot-gpu.out 2>&1 \
+; RUN:     --ocloc-path=%t/no-ocloc-here \
+; RUN:   | FileCheck %s --check-prefix=AOT-OCLOC-PATH-ERR
+; AOT-OCLOC-PATH-ERR: unable to find 'ocloc' in '{{.*}}no-ocloc-here'
+;
 ; Test AOT compilation for an Intel CPU.
 ; Test that IMG_Object image kind is set for AOT compilation (Intel CPU).
 ; RUN: clang-sycl-linker --dry-run -v --module-split-mode=link_unit -arch=graniterapids %t/input1.bc %t/input2.bc -o %t/aot-cpu.out 2>&1 \

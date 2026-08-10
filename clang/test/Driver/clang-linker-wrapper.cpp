@@ -138,6 +138,17 @@
 // CHK-NO-CMDS-AOT-GEN-LINKERARG: sycl-post-link{{.*}} -o {{[^,]*}}.table {{.*}}.bc
 // CHK-NO-CMDS-AOT-GEN-LINKERARG: ocloc{{.*}} -device pvc -output
 
+// Check that --ocloc-path= provides the location of the ocloc tool.
+// RUN: clang-linker-wrapper --ocloc-path=/my/ocloc/dir --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH %s
+// CHK-OCLOC-PATH: "/my/ocloc/dir{{[/\\]+}}ocloc" -output_no_suffix
+// Check that --ocloc-path= is not forwarded on to the host linker.
+// CHK-OCLOC-PATH-NOT: ld{{.*}} --ocloc-path=
+
+// Check the diagnostic emitted when ocloc cannot be found in the given
+// directory.
+// RUN: not clang-linker-wrapper --ocloc-path=%t.no-ocloc-here --linker-path=/usr/bin/ld -o /dev/null %t1.o 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH-ERR %s
+// CHK-OCLOC-PATH-ERR: Unable to find 'ocloc' in '{{.*}}no-ocloc-here'
+
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
 // -------
 // Generate .o file as linker wrapper input.

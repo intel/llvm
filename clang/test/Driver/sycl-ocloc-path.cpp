@@ -1,0 +1,65 @@
+///
+/// Tests for --ocloc-path=, which provides the location of the externally
+/// acquired ocloc tool used for Intel GPU AOT compilation.
+///
+
+// REQUIRES: x86-registered-target
+
+/// Check that --ocloc-path= is used for the old offloading model.
+// RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:     --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-OLD %s
+// RUN:   %clang -### -fsycl --no-offload-new-driver \
+// RUN:     -fsycl-targets=intel_gpu_pvc --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-OLD %s
+// CHK-OCLOC-PATH-OLD: "/my/ocloc/dir{{[/\\]+}}ocloc" "-output"
+
+/// Check that the user provided location wins over an ocloc that is visible
+/// via the PATH.
+// RUN:   mkdir -p %t.dir
+// RUN:   touch %t.dir/ocloc
+// RUN:   chmod +x %t.dir/ocloc
+// RUN:   env PATH=%t.dir %clang -### -fsycl --no-offload-new-driver \
+// RUN:     -fsycl-targets=spir64_gen --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-OLD %s
+
+/// Check that the 'exe' name is used for windows.
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver \
+// RUN:     -fsycl-targets=spir64_gen --ocloc-path=/my/ocloc/dir -- %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-OLD-WIN %s
+// RUN:   %clang -### -target x86_64-pc-windows-msvc -fsycl \
+// RUN:     --no-offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:     --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-OLD-WIN %s
+// CHK-OCLOC-PATH-OLD-WIN: "/my/ocloc/dir{{[/\\]+}}ocloc.exe" "-output"
+
+/// Check that --ocloc-path= is forwarded to the clang-linker-wrapper for the
+/// new offloading model.
+// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:     --sysroot=%S/Inputs/SYCL --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-NEW %s
+// RUN:   %clang -### -fsycl --offload-new-driver \
+// RUN:     -fsycl-targets=intel_gpu_pvc --sysroot=%S/Inputs/SYCL \
+// RUN:     --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-NEW %s
+// CHK-OCLOC-PATH-NEW: clang-linker-wrapper{{.*}} "--ocloc-path=/my/ocloc/dir"
+
+/// Check that --ocloc-path= is forwarded to the clang-sycl-linker.
+// RUN:   touch %t.bc
+// RUN:   %clangxx -### --target=spirv64 --sycl-link \
+// RUN:     --ocloc-path=/my/ocloc/dir %t.bc 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SYCL-LINK %s
+// CHK-OCLOC-PATH-SYCL-LINK: clang-sycl-linker{{.*}} "--ocloc-path=/my/ocloc/dir"
+
+/// Check that --ocloc-path= is used when emitting the ocloc help information.
+// RUN:   %clang -### -fsycl -fsycl-help=gen --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-HELP %s
+// CHK-OCLOC-PATH-HELP: Emitting help information for ocloc
+// CHK-OCLOC-PATH-HELP: "/my/ocloc/dir{{[/\\]+}}ocloc" "--help"
+
+/// Check that --ocloc-path= does not warn as unused when no AOT compilation
+/// for Intel GPU is being performed.
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64 --ocloc-path=/my/ocloc/dir \
+// RUN:     --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-UNUSED %s
+// CHK-OCLOC-PATH-UNUSED-NOT: warning: argument unused during compilation

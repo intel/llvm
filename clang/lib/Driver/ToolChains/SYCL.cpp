@@ -1054,6 +1054,19 @@ static const char *makeExeName(Compilation &C, StringRef Name) {
   return C.getArgs().MakeArgString(ExeName);
 }
 
+const char *SYCL::gen::getOclocPath(Compilation &C, const ToolChain &TC,
+                                    const llvm::opt::ArgList &Args) {
+  const char *ExeName = makeExeName(C, "ocloc");
+  // A user provided --ocloc-path= takes precedence over any ocloc that is
+  // found via the program paths or the PATH environment variable.
+  if (Arg *A = Args.getLastArg(options::OPT_ocloc_path_EQ)) {
+    SmallString<128> OclocPath(A->getValue());
+    llvm::sys::path::append(OclocPath, ExeName);
+    return C.getArgs().MakeArgString(OclocPath);
+  }
+  return C.getArgs().MakeArgString(TC.GetProgramPath(ExeName));
+}
+
 // Determine if any of the given arguments contain any PVC based values for
 // the -device option.
 static bool hasPVCDevice(const ArgStringList &CmdArgs, std::string &DevArg) {
@@ -1117,9 +1130,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                 Device);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                Device);
-  SmallString<128> ExecPath(
-      getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
-  const char *Exec = C.getArgs().MakeArgString(ExecPath);
+  const char *Exec = SYCL::gen::getOclocPath(C, getToolChain(), Args);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {

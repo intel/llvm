@@ -2830,8 +2830,14 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     llvm::outs().flush();
     std::vector<StringRef> ToolArgs = {std::get<1>(HA), std::get<2>(HA),
                                        std::get<3>(HA)};
-    SmallString<128> ExecPath(
-        C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
+    SmallString<128> ExecPath;
+    // A user provided --ocloc-path= overrides the usual tool lookup for ocloc.
+    if (Arg *A = C.getArgs().getLastArg(options::OPT_ocloc_path_EQ);
+        A && std::get<1>(HA) == "ocloc") {
+      ExecPath = A->getValue();
+      llvm::sys::path::append(ExecPath, std::get<1>(HA));
+    } else
+      ExecPath = C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data());
     // do not run the tools with -###.
     if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
       llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"";
