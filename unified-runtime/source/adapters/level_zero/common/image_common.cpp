@@ -350,18 +350,11 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     // through the descriptor, in which case letting L0 compute the pitch
     // itself is what we want.
     ZeStruct<ze_custom_pitch_exp_desc_t> CustomPitchDesc;
-    for (const auto *Base =
-             static_cast<const ur_base_desc_t *>(pImageDesc->pNext);
-         Base != nullptr;
-         Base = static_cast<const ur_base_desc_t *>(Base->pNext)) {
-      if (Base->stype == UR_STRUCTURE_TYPE_EXP_IMAGE_USER_PITCH_DESC) {
-        const auto *UserPitch =
-            reinterpret_cast<const ur_exp_image_user_pitch_desc_t *>(Base);
-        CustomPitchDesc.rowPitch = UserPitch->rowPitch;
-        CustomPitchDesc.slicePitch = UserPitch->slicePitch;
-        PitchedDesc.pNext = &CustomPitchDesc;
-        break;
-      }
+    if (const auto *UserPitch =
+            find_stype_node<ur_exp_image_user_pitch_desc_t>(pImageDesc)) {
+      CustomPitchDesc.rowPitch = UserPitch->rowPitch;
+      CustomPitchDesc.slicePitch = UserPitch->slicePitch;
+      PitchedDesc.pNext = &CustomPitchDesc;
     }
 
     try {

@@ -299,10 +299,10 @@ int runTest(
 
     // bindless image use (x,y,z) order,
     // differening from SYCL 2020 "fastest incrementing" convention.
-    syclexp::image_descriptor imgDesc(
-        sycl::range<2>(width, height), channels, syclType,
-        syclexp::image_type::standard, /*num_levels=*/1, /*array_size=*/1,
-        /*num_samples=*/0, /*row_pitch=*/rowPitch);
+    syclexp::image_descriptor imgDesc(sycl::range<2>(width, height), channels,
+                                      syclType, syclexp::image_type::standard,
+                                      /*num_levels=*/1, /*array_size=*/1,
+                                      /*num_samples=*/0, rowPitch);
 
     // Map external memory
     syclexp::image_mem_handle devHandle = syclexp::map_external_image_memory(
