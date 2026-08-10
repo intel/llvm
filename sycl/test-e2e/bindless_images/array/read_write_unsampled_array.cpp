@@ -157,9 +157,10 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   bindless_helpers::add_host(input_0, input_1, expected);
 
   try {
-    syclexp::image_descriptor desc({dims[0], NDims > 2 ? dims[1] : 0},
-                                   NChannels, CType, syclexp::image_type::array,
-                                   1, NDims > 2 ? dims[2] : dims[1]);
+    syclexp::image_descriptor desc(
+        {dims[0], NDims > 2 ? dims[1] : 0}, NChannels, CType,
+        syclexp::image_color_space::linear, syclexp::image_type::array, 1,
+        NDims > 2 ? dims[2] : dims[1]);
 
     // Extension: allocate memory on device and create the handle.
     syclexp::image_mem img_mem_0(desc, q);

@@ -55,6 +55,7 @@ int test(sycl::queue &q) {
         sycl::filtering_mode::linear);
 
     syclexp::image_descriptor desc({width, height}, numChannels, channelType,
+                                   syclexp::image_color_space::linear,
                                    syclexp::image_type::gather);
 
     syclexp::image_mem imgMem(desc, q);

@@ -174,7 +174,8 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
   try {
     syclexp::image_descriptor desc(image_array_dims.array_dims, NChannels,
-                                   CType, syclexp::image_type::array, 1,
+                                   CType, syclexp::image_color_space::linear,
+                                   syclexp::image_type::array, 1,
                                    image_array_dims.array_count);
 
     syclexp::image_mem imgMem(desc, q);

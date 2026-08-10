@@ -44,6 +44,7 @@ int main() {
   // Extension: image descriptor -- number of layers
   sycl::ext::oneapi::experimental::image_descriptor desc(
       {width}, 4, sycl::image_channel_type::fp32,
+      sycl::ext::oneapi::experimental::image_color_space::linear,
       sycl::ext::oneapi::experimental::image_type::array, 1, array_size);
 
   // Extension: allocate image array memory on device

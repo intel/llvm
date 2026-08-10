@@ -34,6 +34,7 @@ int main() {
   // Image descriptor -- number of levels
   sycl::ext::oneapi::experimental::image_descriptor desc(
       {width}, 1, sycl::image_channel_type::fp32,
+      sycl::ext::oneapi::experimental::image_color_space::linear,
       sycl::ext::oneapi::experimental::image_type::mipmap, num_levels);
 
   // Allocate the mipmap

@@ -1,9 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: preview-breaking-changes-supported
-
-// UNSUPPORTED: cuda, hip
-// UNSUPPORTED-INTENDED: sRGB hardware decode (UR_IMAGE_CHANNEL_ORDER_SRGBA) is
-// only implemented in the Level Zero adapter in this change.
+// REQUIRES: level_zero
 
 // RUN: %clangxx -fsycl -fpreview-breaking-changes %s -Wno-error=unused-command-line-argument -o %t.out
 // RUN: %{run} %t.out
@@ -96,8 +93,6 @@ int main() {
                   linearImg, sycl::int2(x, y));
             });
       });
-
-      q.wait_and_throw();
     }
 
     syclexp::destroy_image_handle(srgbImg, q);

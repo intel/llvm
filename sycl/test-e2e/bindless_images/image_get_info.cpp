@@ -105,6 +105,7 @@ int main() {
     // Extension: image descriptor -- number of levels
     sycl::ext::oneapi::experimental::image_descriptor mipDesc(
         {width, height}, 4, sycl::image_channel_type::signed_int32,
+        sycl::ext::oneapi::experimental::image_color_space::linear,
         sycl::ext::oneapi::experimental::image_type::mipmap, 3);
 
     // Extension: allocate mipmap memory on device

@@ -72,6 +72,7 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
 
   // Image descriptor - mapped to Vulkan image layout
   syclexp::image_descriptor desc(globalSize, NChannels, CType,
+                                 syclexp::image_color_space::linear,
                                  syclexp::image_type::mipmap, mipLevels);
 
   syclexp::bindless_image_sampler samp(
