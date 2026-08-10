@@ -6,9 +6,9 @@
 // REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
-// RUN: %{run} %t.out --no-sem
-// RUN: %{run} %t.out --dual-sem
-// RUN: %{run} %t.out
+// RUN: env SYCL_UR_TRACE=2 env UR_L0_DEBUG=1 %{run} %t.out --no-sem
+// RUN: env SYCL_UR_TRACE=2 env UR_L0_DEBUG=1 %{run} %t.out --dual-sem
+// RUN: env SYCL_UR_TRACE=2 env UR_L0_DEBUG=1 %{run} %t.out
 
 // clang-format off
 /*

@@ -175,11 +175,18 @@ jobs:
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
             skip_run: ${{ startsWith(github.base_ref, 'sycl-rel-') }}
-          - name: Intel / ARL with L0 v2
+          - name: Intel / ARL with L0 v2 - 1
             runner: '["Linux", "arl"]'
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u
             extra_lit_opts: --param test-preview-mode=True
-
+          - name: Intel / ARL with L0 v2 - 2
+            runner: '["Linux", "arl"]'
+            target_devices: level_zero_v2:arch-intel_gpu_mtl_u
+            extra_lit_opts: --param test-preview-mode=True
+          - name: Intel / ARL with L0 v2 - 3
+            runner: '["Linux", "arl"]'
+            target_devices: level_zero_v2:arch-intel_gpu_mtl_u
+            extra_lit_opts: --param test-preview-mode=True
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
             runner: '["Linux", "pvc"]'
