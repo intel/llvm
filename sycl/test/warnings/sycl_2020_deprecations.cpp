@@ -53,6 +53,7 @@ int main() {
   (void)Queue.get();
 
   cl_sampler ClSampler;
+  // expected-warning@+2 {{sampler has been removed in SYCL 2020}}
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::sampler'}}
   sycl::sampler Sampler{ClSampler, Ctx};
   (void)Sampler;
@@ -120,6 +121,10 @@ int main() {
   using ICA = sycl::info::device::is_compiler_available;
   // expected-warning@+1{{'is_linker_available' is deprecated: deprecated in SYCL 2020, use device::has(aspect::online_linker) instead}}
   using ILA = sycl::info::device::is_linker_available;
+  // expected-warning@+1{{'execution_capability' is deprecated: deprecated in SYCL 2020}}
+  using DeprecatedEC = sycl::info::execution_capability;
+  // expected-warning@+1{{'execution_capabilities' is deprecated: deprecated in SYCL 2020}}
+  using DeprecatedECs = sycl::info::device::execution_capabilities;
   // expected-warning@+1{{'queue_profiling' is deprecated: deprecated in SYCL 2020, use device::has(aspect::queue_profiling) instead}}
   using QP = sycl::info::device::queue_profiling;
   // expected-warning@+1{{'built_in_kernels' is deprecated: deprecated in SYCL 2020, use info::device::built_in_kernel_ids instead}}
@@ -148,6 +153,12 @@ int main() {
   using IMAS = sycl::info::device::image_max_array_size;
   // expected-warning@+1{{'opencl_c_version' is deprecated: use device::get_info instead}}
   using OCV = sycl::info::device::opencl_c_version;
+  // expected-warning@+1{{'h_item<1>' is deprecated: Deprecated in SYCL 2020}}
+  using HITEM1 = sycl::h_item<1>;
+  // expected-warning@+1{{'h_item<2>' is deprecated: Deprecated in SYCL 2020}}
+  using HITEM2 = sycl::h_item<2>;
+  // expected-warning@+1{{'h_item<3>' is deprecated: Deprecated in SYCL 2020}}
+  using HITEM3 = sycl::h_item<3>;
 
   // expected-warning@+1{{'sub_group_independent_forward_progress' is deprecated: extension is deprecated}}
   using SGIFP = sycl::info::device::sub_group_independent_forward_progress;

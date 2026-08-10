@@ -112,6 +112,16 @@ For example `--filter "graph_api_*"`
 
 `--offline` - skips rebuilding projects, oneAPI updates, and benchmark data downloads. This is useful when you want to run benchmarks with existing builds and data without fetching updates or recompiling. Note that if build artifacts or data don't exist, the benchmarks will fail to run.
 
+### Local development options
+
+`--compute-benchmarks-source-dir <dir>` - use an existing Compute Benchmarks source tree instead of cloning the repository into the working directory. This is intended for local development against a checkout you are editing.
+
+When a build using local source or offload options finishes successfully, a JSON build-complete marker (`benchmark_build_complete.json`) is written into the project's build directory. It records the source contents and relevant build configuration. On subsequent runs the build is skipped when both still match, so editing source files or changing build options triggers a rebuild automatically. If `--compute-benchmarks-source-dir` points at a directory that is **not** a git repository, the benchmarks are always rebuilt.
+
+`--offload-prefix <dir>` - LLVM install prefix providing liboffload. The library is read from `<dir>/lib` (passed as `OFFLOAD_INSTALL_DIR`) and headers from `<dir>/include/offload` (passed as `OFFLOAD_INCLUDE_DIR`). When set, the OFFLOAD (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled.
+
+`--force-offload-plugin <name>` - backend name (`level_zero`, `cuda`, `amdgpu`, or `host`) exported as the `FORCE_OFFLOAD_PLUGIN` environment variable for the benchmark executable process. The OFFLOAD benchmark uses it to select the offload device by backend.
+
 ## Running in CI
 
 The benchmarks scripts are used in a GitHub Actions workflow, and can be automatically executed on a preconfigured system against any Pull Request.

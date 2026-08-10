@@ -13,17 +13,19 @@
 
 #include <unified-runtime/ur_api.h>
 
-#include "../device.hpp"
-#include "../helpers/memory_helpers.hpp"
-#include "../image_common.hpp"
+#include "../common/device.hpp"
+#include "../common/helpers/memory_helpers.hpp"
+#include "../common/image_common.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include <umf/ipc.h>
 
+namespace ur::level_zero::v2 {
+
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
-struct ur_mem_buffer_t : ur_object {
+struct ur_mem_buffer_t : v2::ur_object_t {
 
   enum class device_access_mode_t { read_write, read_only, write_only };
 
@@ -216,7 +218,7 @@ private:
   size_t offset;
 };
 
-struct ur_mem_image_t : ur_object {
+struct ur_mem_image_t : v2::ur_object_t {
   ur_mem_image_t(ur_context_handle_t hContext, ur_mem_flags_t flags,
                  const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, void *pHost);
@@ -248,7 +250,7 @@ private:
   ZeStruct<ze_image_desc_t> zeImageDesc;
 };
 
-struct ur_mem_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
+struct ur_mem_handle_t_ : v2::ur_object_t {
   template <typename T, typename... Args>
   static ur_mem_handle_t_ *create(Args &&...args) {
     return new ur_mem_handle_t_(std::in_place_type<T>,
@@ -288,7 +290,7 @@ struct ur_mem_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
 private:
   template <typename T, typename... Args>
   ur_mem_handle_t_(std::in_place_type_t<T>, Args &&...args)
-      : ur::handle_base<ur::level_zero::ddi_getter>(),
+      : v2::ur_object_t(),
         mem(std::in_place_type<T>, std::forward<Args>(args)...) {}
 
   std::variant<ur_usm_handle_t, ur_integrated_buffer_handle_t,
@@ -296,3 +298,5 @@ private:
                ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
 };
+
+} // namespace ur::level_zero::v2

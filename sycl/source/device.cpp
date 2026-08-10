@@ -256,6 +256,7 @@ __SYCL_DEVICE_INFO_INST(is_endian_little, bool)
 __SYCL_DEVICE_INFO_INST(is_available, bool)
 __SYCL_DEVICE_INFO_INST(is_compiler_available, bool)
 __SYCL_DEVICE_INFO_INST(is_linker_available, bool)
+// Legacy SYCL 1.2.1 descriptor kept on the ABI surface intentionally.
 __SYCL_DEVICE_INFO_INST(execution_capabilities,
                         std::vector<info::execution_capability>)
 __SYCL_DEVICE_INFO_INST(queue_profiling, bool)

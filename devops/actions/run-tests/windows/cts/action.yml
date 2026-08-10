@@ -63,6 +63,7 @@ runs:
       -DDPCPP_INSTALL_DIR="$(dirname $(which dpclang++))/.." \
       -DCMAKE_CXX_COMPILER=cl \
       -DCMAKE_BUILD_TYPE=Release \
+      -DDPCPP_ENABLE_PREVIEW_CHANGES=OFF \
       $CMAKE_EXTRA_ARGS
       # Ignore errors so that if one category build fails others still have a
       # chance to finish and be executed at the run stage. Note that

@@ -49,9 +49,9 @@ int main(void) {
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto accA = imgA.get_access<uint4, access::mode::read>(cgh);
-      auto accB = imgB.get_access<uint4, access::mode::read>(cgh);
-      auto accC = imgC.get_access<uint4, access::mode::write>(cgh);
+      auto accA = imgA.get_access<uint4, access_mode::read>(cgh);
+      auto accB = imgB.get_access<uint4, access_mode::read>(cgh);
+      auto accC = imgC.get_access<uint4, access_mode::write>(cgh);
 
       cgh.parallel_for<class Test>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {

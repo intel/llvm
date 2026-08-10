@@ -52,9 +52,9 @@ template <typename T> bool test(queue q) {
     range<1> glob_range{1};
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufA.template get_access<access::mode::read>(cgh);
-      auto PB = bufB.template get_access<access::mode::read>(cgh);
-      auto PC = bufC.template get_access<access::mode::write>(cgh);
+      auto PA = bufA.template get_access<access_mode::read>(cgh);
+      auto PB = bufB.template get_access<access_mode::read>(cgh);
+      auto PC = bufC.template get_access<access_mode::write>(cgh);
       cgh.parallel_for<KernelName<T>>(
           glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::experimental::esimd;

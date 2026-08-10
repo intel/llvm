@@ -22,8 +22,8 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
 
     // Initialise buffer with zeros
     Queue.submit([&](handler &cgh) {
-      auto sganyacc = sganybuf.get_access<access::mode::read_write>(cgh);
-      auto sgallacc = sgallbuf.get_access<access::mode::read_write>(cgh);
+      auto sganyacc = sganybuf.get_access<access_mode::read_write>(cgh);
+      auto sgallacc = sgallbuf.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class init>(range<1>{(unsigned)G}, [=](id<1> index) {
         sganyacc[index] = 0;
         sgallacc[index] = 0;
@@ -31,8 +31,8 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
     });
 
     Queue.submit([&](handler &cgh) {
-      auto sganyacc = sganybuf.get_access<access::mode::read_write>(cgh);
-      auto sgallacc = sgallbuf.get_access<access::mode::read_write>(cgh);
+      auto sganyacc = sganybuf.get_access<access_mode::read_write>(cgh);
+      auto sgallacc = sgallbuf.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class init_bufs>(NdRange, [=](nd_item<1> NdItem) {
         sganyacc[NdItem.get_global_id()] = 0;
         sgallacc[NdItem.get_global_id()] = 0;
@@ -40,8 +40,8 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
     });
 
     Queue.submit([&](handler &cgh) {
-      auto sganyacc = sganybuf.get_access<access::mode::read_write>(cgh);
-      auto sgallacc = sgallbuf.get_access<access::mode::read_write>(cgh);
+      auto sganyacc = sganybuf.get_access<access_mode::read_write>(cgh);
+      auto sgallacc = sgallbuf.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class subgr>(NdRange, [=](nd_item<1> NdItem) {
         sycl::sub_group SG = NdItem.get_sub_group();
         /* Set to 1 if any local ID in subgroup devided by D has remainder R */

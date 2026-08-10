@@ -303,9 +303,13 @@ function(ur_adapter_is_static adapter out_var)
   set(static_var "UR_STATIC_ADAPTER_${adapter}")
   string(TOUPPER "${static_var}" static_var)
   string(TOUPPER "${adapter}" adapter)
-  # Special case: LEVEL_ZERO uses UR_STATIC_ADAPTER_L0
+  # Special case: the Level Zero adapters use the abbreviated flag names
+  # UR_STATIC_ADAPTER_L0 / UR_STATIC_ADAPTER_L0_V2 rather than the backend
+  # name (LEVEL_ZERO / LEVEL_ZERO_V2).
   if(adapter STREQUAL "LEVEL_ZERO")
     set(static_var "UR_STATIC_ADAPTER_L0")
+  elseif(adapter STREQUAL "LEVEL_ZERO_V2")
+    set(static_var "UR_STATIC_ADAPTER_L0_V2")
   endif()
   if(DEFINED ${static_var} AND ${static_var})
     set(${out_var} TRUE PARENT_SCOPE)

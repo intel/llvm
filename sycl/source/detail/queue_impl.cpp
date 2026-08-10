@@ -518,6 +518,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     ResEvent->setWorkerQueue(weak_from_this());
     ResEvent->setPotentiallyNativeRecorded(
         getContextImpl().isNativeRecordingActive());
+    if (EventForReuse)
+      ResEvent->markAsProfilingTagEvent();
     ResEvent->setSubmissionTime();
     ResEvent->setEnqueued();
     ResEvent->setStateIncomplete();
@@ -672,8 +674,10 @@ bool queue_impl::isNativeRecording() const {
 }
 
 queue_impl::NativeRecordingResult
-queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph) {
-  std::lock_guard<std::mutex> Lock(MMutex);
+queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph, bool LockQueue) {
+  std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
+  if (LockQueue)
+    Lock.lock();
   NativeRecordingResult BeginResult;
   BeginResult.Result =
       getAdapter().call_nocheck<UrApiKind::urQueueBeginCaptureIntoGraphExp>(

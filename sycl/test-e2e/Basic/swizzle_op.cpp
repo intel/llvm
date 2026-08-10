@@ -22,7 +22,7 @@ int main() {
       buffer<float, 1> b(results, range<1>(3));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_1>([=]() {
           float2 ab = {4, 2};
           float c = ab.x() * ab.y();
@@ -43,7 +43,7 @@ int main() {
       buffer<float, 1> b(results, range<1>(3));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_2>([=]() {
           float2 ab = {4, 2};
           float c = ab.x() * 2;
@@ -64,7 +64,7 @@ int main() {
       buffer<float, 1> b(results, range<1>(3));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_3>([=]() {
           float2 ab = {4, 2};
           float c = 4 * ab.y();
@@ -85,7 +85,7 @@ int main() {
       buffer<float, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_4>([=]() {
           float2 ab = {4, 2};
           float2 c = {0, 0};
@@ -109,7 +109,7 @@ int main() {
       buffer<float, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_5>([=]() {
           float2 ab = {4, 2};
           float2 c = {0, 0};
@@ -133,7 +133,7 @@ int main() {
       buffer<float, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_6>([=]() {
           float2 ab = {4, 2};
           float2 c = {0, 0};
@@ -157,7 +157,7 @@ int main() {
       buffer<float, 1> b(results, range<1>(6));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_7>([=]() {
           uchar4 abc = {4, 2, 1, 0};
 
@@ -192,7 +192,7 @@ int main() {
       buffer<float, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_8>([=]() {
           uchar4 cba;
           unsigned char x = 1;
@@ -232,7 +232,7 @@ int main() {
       buffer<unsigned int, 1> b(results, range<1>(4));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_9>([=]() {
           uchar4 vec;
           unsigned int add = 254;
@@ -261,7 +261,7 @@ int main() {
       buffer<int3, 1> b((int3 *)FF, range<1>(2));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class test_10>(
             range<1>{2}, [=](id<1> ID) { B[ID] = int3{(int3)ID[0]} / B[ID]; });
       });
@@ -279,7 +279,7 @@ int main() {
       buffer<int3, 1> b(&result, range<1>(1));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::write>(cgh);
         cgh.single_task<class test_11>([=]() {
           int3 testVec1 = {2, 2, 2};
           int3 testVec2 = {1, 1, 1};

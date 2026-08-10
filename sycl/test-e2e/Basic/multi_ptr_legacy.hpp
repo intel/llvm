@@ -55,10 +55,10 @@ template <typename T> void testMultPtr() {
     buffer<T, 1> bufferData_2(data_2, numOfItems);
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      accessor<T, 1, access::mode::read, access::target::device,
+      accessor<T, 1, access_mode::read, access::target::device,
                access::placeholder::false_t>
           accessorData_1(bufferData_1, cgh);
-      accessor<T, 1, access::mode::read_write, access::target::device,
+      accessor<T, 1, access_mode::read_write, access::target::device,
                access::placeholder::false_t>
           accessorData_2(bufferData_2, cgh);
       local_accessor<T, 1> localAccessor(numOfItems, cgh);
@@ -139,14 +139,14 @@ template <typename T> void testMultPtrArrowOperator() {
     buffer<bool, 1> result_buf{1};
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      accessor<point<T>, 1, access::mode::read, access::target::device,
+      accessor<point<T>, 1, access_mode::read, access::target::device,
                access::placeholder::false_t>
           accessorData_1(bufferData_1, cgh);
-      accessor<point<T>, 1, access::mode::read, access::target::constant_buffer,
+      accessor<point<T>, 1, access_mode::read, access::target::constant_buffer,
                access::placeholder::false_t>
           accessorData_2(bufferData_2, cgh);
       local_accessor<point<T>, 1> accessorData_3(1, cgh);
-      accessor<point<T>, 1, access::mode::read, access::target::device,
+      accessor<point<T>, 1, access_mode::read, access::target::device,
                access::placeholder::false_t>
           accessorData_4(bufferData_4, cgh);
 

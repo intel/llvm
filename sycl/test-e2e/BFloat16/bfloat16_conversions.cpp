@@ -85,7 +85,7 @@ int test_device_vector_conversions(queue Q) {
   std::cout << "float[4] -> bfloat16[4] conversion on device..." << std::flush;
   // Convert float array to bfloat16 array
   Q.submit([&](handler &CGH) {
-     accessor<int, 1, access::mode::write, target::device> ERR(err_buf, CGH);
+     accessor<int, 1, access_mode::write, target::device> ERR(err_buf, CGH);
      CGH.single_task([=]() {
        float FloatArray[4] = {1.0f, -1.0f, 0.0f, 2.0f};
        bfloat16 BF16Array[4];
@@ -106,7 +106,7 @@ int test_device_vector_conversions(queue Q) {
   std::cout << "bfloat16[4] -> float[4] conversion on device..." << std::flush;
   // Convert bfloat16 array back to float array
   Q.submit([&](handler &CGH) {
-     accessor<int, 1, access::mode::write, target::device> ERR(err_buf, CGH);
+     accessor<int, 1, access_mode::write, target::device> ERR(err_buf, CGH);
      CGH.single_task([=]() {
        bfloat16 BF16Array[3] = {1.0f, 0.0f, -1.0f};
        float FloatArray[3];

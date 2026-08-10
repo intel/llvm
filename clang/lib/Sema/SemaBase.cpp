@@ -57,7 +57,7 @@ void SemaBase::SemaDiagnosticBuilder::AddFixItHint(
 
 SemaBase::SemaDiagnosticBuilder::DeferredDiagnosticsType &
 SemaBase::SemaDiagnosticBuilder::getDeviceDeferredDiags() const {
-  if (S.InConstexprVarInit)
+  if (S.InConstexprVarInit && S.getLangOpts().SYCLIsDevice)
     return S.MaybeDeviceDeferredDiags;
   return S.DeviceDeferredDiags;
 }

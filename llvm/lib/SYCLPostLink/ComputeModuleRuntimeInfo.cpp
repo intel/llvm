@@ -43,18 +43,6 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
 }
 } // namespace
 
-bool isModuleUsingAsan(const Module &M) {
-  return M.getNamedGlobal("__AsanKernelMetadata");
-}
-
-bool isModuleUsingMsan(const Module &M) {
-  return M.getNamedGlobal("__MsanKernelMetadata");
-}
-
-bool isModuleUsingTsan(const Module &M) {
-  return M.getNamedGlobal("__TsanKernelMetadata");
-}
-
 // Gets 1- to 3-dimension work-group related information for function Func.
 // Returns an empty vector if not present.
 template <typename T>

@@ -19,17 +19,18 @@
 #include "common/ur_ref_count.hpp"
 #include "event_provider.hpp"
 
+namespace ur::level_zero::v2 {
+
 using ur_event_generation_t = int64_t;
 
-namespace v2 {
 class event_pool;
-}
 
 struct event_profiling_data_t {
   event_profiling_data_t(ze_event_handle_t hZeEvent) : hZeEvent(hZeEvent) {}
 
-  void recordStartTimestamp(ur_device_handle_t hDevice);
-  uint64_t getEventStartTimestmap() const;
+  // Cache the device timer resolution/mask and mark the event as
+  // timestamp-recording.
+  void initTimestampRecording(ur_device_handle_t hDevice);
 
   uint64_t getEventEndTimestamp();
   uint64_t *eventEndTimestampAddr();
@@ -43,7 +44,6 @@ struct event_profiling_data_t {
 private:
   ze_event_handle_t hZeEvent;
 
-  uint64_t adjustedEventStartTimestamp = 0;
   uint64_t recordEventEndTimestamp = 0;
   uint64_t adjustedEventEndTimestamp = 0;
 
@@ -54,7 +54,7 @@ private:
   bool timestampRecorded = false;
 };
 
-struct ur_event_handle_t_ : ur_object {
+struct ur_event_handle_t_ : v2::ur_object_t {
 public:
   // The variant alternative encodes how the L0 event handle is torn down:
   // - cache_borrowed_event: pooled event; it is returned to the pool.
@@ -127,16 +127,14 @@ public:
   // Get the device associated with this event
   ur_device_handle_t getDevice() const;
 
-  // Record the start timestamp of the event, to be obtained by
-  // urEventGetProfilingInfo. setQueue should be
-  // called before this.
-  void recordStartTimestamp();
+  // Mark this event as recording a GPU-written global timestamp, obtainable via
+  // urEventGetProfilingInfo. setQueue must be called first.
+  void initTimestampRecording();
 
-  // Get pointer to the end timestamp, and ze event handle.
+  // Get pointer to the timestamp storage, and ze event handle.
   // Caller is responsible for signaling the event once the timestamp is ready.
   std::pair<uint64_t *, ze_event_handle_t> getEventEndTimestampAndHandle();
 
-  uint64_t getEventStartTimestmap() const;
   uint64_t getEventEndTimestamp();
 
   ur::RefCount RefCount;
@@ -165,3 +163,5 @@ protected:
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
 };
+
+} // namespace ur::level_zero::v2
