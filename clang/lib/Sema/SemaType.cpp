@@ -8547,8 +8547,6 @@ static bool isPermittedNeonBaseType(QualType &Ty, VectorKind VecKind, Sema &S) {
     return false;
 
   llvm::Triple Triple = S.Context.getTargetInfo().getTriple();
-  if(S.getLangOpts().SYCLIsDevice)
-    Triple = S.Context.getAuxTargetInfo()->getTriple();
 
   // Signed poly is mathematically wrong, but has been baked into some ABIs by
   // now.
