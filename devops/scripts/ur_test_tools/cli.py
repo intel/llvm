@@ -66,9 +66,7 @@ def main_test_summary(command: str) -> int:
             xml_file = PathValidator.validate_optional_path(
                 sys.argv[3] if len(sys.argv) > 3 else "", "XML", allow_absolute=True
             )
-            config = SummaryConfigFromLines(
-                log_lines=lines, xml_file=xml_file or None
-            )
+            config = SummaryConfigFromLines(log_lines=lines, xml_file=xml_file or None)
             SummaryReporter(config).generate()
 
         else:

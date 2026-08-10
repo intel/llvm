@@ -11,6 +11,7 @@ from ..constants import TEST_NOT_SELECTED_MSG
 
 class ParsedXMLTests(NamedTuple):
     """Skipped and excluded tests from XML parsing."""
+
     skipped: List[str]
     excluded: List[str]
 
@@ -48,8 +49,7 @@ class JUnitXMLParser:
             return False
         except (OSError, ValueError) as e:
             print(
-                f"Warning: Error reading XML file {self.xml_path}: {e}",
-                file=sys.stderr
+                f"Warning: Error reading XML file {self.xml_path}: {e}", file=sys.stderr
             )
             return False
 

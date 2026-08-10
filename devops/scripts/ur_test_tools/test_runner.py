@@ -116,12 +116,8 @@ class TestRunner:
         cmd = self._build_cmake_command()
 
         print(f"Running: {' '.join(cmd)}", file=sys.stderr)
-        print(
-            f"Log: {self.context.log_file_path}, Jobs: {self.jobs}", file=sys.stderr
-        )
-        print(
-            f"Expected XML: {self.context.xml_output_path}", file=sys.stderr
-        )
+        print(f"Log: {self.context.log_file_path}, Jobs: {self.jobs}", file=sys.stderr)
+        print(f"Expected XML: {self.context.xml_output_path}", file=sys.stderr)
 
         try:
             with open(self.context.log_file_path, "w", encoding="utf-8") as log:
