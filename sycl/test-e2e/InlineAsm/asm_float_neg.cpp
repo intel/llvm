@@ -17,10 +17,10 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
 
   void operator()(sycl::handler &cgh) {
     auto A =
-        this->getInputBuffer().template get_access<sycl::access::mode::read>(
+        this->getInputBuffer().template get_access<sycl::access_mode::read>(
             cgh);
     auto B =
-        this->getOutputBuffer().template get_access<sycl::access::mode::write>(
+        this->getOutputBuffer().template get_access<sycl::access_mode::write>(
             cgh);
 
     cgh.parallel_for<KernelFunctor<T>>(

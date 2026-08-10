@@ -1,5 +1,7 @@
 # Non-Relocatable Device Code
 
+Note: This document reflects the design of NoRDC Mode support in the Old Offload Model.
+
 ## Overview
 By default, SYCL allows device code to be relocatable, where function calls outside
 of the current translation unit are allowed using the `SYCL_EXTERNAL` attribute.

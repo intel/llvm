@@ -15,7 +15,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-template <int Dimensions> class id;
 
 namespace detail {
 class Builder;

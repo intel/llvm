@@ -12,8 +12,7 @@ using namespace sycl;
 template <typename... Ts> class KNameGroup;
 template <typename T, bool B> class KName;
 
-constexpr access::mode RW = access::mode::read_write;
-constexpr access::mode DW = access::mode::discard_write;
+constexpr access_mode RW = access_mode::read_write;
 
 template <typename RangeT>
 void printNVarsTestLabel(const RangeT &Range, bool ToCERR = false) {
