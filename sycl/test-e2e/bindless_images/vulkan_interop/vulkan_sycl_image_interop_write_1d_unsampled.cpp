@@ -9,7 +9,7 @@
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
 
-// UNSUPPORTED: linux && gpu-intel-gen12
+// UNSUPPORTED: linux && arch-intel_gpu_mtl_u
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22858
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}

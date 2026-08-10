@@ -3961,6 +3961,7 @@
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KV423@AEBUcode_location@detail@23@@Z
 ?extractArgsAndReqs@handler@_V1@sycl@@AEAAXXZ
+?extractFreeFunctionArgsAndReqs@handler@_V1@sycl@@AEAAXXZ
 ?fill_impl@handler@_V1@sycl@@AEAAXPEAXPEBX_K2@Z
 ?finalize@handler@_V1@sycl@@AEAA?AV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@XZ
 ?finalize@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$command_graph@$00@34567@AEBVproperty_list@67@@Z

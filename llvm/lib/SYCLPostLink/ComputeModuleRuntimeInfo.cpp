@@ -44,15 +44,21 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
 } // namespace
 
 bool isModuleUsingAsan(const Module &M) {
-  return M.getNamedGlobal("__AsanKernelMetadata");
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__AsanKernelMetadata");
+  });
 }
 
 bool isModuleUsingMsan(const Module &M) {
-  return M.getNamedGlobal("__MsanKernelMetadata");
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__MsanKernelMetadata");
+  });
 }
 
 bool isModuleUsingTsan(const Module &M) {
-  return M.getNamedGlobal("__TsanKernelMetadata");
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__TsanKernelMetadata");
+  });
 }
 
 // Gets 1- to 3-dimension work-group related information for function Func.

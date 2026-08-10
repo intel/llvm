@@ -672,6 +672,8 @@ public:
     }
 
     CASE(info::device::execution_capabilities) {
+      // Legacy SYCL 1.2.1 query retained for API/ABI compatibility only.
+      // New internal feature checks should use device::has(aspect::...).
       if (getBackend() != backend::opencl)
         throw exception(make_error_code(errc::invalid),
                         "info::device::execution_capabilities is available for "

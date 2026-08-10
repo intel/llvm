@@ -121,6 +121,10 @@ int main() {
   using ICA = sycl::info::device::is_compiler_available;
   // expected-warning@+1{{'is_linker_available' is deprecated: deprecated in SYCL 2020, use device::has(aspect::online_linker) instead}}
   using ILA = sycl::info::device::is_linker_available;
+  // expected-warning@+1{{'execution_capability' is deprecated: deprecated in SYCL 2020}}
+  using DeprecatedEC = sycl::info::execution_capability;
+  // expected-warning@+1{{'execution_capabilities' is deprecated: deprecated in SYCL 2020}}
+  using DeprecatedECs = sycl::info::device::execution_capabilities;
   // expected-warning@+1{{'queue_profiling' is deprecated: deprecated in SYCL 2020, use device::has(aspect::queue_profiling) instead}}
   using QP = sycl::info::device::queue_profiling;
   // expected-warning@+1{{'built_in_kernels' is deprecated: deprecated in SYCL 2020, use info::device::built_in_kernel_ids instead}}
