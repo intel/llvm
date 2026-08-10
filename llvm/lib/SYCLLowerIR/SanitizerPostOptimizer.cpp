@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 
 #include "llvm/IR/IRBuilder.h"
@@ -131,7 +132,7 @@ PreservedAnalyses SanitizerPostOptimizerPass::run(Module &M,
   if (!FixSanitizerKernelMetadata(M))
     return PreservedAnalyses::all();
 
-  if (sycl::isModuleUsingMsan(M)) {
+  if (sycl::utils::isModuleUsingMsan(M)) {
     EliminateDeadCheck V;
     V.visit(M);
     V.eraseDeadCheck();

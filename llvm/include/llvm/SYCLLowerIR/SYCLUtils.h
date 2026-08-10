@@ -117,6 +117,9 @@ inline bool isSYCLExternalFunction(const Function *F) {
   return F->hasFnAttribute(ATTR_SYCL_MODULE_ID);
 }
 
+bool isModuleUsingAsan(const Module &M);
+bool isModuleUsingMsan(const Module &M);
+bool isModuleUsingTsan(const Module &M);
 } // namespace utils
 } // namespace sycl
 } // namespace llvm

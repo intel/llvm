@@ -1215,8 +1215,8 @@ bool runPreSplitProcessingPipeline(Module &M) {
     MPM.addPass(RemoveDeviceGlobalFromLLVMCompilerUsed());
 
   // Sanitizer specific passes.
-  if (sycl::isModuleUsingAsan(M) || sycl::isModuleUsingMsan(M) ||
-      sycl::isModuleUsingTsan(M))
+  if (sycl::utils::isModuleUsingAsan(M) || sycl::utils::isModuleUsingMsan(M) ||
+      sycl::utils::isModuleUsingTsan(M))
     MPM.addPass(SanitizerPostOptimizerPass());
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly

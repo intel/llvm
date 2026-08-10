@@ -43,24 +43,6 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
 }
 } // namespace
 
-bool isModuleUsingAsan(const Module &M) {
-  return any_of(M.globals(), [](const GlobalVariable &GV) {
-    return GV.getName().starts_with("__AsanKernelMetadata");
-  });
-}
-
-bool isModuleUsingMsan(const Module &M) {
-  return any_of(M.globals(), [](const GlobalVariable &GV) {
-    return GV.getName().starts_with("__MsanKernelMetadata");
-  });
-}
-
-bool isModuleUsingTsan(const Module &M) {
-  return any_of(M.globals(), [](const GlobalVariable &GV) {
-    return GV.getName().starts_with("__TsanKernelMetadata");
-  });
-}
-
 // Gets 1- to 3-dimension work-group related information for function Func.
 // Returns an empty vector if not present.
 template <typename T>
@@ -409,11 +391,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
   }
 
   {
-    if (isModuleUsingAsan(M))
+    if (utils::isModuleUsingAsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
-    else if (isModuleUsingMsan(M))
+    else if (utils::isModuleUsingMsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
-    else if (isModuleUsingTsan(M))
+    else if (utils::isModuleUsingTsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "tsan");
   }
 
