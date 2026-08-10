@@ -8558,11 +8558,9 @@ static bool isPermittedNeonBaseType(QualType &Ty, VectorKind VecKind, Sema &S) {
   if (VecKind == VectorKind::NeonPoly) {
     if (IsPolyUnsigned) {
       // AArch64 polynomial vectors are unsigned.
-      return BTy->getKind() == BuiltinType::UChar ||
-             BTy->getKind() == BuiltinType::UShort ||
-             ((BTy->getKind() == BuiltinType::ULong ||
-               BTy->getKind() == BuiltinType::ULongLong) &&
-              S.Context.getTypeSize(BTy) == 64);
+      auto bitwidth = S.Context.getTypeSize(BTy);
+      return BTy->isUnsignedInteger() &&
+             (bitwidth == 8 || bitwidth == 16 || bitwidth == 64);
     } else {
       // AArch32 polynomial vectors are signed.
       return BTy->getKind() == BuiltinType::SChar ||
