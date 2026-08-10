@@ -12,15 +12,17 @@
 // RUN:   %clang -### -fsycl --no-offload-new-driver \
 // RUN:     -fsycl-targets=intel_gpu_pvc --ocloc-path=/my/ocloc/dir %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-OLD %s
-// CHK-OCLOC-PATH-OLD: "/my/ocloc/dir{{[/\\]+}}ocloc" "-output"
+// CHK-OCLOC-PATH-OLD: "/my/ocloc/dir{{[/\\]+}}ocloc{{(\.exe)?}}" "-output"
 
 /// Check that the user provided location wins over an ocloc that is visible
-/// via the PATH.
-// RUN:   mkdir -p %t.dir
-// RUN:   touch %t.dir/ocloc
-// RUN:   chmod +x %t.dir/ocloc
-// RUN:   env PATH=%t.dir %clang -### -fsycl --no-offload-new-driver \
-// RUN:     -fsycl-targets=spir64_gen --ocloc-path=/my/ocloc/dir %s 2>&1 \
+/// via the PATH.  The fake ocloc must be findable, which means it needs the
+/// execute bit set on linux and the executable extension on windows.
+// RUN:   rm -rf %t.dir && mkdir -p %t.dir
+// RUN:   %if system-windows %{ touch %t.dir/ocloc.exe %} \
+// RUN:   %else %{ touch %t.dir/ocloc && chmod +x %t.dir/ocloc %}
+// RUN:   env "PATH=%t.dir%{pathsep}%PATH%" %clang -### -fsycl \
+// RUN:     --no-offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:     --ocloc-path=/my/ocloc/dir %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-OLD %s
 
 /// Check that the 'exe' name is used for windows.
