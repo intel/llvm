@@ -4328,9 +4328,11 @@ void CXXNameMangler::mangleRISCVFixedRVVVectorType(
 void CXXNameMangler::mangleType(const VectorType *T) {
   if ((T->getVectorKind() == VectorKind::Neon ||
        T->getVectorKind() == VectorKind::NeonPoly)) {
-    const TargetInfo *TI = getASTContext().getLangOpts().SYCLIsDevice
+    const TargetInfo *TI = getASTContext().getLangOpts().isTargetDevice()
                                ? getASTContext().getAuxTargetInfo()
                                : &getASTContext().getTargetInfo();
+    if(!TI)
+        TI = &getASTContext().getTargetInfo();
     llvm::Triple Target = TI->getTriple();
     llvm::Triple::ArchType Arch = Target.getArch();
     if ((Arch == llvm::Triple::aarch64 ||
