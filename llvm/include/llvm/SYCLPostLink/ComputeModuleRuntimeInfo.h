@@ -30,24 +30,6 @@ struct GlobalBinImageProps {
   bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;
 };
-
-inline bool isModuleUsingAsan(const Module &M) {
-  return any_of(M.globals(), [](const GlobalVariable &GV) {
-    return GV.getName().starts_with("__AsanKernelMetadata");
-  });
-}
-
-inline bool isModuleUsingMsan(const Module &M) {
-  return any_of(M.globals(), [](const GlobalVariable &GV) {
-    return GV.getName().starts_with("__MsanKernelMetadata");
-  });
-}
-
-inline bool isModuleUsingTsan(const Module &M) {
-  return any_of(M.globals(), [](const GlobalVariable &GV) {
-    return GV.getName().starts_with("__TsanKernelMetadata");
-  });
-}
 using PropSetRegTy = llvm::util::PropertySetRegistry;
 using EntryPointSet = SetVector<Function *>;
 

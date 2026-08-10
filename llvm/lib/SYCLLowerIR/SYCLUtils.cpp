@@ -14,6 +14,25 @@
 
 namespace llvm {
 namespace sycl {
+
+bool isModuleUsingAsan(const Module &M) {
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__AsanKernelMetadata");
+  });
+}
+
+bool isModuleUsingMsan(const Module &M) {
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__MsanKernelMetadata");
+  });
+}
+
+bool isModuleUsingTsan(const Module &M) {
+  return any_of(M.globals(), [](const GlobalVariable &GV) {
+    return GV.getName().starts_with("__TsanKernelMetadata");
+  });
+}
+
 namespace utils {
 
 using namespace llvm::esimd;
