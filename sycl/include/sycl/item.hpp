@@ -50,51 +50,54 @@ private:
 public:
   item() = delete;
 
-  id<Dimensions> get_id() const { return MImpl.MIndex; }
+  id<Dimensions> get_id() const noexcept { return MImpl.MIndex; }
 
-  size_t __SYCL_ALWAYS_INLINE get_id(int Dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_id(int Dimension) const noexcept {
     size_t Id = MImpl.MIndex[Dimension];
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
-  size_t __SYCL_ALWAYS_INLINE operator[](int Dimension) const {
+  size_t __SYCL_ALWAYS_INLINE operator[](int Dimension) const noexcept {
     size_t Id = MImpl.MIndex[Dimension];
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
-  range<Dimensions> get_range() const { return MImpl.MExtent; }
+  range<Dimensions> get_range() const noexcept { return MImpl.MExtent; }
 
-  size_t __SYCL_ALWAYS_INLINE get_range(int Dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_range(int Dimension) const noexcept {
     size_t Id = MImpl.MExtent[Dimension];
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 #ifndef __SYCL_DISABLE_ITEM_TO_INT_CONV__
-  operator EnableIfT<Dimensions == 1, std::size_t>() const { return get_id(0); }
+  operator EnableIfT<Dimensions == 1, std::size_t>() const noexcept {
+    return get_id(0);
+  }
 #endif // __SYCL_DISABLE_ITEM_TO_INT_CONV__
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  std::enable_if_t<has_offset, id<Dimensions>> get_offset() const {
+  std::enable_if_t<has_offset, id<Dimensions>> get_offset() const noexcept {
     return MImpl.MOffset;
   }
 
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   std::enable_if_t<has_offset, size_t> __SYCL_ALWAYS_INLINE
-      get_offset(int Dimension) const {
+      get_offset(int Dimension) const noexcept {
     size_t Id = MImpl.MOffset[Dimension];
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
   template <bool has_offset = with_offset>
-  operator std::enable_if_t<!has_offset, item<Dimensions, true>>() const {
+  operator std::enable_if_t<!has_offset, item<Dimensions, true>>()
+      const noexcept {
     return item<Dimensions, true>{MImpl.MExtent, MImpl.MIndex, /*Offset*/ {}};
   }
 
-  size_t __SYCL_ALWAYS_INLINE get_linear_id() const {
+  size_t __SYCL_ALWAYS_INLINE get_linear_id() const noexcept {
     size_t Id = MImpl.get_linear_id();
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
@@ -108,9 +111,13 @@ public:
 
   item &operator=(item &&rhs) = default;
 
-  bool operator==(const item &rhs) const { return rhs.MImpl == MImpl; }
+  friend bool operator==(const item &lhs, const item &rhs) noexcept {
+    return lhs.MImpl == rhs.MImpl;
+  }
 
-  bool operator!=(const item &rhs) const { return rhs.MImpl != MImpl; }
+  friend bool operator!=(const item &lhs, const item &rhs) noexcept {
+    return !(lhs == rhs);
+  }
 
 protected:
   template <bool has_offset = with_offset>
