@@ -26,6 +26,7 @@ config.excludes = [
 ]
 
 # test_source_root: The root path where tests are located.
+# For per-target tests, this is the target's test directory.
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
@@ -66,7 +67,7 @@ clang_flags = [
     "-Xclang",
     "-mlink-builtin-bitcode",
     "-Xclang",
-    os.path.join(config.libclc_output_dir, config.libclc_target, f"libspirv.bc"),
+    os.path.join(config.libclc_library_dir, config.libclc_target, f"libspirv.bc"),
     "-nogpulib",
 ]
 
