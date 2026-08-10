@@ -1646,11 +1646,22 @@ SPIRVInstruction *LLVMToSPIRVBase::transBinaryInst(BinaryOperator *B,
 SPIRVInstruction *LLVMToSPIRVBase::transCmpInst(CmpInst *Cmp,
                                                 SPIRVBasicBlock *BB) {
   auto *Op0 = Cmp->getOperand(0);
-  SPIRVValue *TOp0 = transValue(Op0, BB);
-  SPIRVValue *TOp1 = transValue(Cmp->getOperand(1), BB);
-  // TODO: once the translator supports SPIR-V 1.4, update the condition below:
-  // if (/* */->isPointerTy() && /* it is not allowed to use SPIR-V 1.4 */)
+  auto *Op1 = Cmp->getOperand(1);
+  SPIRVValue *TOp0 = transValue(Op0, BB, true, FuncTransMode::Pointer);
+  SPIRVValue *TOp1 = transValue(Op1, BB, true, FuncTransMode::Pointer);
   if (Op0->getType()->isPointerTy()) {
+    auto P = Cmp->getPredicate();
+    if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4) &&
+        (P == ICmpInst::ICMP_EQ || P == ICmpInst::ICMP_NE) &&
+        Cmp->getOperand(1)->getType()->isPointerTy()) {
+      // OpPtrEqual/OpPtrNotEqual require both operands to be of the same
+      // pointer type. Bitcast the second operand to the first operand's
+      // type if they differ.
+      if (TOp1->getType() != TOp0->getType())
+        TOp1 = BM->addUnaryInst(OpBitcast, TOp0->getType(), TOp1, BB);
+      Op OC = P == ICmpInst::ICMP_EQ ? OpPtrEqual : OpPtrNotEqual;
+      return BM->addBinaryInst(OC, transType(Cmp->getType()), TOp0, TOp1, BB);
+    }
     unsigned AS = cast<PointerType>(Op0->getType())->getAddressSpace();
     SPIRVType *Ty = transType(getSizetType(AS));
     TOp0 = BM->addUnaryInst(OpConvertPtrToU, Ty, TOp0, BB);
