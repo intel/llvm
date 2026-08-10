@@ -164,15 +164,17 @@ void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
   // Propagate the host data layout so the linker doesn't warn about mismatched
   // layouts (the wrapper .bc is created without a data layout set).
   (*DevModOrErr)->setDataLayout(CGM.getModule().getDataLayout());
-  // Install a diagnostic handler that routes DK_Linker diagnostics through
-  // clang's diagnostic engine. The default handler asserts CurLinkModule is
-  // set, which is only true inside BackendConsumer's LinkModules loop.
+  // Temporarily replace the diagnostic handler to suppress DK_Linker
+  // diagnostics during linkModules -- the default ClangDiagnosticHandler
+  // asserts CurLinkModule is set, which is only true inside BackendConsumer's
+  // LinkModules loop. Restore the original handler afterward.
+  auto OldHandler = Ctx.getDiagnosticHandler();
   Ctx.setDiagnosticHandler(std::make_unique<llvm::DiagnosticHandler>());
   if (llvm::Linker::linkModules(CGM.getModule(), std::move(*DevModOrErr)))
     CGM.getDiags().Report(diag::err_fe_linking_module)
         << CGM.getCodeGenOpts().SYCLTargetBinaryFileName
         << "linking wrapper bitcode into host module failed";
-  Ctx.setDiagnosticHandler(nullptr);
+  Ctx.setDiagnosticHandler(std::move(OldHandler));
 }
 
 bool Util::matchQualifiedTypeName(const CXXRecordDecl *RecTy,
