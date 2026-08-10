@@ -17,15 +17,17 @@ template <typename T, typename = void>
 struct HasMemberEquality : std::false_type {};
 
 template <typename T>
-struct HasMemberEquality<T, std::void_t<decltype(&T::operator==)>>
-    : std::true_type {};
+struct HasMemberEquality<
+    T, std::void_t<decltype(std::declval<const T &>().operator==(
+           std::declval<const T &>()))>> : std::true_type {};
 
 template <typename T, typename = void>
 struct HasMemberInequality : std::false_type {};
 
 template <typename T>
-struct HasMemberInequality<T, std::void_t<decltype(&T::operator!=)>>
-    : std::true_type {};
+struct HasMemberInequality<
+    T, std::void_t<decltype(std::declval<const T &>().operator!=(
+           std::declval<const T &>()))>> : std::true_type {};
 
 using ItemWithOffset = sycl::item<2, true>;
 using ItemWithoutOffset = sycl::item<2, false>;
@@ -43,14 +45,20 @@ static_assert(
     noexcept(static_cast<std::size_t>(std::declval<const OneDimItem &>())));
 static_assert(noexcept(static_cast<sycl::item<2, true>>(
     std::declval<const ItemWithoutOffset &>())));
-static_assert(noexcept(std::declval<const ItemWithOffset &>() ==
-                       std::declval<const ItemWithOffset &>()));
-static_assert(noexcept(std::declval<const ItemWithOffset &>() !=
-                       std::declval<const ItemWithOffset &>()));
+static_assert(std::is_same_v<decltype(std::declval<const ItemWithOffset &>() ==
+                                      std::declval<const ItemWithOffset &>()),
+                             bool>);
+static_assert(std::is_same_v<decltype(std::declval<const ItemWithOffset &>() !=
+                                      std::declval<const ItemWithOffset &>()),
+                             bool>);
 
 static_assert(!HasMemberEquality<ItemWithOffset>::value);
 static_assert(!HasMemberInequality<ItemWithOffset>::value);
-static_assert(noexcept(operator==(std::declval<const ItemWithOffset &>(),
-                                  std::declval<const ItemWithOffset &>())));
-static_assert(noexcept(operator!=(std::declval<const ItemWithOffset &>(),
-                                  std::declval<const ItemWithOffset &>())));
+static_assert(
+    std::is_same_v<decltype(operator==(std::declval<const ItemWithOffset &>(),
+                                       std::declval<const ItemWithOffset &>())),
+                   bool>);
+static_assert(
+    std::is_same_v<decltype(operator!=(std::declval<const ItemWithOffset &>(),
+                                       std::declval<const ItemWithOffset &>())),
+                   bool>);

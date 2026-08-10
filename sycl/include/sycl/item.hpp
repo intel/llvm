@@ -111,11 +111,11 @@ public:
 
   item &operator=(item &&rhs) = default;
 
-  friend bool operator==(const item &lhs, const item &rhs) noexcept {
+  friend bool operator==(const item &lhs, const item &rhs) {
     return lhs.MImpl == rhs.MImpl;
   }
 
-  friend bool operator!=(const item &lhs, const item &rhs) noexcept {
+  friend bool operator!=(const item &lhs, const item &rhs) {
     return !(lhs == rhs);
   }
 
