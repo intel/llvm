@@ -35,6 +35,8 @@ struct has_member_not_equal<
 
 using Item = sycl::nd_item<1>;
 
+static_assert(!std::is_default_constructible_v<Item>);
+
 static_assert(noexcept(std::declval<const Item &>().get_global_id()));
 static_assert(noexcept(std::declval<const Item &>().get_global_id(0)));
 static_assert(noexcept(std::declval<const Item &>().get_global_linear_id()));
@@ -53,11 +55,6 @@ static_assert(noexcept(std::declval<const Item &>().get_local_range()));
 static_assert(noexcept(std::declval<const Item &>().get_local_range(0)));
 static_assert(noexcept(std::declval<const Item &>().get_offset()));
 static_assert(noexcept(std::declval<const Item &>().get_nd_range()));
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-static_assert(noexcept(std::declval<const Item &>().barrier()));
-static_assert(noexcept(std::declval<const Item &>().mem_fence()));
-#endif
 
 static_assert(!has_member_equal<Item>::value);
 static_assert(!has_member_not_equal<Item>::value);

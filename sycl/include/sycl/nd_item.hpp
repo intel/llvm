@@ -47,6 +47,8 @@ template <int Dimensions = 1> class nd_item {
 public:
   static constexpr int dimensions = Dimensions;
 
+  nd_item() = delete;
+
   id<Dimensions> get_global_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>();
@@ -199,7 +201,7 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
-                   access::fence_space::global_and_local) const noexcept {
+                   access::fence_space::global_and_local) const {
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t flags = _V1::detail::getSPIRVMemorySemanticsMask(accessSpace);
     __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
@@ -217,7 +219,7 @@ public:
                                     accessMode == access::mode::write ||
                                     accessMode == access::mode::read_write,
                                 access::fence_space>
-          accessSpace = access::fence_space::global_and_local) const noexcept {
+          accessSpace = access::fence_space::global_and_local) const {
 #if __SYCL_DEVICE_ONLY__
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory
@@ -528,7 +530,6 @@ public:
 
 protected:
   friend class detail::Builder;
-  nd_item() {}
   nd_item(const item<Dimensions, true> &, const item<Dimensions, false> &,
           const group<Dimensions> &) {}
 
