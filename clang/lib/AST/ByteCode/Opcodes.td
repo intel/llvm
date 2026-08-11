@@ -954,6 +954,9 @@ def GetMemberPtr : SuccessOpcode {
 def GetMemberPtrBase : Opcode {
   let NeedsOpPC = 0;
 }
+def DevirtualizeMemberPtr : Opcode {
+  let NeedsOpPC = 0;
+}
 def GetMemberPtrDecl : Opcode{
   let NeedsOpPC = 0;
 }

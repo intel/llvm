@@ -3822,8 +3822,18 @@ bool Compiler<Emitter>::VisitCXXNoexceptExpr(const CXXNoexceptExpr *E) {
 
 template <class Emitter>
 bool Compiler<Emitter>::VisitCXXDeclcallExpr(const CXXDeclcallExpr *E) {
-  assert(false && "unimplemented");
-  return false;
+  // declcall evaluates to its resolved operand: a pointer or member pointer
+  // to the function that overload resolution selected.
+  if (!this->delegate(E->getOperand()))
+    return false;
+
+  // A declcall of a qualified virtual member is devirtualized: mark the
+  // resulting member pointer so it lowers to a direct pointer rather than a
+  // vtable index. isDevirtualized() implies a member function pointer.
+  if (E->isDevirtualized() && !DiscardResult)
+    return this->emitDevirtualizeMemberPtr(E);
+
+  return true;
 }
 
 template <class Emitter>

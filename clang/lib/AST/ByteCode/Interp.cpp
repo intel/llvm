@@ -3142,6 +3142,13 @@ bool GetMemberPtrBase(InterpState &S) {
   return true;
 }
 
+bool DevirtualizeMemberPtr(InterpState &S) {
+  MemberPointer MP = S.Stk.pop<MemberPointer>();
+  MP.setDevirtualized();
+  S.Stk.push<MemberPointer>(MP);
+  return true;
+}
+
 bool GetMemberPtrDecl(InterpState &S) {
   const auto &MP = S.Stk.pop<MemberPointer>();
 

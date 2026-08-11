@@ -33,6 +33,9 @@ private:
   const CXXRecordDecl **Path = nullptr;
   int32_t PtrOffset = 0;
   uint8_t PathLength = 0;
+  /// Whether a declcall requested that virtual dispatch be skipped for this
+  /// member function pointer (see CXXDeclcallExpr).
+  bool DeVirtualized = false;
 
   MemberPointer(Pointer Base, const ValueDecl *Dcl, int32_t PtrOffset,
                 uint8_t PathLength = 0, const CXXRecordDecl **Path = nullptr,
@@ -63,6 +66,9 @@ public:
   /// Does this member pointer have a base declaration?
   bool hasDecl() const { return DeclAndIsDerivedMember.getPointer(); }
   bool isDerivedMember() const { return DeclAndIsDerivedMember.getInt(); }
+  /// Whether virtual dispatch should be skipped (declcall devirtualization).
+  bool isDevirtualized() const { return DeVirtualized; }
+  void setDevirtualized(bool V = true) { DeVirtualized = V; }
   /// Return the base declaration. Might be null.
   const ValueDecl *getDecl() const {
     return DeclAndIsDerivedMember.getPointer();

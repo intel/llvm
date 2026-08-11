@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -std=c++2c -triple x86_64-unknown-linux-gnu -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -std=c++2c -triple x86_64-unknown-linux-gnu -fexperimental-new-constant-interpreter -emit-llvm %s -o - | FileCheck %s
 
 int f(int);
 int f(char);
