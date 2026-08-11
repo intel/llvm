@@ -18,6 +18,14 @@ static_assert(p == static_cast<FPInt>(f));
 constexpr auto pc = declcall(f('a'));
 static_assert(__is_same(decltype(pc), int (*const)(char)));
 
+// declcall preserves the exact function type, including noexcept.
+int nef(int) noexcept;
+static_assert(__is_same(decltype(declcall(nef(0))), int (*)(int) noexcept));
+static_assert(!__is_same(decltype(declcall(nef(0))), int (*)(int)));
+struct NE { int m(int) noexcept; };
+static_assert(
+    __is_same(decltype(declcall(((NE *)0)->m(0))), int (NE::*)(int) noexcept));
+
 // The operand must be a call expression.
 int x;
 auto bad = declcall(x); // expected-error {{declcall doesn't contain a call}}
