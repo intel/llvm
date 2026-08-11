@@ -342,6 +342,21 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     } else {
       BindlessDesc.pNext = &PitchedDesc;
     }
+
+    // Only chain a ze_custom_pitch_exp_desc_t when SYCL has signalled a
+    // user-declared pitch via ur_exp_image_user_pitch_desc_t on the pNext
+    // chain. A non-zero pImageDesc->rowPitch alone is ambiguous: it may be
+    // a driver-computed pitch (e.g. from urUSMPitchedAllocExp) bookkept back
+    // through the descriptor, in which case letting L0 compute the pitch
+    // itself is what we want.
+    ZeStruct<ze_custom_pitch_exp_desc_t> CustomPitchDesc;
+    if (const auto *UserPitch =
+            find_stype_node<ur_exp_image_user_pitch_desc_t>(pImageDesc)) {
+      CustomPitchDesc.rowPitch = UserPitch->rowPitch;
+      CustomPitchDesc.slicePitch = UserPitch->slicePitch;
+      PitchedDesc.pNext = &CustomPitchDesc;
+    }
+
     try {
       ZE2UR_CALL_THROWS(zeImageCreate, (zeCtx, hDevice->ZeDevice, &ZeImageDesc,
                                         ZeImage.ptr()));
