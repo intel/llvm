@@ -9174,11 +9174,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  // Propagate -fcuda-short-ptr if compiling CUDA or SYCL for NVPTX
-  if (IsCuda || (IsSYCLDevice && Triple.isNVPTX())) {
+  // Propagate -fcuda-short-ptr if compiling SYCL for NVPTX; CUDA's own
+  // handling of -fcuda-short-ptr lives in CudaToolChain::addClangTargetOptions.
+  if (IsSYCLDevice && Triple.isNVPTX()) {
     if (Args.hasFlag(options::OPT_fcuda_short_ptr,
-                     options::OPT_fno_cuda_short_ptr, false))
-      CmdArgs.push_back("-fcuda-short-ptr");
+                     options::OPT_fno_cuda_short_ptr, false)) {
+      CmdArgs.push_back("-target-abi");
+      CmdArgs.push_back("shortptr");
+    }
+  }
+
+  if (IsCuda) {
     if (Args.hasArg(options::OPT_cuda_emit_nvcc_abi))
       CmdArgs.push_back("--cuda-emit-nvcc-abi");
   }

@@ -1,5 +1,5 @@
 // Check that when we see the expected data layouts for NVPTX when we pass the
-// -nvptx-short-ptr option.
+// shortptr target ABI.
 // REQUIRES: nvptx-registered-target
 
 // RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes \
@@ -7,7 +7,7 @@
 // RUN:    | FileCheck %s --check-prefix CHECK32
 
 // RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes \
-// RUN:  -triple nvptx-nvidia-cuda -emit-llvm -fcuda-short-ptr -mllvm -nvptx-short-ptr %s -o - \
+// RUN:  -triple nvptx-nvidia-cuda -emit-llvm -target-abi shortptr %s -o - \
 // RUN:    | FileCheck %s --check-prefix CHECK32
 
 // RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes \
@@ -15,7 +15,7 @@
 // RUN:    | FileCheck %s --check-prefix CHECK64-DEFAULT
 
 // RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes \
-// RUN:  -triple nvptx64-nvidia-cuda -emit-llvm -fcuda-short-ptr -mllvm -nvptx-short-ptr %s -o - \
+// RUN:  -triple nvptx64-nvidia-cuda -emit-llvm -target-abi shortptr %s -o - \
 // RUN:    | FileCheck %s --check-prefix CHECK64-SHORT
 
 // Targeting a 32-bit NVPTX, check that we see universal 32-bit pointers (the
