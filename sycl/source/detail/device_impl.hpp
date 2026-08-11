@@ -26,6 +26,7 @@
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 #include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/khr/max_work_group_queries.hpp>
 #include <sycl/platform.hpp>
 
 #include <memory>
@@ -1218,6 +1219,29 @@ public:
                         "The device does not have the "
                         "ext_intel_max_lanes_per_hw_thread aspect");
       return get_info_impl<UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD>();
+    }
+
+    // khr device traits (defined under sycl/ext/oneapi/...).
+
+    CASE(khr::info::device::max_work_group_range_size) {
+      return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
+    }
+    CASE(khr::info::device::max_work_group_range<3>) {
+      size_t result[3] = {};
+      getAdapter().call<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
+          &result, nullptr);
+      return range<3>(result[2], result[1], result[0]);
+    }
+    CASE(khr::info::device::max_work_group_range<2>) {
+      range<3> max_3d =
+          get_info<khr::info::device::max_work_group_range<3>, DependentFalse>();
+      return range<2>{max_3d[1], max_3d[2]};
+    }
+    CASE(khr::info::device::max_work_group_range<1>) {
+      range<3> max_3d =
+          get_info<khr::info::device::max_work_group_range<3>, DependentFalse>();
+      return range<1>{max_3d[2]};
     }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
