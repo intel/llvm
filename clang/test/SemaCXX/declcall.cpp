@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++2c -fsyntax-only -verify %s
+// RUN: %clang_cc1 -std=c++2c -fsycl-is-host -fsyntax-only -verify %s
 
 // Baseline semantics for declcall (P2825): overload resolution, operand
 // requirements, and dependent-operand instantiation.

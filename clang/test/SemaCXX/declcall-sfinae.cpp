@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++2c -fsyntax-only -verify %s
+// RUN: %clang_cc1 -std=c++2c -fsycl-is-host -fsyntax-only -verify %s
 // expected-no-diagnostics
 
 // A declcall that is ill-formed in a SFINAE context is a substitution failure,

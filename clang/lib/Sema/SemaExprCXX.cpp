@@ -7602,6 +7602,10 @@ ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
 
 ExprResult Sema::ActOnDeclcallExpr(SourceLocation KeyLoc, SourceLocation,
                                    Expr *Operand, SourceLocation RParen) {
+  // declcall (P2825) is not standardized yet. It is a native feature in SYCL
+  // mode; elsewhere it is a Clang extension.
+  if (!getLangOpts().isSYCL())
+    Diag(KeyLoc, diag::ext_declcall);
   return BuildCXXDeclcallExpr(KeyLoc, Operand, RParen);
 }
 
