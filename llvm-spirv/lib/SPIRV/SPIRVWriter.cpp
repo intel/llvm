@@ -2612,6 +2612,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                LoopControl, Parameters, SuccessorTrue);
       }
     }
+    // Starting with SPIR-V 1.6, the True Label and False Label of an
+    // "OpBranchConditional" must not be the same, so emit an unconditional
+    // branch - always valid, required for 1.6+
+    if (SuccessorTrue == SuccessorFalse)
+      return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
+
     return mapValue(
         V, BM->addBranchConditionalInst(transValue(Branch->getCondition(), BB),
                                         SuccessorTrue, SuccessorFalse, BB));
@@ -2666,8 +2672,16 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                    FuncTransMode::Pointer);
       if (Val->getType() != Ty)
         Val = BM->addUnaryInst(OpBitcast, Ty, Val, BB);
-      IncomingPairs.push_back(Val);
-      IncomingPairs.push_back(transValue(Phi->getIncomingBlock(I), nullptr));
+      SPIRVValue *Block = transValue(Phi->getIncomingBlock(I), nullptr);
+      bool IsDuplicate = false;
+      for (size_t Idx = 1; Idx < IncomingPairs.size(); Idx += 2) {
+        if (IncomingPairs[Idx] == Block)
+          IsDuplicate = true;
+      }
+      if (!IsDuplicate) {
+        IncomingPairs.push_back(Val);
+        IncomingPairs.push_back(Block);
+      }
     }
     return mapValue(V, BM->addPhiInst(Ty, IncomingPairs, BB));
   }
