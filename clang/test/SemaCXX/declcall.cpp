@@ -31,6 +31,21 @@ template <class T> T ttmpl(T);
 static_assert(__is_same(decltype(declcall(ttmpl(0))), int (*)(int)));
 static_assert(__is_same(decltype(declcall(ttmpl('a'))), char (*)(char)));
 
+// declcall selects the right cv/ref-qualified member overload and preserves
+// the qualifier in the resulting member-pointer type.
+struct CV {
+  int m(int);
+  int m(int) const;
+  int r(int) &;
+  int r(int) &&;
+};
+static_assert(__is_same(decltype(declcall(((CV *)0)->m(0))), int (CV::*)(int)));
+static_assert(
+    __is_same(decltype(declcall(((const CV *)0)->m(0))), int (CV::*)(int) const));
+CV cv;
+static_assert(__is_same(decltype(declcall(cv.r(0))), int (CV::*)(int) &));
+static_assert(__is_same(decltype(declcall(CV{}.r(0))), int (CV::*)(int) &&));
+
 // declcall of a static member function yields a plain function pointer, not a
 // member pointer.
 struct SM {
