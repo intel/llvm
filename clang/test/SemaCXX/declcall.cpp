@@ -65,6 +65,14 @@ S s;
 int (S::*pmf)(int);
 auto pm = declcall((s.*pmf)(0)); // expected-error {{declcall doesn't support a call through a pointer to member yet}}
 
+// declcall is ill-formed for destructors and builtin functions.
+struct D { ~D(); };
+void ill_formed(D *d) {
+  auto pd = declcall(d->~D()); // expected-error {{declcall doesn't support a destructor yet}}
+  (void)pd;
+}
+auto pbuiltin = declcall(__builtin_abs(0)); // expected-error {{declcall doesn't support a builtin function yet}}
+
 // Dependent operands are resolved at instantiation time.
 template <class T> auto call(T v) { return declcall(f(v)); }
 void use() {

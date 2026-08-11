@@ -7523,6 +7523,22 @@ ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
     return ExprError();
   }
 
+  // P2825: declcall is ill-formed when the selected callee is a destructor or
+  // a builtin function (constructors cannot form a call expression and are
+  // rejected above).
+  const Decl *CalleeDecl = CE->getCalleeDecl();
+  if (isa_and_nonnull<CXXDestructorDecl>(CalleeDecl)) {
+    Diag(CE->getExprLoc(), diag::err_declcall_not_implemented_for)
+        << "a destructor";
+    return ExprError();
+  }
+  if (const auto *FD = dyn_cast_or_null<FunctionDecl>(CalleeDecl);
+      FD && FD->getBuiltinID() != 0) {
+    Diag(CE->getExprLoc(), diag::err_declcall_not_implemented_for)
+        << "a builtin function";
+    return ExprError();
+  }
+
   // Check if we are calling a method (it can be static.)
   CXXMethodDecl * method = dyn_cast_or_null<CXXMethodDecl>(CE->getCalleeDecl()) ;
   
