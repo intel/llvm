@@ -255,7 +255,10 @@ struct APValue::MemberPointerData : MemberPointerBase {
     PathElem *PathPtr;
   };
 
-  MemberPointerData() { PathLength = 0; DeVirtualized = false; }
+  MemberPointerData() {
+    PathLength = 0;
+    DeVirtualized = false;
+  }
   ~MemberPointerData() { resizePath(0); }
 
   void resizePath(unsigned Length) {
@@ -1139,9 +1142,10 @@ APValue::setMemberPointerUninit(const ValueDecl *Member, bool IsDerivedMember,
 }
 
 void APValue::MakeMemberPointer(const ValueDecl *Member, bool IsDerivedMember,
-                                ArrayRef<const CXXRecordDecl *> Path, bool DeVirtualized) {
-  MutableArrayRef<const CXXRecordDecl *> InternalPath =
-      setMemberPointerUninit(Member, IsDerivedMember, Path.size(), DeVirtualized);
+                                ArrayRef<const CXXRecordDecl *> Path,
+                                bool DeVirtualized) {
+  MutableArrayRef<const CXXRecordDecl *> InternalPath = setMemberPointerUninit(
+      Member, IsDerivedMember, Path.size(), DeVirtualized);
   for (unsigned I = 0; I != Path.size(); ++I)
     InternalPath[I] = Path[I]->getCanonicalDecl();
 }

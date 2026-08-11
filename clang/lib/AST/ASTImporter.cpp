@@ -8565,7 +8565,8 @@ ExpectedStmt ASTNodeImporter::VisitCXXNoexceptExpr(CXXNoexceptExpr *E) {
 ExpectedStmt ASTNodeImporter::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
   Error Err = Error::success();
   auto ToType = importChecked(Err, E->getType());
-  auto ToOperand = importChecked(Err, E->getOperand()); // FIXME: dependent values?!
+  auto ToOperand =
+      importChecked(Err, E->getOperand()); // FIXME: dependent values?!
   auto ToBeginLoc = importChecked(Err, E->getBeginLoc());
   auto ToEndLoc = importChecked(Err, E->getEndLoc());
   if (Err)
@@ -8574,7 +8575,6 @@ ExpectedStmt ASTNodeImporter::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
   return new (Importer.getToContext()) CXXDeclcallExpr(
       ToType, ToOperand, E->isDevirtualized(), ToBeginLoc, ToEndLoc);
 }
-
 
 ExpectedStmt ASTNodeImporter::VisitCXXThrowExpr(CXXThrowExpr *E) {
   Error Err = Error::success();

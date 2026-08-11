@@ -800,7 +800,8 @@ private:
     Kind = Union;
   }
   void MakeMemberPointer(const ValueDecl *Member, bool IsDerivedMember,
-                         ArrayRef<const CXXRecordDecl*> Path, bool DeVirtualized);
+                         ArrayRef<const CXXRecordDecl *> Path,
+                         bool DeVirtualized);
   void MakeAddrLabelDiff() {
     assert(isAbsent() && "Bad state change");
     new ((void *)(char *)&Data) AddrLabelDiffData();

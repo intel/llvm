@@ -1507,12 +1507,13 @@ Parser::ParseCastExpression(CastParseKind ParseKind, bool isAddressOfOperand,
 
     if (T.expectAndConsume(diag::err_expected_lparen_after, "declcall"))
       return ExprError();
-    
-    // it can't be marked as unevaluated as we need to keep all the instantiations
+
+    // it can't be marked as unevaluated as we need to keep all the
+    // instantiations
     Res = ParseExpression();
-    
+
     T.consumeClose();
-    
+
     if (!Res.isInvalid())
       Res = Actions.ActOnDeclcallExpr(KeyLoc, T.getOpenLocation(), Res.get(),
                                       T.getCloseLocation());

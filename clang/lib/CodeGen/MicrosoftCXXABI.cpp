@@ -690,8 +690,10 @@ public:
 
   llvm::Constant *EmitMemberDataPointer(const MemberPointerType *MPT,
                                         CharUnits offset) override;
-  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD, bool AllowVirtual) override;
-  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT, bool AllowVirtual) override;
+  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD,
+                                            bool AllowVirtual) override;
+  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT,
+                                    bool AllowVirtual) override;
 
   llvm::Value *EmitMemberPointerComparison(CodeGenFunction &CGF,
                                            llvm::Value *L,
@@ -2957,7 +2959,8 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberDataPointer(const CXXRecordDecl *RD,
 }
 
 llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
-                                                   QualType MPType, bool AllowVirtual) {
+                                                   QualType MPType,
+                                                   bool AllowVirtual) {
   const MemberPointerType *DstTy = MPType->castAs<MemberPointerType>();
   const ValueDecl *MPD = MP.getMemberPointerDecl();
   if (!MPD)
@@ -3021,7 +3024,8 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
 }
 
 llvm::Constant *
-MicrosoftCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD, bool AllowVirtual) {
+MicrosoftCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD,
+                                           bool AllowVirtual) {
   assert(MD->isInstance() && "Member function must not be static!");
 
   CharUnits NonVirtualBaseAdjustment = CharUnits::Zero();

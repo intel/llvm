@@ -57,7 +57,7 @@ enum TokenKey : unsigned {
   KEYMAX = KEYCXX26, // The maximum key
   KEYALLCXX = KEYCXX | KEYCXX11 | KEYCXX20 | KEYCXX26,
   KEYALL = (KEYMAX | (KEYMAX - 1)) & ~KEYNOMS18 & ~KEYNOOPENCL &
-           ~KEYNOHLSL // KEYNOMS18, KEYNOOPENCL, KEYNOHLSL excluded.
+      ~KEYNOHLSL // KEYNOMS18, KEYNOOPENCL, KEYNOHLSL excluded.
 };
 
 namespace tok {

@@ -5292,15 +5292,13 @@ static bool EvaluateObjectArgument(EvalInfo &Info, const Expr *Object,
 ///         or 0 if evaluation fails.
 
 struct MemberPointerAccessResult {
-  const ValueDecl * Decl;
+  const ValueDecl *Decl;
   bool DeVirtualized = false;
 };
 
-static const MemberPointerAccessResult HandleMemberPointerAccess(EvalInfo &Info,
-                                                  QualType LVType,
-                                                  LValue &LV,
-                                                  const Expr *RHS,
-                                                  bool IncludeMember = true) {
+static const MemberPointerAccessResult
+HandleMemberPointerAccess(EvalInfo &Info, QualType LVType, LValue &LV,
+                          const Expr *RHS, bool IncludeMember = true) {
   MemberPtr MemPtr;
   if (!EvaluateMemberPointer(RHS, MemPtr, Info))
     return {nullptr};
@@ -5399,10 +5397,9 @@ static const MemberPointerAccessResult HandleMemberPointerAccess(EvalInfo &Info,
   return {MemPtr.getDecl(), MemPtr.DeVirtualized};
 }
 
-static const MemberPointerAccessResult HandleMemberPointerAccess(EvalInfo &Info,
-                                                  const BinaryOperator *BO,
-                                                  LValue &LV,
-                                                  bool IncludeMember = true) {
+static const MemberPointerAccessResult
+HandleMemberPointerAccess(EvalInfo &Info, const BinaryOperator *BO, LValue &LV,
+                          bool IncludeMember = true) {
   assert(BO->getOpcode() == BO_PtrMemD || BO->getOpcode() == BO_PtrMemI);
 
   if (!EvaluateObjectArgument(Info, BO->getLHS(), LV)) {
@@ -9604,7 +9601,8 @@ bool LValueExprEvaluator::VisitMaterializeTemporaryExpr(
 
     case SubobjectAdjustment::MemberPointerAdjustment:
       if (!HandleMemberPointerAccess(this->Info, Type, Result,
-                                     Adjustments[I].Ptr.RHS).Decl)
+                                     Adjustments[I].Ptr.RHS)
+               .Decl)
         return false;
       Type = Adjustments[I].Ptr.MPT->getPointeeType();
       break;
@@ -10062,9 +10060,9 @@ public:
     Result.addArray(Info, E, cast<ConstantArrayType>(ArrayTy));
     return true;
   }
-  
+
   bool VisitCXXDeclcallExpr(const CXXDeclcallExpr *E) {
-     return Visit(E->getOperand());
+    return Visit(E->getOperand());
   }
 
   bool VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *E) {
@@ -11202,7 +11200,6 @@ bool MemberPointerExprEvaluator::VisitUnaryAddrOf(const UnaryOperator *E) {
   // member can be formed.
   return Success(cast<DeclRefExpr>(E->getSubExpr())->getDecl());
 }
-
 
 //===----------------------------------------------------------------------===//
 // Record Evaluation

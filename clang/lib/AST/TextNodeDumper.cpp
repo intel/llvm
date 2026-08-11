@@ -1816,9 +1816,9 @@ void TextNodeDumper::VisitCXXUnresolvedConstructExpr(
 void TextNodeDumper::VisitCXXNoexceptExpr(const CXXNoexceptExpr *Node) {
   if (Node->isValueDependent())
     OS << " noexcept(<dependent>)";
-  else if (Node->getValue()) 
+  else if (Node->getValue())
     OS << " noexcept(true)";
-  else 
+  else
     OS << " noexcept(false)";
 }
 

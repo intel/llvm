@@ -828,7 +828,7 @@ public:
   Value *VisitCXXNoexceptExpr(const CXXNoexceptExpr *E) {
     return Builder.getInt1(E->getValue());
   }
-  
+
   Value *VisitCXXDeclcallExpr(const CXXDeclcallExpr *E) {
     // A declcall is required to be constant-evaluable (enforced in Sema), so
     // emit it as a constant. This covers both function pointers and member
@@ -836,8 +836,8 @@ public:
     // APValue and honored by the member-pointer constant emission.
     Expr::EvalResult Eval;
     if (E->EvaluateAsConstantExpr(Eval, CGF.getContext()))
-      if (llvm::Constant *C = ConstantEmitter(CGF).tryEmitAbstract(
-              Eval.Val, E->getType()))
+      if (llvm::Constant *C =
+              ConstantEmitter(CGF).tryEmitAbstract(Eval.Val, E->getType()))
         return C;
 
     // Fall back to emitting the resolved operand directly.

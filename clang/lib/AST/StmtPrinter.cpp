@@ -2735,7 +2735,6 @@ void StmtPrinter::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
   OS << ")";
 }
 
-
 void StmtPrinter::VisitPackExpansionExpr(PackExpansionExpr *E) {
   PrintExpr(E->getPattern());
   OS << "...";

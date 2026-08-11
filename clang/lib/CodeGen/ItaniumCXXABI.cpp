@@ -149,12 +149,15 @@ public:
 
   llvm::Constant *EmitNullMemberPointer(const MemberPointerType *MPT) override;
 
-  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD, bool AllowVirtual) override;
+  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD,
+                                            bool AllowVirtual) override;
   llvm::Constant *EmitMemberDataPointer(const MemberPointerType *MPT,
                                         CharUnits offset) override;
-  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT, bool AllowVirtual) override;
+  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT,
+                                    bool AllowVirtual) override;
   llvm::Constant *BuildMemberPointer(const CXXMethodDecl *MD,
-                                     CharUnits ThisAdjustment, bool AllowVirtual = true);
+                                     CharUnits ThisAdjustment,
+                                     bool AllowVirtual = true);
 
   llvm::Value *EmitMemberPointerComparison(CodeGenFunction &CGF,
                                            llvm::Value *L, llvm::Value *R,
@@ -1156,12 +1159,14 @@ ItaniumCXXABI::EmitMemberDataPointer(const MemberPointerType *MPT,
 }
 
 llvm::Constant *
-ItaniumCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD, bool AllowVirtual) {
+ItaniumCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD,
+                                         bool AllowVirtual) {
   return BuildMemberPointer(MD, CharUnits::Zero(), AllowVirtual);
 }
 
 llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
-                                                  CharUnits ThisAdjustment, bool AllowVirtual) {
+                                                  CharUnits ThisAdjustment,
+                                                  bool AllowVirtual) {
   assert(MD->isInstance() && "Member function must not be static!");
 
   CodeGenTypes &Types = CGM.getTypes();
@@ -1247,8 +1252,9 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
 }
 
 llvm::Constant *ItaniumCXXABI::EmitMemberPointer(const APValue &MP,
-                                                 QualType MPType, bool AllowVirtual) {
-  
+                                                 QualType MPType,
+                                                 bool AllowVirtual) {
+
   const MemberPointerType *MPT = MPType->castAs<MemberPointerType>();
   const ValueDecl *MPD = MP.getMemberPointerDecl();
   if (!MPD)

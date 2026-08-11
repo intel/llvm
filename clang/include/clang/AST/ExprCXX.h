@@ -4351,8 +4351,9 @@ class CXXDeclcallExpr : public Expr {
 
   Stmt *Operand;
   SourceRange Range;
-  
+
   bool Devirtualize = false;
+
 public:
   CXXDeclcallExpr(QualType Ty, Expr *Operand, bool Devirtualize,
                   SourceLocation Keyword, SourceLocation RParen)
@@ -4372,10 +4373,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXDeclcallExprClass;
   }
-  
-  bool isDevirtualized() const {
-    return Devirtualize;
-  }
+
+  bool isDevirtualized() const { return Devirtualize; }
 
   // Iterators
   child_range children() { return child_range(&Operand, &Operand + 1); }
