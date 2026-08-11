@@ -7559,11 +7559,21 @@ ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
     // member function pointer
     const auto T = QualType(method->getFunctionType(), 0);
 
+    // Build a qualified reference to the member (i.e. &Class::method). The
+    // nested-name-specifier makes this a well-formed pointer-to-member and
+    // lets CheckUseOfCXXMethodAsAddressOfOperand accept the address-of below.
+    NestedNameSpecifierLocBuilder NNSBuilder;
+    NNSBuilder.MakeTrivial(
+        Context,
+        NestedNameSpecifier(
+            Context.getCanonicalTagType(method->getParent())->getTypePtr()),
+        CE->getSourceRange());
+
     // create reference to the function
     auto *DRE = DeclRefExpr::Create(
-        Context, NestedNameSpecifierLoc(), SourceLocation(), method,
-        /*RefersToEnclosingVariableOrCapture=*/false, CE->getExprLoc(), T,
-        CE->getValueKind(), nullptr, nullptr, NOUR_None);
+        Context, NNSBuilder.getWithLocInContext(Context), SourceLocation(),
+        method, /*RefersToEnclosingVariableOrCapture=*/false, CE->getExprLoc(),
+        T, CE->getValueKind(), nullptr, nullptr, NOUR_None);
 
     // get its address
     ExprResult AddrOf = CreateBuiltinUnaryOp(CE->getSourceRange().getBegin(),

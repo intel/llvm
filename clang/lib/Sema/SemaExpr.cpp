@@ -15051,7 +15051,6 @@ static void diagnoseAddressOfInvalidType(Sema &S, SourceLocation Loc,
 bool Sema::CheckUseOfCXXMethodAsAddressOfOperand(SourceLocation OpLoc,
                                                  const Expr *Op,
                                                  const CXXMethodDecl *MD) {
-  return false; // FIXME allow this only in declcall
   const auto *DRE = cast<DeclRefExpr>(Op->IgnoreParens());
 
   if (Op != DRE)
