@@ -14,7 +14,7 @@
 #include <sycl/range.hpp>                     // for range
 
 #include <stddef.h>    // for size_t
-#include <type_traits>                        // for enable_if_t, conditional_t
+#include <type_traits> // for enable_if_t, conditional_t
 
 namespace sycl {
 inline namespace _V1 {
@@ -334,9 +334,9 @@ inline id<3> getDelinearizedId(const range<3> &Range, size_t Index) noexcept {
 // C++ feature test macros are supported by all supported compilers
 // with the exception of MSVC 1914. It doesn't support deduction guides.
 #ifdef __cpp_deduction_guides
-id(size_t)->id<1>;
-id(size_t, size_t)->id<2>;
-id(size_t, size_t, size_t)->id<3>;
+id(size_t) -> id<1>;
+id(size_t, size_t) -> id<2>;
+id(size_t, size_t, size_t) -> id<3>;
 #endif
 } // namespace _V1
 } // namespace sycl
