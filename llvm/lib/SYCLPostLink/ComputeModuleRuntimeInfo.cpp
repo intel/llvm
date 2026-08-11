@@ -17,6 +17,7 @@
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include <queue>

@@ -30,6 +30,7 @@
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/Support/CommandLine.h"
