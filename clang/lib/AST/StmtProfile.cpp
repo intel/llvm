@@ -2401,6 +2401,10 @@ void StmtProfiler::VisitCXXNoexceptExpr(const CXXNoexceptExpr *S) {
 
 void StmtProfiler::VisitCXXDeclcallExpr(const CXXDeclcallExpr *S) {
   VisitExpr(S);
+  // The devirtualized flag is the only state distinguishing a declcall of a
+  // qualified virtual call from an unqualified one (both rebuild the same
+  // &Class::method operand), so it must participate in the profile / ODR hash.
+  ID.AddBoolean(S->isDevirtualized());
 }
 
 void StmtProfiler::VisitPackExpansionExpr(const PackExpansionExpr *S) {
