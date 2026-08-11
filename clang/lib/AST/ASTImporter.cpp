@@ -8567,13 +8567,15 @@ ExpectedStmt ASTNodeImporter::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
   auto ToType = importChecked(Err, E->getType());
   auto ToOperand =
       importChecked(Err, E->getOperand()); // FIXME: dependent values?!
+  auto ToSourceExpr = importChecked(Err, E->getSourceExpr());
   auto ToBeginLoc = importChecked(Err, E->getBeginLoc());
   auto ToEndLoc = importChecked(Err, E->getEndLoc());
   if (Err)
     return std::move(Err);
 
-  return new (Importer.getToContext()) CXXDeclcallExpr(
-      ToType, ToOperand, E->isDevirtualized(), ToBeginLoc, ToEndLoc);
+  return new (Importer.getToContext())
+      CXXDeclcallExpr(ToType, ToOperand, ToSourceExpr, E->isDevirtualized(),
+                      ToBeginLoc, ToEndLoc);
 }
 
 ExpectedStmt ASTNodeImporter::VisitCXXThrowExpr(CXXThrowExpr *E) {

@@ -2731,7 +2731,8 @@ void StmtPrinter::VisitCXXNoexceptExpr(CXXNoexceptExpr *E) {
 
 void StmtPrinter::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
   OS << "declcall(";
-  PrintExpr(E->getOperand());
+  // Print the original call expression, not the resolved callee operand.
+  PrintExpr(E->getSourceExpr() ? E->getSourceExpr() : E->getOperand());
   OS << ")";
 }
 

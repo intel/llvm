@@ -7494,10 +7494,13 @@ ExprResult Sema::ActOnNoexceptExpr(SourceLocation KeyLoc, SourceLocation,
 
 ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
                                       SourceLocation RParen) {
+  // Remember the operand as written; the node keeps it for source fidelity
+  // (e.g. -ast-print) since Operand below is rewritten to the resolved callee.
+  Expr *SourceExpr = Operand;
   // in template ... do it later
   if (Operand->isInstantiationDependent()) {
-    return new (Context)
-        CXXDeclcallExpr(Context.DependentTy, Operand, false, KeyLoc, RParen);
+    return new (Context) CXXDeclcallExpr(Context.DependentTy, Operand,
+                                         SourceExpr, false, KeyLoc, RParen);
   }
 
   // unwrap parens
@@ -7614,7 +7617,7 @@ ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
   }
 
   return new (Context)
-      CXXDeclcallExpr(Operand->getType(), Operand,
+      CXXDeclcallExpr(Operand->getType(), Operand, SourceExpr,
                       MemberCallHasQualifierAndIsVirtual, KeyLoc, RParen);
 }
 

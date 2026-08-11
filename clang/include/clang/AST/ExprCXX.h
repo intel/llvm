@@ -4350,21 +4350,29 @@ class CXXDeclcallExpr : public Expr {
   friend class ASTStmtReader;
 
   Stmt *Operand;
+  /// The original call expression the declcall was written with, kept for
+  /// source fidelity (e.g. -ast-print). Evaluation and codegen use Operand,
+  /// which is the resolved callee (a pointer or pointer to member).
+  Stmt *SourceExpr;
   SourceRange Range;
 
   bool Devirtualize = false;
 
 public:
-  CXXDeclcallExpr(QualType Ty, Expr *Operand, bool Devirtualize,
-                  SourceLocation Keyword, SourceLocation RParen)
+  CXXDeclcallExpr(QualType Ty, Expr *Operand, Expr *SourceExpr,
+                  bool Devirtualize, SourceLocation Keyword,
+                  SourceLocation RParen)
       : Expr(CXXDeclcallExprClass, Ty, VK_PRValue, OK_Ordinary),
-        Operand(Operand), Range(Keyword, RParen), Devirtualize(Devirtualize) {
+        Operand(Operand), SourceExpr(SourceExpr), Range(Keyword, RParen),
+        Devirtualize(Devirtualize) {
     setDependence(computeDependence(this));
   }
 
   CXXDeclcallExpr(EmptyShell Empty) : Expr(CXXDeclcallExprClass, Empty) {}
 
   Expr *getOperand() const { return static_cast<Expr *>(Operand); }
+  /// The original call expression, for printing / source fidelity.
+  Expr *getSourceExpr() const { return static_cast<Expr *>(SourceExpr); }
 
   SourceLocation getBeginLoc() const { return Range.getBegin(); }
   SourceLocation getEndLoc() const { return Range.getEnd(); }

@@ -2313,6 +2313,7 @@ void ASTStmtReader::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
   VisitExpr(E);
   E->Range = readSourceRange();
   E->Operand = Record.readSubExpr();
+  E->SourceExpr = Record.readSubExpr();
   E->Devirtualize = Record.readInt();
 }
 
