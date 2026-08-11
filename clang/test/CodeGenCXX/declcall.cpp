@@ -32,3 +32,11 @@ void use(int (B::**out)(int)) {
   auto pv = declcall(((B *)0)->B::g(0));
   *out = pv;
 }
+
+// declcall selects and instantiates a function template specialization, and
+// that specialization is emitted.
+template <class T> T tfn(T v) { return v; }
+// CHECK-LABEL: define {{.*}} ptr @_Z8get_tmplv()
+// CHECK: ret ptr @_Z3tfnIiET_S0_
+// CHECK: define {{.*}} @_Z3tfnIiET_S0_
+FP get_tmpl() { return declcall(tfn(0)); }

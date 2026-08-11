@@ -26,6 +26,11 @@ struct NE { int m(int) noexcept; };
 static_assert(
     __is_same(decltype(declcall(((NE *)0)->m(0))), int (NE::*)(int) noexcept));
 
+// declcall deduces and selects the right function template specialization.
+template <class T> T ttmpl(T);
+static_assert(__is_same(decltype(declcall(ttmpl(0))), int (*)(int)));
+static_assert(__is_same(decltype(declcall(ttmpl('a'))), char (*)(char)));
+
 // The operand must be a call expression.
 int x;
 auto bad = declcall(x); // expected-error {{declcall doesn't contain a call}}
