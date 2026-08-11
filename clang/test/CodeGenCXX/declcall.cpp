@@ -17,6 +17,8 @@ using FP = int (*)(int);
 // yields a function pointer, a member operator yields a member pointer.
 // CHECK: @pfree = {{.*}}global ptr @_Zpl2OpS_
 // CHECK: @pmem = {{.*}}global { i64, i64 } { i64 ptrtoint (ptr @_ZN2OmmiES_ to i64), i64 0 }
+// A static member function yields a plain function pointer.
+// CHECK: @ps = {{.*}}global ptr @_ZN2SM2sfEi
 struct B { virtual int g(int); int h(int); };
 auto pv = declcall(((B *)0)->B::g(0));
 auto ph = declcall(((B *)0)->h(0));
@@ -51,3 +53,5 @@ int operator+(Op, Op);
 struct Om { int operator-(Om); };
 auto pfree = declcall(Op{} + Op{});
 auto pmem = declcall(((Om *)0)->operator-(Om{}));
+struct SM { static int sf(int); };
+auto ps = declcall(SM::sf(0));

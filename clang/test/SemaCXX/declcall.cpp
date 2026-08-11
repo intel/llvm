@@ -31,6 +31,15 @@ template <class T> T ttmpl(T);
 static_assert(__is_same(decltype(declcall(ttmpl(0))), int (*)(int)));
 static_assert(__is_same(decltype(declcall(ttmpl('a'))), char (*)(char)));
 
+// declcall of a static member function yields a plain function pointer, not a
+// member pointer.
+struct SM {
+  static int sf(int);
+  static int sf(char);
+};
+static_assert(__is_same(decltype(declcall(SM::sf(0))), int (*)(int)));
+static_assert(__is_same(decltype(declcall(SM::sf('a'))), int (*)(char)));
+
 // declcall on an operator call selects the operator function.
 struct OpA {};
 int operator+(OpA, OpA);
