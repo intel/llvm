@@ -7550,11 +7550,28 @@ ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
         T, CE->getValueKind(), nullptr, nullptr, NOUR_None);
     
     // get its address
-    Operand = CreateBuiltinUnaryOp(CE->getSourceRange().getBegin(), UO_AddrOf, DRE, false).get();
+    ExprResult AddrOf = CreateBuiltinUnaryOp(CE->getSourceRange().getBegin(),
+                                             UO_AddrOf, DRE, false);
+    if (AddrOf.isInvalid())
+      return ExprError();
+    Operand = AddrOf.get();
   } else {
-    
-    // convert function to pointer
-    Operand = CallExprUnaryConversions(CE->getCallee()->IgnoreParens()).get();
+    // A call through a pointer to member has no compile-time-known callee for
+    // declcall to resolve; P2825 handles such runtime cases via an explicit
+    // static_cast. Diagnose it rather than crashing on the failed conversion.
+    const Expr *Callee = CE->getCallee()->IgnoreParenImpCasts();
+    if (const auto *BO = dyn_cast<BinaryOperator>(Callee);
+        BO && BO->isPtrMemOp()) {
+      Diag(CE->getExprLoc(), diag::err_declcall_not_implemented_for)
+          << "a call through a pointer to member";
+      return ExprError();
+    }
+
+    // Convert the callee (a function or function pointer) to a pointer.
+    ExprResult Conv = CallExprUnaryConversions(CE->getCallee()->IgnoreParens());
+    if (Conv.isInvalid())
+      return ExprError();
+    Operand = Conv.get();
   }
 
   if (!mustBeEvaluableInCompileTime(Operand)) {

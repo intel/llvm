@@ -28,6 +28,13 @@ auto bad = declcall(x); // expected-error {{declcall doesn't contain a call}}
 int (*fp)(int) = &f;
 constexpr auto rt = declcall(fp(0)); // expected-error {{declcall must not depend on runtime known value}}
 
+// A call through a pointer to member has no compile-time-known callee. This
+// must be diagnosed, not crash the compiler.
+struct S { int m(int); };
+S s;
+int (S::*pmf)(int);
+auto pm = declcall((s.*pmf)(0)); // expected-error {{declcall doesn't support a call through a pointer to member yet}}
+
 // Dependent operands are resolved at instantiation time.
 template <class T> auto call(T v) { return declcall(f(v)); }
 void use() {
