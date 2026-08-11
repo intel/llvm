@@ -1345,7 +1345,6 @@ ur_result_t ur_command_list_manager::beginGraphCapture() {
   ZE2UR_CALL(hContextInternal->getPlatform()
                  ->ZeGraphExt.zeCommandListBeginGraphCaptureExp,
              (getZeCommandList(), nullptr));
-  graphCapture.enableCapture();
 
   return UR_RESULT_SUCCESS;
 }
@@ -1360,7 +1359,6 @@ ur_command_list_manager::beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph) {
   ZE2UR_CALL(hContextInternal->getPlatform()
                  ->ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp,
              (getZeCommandList(), hGraph->getZeHandle(), nullptr));
-  graphCapture.enableCapture(hGraph);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1375,18 +1373,17 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   ze_graph_handle_t zeGraph = nullptr;
   ZE2UR_CALL(hContext.get()->getPlatform()->ZeGraphExt.endGraphCapture,
              (getZeCommandList(), nullptr, &zeGraph));
-  auto graph = graphCapture.getGraph();
-  graphCapture.disableCapture();
 
-  if (!graph) {
+  {
     std::scoped_lock<ur_shared_mutex> lock(hContextInternal->GraphMapMutex);
-    graph = hContextInternal->getGraphFromZeHandle(zeGraph);
-    if (!graph) {
-      graph = new ur_exp_graph_handle_t_(hContextInternal, zeGraph);
-      hContextInternal->registerGraph(zeGraph, graph);
+    auto hUrGraph = hContextInternal->getGraphFromZeHandle(zeGraph);
+    if (!hUrGraph) {
+      hUrGraph = new ur_exp_graph_handle_t_(hContextInternal, zeGraph);
+      hContextInternal->registerGraph(zeGraph, hUrGraph);
     }
+
+    *phGraph = hUrGraph;
   }
-  *phGraph = graph;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1432,35 +1429,24 @@ ur_result_t ur_command_list_manager::getGraph(ur_exp_graph_handle_t *phGraph) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  auto hCachedGraph = graphCapture.getGraph();
-  if (hCachedGraph) {
-    *phGraph = hCachedGraph;
-    return UR_RESULT_SUCCESS;
-  }
-
-  // Fork-join and implicit capture scenarios
   ze_graph_handle_t hZeGraph = nullptr;
   ze_result_t ZeResult =
       ZE_CALL_NOCHECK(zeGetGraph, (getZeCommandList(), &hZeGraph));
-
   if (ZeResult != ZE_RESULT_SUCCESS || !hZeGraph) {
     *phGraph = nullptr;
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  ur_exp_graph_handle_t hUrGraph = nullptr;
   {
     std::scoped_lock<ur_shared_mutex> lock(hContextInternal->GraphMapMutex);
-    hUrGraph = hContextInternal->getGraphFromZeHandle(hZeGraph);
+    auto hUrGraph = hContextInternal->getGraphFromZeHandle(hZeGraph);
     if (!hUrGraph) {
       hUrGraph = new ur_exp_graph_handle_t_(hContextInternal, hZeGraph);
       hContextInternal->registerGraph(hZeGraph, hUrGraph);
-      if (graphCapture.isActive()) {
-        graphCapture.enableCapture(hUrGraph);
-      }
     }
+
+    *phGraph = hUrGraph;
   }
-  *phGraph = hUrGraph;
 
   return UR_RESULT_SUCCESS;
 }

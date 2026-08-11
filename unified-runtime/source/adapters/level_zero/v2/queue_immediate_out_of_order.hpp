@@ -50,26 +50,17 @@ private:
 
   std::array<ur_event_handle_t, numCommandLists> barrierEvents;
 
-  // The primary queue this out-of-order queue joined during a fork-join graph
-  // capture, or nullptr when not part of a fork-join. While set, all operations
-  // are routed to the dedicated capture command list (see
-  // getNextCommandListId). The Level Zero record-replay driver forks a command
-  // list into a capturing graph exactly once (a list cannot be forked by more
-  // than one fork event), so a single primary queue is sufficient to track.
-  std::atomic<ur_queue_t_ *> forkJoinPrimaryQueue = nullptr;
-
   uint32_t getNextCommandListId(const ur_event_handle_t *phWaitEvents = nullptr,
                                 uint32_t numWaitEvents = 0) {
     bool captureActive;
     auto &cmdListManager =
         (*commandListManagers.get_no_lock())[captureCmdListManagerIdx];
     cmdListManager.queryGraphCaptureActive(&captureActive);
-
     if (captureActive) {
       return captureCmdListManagerIdx;
     }
 
-    // Fork-join: if any wait event was produced by another queue that is
+    // Any waitlist event that was produced by another queue that is
     // currently recording a graph, this operation joins that capture and must
     // be appended on the dedicated capture command list. Remember the
     // originating ("primary") queue so that subsequent operations - even those
@@ -86,39 +77,12 @@ private:
       if (srcQueue->queueIsGraphCapteEnabledExp(&srcCaptureActive) ==
               UR_RESULT_SUCCESS &&
           srcCaptureActive) {
-        forkJoinPrimaryQueue.store(srcQueue, std::memory_order_relaxed);
         return captureCmdListManagerIdx;
       }
     }
 
-    // Still part of a fork started by an earlier operation: keep routing onto
-    // the capture command list until the primary queue finishes recording the
-    // graph. Without this, operations submitted to this queue without an
-    // explicit dependency on the primary queue would escape the capture.
-    if (isForkJoinCaptureActive()) {
-      return captureCmdListManagerIdx;
-    }
-
     return commandListIndex.fetch_add(1, std::memory_order_relaxed) %
            numCommandLists;
-  }
-
-  // Returns true while this queue is temporarily recording as part of a
-  // fork-join capture started by another (primary) queue. When the primary
-  // queue is no longer recording, the temporary state is cleared.
-  bool isForkJoinCaptureActive() {
-    auto *primaryQueue = forkJoinPrimaryQueue.load(std::memory_order_relaxed);
-    if (!primaryQueue) {
-      return false;
-    }
-    bool primaryCaptureActive = false;
-    if (primaryQueue->queueIsGraphCapteEnabledExp(&primaryCaptureActive) ==
-            UR_RESULT_SUCCESS &&
-        primaryCaptureActive) {
-      return true;
-    }
-    forkJoinPrimaryQueue.store(nullptr, std::memory_order_relaxed);
-    return false;
   }
 
 public:
@@ -722,11 +686,7 @@ public:
   ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
     UR_CALL(commandListManagers.lock()[captureCmdListManagerIdx]
                 .queryGraphCaptureActive(pResult));
-    // Treat fork-join recording on another queue as active for chained joins
-    // and capture queries.
-    if (!*pResult) {
-      *pResult = isForkJoinCaptureActive();
-    }
+
     return UR_RESULT_SUCCESS;
   }
 
