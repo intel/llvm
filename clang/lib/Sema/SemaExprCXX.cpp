@@ -7537,6 +7537,14 @@ ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
     return ExprError();
   }
 
+  // The operand's argument subexpressions were parsed unevaluated and are not
+  // odr-used. The selected function, however, is what declcall yields a pointer
+  // to, so odr-use it here: this runs in the declcall's own evaluation context,
+  // so it is instantiated/emitted exactly when the declcall expression is
+  // potentially-evaluated (and left alone inside decltype, sizeof, etc.).
+  if (auto *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl()))
+    MarkFunctionReferenced(KeyLoc, FD);
+
   // Check if we are calling a method (it can be static.)
   CXXMethodDecl *method = dyn_cast_or_null<CXXMethodDecl>(CE->getCalleeDecl());
 

@@ -1508,9 +1508,16 @@ Parser::ParseCastExpression(CastParseKind ParseKind, bool isAddressOfOperand,
     if (T.expectAndConsume(diag::err_expected_lparen_after, "declcall"))
       return ExprError();
 
-    // it can't be marked as unevaluated as we need to keep all the
-    // instantiations
-    Res = ParseExpression();
+    // The operand of declcall is an unevaluated operand: its argument
+    // subexpressions must not be odr-used or evaluated. This scope covers only
+    // parsing; ActOnDeclcallExpr then runs in the declcall's own evaluation
+    // context, so the selected function is odr-used (and instantiated) exactly
+    // when the declcall expression itself is.
+    {
+      EnterExpressionEvaluationContext Unevaluated(
+          Actions, Sema::ExpressionEvaluationContext::Unevaluated);
+      Res = ParseExpression();
+    }
 
     T.consumeClose();
 
