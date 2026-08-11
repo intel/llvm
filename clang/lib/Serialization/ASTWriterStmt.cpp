@@ -2332,6 +2332,7 @@ void ASTStmtWriter::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
   VisitExpr(E);
   Record.AddSourceRange(E->getSourceRange());
   Record.AddStmt(E->getOperand());
+  Record.push_back(E->isDevirtualized());
   Code = serialization::EXPR_CXX_DECLCALL;
 }
 
