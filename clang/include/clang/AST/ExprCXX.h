@@ -4343,7 +4343,7 @@ public:
   }
 };
 
-/// Represents a C++26 declcall expression (C++ [??]).
+/// Represents a C++26 declcall expression (P2825).
 ///
 /// An object which gives you member function pointer or function pointer
 class CXXDeclcallExpr : public Expr {
