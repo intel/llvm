@@ -3035,7 +3035,9 @@ MicrosoftCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD,
   unsigned VBTableIndex = 0;
   llvm::Constant *FirstField;
   const FunctionProtoType *FPT = MD->getType()->castAs<FunctionProtoType>();
-  if (!MD->isVirtual()) {
+  // A devirtualized pointer (declcall of a qualified virtual call, AllowVirtual
+  // == false) points directly at the function rather than at a vftable thunk.
+  if (!MD->isVirtual() || !AllowVirtual) {
     llvm::Type *Ty;
     // Check whether the function has a computable LLVM signature.
     if (Types.isFuncTypeConvertible(FPT)) {
