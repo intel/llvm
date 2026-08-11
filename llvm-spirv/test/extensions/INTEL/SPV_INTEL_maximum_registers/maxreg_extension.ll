@@ -11,45 +11,45 @@
 ; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC3:]] "main_l13"
 ; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC4:]] "main_l19"
 
-; CHECK-SPIRV: ExecutionMode [[#FUNC0]] 6461 2
-; CHECK-SPIRV: ExecutionMode [[#FUNC1]] 6461 1
+; CHECK-SPIRV: ExecutionMode [[#FUNC0]] 6461 256
+; CHECK-SPIRV: ExecutionMode [[#FUNC1]] 6461 128
 ; CHECK-SPIRV: ExecutionMode [[#FUNC2]] 6463 0
 ; CHECK-SPIRV: ExecutionModeId [[#FUNC3]] 6462 [[#Const3:]]
 ; CHECK-SPIRV: TypeInt [[#TypeInt:]] 32 0
-; CHECK-SPIRV: Constant [[#TypeInt]] [[#Const3]] 3
+; CHECK-SPIRV: Constant [[#TypeInt]] [[#Const3]] 512
 
 ; CHECK-SPIRV-NOT: ExecutionMode [[#FUNC4]]
 
 ; CHECK-LLVM: !spirv.ExecutionMode = !{![[#FLAG0:]], ![[#FLAG1:]], ![[#FLAG2:]], ![[#FLAG3:]]}
-; CHECK-LLVM: ![[#FLAG0]] = !{ptr @main_l3, i32 6461, i32 2}
-; CHECK-LLVM: ![[#FLAG1]] = !{ptr @main_l6, i32 6461, i32 1}
+; CHECK-LLVM: ![[#FLAG0]] = !{ptr @main_l3, i32 6461, i32 256}
+; CHECK-LLVM: ![[#FLAG1]] = !{ptr @main_l6, i32 6461, i32 128}
 ; CHECK-LLVM: ![[#FLAG2]] = !{ptr @main_l9, i32 6463, !"AutoINTEL"}
 ; CHECK-LLVM: ![[#FLAG3]] = !{ptr @main_l13, i32 6462, ![[#VAL:]]}
-; CHECK-LLVM: ![[#VAL]] = !{i32 3}
+; CHECK-LLVM: ![[#VAL]] = !{i32 512}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"
 
 ; Function Attrs: noinline nounwind optnone
-define weak dso_local spir_kernel void @main_l3() #0 !RegisterAllocMode !10 {
+define weak dso_local spir_kernel void @main_l3() #0 !MaximumRegisters !10 {
 newFuncRoot:
   ret void
 }
 
 ; Function Attrs: noinline nounwind optnone
-define weak dso_local spir_kernel void @main_l6() #0 !RegisterAllocMode !11 {
+define weak dso_local spir_kernel void @main_l6() #0 !MaximumRegisters !11 {
 newFuncRoot:
   ret void
 }
 
 ; Function Attrs: noinline nounwind optnone
-define weak dso_local spir_kernel void @main_l9() #0 !RegisterAllocMode !12 {
+define weak dso_local spir_kernel void @main_l9() #0 !MaximumRegisters !12 {
 newFuncRoot:
   ret void
 }
 
 ; Function Attrs: noinline nounwind optnone
-define weak dso_local spir_kernel void @main_l13() #0 !RegisterAllocMode !13 {
+define weak dso_local spir_kernel void @main_l13() #0 !MaximumRegisters !13 {
 newFuncRoot:
   ret void
 }
@@ -78,8 +78,8 @@ attributes #0 = { noinline nounwind optnone }
 !7 = !{i32 8, !"PIC Level", i32 2}
 !8 = !{i32 7, !"frame-pointer", i32 2}
 !9 = !{i32 2, i32 2}
-!10 = !{i32 2}
-!11 = !{i32 1}
+!10 = !{i32 256}
+!11 = !{i32 128}
 !12 = !{!"AutoINTEL"}
 !13 = !{!14}
-!14 = !{i32 3}
+!14 = !{i32 512}
