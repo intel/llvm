@@ -5352,7 +5352,7 @@ static const MemberPointerAccessResult HandleMemberPointerAccess(EvalInfo &Info,
     const CXXRecordDecl *LastMPDecl = MemPtr.getContainingRecord();
     if (LastLVDecl->getCanonicalDecl() != LastMPDecl->getCanonicalDecl()) {
       Info.FFDiag(RHS);
-      return nullptr;
+      return {nullptr};
     }
 
     // Truncate the lvalue to the appropriate derived class.
