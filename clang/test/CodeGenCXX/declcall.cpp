@@ -10,9 +10,13 @@ using FP = int (*)(int);
 // CHECK: @pv = {{.*}}global { i64, i64 } { i64 ptrtoint (ptr @_ZN1B1gEi to i64), i64 0 }
 // A non-virtual member is a direct pointer as well.
 // CHECK: @ph = {{.*}}global { i64, i64 } { i64 ptrtoint (ptr @_ZN1B1hEi to i64), i64 0 }
+// An *unqualified* virtual call is NOT devirtualized: the constant keeps
+// virtual dispatch, i.e. a vtable index ({ i64 1, i64 0 }).
+// CHECK: @pu = {{.*}}global { i64, i64 } { i64 1, i64 0 }
 struct B { virtual int g(int); int h(int); };
 auto pv = declcall(((B *)0)->B::g(0));
 auto ph = declcall(((B *)0)->h(0));
+auto pu = declcall(((B *)0)->g(0));
 
 // A free-function declcall lowers to the address of the selected overload.
 // CHECK-LABEL: define {{.*}} ptr @_Z3getv()
