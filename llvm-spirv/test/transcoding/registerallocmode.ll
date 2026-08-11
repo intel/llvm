@@ -3,6 +3,15 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
+; Verify we don't use SPV_INTEL_maximum_registers even if it is allowed.
+; The MaximumRegisters metadata should be used for SPV_INTEL_maximum_registers.
+
+; RUN: llvm-as %s -o %t2.bc
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_maximum_registers -spirv-text %t2.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV -implicit-check-not=SPV_INTEL_maximum_registers
+; RUN: llvm-spirv %t2.bc -o %t2.spv
+; RUN: spirv-val %t2.spv
+; RUN: llvm-spirv -r %t2.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM -implicit-check-not=spirv.ExecutionMode
 ; FIXME: llc does not emit UserSemantic decorations for RegisterAllocMode/num-thread-per-eu annotations, so these are lost in the roundtrip
 
 ; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC0:]] "main_l3"
