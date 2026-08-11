@@ -187,17 +187,59 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
 // work_group_size). See intel/llvm#22706. The handler resolves the kernel by
 // name through its cached getDeviceKernelInfo<Func>, so no kernel bundle is
 // built per launch.
+namespace detail {
+// Func-free submit helpers for free function kernels. These are templated only
+// on the argument types (and, for nd_launch, dimensionality/properties) and
+// take the already-resolved DeviceKernelInfo* - never the kernel function
+// pointer `Func`. That keeps the kernel's (potentially huge) mangled signature
+// out of the submit closure's name and every host symbol reached from it, which
+// is the dominant host object size cost of free function kernels under MSVC.
+// `Func` is spelled exactly once, in getDeviceKernelInfo<Func>() at the call
+// site. See CMPLRLLVM-77222.
+template <typename... ArgsT>
+void single_task_free_submit(const queue &Q,
+                             sycl::detail::DeviceKernelInfo *KI,
+                             ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.single_task_free_function(KI);
+  });
+}
+
+template <int Dimensions, typename... ArgsT>
+void nd_launch_free_submit(const queue &Q, nd_range<Dimensions> Range,
+                           sycl::detail::DeviceKernelInfo *KI,
+                           ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.nd_launch_free_function(KI, Range, empty_properties_t{});
+  });
+}
+
+template <int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch_free_config_submit(
+    const queue &Q, launch_config<nd_range<Dimensions>, Properties> Config,
+    sycl::detail::DeviceKernelInfo *KI, ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    LaunchConfigAccess<nd_range<Dimensions>, Properties> ConfigAccess(Config);
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.nd_launch_free_function(KI, ConfigAccess.getRange(),
+                                ConfigAccess.getProperties());
+  });
+}
+} // namespace detail
+
 template <auto *Func, typename... ArgsT>
 void single_task(handler &CGH, kernel_function_s<Func>, ArgsT &&...Args) {
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.single_task_free_function<Func>();
+  CGH.single_task_free_function(&sycl::detail::getDeviceKernelInfo<Func>());
 }
 
 template <auto *Func, typename... ArgsT>
-void single_task(queue Q, kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    single_task(CGH, KernelFunc, std::forward<ArgsT>(Args)...);
-  });
+void single_task(queue Q, kernel_function_s<Func>, ArgsT &&...Args) {
+  detail::single_task_free_submit<ArgsT...>(
+      std::move(Q), &sycl::detail::getDeviceKernelInfo<Func>(),
+      std::forward<ArgsT>(Args)...);
 }
 
 template <typename T>
@@ -444,15 +486,16 @@ template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                kernel_function_s<Func>, ArgsT &&...Args) {
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.nd_launch_free_function<Func>(Range, empty_properties_t{});
+  CGH.nd_launch_free_function(&sycl::detail::getDeviceKernelInfo<Func>(), Range,
+                              empty_properties_t{});
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
-void nd_launch(queue Q, nd_range<Dimensions> Range,
-               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch(CGH, Range, KernelFunc, std::forward<ArgsT>(Args)...);
-  });
+void nd_launch(queue Q, nd_range<Dimensions> Range, kernel_function_s<Func>,
+               ArgsT &&...Args) {
+  detail::nd_launch_free_submit<Dimensions, ArgsT...>(
+      std::move(Q), Range, &sycl::detail::getDeviceKernelInfo<Func>(),
+      std::forward<ArgsT>(Args)...);
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
@@ -463,16 +506,17 @@ void nd_launch(handler &CGH,
                                                         Properties>
       ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.nd_launch_free_function<Func>(ConfigAccess.getRange(),
-                                    ConfigAccess.getProperties());
+  CGH.nd_launch_free_function(&sycl::detail::getDeviceKernelInfo<Func>(),
+                              ConfigAccess.getRange(),
+                              ConfigAccess.getProperties());
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               kernel_function_s<Func> KernelFunc, ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch(CGH, Config, KernelFunc, std::forward<ArgsT>(Args)...);
-  });
+               kernel_function_s<Func>, ArgsT &&...Args) {
+  detail::nd_launch_free_config_submit<Dimensions, Properties, ArgsT...>(
+      std::move(Q), Config, &sycl::detail::getDeviceKernelInfo<Func>(),
+      std::forward<ArgsT>(Args)...);
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
