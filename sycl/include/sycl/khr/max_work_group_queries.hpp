@@ -1,4 +1,5 @@
-//==-- max_work_group_queries.hpp - oneapi max work groups info traits ------------==//
+//==-- max_work_group_queries.hpp - oneapi max work groups info traits
+//------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,7 +19,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace khr::info::device {
 
-template<int Dimensions = 3> struct max_work_group_range;
+template <int Dimensions = 3> struct max_work_group_range;
 
 // max_work_group_range<1> and <2> are RT-only; only <3> dispatches via UR.
 template <>

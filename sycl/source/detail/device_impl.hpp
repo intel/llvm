@@ -1234,13 +1234,13 @@ public:
       return range<3>(result[2], result[1], result[0]);
     }
     CASE(khr::info::device::max_work_group_range<2>) {
-      range<3> max_3d =
-          get_info<khr::info::device::max_work_group_range<3>, DependentFalse>();
+      range<3> max_3d = get_info<khr::info::device::max_work_group_range<3>,
+                                 DependentFalse>();
       return range<2>{max_3d[1], max_3d[2]};
     }
     CASE(khr::info::device::max_work_group_range<1>) {
-      range<3> max_3d =
-          get_info<khr::info::device::max_work_group_range<3>, DependentFalse>();
+      range<3> max_3d = get_info<khr::info::device::max_work_group_range<3>,
+                                 DependentFalse>();
       return range<1>{max_3d[2]};
     }
     else {
