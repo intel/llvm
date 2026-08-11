@@ -13,6 +13,10 @@ using FP = int (*)(int);
 // An *unqualified* virtual call is NOT devirtualized: the constant keeps
 // virtual dispatch, i.e. a vtable index ({ i64 1, i64 0 }).
 // CHECK: @pu = {{.*}}global { i64, i64 } { i64 1, i64 0 }
+// declcall on an operator call selects the operator function: a free operator
+// yields a function pointer, a member operator yields a member pointer.
+// CHECK: @pfree = {{.*}}global ptr @_Zpl2OpS_
+// CHECK: @pmem = {{.*}}global { i64, i64 } { i64 ptrtoint (ptr @_ZN2OmmiES_ to i64), i64 0 }
 struct B { virtual int g(int); int h(int); };
 auto pv = declcall(((B *)0)->B::g(0));
 auto ph = declcall(((B *)0)->h(0));
@@ -40,3 +44,10 @@ template <class T> T tfn(T v) { return v; }
 // CHECK: ret ptr @_Z3tfnIiET_S0_
 // CHECK: define {{.*}} @_Z3tfnIiET_S0_
 FP get_tmpl() { return declcall(tfn(0)); }
+
+// Operator-call declcall values (checked with the other globals above).
+struct Op {};
+int operator+(Op, Op);
+struct Om { int operator-(Om); };
+auto pfree = declcall(Op{} + Op{});
+auto pmem = declcall(((Om *)0)->operator-(Om{}));

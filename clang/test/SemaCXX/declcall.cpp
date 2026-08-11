@@ -31,6 +31,14 @@ template <class T> T ttmpl(T);
 static_assert(__is_same(decltype(declcall(ttmpl(0))), int (*)(int)));
 static_assert(__is_same(decltype(declcall(ttmpl('a'))), char (*)(char)));
 
+// declcall on an operator call selects the operator function.
+struct OpA {};
+int operator+(OpA, OpA);
+struct OpM { int operator-(OpM); };
+static_assert(__is_same(decltype(declcall(OpA{} + OpA{})), int (*)(OpA, OpA)));
+static_assert(
+    __is_same(decltype(declcall(((OpM *)0)->operator-(OpM{}))), int (OpM::*)(OpM)));
+
 // The operand must be a call expression.
 int x;
 auto bad = declcall(x); // expected-error {{declcall doesn't contain a call}}
