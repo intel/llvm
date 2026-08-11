@@ -22,6 +22,12 @@ static_assert(__is_same(decltype(pc), int (*const)(char)));
 int x;
 auto bad = declcall(x); // expected-error {{declcall doesn't contain a call}}
 
+// A call through a runtime function pointer is not constant-evaluable. This
+// must produce exactly one diagnostic: the failed declcall must not leave a
+// live expression behind that cascades into further errors.
+int (*fp)(int) = &f;
+constexpr auto rt = declcall(fp(0)); // expected-error {{declcall must not depend on runtime known value}}
+
 // Dependent operands are resolved at instantiation time.
 template <class T> auto call(T v) { return declcall(f(v)); }
 void use() {

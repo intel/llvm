@@ -7506,7 +7506,6 @@ ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
   
   if (CE == nullptr) {
     Diag(Operand->getExprLoc(), diag::err_declcall_must_contain_a_call);
-    Operand->dump();
     return ExprError();
   }
   
@@ -7560,6 +7559,7 @@ ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
 
   if (!mustBeEvaluableInCompileTime(Operand)) {
     Diag(CE->getExprLoc(), diag::err_declcall_must_be_constant_evaluable);
+    return ExprError();
   }
 
   return new (Context)
