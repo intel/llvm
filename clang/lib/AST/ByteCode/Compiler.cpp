@@ -5846,6 +5846,11 @@ bool Compiler<Emitter>::visitAPValue(const APValue &Val, PrimType ValType,
           return false;
       }
 
+      // Restore the devirtualized flag (declcall of a qualified virtual call)
+      // so a call through this pointer bypasses virtual dispatch.
+      if (Val.isDeVirtualized() && !this->emitDevirtualizeMemberPtr(Info))
+        return false;
+
       return true;
     }
     return this->emitNullMemberPtr(0, nullptr, Info);
@@ -6342,16 +6347,18 @@ bool Compiler<Emitter>::VisitCallExpr(const CallExpr *E) {
     // Get the callee, either from a member pointer or function pointer saved in
     // CalleeOffset.
     if (isa<CXXMemberCallExpr>(E) && CalleeOffset) {
+      // Keep the member pointer on the stack so the call honors a
+      // devirtualized declcall pointer rather than always dispatching.
       if (!this->emitGetLocal(PT_MemberPtr, *CalleeOffset, E))
         return false;
-      if (!this->emitGetMemberPtrDecl(E))
+      if (!this->emitCallMemberPtr(ArgSize, E, E))
         return false;
     } else {
       if (!this->emitGetLocal(PT_Ptr, *CalleeOffset, E))
         return false;
+      if (!this->emitCallPtr(ArgSize, E, E))
+        return false;
     }
-    if (!this->emitCallPtr(ArgSize, E, E))
-      return false;
   }
 
   // Cleanup for discarded return values.

@@ -2370,25 +2370,12 @@ bool CallBI(InterpState &S, CodePtr OpPC, const CallExpr *CE,
   return InterpretBuiltin(S, OpPC, CE, BuiltinID);
 }
 
-bool CallPtr(InterpState &S, CodePtr OpPC, uint32_t ArgSize,
-             const CallExpr *CE) {
-  const Pointer &Ptr = S.Stk.pop<Pointer>();
-
-  if (Ptr.isZero()) {
-    S.FFDiag(S.Current->getSource(OpPC), diag::note_constexpr_null_callee)
-        << const_cast<Expr *>(CE->getCallee()) << CE->getSourceRange();
-    return false;
-  }
-
-  if (!Ptr.isFunctionPointer())
-    return Invalid(S, OpPC);
-
-  const Function *F = Ptr.asFunctionPointer().Func;
-  assert(F);
-  // Don't allow calling block pointers.
-  if (!F->getDecl())
-    return Invalid(S, OpPC);
-
+// Shared tail of CallPtr / CallMemberPtr: given an already-resolved callee
+// Function, perform the call. \p NoVirtual forces a direct (non-virtual) call,
+// used for a devirtualized declcall member pointer.
+static bool CallResolvedFunctionPointer(InterpState &S, CodePtr OpPC,
+                                        const Function *F, uint32_t ArgSize,
+                                        const CallExpr *CE, bool NoVirtual) {
   // This happens when the call expression has been cast to
   // something else, but we don't support that.
   if (S.Ctx.classify(F->getDecl()->getReturnType()) !=
@@ -2426,10 +2413,57 @@ bool CallPtr(InterpState &S, CodePtr OpPC, uint32_t ArgSize,
   if (F->hasExplicitThisPointer())
     VarArgSize -= align(primSize(PT_Ptr));
 
-  if (F->isVirtual())
+  if (!NoVirtual && F->isVirtual())
     return CallVirt(S, OpPC, F, VarArgSize);
 
   return Call(S, OpPC, F, VarArgSize);
+}
+
+bool CallPtr(InterpState &S, CodePtr OpPC, uint32_t ArgSize,
+             const CallExpr *CE) {
+  const Pointer &Ptr = S.Stk.pop<Pointer>();
+
+  if (Ptr.isZero()) {
+    S.FFDiag(S.Current->getSource(OpPC), diag::note_constexpr_null_callee)
+        << const_cast<Expr *>(CE->getCallee()) << CE->getSourceRange();
+    return false;
+  }
+
+  if (!Ptr.isFunctionPointer())
+    return Invalid(S, OpPC);
+
+  const Function *F = Ptr.asFunctionPointer().Func;
+  assert(F);
+  // Don't allow calling block pointers.
+  if (!F->getDecl())
+    return Invalid(S, OpPC);
+
+  return CallResolvedFunctionPointer(S, OpPC, F, ArgSize, CE,
+                                     /*NoVirtual=*/false);
+}
+
+bool CallMemberPtr(InterpState &S, CodePtr OpPC, uint32_t ArgSize,
+                   const CallExpr *CE) {
+  const MemberPointer MP = S.Stk.pop<MemberPointer>();
+
+  const auto *FD = dyn_cast_if_present<FunctionDecl>(MP.getDecl());
+  if (!FD || !isa<CXXMethodDecl>(FD))
+    return false;
+
+  // The method must be accessible via the base of the member pointer.
+  const CXXRecordDecl *MethodParent = cast<CXXMethodDecl>(FD)->getParent();
+  const Pointer &Base = MP.getBase();
+  if (!Base.getRecord() || Base.getRecord()->getDecl() != MethodParent)
+    return false;
+
+  const Function *F = S.getContext().getOrCreateFunction(FD);
+  if (!F)
+    return false;
+
+  // A declcall of a qualified virtual call yields a devirtualized member
+  // pointer, which bypasses virtual dispatch when called.
+  return CallResolvedFunctionPointer(S, OpPC, F, ArgSize, CE,
+                                     /*NoVirtual=*/MP.isDevirtualized());
 }
 
 static void startLifetimeRecurse(PtrView Ptr) {
