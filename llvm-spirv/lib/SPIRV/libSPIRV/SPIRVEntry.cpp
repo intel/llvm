@@ -537,6 +537,17 @@ std::vector<SPIRVDecorate const *> SPIRVEntry::getDecorations() const {
   return Decors;
 }
 
+std::vector<SPIRVDecorateGeneric const *>
+SPIRVEntry::getAllDecorations() const {
+  std::vector<SPIRVDecorateGeneric const *> Decors;
+  Decors.reserve(Decorates.size() + DecorateIds.size());
+  for (auto &DecoPair : Decorates)
+    Decors.push_back(DecoPair.second);
+  for (auto &DecoPair : DecorateIds)
+    Decors.push_back(DecoPair.second);
+  return Decors;
+}
+
 std::set<SPIRVId> SPIRVEntry::getDecorateId(Decoration Kind,
                                             size_t Index) const {
   auto Range = DecorateIds.equal_range(Kind);

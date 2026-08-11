@@ -3074,6 +3074,19 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
       Target->addDecorate(new SPIRVDecorate(DecoKind, Target));
       break;
     }
+    case DecorationUniformId: {
+      ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+                        "UniformId requires exactly 1 extra operand");
+      auto *ScopeEO = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      ErrLog.checkError(ScopeEO, SPIRVEC_InvalidLlvmModule,
+                        "UniformId requires extra operand to be an integer");
+      SPIRVModule *BM = Target->getModule();
+      SPIRVValue *ScopeConst = BM->addIntegerConstant(BM->addIntegerType(32),
+                                                      ScopeEO->getZExtValue());
+      Target->addDecorate(
+          new SPIRVDecorateId(DecoKind, Target, ScopeConst->getId()));
+      break;
+    }
     case DecorationBufferLocationINTEL:
     case DecorationMMHostInterfaceReadWriteModeINTEL:
     case DecorationMMHostInterfaceAddressWidthINTEL:

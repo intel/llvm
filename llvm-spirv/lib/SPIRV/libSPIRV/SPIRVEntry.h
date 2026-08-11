@@ -60,6 +60,7 @@ class SPIRVEncoder;
 class SPIRVDecoder;
 class SPIRVType;
 class SPIRVValue;
+class SPIRVDecorateGeneric;
 class SPIRVDecorate;
 class SPIRVDecorateId;
 class SPIRVForward;
@@ -319,6 +320,7 @@ public:
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorate const *> getDecorations(Decoration Kind) const;
   std::vector<SPIRVDecorate const *> getDecorations() const;
+  std::vector<SPIRVDecorateGeneric const *> getAllDecorations() const;
   std::set<SPIRVId> getDecorateId(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorateId const *> getDecorationIds(Decoration Kind) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
