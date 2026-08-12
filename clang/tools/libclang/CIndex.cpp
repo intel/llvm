@@ -2199,7 +2199,10 @@ public:
   void VisitOMPFlushDirective(const OMPFlushDirective *D);
   void VisitOMPDepobjDirective(const OMPDepobjDirective *D);
   void VisitOMPScanDirective(const OMPScanDirective *D);
-  void VisitOMPOrderedDirective(const OMPOrderedDirective *D);
+  void
+  VisitOMPOrderedStandaloneDirective(const OMPOrderedStandaloneDirective *D);
+  void
+  VisitOMPOrderedBlockAssocDirective(const OMPOrderedBlockAssocDirective *D);
   void VisitOMPAtomicDirective(const OMPAtomicDirective *D);
   void VisitOMPTargetDirective(const OMPTargetDirective *D);
   void VisitOMPTargetDataDirective(const OMPTargetDataDirective *D);
@@ -3479,7 +3482,13 @@ void EnqueueVisitor::VisitOMPScanDirective(const OMPScanDirective *D) {
   VisitOMPExecutableDirective(D);
 }
 
-void EnqueueVisitor::VisitOMPOrderedDirective(const OMPOrderedDirective *D) {
+void EnqueueVisitor::VisitOMPOrderedStandaloneDirective(
+    const OMPOrderedStandaloneDirective *D) {
+  VisitOMPExecutableDirective(D);
+}
+
+void EnqueueVisitor::VisitOMPOrderedBlockAssocDirective(
+    const OMPOrderedBlockAssocDirective *D) {
   VisitOMPExecutableDirective(D);
 }
 
@@ -6394,8 +6403,10 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("OMPDepobjDirective");
   case CXCursor_OMPScanDirective:
     return cxstring::createRef("OMPScanDirective");
-  case CXCursor_OMPOrderedDirective:
-    return cxstring::createRef("OMPOrderedDirective");
+  case CXCursor_OMPOrderedStandaloneDirective:
+    return cxstring::createRef("OMPOrderedStandaloneDirective");
+  case CXCursor_OMPOrderedBlockAssocDirective:
+    return cxstring::createRef("OMPOrderedBlockAssocDirective");
   case CXCursor_OMPAtomicDirective:
     return cxstring::createRef("OMPAtomicDirective");
   case CXCursor_OMPTargetDirective:
