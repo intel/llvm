@@ -64,12 +64,12 @@ public:
   }
 
   range(const range<Dimensions> &rhs) = default;
-  range(range<Dimensions> &&rhs) noexcept = default;
+  range(range<Dimensions> &&rhs) = default;
   range<Dimensions> &operator=(const range<Dimensions> &rhs) = default;
-  range<Dimensions> &operator=(range<Dimensions> &&rhs) noexcept = default;
-  range() noexcept = default;
+  range<Dimensions> &operator=(range<Dimensions> &&rhs) = default;
+  range() = default;
 
-  ~range() noexcept = default;
+  ~range() = default;
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT_BASE(op)                                                \
@@ -105,7 +105,7 @@ public:
     return result;                                                             \
   }
 #else
-
+// RFC: remove these as well?
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   friend range<Dimensions> operator op(const range<Dimensions> &lhs,           \
@@ -152,13 +152,6 @@ public:
       range<Dimensions> &lhs, const range<Dimensions> &rhs) noexcept {         \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs[i];                                           \
-    }                                                                          \
-    return lhs;                                                                \
-  }                                                                            \
-  friend range<Dimensions> &operator op(range<Dimensions> &lhs,                \
-                                        const size_t &rhs) {                   \
-    for (int i = 0; i < Dimensions; ++i) {                                     \
-      lhs.common_array[i] op rhs;                                              \
     }                                                                          \
     return lhs;                                                                \
   }                                                                            \
