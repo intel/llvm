@@ -50,3 +50,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float16_add
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fp_max_error
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_memory_access_aliasing
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_fp_conversions
+// CHECK-DEFAULT-SAME:,+SPV_EXT_float8
+// CHECK-DEFAULT-SAME:,+SPV_KHR_bfloat16
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_float4

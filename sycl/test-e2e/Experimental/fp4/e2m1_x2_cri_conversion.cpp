@@ -1,5 +1,5 @@
 // REQUIRES: arch-intel_gpu_cri
-// RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_INTEL_float4,+SPV_KHR_bfloat16 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: target-nvidia, target-amd, spirv-backend
