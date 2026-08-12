@@ -1,5 +1,4 @@
 // RUN: %{build} -o %t.out
-// REQUIRES: cuda || hip || level_zero || opencl
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
