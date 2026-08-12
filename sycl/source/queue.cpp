@@ -327,6 +327,15 @@ void submit_kernel_obj_direct_without_event_impl(
       RangeView, detail::getSyclObjImpl(Kernel), Args, CodeLoc, IsTopCodeLoc);
 }
 
+void submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel,
+    sycl::span<const ext::oneapi::experimental::raw_kernel_arg> Args,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  detail::getSyclObjImpl(Queue)->submit_kernel_obj_direct_without_event(
+      RangeView, detail::getSyclObjImpl(Kernel), Args, CodeLoc, IsTopCodeLoc);
+}
+
 event submit_graph_direct_with_event_impl(
     const queue &Queue,
     ext::oneapi::experimental::command_graph<

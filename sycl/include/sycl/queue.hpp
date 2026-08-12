@@ -67,12 +67,25 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
+namespace ext::oneapi::experimental {
+class raw_kernel_arg;
+} // namespace ext::oneapi::experimental
+
 // Launches an already built `sycl::kernel` with an explicit argument list,
 // bypassing the handler and the command group object the same way
 // submit_kernel_direct_* does for kernel function objects.
 void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
     const kernel &Kernel, sycl::span<const detail::KernelArgView> Args,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+// As above, for an argument list that is already a contiguous sequence of
+// `raw_kernel_arg`. Every element of such a sequence is plain bytes, so no
+// per-argument kind has to be carried and the caller needs no conversion step.
+void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel,
+    sycl::span<const ext::oneapi::experimental::raw_kernel_arg> Args,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(

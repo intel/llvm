@@ -883,11 +883,28 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
                        /*InsertBarrierForInOrderCommand*/ false);
 }
 
-void queue_impl::submit_kernel_obj_direct_without_event(
+namespace {
+// The two argument forms differ only in how one element yields the bytes to
+// bind and their kind: a raw_kernel_arg is always plain bytes.
+inline sycl::detail::KernelArgView
+makeKernelArgView(const sycl::detail::KernelArgView &Arg) {
+  return Arg;
+}
+inline sycl::detail::KernelArgView
+makeKernelArgView(const ext::oneapi::experimental::raw_kernel_arg &Arg) {
+  namespace syclex_detail = ext::oneapi::experimental::detail;
+  return {syclex_detail::RawKernelArgAccess::getData(Arg),
+          syclex_detail::RawKernelArgAccess::getSize(Arg),
+          sycl::detail::kernel_param_kind_t::kind_std_layout};
+}
+} // namespace
+
+template <typename ArgT>
+void queue_impl::submit_kernel_obj_direct_impl(
     const detail::nd_range_view &RangeView,
     const std::shared_ptr<detail::kernel_impl> &KernelImpl,
-    sycl::span<const sycl::detail::KernelArgView> Args,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    sycl::span<const ArgT> Args, const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc) {
 
   KernelData KData;
   KData.setDeviceKernelInfoPtr(&KernelImpl->getDeviceKernelInfo());
@@ -923,13 +940,14 @@ void queue_impl::submit_kernel_obj_direct_without_event(
     // so they can be bound where the caller keeps them. Otherwise the command
     // group outlives the call and they have to be copied into its storage.
     for (size_t I = 0; I < Args.size(); ++I) {
-      void *Value = const_cast<void *>(Args[I].MPtr);
+      const sycl::detail::KernelArgView View = makeKernelArgView(Args[I]);
+      void *Value = const_cast<void *>(View.MPtr);
       if (!SchedulerBypass) {
-        const char *Bytes = static_cast<const char *>(Args[I].MPtr);
-        CGData.MArgsStorage.emplace_back(Bytes, Bytes + Args[I].MSize);
+        const char *Bytes = static_cast<const char *>(View.MPtr);
+        CGData.MArgsStorage.emplace_back(Bytes, Bytes + View.MSize);
         Value = CGData.MArgsStorage.back().data();
       }
-      KData.addArg(Args[I].MKind, Value, static_cast<int>(Args[I].MSize),
+      KData.addArg(View.MKind, Value, static_cast<int>(View.MSize),
                    static_cast<int>(I));
     }
 
@@ -964,6 +982,24 @@ void queue_impl::submit_kernel_obj_direct_without_event(
   submit_direct(/*CallerNeedsEvent*/ false, /*DepEvents*/ {}, SubmitKernelFunc,
                 detail::CGType::Kernel,
                 /*InsertBarrierForInOrderCommand*/ false);
+}
+
+void queue_impl::submit_kernel_obj_direct_without_event(
+    const detail::nd_range_view &RangeView,
+    const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+    sycl::span<const sycl::detail::KernelArgView> Args,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  submit_kernel_obj_direct_impl(RangeView, KernelImpl, Args, CodeLoc,
+                                IsTopCodeLoc);
+}
+
+void queue_impl::submit_kernel_obj_direct_without_event(
+    const detail::nd_range_view &RangeView,
+    const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+    sycl::span<const ext::oneapi::experimental::raw_kernel_arg> Args,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  submit_kernel_obj_direct_impl(RangeView, KernelImpl, Args, CodeLoc,
+                                IsTopCodeLoc);
 }
 
 EventImplPtr queue_impl::submit_graph_direct_impl(
