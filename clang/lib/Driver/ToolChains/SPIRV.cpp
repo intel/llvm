@@ -186,8 +186,7 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
     if (Args.hasArg(options::OPT_v))
       CmdArgs.push_back("-v");
-    // ocloc is acquired externally, so it is not guaranteed to be in the PATH.
-    // Forward the user provided location along to the AOT compilation step.
+    // Forward the user provided location to ocloc.
     if (Arg *A = Args.getLastArg(options::OPT_ocloc_path_EQ))
       CmdArgs.push_back(
           Args.MakeArgString(Twine("--ocloc-path=") + A->getValue()));

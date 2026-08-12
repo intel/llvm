@@ -338,9 +338,7 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
   return *Path;
 }
 
-/// Locate the 'ocloc' tool used for Intel GPU AOT compilation.  A user
-/// provided --ocloc-path= is honored above any 'ocloc' that is visible via the
-/// executable directory or the PATH environment variable.
+/// Locate the 'ocloc' tool used for Intel GPU AOT compilation.
 Expected<std::string> findOcloc(const ArgList &Args) {
   if (Arg *A = Args.getLastArg(OPT_ocloc_path_EQ)) {
     StringRef Dir = A->getValue();

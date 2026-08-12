@@ -12132,7 +12132,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
 
-    // Forward the user provided location along to the tools that call ocloc.
+    // Forward the user provided location for ocloc.
     if (Arg *A = Args.getLastArg(options::OPT_ocloc_path_EQ))
       CmdArgs.push_back(
           Args.MakeArgString(Twine("--ocloc-path=") + A->getValue()));

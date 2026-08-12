@@ -7906,8 +7906,8 @@ def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
 def ocloc_path_EQ : Joined<["--"], "ocloc-path=">,
   Visibility<[ClangOption, CLOption]>,
   Flags<[NoXarchOption, NoArgumentUnused]>, MetaVarName<"<path>">,
-  HelpText<"Directory containing the ocloc tool, which is used for ahead of "
-           "time compilation targeting Intel GPUs.">;
+  HelpText<"Path to the ocloc tool, which is used for ahead of time "
+           "compilation targeting Intel GPUs">;
 def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
   HelpText<"Path to libspirv library">;
 def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">,
