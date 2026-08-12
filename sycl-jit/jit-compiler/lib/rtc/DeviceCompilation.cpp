@@ -70,7 +70,7 @@ using namespace clang::driver;
 using namespace clang::options;
 using namespace llvm;
 using namespace llvm::opt;
-using namespace llvm::sycl::utils;
+using namespace llvm::sycl;
 using namespace llvm::module_split;
 using namespace llvm::util;
 using namespace llvm::vfs;
@@ -1041,8 +1041,9 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   // Otherwise: Port over the `removeSYCLKernelsConstRefArray` and
   // `removeDeviceGlobalFromCompilerUsed` methods.
 
-  assert(!(isModuleUsingAsan(*Module) || isModuleUsingMsan(*Module) ||
-           isModuleUsingTsan(*Module)));
+  assert(!(utils::isModuleUsingAsan(*Module) ||
+           utils::isModuleUsingMsan(*Module) ||
+           utils::isModuleUsingTsan(*Module)));
   // Otherwise: Run `SanitizerKernelMetadataPass`.
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
