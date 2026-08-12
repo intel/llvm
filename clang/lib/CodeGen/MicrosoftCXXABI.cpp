@@ -690,10 +690,13 @@ public:
 
   llvm::Constant *EmitMemberDataPointer(const MemberPointerType *MPT,
                                         CharUnits offset) override;
-  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD,
-                                            bool AllowVirtual) override;
-  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT,
-                                    bool AllowVirtual) override;
+  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD) override;
+  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT) override;
+  // Shared implementation. \p AllowVirtual == false emits a direct pointer for
+  // a virtual method (a declcall-devirtualized member pointer) rather than a
+  // vftable thunk.
+  llvm::Constant *EmitMemberFunctionPointerInternal(const CXXMethodDecl *MD,
+                                                    bool AllowVirtual);
 
   llvm::Value *EmitMemberPointerComparison(CodeGenFunction &CGF,
                                            llvm::Value *L,
@@ -2959,8 +2962,7 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberDataPointer(const CXXRecordDecl *RD,
 }
 
 llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
-                                                   QualType MPType,
-                                                   bool AllowVirtual) {
+                                                   QualType MPType) {
   const MemberPointerType *DstTy = MPType->castAs<MemberPointerType>();
   const ValueDecl *MPD = MP.getMemberPointerDecl();
   if (!MPD)
@@ -2971,7 +2973,9 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
 
   llvm::Constant *C;
   if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(MPD)) {
-    C = EmitMemberFunctionPointer(MD, AllowVirtual);
+    // A declcall-devirtualized member pointer is emitted as a direct pointer.
+    C = EmitMemberFunctionPointerInternal(
+        MD, /*AllowVirtual=*/!MP.isDeVirtualized());
   } else {
     // For a pointer to data member, start off with the offset of the field in
     // the class in which it was declared, and convert from there if necessary.
@@ -3024,8 +3028,13 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
 }
 
 llvm::Constant *
-MicrosoftCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD,
-                                           bool AllowVirtual) {
+MicrosoftCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD) {
+  return EmitMemberFunctionPointerInternal(MD, /*AllowVirtual=*/true);
+}
+
+llvm::Constant *
+MicrosoftCXXABI::EmitMemberFunctionPointerInternal(const CXXMethodDecl *MD,
+                                                   bool AllowVirtual) {
   assert(MD->isInstance() && "Member function must not be static!");
 
   CharUnits NonVirtualBaseAdjustment = CharUnits::Zero();

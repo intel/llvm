@@ -218,16 +218,16 @@ public:
   virtual llvm::Constant *EmitNullMemberPointer(const MemberPointerType *MPT);
 
   /// Create a member pointer for the given method.
-  virtual llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD,
-                                                    bool AllowVirtual = true);
+  virtual llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD);
 
   /// Create a member pointer for the given field.
   virtual llvm::Constant *EmitMemberDataPointer(const MemberPointerType *MPT,
                                                 CharUnits offset);
 
   /// Create a member pointer for the given member pointer constant.
-  virtual llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT,
-                                            bool AllowVirtual = false);
+  /// A declcall-devirtualized member pointer (\c MP.isDeVirtualized()) is
+  /// emitted as a direct pointer rather than via virtual dispatch.
+  virtual llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT);
 
   /// Emit a comparison between two member pointers.  Returns an i1.
   virtual llvm::Value *

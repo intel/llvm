@@ -149,12 +149,10 @@ public:
 
   llvm::Constant *EmitNullMemberPointer(const MemberPointerType *MPT) override;
 
-  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD,
-                                            bool AllowVirtual) override;
+  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD) override;
   llvm::Constant *EmitMemberDataPointer(const MemberPointerType *MPT,
                                         CharUnits offset) override;
-  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT,
-                                    bool AllowVirtual) override;
+  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT) override;
   llvm::Constant *BuildMemberPointer(const CXXMethodDecl *MD,
                                      CharUnits ThisAdjustment,
                                      bool AllowVirtual = true);
@@ -1159,9 +1157,8 @@ ItaniumCXXABI::EmitMemberDataPointer(const MemberPointerType *MPT,
 }
 
 llvm::Constant *
-ItaniumCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD,
-                                         bool AllowVirtual) {
-  return BuildMemberPointer(MD, CharUnits::Zero(), AllowVirtual);
+ItaniumCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD) {
+  return BuildMemberPointer(MD, CharUnits::Zero());
 }
 
 llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
@@ -1252,9 +1249,7 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
 }
 
 llvm::Constant *ItaniumCXXABI::EmitMemberPointer(const APValue &MP,
-                                                 QualType MPType,
-                                                 bool AllowVirtual) {
-
+                                                 QualType MPType) {
   const MemberPointerType *MPT = MPType->castAs<MemberPointerType>();
   const ValueDecl *MPD = MP.getMemberPointerDecl();
   if (!MPD)
@@ -1263,7 +1258,9 @@ llvm::Constant *ItaniumCXXABI::EmitMemberPointer(const APValue &MP,
   CharUnits ThisAdjustment = getContext().getMemberPointerPathAdjustment(MP);
 
   if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(MPD)) {
-    llvm::Constant *Src = BuildMemberPointer(MD, ThisAdjustment, AllowVirtual);
+    // A declcall-devirtualized member pointer is emitted as a direct pointer.
+    llvm::Constant *Src = BuildMemberPointer(MD, ThisAdjustment,
+                                             /*AllowVirtual=*/!MP.isDeVirtualized());
     QualType SrcType = getContext().getMemberPointerType(
         MD->getType(), /*Qualifier=*/std::nullopt, MD->getParent());
     return pointerAuthResignMemberFunctionPointer(Src, MPType, SrcType, CGM);
