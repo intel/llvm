@@ -21,9 +21,9 @@ using namespace llvm;
 namespace {
 
 bool createSanitizerModuleID(Module &M) {
-  constexpr StringRef Prefixes[] = {sycl::ASAN_KERNEL_METADATA_PREFIX,
-                                    sycl::MSAN_KERNEL_METADATA_PREFIX,
-                                    sycl::TSAN_KERNEL_METADATA_PREFIX};
+  constexpr StringRef Prefixes[] = {sycl::utils::ASAN_KERNEL_METADATA_PREFIX,
+                                    sycl::utils::MSAN_KERNEL_METADATA_PREFIX,
+                                    sycl::utils::TSAN_KERNEL_METADATA_PREFIX};
   SmallVector<StringRef, 3> ModuleIDs;
   for (GlobalVariable &GV : M.globals()) {
     auto GVName = GV.getName();

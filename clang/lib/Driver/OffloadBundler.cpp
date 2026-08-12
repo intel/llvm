@@ -757,9 +757,9 @@ class ObjectFileHandler final : public FileHandler {
              Name == "__AsanDeviceGlobalMetadata" ||
              Name == "__MsanDeviceGlobalMetadata" ||
              Name == "__TsanDeviceGlobalMetadata" ||
-             Name == llvm::sycl::ASAN_KERNEL_METADATA_PREFIX ||
-             Name == llvm::sycl::MSAN_KERNEL_METADATA_PREFIX ||
-             Name == llvm::sycl::TSAN_KERNEL_METADATA_PREFIX))
+             Name == llvm::sycl::utils::ASAN_KERNEL_METADATA_PREFIX ||
+             Name == llvm::sycl::utils::MSAN_KERNEL_METADATA_PREFIX ||
+             Name == llvm::sycl::utils::TSAN_KERNEL_METADATA_PREFIX))
           continue;
 
         // Add symbol name with the target prefix to the buffer.

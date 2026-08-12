@@ -13,6 +13,7 @@
 
 namespace llvm {
 namespace sycl {
+namespace utils {
 
 bool isModuleUsingAsan(const Module &M) {
   return any_of(M.globals(), [](const GlobalVariable &GV) {
@@ -32,5 +33,6 @@ bool isModuleUsingTsan(const Module &M) {
   });
 }
 
+} // namespace utils
 } // namespace sycl
 } // namespace llvm

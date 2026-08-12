@@ -70,7 +70,7 @@ using namespace clang::driver;
 using namespace clang::options;
 using namespace llvm;
 using namespace llvm::opt;
-using namespace llvm::sycl;
+using namespace llvm::sycl::utils;
 using namespace llvm::module_split;
 using namespace llvm::util;
 using namespace llvm::vfs;

@@ -16,6 +16,7 @@ namespace llvm {
 class Module;
 
 namespace sycl {
+namespace utils {
 
 constexpr StringRef ASAN_KERNEL_METADATA_PREFIX = "__AsanKernelMetadata";
 constexpr StringRef MSAN_KERNEL_METADATA_PREFIX = "__MsanKernelMetadata";
@@ -25,5 +26,6 @@ bool isModuleUsingAsan(const Module &M);
 bool isModuleUsingMsan(const Module &M);
 bool isModuleUsingTsan(const Module &M);
 
+} // namespace utils
 } // namespace sycl
 } // namespace llvm
