@@ -909,17 +909,29 @@ static bool subscriptOperatorNeedsParens(const Expr *FullExpr) {
 }
 static bool castOperatorNeedsParens(const Expr *FullExpr) {
   const Expr* Expr = FullExpr->IgnoreImpCasts();
-  if (isa<ArraySubscriptExpr>(Expr) || isa<CallExpr>(Expr) ||
-      isa<DeclRefExpr>(Expr) || isa<CastExpr>(Expr) || isa<CXXNewExpr>(Expr) ||
-      isa<CXXConstructExpr>(Expr) || isa<CXXDeleteExpr>(Expr) ||
-      isa<CXXNoexceptExpr>(Expr) || isa<CXXDeclcallExpr>(Expr) ||
-      isa<CXXPseudoDestructorExpr>(Expr) || isa<CXXScalarValueInitExpr>(Expr) ||
-      isa<CXXThisExpr>(Expr) || isa<CXXTypeidExpr>(Expr) ||
-      isa<CXXUnresolvedConstructExpr>(Expr) || isa<ObjCMessageExpr>(Expr) ||
-      isa<ObjCPropertyRefExpr>(Expr) || isa<ObjCProtocolExpr>(Expr) ||
-      isa<MemberExpr>(Expr) || isa<ObjCIvarRefExpr>(Expr) ||
-      isa<ParenExpr>(FullExpr) || isa<ParenListExpr>(Expr) ||
-      isa<SizeOfPackExpr>(Expr) || isa<UnaryOperator>(Expr))
+  if (isa<ArraySubscriptExpr>(Expr) ||
+      isa<CallExpr>(Expr) ||
+      isa<DeclRefExpr>(Expr) ||
+      isa<CastExpr>(Expr) ||
+      isa<CXXNewExpr>(Expr) ||
+      isa<CXXConstructExpr>(Expr) ||
+      isa<CXXDeleteExpr>(Expr) ||
+      isa<CXXNoexceptExpr>(Expr) ||
+      isa<CXXDeclcallExpr>(Expr) ||
+      isa<CXXPseudoDestructorExpr>(Expr) ||
+      isa<CXXScalarValueInitExpr>(Expr) ||
+      isa<CXXThisExpr>(Expr) ||
+      isa<CXXTypeidExpr>(Expr) ||
+      isa<CXXUnresolvedConstructExpr>(Expr) ||
+      isa<ObjCMessageExpr>(Expr) ||
+      isa<ObjCPropertyRefExpr>(Expr) ||
+      isa<ObjCProtocolExpr>(Expr) ||
+      isa<MemberExpr>(Expr) ||
+      isa<ObjCIvarRefExpr>(Expr) ||
+      isa<ParenExpr>(FullExpr) ||
+      isa<ParenListExpr>(Expr) ||
+      isa<SizeOfPackExpr>(Expr) ||
+      isa<UnaryOperator>(Expr))
     return false;
 
   return true;

@@ -65,16 +65,27 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
   const Expr* Expr = FullExpr->IgnoreImpCasts();
 
   bool NeedParen = true;
-  if (isa<ArraySubscriptExpr>(Expr) || isa<CallExpr>(Expr) ||
-      isa<DeclRefExpr>(Expr) || isa<CastExpr>(Expr) || isa<CXXNewExpr>(Expr) ||
-      isa<CXXConstructExpr>(Expr) || isa<CXXDeleteExpr>(Expr) ||
-      isa<CXXNoexceptExpr>(Expr) || isa<CXXDeclcallExpr>(Expr) ||
-      isa<CXXPseudoDestructorExpr>(Expr) || isa<CXXScalarValueInitExpr>(Expr) ||
-      isa<CXXThisExpr>(Expr) || isa<CXXTypeidExpr>(Expr) ||
-      isa<CXXUnresolvedConstructExpr>(Expr) || isa<ObjCMessageExpr>(Expr) ||
-      isa<ObjCPropertyRefExpr>(Expr) || isa<ObjCProtocolExpr>(Expr) ||
-      isa<MemberExpr>(Expr) || isa<ParenExpr>(FullExpr) ||
-      isa<ParenListExpr>(Expr) || isa<SizeOfPackExpr>(Expr) ||
+  if (isa<ArraySubscriptExpr>(Expr) ||
+      isa<CallExpr>(Expr) ||
+      isa<DeclRefExpr>(Expr) ||
+      isa<CastExpr>(Expr) ||
+      isa<CXXNewExpr>(Expr) ||
+      isa<CXXConstructExpr>(Expr) ||
+      isa<CXXDeleteExpr>(Expr) ||
+      isa<CXXNoexceptExpr>(Expr) ||
+      isa<CXXDeclcallExpr>(Expr) ||
+      isa<CXXPseudoDestructorExpr>(Expr) ||
+      isa<CXXScalarValueInitExpr>(Expr) ||
+      isa<CXXThisExpr>(Expr) ||
+      isa<CXXTypeidExpr>(Expr) ||
+      isa<CXXUnresolvedConstructExpr>(Expr) ||
+      isa<ObjCMessageExpr>(Expr) ||
+      isa<ObjCPropertyRefExpr>(Expr) ||
+      isa<ObjCProtocolExpr>(Expr) ||
+      isa<MemberExpr>(Expr) ||
+      isa<ParenExpr>(FullExpr) ||
+      isa<ParenListExpr>(Expr) ||
+      isa<SizeOfPackExpr>(Expr) ||
       isa<UnaryOperator>(Expr))
     NeedParen = false;
 
