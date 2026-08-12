@@ -47,7 +47,8 @@ int main(int argc, char **argv) {
   sycl::queue Q;
   int Failed = 0;
 
-  // Regression case: SC_A set to SC_B's default must stay 1024, not drop to 256.
+  // Regression case: SC_A set to SC_B's default must stay 1024, not drop to
+  // 256.
   {
     auto [A, B] = resolveWithSCA(Q, argv[1], DefaultB);
     std::cout << "SC_A=1024 (== SC_B default): A=" << A << " B=" << B << "\n";
