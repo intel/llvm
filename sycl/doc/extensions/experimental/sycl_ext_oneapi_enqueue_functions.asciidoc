@@ -165,8 +165,11 @@ implementation supports.
 |Description
 
 |1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
+|Initial version of this extension.
+
+|2
+|Adds the `nd_launch` overloads that take the arguments of a `sycl::kernel` as
+ a `span` of `raw_kernel_arg`.
 |===
 
 
@@ -516,6 +519,42 @@ _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
 as a basic kernel, using the number of work-items specified by a
 `sycl::nd_range`. The arguments in `args` are passed to the kernel in the same
 order.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <int Dimensions>
+void nd_launch(sycl::queue q, sycl::nd_range<Dimensions> r,
+               const sycl::kernel& k, span<const raw_kernel_arg> args);
+
+template <int Dimensions>
+void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
+               const sycl::kernel& k, span<const raw_kernel_arg> args);
+
+}
+----
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the number of work-items specified by a
+`sycl::nd_range`. The element `args[i]` is passed to the kernel as the argument
+at index `i`. The sequence referenced by `args` need only remain valid until
+the function returns.
+
+An application that calls one of the parameter pack overloads above with a
+single argument whose type is convertible to `span<const raw_kernel_arg>` is
+ill-formed.
+
+[_Note:_ These overloads exist for an application whose kernel argument list is
+only known at run time, which would otherwise have to instantiate a parameter
+pack overload for each number of arguments it may encounter. Since `span` has
+no implicit conversion from a container, an application holding its arguments
+in a `std::vector<raw_kernel_arg>` passes `{args.data(), args.size()}`. Passing
+a single `raw_kernel_arg` still selects the parameter pack overload. _end note_]
 
 a|
 [frame=all,grid=none]

@@ -390,6 +390,14 @@ public:
       sycl::span<const sycl::detail::KernelArgView> Args,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
+  /// As above, for arguments that are already a sequence of `raw_kernel_arg`,
+  /// each of which is plain bytes.
+  void submit_kernel_obj_direct_without_event(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const ext::oneapi::experimental::raw_kernel_arg> Args,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
                                          detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
@@ -997,6 +1005,17 @@ protected:
   submit_direct(bool CallerNeedsEvent, sycl::span<const event> DepEvents,
                 SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
                 bool InsertBarrierForInOrderCommand);
+
+  /// Shared implementation of the two submit_kernel_obj_direct_without_event
+  /// overloads. The element type only decides how one argument yields its bytes
+  /// and kind, so the submission itself is written once. Instantiated for
+  /// KernelArgView and for raw_kernel_arg in queue_impl.cpp.
+  template <typename ArgT>
+  void submit_kernel_obj_direct_impl(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const ArgT> Args, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc);
 
   /// Performs barrier submission to the queue.
   ///
