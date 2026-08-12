@@ -58,7 +58,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
   if (AllocType == usm::alloc::device) {
     buffer<T, 1> Buf(&ComputedOut, range<1>(1));
     Q.submit([&](handler &CGH) {
-       auto OutAcc = Buf.template get_access<access_mode::discard_write>(CGH);
+       auto OutAcc = Buf.get_access(CGH, sycl::write_only, sycl::no_init);
        CGH.single_task<USMKName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();

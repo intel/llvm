@@ -21,7 +21,7 @@ int main() {
       auto source_acc =
           source_buf.template get_access<access_mode::read_write>(cgh);
       auto target_acc =
-          target_buf.template get_access<access_mode::discard_write>(cgh);
+          target_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.single_task<class simple_atomic_kernel>([=]() {
         auto source_atomic =
             atomic_ref<int, memory_order::relaxed, memory_scope::device,

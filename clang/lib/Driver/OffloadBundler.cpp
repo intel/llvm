@@ -23,17 +23,18 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/Error.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/OffloadBundle.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Compression.h"
@@ -49,12 +50,12 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/SourceMgr.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/Triple.h"
 #include <algorithm>
@@ -756,8 +757,9 @@ class ObjectFileHandler final : public FileHandler {
              Name == "__AsanDeviceGlobalMetadata" ||
              Name == "__MsanDeviceGlobalMetadata" ||
              Name == "__TsanDeviceGlobalMetadata" ||
-             Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata" ||
-             Name == "__TsanKernelMetadata"))
+             Name == llvm::sycl::utils::ASAN_KERNEL_METADATA_PREFIX ||
+             Name == llvm::sycl::utils::MSAN_KERNEL_METADATA_PREFIX ||
+             Name == llvm::sycl::utils::TSAN_KERNEL_METADATA_PREFIX))
           continue;
 
         // Add symbol name with the target prefix to the buffer.
