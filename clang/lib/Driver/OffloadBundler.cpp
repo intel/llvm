@@ -82,6 +82,23 @@ using namespace clang;
 
 #define DEBUG_TYPE "clang-offload-bundler"
 
+/// Return true if \p Name is a special bitcode symbol that must not be listed
+/// in the target symbol table. Device sanitizer metadata globals carry a
+/// per-module unique id suffix (e.g. "__AsanKernelMetadata_<id>"), so they are
+/// matched by prefix.
+static bool isSpecialBitcodeSymbol(StringRef Name) {
+  if (Name == "llvm.used" || Name == "llvm.compiler.used")
+    return true;
+
+  static constexpr StringRef SanitizerMetadataPrefixes[] = {
+      "__AsanDeviceGlobalMetadata", "__MsanDeviceGlobalMetadata",
+      "__TsanDeviceGlobalMetadata", "__AsanKernelMetadata",
+      "__MsanKernelMetadata",       "__TsanKernelMetadata"};
+  return llvm::any_of(SanitizerMetadataPrefixes, [Name](StringRef Prefix) {
+    return Name.starts_with(Prefix);
+  });
+}
+
 OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
                                      const OffloadBundlerConfig &BC)
     : BundlerConfig(BC) {
@@ -751,13 +768,7 @@ class ObjectFileHandler final : public FileHandler {
 
         // If we are dealing with a bitcode file do not add special globals to
         // the list of defined symbols.
-        if (SF->isIR() &&
-            (Name == "llvm.used" || Name == "llvm.compiler.used" ||
-             Name == "__AsanDeviceGlobalMetadata" ||
-             Name == "__MsanDeviceGlobalMetadata" ||
-             Name == "__TsanDeviceGlobalMetadata" ||
-             Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata" ||
-             Name == "__TsanKernelMetadata"))
+        if (SF->isIR() && isSpecialBitcodeSymbol(Name))
           continue;
 
         // Add symbol name with the target prefix to the buffer.
