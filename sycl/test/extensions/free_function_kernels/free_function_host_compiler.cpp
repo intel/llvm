@@ -26,7 +26,7 @@ int main() {
   sycl::kernel krn = bundle.get_kernel(kID);
 
   q.submit([&](sycl::handler &cgh) {
-    sycl::nd_range<1> ndr;
+    sycl::nd_range<1> ndr(1, 1);
     cgh.parallel_for(ndr, krn);
   });
   return 0;
