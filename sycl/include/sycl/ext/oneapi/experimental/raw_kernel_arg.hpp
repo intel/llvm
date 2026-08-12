@@ -18,6 +18,7 @@ namespace ext::oneapi::experimental {
 
 namespace detail {
 class dynamic_parameter_impl;
+struct RawKernelArgAccess;
 } // namespace detail
 
 class raw_kernel_arg {
@@ -32,7 +33,17 @@ private:
   friend class sycl::handler;
   // For sycl_ext_oneapi_graph integration
   friend class detail::dynamic_parameter_impl;
+  // For the enqueue paths that bind arguments without a handler
+  friend struct detail::RawKernelArgAccess;
 };
+
+namespace detail {
+// Helper for accessing the members of raw_kernel_arg.
+struct RawKernelArgAccess {
+  static const void *getData(const raw_kernel_arg &Arg) { return Arg.MArgData; }
+  static size_t getSize(const raw_kernel_arg &Arg) { return Arg.MArgSize; }
+};
+} // namespace detail
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
