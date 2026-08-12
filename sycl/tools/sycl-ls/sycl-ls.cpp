@@ -19,12 +19,14 @@
 #include <sycl/sycl.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #ifdef __linux__
@@ -46,6 +48,45 @@
 
 using namespace sycl;
 using namespace std::literals;
+
+namespace {
+
+namespace syclex = sycl::ext::oneapi::experimental;
+
+struct ArchitectureNameEntry {
+  syclex::architecture Arch;
+  std::string_view Name;
+};
+
+bool isNumericIntelGpuAlias(std::string_view Name) {
+  constexpr std::string_view Prefix = "intel_gpu_";
+  return Name.size() > Prefix.size() &&
+         Name.compare(0, Prefix.size(), Prefix) == 0 &&
+         std::isdigit(static_cast<unsigned char>(Name[Prefix.size()]));
+}
+
+std::string getArchitectureName(syclex::architecture Arch) {
+  static constexpr ArchitectureNameEntry ArchitectureNames[] = {
+#define __SYCL_ARCHITECTURE(ARCH, VAL) {syclex::architecture::ARCH, #ARCH},
+#define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL) {syclex::architecture::VAL, #ARCH},
+#include <sycl/ext/oneapi/experimental/device_architecture.def>
+#undef __SYCL_ARCHITECTURE
+#undef __SYCL_ARCHITECTURE_ALIAS
+  };
+
+  std::string Result;
+  for (const auto &Entry : ArchitectureNames) {
+    if (Entry.Arch != Arch || isNumericIntelGpuAlias(Entry.Name))
+      continue;
+    if (!Result.empty())
+      Result += " / ";
+    Result += Entry.Name;
+  }
+
+  return Result.empty() ? "unknown" : Result;
+}
+
+} // namespace
 
 // Controls verbose output vs. concise.
 bool verbose;
@@ -83,19 +124,9 @@ std::string getDeviceTypeName(const device &Device) {
   }
 }
 
-const char *getArchName(const device &Device) {
-  namespace syclex = sycl::ext::oneapi::experimental;
-  auto arch = Device.get_info<syclex::info::device::architecture>();
-  switch (arch) {
-#define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
-  case syclex::architecture::ARCH:                                             \
-    return #ARCH;
-#define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
-#include <sycl/ext/oneapi/experimental/device_architecture.def>
-#undef __SYCL_ARCHITECTURE
-#undef __SYCL_ARCHITECTURE_ALIAS
-  }
-  return "unknown";
+std::string getArchName(const device &Device) {
+  auto Arch = Device.get_info<syclex::info::device::architecture>();
+  return getArchitectureName(Arch);
 }
 
 template <typename RangeTy, typename ElemTy>
