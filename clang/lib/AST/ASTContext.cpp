@@ -5820,7 +5820,7 @@ QualType ASTContext::getAttributedType(const Attr *attr, QualType modifiedType,
 
 QualType ASTContext::getAttributedType(NullabilityKind nullability,
                                        QualType modifiedType,
-                                       QualType equivalentType) {
+                                       QualType equivalentType) const {
   switch (nullability) {
   case NullabilityKind::NonNull:
     return getAttributedType(attr::TypeNonNull, modifiedType, equivalentType);
@@ -8220,8 +8220,7 @@ QualType ASTContext::getArrayDecayedType(QualType Ty) const {
 
   // int x[_Nullable] -> int * _Nullable
   if (auto Nullability = Ty->getNullability()) {
-    Result = const_cast<ASTContext *>(this)->getAttributedType(*Nullability,
-                                                               Result, Result);
+    Result = getAttributedType(*Nullability, Result, Result);
   }
   return Result;
 }

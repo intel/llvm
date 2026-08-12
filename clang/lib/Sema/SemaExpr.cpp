@@ -5997,7 +5997,6 @@ ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
       if (!Pattern->hasInClassInitializer() ||
           InstantiateInClassInitializer(Loc, Field, Pattern,
                                         getTemplateInstantiationArgs(Field))) {
-        Field->setInvalidDecl();
         return ExprError();
       }
     }
