@@ -44,6 +44,7 @@
 #include <llvm/SYCLLowerIR/LowerInvokeSimd.h>
 #include <llvm/SYCLLowerIR/SYCLDeviceLibBF16.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
+#include <llvm/SYCLLowerIR/SYCLUtils.h>
 #include <llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h>
 #include <llvm/SYCLPostLink/ModuleSplitter.h>
 #include <llvm/Support/BLAKE3.h>

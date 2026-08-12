@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
-#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
