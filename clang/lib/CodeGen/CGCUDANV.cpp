@@ -29,6 +29,7 @@
 #include "llvm/IR/ReplaceConstant.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/MD5.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
@@ -291,8 +292,9 @@ llvm::FunctionType *CGNVCUDARuntime::getCallbackFnTy() const {
 llvm::FunctionType *CGNVCUDARuntime::getRegisterLinkedBinaryFnTy() const {
   auto *CallbackFnTy = getCallbackFnTy();
   auto *RegisterGlobalsFnTy = getRegisterGlobalsFnTy();
-  llvm::Type *Params[] = {RegisterGlobalsFnTy->getPointerTo(), PtrTy,
-                          PtrTy, CallbackFnTy->getPointerTo()};
+  llvm::Type *Params[] = {
+      llvm::PointerType::getUnqual(RegisterGlobalsFnTy->getContext()), PtrTy,
+      PtrTy, llvm::PointerType::getUnqual(CallbackFnTy->getContext())};
   return llvm::FunctionType::get(VoidTy, Params, false);
 }
 
@@ -640,7 +642,7 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
   //                             int, uint3*, uint3*, dim3*, dim3*, int*)
   llvm::Type *RegisterFuncParams[] = {
       PtrTy, PtrTy, PtrTy, PtrTy, IntTy,
-      PtrTy, PtrTy, PtrTy, PtrTy, IntTy->getPointerTo()};
+      PtrTy, PtrTy, PtrTy, PtrTy, llvm::PointerType::getUnqual(Context)};
   llvm::FunctionCallee RegisterFunc = CGM.CreateRuntimeFunction(
       llvm::FunctionType::get(IntTy, RegisterFuncParams, false),
       addUnderscoredPrefixToName("RegisterFunction"));
@@ -663,7 +665,7 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
         NullPtr,
         NullPtr,
         NullPtr,
-        llvm::ConstantPointerNull::get(IntTy->getPointerTo())};
+        llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(Context))};
     Builder.CreateCall(RegisterFunc, Args);
   }
 
@@ -1043,12 +1045,19 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
     }
   } else {
     // Generate a unique module ID.
+    // Note that this is unique in a build (with some collision probability
+    // inherent to MD5 hashing) as long as each compilation sees modules with
+    // different `SourceFileName`s. Builds using absolute paths or paths
+    // relative to the same base path should be OK. This is similar to the
+    // guarantees for ThinLTO and GlobalValue's GUID.
+    // If desired, a stronger uniqueness guarantee could be computed (with a
+    // small refactoring) with `llvm::getUniqueModuleId`, which hashes the
+    // module content (and, therefore, a compile-time tradeoff).
     SmallString<64> ModuleID;
     llvm::raw_svector_ostream OS(ModuleID);
     OS << ModuleIDPrefix
        << llvm::format("%" PRIx64,
-                       llvm::GlobalValue::getGUIDAssumingExternalLinkage(
-                           FatbinWrapper->getName()));
+                       llvm::MD5Hash(TheModule.getSourceFileName()));
     llvm::Constant *ModuleIDConstant = makeConstantArray(
         std::string(ModuleID), "", ModuleIDSectionName, 32, /*AddNull=*/true);
 

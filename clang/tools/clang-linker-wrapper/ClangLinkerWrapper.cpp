@@ -1804,8 +1804,13 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (SaveTemps && linkerSupportsLTO(Args))
     CmdArgs.push_back("-Wl,--save-temps");
 
-  if (Args.hasArg(OPT_embed_bitcode))
-    CmdArgs.push_back("-Wl,--lto-emit-llvm");
+  if (Args.hasArg(OPT_embed_bitcode)) {
+    // SPIR-V does not use the LTO linker path, it links bitcode via llvm-link.
+    if (Triple.isSPIRV())
+      CmdArgs.push_back("-emit-llvm");
+    else
+      CmdArgs.push_back("-Wl,--lto-emit-llvm");
+  }
 
   for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
     CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
@@ -2166,7 +2171,8 @@ Error containerizeRawImage(std::unique_ptr<MemoryBuffer> &Img, OffloadKind Kind,
                            const ArgList &Args) {
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Kind == OFK_OpenMP && Triple.isSPIRV() &&
-      Triple.getVendor() == llvm::Triple::Intel)
+      Triple.getVendor() == llvm::Triple::Intel &&
+      !Args.hasArg(OPT_embed_bitcode))
     return offloading::intel::containerizeOpenMPSPIRVImage(Img, Triple);
   return Error::success();
 }
@@ -3107,8 +3113,7 @@ getDeviceInput(const ArgList &Args) {
     OffloadFile::TargetID Target = Binary;
     SmallVector<OffloadFile::TargetID> CompatibleTargets;
     for (const auto &[ID, Input] : InputFiles)
-      if (Target.first == ID.first &&
-          clang::isCompatibleTargetID(Target.second, ID.second))
+      if (object::areTargetsEquivalent(Target, ID))
         CompatibleTargets.emplace_back(ID);
 
     // Seed a new image when no existing target can provide for this input.
@@ -3137,7 +3142,8 @@ getDeviceInput(const ArgList &Args) {
 
     SmallVector<OffloadFile::TargetID> CompatibleTargets = {Binary};
     for (const auto &[ID, Input] : InputFiles)
-      if (object::areTargetsCompatible(Binary, ID))
+      if (OffloadFile::TargetID(Binary) != ID &&
+          object::areTargetsCompatible(Binary, ID))
         CompatibleTargets.emplace_back(ID);
 
     for (const auto &[Index, ID] : llvm::enumerate(CompatibleTargets)) {
