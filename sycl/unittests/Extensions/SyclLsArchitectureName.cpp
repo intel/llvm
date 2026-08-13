@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+// sycl-ls.cpp uses aspect::image; suppress the deprecation warning.
+#define SYCL_DISABLE_IMAGE_ASPECT_WARNING
 #define main sycl_ls_main
 #include "../../tools/sycl-ls/sycl-ls.cpp"
 #undef main
