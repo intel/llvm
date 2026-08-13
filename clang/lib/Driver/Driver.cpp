@@ -8724,18 +8724,13 @@ static void claimAndDiagnoseOffloadJobs(const Driver &D, const ArgList &Args) {
 }
 
 static void markOffloadDeviceCC1JobsForParallelExecution(Compilation &C) {
-  bool FoundCandidate = false;
   for (auto &Job : C.getJobs()) {
     if (!isOffloadDeviceCC1JobCandidate(Job))
       continue;
 
     Job.setOffloadDeviceParallelJobGroup(
         getOffloadDeviceCC1ParallelJobGroup(Job));
-    FoundCandidate = true;
   }
-
-  if (FoundCandidate)
-    claimAndDiagnoseOffloadJobs(C.getDriver(), C.getArgs());
 }
 
 void Driver::BuildJobs(Compilation &C) const {
@@ -8839,6 +8834,8 @@ void Driver::BuildJobs(Compilation &C) const {
       J.InProcess = false;
 
   markOffloadDeviceCC1JobsForParallelExecution(C);
+  if (C.getActiveOffloadKinds() != Action::OFK_None)
+    claimAndDiagnoseOffloadJobs(*this, C.getArgs());
 
   if (CCPrintProcessStats) {
     C.setPostCallback([=](const Command &Cmd, int Res) {
