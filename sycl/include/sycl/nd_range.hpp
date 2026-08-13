@@ -62,7 +62,6 @@ public:
   nd_range(nd_range<Dimensions> &&rhs) = default;
   nd_range<Dimensions> &operator=(const nd_range<Dimensions> &rhs) = default;
   nd_range<Dimensions> &operator=(nd_range<Dimensions> &&rhs) = default;
-  nd_range() = default;
   ~nd_range() = default;
 
   // Common hidden friend functions for by-value semantics

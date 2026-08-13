@@ -197,7 +197,8 @@ protected:
   sub_group() = default;
 };
 
-template <int Dimensions> sub_group nd_item<Dimensions>::get_sub_group() const {
+template <int Dimensions>
+sub_group nd_item<Dimensions>::get_sub_group() const noexcept {
   return sub_group();
 }
 

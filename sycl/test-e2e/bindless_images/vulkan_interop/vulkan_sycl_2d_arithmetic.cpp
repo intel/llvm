@@ -344,10 +344,10 @@ int runTest(
         channels,                      // num_channels
         syclType,                      // channel_type
         syclexp::image_type::standard, // type (default)
-        1 //,                             // num_levels (default)
-          // 1,                             // array_size (default)
-          // 0,                             // num_samples (default)
-          // pitchA                         // pitch
+        1,                             // num_levels (default)
+        1,                             // array_size (default)
+        0,                             // num_samples (default)
+        pitchA                         // row_pitch (0 = tightly packed)
     );
 
     auto imgMemA = syclexp::map_external_image_memory(
