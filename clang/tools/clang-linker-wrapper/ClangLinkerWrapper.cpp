@@ -342,6 +342,9 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
 Expected<std::string> findOcloc(const ArgList &Args) {
   if (Arg *A = Args.getLastArg(OPT_ocloc_path_EQ)) {
     StringRef Dir = A->getValue();
+    if (Dir.empty())
+      return createStringError("no directory given for '" + A->getSpelling() +
+                               "'");
     // Only look in the given directory.  The tool name is resolved by
     // findProgramByName, which takes care of any platform specific executable
     // extension.

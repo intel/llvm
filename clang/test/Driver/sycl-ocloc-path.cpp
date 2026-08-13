@@ -59,6 +59,24 @@
 // CHK-OCLOC-PATH-HELP: Emitting help information for ocloc
 // CHK-OCLOC-PATH-HELP: "/my/ocloc/dir{{[/\\]+}}ocloc" "--help"
 
+/// Check the diagnostic emitted when the given directory does not contain a
+/// usable ocloc.  Without -### the tool is actually launched, so the composed
+/// path is expected to be diagnosed instead of being silently ignored.
+// RUN:   rm -rf %t.empty.dir && mkdir -p %t.empty.dir
+// RUN:   not %clang -fsycl -fsycl-help=gen --ocloc-path=%t.empty.dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-HELP-ERR %s
+// CHK-OCLOC-PATH-HELP-ERR: error: unable to execute command: {{.*}}ocloc
+
+/// Check that an empty --ocloc-path= is rejected instead of falling back to
+/// another ocloc.
+// RUN:   not %clang -### -fsycl --no-offload-new-driver \
+// RUN:     -fsycl-targets=spir64_gen --ocloc-path= %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-EMPTY %s
+// RUN:   not %clang -fsycl -fsycl-help=gen --ocloc-path= %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-EMPTY %s
+// CHK-OCLOC-PATH-EMPTY: error: invalid value '' in '--ocloc-path='
+// CHK-OCLOC-PATH-EMPTY-NOT: Emitting help information
+
 /// Check that --ocloc-path= does not warn as unused when no AOT compilation
 /// for Intel GPU is being performed.
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64 --ocloc-path=/my/ocloc/dir \

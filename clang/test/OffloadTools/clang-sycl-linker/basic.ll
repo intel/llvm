@@ -119,17 +119,20 @@
 ; AOT-INTEL-GPU-NOT:  {{.+}}
 ;
 ; Test that --ocloc-path= provides the location of the ocloc tool.
-; RUN: clang-sycl-linker --dry-run -v --module-split-mode=link_unit -arch=bmg_g21 %t/input1.bc %t/input2.bc -o %t/aot-gpu.out 2>&1 \
-; RUN:     --ocloc-path=/my/ocloc/dir \
+; RUN: clang-sycl-linker --dry-run -v --module-split-mode=link_unit -arch=bmg_g21 %t/input1.bc %t/input2.bc -o %t/aot-gpu.out --ocloc-path=/my/ocloc/dir 2>&1 \
 ; RUN:   | FileCheck %s --check-prefix=AOT-OCLOC-PATH
 ; AOT-OCLOC-PATH: "/my/ocloc/dir{{[/\\]+}}ocloc" {{.*}}-device bmg_g21
 ;
 ; Test the diagnostic emitted when ocloc cannot be found in the given
 ; directory.
-; RUN: not clang-sycl-linker -v --module-split-mode=link_unit -arch=bmg_g21 %t/input1.bc %t/input2.bc -o %t/aot-gpu.out 2>&1 \
-; RUN:     --ocloc-path=%t/no-ocloc-here \
+; RUN: not clang-sycl-linker -v --module-split-mode=link_unit -arch=bmg_g21 %t/input1.bc %t/input2.bc -o %t/aot-gpu.out --ocloc-path=%t/no-ocloc-here 2>&1 \
 ; RUN:   | FileCheck %s --check-prefix=AOT-OCLOC-PATH-ERR
 ; AOT-OCLOC-PATH-ERR: unable to find 'ocloc' in '{{.*}}no-ocloc-here'
+;
+; Test that an empty --ocloc-path= is rejected.
+; RUN: not clang-sycl-linker --dry-run -v -arch=bmg_g21 %t/input1.bc --ocloc-path= -o %t/aot-gpu.out 2>&1 \
+; RUN:   | FileCheck %s --check-prefix=AOT-OCLOC-PATH-NOARG
+; AOT-OCLOC-PATH-NOARG: no directory given for '--ocloc-path='
 ;
 ; Test AOT compilation for an Intel CPU.
 ; Test that IMG_Object image kind is set for AOT compilation (Intel CPU).

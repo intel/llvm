@@ -316,6 +316,16 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
                            diag::warn_drv_empty_joined_argument,
                            SourceLocation()) > DiagnosticsEngine::Warning;
     }
+
+    // An empty --ocloc-path= is rejected here for consistent usage for areas
+    // that consume it.
+    if (A->getOption().matches(options::OPT_ocloc_path_EQ) &&
+        A->containsValue("")) {
+      Diag(diag::err_drv_invalid_value) << A->getSpelling() << A->getValue();
+      ContainsError |= Diags.getDiagnosticLevel(diag::err_drv_invalid_value,
+                                                SourceLocation()) >
+                       DiagnosticsEngine::Warning;
+    }
   }
 
   for (const Arg *A : Args.filtered(options::OPT_UNKNOWN)) {
@@ -2799,6 +2809,10 @@ void Driver::PrintHelp(bool ShowHidden) const {
 // Print the help from any of the given tools which are used for AOT
 // compilation for SYCL
 void Driver::PrintSYCLToolHelp(const Compilation &C) const {
+  // Do not run any external tools if the command line was already rejected.
+  if (C.containsError())
+    return;
+
   SmallVector<std::tuple<llvm::Triple, StringRef, StringRef, StringRef>, 4>
       HelpArgs;
   // Populate the vector with the tools and help options
@@ -2847,12 +2861,13 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
       continue;
     }
     auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
-    if (ToolBinary.getError()) {
+    if (ToolBinary.getError() || !llvm::sys::fs::can_execute(*ToolBinary)) {
       C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
       continue;
     }
     // Run the Tool.
-    llvm::sys::ExecuteAndWait(ToolBinary.get(), ToolArgs);
+    if (llvm::sys::ExecuteAndWait(ToolBinary.get(), ToolArgs) < 0)
+      C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
   }
 }
 

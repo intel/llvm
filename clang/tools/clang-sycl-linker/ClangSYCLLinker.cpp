@@ -173,6 +173,9 @@ static Expected<std::string> findProgram(const ArgList &Args, StringRef Name,
 static Expected<std::string> findOcloc(const ArgList &Args) {
   if (Arg *A = Args.getLastArg(OPT_ocloc_path_EQ)) {
     StringRef Dir = A->getValue();
+    if (Dir.empty())
+      return createStringError("no directory given for '" + A->getSpelling() +
+                               "'");
     if (DryRun) {
       SmallString<128> OclocPath(Dir);
       sys::path::append(OclocPath, "ocloc");

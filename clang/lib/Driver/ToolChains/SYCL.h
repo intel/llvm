@@ -82,12 +82,6 @@ StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 StringRef getGenGRFFlag(StringRef GRFMode);
 
-// Returns the full path of the ocloc tool to be used for AOT compilation.  A
-// user provided --ocloc-path= is honored above all other lookup locations.
-// If not found, the tool (ocloc) is returned with no directory.
-const char *getOclocPath(Compilation &C, const ToolChain &TC,
-                         const llvm::opt::ArgList &Args);
-
 // Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
