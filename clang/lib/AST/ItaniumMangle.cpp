@@ -4449,8 +4449,8 @@ void CXXNameMangler::mangleType(const VectorType *T) {
     const TargetInfo *TI = getASTContext().getLangOpts().isTargetDevice()
                                ? getASTContext().getAuxTargetInfo()
                                : &getASTContext().getTargetInfo();
-    if(!TI)
-        TI = &getASTContext().getTargetInfo();
+    if (!TI)
+      TI = &getASTContext().getTargetInfo();
     llvm::Triple Target = TI->getTriple();
     llvm::Triple::ArchType Arch = Target.getArch();
     if ((Arch == llvm::Triple::aarch64 ||
