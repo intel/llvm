@@ -57,7 +57,14 @@
 // RUN:   %clang -### -fsycl -fsycl-help=gen --ocloc-path=/my/ocloc/dir %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-HELP %s
 // CHK-OCLOC-PATH-HELP: Emitting help information for ocloc
-// CHK-OCLOC-PATH-HELP: "/my/ocloc/dir{{[/\\]+}}ocloc" "--help"
+// CHK-OCLOC-PATH-HELP: "/my/ocloc/dir{{[/\\]+}}ocloc{{(\.exe)?}}" "--help"
+
+/// Check that the 'exe' name is used for windows when emitting the ocloc help
+/// information.
+// RUN:   %clang -### -target x86_64-pc-windows-msvc -fsycl -fsycl-help=gen \
+// RUN:     --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-HELP-WIN %s
+// CHK-OCLOC-PATH-HELP-WIN: "/my/ocloc/dir{{[/\\]+}}ocloc.exe" "--help"
 
 /// Check the diagnostic emitted when the given directory does not contain a
 /// usable ocloc.  Without -### the tool is actually launched, so the composed

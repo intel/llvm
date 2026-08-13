@@ -2837,21 +2837,22 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
 
   // Go through the args and emit the help information for each.
   for (auto &HA : HelpArgs) {
-    llvm::outs() << "Emitting help information for " << std::get<1>(HA) << '\n'
-        << "Use triple of '" << std::get<0>(HA).normalize() <<
-        "' to enable ahead of time compilation\n";
+    StringRef ToolName = std::get<1>(HA);
+    llvm::outs() << "Emitting help information for " << ToolName << '\n'
+                 << "Use triple of '" << std::get<0>(HA).normalize()
+                 << "' to enable ahead of time compilation\n";
     // Flush out the buffer before calling the external tool.
     llvm::outs().flush();
-    std::vector<StringRef> ToolArgs = {std::get<1>(HA), std::get<2>(HA),
+    std::vector<StringRef> ToolArgs = {ToolName, std::get<2>(HA),
                                        std::get<3>(HA)};
     SmallString<128> ExecPath;
-    // A user provided --ocloc-path= overrides the usual tool lookup for ocloc.
-    if (Arg *A = C.getArgs().getLastArg(options::OPT_ocloc_path_EQ);
-        A && std::get<1>(HA) == "ocloc") {
-      ExecPath = A->getValue();
-      llvm::sys::path::append(ExecPath, std::get<1>(HA));
-    } else
-      ExecPath = C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data());
+    // The lookup for ocloc is shared with the AOT compilation step, which
+    // honors any user provided --ocloc-path=.
+    if (ToolName == "ocloc")
+      ExecPath = tools::SYCL::gen::getOclocPath(C, C.getDefaultToolChain(),
+                                                C.getArgs());
+    else
+      ExecPath = C.getDefaultToolChain().GetProgramPath(ToolName.data());
     // do not run the tools with -###.
     if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
       llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"";

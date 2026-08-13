@@ -1046,7 +1046,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                            SpirvInputs);
 }
 
-static const char *makeExeName(Compilation &C, StringRef Name) {
+static const char *makeExeName(const Compilation &C, StringRef Name) {
   llvm::SmallString<8> ExeName(Name);
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
   if (HostTC->getTriple().isWindowsMSVCEnvironment())
@@ -1054,8 +1054,8 @@ static const char *makeExeName(Compilation &C, StringRef Name) {
   return C.getArgs().MakeArgString(ExeName);
 }
 
-static const char *getOclocPath(Compilation &C, const ToolChain &TC,
-                                const llvm::opt::ArgList &Args) {
+const char *SYCL::gen::getOclocPath(const Compilation &C, const ToolChain &TC,
+                                    const llvm::opt::ArgList &Args) {
   const char *ExeName = makeExeName(C, "ocloc");
   // A user provided --ocloc-path= takes precedence over any ocloc that is
   // found via the program paths or the PATH environment variable.
@@ -1130,7 +1130,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                 Device);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                Device);
-  const char *Exec = getOclocPath(C, getToolChain(), Args);
+  const char *Exec = SYCL::gen::getOclocPath(C, getToolChain(), Args);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
