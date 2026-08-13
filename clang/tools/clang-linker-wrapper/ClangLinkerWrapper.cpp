@@ -334,7 +334,7 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
     return Name.str();
   if (!Path)
     return createStringError(Path.getError(),
-                             "Unable to find '" + Name + "' in path");
+                             "unable to find '" + Name + "' in path");
   return *Path;
 }
 
@@ -345,17 +345,17 @@ Expected<std::string> findOcloc(const ArgList &Args) {
     if (Dir.empty())
       return createStringError("no directory given for '" + A->getSpelling() +
                                "'");
-    // Only look in the given directory.  The tool name is resolved by
-    // findProgramByName, which takes care of any platform specific executable
-    // extension.
-    if (ErrorOr<std::string> Path = sys::findProgramByName("ocloc", {Dir}))
-      return *Path;
     if (DryRun) {
       SmallString<128> OclocPath(Dir);
       sys::path::append(OclocPath, "ocloc");
       return std::string(OclocPath);
     }
-    return createStringError("Unable to find 'ocloc' in '" + Dir + "'");
+    // Only look in the given directory.  The tool name is resolved by
+    // findProgramByName, which takes care of any platform specific executable
+    // extension.
+    if (ErrorOr<std::string> Path = sys::findProgramByName("ocloc", {Dir}))
+      return *Path;
+    return createStringError("unable to find 'ocloc' in '" + Dir + "'");
   }
   return findProgram("ocloc", {getExecutableDir("ocloc")});
 }

@@ -147,7 +147,7 @@
 // Check the diagnostic emitted when ocloc cannot be found in the given
 // directory.
 // RUN: not clang-linker-wrapper --ocloc-path=%t.no-ocloc-here --linker-path=/usr/bin/ld -o /dev/null %t1.o 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH-ERR %s
-// CHK-OCLOC-PATH-ERR: Unable to find 'ocloc' in '{{.*}}no-ocloc-here'
+// CHK-OCLOC-PATH-ERR: unable to find 'ocloc' in '{{.*}}no-ocloc-here'
 
 // Check that an empty --ocloc-path= is rejected.
 // RUN: not clang-linker-wrapper --ocloc-path= --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH-NOARG %s
