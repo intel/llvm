@@ -44,6 +44,7 @@ only for the linker wrapper will be forwarded to the wrapped linker job.
     --linker-path=<path>   The linker executable to invoke
     -L <dir>               Add <dir> to the library search path
     -l <libname>           Search for library <libname>
+    --ocloc-path=<dir>     Path to the ocloc tool used for Intel GPU AOT compilation
     --opt-level=<O0, O1, O2, or O3>
                            Optimization level for LTO
     --override-image=<kind=file>

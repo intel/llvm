@@ -56,6 +56,7 @@ be passed down to downstream AOT compilation tools like 'ocloc' and 'opencl-aot'
     -u <symbol>                   Force undefined symbol during linking
     --module-split-mode=<mode>    Module split mode: 'translation_unit' (default), 'kernel', or 'link_unit'
     --ocloc-options=<value>       Options passed to ocloc for Intel GPU AOT compilation
+    --ocloc-path=<dir>            Path to the ocloc tool used for Intel GPU AOT compilation
     --opencl-aot-options=<value>  Options passed to opencl-aot for Intel CPU AOT compilation
     -o <path>                     Path to file to write output
     --save-temps                  Save intermediate results
