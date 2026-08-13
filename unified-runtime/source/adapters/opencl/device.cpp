@@ -258,7 +258,12 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
      * use to submit a kernel. There is no such query defined in OpenCL. So
      * we'll return the maximum value. */
     static constexpr uint32_t MaxWorkItemDimensions = 3u;
-    static constexpr size_t Max = (std::numeric_limits<size_t>::max)();
+
+    size_t Max = 0;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Device->CLDevice,
+                                         CL_DEVICE_MAX_WORK_GROUP_SIZE,
+                                         sizeof(Max), &Max, nullptr));
+    assert(Max >= 0);
 
     struct {
       size_t sizes[MaxWorkItemDimensions];
@@ -270,7 +275,12 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ReturnSizes);
   }
   case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
-    return ReturnValue(std::numeric_limits<size_t>::max());
+    size_t Max = 0;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Device->CLDevice,
+                                         CL_DEVICE_MAX_WORK_GROUP_SIZE,
+                                         sizeof(Max), &Max, nullptr));
+    assert(Max >= 0);
+    return ReturnValue(Max);
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(static_cast<uint32_t>(1u));
