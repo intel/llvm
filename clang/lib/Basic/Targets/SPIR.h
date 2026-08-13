@@ -186,17 +186,13 @@ public:
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel ||
+    return (CC == CC_C || CC == CC_SpirFunction || CC == CC_DeviceKernel ||
             // Permit CC_X86RegCall which is used to mark external functions
             // with explicit simd or structure type arguments to pass them via
             // registers.
             CC == CC_X86RegCall)
                ? CCCR_OK
                : CCCR_Warning;
-  }
-
-  CallingConv getDefaultCallingConv() const override {
-    return CC_SpirFunction;
   }
 
   void setAddressSpaceMap(bool DefaultIsGeneric) {
