@@ -2867,7 +2867,7 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
       continue;
     }
     // Run the Tool.
-    if (llvm::sys::ExecuteAndWait(ToolBinary.get(), ToolArgs) < 0)
+    if (!llvm::sys::ExecuteAndWait(ToolBinary.get(), ToolArgs))
       C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
   }
 }
