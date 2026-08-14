@@ -764,9 +764,10 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       switch (HT.getEnvironment()) {
       default: // Assume MSVC for unknown environments
       case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86 &&
-               "Unsupported host architecture");
-        return std::make_unique<MicrosoftX86_32SPIRV32TargetInfo>(Triple, Opts);
+        if (HT.getArch() == llvm::Triple::x86)
+          return std::make_unique<MicrosoftX86_32SPIRV32TargetInfo>(Triple,
+                                                                    Opts);
+        return std::make_unique<SPIRV32TargetInfo>(Triple, Opts);
       }
     default:
       return std::make_unique<SPIRV32TargetInfo>(Triple, Opts);

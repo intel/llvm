@@ -666,8 +666,9 @@ public:
       // Permit CC_X86RegCall which is used to mark external functions with
       // explicit simd or structure type arguments to pass them via registers.
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+    return (CC == CC_C || CC == CC_SpirFunction || CC == CC_DeviceKernel)
+               ? CCCR_OK
+               : CCCR_Warning;
   }
 };
 
