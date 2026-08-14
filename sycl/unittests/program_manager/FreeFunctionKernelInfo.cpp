@@ -52,8 +52,7 @@ TEST(FreeFunctionKernelInfo, AddRemoveAfterRuntimeTeardownIsNoop) {
   constexpr unsigned Count = 2;
 
   // Simulate the runtime having been torn down.
-  detail::GlobalHandler *Saved =
-      detail::GlobalHandler::detachGlobalHandler();
+  detail::GlobalHandler *Saved = detail::GlobalHandler::detachGlobalHandler();
   ASSERT_FALSE(detail::GlobalHandler::isInstanceAlive());
 
   // Must not touch the detached singleton (no crash / no use-after-free).
