@@ -29,6 +29,7 @@ namespace {
 constexpr StringRef SyclHostAccessAttr = "sycl-host-access";
 constexpr StringRef SyclPipelinedAttr = "sycl-pipelined";
 constexpr StringRef SyclGrfSizeAttr = "sycl-grf-size";
+constexpr StringRef SyclMaximumRegistersAttr = "sycl-maximum-registers";
 
 constexpr StringRef SpirvDecorMdKind = "spirv.Decorations";
 constexpr StringRef SpirvDecorCacheControlMdKind =
@@ -498,6 +499,21 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
         Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
     return std::pair<std::string, MDNode *>("RegisterAllocMode",
+                                            MDNode::get(Ctx, AttrMDArgs));
+  }
+
+  if (AttrKindStr == SyclMaximumRegistersAttr) {
+    uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
+    // The property supports only 0, 128, 256 and 512.
+    if (PropVal != 0 && PropVal != 128 && PropVal != 256 && PropVal != 512)
+      return std::nullopt;
+    Metadata *AttrMDArgs[1];
+    if (PropVal == 0)
+      AttrMDArgs[0] = MDString::get(Ctx, "AutoINTEL");
+    else
+      AttrMDArgs[0] = ConstantAsMetadata::get(
+          Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)));
+    return std::pair<std::string, MDNode *>("MaximumRegisters",
                                             MDNode::get(Ctx, AttrMDArgs));
   }
 
