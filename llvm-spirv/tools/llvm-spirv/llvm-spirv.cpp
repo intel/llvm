@@ -145,6 +145,18 @@ static cl::opt<SPIRV::ExtInst> ExtInst(
                           "OpenCL.std extended instruction set")),
     cl::init(SPIRV::ExtInst::None));
 
+static cl::opt<SPIRV::SPIRVDbgErrorHandlingKinds> ErrorHandling(
+    "spirv-error-handling",
+    cl::desc("Specify what happens when a module is rejected"),
+    cl::values(clEnumValN(SPIRV::SPIRVDbgErrorHandlingKinds::Abort, "abort",
+                          "Print the error and abort"),
+               clEnumValN(SPIRV::SPIRVDbgErrorHandlingKinds::Exit, "exit",
+                          "Print the error and exit with its error code"),
+               clEnumValN(SPIRV::SPIRVDbgErrorHandlingKinds::Ignore, "ignore",
+                          "Suppress the translator's own error message and "
+                          "exit through the tool's normal error path")),
+    cl::init(SPIRV::SPIRVDbgErrorHandlingKinds::Exit));
+
 static cl::opt<SPIRV::BIsRepresentation> BIsRepresentation(
     "spirv-target-env",
     cl::desc("Specify a representation of different SPIR-V Instructions which "
@@ -643,8 +655,10 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
                        SPIRV::TranslatorOpts &Opts) {
   std::ifstream IFS(InputFile, std::ios::binary);
   std::vector<SpecConstInfoTy> SpecConstInfo;
-  if (!getSpecConstInfo(IFS, SpecConstInfo))
+  if (!getSpecConstInfo(IFS, Opts, SpecConstInfo)) {
+    errs() << "Invalid SPIR-V binary\n";
     return true;
+  }
 
   SmallVector<StringRef, 8> Split;
   SpecConstStr.split(Split, ' ', -1, false);
@@ -899,6 +913,8 @@ int main(int Ac, char **Av) {
 
   Opts.setFPContractMode(FPCMode);
 
+  Opts.setErrorHandlingKind(ErrorHandling);
+
   if (SPIRVBuiltinFormat.getNumOccurrences() != 0) {
     if (!IsReverse) {
       errs() << "Note: --spirv-builtin-format option ignored as it only "
@@ -1071,7 +1087,7 @@ int main(int Ac, char **Av) {
   if (SpecConstInfo) {
     std::ifstream IFS(InputFile, std::ios::binary);
     std::vector<SpecConstInfoTy> SpecConstInfo;
-    if (!getSpecConstInfo(IFS, SpecConstInfo)) {
+    if (!getSpecConstInfo(IFS, Opts, SpecConstInfo)) {
       std::cout << "Invalid SPIR-V binary";
       return -1;
     }
