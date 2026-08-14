@@ -100,13 +100,13 @@ TEST(SyclLsArchitectureNameTest, PrintsCanonicalArchitectureNames) {
 
 TEST(SyclLsArchitectureNameTest, PrintsPossibleArchitectureNames) {
   for (const auto &Case : getArchitectureNameCases())
-    EXPECT_EQ(getPossibleArchitectureNames(Case.Arch), Case.Possible);
+    EXPECT_EQ(getGPUFamily(Case.Arch), Case.Possible);
 }
 
 TEST(SyclLsArchitectureNameTest, HidesNumericAliasesFromPossibleArchitectures) {
-  EXPECT_EQ(getPossibleArchitectureNames(syclex::architecture::intel_gpu_mtl_u),
+  EXPECT_EQ(getGPUFamily(syclex::architecture::intel_gpu_mtl_u),
             "intel_gpu_mtl_u / intel_gpu_mtl_s / intel_gpu_arl_u / "
             "intel_gpu_arl_s");
-  EXPECT_EQ(getPossibleArchitectureNames(syclex::architecture::intel_gpu_bmg_g21),
+  EXPECT_EQ(getGPUFamily(syclex::architecture::intel_gpu_bmg_g21),
             "intel_gpu_bmg_g21");
 }

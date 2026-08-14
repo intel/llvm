@@ -78,7 +78,7 @@ std::string getCanonicalArchitectureName(syclex::architecture Arch) {
   return "unknown";
 }
 
-std::string getPossibleArchitectureNames(syclex::architecture Arch) {
+std::string getGPUFamily(syclex::architecture Arch) {
   static constexpr ArchitectureNameEntry ArchitectureNames[] = {
 #define __SYCL_ARCHITECTURE(ARCH, VAL) {syclex::architecture::ARCH, #ARCH},
 #define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL) {syclex::architecture::VAL, #ARCH},
@@ -255,10 +255,7 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     auto Arch = Device.get_info<syclex::info::device::architecture>();
     auto CanonicalArch = getCanonicalArchitectureName(Arch);
     std::cout << Prepend << "Architecture: " << CanonicalArch << std::endl;
-    auto PossibleArchitectures = getPossibleArchitectureNames(Arch);
-    if (PossibleArchitectures != CanonicalArch)
-      std::cout << Prepend << "Possible architectures: "
-                << PossibleArchitectures << std::endl;
+    std::cout << Prepend << "GPU Family: " << getGPUFamily(Arch) << std::endl;
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;
