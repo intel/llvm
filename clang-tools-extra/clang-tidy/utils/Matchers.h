@@ -58,7 +58,8 @@ AST_MATCHER(QualType, isSimpleChar) {
 }
 
 AST_MATCHER(Expr, hasUnevaluatedContext) {
-  if (isa<CXXNoexceptExpr>(Node) || isa<RequiresExpr>(Node))
+  if (isa<CXXNoexceptExpr>(Node) || isa<CXXDeclcallExpr>(Node) ||
+      isa<RequiresExpr>(Node))
     return true;
   if (const auto *UnaryExpr = dyn_cast<UnaryExprOrTypeTraitExpr>(&Node)) {
     switch (UnaryExpr->getKind()) {

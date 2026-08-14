@@ -127,6 +127,8 @@ bool CallBI(InterpState &S, CodePtr OpPC, const CallExpr *CE,
             uint32_t BuiltinID);
 bool CallPtr(InterpState &S, CodePtr OpPC, uint32_t ArgSize,
              const CallExpr *CE);
+bool CallMemberPtr(InterpState &S, CodePtr OpPC, uint32_t ArgSize,
+                   const CallExpr *CE);
 bool CheckLiteralType(InterpState &S, CodePtr OpPC, const Type *T);
 bool InvalidShuffleVectorIndex(InterpState &S, CodePtr OpPC, uint32_t Index);
 bool CheckBitCast(InterpState &S, CodePtr OpPC, bool HasIndeterminateBits,
@@ -3607,6 +3609,7 @@ inline bool GetIntPtr(InterpState &S, CodePtr OpPC, const Type *Ty) {
 bool GetMemberPtr(InterpState &S, const ValueDecl *D);
 bool GetMemberPtrBase(InterpState &S);
 bool GetMemberPtrDecl(InterpState &S);
+bool DevirtualizeMemberPtr(InterpState &S);
 bool CopyMemberPtrPath(InterpState &S, const RecordDecl *Entry, bool IsDerived);
 
 /// Just emit a diagnostic. The expression that caused emission of this

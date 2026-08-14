@@ -514,6 +514,27 @@ These spellings result in the type of the operand, stripping all qualifiers.
 `char32_t` respectively, but are also available in C++ modes before C++11.
 They are only supported in C++. `__char8_t` is not available.
 
+### declcall
+
+`declcall(call-expression)` yields a pointer, or pointer to member, to the
+function that overload resolution would select for the *call-expression*, which
+is an unevaluated operand:
+
+```c++
+int f(int);
+int f(char);
+constexpr auto p = declcall(f(0)); // &f(int)
+```
+
+For a member function it produces a pointer to member; a qualified call to a
+virtual member is devirtualized. `declcall` is ill-formed if the operand is not
+a call expression, names a constructor, destructor, or builtin function, or does
+not select a function at compile time.
+
+`declcall` implements P2825, which is not yet standardized. It is enabled as a
+native feature under `-fsycl`; otherwise it is a Clang extension diagnosed by
+`-Wdeclcall-extension`.
+
 % FIXME: This should list all the keyword extensions
 
 (langext-vectors)=

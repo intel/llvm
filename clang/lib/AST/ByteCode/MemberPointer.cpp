@@ -84,7 +84,8 @@ APValue MemberPointer::toAPValue(const ASTContext &ASTCtx) const {
     return Base.toAPValue(ASTCtx);
 
   return APValue(getDecl(), /*IsDerivedMember=*/isDerivedMember(),
-                 /*Path=*/ArrayRef(Path, PathLength));
+                 /*Path=*/ArrayRef(Path, PathLength),
+                 /*DeVirtualized=*/DeVirtualized);
 }
 
 ComparisonCategoryResult

@@ -209,6 +209,13 @@ public:
     return DynamicRecursiveASTVisitor::TraverseCXXNoexceptExpr(Node);
   }
 
+  bool TraverseCXXDeclcallExpr(CXXDeclcallExpr *Node) override {
+    // Unevaluated context.
+    if (IgnoreUnevaluatedContext)
+      return true;
+    return DynamicRecursiveASTVisitor::TraverseCXXDeclcallExpr(Node);
+  }
+
   bool TraverseCXXTypeidExpr(CXXTypeidExpr *Node) override {
     // Unevaluated context.
     if (IgnoreUnevaluatedContext)

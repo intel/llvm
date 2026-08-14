@@ -433,6 +433,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
 
   case Stmt::UnaryExprOrTypeTraitExprClass:
   case Stmt::CXXNoexceptExprClass:
+  case Stmt::CXXDeclcallExprClass:
     K = CXCursor_UnaryExpr;
     break;
 

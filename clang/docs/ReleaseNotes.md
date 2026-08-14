@@ -248,6 +248,7 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 
 - `__is_trivially_equality_comparable` no longer returns false for all enum types. (#GH132672)
 - `auto` parameters are now available in all C++ language modes as an extension.
+- Clang now supports `declcall` ([P2825](https://wg21.link/p2825)) as an extension, yielding a pointer to the function that overload resolution would select for an unevaluated call expression.
 
 #### C++2d Feature Support
 

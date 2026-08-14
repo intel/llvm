@@ -238,6 +238,9 @@ def CallBI : Opcode { let Args = [ArgCallExpr, ArgUint32]; }
 def CallPtr : Opcode {
   let Args = [ArgUint32, ArgCallExpr];
 }
+def CallMemberPtr : Opcode {
+  let Args = [ArgUint32, ArgCallExpr];
+}
 
 def CallVar : Opcode {
   let Args = [ArgFunction, ArgUint32];
@@ -952,6 +955,9 @@ def GetMemberPtr : SuccessOpcode {
   let Args = [ArgValueDecl];
 }
 def GetMemberPtrBase : Opcode {
+  let NeedsOpPC = 0;
+}
+def DevirtualizeMemberPtr : Opcode {
   let NeedsOpPC = 0;
 }
 def GetMemberPtrDecl : Opcode{

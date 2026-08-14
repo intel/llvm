@@ -242,6 +242,7 @@ namespace {
   struct MemberPointerBase {
     llvm::PointerIntPair<const ValueDecl*, 1, bool> MemberAndIsDerivedMember;
     unsigned PathLength;
+    bool DeVirtualized;
   };
 }
 
@@ -254,7 +255,10 @@ struct APValue::MemberPointerData : MemberPointerBase {
     PathElem *PathPtr;
   };
 
-  MemberPointerData() { PathLength = 0; }
+  MemberPointerData() {
+    PathLength = 0;
+    DeVirtualized = false;
+  }
   ~MemberPointerData() { resizePath(0); }
 
   void resizePath(unsigned Length) {
@@ -362,7 +366,7 @@ APValue::APValue(const APValue &RHS)
   case MemberPointer:
     MakeMemberPointer(RHS.getMemberPointerDecl(),
                       RHS.isMemberPointerToDerivedMember(),
-                      RHS.getMemberPointerPath());
+                      RHS.getMemberPointerPath(), RHS.isDeVirtualized());
     break;
   case AddrLabelDiff:
     MakeAddrLabelDiff();
@@ -621,6 +625,7 @@ void APValue::Profile(llvm::FoldingSetNodeID &ID) const {
   case MemberPointer:
     ID.AddPointer(getMemberPointerDecl());
     ID.AddInteger(isMemberPointerToDerivedMember());
+    ID.AddInteger(isDeVirtualized());
     for (const CXXRecordDecl *D : getMemberPointerPath())
       ID.AddPointer(D);
     return;
@@ -1102,6 +1107,13 @@ ArrayRef<const CXXRecordDecl*> APValue::getMemberPointerPath() const {
   return {MPD.getPath(), MPD.PathLength};
 }
 
+bool APValue::isDeVirtualized() const {
+  assert(isMemberPointer() && "Invalid accessor");
+  const MemberPointerData &MPD =
+      *((const MemberPointerData *)(const char *)&Data);
+  return MPD.DeVirtualized;
+}
+
 void APValue::MakeLValue() {
   assert(isAbsent() && "Bad state change");
   static_assert(sizeof(LV) <= DataSize, "LV too big");
@@ -1117,10 +1129,11 @@ void APValue::MakeArray(unsigned InitElts, unsigned Size) {
 
 MutableArrayRef<const CXXRecordDecl *>
 APValue::setMemberPointerUninit(const ValueDecl *Member, bool IsDerivedMember,
-                                unsigned Size) {
+                                unsigned Size, bool DeVirtualized) {
   assert(isAbsent() && "Bad state change");
   MemberPointerData *MPD = new ((void *)(char *)&Data) MemberPointerData;
   Kind = MemberPointer;
+  MPD->DeVirtualized = DeVirtualized;
   MPD->MemberAndIsDerivedMember.setPointer(
       Member ? cast<ValueDecl>(Member->getCanonicalDecl()) : nullptr);
   MPD->MemberAndIsDerivedMember.setInt(IsDerivedMember);
@@ -1129,9 +1142,10 @@ APValue::setMemberPointerUninit(const ValueDecl *Member, bool IsDerivedMember,
 }
 
 void APValue::MakeMemberPointer(const ValueDecl *Member, bool IsDerivedMember,
-                                ArrayRef<const CXXRecordDecl *> Path) {
-  MutableArrayRef<const CXXRecordDecl *> InternalPath =
-      setMemberPointerUninit(Member, IsDerivedMember, Path.size());
+                                ArrayRef<const CXXRecordDecl *> Path,
+                                bool DeVirtualized) {
+  MutableArrayRef<const CXXRecordDecl *> InternalPath = setMemberPointerUninit(
+      Member, IsDerivedMember, Path.size(), DeVirtualized);
   for (unsigned I = 0; I != Path.size(); ++I)
     InternalPath[I] = Path[I]->getCanonicalDecl();
 }

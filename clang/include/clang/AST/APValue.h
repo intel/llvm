@@ -436,9 +436,9 @@ public:
   /// \param IsDerivedMember Whether member is a derived one.
   /// \param Path The path of the member.
   APValue(const ValueDecl *Member, bool IsDerivedMember,
-          ArrayRef<const CXXRecordDecl *> Path)
+          ArrayRef<const CXXRecordDecl *> Path, bool DeVirtualized = false)
       : Kind(None), AllowConstexprUnknown(false) {
-    MakeMemberPointer(Member, IsDerivedMember, Path);
+    MakeMemberPointer(Member, IsDerivedMember, Path, DeVirtualized);
   }
   /// Creates a new address label diff APValue.
   /// \param LHSExpr The left-hand side of the difference.
@@ -691,6 +691,7 @@ public:
   const ValueDecl *getMemberPointerDecl() const;
   bool isMemberPointerToDerivedMember() const;
   ArrayRef<const CXXRecordDecl*> getMemberPointerPath() const;
+  bool isDeVirtualized() const;
 
   const AddrLabelExpr* getAddrLabelDiffLHS() const {
     assert(isAddrLabelDiff() && "Invalid accessor");
@@ -799,7 +800,8 @@ private:
     Kind = Union;
   }
   void MakeMemberPointer(const ValueDecl *Member, bool IsDerivedMember,
-                         ArrayRef<const CXXRecordDecl*> Path);
+                         ArrayRef<const CXXRecordDecl *> Path,
+                         bool DeVirtualized);
   void MakeAddrLabelDiff() {
     assert(isAbsent() && "Bad state change");
     new ((void *)(char *)&Data) AddrLabelDiffData();
@@ -831,7 +833,7 @@ private:
                   bool OnePastTheEnd, bool IsNullPtr);
   MutableArrayRef<const CXXRecordDecl *>
   setMemberPointerUninit(const ValueDecl *Member, bool IsDerivedMember,
-                         unsigned Size);
+                         unsigned Size, bool DeVirtualized);
 };
 
 } // end namespace clang.

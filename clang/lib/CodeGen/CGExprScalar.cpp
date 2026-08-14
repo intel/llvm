@@ -829,6 +829,21 @@ public:
     return Builder.getInt1(E->getValue());
   }
 
+  Value *VisitCXXDeclcallExpr(const CXXDeclcallExpr *E) {
+    // A declcall is required to be constant-evaluable (enforced in Sema), so
+    // emit it as a constant. This covers both function pointers and member
+    // function pointers; the devirtualized flag is carried by the evaluated
+    // APValue and honored by the member-pointer constant emission.
+    Expr::EvalResult Eval;
+    if (E->EvaluateAsConstantExpr(Eval, CGF.getContext()))
+      if (llvm::Constant *C =
+              ConstantEmitter(CGF).tryEmitAbstract(Eval.Val, E->getType()))
+        return C;
+
+    // Fall back to emitting the resolved operand directly.
+    return Visit(E->getOperand());
+  }
+
   // Binary Operators.
   Value *EmitMul(const BinOpInfo &Ops) {
     if (Ops.Ty->isSignedIntegerOrEnumerationType() ||

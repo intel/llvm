@@ -7492,6 +7492,144 @@ ExprResult Sema::ActOnNoexceptExpr(SourceLocation KeyLoc, SourceLocation,
   return BuildCXXNoexceptExpr(KeyLoc, Operand, RParen);
 }
 
+ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
+                                      SourceLocation RParen) {
+  // Remember the operand as written; the node keeps it for source fidelity
+  // (e.g. -ast-print) since Operand below is rewritten to the resolved callee.
+  Expr *SourceExpr = Operand;
+  // in template ... do it later
+  if (Operand->isInstantiationDependent()) {
+    return new (Context) CXXDeclcallExpr(Context.DependentTy, Operand,
+                                         SourceExpr, false, KeyLoc, RParen);
+  }
+
+  // unwrap parens
+  Operand = Operand->IgnoreParens();
+  CallExpr *CE = dyn_cast<CallExpr>(Operand);
+
+  if (CE == nullptr) {
+    Diag(Operand->getExprLoc(), diag::err_declcall_must_contain_a_call);
+    return ExprError();
+  }
+
+  const auto mustBeEvaluableInCompileTime = [this](Expr *e) {
+    Expr::EvalResult Eval;
+    if (!e->isValueDependent() && !e->EvaluateAsConstantExpr(Eval, Context)) {
+      return false;
+    }
+    return true;
+  };
+
+  if (CE->getCallee() == nullptr) {
+    return ExprError();
+  }
+
+  // P2825: declcall is ill-formed when the selected callee is a destructor or
+  // a builtin function (constructors cannot form a call expression and are
+  // rejected above).
+  const Decl *CalleeDecl = CE->getCalleeDecl();
+  if (isa_and_nonnull<CXXDestructorDecl>(CalleeDecl)) {
+    Diag(CE->getExprLoc(), diag::err_declcall_not_implemented_for)
+        << "a destructor";
+    return ExprError();
+  }
+  if (const auto *FD = dyn_cast_or_null<FunctionDecl>(CalleeDecl);
+      FD && FD->getBuiltinID() != 0) {
+    Diag(CE->getExprLoc(), diag::err_declcall_not_implemented_for)
+        << "a builtin function";
+    return ExprError();
+  }
+
+  // The operand's argument subexpressions were parsed unevaluated and are not
+  // odr-used. The selected function, however, is what declcall yields a pointer
+  // to, so odr-use it here: this runs in the declcall's own evaluation context,
+  // so it is instantiated/emitted exactly when the declcall expression is
+  // potentially-evaluated (and left alone inside decltype, sizeof, etc.).
+  if (auto *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl()))
+    MarkFunctionReferenced(KeyLoc, FD);
+
+  // Check if we are calling a method (it can be static.)
+  CXXMethodDecl *method = dyn_cast_or_null<CXXMethodDecl>(CE->getCalleeDecl());
+
+  bool MemberCallHasQualifierAndIsVirtual = false;
+
+  // transform method call
+  if (method && method->isInstance()) {
+    const auto memberCallHasQualifier = [](const CallExpr *e) {
+      const MemberExpr *ME =
+          dyn_cast<MemberExpr>(e->getCallee()->IgnoreParens());
+      if (!ME)
+        return false;
+
+      return ME->hasQualifier();
+    };
+
+    MemberCallHasQualifierAndIsVirtual =
+        method->isVirtual() && memberCallHasQualifier(CE);
+
+    // member function pointer
+    const auto T = QualType(method->getFunctionType(), 0);
+
+    // Build a qualified reference to the member (i.e. &Class::method). The
+    // nested-name-specifier makes this a well-formed pointer-to-member and
+    // lets CheckUseOfCXXMethodAsAddressOfOperand accept the address-of below.
+    NestedNameSpecifierLocBuilder NNSBuilder;
+    NNSBuilder.MakeTrivial(
+        Context,
+        NestedNameSpecifier(
+            Context.getCanonicalTagType(method->getParent())->getTypePtr()),
+        CE->getSourceRange());
+
+    // create reference to the function
+    auto *DRE = DeclRefExpr::Create(
+        Context, NNSBuilder.getWithLocInContext(Context), SourceLocation(),
+        method, /*RefersToEnclosingVariableOrCapture=*/false, CE->getExprLoc(),
+        T, CE->getValueKind(), nullptr, nullptr, NOUR_None);
+
+    // get its address
+    ExprResult AddrOf = CreateBuiltinUnaryOp(CE->getSourceRange().getBegin(),
+                                             UO_AddrOf, DRE, false);
+    if (AddrOf.isInvalid())
+      return ExprError();
+    Operand = AddrOf.get();
+  } else {
+    // A call through a pointer to member has no compile-time-known callee for
+    // declcall to resolve; P2825 handles such runtime cases via an explicit
+    // static_cast. Diagnose it rather than crashing on the failed conversion.
+    const Expr *Callee = CE->getCallee()->IgnoreParenImpCasts();
+    if (const auto *BO = dyn_cast<BinaryOperator>(Callee);
+        BO && BO->isPtrMemOp()) {
+      Diag(CE->getExprLoc(), diag::err_declcall_not_implemented_for)
+          << "a call through a pointer to member";
+      return ExprError();
+    }
+
+    // Convert the callee (a function or function pointer) to a pointer.
+    ExprResult Conv = CallExprUnaryConversions(CE->getCallee()->IgnoreParens());
+    if (Conv.isInvalid())
+      return ExprError();
+    Operand = Conv.get();
+  }
+
+  if (!mustBeEvaluableInCompileTime(Operand)) {
+    Diag(CE->getExprLoc(), diag::err_declcall_must_be_constant_evaluable);
+    return ExprError();
+  }
+
+  return new (Context)
+      CXXDeclcallExpr(Operand->getType(), Operand, SourceExpr,
+                      MemberCallHasQualifierAndIsVirtual, KeyLoc, RParen);
+}
+
+ExprResult Sema::ActOnDeclcallExpr(SourceLocation KeyLoc, SourceLocation,
+                                   Expr *Operand, SourceLocation RParen) {
+  // declcall (P2825) is not standardized yet. It is a native feature in SYCL
+  // mode; elsewhere it is a Clang extension.
+  if (!getLangOpts().isSYCL())
+    Diag(KeyLoc, diag::ext_declcall);
+  return BuildCXXDeclcallExpr(KeyLoc, Operand, RParen);
+}
+
 static void MaybeDecrementCount(
     Expr *E, llvm::DenseMap<const VarDecl *, int> &RefsMinusAssignments) {
   DeclRefExpr *LHS = nullptr;

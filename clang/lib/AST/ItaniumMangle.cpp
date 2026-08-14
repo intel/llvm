@@ -5409,6 +5409,24 @@ recurse:
     mangleExpression(cast<CXXNoexceptExpr>(E)->getOperand());
     break;
 
+  case Expr::CXXDeclcallExprClass: {
+    // There is no standard Itanium mangling for declcall (P2825) yet. Mangle
+    // it as a vendor extended expression
+    //   <expression> ::= u <source-name> <template-arg>* E
+    // so that distinct operands mangle distinctly and the symbol stays
+    // demanglable. The operand is encoded as an <expression> template-arg
+    // (X <expression> E).
+    // FIXME: Replace with the ABI-assigned mangling once declcall is voted
+    // into the standard and the Itanium C++ ABI defines one.
+    NotPrimaryExpr();
+    Out << "u8declcall";
+    Out << 'X';
+    mangleExpression(cast<CXXDeclcallExpr>(E)->getOperand());
+    Out << 'E';
+    Out << 'E';
+    break;
+  }
+
   case Expr::UnaryExprOrTypeTraitExprClass: {
     // Non-instantiation-dependent traits are an <expr-primary> integer literal.
     const UnaryExprOrTypeTraitExpr *SAE = cast<UnaryExprOrTypeTraitExpr>(E);

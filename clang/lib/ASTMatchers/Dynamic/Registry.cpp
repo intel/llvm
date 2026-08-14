@@ -204,6 +204,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(cxxMethodDecl);
   REGISTER_MATCHER(cxxNewExpr);
   REGISTER_MATCHER(cxxNoexceptExpr);
+  REGISTER_MATCHER(cxxDeclcallExpr);
   REGISTER_MATCHER(cxxNullPtrLiteralExpr);
   REGISTER_MATCHER(cxxOperatorCallExpr);
   REGISTER_MATCHER(cxxRecordDecl);

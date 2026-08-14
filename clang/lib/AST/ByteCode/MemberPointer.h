@@ -33,12 +33,16 @@ private:
   const CXXRecordDecl **Path = nullptr;
   int32_t PtrOffset = 0;
   uint8_t PathLength = 0;
+  /// Whether a declcall requested that virtual dispatch be skipped for this
+  /// member function pointer (see CXXDeclcallExpr).
+  bool DeVirtualized = false;
 
   MemberPointer(Pointer Base, const ValueDecl *Dcl, int32_t PtrOffset,
                 uint8_t PathLength = 0, const CXXRecordDecl **Path = nullptr,
-                bool IsDerived = false)
+                bool IsDerived = false, bool DeVirtualized = false)
       : Base(Base), DeclAndIsDerivedMember(Dcl, IsDerived), Path(Path),
-        PtrOffset(PtrOffset), PathLength(PathLength) {}
+        PtrOffset(PtrOffset), PathLength(PathLength),
+        DeVirtualized(DeVirtualized) {}
 
 public:
   MemberPointer() = default;
@@ -63,6 +67,9 @@ public:
   /// Does this member pointer have a base declaration?
   bool hasDecl() const { return DeclAndIsDerivedMember.getPointer(); }
   bool isDerivedMember() const { return DeclAndIsDerivedMember.getInt(); }
+  /// Whether virtual dispatch should be skipped (declcall devirtualization).
+  bool isDevirtualized() const { return DeVirtualized; }
+  void setDevirtualized(bool V = true) { DeVirtualized = V; }
   /// Return the base declaration. Might be null.
   const ValueDecl *getDecl() const {
     return DeclAndIsDerivedMember.getPointer();
@@ -139,22 +146,23 @@ public:
                                bool NewIsDerived = false) const {
     if (Base.isZero())
       return MemberPointer(Base, DeclAndIsDerivedMember.getPointer(), Offset,
-                           PathLength, Path, NewIsDerived);
+                           PathLength, Path, NewIsDerived, DeVirtualized);
     return MemberPointer(this->Base, DeclAndIsDerivedMember.getPointer(),
-                         Offset + PtrOffset, PathLength, Path, NewIsDerived);
+                         Offset + PtrOffset, PathLength, Path, NewIsDerived,
+                         DeVirtualized);
   }
 
   MemberPointer takeInstance(Pointer Instance) const {
     assert(this->Base.isZero());
     return MemberPointer(Instance, DeclAndIsDerivedMember.getPointer(),
                          this->PtrOffset, PathLength, Path,
-                         DeclAndIsDerivedMember.getInt());
+                         DeclAndIsDerivedMember.getInt(), DeVirtualized);
   }
 
   MemberPointer withPath(uint8_t PathLength, const CXXRecordDecl **Path,
                          bool IsDerived) const {
     return MemberPointer(this->Base, DeclAndIsDerivedMember.getPointer(),
-                         PtrOffset, PathLength, Path, IsDerived);
+                         PtrOffset, PathLength, Path, IsDerived, DeVirtualized);
   }
 
   APValue toAPValue(const ASTContext &) const;

@@ -1501,6 +1501,33 @@ Parser::ParseCastExpression(CastParseKind ParseKind, bool isAddressOfOperand,
     AllowSuffix = false;
     break;
 
+  case tok::kw_declcall: {
+    SourceLocation KeyLoc = ConsumeToken();
+    BalancedDelimiterTracker T(*this, tok::l_paren);
+
+    if (T.expectAndConsume(diag::err_expected_lparen_after, "declcall"))
+      return ExprError();
+
+    // The operand of declcall is an unevaluated operand: its argument
+    // subexpressions must not be odr-used or evaluated. This scope covers only
+    // parsing; ActOnDeclcallExpr then runs in the declcall's own evaluation
+    // context, so the selected function is odr-used (and instantiated) exactly
+    // when the declcall expression itself is.
+    {
+      EnterExpressionEvaluationContext Unevaluated(
+          Actions, Sema::ExpressionEvaluationContext::Unevaluated);
+      Res = ParseExpression();
+    }
+
+    T.consumeClose();
+
+    if (!Res.isInvalid())
+      Res = Actions.ActOnDeclcallExpr(KeyLoc, T.getOpenLocation(), Res.get(),
+                                      T.getCloseLocation());
+    AllowSuffix = false;
+    break;
+  }
+
   case tok::kw_noexcept: { // [C++0x] 'noexcept' '(' expression ')'
     if (NotPrimaryExpression)
       *NotPrimaryExpression = true;

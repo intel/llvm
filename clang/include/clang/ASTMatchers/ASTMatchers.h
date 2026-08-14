@@ -2057,6 +2057,10 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt, CXXDeleteExpr>
 extern const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNoexceptExpr>
     cxxNoexceptExpr;
 
+/// Matches declcall expressions.
+extern const internal::VariadicDynCastAllOfMatcher<Stmt, CXXDeclcallExpr>
+    cxxDeclcallExpr;
+
 /// Matches a loop initializing the elements of an array in a number of contexts:
 ///  * in the implicit copy/move constructor for a class with an array member
 ///  * when a lambda-expression captures an array by value

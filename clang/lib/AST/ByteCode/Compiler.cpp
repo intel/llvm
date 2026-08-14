@@ -3821,6 +3821,22 @@ bool Compiler<Emitter>::VisitCXXNoexceptExpr(const CXXNoexceptExpr *E) {
 }
 
 template <class Emitter>
+bool Compiler<Emitter>::VisitCXXDeclcallExpr(const CXXDeclcallExpr *E) {
+  // declcall evaluates to its resolved operand: a pointer or member pointer
+  // to the function that overload resolution selected.
+  if (!this->delegate(E->getOperand()))
+    return false;
+
+  // A declcall of a qualified virtual member is devirtualized: mark the
+  // resulting member pointer so it lowers to a direct pointer rather than a
+  // vtable index. isDevirtualized() implies a member function pointer.
+  if (E->isDevirtualized() && !DiscardResult)
+    return this->emitDevirtualizeMemberPtr(E);
+
+  return true;
+}
+
+template <class Emitter>
 bool Compiler<Emitter>::VisitCXXConstructExpr(const CXXConstructExpr *E) {
   QualType T = E->getType();
   assert(!canClassify(T));
@@ -5830,6 +5846,11 @@ bool Compiler<Emitter>::visitAPValue(const APValue &Val, PrimType ValType,
           return false;
       }
 
+      // Restore the devirtualized flag (declcall of a qualified virtual call)
+      // so a call through this pointer bypasses virtual dispatch.
+      if (Val.isDeVirtualized() && !this->emitDevirtualizeMemberPtr(Info))
+        return false;
+
       return true;
     }
     return this->emitNullMemberPtr(0, nullptr, Info);
@@ -6326,16 +6347,18 @@ bool Compiler<Emitter>::VisitCallExpr(const CallExpr *E) {
     // Get the callee, either from a member pointer or function pointer saved in
     // CalleeOffset.
     if (isa<CXXMemberCallExpr>(E) && CalleeOffset) {
+      // Keep the member pointer on the stack so the call honors a
+      // devirtualized declcall pointer rather than always dispatching.
       if (!this->emitGetLocal(PT_MemberPtr, *CalleeOffset, E))
         return false;
-      if (!this->emitGetMemberPtrDecl(E))
+      if (!this->emitCallMemberPtr(ArgSize, E, E))
         return false;
     } else {
       if (!this->emitGetLocal(PT_Ptr, *CalleeOffset, E))
         return false;
+      if (!this->emitCallPtr(ArgSize, E, E))
+        return false;
     }
-    if (!this->emitCallPtr(ArgSize, E, E))
-      return false;
   }
 
   // Cleanup for discarded return values.

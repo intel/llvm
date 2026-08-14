@@ -690,8 +690,10 @@ public:
 
   llvm::Constant *EmitMemberDataPointer(const MemberPointerType *MPT,
                                         CharUnits offset) override;
-  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD) override;
-  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT) override;
+  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD,
+                                            bool AllowVirtual) override;
+  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT,
+                                    bool AllowVirtual) override;
 
   llvm::Value *EmitMemberPointerComparison(CodeGenFunction &CGF,
                                            llvm::Value *L,
@@ -2957,7 +2959,8 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberDataPointer(const CXXRecordDecl *RD,
 }
 
 llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
-                                                   QualType MPType) {
+                                                   QualType MPType,
+                                                   bool AllowVirtual) {
   const MemberPointerType *DstTy = MPType->castAs<MemberPointerType>();
   const ValueDecl *MPD = MP.getMemberPointerDecl();
   if (!MPD)
@@ -2968,7 +2971,7 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
 
   llvm::Constant *C;
   if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(MPD)) {
-    C = EmitMemberFunctionPointer(MD);
+    C = EmitMemberFunctionPointer(MD, AllowVirtual);
   } else {
     // For a pointer to data member, start off with the offset of the field in
     // the class in which it was declared, and convert from there if necessary.
@@ -3021,7 +3024,8 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
 }
 
 llvm::Constant *
-MicrosoftCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD) {
+MicrosoftCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD,
+                                           bool AllowVirtual) {
   assert(MD->isInstance() && "Member function must not be static!");
 
   CharUnits NonVirtualBaseAdjustment = CharUnits::Zero();
@@ -3031,7 +3035,9 @@ MicrosoftCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD) {
   unsigned VBTableIndex = 0;
   llvm::Constant *FirstField;
   const FunctionProtoType *FPT = MD->getType()->castAs<FunctionProtoType>();
-  if (!MD->isVirtual()) {
+  // A devirtualized pointer (declcall of a qualified virtual call, AllowVirtual
+  // == false) points directly at the function rather than at a vftable thunk.
+  if (!MD->isVirtual() || !AllowVirtual) {
     llvm::Type *Ty;
     // Check whether the function has a computable LLVM signature.
     if (Types.isFuncTypeConvertible(FPT)) {

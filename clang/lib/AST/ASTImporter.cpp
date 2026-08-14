@@ -666,6 +666,7 @@ namespace clang {
     ExpectedStmt VisitOffsetOfExpr(OffsetOfExpr *OE);
     ExpectedStmt VisitCXXThrowExpr(CXXThrowExpr *E);
     ExpectedStmt VisitCXXNoexceptExpr(CXXNoexceptExpr *E);
+    ExpectedStmt VisitCXXDeclcallExpr(CXXDeclcallExpr *E);
     ExpectedStmt VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E);
     ExpectedStmt VisitCXXScalarValueInitExpr(CXXScalarValueInitExpr *E);
     ExpectedStmt VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E);
@@ -8561,6 +8562,22 @@ ExpectedStmt ASTNodeImporter::VisitCXXNoexceptExpr(CXXNoexceptExpr *E) {
       ToType, ToOperand, ToCanThrow, ToBeginLoc, ToEndLoc);
 }
 
+ExpectedStmt ASTNodeImporter::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
+  Error Err = Error::success();
+  auto ToType = importChecked(Err, E->getType());
+  auto ToOperand =
+      importChecked(Err, E->getOperand()); // FIXME: dependent values?!
+  auto ToSourceExpr = importChecked(Err, E->getSourceExpr());
+  auto ToBeginLoc = importChecked(Err, E->getBeginLoc());
+  auto ToEndLoc = importChecked(Err, E->getEndLoc());
+  if (Err)
+    return std::move(Err);
+
+  return new (Importer.getToContext())
+      CXXDeclcallExpr(ToType, ToOperand, ToSourceExpr, E->isDevirtualized(),
+                      ToBeginLoc, ToEndLoc);
+}
+
 ExpectedStmt ASTNodeImporter::VisitCXXThrowExpr(CXXThrowExpr *E) {
   Error Err = Error::success();
   auto ToSubExpr = importChecked(Err, E->getSubExpr());
@@ -10866,7 +10883,8 @@ ASTNodeImporter::ImportAPValue(const APValue &FromValue) {
         Result.setMemberPointerUninit(
             cast<const ValueDecl>(ImpMemPtrDecl),
             FromValue.isMemberPointerToDerivedMember(),
-            FromValue.getMemberPointerPath().size());
+            FromValue.getMemberPointerPath().size(),
+            FromValue.isDeVirtualized());
     ArrayRef<const CXXRecordDecl *> FromPath = Result.getMemberPointerPath();
     for (unsigned Idx = 0; Idx < FromValue.getMemberPointerPath().size();
          Idx++) {
