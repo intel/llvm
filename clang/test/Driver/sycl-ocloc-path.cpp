@@ -90,3 +90,26 @@
 // RUN:     --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-UNUSED %s
 // CHK-OCLOC-PATH-UNUSED-NOT: warning: argument unused during compilation
+
+/// Check that a --ocloc-path= directory whose name contains spaces is
+/// composed and quoted correctly.
+// RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:     --ocloc-path="/my/ocloc dir/with spaces" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SPACES-OLD %s
+// CHK-OCLOC-PATH-SPACES-OLD: "/my/ocloc dir/with spaces{{[/\\]+}}ocloc{{(\.exe)?}}" "-output"
+// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:     --sysroot=%S/Inputs/SYCL --ocloc-path="/my/ocloc dir/with spaces" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SPACES-NEW %s
+// CHK-OCLOC-PATH-SPACES-NEW: clang-linker-wrapper{{.*}} "--ocloc-path=/my/ocloc dir/with spaces"
+// RUN:   %clangxx -### --target=spirv64 --sycl-link \
+// RUN:     --ocloc-path="/my/ocloc dir/with spaces" %t.bc 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SPACES-SYCL-LINK %s
+// CHK-OCLOC-PATH-SPACES-SYCL-LINK: clang-sycl-linker{{.*}} "--ocloc-path=/my/ocloc dir/with spaces"
+
+/// Check that a real --ocloc-path= directory containing spaces is actually
+/// located and used to launch the tool.
+// RUN:   rm -rf "%t.dir with spaces" && mkdir -p "%t.dir with spaces"
+// RUN:   not %clang -fsycl -fsycl-help=gen \
+// RUN:     --ocloc-path="%t.dir with spaces" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SPACES-ERR %s
+// CHK-OCLOC-PATH-SPACES-ERR: error: unable to execute command: {{.*}}dir with spaces{{[/\\]+}}ocloc
