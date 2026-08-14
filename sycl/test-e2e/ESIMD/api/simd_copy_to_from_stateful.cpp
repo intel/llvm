@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: arch-intel_gpu_pvc
+// REQUIRES: !arch-intel_gpu_pvc
+// There is a separate version of this test for PVC.
 // Use -O2 to avoid huge stack usage under -O0.
 // RUN: %{build} -O2 -fno-sycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
