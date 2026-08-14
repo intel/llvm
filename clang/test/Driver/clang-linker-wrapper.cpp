@@ -153,6 +153,19 @@
 // RUN: not clang-linker-wrapper --ocloc-path= --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH-NOARG %s
 // CHK-OCLOC-PATH-NOARG: no directory given for '--ocloc-path='
 
+// "/<arch>" qualifier on --device-compiler=/--device-linker= routes each
+// value to that arch's ocloc call and per-arch sycl-post-link output name.
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_skl -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t1_skl.o
+// RUN: clang-linker-wrapper \
+// RUN:   --device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-extraopt_pvc \
+// RUN:   --device-compiler=sycl:spir64_gen-unknown-unknown/skl=-extraopt_skl \
+// RUN:   --linker-path=/usr/bin/ld -o /dev/null %t1.o %t1_skl.o --dry-run 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PER-ARCH-DC %s
+// CHK-PER-ARCH-DC-DAG: sycl-post-link{{.*}} -o intel_gpu_pvc,{{.*}}.table
+// CHK-PER-ARCH-DC-DAG: ocloc{{.*}} -device pvc{{.*}}-extraopt_pvc
+// CHK-PER-ARCH-DC-DAG: sycl-post-link{{.*}} -o intel_gpu_skl,{{.*}}.table
+// CHK-PER-ARCH-DC-DAG: ocloc{{.*}} -device skl{{.*}}-extraopt_skl
+
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
 // -------
 // Generate .o file as linker wrapper input.

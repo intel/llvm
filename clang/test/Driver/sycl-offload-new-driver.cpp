@@ -155,17 +155,43 @@
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown=-backend-gen-opt"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-backend-cpu-opt"
 
-/// Test that -Xsycl-target-backend and -Xsycl-target-linker options for an
-/// AOT (ocloc) target are forwarded via --device-compiler=/--device-linker=
-/// respectively, each token as its own argument, the same as for JIT
-/// targets.
+/// -Xsycl-target-backend/-Xsycl-target-linker forward to
+/// --device-compiler=/--device-linker= one token per occurrence; per-arch
+/// routing rides on a "/<arch>" qualifier appended to the triple key.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl-targets=intel_gpu_pvc \
 // RUN:          -Xsycl-target-backend -opt1 -Xsycl-target-linker -opt2 \
 // RUN:          -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_AOT_SEPARATE %s
-// WRAPPER_OPTIONS_AOT_SEPARATE: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-opt1"
-// WRAPPER_OPTIONS_AOT_SEPARATE-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=-opt2"
+// WRAPPER_OPTIONS_AOT_SEPARATE: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-opt1"
+// WRAPPER_OPTIONS_AOT_SEPARATE-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown/pvc=-opt2"
+
+/// Two spir64_gen sub-targets on the same triple: each arch's tokens
+/// carry their own "/<arch>" qualifier so options don't cross-contaminate.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=spir64_gen,intel_gpu_skl \
+// RUN:          -Xsycl-target-backend=spir64_gen "-device pvc -options -extraopt_pvc" \
+// RUN:          -Xsycl-target-backend=intel_gpu_skl "-options -extraopt_skl" \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_MULTI_GEN %s
+// WRAPPER_OPTIONS_MULTI_GEN: clang-linker-wrapper
+// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-extraopt_pvc"
+// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-extraopt_skl"
+// WRAPPER_OPTIONS_MULTI_GEN-NOT: "--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-extraopt_skl"
+// WRAPPER_OPTIONS_MULTI_GEN-NOT: "--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-extraopt_pvc"
+
+/// Aliased-target case: intel_gpu_skl and raw spir64_gen "-device skl ..."
+/// name the same arch. Their per-target options must merge into the same
+/// /skl bucket rather than land under different keys or drop each other.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=spir64_gen,intel_gpu_skl \
+// RUN:          -Xsycl-target-backend=spir64_gen "-device skl -options extraopt_skl1" \
+// RUN:          -Xsycl-target-backend=intel_gpu_skl "-options -extraopt_skl2" \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_SAME_ARCH %s
+// WRAPPER_OPTIONS_SAME_ARCH: clang-linker-wrapper
+// WRAPPER_OPTIONS_SAME_ARCH-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/skl=extraopt_skl1"
+// WRAPPER_OPTIONS_SAME_ARCH-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-extraopt_skl2"
 
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \

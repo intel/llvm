@@ -11014,10 +11014,12 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
                                        *HostTC, Arch.ArchName);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                        Arch.ArchName);
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                       Arch.ArchName);
       createArgString("link-opts=");
     }
 
@@ -12331,6 +12333,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -Xdevice-post-link -> --sycl-post-link-options
     // -Xspirv-translator -> --llvm-spirv-options
     // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
+    // For spir64_gen the value is qualified with "/<arch>" and emitted per
+    // (triple, arch) to keep per-arch tokens from crossing across archs.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
@@ -12338,20 +12342,42 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
-      ArgStringList BuildArgs;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        CmdArgs.push_back(
-            Args.MakeArgString("--device-compiler=" +
-                               Action::GetOffloadKindName(Action::OFK_SYCL) +
-                               ":" + TC->getTripleString() + "=" + A));
 
-      BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
-            ":" + TC->getTripleString() + "=" + A));
+      SmallVector<StringRef, 4> Devices;
+      if (TC->getTriple().isSPIR() &&
+          TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        for (BoundArch BA : C.getDriver().getOffloadArchs(
+                 C, C.getArgs(), Action::OFK_SYCL, *TC))
+          if (!BA.ArchName.empty())
+            Devices.push_back(BA.ArchName);
+      }
+      if (Devices.empty())
+        Devices.push_back(StringRef());
+
+      // One --device-compiler/--device-linker per token; per-arch routing
+      // rides on the key (<triple>/<arch>). Preserves dd9abc1's per-token
+      // AOT forwarding invariant. Wrapper filters by key, no reparse.
+      StringRef KindPrefix = Action::GetOffloadKindName(Action::OFK_SYCL);
+      ArgStringList BuildArgs;
+      for (StringRef Device : Devices) {
+        SmallString<64> Key(TC->getTripleString());
+        if (!Device.empty()) {
+          Key += '/';
+          Key += Device;
+        }
+        BuildArgs.clear();
+        SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                          Device);
+        for (const char *T : BuildArgs)
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-compiler=" + KindPrefix + ":" + Key + "=" + T));
+        BuildArgs.clear();
+        SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                         Device);
+        for (const char *T : BuildArgs)
+          CmdArgs.push_back(Args.MakeArgString("--device-linker=" + KindPrefix +
+                                               ":" + Key + "=" + T));
+      }
 
       BuildArgs.clear();
       SYCLTC.TranslateTargetOpt(

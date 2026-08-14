@@ -2569,12 +2569,11 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   if (llvm::all_of(Input, ContainsBitcode))
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
-  // This function filters the SYCL device compiler, linker, sycl-post-link,
-  // llvm-spirv and spirv-to-ir-wrapper options by target triple and offload
-  // kind. The options accept values in the form [<kind>:][<triple>=]<value>.
-  // An example of passing such an option to clang-linker-wrapper is:
-  // --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
+  // Filter by kind, triple, and optional /<arch> qualifier on the key.
+  // Format: [<kind>:][<triple>[/<arch>]=]<value>. Entries without /<arch>
+  // apply to every arch of the matching triple.
   const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
+  const StringRef ArchStr = DAL.getLastArgValue(OPT_arch_EQ);
   auto ProcessDeviceArgs = [&](llvm::opt::OptSpecifier DeviceArgsOptionID,
                                llvm::opt::OptSpecifier ForwardedOptionID) {
     for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
@@ -2587,11 +2586,14 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
       }
       size_t EqPos = DeviceArgValue.find('=');
       if (EqPos != StringRef::npos) {
-        StringRef ArgTargetTripleStr = DeviceArgValue.take_front(EqPos);
+        StringRef Key = DeviceArgValue.take_front(EqPos);
+        auto [ArgTargetTripleStr, ArgArchStr] = Key.split('/');
         llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
         // If this isn't a recognized triple then it's an `arg=value` option.
         if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
           if (ArgTargetTripleStr != TripleStr)
+            continue;
+          if (!ArgArchStr.empty() && ArgArchStr != ArchStr)
             continue;
           DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
         }
