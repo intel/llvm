@@ -65,7 +65,20 @@ bool isNumericIntelGpuAlias(std::string_view Name) {
          std::isdigit(static_cast<unsigned char>(Name[Prefix.size()]));
 }
 
-std::string getArchitectureName(syclex::architecture Arch) {
+std::string getCanonicalArchitectureName(syclex::architecture Arch) {
+  switch (Arch) {
+#define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
+  case syclex::architecture::ARCH:                                             \
+    return #ARCH;
+#define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
+#include <sycl/ext/oneapi/experimental/device_architecture.def>
+#undef __SYCL_ARCHITECTURE
+#undef __SYCL_ARCHITECTURE_ALIAS
+  }
+  return "unknown";
+}
+
+std::string getPossibleArchitectureNames(syclex::architecture Arch) {
   static constexpr ArchitectureNameEntry ArchitectureNames[] = {
 #define __SYCL_ARCHITECTURE(ARCH, VAL) {syclex::architecture::ARCH, #ARCH},
 #define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL) {syclex::architecture::VAL, #ARCH},
@@ -126,7 +139,7 @@ std::string getDeviceTypeName(const device &Device) {
 
 std::string getArchName(const device &Device) {
   auto Arch = Device.get_info<syclex::info::device::architecture>();
-  return getArchitectureName(Arch);
+  return getCanonicalArchitectureName(Arch);
 }
 
 template <typename RangeTy, typename ElemTy>
@@ -239,8 +252,13 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     for (auto size : sg_sizes)
       std::cout << " " << size;
     std::cout << std::endl;
-    std::cout << Prepend << "Architecture: " << getArchName(Device)
-              << std::endl;
+    auto Arch = Device.get_info<syclex::info::device::architecture>();
+    auto CanonicalArch = getCanonicalArchitectureName(Arch);
+    std::cout << Prepend << "Architecture: " << CanonicalArch << std::endl;
+    auto PossibleArchitectures = getPossibleArchitectureNames(Arch);
+    if (PossibleArchitectures != CanonicalArch)
+      std::cout << Prepend << "Possible architectures: "
+                << PossibleArchitectures << std::endl;
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;
