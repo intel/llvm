@@ -62,6 +62,12 @@ public:
   nd_range(nd_range<Dimensions> &&rhs) = default;
   nd_range<Dimensions> &operator=(const nd_range<Dimensions> &rhs) = default;
   nd_range<Dimensions> &operator=(nd_range<Dimensions> &&rhs) = default;
+
+  // nd_range has no default constructor in SYCL 2020, but one is kept as an
+  // extension for backwards compatibility with code that default-constructs
+  // and later assigns an nd_range.
+  nd_range() = default;
+
   ~nd_range() = default;
 
   // Common hidden friend functions for by-value semantics
