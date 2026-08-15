@@ -44,6 +44,7 @@ else()
     add_l0_loader_kernels_test(kernel_create urKernelCreateWithNativeHandle.cpp)
     add_l0_loader_kernels_test(event_create urEventCreateWithNativeHandle.cpp)
     add_conformance_kernels_test(enqueue_alloc enqueue_alloc.cpp)
+    add_l0_loader_kernels_test(discard_events_in_order discard_events_in_order.cpp)
 endif()
 
 add_testing_binary(confirm_version confirm_version.cpp)
