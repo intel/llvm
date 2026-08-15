@@ -95,7 +95,8 @@ void GlobalOffsetPass::createClonesAndPopulateVMap(
     const bool IsKernel = KCache.isKernel(*Func);
     FunctionType *FuncTy = Func->getFunctionType();
     Type *ImplicitArgumentType =
-        IsKernel ? KernelImplicitArgumentType->getPointerTo()
+        IsKernel ? PointerType::get(KernelImplicitArgumentType->getContext(),
+                                    KernelOffsetArgAS)
                  : ImplicitOffsetPtrType;
 
     // Construct an argument list containing all of the previous arguments.
@@ -160,6 +161,12 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
     // happy with ADDRESS_SPACE_GENERIC (0).
     TargetAS = T.isNVPTX() ? 0 : 5;
+    // The kernel argument segment is in CONSTANT (4) on AMDGCN, which is also
+    // where clang puts `byref` kernel arguments. Keeping the implicit offset
+    // pointer generic makes the module fail verification with "Calling
+    // convention disallows stack byref" whenever the alloca address space is
+    // 0, e.g. when the kernel is linked from a static archive.
+    KernelOffsetArgAS = T.isNVPTX() ? 0 : 4;
     KernelImplicitArgumentType =
         ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
     ImplicitOffsetPtrType = PointerType::get(M.getContext(), TargetAS);
@@ -200,7 +207,7 @@ void GlobalOffsetPass::processKernelEntryPoint(
   // Add the new argument to all other kernel entry points, despite not
   // using the global offset.
   auto *NewFunc = addOffsetArgumentToFunction(
-                      M, Func, PointerType::getUnqual(Func->getContext()),
+                      M, Func, PointerType::get(Ctx, KernelOffsetArgAS),
                       /*KeepOriginal=*/true,
                       /*IsKernel=*/true)
                       .first;

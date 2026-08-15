@@ -120,6 +120,12 @@ private:
   llvm::DenseMap<StringRef, DISubprogram *> DISubprogramMap;
 
   unsigned TargetAS = 0;
+  /// Address space of the pointer to the implicit offset passed to a kernel
+  /// entry point. On AMDGCN the kernel argument segment lives in addrspace(4);
+  /// a `byref` argument in the alloca address space is rejected by the
+  /// verifier, and a generic (addrspace(0)) one is rejected whenever the
+  /// module being verified has no AMDGPU data layout.
+  unsigned KernelOffsetArgAS = 0;
 };
 
 ModulePass *createGlobalOffsetPassLegacy();
