@@ -524,6 +524,27 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "--compute-benchmarks-source-dir",
+        type=str,
+        help="Use this compute-benchmarks source dir instead of cloning the repository. "
+        "If the dir is not a git repository, benchmarks are always rebuilt.",
+        default=options.compute_benchmarks_source_dir,
+    )
+    parser.add_argument(
+        "--offload-prefix",
+        type=str,
+        help="LLVM install prefix containing libLLVMOffload in lib and OffloadAPI.h "
+        "in include/offload. Enables the OFFLOAD SubmitKernel benchmark.",
+        default=options.offload_prefix,
+    )
+    parser.add_argument(
+        "--force-offload-plugin",
+        type=str,
+        help="Backend name (level_zero/cuda/amdgpu/host) exported as FORCE_OFFLOAD_PLUGIN "
+        "for the benchmark executable process.",
+        default=options.force_offload_plugin,
+    )
+    parser.add_argument(
         "--env",
         type=str,
         help="Use env variable for a benchmark run.",
@@ -784,6 +805,9 @@ if __name__ == "__main__":
     options.workdir = args.benchmark_directory
     options.offline = args.offline
     options.redownload = args.redownload
+    options.compute_benchmarks_source_dir = args.compute_benchmarks_source_dir
+    options.offload_prefix = args.offload_prefix
+    options.force_offload_plugin = args.force_offload_plugin
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
@@ -826,7 +850,23 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
-
+    if args.compute_benchmarks_source_dir is not None:
+        if not os.path.isdir(args.compute_benchmarks_source_dir):
+            parser.error(
+                "Specified --compute-benchmarks-source-dir is not a valid path"
+            )
+        options.compute_benchmarks_source_dir = os.path.abspath(
+            args.compute_benchmarks_source_dir
+        )
+    if args.offload_prefix is not None:
+        offload_prefix = os.path.abspath(args.offload_prefix)
+        if not os.path.isdir(os.path.join(offload_prefix, "lib")):
+            parser.error("Specified --offload-prefix does not contain a lib directory")
+        if not os.path.isdir(os.path.join(offload_prefix, "include", "offload")):
+            parser.error(
+                "Specified --offload-prefix does not contain an include/offload directory"
+            )
+        options.offload_prefix = offload_prefix
     # Initialize GitHub summary tracking
     execution_stats = {
         "total_tests": 0,

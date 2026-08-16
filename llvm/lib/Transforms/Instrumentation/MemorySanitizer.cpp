@@ -1072,9 +1072,11 @@ void MemorySanitizerOnSpirv::instrumentGlobalVariables() {
   ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  std::string MsanDeviceGlobalMetadataName =
+      ("__MsanDeviceGlobalMetadata_" + computeMetadataUniqueId(M)).str();
   GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__MsanDeviceGlobalMetadata", nullptr,
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, MsanDeviceGlobalMetadataName, nullptr,
       GlobalValue::NotThreadLocal, 1);
   MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
 }
@@ -1260,7 +1262,6 @@ void MemorySanitizerOnSpirv::instrumentPrivateArguments(
 // kernel
 void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
-  SmallVector<uint8_t, 256> KernelNamesBytes;
 
   // Insert global __msan_track_origins to indicate if origin track is enabled.
   M.getOrInsertGlobal("__msan_track_origins", Int32Ty, [&] {
@@ -1286,7 +1287,6 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
         continue;
 
       auto KernelName = F.getName();
-      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
       auto *KernelNameGV = getOrCreateGlobalString("__msan_kernel", KernelName,
                                                    kSpirOffloadConstantAS);
 
@@ -1310,9 +1310,11 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  std::string MsanKernelMetadataName =
+      ("__MsanKernelMetadata_" + computeMetadataUniqueId(M)).str();
   GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__MsanKernelMetadata", nullptr,
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, MsanKernelMetadataName, nullptr,
       GlobalValue::NotThreadLocal, 1);
   MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
   // Add device global attributes
@@ -1321,9 +1323,8 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
   MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   MsanSpirKernelMetadata->addAttribute("sycl-host-access",
                                        "0"); // read only
-  MsanSpirKernelMetadata->addAttribute(
-      "sycl-unique-id",
-      computeKernelMetadataUniqueId("__MsanKernelMetadata", KernelNamesBytes));
+  MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       MsanKernelMetadataName);
   MsanSpirKernelMetadata->setDSOLocal(true);
 }
 

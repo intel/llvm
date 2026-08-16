@@ -216,12 +216,9 @@ struct ur_event_handle_t_ : ur_object_t {
   // Indicates within creation of proxy event.
   bool IsCreatingHostProxyEvent = {false};
 
-  // Indicates the recorded start and end timestamps for the event. These are
-  // only set for events returned by timestamp recording enqueue functions.
-  // A non-zero value for RecordEventStartTimestamp indicates the event was the
-  // result of a timestamp recording. If RecordEventEndTimestamp is non-zero, it
-  // means the event has fetched the end-timestamp from the queue.
-  uint64_t RecordEventStartTimestamp = 0;
+  // The GPU-written global timestamp for a timestamp-recording event. Set to a
+  // non-zero adjusted value once the end-timestamp has been fetched from the
+  // queue; IsTimestamped tells whether the event is timestamp-recording.
   uint64_t RecordEventEndTimestamp = 0;
 
   // Besides each PI object keeping a total reference count in

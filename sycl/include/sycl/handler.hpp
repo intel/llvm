@@ -364,10 +364,25 @@ private:
     setType(detail::CGType::Kernel);
   }
 
+  // Sets up this handler to launch the free function kernel `Func` directly,
+  // resolving its DeviceKernelInfo by name (cached in a function-local static
+  // by getDeviceKernelInfo<Func>, so no per-launch kernel bundle is built).
+  // The arguments must have been provided beforehand via set_arg(s) and the
+  // range/nd-range set by the caller.
+  template <auto *Func> void setFreeFunctionKernelInfo() {
+    MKernelName = detail::FreeFunctionInfoData<Func>::getFunctionName();
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<Func>());
+    setType(detail::CGType::Kernel);
+  }
+
   void setDeviceKernelInfo(kernel &&Kernel);
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
+
+  /// Extracts and prepares kernel arguments set via set_arg(s) for a free
+  /// function kernel launched by name (no interop kernel object involved).
+  void extractFreeFunctionArgsAndReqs();
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
@@ -1067,6 +1082,8 @@ private:
   kernel_bundle<bundle_state::input> getKernelBundle() const;
 
 public:
+  handler() = delete;
+
   handler(const handler &) = delete;
   handler(handler &&) = delete;
   handler &operator=(const handler &) = delete;
@@ -1412,6 +1429,27 @@ public:
     convertToRangeViewAndSetDescriptor(range<1>{1});
     setDeviceKernelInfo(std::move(Kernel));
     extractArgsAndReqs();
+  }
+
+  // Launches the free function kernel `Func` directly, without materializing a
+  // kernel object or building a kernel bundle in the enqueue functions header.
+  // The kernel is resolved by name through the cached getDeviceKernelInfo<Func>
+  // and enqueued via the fast (scheduler-bypass-capable) path in finalize().
+  // Kernel arguments must have been set beforehand via set_arg(s).
+  template <auto *Func> void single_task_free_function() {
+    throwIfActionIsCreated();
+    convertToRangeViewAndSetDescriptor(range<1>{1});
+    setFreeFunctionKernelInfo<Func>();
+    extractFreeFunctionArgsAndReqs();
+  }
+
+  template <auto *Func, int Dims, typename PropertiesT>
+  void nd_launch_free_function(nd_range<Dims> NDRange, PropertiesT Props) {
+    throwIfActionIsCreated();
+    convertToRangeViewAndSetDescriptor(std::move(NDRange));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
+    setFreeFunctionKernelInfo<Func>();
+    extractFreeFunctionArgsAndReqs();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {

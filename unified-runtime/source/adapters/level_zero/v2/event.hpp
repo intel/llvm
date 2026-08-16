@@ -28,8 +28,9 @@ class event_pool;
 struct event_profiling_data_t {
   event_profiling_data_t(ze_event_handle_t hZeEvent) : hZeEvent(hZeEvent) {}
 
-  void recordStartTimestamp(ur_device_handle_t hDevice);
-  uint64_t getEventStartTimestmap() const;
+  // Cache the device timer resolution/mask and mark the event as
+  // timestamp-recording.
+  void initTimestampRecording(ur_device_handle_t hDevice);
 
   uint64_t getEventEndTimestamp();
   uint64_t *eventEndTimestampAddr();
@@ -43,7 +44,6 @@ struct event_profiling_data_t {
 private:
   ze_event_handle_t hZeEvent;
 
-  uint64_t adjustedEventStartTimestamp = 0;
   uint64_t recordEventEndTimestamp = 0;
   uint64_t adjustedEventEndTimestamp = 0;
 
@@ -127,16 +127,14 @@ public:
   // Get the device associated with this event
   ur_device_handle_t getDevice() const;
 
-  // Record the start timestamp of the event, to be obtained by
-  // urEventGetProfilingInfo. setQueue should be
-  // called before this.
-  void recordStartTimestamp();
+  // Mark this event as recording a GPU-written global timestamp, obtainable via
+  // urEventGetProfilingInfo. setQueue must be called first.
+  void initTimestampRecording();
 
-  // Get pointer to the end timestamp, and ze event handle.
+  // Get pointer to the timestamp storage, and ze event handle.
   // Caller is responsible for signaling the event once the timestamp is ready.
   std::pair<uint64_t *, ze_event_handle_t> getEventEndTimestampAndHandle();
 
-  uint64_t getEventStartTimestmap() const;
   uint64_t getEventEndTimestamp();
 
   ur::RefCount RefCount;

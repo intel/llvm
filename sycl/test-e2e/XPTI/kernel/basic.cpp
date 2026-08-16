@@ -21,27 +21,29 @@ constexpr sycl::specialization_id<int> int_id(42);
 class Functor1 {
 public:
   Functor1(short X_,
-           sycl::accessor<int, 1, mode::read_write, target::device> &Acc_)
+           sycl::accessor<int, 1, sycl::access_mode::read_write, target::device>
+               &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()() const { Acc[0] += X; }
 
 private:
   short X;
-  sycl::accessor<int, 1, mode::read_write, target::device> Acc;
+  sycl::accessor<int, 1, sycl::access_mode::read_write, target::device> Acc;
 };
 
 class Functor2 {
 public:
   Functor2(short X_,
-           sycl::accessor<int, 1, mode::read_write, target::device> &Acc_)
+           sycl::accessor<int, 1, sycl::access_mode::read_write, target::device>
+               &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()(sycl::id<1> id = 0) const { Acc[id] += X; }
 
 private:
   short X;
-  sycl::accessor<int, 1, mode::read_write, target::device> Acc;
+  sycl::accessor<int, 1, sycl::access_mode::read_write, target::device> Acc;
 };
 
 int main() {
