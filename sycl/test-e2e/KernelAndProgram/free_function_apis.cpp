@@ -233,10 +233,10 @@ bool test_bundle_apis(queue Queue) {
   std::cout << "PassR=" << PassR << std::endl;
   Pass &= PassR;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   kernel_bundle Bundle_ff2 = ext::oneapi::experimental::get_kernel_bundle<
       ff_2, bundle_state::executable>(Context);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool PassS =
       ext::oneapi::experimental::get_kernel_info<ff_2,
                                                  info::kernel::function_name>(

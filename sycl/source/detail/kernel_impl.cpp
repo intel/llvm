@@ -11,7 +11,6 @@
 #include <detail/kernel_impl.hpp>
 
 #include <memory>
-#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -125,11 +124,11 @@ std::string_view kernel_impl::getName() const {
     Adapter.call<UrApiKind::urKernelGetInfo>(
         MKernel, UR_KERNEL_INFO_FUNCTION_NAME, 0u, nullptr, &NameSize);
     if (NameSize > 0) {
-      std::vector<char> NameBuf(NameSize);
-      Adapter.call<UrApiKind::urKernelGetInfo>(
-          MKernel, UR_KERNEL_INFO_FUNCTION_NAME, NameSize, NameBuf.data(),
-          nullptr);
-      MName = std::string(NameBuf.data());
+      MName.resize(NameSize);
+      Adapter.call<UrApiKind::urKernelGetInfo>(MKernel,
+                                               UR_KERNEL_INFO_FUNCTION_NAME,
+                                               NameSize, MName.data(), nullptr);
+      MName.pop_back();
     }
   });
 

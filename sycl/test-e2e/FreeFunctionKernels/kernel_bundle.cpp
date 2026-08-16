@@ -1,4 +1,4 @@
-// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <algorithm>
@@ -33,48 +33,35 @@ template <auto *Func> int test_free_function_kernel_id(sycl::context &ctxt) {
   return res;
 }
 
-template <auto *Func>
-int test_kernel_bundle_ctxt(sycl::context &ctxt, std::string_view fname) {
+template <auto *Func> int test_kernel_bundle_ctxt(sycl::context &ctxt) {
   sycl::kernel_id id = syclexp::get_kernel_id<Func>();
   auto exe_bndl =
       syclexp::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
-  bool res = exe_bndl.has_kernel(id);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  res =
-      res &&
-      exe_bndl.get_kernel(id)
-              .template get_info<sycl::info::kernel::function_name>() == fname;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-  if (!res)
+  const bool failed =
+      !exe_bndl.has_kernel(id) || exe_bndl.get_kernel(id).get_context() != ctxt;
+  if (failed)
     std::cout
         << FFTestMark
         << "test_kernel_bundle_ctxt failed: bundle does not contain kernel id "
-           "or function name "
-        << fname << std::endl;
-  return res;
+           "or kernel has an unexpected context"
+        << std::endl;
+  return failed;
 }
 
 template <auto *Func>
-int test_kernel_bundle_ctxt_dev(sycl::context &ctxt, sycl::device &dev,
-                                std::string_view fname) {
+int test_kernel_bundle_ctxt_dev(sycl::context &ctxt, sycl::device &dev) {
   sycl::kernel_id id = syclexp::get_kernel_id<Func>();
   auto exe_bndl =
       syclexp::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt,
                                                                        {dev});
-  bool res = exe_bndl.has_kernel(id);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  res =
-      res &&
-      exe_bndl.get_kernel(id)
-              .template get_info<sycl::info::kernel::function_name>() == fname;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-  if (!res)
+  const bool failed = !exe_bndl.has_kernel(id, dev) ||
+                      exe_bndl.get_kernel(id).get_context() != ctxt;
+  if (failed)
     std::cout << FFTestMark
               << "test_kernel_bundle_ctxt_dev failed: bundle does not contain "
-                 "kernel id "
-                 "or function name "
-              << fname << std::endl;
-  return res;
+                 "kernel id for device or kernel has an unexpected context"
+              << std::endl;
+  return failed;
 }
 
 int main() {
@@ -84,9 +71,9 @@ int main() {
 
   int ret = test_free_function_kernel_id<func_range>(ctxt);
   ret |= test_free_function_kernel_id<func_single>(ctxt);
-  ret |= test_kernel_bundle_ctxt<func_range>(ctxt, "func_range");
-  ret |= test_kernel_bundle_ctxt<func_single>(ctxt, "func_single");
-  ret |= test_kernel_bundle_ctxt_dev<func_range>(ctxt, dev, "func_range");
-  ret |= test_kernel_bundle_ctxt_dev<func_single>(ctxt, dev, "func_single");
+  ret |= test_kernel_bundle_ctxt<func_range>(ctxt);
+  ret |= test_kernel_bundle_ctxt<func_single>(ctxt);
+  ret |= test_kernel_bundle_ctxt_dev<func_range>(ctxt, dev);
+  ret |= test_kernel_bundle_ctxt_dev<func_single>(ctxt, dev);
   return ret;
 }
