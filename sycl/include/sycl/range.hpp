@@ -67,7 +67,7 @@ public:
   range(range<Dimensions> &&rhs) = default;
   range<Dimensions> &operator=(const range<Dimensions> &rhs) = default;
   range<Dimensions> &operator=(range<Dimensions> &&rhs) = default;
-  range() = default;
+  range() noexcept = default;
 
   ~range() = default;
 
