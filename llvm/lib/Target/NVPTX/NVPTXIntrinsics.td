@@ -6428,6 +6428,7 @@ class Tcgen05MMABase<bit IsSparse, string ASpace, string Kind, int CtaGroup,
                   !eq(Kind, "tf32"): 1,
                   !eq(Kind, "f8f6f4"): 2,
                   !eq(Kind, "i8"): 3,
+                  !eq(Kind, "ti16"): 4,
                 );
 
   bit HasCollectorBQualifier = !ne(CollectorUsageB, "discard");
@@ -6480,6 +6481,7 @@ class Tcgen05MMAInst<bit IsSparse, string ASpace, string Kind, int CtaGroup,
   let Predicates = !listconcat(
     !if(HasCollectorBQualifier, [hasRubinFamilySupport], []),
     !cond(
+      !eq(Kind, "ti16") : [hasRubinFamilySupport],
       IsScaleInputD : [hasTcgen05MMAScaleInputDImm],
       !eq(Kind, "i8") : [hasTcgen05MMAI8Kind],
       true : [hasTcgen05InstSupport]
@@ -6518,7 +6520,7 @@ class Tcgen05MMAInst<bit IsSparse, string ASpace, string Kind, int CtaGroup,
 // tcgen05.mma
 foreach sparse = [0, 1] in {
   foreach space = ["tensor", "shared"] in {
-    foreach kind = ["f16", "tf32", "f8f6f4", "i8"] in {
+    foreach kind = ["f16", "tf32", "f8f6f4", "i8", "ti16"] in {
       foreach cta_group = [1, 2] in {
         foreach collector_usage_a = ["discard", "lastuse", "fill", "use"] in {
           foreach scale_input_d = !if(!or(!eq(kind, "f16"),
@@ -6586,6 +6588,7 @@ class Tcgen05MMADisableOutputLaneInst<bit IsSparse, string ASpace, string Kind,
   let Predicates = !listconcat(
     !if(HasCollectorBQualifier, [hasRubinFamilySupport], []),
     !cond(
+      !eq(Kind, "ti16") : [hasRubinFamilySupport],
       IsScaleInputD : [hasTcgen05MMAScaleInputDImm],
       !eq(Kind, "i8") : [hasTcgen05MMAI8Kind],
       true : [hasTcgen05InstSupport]
@@ -6650,7 +6653,7 @@ class Tcgen05MMADisableOutputLaneInst<bit IsSparse, string ASpace, string Kind,
 // tcgen05.mma.disable_output_lane
 foreach sparse = [0, 1] in {
   foreach space = ["tensor", "shared"] in {
-    foreach kind = ["f16", "tf32", "f8f6f4", "i8"] in {
+    foreach kind = ["f16", "tf32", "f8f6f4", "i8", "ti16"] in {
       foreach cta_group = [1, 2] in {
         foreach collector_usage_a = ["fill", "use", "lastuse", "discard"] in {
           foreach scale_input_d = !if(!or(!eq(kind, "f16"),
@@ -6754,6 +6757,7 @@ class Tcgen05MMAWSInst<bit IsSparse, string ASpace, string Kind,
         Tcgen05MMABase<IsSparse, ASpace, Kind, /*CtaGroup=*/ 1, CollectorUsage> {
 
   let Predicates = !cond(
+    !eq(Kind, "ti16") : [hasRubinFamilySupport],
     !eq(Kind, "i8") : [hasTcgen05MMAI8Kind],
     true : [hasTcgen05InstSupport]
   );
@@ -6791,7 +6795,7 @@ class Tcgen05MMAWSInst<bit IsSparse, string ASpace, string Kind,
 // tcgen05.mma.ws
 foreach sparse = [0, 1] in {
   foreach space = ["shared", "tensor"] in {
-    foreach kind = ["f16", "tf32", "f8f6f4", "i8"] in {
+    foreach kind = ["f16", "tf32", "f8f6f4", "i8", "ti16"] in {
       foreach collector_buffer_b = [0, 1, 2, 3] in {
         foreach collector_usage_op = ["discard", "fill", "use", "lastuse"] in {
           foreach zero_col_mask = [0, 1] in {
