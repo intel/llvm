@@ -4,7 +4,9 @@
 ; Packed and vector conversions are tested for general case, this test is only
 ; for scalar
 
-; RUN: llvm-spirv %s -o %t.spv --spirv-ext=+SPV_EXT_float8,+SPV_INTEL_float4,+SPV_INTEL_int4,+SPV_KHR_bfloat16,+SPV_INTEL_fp_conversions
+; RUN: llvm-spirv %s -o %t.spv --spirv-ext=+SPV_EXT_float8,+SPV_EXT_ocp_microscaling_types,+SPV_INTEL_int4,+SPV_KHR_bfloat16,+SPV_INTEL_fp_conversions
+; TODO: re-enable spirv-val once it recognizes the FloatConversionsFtoFINTEL capability (6215)
+; RUNx: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -o %t.rev.bc -r
@@ -13,12 +15,13 @@
 
 ; CHECK-SPIRV-DAG: Capability Int4TypeINTEL
 ; CHECK-SPIRV-DAG: Capability Float8EXT
+; CHECK-SPIRV-DAG: Capability Float4EXT
 ; CHECK-SPIRV-DAG: Capability FloatConversionsFtoFINTEL
 ; CHECK-SPIRV-DAG: Capability FloatConversionsFtoSINTEL
 
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_int4"
 ; CHECK-SPIRV-DAG: Extension "SPV_EXT_float8"
-; CHECK-SPIRV-DAG: Extension "SPV_INTEL_float4"
+; CHECK-SPIRV-DAG: Extension "SPV_EXT_ocp_microscaling_types"
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_fp_conversions"
 
 ; CHECK-SPIRV-DAG: Name [[#hf16_hf8_clamp:]] "hf16_hf8_clamp"
@@ -60,7 +63,7 @@
 ; CHECK-SPIRV-DAG: Constant [[#Int32Ty]] [[#Int32Const:]] 1
 ; CHECK-SPIRV-DAG: TypeInt [[#Int4Ty:]] 4 0
 
-; CHECK-SPIRV-DAG: TypeFloat [[#E2M1Ty:]] 4 6214
+; CHECK-SPIRV-DAG: TypeFloat [[#E2M1Ty:]] 4 4225
 ; CHECK-SPIRV-DAG: TypeFloat [[#HFloat8Ty:]] 8 4214
 ; CHECK-SPIRV-DAG: TypeFloat [[#BFloat8Ty:]] 8 4215
 
