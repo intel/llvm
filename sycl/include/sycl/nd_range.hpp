@@ -37,6 +37,8 @@ private:
                 "nd_range can only be 1, 2, or 3 Dimensional.");
 
 public:
+  nd_range() noexcept = default;
+
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   nd_range(range<Dimensions> globalSize, range<Dimensions> localSize,
            id<Dimensions> offset) noexcept
