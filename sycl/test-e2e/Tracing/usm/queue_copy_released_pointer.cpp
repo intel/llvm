@@ -1,3 +1,5 @@
+// UNSUPPORTED: windows
+// UNSUPPORTED-INTENDED: sycl-trace is unsupported on Windows.
 // RUN: %{build} -o %t.out
 // RUN: not --crash env SYCL_TRACE_TERMINATE_ON_WARNING=1 %{run} sycl-trace --verify %t.out | FileCheck %s
 
