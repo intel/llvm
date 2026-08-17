@@ -3,7 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from .compute_benchmark import ComputeBenchmark
-from .compute_enums import RUNTIMES, PROFILERS, runtime_to_tag_name
+from .compute_enums import (
+    PROFILERS,
+    RUNTIMES,
+    TORCH_BENCHMARK_RUNTIMES,
+    runtime_to_tag_name,
+)
 
 
 class TorchBenchmark(ComputeBenchmark):
@@ -59,7 +64,7 @@ class TorchBenchmark(ComputeBenchmark):
         return ["pytorch", runtime_to_tag_name(self._runtime)]
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
-        return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
+        return TORCH_BENCHMARK_RUNTIMES.copy()
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)

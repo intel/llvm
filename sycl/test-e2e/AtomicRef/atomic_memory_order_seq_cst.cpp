@@ -36,8 +36,7 @@ void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
 
   q.submit([&](handler &cgh) {
     auto res = res_buf.template get_access<access_mode::read>(cgh);
-    auto checked =
-        checked_buf.template get_access<access_mode::discard_write>(cgh);
+    auto checked = checked_buf.get_access(cgh, sycl::write_only, sycl::no_init);
     cgh.parallel_for(nd_range<1>(N_items, 32), [=](nd_item<1> it) {
       for (int i = it.get_global_id(0); i < N_items / 2 * N_iters + 1;
            i += N_items) {
@@ -92,7 +91,7 @@ template <memory_order order> void test_global(size_t N_iters) {
   buffer<int> val_buf(&val, 1);
 
   q.submit([&](handler &cgh) {
-     auto res = res_buf.template get_access<access_mode::discard_write>(cgh);
+     auto res = res_buf.get_access(cgh, sycl::write_only, sycl::no_init);
      auto val = val_buf.template get_access<access_mode::read_write>(cgh);
      // Intentionally using a small work group size. The assumption being that
      // more sub groups mean more likely failure for the same number of
@@ -123,7 +122,7 @@ template <memory_order order> void test_local(size_t N_iters) {
   buffer<int, 2> res_buf({N_items / 2, N_iters});
 
   q.submit([&](handler &cgh) {
-     auto res = res_buf.template get_access<access_mode::discard_write>(cgh);
+     auto res = res_buf.get_access(cgh, sycl::write_only, sycl::no_init);
      local_accessor<int, 1> val(2, cgh);
      cgh.parallel_for(nd_range<1>(N_items, N_items), [=](nd_item<1> it) {
        val[0] = 0;

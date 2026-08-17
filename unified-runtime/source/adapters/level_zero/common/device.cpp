@@ -225,46 +225,6 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
-static bool
-supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
-#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
-  constexpr const char *ExtensionName =
-      ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
-  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
-
-  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
-  return Extension != Platform->zeDriverExtensionMap.end() &&
-         Extension->second >= MinVersion;
-#else
-  std::ignore = Platform;
-  return false;
-#endif
-}
-
-static std::optional<uint64_t>
-getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
-#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
-  if (!supportsDeviceUsableMemSizeExtension(Device->Platform)) {
-    return std::nullopt;
-  }
-
-  ZeStruct<ze_device_properties_t> DeviceProperties;
-  ZeStruct<ze_device_usablemem_size_ext_properties_t> UsableMemProperties;
-  DeviceProperties.pNext = &UsableMemProperties;
-
-  auto ZeResult = ZE_CALL_NOCHECK(zeDeviceGetProperties,
-                                  (Device->ZeDevice, &DeviceProperties));
-  if (ZeResult != ZE_RESULT_SUCCESS) {
-    return std::nullopt;
-  }
-
-  return UsableMemProperties.currUsableMemSize;
-#else
-  std::ignore = Device;
-  return std::nullopt;
-#endif
-}
-
 // Return the Sysman device handle and correpsonding data for the given UR
 // device.
 static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
@@ -914,21 +874,6 @@ ur_result_t urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
-    if (!ParamValue && pSize) {
-      if (supportsDeviceUsableMemSizeExtension(Device->Platform)) {
-        return ReturnValue(uint64_t{0});
-      }
-
-      auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
-      (void)ZesDevice;
-      (void)ZesDeviceData;
-      if (Result != UR_RESULT_SUCCESS) {
-        return Result;
-      }
-
-      return ReturnValue(uint64_t{0});
-    }
-
     // Calculate the global memory size as the max limit that can be reported as
     // "free" memory for the user to allocate.
     uint64_t GlobalMemSize = calculateGlobalMemSize(Device);
@@ -936,10 +881,6 @@ ur_result_t urDeviceGetInfo(
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
-
-    if (auto CoreUsableMemSize = getDeviceUsableMemSizeFromCore(Device)) {
-      return ReturnValue(std::min(GlobalMemSize, *CoreUsableMemSize));
-    }
 
     auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
@@ -1508,30 +1449,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LUID: {
-    // LUID is only available on Windows.
-    // Intel extension for device LUID. This returns the LUID as
-    // std::array<std::byte, 8>. For details about this extension,
-    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-    if (Device->Platform->ZeLUIDSupported) {
-      ze_device_properties_t DeviceProp = {};
-      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-      ze_device_luid_ext_properties_t LuidDesc = {};
-      LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
-      DeviceProp.pNext = (void *)&LuidDesc;
-
-      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
-
-      const auto &LUID = LuidDesc.luid.id;
-      return ReturnValue(LUID, sizeof(LUID));
-    } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-  }
+  case UR_DEVICE_INFO_LUID:
   case UR_DEVICE_INFO_NODE_MASK: {
-    // Device node mask is only available on Windows.
-    // Intel extension for device node mask. This returns the node mask as
-    // uint32_t. For details about this extension,
+    // LUID and Device node mask are only available on Windows.
+    // Intel extension for device LUID and node mask. This returns the LUID as
+    // std::array<std::byte, 8> the node mask as uint32_t.
+    // For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
 
     // Node mask is provided through the L0 LUID extension so support for this
@@ -1543,11 +1466,35 @@ ur_result_t urDeviceGetInfo(
       LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
       DeviceProp.pNext = (void *)&LuidDesc;
 
-      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+      const auto ZeResult = zeDeviceGetProperties(ZeDevice, &DeviceProp);
+      if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return ze2urResult(ZeResult);
+      }
 
-      return ReturnValue(LuidDesc.nodeMask);
+      const auto &LUID = LuidDesc.luid.id;
+      // If the LUID is all zeros the extension is present but not usable
+      // on this platform (e.g. Linux).
+      bool isAllZeros = true;
+      for (auto byte : LUID) {
+        if (byte != 0) {
+          isAllZeros = false;
+          break;
+        }
+      }
+      if (LuidDesc.nodeMask == 0 || isAllZeros) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+
+      if (ParamName == UR_DEVICE_INFO_LUID) {
+        return ReturnValue(LUID, sizeof(LUID));
+      } else {
+        return ReturnValue(LuidDesc.nodeMask);
+      }
     } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
   case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {

@@ -93,6 +93,10 @@ size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
 size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device);
 
+ur_result_t GetProgramMetadataNames(ur_program_handle_t Program,
+                                    std::string_view Prefix,
+                                    std::vector<std::string> &MetadataNames);
+
 template <class T>
 ur_result_t EnqueueUSMSet(ur_queue_handle_t Queue, void *Ptr, T *Value,
                           size_t Size, uint32_t NumEvents = 0,

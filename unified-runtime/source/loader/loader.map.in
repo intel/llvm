@@ -385,6 +385,7 @@
 		urPrintExpImageCopyInputTypes;
 		urPrintExpImageCopyRegion;
 		urPrintExpImageMemType;
+		urPrintExpImageUserPitchDesc;
 		urPrintExpKernelArgMemObjTuple;
 		urPrintExpKernelArgProperties;
 		urPrintExpKernelArgType;
