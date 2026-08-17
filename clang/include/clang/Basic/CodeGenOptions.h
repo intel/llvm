@@ -401,7 +401,7 @@ public:
   /// device binary is embedded into the host object at compile time; the
   /// exact embedding mechanism is offload-model specific (e.g. raw fatbinary
   /// for CUDA/HIP, bitcode link for SYCL).
-  std::string OffloadBinaryFileName;
+  std::string OffloadBinaryToEmbedFile;
 
   /// List of filenames passed in using the -fembed-offload-object option. These
   /// are offloading binaries containing device images and metadata.

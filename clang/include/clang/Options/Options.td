@@ -9468,12 +9468,8 @@ def fcuda_is_device : Flag<["-"], "fcuda-is-device">,
   MarshallingInfoFlag<LangOpts<"CUDAIsDevice">>;
 def foffload_include_binary : Separate<["-"], "foffload-include-binary">,
   HelpText<"Incorporate a pre-finalized device binary into the host object file.">,
-  MarshallingInfoString<CodeGenOpts<"OffloadBinaryFileName">>;
+  MarshallingInfoString<CodeGenOpts<"OffloadBinaryToEmbedFile">>;
 def fcuda_include_gpubinary : Separate<["-"], "fcuda-include-gpubinary">,
-  HelpText<"Deprecated alias for -foffload-include-binary.">,
-  Alias<foffload_include_binary>;
-def fsycl_include_target_binary : Separate<["-"], "fsycl-include-target-binary">,
-  HelpText<"Deprecated alias for -foffload-include-binary.">,
   Alias<foffload_include_binary>;
 def fcuda_allow_variadic_functions : Flag<["-"], "fcuda-allow-variadic-functions">,
   HelpText<"Deprecated; Allow variadic functions in CUDA device code.">;

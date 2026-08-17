@@ -16,12 +16,16 @@
 #include "clang/AST/Decl.h"
 #include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/SourceLocation.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
+#include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/Support/raw_ostream.h"
 #include <assert.h>
 
 using namespace clang;
@@ -138,14 +142,14 @@ bool CGSYCLRuntime::actOnGlobalVarEmit(CodeGenModule &CGM, const VarDecl &D,
 
 void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
   if (!CGM.getLangOpts().SYCLIsHost ||
-      CGM.getCodeGenOpts().OffloadBinaryFileName.empty())
+      CGM.getCodeGenOpts().OffloadBinaryToEmbedFile.empty())
     return;
   auto BinaryOrErr = CGM.getFileSystem()->getBufferForFile(
-      CGM.getCodeGenOpts().OffloadBinaryFileName, /*MaxSize=*/-1,
+      CGM.getCodeGenOpts().OffloadBinaryToEmbedFile, /*MaxSize=*/-1,
       /*RequiresNullTerminator=*/false);
   if (std::error_code EC = BinaryOrErr.getError()) {
     CGM.getDiags().Report(diag::err_cannot_open_file)
-        << CGM.getCodeGenOpts().OffloadBinaryFileName << EC.message();
+        << CGM.getCodeGenOpts().OffloadBinaryToEmbedFile << EC.message();
     return;
   }
   // The input is a wrapper bitcode module produced by clang-linker-wrapper
@@ -157,24 +161,47 @@ void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
       llvm::parseBitcodeFile((*BinaryOrErr)->getMemBufferRef(), Ctx);
   if (!DevModOrErr) {
     CGM.getDiags().Report(diag::err_fe_linking_module)
-        << CGM.getCodeGenOpts().OffloadBinaryFileName
+        << CGM.getCodeGenOpts().OffloadBinaryToEmbedFile
         << llvm::toString(DevModOrErr.takeError());
     return;
   }
   // Propagate the host data layout so the linker doesn't warn about mismatched
   // layouts (the wrapper .bc is created without a data layout set).
   (*DevModOrErr)->setDataLayout(CGM.getModule().getDataLayout());
-  // Temporarily replace the diagnostic handler to suppress DK_Linker
-  // diagnostics during linkModules -- the default ClangDiagnosticHandler
-  // asserts CurLinkModule is set, which is only true inside BackendConsumer's
-  // LinkModules loop. Restore the original handler afterward.
-  auto OldHandler = Ctx.getDiagnosticHandler();
-  Ctx.setDiagnosticHandler(std::make_unique<llvm::DiagnosticHandler>());
+  // The default ClangDiagnosticHandler asserts that CurLinkModule is set for
+  // DK_Linker diagnostics, which is only true inside BackendConsumer's link
+  // loop. Install a handler that forwards DK_Linker to Clang's diag engine
+  // directly, and delegates everything else to the existing handler.
+  struct LinkerDiagHandler : public llvm::DiagnosticHandler {
+    DiagnosticsEngine &Diags;
+    StringRef ModuleName;
+    llvm::DiagnosticHandler *Prev;
+    LinkerDiagHandler(DiagnosticsEngine &Diags, StringRef ModuleName,
+                      llvm::DiagnosticHandler *Prev)
+        : Diags(Diags), ModuleName(ModuleName), Prev(Prev) {}
+    bool handleDiagnostics(const llvm::DiagnosticInfo &DI) override {
+      if (DI.getKind() == llvm::DK_Linker) {
+        std::string Msg;
+        llvm::raw_string_ostream OS(Msg);
+        llvm::DiagnosticPrinterRawOStream DP(OS);
+        DI.print(DP);
+        Diags.Report(diag::err_fe_linking_module) << ModuleName << Msg;
+        return true;
+      }
+      return Prev ? Prev->handleDiagnostics(DI) : false;
+    }
+  };
+  std::unique_ptr<llvm::DiagnosticHandler> PrevHandler =
+      Ctx.getDiagnosticHandler();
+  auto *Prev = PrevHandler.get();
+  auto RestoreHandler = llvm::make_scope_exit(
+      [&]() { Ctx.setDiagnosticHandler(std::move(PrevHandler)); });
+  Ctx.setDiagnosticHandler(std::make_unique<LinkerDiagHandler>(
+      CGM.getDiags(), CGM.getCodeGenOpts().OffloadBinaryToEmbedFile, Prev));
   if (llvm::Linker::linkModules(CGM.getModule(), std::move(*DevModOrErr)))
     CGM.getDiags().Report(diag::err_fe_linking_module)
-        << CGM.getCodeGenOpts().OffloadBinaryFileName
+        << CGM.getCodeGenOpts().OffloadBinaryToEmbedFile
         << "linking wrapper bitcode into host module failed";
-  Ctx.setDiagnosticHandler(std::move(OldHandler));
 }
 
 bool Util::matchQualifiedTypeName(const CXXRecordDecl *RecTy,
