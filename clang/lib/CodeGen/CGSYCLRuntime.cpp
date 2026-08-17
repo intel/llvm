@@ -194,7 +194,7 @@ void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
   std::unique_ptr<llvm::DiagnosticHandler> PrevHandler =
       Ctx.getDiagnosticHandler();
   auto *Prev = PrevHandler.get();
-  auto RestoreHandler = llvm::make_scope_exit(
+  auto RestoreHandler = llvm::scope_exit(
       [&]() { Ctx.setDiagnosticHandler(std::move(PrevHandler)); });
   Ctx.setDiagnosticHandler(std::make_unique<LinkerDiagHandler>(
       CGM.getDiags(), CGM.getCodeGenOpts().OffloadBinaryToEmbedFile, Prev));
