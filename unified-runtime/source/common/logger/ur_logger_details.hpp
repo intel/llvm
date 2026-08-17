@@ -53,6 +53,19 @@ public:
   void log(const logger::LegacyMessage &p, ur_logger_level_t level,
            const char *filename, const char *lineno, const char *format,
            Args &&...args) {
+    // During process/library teardown this logger's owned sinks may already
+    // have been destroyed. Use a temporary stack sink instead.
+    if (isTearDowned) {
+      if (!isLegacySink && level < this->standardSinkLevel) {
+        return;
+      }
+      StderrSink(/*logger_name*/ "", /*skip_prefix*/ false,
+                 /*skip_linebreak*/ false)
+          .log(level, filename, lineno, isLegacySink ? p.message : format,
+               std::forward<Args>(args)...);
+      return;
+    }
+
     if (callbackSink && level >= this->callbackSinkLevel) {
       callbackSink->log(level, filename, lineno, format, args...);
     }
