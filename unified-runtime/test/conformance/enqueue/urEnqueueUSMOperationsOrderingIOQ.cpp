@@ -3,10 +3,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <numeric>
 #include <uur/fixtures.h>
-#include <uur/known_failure.h>
-#include <uur/utils.h>
 
 struct urEnqueueUSMOperationsOrderingIOQTest
     : uur::urContextTestWithParam<ur_queue_flag_t> {
@@ -17,7 +14,7 @@ struct urEnqueueUSMOperationsOrderingIOQTest
         uur::urContextTestWithParam<ur_queue_flag_t>::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
-        "cpy_and_mult_usm", platform, il_binary));
+        "discard_events_ordering_usm", platform, il_binary));
 
     const ur_program_properties_t properties = {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
@@ -31,7 +28,7 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
     auto entry_points = uur::KernelsEnvironment::instance->GetEntryPointNames(
-        "cpy_and_mult_usm");
+        "discard_events_ordering_usm");
     ASSERT_FALSE(entry_points.empty());
     kernel_name = entry_points[0];
     ASSERT_FALSE(kernel_name.empty());
@@ -160,7 +157,6 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     std::vector<uint32_t> out3(array_size, 0u);
 
     const uint8_t zero_pattern = 0;
-    const uint8_t one_pattern = 0x01;
 
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values1, input.data(),
                                       allocation_size, 0, nullptr, nullptr));
@@ -191,43 +187,47 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     const size_t global_size[] = {array_size};
 
     {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values3, 0),
-                                               ptr_arg(values1, 1)};
+      ur_exp_kernel_arg_properties_t args[] = {
+          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
+          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
     }
 
     {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1, 0),
-                                               ptr_arg(values2, 1)};
+      ur_exp_kernel_arg_properties_t args[] = {
+          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
+          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
     }
 
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values2,
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values1,
                                       allocation_size, 0, nullptr, nullptr));
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, tmp.data(),
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2, tmp.data(),
                                       allocation_size, 0, nullptr, nullptr));
 
     {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values3, 0),
-                                               ptr_arg(values1, 1)};
+      ur_exp_kernel_arg_properties_t args[] = {
+          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
+          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
     }
 
-    EXPECT_SUCCESS(urEnqueueUSMFill(queue, values2, sizeof(one_pattern),
-                                    &one_pattern, allocation_size, 0, nullptr,
-                                    nullptr));
+    {
+      ur_exp_kernel_arg_properties_t args[] = {
+          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
+      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
+          nullptr, 0, nullptr, nullptr));
+    }
 
     {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1, 0),
-                                               ptr_arg(values2, 1)};
+      ur_exp_kernel_arg_properties_t args[] = {
+          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 2, args,
+          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
     }
 
@@ -242,9 +242,9 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
     for (size_t i = 0; i < array_size; ++i) {
       const uint32_t base = static_cast<uint32_t>(i);
-      EXPECT_EQ(out1[i], base * 8u);
-      EXPECT_EQ(out2[i], base * 16u);
-      EXPECT_EQ(out3[i], base * 4u);
+      EXPECT_EQ(out1[i], base + 11110u);
+      EXPECT_EQ(out2[i], base);
+      EXPECT_EQ(out3[i], base);
     }
 
     EXPECT_SUCCESS(urUSMFree(context, values1));
