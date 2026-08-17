@@ -133,6 +133,12 @@
 ; RUN: not clang-sycl-linker --dry-run -v -arch=bmg_g21 %t/input1.bc --ocloc-path= -o %t/aot-gpu.out 2>&1 \
 ; RUN:   | FileCheck %s --check-prefix=AOT-OCLOC-PATH-NOARG
 ; AOT-OCLOC-PATH-NOARG: no directory given for '--ocloc-path='
+
+; Test that all --ocloc-options are passed to ocloc, even if they contain spaces or quotes.
+; RUN: clang-sycl-linker --dry-run -v --module-split-mode=link_unit -arch=bmg_g21 %t/input1.bc -o %t/aot-gpu.out 2>&1 \
+; RUN:     --ocloc-options="-a -b" --ocloc-options=-c --ocloc-options="d" --ocloc-options='"-e -f"' \
+; RUN:   | FileCheck %s --check-prefix=AOT-INTEL-OCLOC-OPTIONS
+; AOT-INTEL-OCLOC-OPTIONS: "{{.*}}ocloc{{.*}}" {{.*}}-device bmg_g21 -a -b -c d "-e -f"
 ;
 ; Test AOT compilation for an Intel CPU.
 ; Test that IMG_Object image kind is set for AOT compilation (Intel CPU).

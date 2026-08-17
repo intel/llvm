@@ -51,6 +51,7 @@ class Module;
 class Value;
 class Instruction;
 class Type;
+class DbgRecord;
 } // namespace llvm
 using namespace llvm;
 
@@ -84,7 +85,7 @@ public:
     return static_cast<T *>(Res);
   }
 
-  DbgInstPtr transDebugIntrinsic(const SPIRVExtInst *DebugInst, BasicBlock *BB);
+  DbgRecord *transDebugIntrinsic(const SPIRVExtInst *DebugInst, BasicBlock *BB);
   void finalize();
   llvm::DebugLoc transDebugScope(const SPIRVInstruction *Inst);
 
