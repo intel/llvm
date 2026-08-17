@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: arch-intel_gpu_pvc
 // UNSUPPORTED-INTENDED: There is a separate version of this test for PVC.
-// There is a separate version of this test for PVC.
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
