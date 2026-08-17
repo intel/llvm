@@ -20,6 +20,7 @@ if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   add_dependencies(sycl-trace ze_trace_collector)
   target_include_directories(ze_trace_collector PRIVATE
     "${sycl_inc_dir}"
+    "${sycl_internal_dir}"
   )
 endif()
 
@@ -34,6 +35,7 @@ if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   add_dependencies(sycl-trace cuda_trace_collector)
   target_include_directories(cuda_trace_collector PRIVATE
     "${sycl_inc_dir}"
+    "${sycl_internal_dir}"
   )
 endif()
 
@@ -88,6 +90,7 @@ target_include_directories(sycl_ur_trace_collector PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../xpti_helpers/"
     "${sycl_inc_dir}"
     "${sycl_src_dir}"
+    "${sycl_internal_dir}"
     "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
