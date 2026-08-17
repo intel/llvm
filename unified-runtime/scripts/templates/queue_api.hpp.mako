@@ -24,7 +24,10 @@ from templates import helper as th
 #pragma once
 
 #include <unified-runtime/ur_api.h>
+#include "common.hpp"
 #include "queue_extensions.hpp"
+
+namespace ur::level_zero::v2 {
 
 struct ur_queue_t_ : ur_queue_extensions {
     virtual ~ur_queue_t_();
@@ -41,3 +44,5 @@ struct ur_queue_t_ : ur_queue_extensions {
     %endif
     %endfor
 };
+
+} // namespace ur::level_zero::v2

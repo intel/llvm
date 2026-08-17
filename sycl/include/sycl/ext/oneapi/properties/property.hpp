@@ -195,8 +195,10 @@ enum PropKind : uint32_t {
   EnableIPC = 50,
   RegisterHostMemoryReadOnly = 51,
   EnableProfiling = 52,
+  MaximumRegisters = 53,
+  MaximumRegistersAutomatic = 54,
   // PropKindSize must always be the last value.
-  PropKindSize = 53,
+  PropKindSize = 55,
 };
 
 template <typename PropertyT> struct PropertyToKind {

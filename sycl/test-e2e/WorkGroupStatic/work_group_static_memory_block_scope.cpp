@@ -42,7 +42,7 @@ int main() {
     buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 
     Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
       Cgh.parallel_for<KernelA>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             sycl::ext::oneapi::experimental::work_group_static<int[WgSize]>
@@ -68,7 +68,7 @@ int main() {
     buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 
     Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
       Cgh.parallel_for<KernelB>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             sycl::ext::oneapi::experimental::work_group_static<int> localIDBuff;

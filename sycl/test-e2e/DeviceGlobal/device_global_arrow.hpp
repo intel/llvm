@@ -32,7 +32,7 @@ int test() {
   {
     buffer<int, 1> OutBuf{Out, 2};
     Q.submit([&](handler &CGH) {
-      auto OutAcc = OutBuf.get_access<access::mode::write>(CGH);
+      auto OutAcc = OutBuf.get_access<access_mode::write>(CGH);
       CGH.single_task([=]() {
         OutAcc[0] = DeviceGlobalVar1->getX();
         OutAcc[1] = DeviceGlobalVar2->getX();

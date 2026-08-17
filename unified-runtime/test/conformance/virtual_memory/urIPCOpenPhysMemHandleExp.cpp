@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <vector>
 
 using urIPCOpenPhysMemHandleExpTest = urIPCPhysMemHandleTest;
@@ -86,48 +85,6 @@ TEST_P(urIPCOpenPhysMemHandleExpTest, InvalidValueStaleHandle) {
       UR_RESULT_ERROR_INVALID_VALUE);
 }
 
-// Mirrors the layout of the opaque handle data produced by the level_zero_v2
-// adapter (see unified-runtime/source/adapters/level_zero/v2/physical_mem.hpp
-// -- ZeIPCPhysMemHandleData). This IPC feature is currently only implemented
-// by that adapter, gated behind UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP
-// (checked in the fixture's SetUp(), which GTEST_SKIPs otherwise), so
-// mirroring its layout here is safe. It lets the tests below exercise
-// adapter-internal validation and cross-process-import error paths that
-// cannot be reached by treating the handle purely as an opaque blob.
-struct TestIPCPhysMemHandleData {
-  int Pid;
-  int Fd;
-  size_t Size;
-};
-
-TEST_P(urIPCOpenPhysMemHandleExpTest, InvalidValueCorruptedFields) {
-  ASSERT_EQ(ipc_handle_size, sizeof(TestIPCPhysMemHandleData));
-  TestIPCPhysMemHandleData corrupted;
-  std::memcpy(&corrupted, ipc_handle_data, sizeof(corrupted));
-  // A zero size fails the sanity checks performed at the top of
-  // urIPCOpenPhysMemHandleExp, before any fd is touched.
-  corrupted.Size = 0;
-
-  ur_physical_mem_handle_t opened_physical_mem = nullptr;
-  ASSERT_EQ_RESULT(urIPCOpenPhysMemHandleExp(context, device, &corrupted,
-                                             sizeof(corrupted),
-                                             &opened_physical_mem),
-                   UR_RESULT_ERROR_INVALID_VALUE);
-}
-
-TEST_P(urIPCOpenPhysMemHandleExpTest, InvalidValueUnknownPid) {
-  ASSERT_EQ(ipc_handle_size, sizeof(TestIPCPhysMemHandleData));
-  TestIPCPhysMemHandleData corrupted;
-  std::memcpy(&corrupted, ipc_handle_data, sizeof(corrupted));
-  // Use a PID that is (almost certainly) not in use so the cross-process
-  // import path (pidfd_open/pidfd_getfd) is exercised and fails.
-  corrupted.Pid = std::numeric_limits<int>::max();
-
-  ur_physical_mem_handle_t opened_physical_mem = nullptr;
-  ur_result_t result = urIPCOpenPhysMemHandleExp(
-      context, device, &corrupted, sizeof(corrupted), &opened_physical_mem);
-  EXPECT_TRUE(result == UR_RESULT_ERROR_INVALID_ARGUMENT ||
-              result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
-              result == UR_RESULT_ERROR_INVALID_VALUE)
-      << "Unexpected result: " << result;
-}
+// Adapter-specific (level_zero_v2) tests that rely on the internal layout of
+// the opaque IPC handle data now live in
+// unified-runtime/test/adapters/level_zero/v2/urIPCOpenPhysMemHandleExpInvalidHandleData.cpp

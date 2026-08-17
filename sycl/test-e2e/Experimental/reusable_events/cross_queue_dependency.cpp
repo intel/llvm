@@ -32,7 +32,7 @@ int main() {
 
   // Launch kernel on q1
   q1.submit([&](sycl::handler &cgh) {
-    auto acc1 = buf1.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc1 = buf1.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class KernelQ1>(
         sycl::range<1>(N), [=](sycl::id<1> idx) { acc1[idx] = acc1[idx] * 2; });
   });
@@ -45,9 +45,9 @@ int main() {
 
   // Launch kernel on q2
   q2.submit([&](sycl::handler &cgh) {
-    auto acc1 = buf1.get_access<sycl::access::mode::read>(cgh);
-    auto acc2 = buf2.get_access<sycl::access::mode::read>(cgh);
-    auto acc_result = buf_result.get_access<sycl::access::mode::write>(cgh);
+    auto acc1 = buf1.get_access<sycl::access_mode::read>(cgh);
+    auto acc2 = buf2.get_access<sycl::access_mode::read>(cgh);
+    auto acc_result = buf_result.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class KernelQ2>(sycl::range<1>(N), [=](sycl::id<1> idx) {
       acc_result[idx] = acc1[idx] + acc2[idx];
     });

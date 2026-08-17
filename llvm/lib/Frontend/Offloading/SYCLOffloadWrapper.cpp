@@ -58,6 +58,8 @@ int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
     return 2;
   case SYCLBinaryImageFormat::BIF_LLVMBC:
     return 3;
+  case SYCLBinaryImageFormat::BIF_Compressed:
+    return 4;
   default:
     llvm_unreachable("unexpected SYCLBinaryImageFormat");
   }
@@ -535,7 +537,6 @@ struct Wrapper {
 
   Constant *wrapImage(const SYCLImage &Image, Twine ImageID,
                       StringRef OffloadKindTag) {
-    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
     // -- version 3: removed ManifestStart, ManifestEnd pointers

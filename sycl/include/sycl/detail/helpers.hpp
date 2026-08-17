@@ -185,6 +185,7 @@ getSPIRVMemorySemanticsMask(memory_order) {
   return __spv::MemorySemanticsMask::None;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 inline constexpr uint32_t
 getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
                             const __spv::MemorySemanticsMask LocalScopeMask =
@@ -229,6 +230,7 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
                  __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                  LocalScopeMask);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
 } // namespace detail

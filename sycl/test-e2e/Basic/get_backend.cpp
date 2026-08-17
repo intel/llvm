@@ -57,7 +57,7 @@ int main() {
 
     buffer<int, 1> buf{range<1>(1)};
     event e = q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      auto acc = buf.get_access<access_mode::read_write>(cgh);
       cgh.fill(acc, 0);
     });
     if (e.get_backend() != plt.get_backend()) {

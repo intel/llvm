@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks hierarchical parallelism invocation APIs, but without any
@@ -45,7 +45,7 @@ struct MyStruct {
 };
 
 using AccTy =
-    accessor<int, 1, access::mode::read_write, sycl::access::target::device>;
+    accessor<int, 1, access_mode::read_write, sycl::access::target::device>;
 
 struct PFWIFunctor {
   PFWIFunctor(size_t wg_chunk, size_t wg_size, size_t wg_offset,
@@ -134,7 +134,7 @@ int main() {
       const int addend = 10;
 
       myQueue.submit([&](handler &cgh) {
-        auto dev_ptr = buf.get_access<access::mode::read_write>(cgh);
+        auto dev_ptr = buf.get_access<access_mode::read_write>(cgh);
         // number of 'buf' elements per work group:
         size_t wg_chunk = (range_length + N_WG - 1) / N_WG;
         PFWGFunctor PFWG(wg_chunk, range_length, addend, N_ITER, dev_ptr);
@@ -154,7 +154,7 @@ int main() {
       std::memset(ptr, 0, range_length * sizeof(ptr[0]));
       buffer<int, 1> buf(ptr, range<1>(range_length));
       myQueue.submit([&](handler &cgh) {
-        auto dev_ptr = buf.get_access<access::mode::read_write>(cgh);
+        auto dev_ptr = buf.get_access<access_mode::read_write>(cgh);
 
         cgh.parallel_for_work_group<class hpar_flex>(
             range<1>(N_WG), range<1>(WG_SIZE_PHYSICAL), [=](group<1> g) {
@@ -194,7 +194,7 @@ int main() {
       std::memset(ptr, 0, range_length * sizeof(ptr[0]));
       buffer<int, 1> buf(ptr, range<1>(range_length));
       myQueue.submit([&](handler &cgh) {
-        auto dev_ptr = buf.get_access<access::mode::read_write>(cgh);
+        auto dev_ptr = buf.get_access<access_mode::read_write>(cgh);
 
         cgh.parallel_for_work_group<class hpar_hitem>(
             range<1>(N_WG), range<1>(WG_SIZE_PHYSICAL), [=](group<1> g) {
@@ -237,7 +237,7 @@ int main() {
       std::memset(ptr, 0, range_length * sizeof(ptr[0]));
       buffer<int, 1> buf(ptr, range<1>(range_length));
       myQueue.submit([&](handler &cgh) {
-        auto dev_ptr = buf.get_access<access::mode::read_write>(cgh);
+        auto dev_ptr = buf.get_access<access_mode::read_write>(cgh);
 
         cgh.parallel_for_work_group<class hpar_priv_mem>(
             range<2>(N_WG, 1), range<2>(WG_X_SIZE, WG_Y_SIZE), [=](group<2> g) {
@@ -278,7 +278,7 @@ int main() {
       std::memset(ptr, 0, range_length * sizeof(ptr[0]));
       buffer<int, 1> buf(ptr, range<1>(range_length));
       myQueue.submit([&](handler &cgh) {
-        auto dev_ptr = buf.get_access<access::mode::read_write>(cgh);
+        auto dev_ptr = buf.get_access<access_mode::read_write>(cgh);
 
         cgh.parallel_for_work_group<class hpar_ranges>(
             range<1>(N_WG), range<1>(WG_SIZE_PHYSICAL), [=](group<1> g) {

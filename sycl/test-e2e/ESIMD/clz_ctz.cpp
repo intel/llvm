@@ -43,8 +43,8 @@ template <typename T, bool CLZ> bool test(queue &q) {
     queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.template get_access<access::mode::read>(cgh);
-      auto PB = bufb.template get_access<access::mode::write>(cgh);
+      auto PA = bufa.template get_access<access_mode::read>(cgh);
+      auto PB = bufb.template get_access<access_mode::write>(cgh);
       cgh.parallel_for(GlobalRange * LocalRange,
                        [=](id<1> i) SYCL_ESIMD_KERNEL {
                          using namespace sycl::ext::intel::esimd;

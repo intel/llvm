@@ -23,7 +23,7 @@ void basic() {
     buffer<int> buf(data.data(), N);
 
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      auto acc = buf.get_access<access_mode::read_write>(cgh);
       local_accessor<int, 1> loc(N, cgh);
       local_accessor<barrier, 1> loc_barrier(2, cgh);
       cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> item) {
@@ -66,9 +66,9 @@ void interface() {
     buffer<int> test2_buf(test2.data(), N);
 
     q.submit([&](handler &cgh) {
-      auto data_acc = data_buf.get_access<access::mode::read_write>(cgh);
-      auto test1_acc = test1_buf.get_access<access::mode::read_write>(cgh);
-      auto test2_acc = test2_buf.get_access<access::mode::read_write>(cgh);
+      auto data_acc = data_buf.get_access<access_mode::read_write>(cgh);
+      auto test1_acc = test1_buf.get_access<access_mode::read_write>(cgh);
+      auto test2_acc = test2_buf.get_access<access_mode::read_write>(cgh);
       local_accessor<int, 1> loc(N, cgh);
       local_accessor<barrier, 1> loc_barrier(2, cgh);
       cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> item) {

@@ -1226,13 +1226,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_LUID: {
-    // LUID is only available on Windows.
-    // Intel extension for device LUID. This returns the LUID as
-    // std::array<std::byte, 8>. For details about this extension,
+  case UR_DEVICE_INFO_LUID:
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // LUID and Device node mask are only available on Windows.
+    // Intel extension for device LUID and node mask. This returns the LUID as
+    // std::array<std::byte, 8> the node mask as uint32_t.
+    // For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
     std::array<char, 8> LUID{};
-    cuDeviceGetLuid(LUID.data(), nullptr, hDevice->get());
+    uint32_t nodeMask = 0;
+    auto LuidResult = cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
+    if (LuidResult == CUDA_ERROR_NOT_SUPPORTED) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    UR_CHECK_ERROR(LuidResult);
 
     bool isAllZeros = true;
     for (char num : LUID) {
@@ -1241,29 +1249,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       }
     }
 
-    if (isAllZeros) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    if (nodeMask == 0 || isAllZeros) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
-    std::array<unsigned char, 8> Name{};
-    std::copy(LUID.begin(), LUID.end(), Name.begin());
-    return ReturnValue(Name.data(), 8);
-  }
-  case UR_DEVICE_INFO_NODE_MASK: {
-    // Device node mask is only available on Windows.
-    // Intel extension for device node mask. This returns the node mask as
-    // uint32_t. For details about this extension,
-    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-    uint32_t nodeMask = 0;
-    cuDeviceGetLuid(nullptr, &nodeMask, hDevice->get());
-
-    // If nodeMask has not changed, return unsupported.
-    if (nodeMask == 0) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    if (propName == UR_DEVICE_INFO_LUID) {
+      std::array<unsigned char, 8> Name{};
+      std::copy(LUID.begin(), LUID.end(), Name.begin());
+      return ReturnValue(Name.data(), 8);
+    } else {
+      return ReturnValue(nodeMask);
     }
-
-    return ReturnValue(nodeMask);
   }
+
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
