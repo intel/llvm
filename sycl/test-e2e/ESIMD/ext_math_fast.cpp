@@ -9,8 +9,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -ffast-math %{slpflags} -o %t.out
 // RUN: %{run} %t.out
 
-// REQUIRES: !arch-intel_gpu_pvc
-// There is a separate version of this test for PVC.
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: There is a separate version of this test for PVC.
 
 // This test checks extended math operations. Combinations of
 // - argument type - half, float
