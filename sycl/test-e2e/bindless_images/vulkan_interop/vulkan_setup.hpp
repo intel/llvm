@@ -1,7 +1,14 @@
 #pragma once
 
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -76,6 +83,91 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessageCallback(
   }
   return VK_FALSE;
 };
+
+namespace interop_monitor {
+#ifndef _WIN32
+inline long readProcStatusValue(const char *key) {
+  std::ifstream statusFile("/proc/self/status");
+  std::string line;
+  while (std::getline(statusFile, line)) {
+    if (line.rfind(key, 0) == 0) {
+      std::istringstream valueStream(line.substr(std::strlen(key)));
+      long value = -1;
+      valueStream >> value;
+      return value;
+    }
+  }
+  return -1;
+}
+
+inline std::pair<long, long> readLoadAvgRunningTotal() {
+  std::ifstream loadFile("/proc/loadavg");
+  double oneMinute = 0.0;
+  double fiveMinute = 0.0;
+  double fifteenMinute = 0.0;
+  std::string runnableAndTotal;
+  if (loadFile >> oneMinute >> fiveMinute >> fifteenMinute >>
+      runnableAndTotal) {
+    const auto slashPos = runnableAndTotal.find('/');
+    if (slashPos != std::string::npos) {
+      long running = std::stol(runnableAndTotal.substr(0, slashPos));
+      long total = std::stol(runnableAndTotal.substr(slashPos + 1));
+      return {running, total};
+    }
+  }
+  return {-1, -1};
+}
+
+inline size_t countProcEntries() {
+  size_t count = 0;
+  for (const auto &entry : std::filesystem::directory_iterator("/proc")) {
+    const std::string name = entry.path().filename().string();
+    if (!name.empty() &&
+        std::all_of(name.begin(), name.end(),
+                    [](unsigned char ch) { return std::isdigit(ch) != 0; })) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+inline void dumpTopProcessesIfEnabled() {
+  const char *enabled = std::getenv("SYCL_INTEROP_MONITOR_PS");
+  if (enabled == nullptr || std::strcmp(enabled, "0") == 0) {
+    return;
+  }
+
+  FILE *pipe =
+      popen("ps -eo pid,ppid,comm,%cpu,%mem --sort=-%cpu | head -n 8", "r");
+  if (pipe == nullptr) {
+    return;
+  }
+
+  std::cout << "# | [HOST] top_processes" << std::endl;
+  char buffer[256];
+  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    std::cout << "# | " << buffer;
+  }
+  pclose(pipe);
+}
+#endif
+
+inline void logHostSnapshot(const std::string &label) {
+  std::cout << "# | [HOST] " << label;
+#ifndef _WIN32
+  const long rssKb = readProcStatusValue("VmRSS:");
+  const long vmSizeKb = readProcStatusValue("VmSize:");
+  const long threadCount = readProcStatusValue("Threads:");
+  const auto [runningJobs, totalJobs] = readLoadAvgRunningTotal();
+  const size_t procCount = countProcEntries();
+  std::cout << " rss_kb=" << rssKb << " vmsize_kb=" << vmSizeKb
+            << " threads=" << threadCount << " loadavg_running=" << runningJobs
+            << '/' << totalJobs << " total_procs=" << procCount;
+  dumpTopProcessesIfEnabled();
+#endif
+  std::cout << std::endl;
+}
+} // namespace interop_monitor
 
 // ---------------------------------------------------------
 // VULKAN HELPERS & TYPES
