@@ -88,7 +88,7 @@ public:
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
   friend IntegralType<T, range<Dimensions>> operator op(                       \
-      const range<Dimensions> &lhs, const T &rhs) noexcept {                   \
+      const range<Dimensions> &lhs, const T & rhs) noexcept {                  \
     range<Dimensions> result(lhs);                                             \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
@@ -97,7 +97,7 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   friend IntegralType<T, range<Dimensions>> operator op(                       \
-      const T &lhs, const range<Dimensions> &rhs) noexcept {                   \
+      const T & lhs, const range<Dimensions> &rhs) noexcept {                  \
     range<Dimensions> result(rhs);                                             \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs op rhs.common_array[i];                     \
@@ -157,7 +157,7 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   friend IntegralType<T, range<Dimensions>> operator op(                       \
-      range<Dimensions> &lhs, const T &rhs) noexcept {                         \
+      range<Dimensions> &lhs, const T & rhs) noexcept {                        \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs;                                              \
     }                                                                          \
