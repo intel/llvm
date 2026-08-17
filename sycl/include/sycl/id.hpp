@@ -131,14 +131,14 @@ public:
    * will be "id op size_t"*/
 #define __SYCL_GEN_OPT(op)                                                     \
   template <typename T>                                                        \
-  EnableIfIntegral<T, bool> operator op(const T &rhs) const noexcept {         \
+  EnableIfIntegral<T, bool> operator op(const T & rhs) const noexcept {        \
     if (this->common_array[0] != rhs)                                          \
       return false op true;                                                    \
     return true op true;                                                       \
   }                                                                            \
   template <typename T>                                                        \
   friend EnableIfIntegral<T, bool> operator op(                                \
-      const T &lhs, const id<Dimensions> &rhs) noexcept {                      \
+      const T & lhs, const id<Dimensions> &rhs) noexcept {                     \
     if (lhs != rhs.common_array[0])                                            \
       return false op true;                                                    \
     return true op true;                                                       \
@@ -168,7 +168,7 @@ public:
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
   friend EnableIfIntegral<T, id<Dimensions>> operator op(                      \
-      const id<Dimensions> &lhs, const T &rhs) noexcept {                      \
+      const id<Dimensions> &lhs, const T & rhs) noexcept {                     \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
@@ -177,7 +177,7 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   friend EnableIfIntegral<T, id<Dimensions>> operator op(                      \
-      const T &lhs, const id<Dimensions> &rhs) noexcept {                      \
+      const T & lhs, const id<Dimensions> &rhs) noexcept {                     \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs op rhs.common_array[i];                     \
@@ -188,14 +188,14 @@ public:
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   friend id<Dimensions> operator op(const id<Dimensions> &lhs,                 \
-                                    const size_t &rhs) noexcept {              \
+                                    const size_t & rhs) noexcept {             \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
     }                                                                          \
     return result;                                                             \
   }                                                                            \
-  friend id<Dimensions> operator op(const size_t &lhs,                         \
+  friend id<Dimensions> operator op(const size_t & lhs,                        \
                                     const id<Dimensions> &rhs) noexcept {      \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
@@ -235,7 +235,7 @@ public:
     return lhs;                                                                \
   }                                                                            \
   friend id<Dimensions> &operator op(id<Dimensions> &lhs,                      \
-                                     const size_t &rhs) noexcept {             \
+                                     const size_t & rhs) noexcept {            \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs;                                              \
     }                                                                          \
