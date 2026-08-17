@@ -87,6 +87,17 @@ public:
     RTGlobalObjHandler = new GlobalHandler();
   };
 
+  // Used in SYCL unit tests to simulate runtime teardown; pair with
+  // restoreGlobalHandler().
+  static GlobalHandler *detachGlobalHandler() {
+    GlobalHandler *Old = RTGlobalObjHandler;
+    RTGlobalObjHandler = nullptr;
+    return Old;
+  }
+  static void restoreGlobalHandler(GlobalHandler *Handler) {
+    RTGlobalObjHandler = Handler;
+  }
+
 private:
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
