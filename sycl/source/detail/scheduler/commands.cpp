@@ -2292,10 +2292,12 @@ std::string_view ExecCGCommand::getTypeString() const {
 // for users who need more control.
 static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
-  if (NDR.GlobalSize[0] != 0)
-    return; // GlobalSize is set - no need to adjust
-  // check the prerequisites:
-  assert(NDR.LocalSize[0] == 0);
+  if (NDR.NumWorkGroups[0] == 0)
+    return; // Not parallel_for_work_group -- nothing to fill in.
+  // In pfwg mode NumWorkGroups is the only field the user sets; GlobalSize
+  // and LocalSize must both be zero (see NDRDescT contract in
+  // ndrange_desc.hpp).
+  assert(NDR.GlobalSize[0] == 0 && NDR.LocalSize[0] == 0);
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
