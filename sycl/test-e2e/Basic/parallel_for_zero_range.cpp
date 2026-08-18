@@ -5,7 +5,7 @@
 // zero, the kernel function is not executed, the local size is ignored, and
 // any dependencies are satisfied."
 //
-// See intel/llvm#22893 
+// See intel/llvm#22893
 //
 // A USM-shared sentinel byte is set to 0 before each submit. If a kernel
 // body actually ran, it would flip the byte to 0xFF. After Q.wait(), we
@@ -27,8 +27,8 @@ int main() {
   // Case 1: parallel_for(range<1>{0}) -- plain empty range.
   *Sentinel = 0x00;
   Q.submit([&](handler &cgh) {
-     cgh.parallel_for<class zero_range_pf>(
-         range<1>{0}, [=](id<1>) { *Sentinel = 0xFF; });
+     cgh.parallel_for<class zero_range_pf>(range<1>{0},
+                                           [=](id<1>) { *Sentinel = 0xFF; });
    }).wait();
   assert(*Sentinel == 0x00 && "parallel_for(range{0}) unexpectedly launched");
 
