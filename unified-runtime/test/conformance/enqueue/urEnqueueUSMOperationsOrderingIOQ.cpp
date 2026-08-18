@@ -49,6 +49,17 @@ struct urEnqueueUSMOperationsOrderingIOQTest
       GTEST_SKIP() << "Requested queue properties are unsupported.";
     }
     ASSERT_SUCCESS(result);
+
+    // Verify the queue was actually created with the requested flags.
+    // This is critical for ordering-based tests: the kernel's preconditions
+    // only pass if operations execute in-order with discard_events enabled.
+    ur_queue_flags_t actual_flags = 0;
+    ASSERT_SUCCESS(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS,
+                                  sizeof(actual_flags), &actual_flags,
+                                  nullptr));
+    ASSERT_EQ(actual_flags & requested_flags, requested_flags)
+        << "Queue created without requested flags: expected " << requested_flags
+        << ", got " << actual_flags;
   }
 
   void TearDown() override {
@@ -99,9 +110,15 @@ struct urEnqueueUSMOperationsOrderingIOQTest
       return false;
     }
 
-    void *values1 = nullptr;
-    void *values2 = nullptr;
-    void *values3 = nullptr;
+    auto usm_deleter = [this](void *ptr) {
+      if (ptr) {
+        (void)urUSMFree(context, ptr);
+      }
+    };
+
+    void *values1_raw = nullptr;
+    void *values2_raw = nullptr;
+    void *values3_raw = nullptr;
 
     const size_t allocation_size = array_size * sizeof(uint32_t);
 
@@ -117,23 +134,22 @@ struct urEnqueueUSMOperationsOrderingIOQTest
                               allocation_size, ptr);
     };
 
-    const auto res1 = alloc_one(&values1);
-    const auto res2 = alloc_one(&values2);
-    const auto res3 = alloc_one(&values3);
+    const auto res1 = alloc_one(&values1_raw);
+    const auto res2 = alloc_one(&values2_raw);
+    const auto res3 = alloc_one(&values3_raw);
     EXPECT_SUCCESS(res1);
     EXPECT_SUCCESS(res2);
     EXPECT_SUCCESS(res3);
+
+    std::unique_ptr<void, decltype(usm_deleter)> values1(values1_raw,
+                                                         usm_deleter);
+    std::unique_ptr<void, decltype(usm_deleter)> values2(values2_raw,
+                                                         usm_deleter);
+    std::unique_ptr<void, decltype(usm_deleter)> values3(values3_raw,
+                                                         usm_deleter);
+
     if (res1 != UR_RESULT_SUCCESS || res2 != UR_RESULT_SUCCESS ||
         res3 != UR_RESULT_SUCCESS || !values1 || !values2 || !values3) {
-      if (values1) {
-        (void)urUSMFree(context, values1);
-      }
-      if (values2) {
-        (void)urUSMFree(context, values2);
-      }
-      if (values3) {
-        (void)urUSMFree(context, values3);
-      }
       return true;
     }
 
@@ -147,14 +163,16 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
     const uint8_t zero_pattern = 0;
 
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values1, input.data(),
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values1.get(), input.data(),
                                       allocation_size, 0, nullptr, nullptr));
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2, values1,
-                                      allocation_size, 0, nullptr, nullptr));
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3, values2,
-                                      allocation_size, 0, nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2.get(),
+                                      values1.get(), allocation_size, 0,
+                                      nullptr, nullptr));
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values3.get(),
+                                      values2.get(), allocation_size, 0,
+                                      nullptr, nullptr));
 
-    EXPECT_SUCCESS(urEnqueueUSMFill(queue, values1, sizeof(zero_pattern),
+    EXPECT_SUCCESS(urEnqueueUSMFill(queue, values1.get(), sizeof(zero_pattern),
                                     &zero_pattern, allocation_size, 0, nullptr,
                                     nullptr));
 
@@ -176,55 +194,60 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     const size_t global_size[] = {array_size};
 
     {
-      ur_exp_kernel_arg_properties_t args[] = {
-          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
+      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
+                                               ptr_arg(values2.get(), 1),
+                                               ptr_arg(values3.get(), 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
           queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
     }
 
     {
-      ur_exp_kernel_arg_properties_t args[] = {
-          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
+      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
+                                               ptr_arg(values2.get(), 1),
+                                               ptr_arg(values3.get(), 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
           queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
     }
 
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values1,
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values1.get(),
                                       allocation_size, 0, nullptr, nullptr));
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2, tmp.data(),
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2.get(), tmp.data(),
                                       allocation_size, 0, nullptr, nullptr));
 
     {
-      ur_exp_kernel_arg_properties_t args[] = {
-          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
-      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
-          nullptr, 0, nullptr, nullptr));
-    }
-
-    {
-      ur_exp_kernel_arg_properties_t args[] = {
-          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
+      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
+                                               ptr_arg(values2.get(), 1),
+                                               ptr_arg(values3.get(), 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
           queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
     }
 
     {
-      ur_exp_kernel_arg_properties_t args[] = {
-          ptr_arg(values1, 0), ptr_arg(values2, 1), ptr_arg(values3, 2)};
+      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
+                                               ptr_arg(values2.get(), 1),
+                                               ptr_arg(values3.get(), 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
           queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
     }
 
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out1.data(), values1,
+    {
+      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
+                                               ptr_arg(values2.get(), 1),
+                                               ptr_arg(values3.get(), 2)};
+      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
+          nullptr, 0, nullptr, nullptr));
+    }
+
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out1.data(), values1.get(),
                                       allocation_size, 0, nullptr, nullptr));
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out2.data(), values2,
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out2.data(), values2.get(),
                                       allocation_size, 0, nullptr, nullptr));
-    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out3.data(), values3,
+    EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out3.data(), values3.get(),
                                       allocation_size, 0, nullptr, nullptr));
 
     EXPECT_SUCCESS(urQueueFinish(queue));
@@ -236,9 +259,6 @@ struct urEnqueueUSMOperationsOrderingIOQTest
       EXPECT_EQ(out3[i], base);
     }
 
-    EXPECT_SUCCESS(urUSMFree(context, values1));
-    EXPECT_SUCCESS(urUSMFree(context, values2));
-    EXPECT_SUCCESS(urUSMFree(context, values3));
     return true;
   }
 
