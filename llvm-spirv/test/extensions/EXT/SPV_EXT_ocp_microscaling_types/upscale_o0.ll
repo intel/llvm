@@ -25,25 +25,26 @@
 ; clang -cl-std=cl3.0 -target spir -emit-llvm -Xclang -finclude-default-header -g0 -O0
 
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_float4,+SPV_INTEL_int4
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_EXT_ocp_microscaling_types,+SPV_INTEL_int4
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -o %t.rev.bc -r --spirv-target-env=SPV-IR
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV-NOT: _Z38__builtin_spirv_ConvertE2M1ToFP16INTELDv2_i
+; CHECK-SPIRV-NOT: _Z36__builtin_spirv_ConvertE2M1ToFP16EXTDv2_i
 
 ; CHECK-SPIRV-DAG: Capability Float16Buffer
 ; CHECK-SPIRV-DAG: Capability Int4TypeINTEL
-; CHECK-SPIRV-DAG: Capability Float4E2M1INTEL
+; CHECK-SPIRV-DAG: Capability Float4EXT
 
 ; CHECK-SPIRV-DAG: TypeInt [[#Int4Ty:]] 4 0
 ; CHECK-SPIRV-DAG: TypeVector [[#VecInt4Ty:]] [[#Int4Ty]] 2
 ; CHECK-SPIRV-DAG: TypePointer [[#PtrVecInt4Ty:]] 7 [[#VecInt4Ty]]
 ; CHECK-SPIRV-DAG: TypeFloat [[#HalfTy:]] 16
 ; CHECK-SPIRV-DAG: TypeVector [[#VecHalfTy:]] [[#HalfTy]] 2
-; CHECK-SPIRV-DAG: TypeFloat [[#FP4Ty:]] 4 6214
+; CHECK-SPIRV-DAG: TypeFloat [[#FP4Ty:]] 4 4225
 ; CHECK-SPIRV-DAG: TypeVector [[#VecFP4Ty:]] [[#FP4Ty]] 2
 
 ; CHECK-SPIRV: Load [[#VecInt4Ty]] [[#VecInt4Val1:]] [[#]] 2 2
@@ -56,9 +57,9 @@
 ; CHECK-SPIRV: FConvert [[#VecHalfTy]] [[#Conv2:]] [[#Cast2]]
 ; CHECK-SPIRV: Store [[#]] [[#Conv2]] 2 4
 
-; CHECK-LLVM: %[[#Conv1:]] = call spir_func <2 x half> @_Z38__builtin_spirv_ConvertE2M1ToFP16INTELDv2_i(<2 x i4> %[[#]])
+; CHECK-LLVM: %[[#Conv1:]] = call spir_func <2 x half> @_Z36__builtin_spirv_ConvertE2M1ToFP16EXTDv2_i(<2 x i4> %[[#]])
 ; CHECK-LLVM: store <2 x half> %[[#Conv1]], ptr %[[#]]
-; CHECK-LLVM: %[[#Conv2:]] = call spir_func <2 x half> @_Z38__builtin_spirv_ConvertE2M1ToFP16INTELDv2_i(<2 x i4> %[[#]])
+; CHECK-LLVM: %[[#Conv2:]] = call spir_func <2 x half> @_Z36__builtin_spirv_ConvertE2M1ToFP16EXTDv2_i(<2 x i4> %[[#]])
 ; CHECK-LLVM: store <2 x half> %[[#Conv2]], ptr %[[#]]
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -109,10 +110,10 @@ define dso_local spir_func void @__clang_ocl_kern_imp_quant_add(ptr addrspace(3)
   %26 = shufflevector <2 x i4> %25, <2 x i4> poison, <2 x i32> zeroinitializer
   store <2 x i4> %26, ptr %9, align 2
   %27 = load <2 x i4>, ptr %8, align 2
-  %28 = call spir_func <2 x half> @_Z38__builtin_spirv_ConvertE2M1ToFP16INTELDv2_i(<2 x i4> noundef %27) #5
+  %28 = call spir_func <2 x half> @_Z36__builtin_spirv_ConvertE2M1ToFP16EXTDv2_i(<2 x i4> noundef %27) #5
   store <2 x half> %28, ptr %10, align 4
   %29 = load <2 x i4>, ptr %9, align 2
-  %30 = call spir_func <2 x half> @_Z38__builtin_spirv_ConvertE2M1ToFP16INTELDv2_i(<2 x i4> noundef %29) #5
+  %30 = call spir_func <2 x half> @_Z36__builtin_spirv_ConvertE2M1ToFP16EXTDv2_i(<2 x i4> noundef %29) #5
   store <2 x half> %30, ptr %11, align 4
   %31 = load <2 x half>, ptr %10, align 4
   %32 = load <2 x half>, ptr %11, align 4
@@ -126,7 +127,7 @@ define dso_local spir_func void @__clang_ocl_kern_imp_quant_add(ptr addrspace(3)
 
 declare dso_local spir_func i32 @_Z13get_global_idj(i32 noundef) #1
 
-declare dso_local spir_func <2 x half> @_Z38__builtin_spirv_ConvertE2M1ToFP16INTELDv2_i(<2 x i4> noundef) #2
+declare dso_local spir_func <2 x half> @_Z36__builtin_spirv_ConvertE2M1ToFP16EXTDv2_i(<2 x i4> noundef) #2
 
 attributes #0 = { convergent noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "uniform-work-group-size"="false" }
 attributes #1 = { convergent nounwind willreturn memory(none) "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }

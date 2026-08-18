@@ -941,11 +941,14 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       // generation.
       if (!BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_float8) &&
           !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4) &&
-          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4)) {
-        std::string ErrorStr = "One of the following extensions: "
-                               "SPV_EXT_float8, SPV_INTEL_float4, "
-                               "SPV_INTEL_int4 should be enabled to process "
-                               "conversion builtins";
+          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4) &&
+          !BM->isAllowedToUseExtension(
+              ExtensionID::SPV_EXT_ocp_microscaling_types)) {
+        std::string ErrorStr =
+            "One of the following extensions: "
+            "SPV_EXT_float8, SPV_EXT_ocp_microscaling_types, "
+            "SPV_INTEL_float4, SPV_INTEL_int4 should be enabled to process "
+            "conversion builtins";
         getErrorLog().checkError(false, SPIRVEC_RequiresExtension, F, ErrorStr);
       }
       return nullptr;
@@ -965,7 +968,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
           SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
     BM->setName(BF, F->getName().str());
   }
-  if (!isKernel(F) && F->getLinkage() != GlobalValue::InternalLinkage)
+  if (!isKernel(F) && F->hasName() &&
+      F->getLinkage() != GlobalValue::InternalLinkage)
     BF->setLinkageType(transLinkageType(F));
 
   // Translate OpenCL/SYCL buffer_location metadata if it's attached to the
@@ -3275,7 +3279,8 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
       (isa<AtomicRMWInst>(V) && cast<AtomicRMWInst>(V)->isVolatile()))
     BV->setVolatile(true);
 
-  if (auto *BVO = dyn_cast_or_null<OverflowingBinaryOperator>(V)) {
+  if (auto *BVO = dyn_cast_or_null<OverflowingBinaryOperator>(V);
+      BVO && !BVO->getType()->isIntOrIntVectorTy(1)) {
     if (BVO->hasNoSignedWrap()) {
       BV->setNoIntegerDecorationWrap<DecorationNoSignedWrap>(true);
     }
@@ -3286,12 +3291,16 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
 
   if (auto *BVF = dyn_cast_or_null<FPMathOperator>(V)) {
     auto Opcode = BVF->getOpcode();
+    bool IsSPV16Op = (Opcode == Instruction::FNeg ||
+                      Opcode == Instruction::FCmp || BV->isExtInst()) &&
+                     BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6);
+    bool IsFC2Op =
+        BV->getOpCode() == OpFunctionCall &&
+        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2);
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
         Opcode == Instruction::FRem || BV->getOpCode() == OpFmaKHR ||
-        ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
-          BV->isExtInst()) &&
-         BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
+        IsSPV16Op || IsFC2Op) {
       bool AllowFloatControls2 =
           BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2);
       bool AllowIntelFpFastMathMode =
@@ -3392,9 +3401,13 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
       }
       if (M != 0) {
         BV->setFPFastMathMode(M);
-        if (Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
-            BV->isExtInst())
+        if (IsSPV16Op)
           BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
+        if (IsFC2Op) {
+          BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
+          BM->addCapability(CapabilityFloatControls2);
+          BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+        }
       }
     }
   }
@@ -4155,6 +4168,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::round:
   case Intrinsic::roundeven:
   case Intrinsic::sin:
+  case Intrinsic::sincos:
   case Intrinsic::sqrt:
   case Intrinsic::tan:
   case Intrinsic::trunc:
@@ -4580,6 +4594,32 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     std::vector<SPIRVId> StructVals{Modf->getId(), IntegralVal->getId()};
     return BM->addCompositeConstructInst(STy, StructVals, BB);
   }
+  case Intrinsic::sincos: {
+    // llvm.sincos(x) returns {sin(x), cos(x)}, while OpenCLLIB::Sincos takes
+    // (x, cos_ptr) and returns sin(x), storing cos(x) via the pointer.
+    // Create a temporary function variable for the cos output, call OpenCL
+    // sincos, load the cos value, then construct the result struct.
+    SPIRVType *CosTy = transType(II->getType()->getStructElementType(1));
+    SPIRVType *CosPtrTy = BM->addPointerType(StorageClassFunction, CosTy);
+    SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
+    SPIRVValue *CosPtr =
+        BM->addVariable(static_cast<SPIRVTypePointer *>(CosPtrTy), nullptr,
+                        false, spv::internal::LinkageTypeInternal, nullptr, "",
+                        StorageClassFunction, EntryBB);
+
+    SPIRVType *SinTy = transType(II->getType()->getStructElementType(0));
+    SPIRVValue *Arg = transValue(II->getArgOperand(0), BB);
+    std::vector<SPIRVValue *> Ops{Arg, CosPtr};
+    SPIRVValue *SinVal =
+        BM->addExtInst(SinTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                       OpenCLLIB::Sincos, Ops, BB);
+
+    SPIRVValue *CosVal = BM->addLoadInst(CosPtr, {}, BB, CosTy);
+
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVId> StructVals{SinVal->getId(), CosVal->getId()};
+    return BM->addCompositeConstructInst(STy, StructVals, BB);
+  }
   // Binary FP intrinsics
   case Intrinsic::atan2:
   case Intrinsic::copysign:
@@ -4907,6 +4947,55 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                           transValue(II->getArgOperand(1), BB)};
     return BM->addExtInst(Ty, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp,
                           std::move(Operands), BB);
+  }
+  case Intrinsic::ushl_sat:
+  case Intrinsic::sshl_sat: {
+    Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *X = transValue(II->getArgOperand(0), BB);
+    SPIRVValue *Amt = transValue(II->getArgOperand(1), BB);
+
+    SPIRVType *ElemTy = Ty;
+    unsigned VecSize = 0;
+    if (auto *VecTy = dyn_cast<VectorType>(II->getType())) {
+      BoolTy = VectorType::get(BoolTy, VecTy->getElementCount());
+      ElemTy = transType(VecTy->getElementType());
+      VecSize = VecTy->getElementCount().getFixedValue();
+    }
+    unsigned BitWidth = ElemTy->getIntegerBitWidth();
+
+    auto MakeConst = [&](APInt Val) -> SPIRVValue * {
+      if (VecSize > 0) {
+        auto *Elem = BM->addConstant(ElemTy, Val);
+        std::vector<SPIRVValue *> Elems(VecSize, Elem);
+        return BM->addCompositeConstant(Ty, Elems);
+      }
+      return BM->addConstant(Ty, Val);
+    };
+
+    SPIRVValue *Shifted = BM->addBinaryInst(OpShiftLeftLogical, Ty, X, Amt, BB);
+
+    SPIRVValue *Overflow = nullptr;
+    SPIRVValue *SatVal = nullptr;
+    if (IID == Intrinsic::ushl_sat) {
+      SPIRVValue *ShiftedBack =
+          BM->addBinaryInst(OpShiftRightLogical, Ty, Shifted, Amt, BB);
+      Overflow =
+          BM->addCmpInst(OpINotEqual, transType(BoolTy), ShiftedBack, X, BB);
+      SatVal = MakeConst(APInt::getAllOnes(BitWidth));
+    } else {
+      SPIRVValue *ShiftedBack =
+          BM->addBinaryInst(OpShiftRightArithmetic, Ty, Shifted, Amt, BB);
+      Overflow =
+          BM->addCmpInst(OpINotEqual, transType(BoolTy), ShiftedBack, X, BB);
+      SPIRVValue *IsNeg =
+          BM->addCmpInst(OpSLessThan, transType(BoolTy), X,
+                         MakeConst(APInt::getZero(BitWidth)), BB);
+      SPIRVValue *IntMin = MakeConst(APInt::getSignedMinValue(BitWidth));
+      SPIRVValue *IntMax = MakeConst(APInt::getSignedMaxValue(BitWidth));
+      SatVal = BM->addSelectInst(IsNeg, IntMin, IntMax, BB);
+    }
+    return BM->addSelectInst(Overflow, SatVal, Shifted, BB);
   }
   case Intrinsic::uadd_with_overflow: {
     return BM->addBinaryInst(OpIAddCarry, transType(II->getType()),
@@ -5760,8 +5849,9 @@ processMiniFPOrInt4Type(Type *LLVMTy, FPEncodingWrap Encoding,
   unsigned TyWidth = cast<IntegerType>(ScalarTy)->getBitWidth();
   unsigned VecSize = 0;
 
-  bool IsPacked =
-      Encoding == FPEncodingWrap::E2M1 || Encoding == FPEncodingWrap::Integer;
+  bool IsPacked = Encoding == FPEncodingWrap::E2M1 ||
+                  Encoding == FPEncodingWrap::E2M1INTEL ||
+                  Encoding == FPEncodingWrap::Integer;
   if (IsPacked &&
       (TyWidth == 8 || TyWidth == 16 || TyWidth == 32 || TyWidth == 64)) {
     // Int4 or FP4 packed in an integer: each N-bit integer holds N/4 values.
@@ -6475,6 +6565,8 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
   fpContractUpdateRecursive(I, getFPContract(I));
 
   if (isKernel(I)) {
+    BM->getErrorLog().checkError(I->hasName(), SPIRVEC_InvalidLlvmModule,
+                                 "Entry point function must have a name");
     auto Interface = collectEntryPointInterfaces(BF, I);
     BM->addEntryPoint(ExecutionModelKernel, BF->getId(), I->getName().str(),
                       Interface);
