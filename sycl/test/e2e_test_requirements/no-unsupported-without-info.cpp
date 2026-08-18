@@ -54,21 +54,9 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 13
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 1
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
 //
-// CHECK: AmdNvidiaJIT/kernel_and_bundle.cpp
-// CHECK-NEXT: Assert/assert_in_simultaneous_kernels.cpp
-// CHECK-NEXT: Assert/assert_in_simultaneously_multiple_tus.cpp
-// CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
-// CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
-// CHECK-NEXT: DeviceLib/separate_compile_test.cpp
-// CHECK-NEXT: ESIMD/api/svm_gather_scatter_scalar_off.cpp
-// CHECK-NEXT: ESIMD/matrix_transpose2.cpp
-// CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
-// CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
-// CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
-// CHECK-NEXT: Printf/mixed-address-space.cpp
-// CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
+// CHECK: KernelAndProgram/multiple-kernel-linking.cpp
