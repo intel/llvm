@@ -30,8 +30,9 @@ static void execute_ordering_stage(uint32_t *values1, uint32_t *values2,
   }
 }
 
-// Execute a verification stage with data-dependent ordering constraints and update values2.
-// Proceeds only if all preconditions are met, preventing reordering of stages.
+// Execute a verification stage with data-dependent ordering constraints and
+// update values2. Proceeds only if all preconditions are met, preventing
+// reordering of stages.
 //
 // Parameters:
 //   values1, values2, values3: shared memory arrays
@@ -62,40 +63,38 @@ int main() {
   uint32_t *values3 = sycl::malloc_shared<uint32_t>(array_size, queue);
 
   queue.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<
-        class
-        discard_events_ordering_usm>(sycl::range<1>{array_size}, [=](sycl::item<
-                                                                     1>
-                                                                         itemID) {
-      size_t i = itemID.get_id(0);
-      uint32_t idx = static_cast<uint32_t>(i);
+    cgh.parallel_for<class discard_events_ordering_usm>(
+        sycl::range<1>{array_size}, [=](sycl::item<1> itemID) {
+          size_t i = itemID.get_id(0);
+          uint32_t idx = static_cast<uint32_t>(i);
 
-      // Execute all stages in strict order.
-      // Each stage can only proceed if the previous stage's conditions are met.
-      // This enforces in-order execution semantics.
+          // Execute all stages in strict order.
+          // Each stage can only proceed if the previous stage's conditions are
+          // met. This enforces in-order execution semantics.
 
-      execute_ordering_stage_and_update_values2(values1, values2, values3, i, 0,
-                                                idx, idx, idx, MAGIC_NUM1);
+          execute_ordering_stage_and_update_values2(
+              values1, values2, values3, i, 0, idx, idx, idx, MAGIC_NUM1);
 
-      execute_ordering_stage(values1, values2, values3, i, idx, MAGIC_NUM1, idx,
-                             DISCARD_EVENTS_STAGE_2_INCREMENT);
+          execute_ordering_stage(values1, values2, values3, i, idx, MAGIC_NUM1,
+                                 idx, DISCARD_EVENTS_STAGE_2_INCREMENT);
 
-      execute_ordering_stage_and_update_values2(
-          values1, values2, values3, i, idx + DISCARD_EVENTS_STAGE_2_INCREMENT,
-          idx + DISCARD_EVENTS_STAGE_2_INCREMENT, idx,
-          DISCARD_EVENTS_STAGE_3_INCREMENT, idx);
+          execute_ordering_stage_and_update_values2(
+              values1, values2, values3, i,
+              idx + DISCARD_EVENTS_STAGE_2_INCREMENT,
+              idx + DISCARD_EVENTS_STAGE_2_INCREMENT, idx,
+              DISCARD_EVENTS_STAGE_3_INCREMENT, idx);
 
-      execute_ordering_stage(values1, values2, values3, i,
-                             idx + DISCARD_EVENTS_STAGE_2_INCREMENT +
-                                 DISCARD_EVENTS_STAGE_3_INCREMENT,
-                             idx, idx, DISCARD_EVENTS_STAGE_4_INCREMENT);
+          execute_ordering_stage(values1, values2, values3, i,
+                                 idx + DISCARD_EVENTS_STAGE_2_INCREMENT +
+                                     DISCARD_EVENTS_STAGE_3_INCREMENT,
+                                 idx, idx, DISCARD_EVENTS_STAGE_4_INCREMENT);
 
-      execute_ordering_stage(values1, values2, values3, i,
-                             idx + DISCARD_EVENTS_STAGE_2_INCREMENT +
-                                 DISCARD_EVENTS_STAGE_3_INCREMENT +
-                                 DISCARD_EVENTS_STAGE_4_INCREMENT,
-                             idx, idx, DISCARD_EVENTS_STAGE_5_INCREMENT);
-    });
+          execute_ordering_stage(values1, values2, values3, i,
+                                 idx + DISCARD_EVENTS_STAGE_2_INCREMENT +
+                                     DISCARD_EVENTS_STAGE_3_INCREMENT +
+                                     DISCARD_EVENTS_STAGE_4_INCREMENT,
+                                 idx, idx, DISCARD_EVENTS_STAGE_5_INCREMENT);
+        });
   });
   sycl::free(values1, queue);
   sycl::free(values2, queue);
