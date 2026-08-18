@@ -44,6 +44,16 @@ int main() {
   assert(*Sentinel == 0x00 &&
          "parallel_for(nd_range{0, 32}) unexpectedly launched");
 
+  // Case 3: parallel_for(nd_range<1>{{0}, {0}})
+  *Sentinel = 0x00;
+  Q.submit([&](handler &cgh) {
+     cgh.parallel_for<class zero_zero_range_ndr>(
+         nd_range<1>{range<1>{0}, range<1>{0}},
+         [=](nd_item<1>) { *Sentinel = 0xFF; });
+   }).wait();
+  assert(*Sentinel == 0x00 &&
+         "parallel_for(nd_range{0, 0}) unexpectedly launched");
+
   free(Sentinel, Q);
   return 0;
 }
