@@ -825,7 +825,11 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space || generic_space
-  template <int dimensions>
+  template <
+      int dimensions, access::address_space _Space = Space,
+      typename = typename std::enable_if_t<
+          _Space == Space && (Space == access::address_space::generic_space ||
+                              Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
