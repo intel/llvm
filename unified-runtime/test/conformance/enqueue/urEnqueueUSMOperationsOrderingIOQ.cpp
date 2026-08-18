@@ -95,7 +95,7 @@ struct urEnqueueUSMOperationsOrderingIOQTest
       ASSERT_SUCCESS(urProgramRelease(program));
     }
     UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urContextTestWithParam<ur_queue_flag_t>::TearDown());
+        uur::urContextTestWithParam<QueueParameter>::TearDown());
   }
 
   bool isHostUSMSupported() {
@@ -121,16 +121,25 @@ struct urEnqueueUSMOperationsOrderingIOQTest
             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS) != 0;
   }
 
-  bool runForAlloc(ur_usm_type_t usm_type) {
-    if (usm_type == UR_USM_TYPE_HOST && !isHostUSMSupported()) {
+  bool isUSMTypeSupported(ur_usm_type_t usm_type) {
+    switch (usm_type) {
+    case UR_USM_TYPE_HOST:
+      return isHostUSMSupported();
+    case UR_USM_TYPE_DEVICE:
+      return isDeviceUSMSupported();
+    case UR_USM_TYPE_SHARED:
+      return isSharedUSMSupported();
+    default:
       return false;
     }
-    if (usm_type == UR_USM_TYPE_DEVICE && !isDeviceUSMSupported()) {
-      return false;
-    }
-    if (usm_type == UR_USM_TYPE_SHARED && !isSharedUSMSupported()) {
-      return false;
-    }
+  }
+
+  // Execute the in-order execution test for a specific USM allocation type.
+  // Returns true if test ran successfully, false if allocation or execution failed.
+  bool runOrderingTestForUSMType(ur_usm_type_t usm_type) {
+
+    EXPECT_TRUE(isUSMTypeSupported(usm_type))
+        << "Attempting to run test with unsupported USM type";
 
     auto usm_deleter = [this](void *ptr) {
       if (ptr) {
@@ -172,7 +181,7 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
     if (res1 != UR_RESULT_SUCCESS || res2 != UR_RESULT_SUCCESS ||
         res3 != UR_RESULT_SUCCESS || !values1 || !values2 || !values3) {
-      return true;
+      return false;
     }
 
     std::vector<uint32_t> input(array_size);
@@ -258,6 +267,14 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     }
 
     return true;
+  }
+
+  // Legacy wrapper for compatibility.
+  bool runForAlloc(ur_usm_type_t usm_type) {
+    if (!isUSMTypeSupported(usm_type)) {
+      return false;
+    }
+    return runOrderingTestForUSMType(usm_type);
   }
 
   std::shared_ptr<std::vector<char>> il_binary;
