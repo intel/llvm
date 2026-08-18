@@ -3,16 +3,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "discard_events_ordering_usm_consts.h"
 #include <sycl/sycl.hpp>
 
 static constexpr uint32_t MAGIC_NUM1 = 2;
-
-// Stage increments - each stage adds an order of magnitude based on STAGE_INCREMENT
-static constexpr uint32_t STAGE_INCREMENT = 10;
-static constexpr uint32_t STAGE_2_INCREMENT = STAGE_INCREMENT;        // 10
-static constexpr uint32_t STAGE_3_INCREMENT = STAGE_INCREMENT * 10;   // 100
-static constexpr uint32_t STAGE_4_INCREMENT = STAGE_INCREMENT * 100;  // 1000
-static constexpr uint32_t STAGE_5_INCREMENT = STAGE_INCREMENT * 1000; // 10000
 
 // Execute a verification stage with data-dependent ordering constraints.
 // Proceeds only if all preconditions are met, preventing reordering of stages.
@@ -84,20 +78,23 @@ int main() {
                                                 idx, idx, idx, MAGIC_NUM1);
 
       execute_ordering_stage(values1, values2, values3, i, idx, MAGIC_NUM1, idx,
-                             STAGE_2_INCREMENT);
+                             DISCARD_EVENTS_STAGE_2_INCREMENT);
 
       execute_ordering_stage_and_update_values2(
-          values1, values2, values3, i, idx + STAGE_2_INCREMENT,
-          idx + STAGE_2_INCREMENT, idx, STAGE_3_INCREMENT, idx);
+          values1, values2, values3, i, idx + DISCARD_EVENTS_STAGE_2_INCREMENT,
+          idx + DISCARD_EVENTS_STAGE_2_INCREMENT, idx,
+          DISCARD_EVENTS_STAGE_3_INCREMENT, idx);
 
       execute_ordering_stage(values1, values2, values3, i,
-                             idx + STAGE_2_INCREMENT + STAGE_3_INCREMENT, idx,
-                             idx, STAGE_4_INCREMENT);
+                             idx + DISCARD_EVENTS_STAGE_2_INCREMENT +
+                                 DISCARD_EVENTS_STAGE_3_INCREMENT,
+                             idx, idx, DISCARD_EVENTS_STAGE_4_INCREMENT);
 
       execute_ordering_stage(values1, values2, values3, i,
-                             idx + STAGE_2_INCREMENT + STAGE_3_INCREMENT +
-                                 STAGE_4_INCREMENT,
-                             idx, idx, STAGE_5_INCREMENT);
+                             idx + DISCARD_EVENTS_STAGE_2_INCREMENT +
+                                 DISCARD_EVENTS_STAGE_3_INCREMENT +
+                                 DISCARD_EVENTS_STAGE_4_INCREMENT,
+                             idx, idx, DISCARD_EVENTS_STAGE_5_INCREMENT);
     });
   });
   sycl::free(values1, queue);

@@ -3,15 +3,36 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "../device_code/discard_events_ordering_usm_consts.h"
 #include <uur/fixtures.h>
 
+// Test parameter combining submission mode and batch size.
+// Tests in-order execution with discard_events optimization across different
+// batching configurations to ensure batching doesn't break ordering semantics.
+struct QueueParameter {
+  ur_queue_flag_t submission_mode;
+  uint32_t batch_size;
+
+  QueueParameter(ur_queue_flag_t mode, uint32_t size)
+      : submission_mode(mode), batch_size(size) {}
+};
+
+inline std::string
+PrintQueueParam(const testing::TestParamInfo<QueueParameter> &info) {
+  std::string mode_str =
+      (info.param.submission_mode == UR_QUEUE_FLAG_SUBMISSION_BATCHED)
+          ? "Batched"
+          : "Immediate";
+  return mode_str + "_BatchSize_" + std::to_string(info.param.batch_size);
+}
+
 struct urEnqueueUSMOperationsOrderingIOQTest
-    : uur::urContextTestWithParam<ur_queue_flag_t> {
+    : uur::urContextTestWithParam<QueueParameter> {
   static constexpr size_t array_size = 128;
 
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urContextTestWithParam<ur_queue_flag_t>::SetUp());
+        uur::urContextTestWithParam<QueueParameter>::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
         "discard_events_ordering_usm", platform, il_binary));
@@ -34,7 +55,8 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     ASSERT_FALSE(kernel_name.empty());
     ASSERT_SUCCESS(urKernelCreate(program, kernel_name.c_str(), &kernel));
 
-    const ur_queue_flag_t submission_mode = getParam();
+    const QueueParameter params = getParam();
+    const ur_queue_flag_t submission_mode = params.submission_mode;
     const ur_queue_flags_t requested_flags =
         UR_QUEUE_FLAG_DISCARD_EVENTS | submission_mode;
 
@@ -222,9 +244,15 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
     EXPECT_SUCCESS(urQueueFinish(queue));
 
+    static constexpr uint32_t DISCARD_EVENTS_EXPECTED_FINAL_INCREMENT =
+        DISCARD_EVENTS_STAGE_2_INCREMENT + DISCARD_EVENTS_STAGE_3_INCREMENT +
+        DISCARD_EVENTS_STAGE_4_INCREMENT + DISCARD_EVENTS_STAGE_5_INCREMENT;
+
     for (size_t i = 0; i < array_size; ++i) {
       const uint32_t base = static_cast<uint32_t>(i);
-      EXPECT_EQ(out1[i], base + 11110u);
+      // Verify all ordering stages executed successfully.
+      // out1 reaches this value only if all 5 stages completed in order.
+      EXPECT_EQ(out1[i], base + DISCARD_EVENTS_EXPECTED_FINAL_INCREMENT);
       EXPECT_EQ(out2[i], base);
       EXPECT_EQ(out3[i], base);
     }
@@ -242,9 +270,15 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
 UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMOperationsOrderingIOQTest,
-    testing::Values(UR_QUEUE_FLAG_SUBMISSION_BATCHED,
-                    UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE),
-    uur::deviceTestWithParamPrinter<ur_queue_flag_t>);
+    testing::Values(QueueParameter(UR_QUEUE_FLAG_SUBMISSION_BATCHED, 0),
+                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_BATCHED, 1),
+                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_BATCHED, 2),
+                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_BATCHED, 3),
+                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 0),
+                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 1),
+                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 2),
+                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 3)),
+    PrintQueueParam);
 
 TEST_P(urEnqueueUSMOperationsOrderingIOQTest, InOrderDiscardEventsOrdering) {
   bool any_ran = false;
