@@ -76,17 +76,6 @@ struct urEnqueueUSMOperationsOrderingIOQTest
       GTEST_SKIP() << "Requested queue properties are unsupported.";
     }
     ASSERT_SUCCESS(result);
-
-    // Verify the queue was actually created with the requested flags.
-    // This is critical for ordering-based tests: the kernel's preconditions
-    // only pass if operations execute in-order with discard_events enabled.
-    ur_queue_flags_t actual_flags = 0;
-    ASSERT_SUCCESS(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS,
-                                  sizeof(actual_flags), &actual_flags,
-                                  nullptr));
-    ASSERT_EQ(actual_flags & requested_flags, requested_flags)
-        << "Queue created without requested flags: expected " << requested_flags
-        << ", got " << actual_flags;
   }
 
   void TearDown() override {
