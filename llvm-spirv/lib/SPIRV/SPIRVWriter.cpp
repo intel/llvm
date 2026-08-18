@@ -3431,7 +3431,8 @@ bool LLVMToSPIRVBase::transAlign(Value *V, SPIRVValue *BV) {
     return true;
   }
   if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-    BM->setAlignment(BV, GV->getAlignment());
+    if (MaybeAlign Alignment = GV->getAlign())
+      BM->setAlignment(BV, Alignment->value());
     return true;
   }
   return true;
