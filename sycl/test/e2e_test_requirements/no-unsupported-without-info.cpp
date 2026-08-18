@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 20
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 12
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -71,11 +71,3 @@
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
-// CHECK-NEXT: Tracing/code_location_queue_copy.cpp
-// CHECK-NEXT: Tracing/code_location_queue_parallel_for.cpp
-// CHECK-NEXT: Tracing/code_location_queue_submit.cpp
-// CHECK-NEXT: Tracing/task_execution.cpp
-// CHECK-NEXT: Tracing/task_execution_handler.cpp
-// CHECK-NEXT: Tracing/usm/queue_copy_released_pointer.cpp
-// CHECK-NEXT: Tracing/usm/queue_single_task_nullptr.cpp
-// CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
