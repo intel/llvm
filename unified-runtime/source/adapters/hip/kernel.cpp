@@ -156,10 +156,76 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
-    ur_kernel_handle_t /*hKernel*/, ur_device_handle_t /*hDevice*/,
-    uint32_t /*workDim*/, const size_t * /*pLocalWorkSize*/,
-    size_t /*dynamicSharedMemorySize*/, uint32_t * /*pGroupCountRet*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_kernel_handle_t hKernel, ur_device_handle_t /*hDevice*/,
+    uint32_t workDim, const size_t *pLocalWorkSize,
+    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_KERNEL);
+
+  size_t localWorkSize = pLocalWorkSize[0];
+  localWorkSize *= (workDim >= 2 ? pLocalWorkSize[1] : 1);
+  localWorkSize *= (workDim == 3 ? pLocalWorkSize[2] : 1);
+
+  // We need to set the active current device for this kernel explicitly here,
+  // because the occupancy querying API does not take a device parameter.
+  ur_device_handle_t Device = hKernel->getProgram()->getDevice();
+  ScopedDevice Active(Device);
+  try {
+    // We need to calculate max num of work-groups using per-device semantics.
+
+    // Unlike CUDA's cuOccupancyMaxActiveBlocksPerMultiprocessor, the
+    // hipOccupancy* variant expects a host function pointer; our kernel is a
+    // module-loaded hipFunction_t (hKernel->get()), so we must use the
+    // hipModule* occupancy entry point instead (see issue #21803).
+    int MaxNumActiveGroupsPerCU{0};
+    UR_CHECK_ERROR(hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(
+        &MaxNumActiveGroupsPerCU, hKernel->get(),
+        static_cast<int>(localWorkSize), dynamicSharedMemorySize));
+    assert(MaxNumActiveGroupsPerCU >= 0);
+    // Handle the case where we can't have all CUs active with at least 1 group
+    // per CU. In that case, the device is still able to run 1 work-group, hence
+    // we will manually check if it is possible with the available HW resources.
+    if (MaxNumActiveGroupsPerCU == 0) {
+      size_t MaxWorkGroupSize{};
+      urKernelGetGroupInfo(
+          hKernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+          sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
+      size_t MaxLocalSizeBytes{};
+      urDeviceGetInfo(Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE,
+                      sizeof(MaxLocalSizeBytes), &MaxLocalSizeBytes, nullptr);
+      // Check whether the kernel's per-thread register usage would exceed the
+      // device's per-block register budget for the requested work-group size.
+      int NumRegs{0};
+      UR_CHECK_ERROR(hipFuncGetAttribute(&NumRegs, HIP_FUNC_ATTRIBUTE_NUM_REGS,
+                                         hKernel->get()));
+      int MaxRegsPerBlock{0};
+      UR_CHECK_ERROR(hipDeviceGetAttribute(
+          &MaxRegsPerBlock, hipDeviceAttributeMaxRegistersPerBlock,
+          Device->get()));
+      const bool HasExceededMaxRegistersPerBlock =
+          localWorkSize * static_cast<size_t>(NumRegs) >
+          static_cast<size_t>(MaxRegsPerBlock);
+      if (localWorkSize > MaxWorkGroupSize ||
+          dynamicSharedMemorySize > MaxLocalSizeBytes ||
+          HasExceededMaxRegistersPerBlock)
+        *pGroupCountRet = 0;
+      else
+        *pGroupCountRet = 1;
+    } else {
+      // Multiply by the number of CUs (compute units = streaming
+      // multiprocessors) on the device in order to retrieve the total number
+      // of groups/blocks that can be launched.
+      int NumComputeUnits{0};
+      UR_CHECK_ERROR(hipDeviceGetAttribute(
+          &NumComputeUnits, hipDeviceAttributeMultiprocessorCount,
+          Device->get()));
+      assert(NumComputeUnits >= 0);
+      *pGroupCountRet =
+          static_cast<uint32_t>(NumComputeUnits) * MaxNumActiveGroupsPerCU;
+    }
+  } catch (ur_result_t Err) {
+    return Err;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
