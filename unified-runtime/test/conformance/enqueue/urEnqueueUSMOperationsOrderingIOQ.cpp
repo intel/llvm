@@ -17,13 +17,15 @@ struct QueueParameter {
       : submission_mode(mode), batch_size(size) {}
 };
 
-inline std::string
-PrintQueueParam(const testing::TestParamInfo<QueueParameter> &info) {
+inline std::string PrintQueueParam(
+    const testing::TestParamInfo<std::tuple<uur::DeviceTuple, QueueParameter>>
+        &info) {
+  const QueueParameter &queue_param = std::get<1>(info.param);
   std::string mode_str =
-      (info.param.submission_mode == UR_QUEUE_FLAG_SUBMISSION_BATCHED)
+      (queue_param.submission_mode == UR_QUEUE_FLAG_SUBMISSION_BATCHED)
           ? "Batched"
           : "Immediate";
-  return mode_str + "_BatchSize_" + std::to_string(info.param.batch_size);
+  return mode_str + "_BatchSize_" + std::to_string(queue_param.batch_size);
 }
 
 struct urEnqueueUSMOperationsOrderingIOQTest
