@@ -401,12 +401,36 @@ fill_copy_args(detail::handler_impl *impl,
                  DestOffset, DestExtent, CopyExtent);
 }
 
+// A command submission may transition a queue into a recording state. To obtain
+// the native graph for this scenario, we must check the recording status of the
+// queue on each wait event.
 static std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
-getNativeGraphImpl(queue_impl &Queue) {
+getNativeGraphImpl(queue_impl &Queue,
+                   const std::vector<EventImplPtr> &WaitEvents) {
+  std::shared_ptr<queue_impl> RecordingQueue = nullptr;
+  if (Queue.isNativeRecording()) {
+    RecordingQueue = Queue.shared_from_this();
+  } else {
+    for (const EventImplPtr &Event : WaitEvents) {
+      std::shared_ptr<queue_impl> EventQueue =
+          Event ? Event->getWorkerQueue() : nullptr;
+      if (EventQueue && EventQueue->isNativeRecording()) {
+        RecordingQueue = EventQueue;
+        break;
+      }
+    }
+  }
+  if (!RecordingQueue)
+    return nullptr;
+
   ur_exp_graph_handle_t UrGraphHandle = nullptr;
-  Queue.getAdapter().call<UrApiKind::urQueueGetGraphExp>(Queue.getHandleRef(),
-                                                         &UrGraphHandle);
-  return Queue.getContextImpl().getNativeGraph(UrGraphHandle);
+  ur_result_t Result =
+      RecordingQueue->getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
+          RecordingQueue->getHandleRef(), &UrGraphHandle);
+  if (Result != UR_RESULT_SUCCESS)
+    return nullptr;
+
+  return RecordingQueue->getContextImpl().getNativeGraph(UrGraphHandle);
 }
 
 } // namespace detail
@@ -818,22 +842,39 @@ detail::EventImplPtr handler::finalize() {
   }
 
   // Host tasks in native recording mode are captured into the native graph
-  // rather than submitted to the scheduler.
-  if (type == detail::CGType::NativeHostTask && Queue->isNativeRecording()) {
-    auto GraphImpl = detail::getNativeGraphImpl(*Queue);
-    assert(GraphImpl && "Native graph handle expired while recording");
-
+  // rather than submitted to the scheduler. The submitting queue may already be
+  // recording, or it may join an in-progress capture by depending on an event
+  // from a recording queue (a fork).
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> HTNativeGraph =
+      nullptr;
+  if (type == detail::CGType::NativeHostTask)
+    HTNativeGraph =
+        detail::getNativeGraphImpl(*Queue, CommandGroup->getEvents());
+  if (HTNativeGraph) {
     auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
     // Store callback in the graph to manage its lifetime
-    auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
+    auto *CallbackData = HTNativeGraph->addNativeHostTaskCallback(
         std::make_unique<detail::EnqueueHostTaskData>(
             detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask)));
 
+    // All event dependencies supported with native recording go through UR
+    auto WaitEventList = detail::Command::getUrEvents(
+        HT->getEvents(), Queue, /*IsHostTaskCommand*/ true);
+    ur_event_handle_t SignalEvent = nullptr;
+
     Queue->getAdapter().call<detail::UrApiKind::urEnqueueHostTaskExp>(
         Queue->getHandleRef(), detail::NativeHostTask<false>, CallbackData,
-        nullptr, 0, nullptr, nullptr);
+        nullptr, static_cast<uint32_t>(WaitEventList.size()),
+        WaitEventList.empty() ? nullptr : WaitEventList.data(), &SignalEvent);
 
-    return detail::event_impl::create_completed_host_event();
+    auto EventImpl = detail::event_impl::create_device_event(*Queue);
+    EventImpl->setWorkerQueue(Queue->weak_from_this());
+    EventImpl->setSubmittedQueue(Queue);
+    EventImpl->setPotentiallyNativeRecorded(true);
+    EventImpl->setSubmissionTime();
+    EventImpl->setHandle(SignalEvent);
+    EventImpl->setEnqueued();
+    return EventImpl;
   }
   if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
     throw sycl::exception(
