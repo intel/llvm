@@ -193,55 +193,25 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     const size_t global_offset[] = {0};
     const size_t global_size[] = {array_size};
 
-    {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
-                                               ptr_arg(values2.get(), 1),
-                                               ptr_arg(values3.get(), 2)};
+    auto enqueue_kernel_with_pointers = [&](void *p1, void *p2, void *p3) {
+      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(p1, 0), ptr_arg(p2, 1),
+                                               ptr_arg(p3, 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
           queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
           nullptr, 0, nullptr, nullptr));
-    }
+    };
 
-    {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
-                                               ptr_arg(values2.get(), 1),
-                                               ptr_arg(values3.get(), 2)};
-      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
-          nullptr, 0, nullptr, nullptr));
-    }
+    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
+    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
 
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values1.get(),
                                       allocation_size, 0, nullptr, nullptr));
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2.get(), tmp.data(),
                                       allocation_size, 0, nullptr, nullptr));
 
-    {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
-                                               ptr_arg(values2.get(), 1),
-                                               ptr_arg(values3.get(), 2)};
-      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
-          nullptr, 0, nullptr, nullptr));
-    }
-
-    {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
-                                               ptr_arg(values2.get(), 1),
-                                               ptr_arg(values3.get(), 2)};
-      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
-          nullptr, 0, nullptr, nullptr));
-    }
-
-    {
-      ur_exp_kernel_arg_properties_t args[] = {ptr_arg(values1.get(), 0),
-                                               ptr_arg(values2.get(), 1),
-                                               ptr_arg(values3.get(), 2)};
-      EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-          queue, kernel, 1, global_offset, global_size, nullptr, 3, args,
-          nullptr, 0, nullptr, nullptr));
-    }
+    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
+    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
+    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
 
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out1.data(), values1.get(),
                                       allocation_size, 0, nullptr, nullptr));
