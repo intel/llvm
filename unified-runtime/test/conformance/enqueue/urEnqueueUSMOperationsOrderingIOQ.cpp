@@ -34,20 +34,9 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     ASSERT_FALSE(kernel_name.empty());
     ASSERT_SUCCESS(urKernelCreate(program, kernel_name.c_str(), &kernel));
 
-    ur_queue_flags_t supported_flags = 0;
-    ASSERT_SUCCESS(
-        uur::GetDeviceQueueOnHostProperties(device, supported_flags));
-
     const ur_queue_flag_t submission_mode = getParam();
     const ur_queue_flags_t requested_flags =
         UR_QUEUE_FLAG_DISCARD_EVENTS | submission_mode;
-
-    if ((supported_flags & UR_QUEUE_FLAG_DISCARD_EVENTS) == 0) {
-      GTEST_SKIP() << "Discard events queue flag is not supported.";
-    }
-    if ((supported_flags & submission_mode) == 0) {
-      GTEST_SKIP() << "Requested submission mode is not supported.";
-    }
 
     ur_queue_properties_t props = {
         UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
