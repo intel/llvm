@@ -95,6 +95,12 @@ function(add_xpti_library LIB_NAME)
     VERSION ${XPTIFW_VERSION}
   )
 
+  if(APPLE)
+    set_target_properties(${LIB_NAME} PROPERTIES INSTALL_RPATH "@loader_path")
+  else()
+    set_target_properties(${LIB_NAME} PROPERTIES INSTALL_RPATH "\$ORIGIN")
+  endif()
+
   # Set the location of the library installation
   include(GNUInstallDirs)
   install(TARGETS ${LIB_NAME}
