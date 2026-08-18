@@ -59,10 +59,10 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
   Q.submit([&](handler &CGH) {
     // Reduction needs a device accessor as a parameter.
     // This accessor is not really used in this test.
-    accessor<T, Dim, access::mode::read_write, access::target::device>
-        ReduRWAcc(ReduBuf, CGH);
-    accessor<T, Dim, access::mode::discard_write, access::target::device>
-        ReduDWAcc(ReduBuf, CGH);
+    accessor<T, Dim, access_mode::read_write, access::target::device> ReduRWAcc(
+        ReduBuf, CGH);
+    accessor<T, Dim, access_mode::write, access::target::device> ReduDWAcc(
+        ReduBuf, CGH, sycl::no_init);
     auto Redu = sycl::reduction(ReduBuf, CGH, BOp);
     auto ReduUSM = sycl::reduction(ReduUSMPtr, BOp);
 
@@ -91,10 +91,10 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
   Q.submit([&](handler &CGH) {
     // Reduction needs a device accessor as a parameter.
     // This accessor is not really used in this test.
-    accessor<T, Dim, access::mode::read_write, access::target::device>
-        ReduRWAcc(ReduBuf, CGH);
-    accessor<T, Dim, access::mode::discard_write, access::target::device>
-        ReduDWAcc(ReduBuf, CGH);
+    accessor<T, Dim, access_mode::read_write, access::target::device> ReduRWAcc(
+        ReduBuf, CGH);
+    accessor<T, Dim, access_mode::write, access::target::device> ReduDWAcc(
+        ReduBuf, CGH, sycl::no_init);
     auto Redu = sycl::reduction(ReduBuf, CGH, Identity, BOp);
     auto ReduUSM = sycl::reduction(ReduUSMPtr, Identity, BOp);
     assert(toBool(Redu.getIdentityContainer().getIdentity() == Identity) &&

@@ -15,7 +15,7 @@ void runKernelsFromFile2() {
     assert(KernelIDStorage[0] == KernelID1);
 
     Q.submit([&](sycl::handler &Cgh) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(Cgh);
       Cgh.single_task<File2Kern1>([=]() { Acc[0] = 3; });
     });
   }

@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 31
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 13
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -65,28 +65,10 @@
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
 // CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
-// CHECK-NEXT: ESIMD/api/replicate_smoke.cpp
-// CHECK-NEXT: ESIMD/api/simd_copy_to_from.cpp
-// CHECK-NEXT: ESIMD/api/simd_copy_to_from_stateful.cpp
-// CHECK-NEXT: ESIMD/api/simd_subscript_operator.cpp
-// CHECK-NEXT: ESIMD/api/simd_view_subscript_operator.cpp
-// CHECK-NEXT: ESIMD/api/svm_gather_scatter.cpp
 // CHECK-NEXT: ESIMD/api/svm_gather_scatter_scalar_off.cpp
-// CHECK-NEXT: ESIMD/ext_math.cpp
-// CHECK-NEXT: ESIMD/ext_math_fast.cpp
-// CHECK-NEXT: ESIMD/ext_math_saturate.cpp
 // CHECK-NEXT: ESIMD/matrix_transpose2.cpp
-// CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
 // CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
-// CHECK-NEXT: Tracing/code_location_queue_copy.cpp
-// CHECK-NEXT: Tracing/code_location_queue_parallel_for.cpp
-// CHECK-NEXT: Tracing/code_location_queue_submit.cpp
-// CHECK-NEXT: Tracing/task_execution.cpp
-// CHECK-NEXT: Tracing/task_execution_handler.cpp
-// CHECK-NEXT: Tracing/usm/queue_copy_released_pointer.cpp
-// CHECK-NEXT: Tracing/usm/queue_single_task_nullptr.cpp
-// CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp

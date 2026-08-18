@@ -20,7 +20,7 @@ void nestedSubmitParallelFor(sycl::queue &q) {
   {
     sycl::buffer<float> buf(array.data(), sycl::range<1>{n});
     q.submit([&](sycl::handler &h) {
-      auto acc = buf.get_access<sycl::access::mode::write>(h);
+      auto acc = buf.get_access<sycl::access_mode::write>(h);
       q.parallel_for<class zero>(sycl::range<1>{n},
                                  [=](sycl::id<1> i) { acc[i] = float(0.0); });
     });

@@ -15,12 +15,15 @@
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
 
-#include "../device.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../platform.hpp"
+#include "../common/api.hpp"
+#include "../common/device.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/platform.hpp"
+#include "../common/sampler.hpp"
 #include "../program.hpp"
-#include "../sampler.hpp"
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
+
+namespace ur::level_zero::v2 {
 
 ur_single_device_kernel_t::ur_single_device_kernel_t(ur_device_handle_t hDevice,
                                                      ze_kernel_handle_t hKernel,
@@ -51,8 +54,9 @@ ur_result_t ur_single_device_kernel_t::release() {
 ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
                                          const char *kernelName)
     : hProgram(hProgram),
-      deviceKernels(hProgram->Context->getPlatform()->getNumDevices()) {
-  ur::level_zero::urProgramRetain(hProgram);
+      deviceKernels(
+          v2_cast(hProgram->Context)->getPlatform()->getNumDevices()) {
+  ur::level_zero::urProgramRetain(common_cast(hProgram));
 
   for (auto &Dev : hProgram->AssociatedDevices) {
     auto zeDevice = Dev->ZeDevice;
@@ -68,12 +72,13 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
     ze_kernel_handle_t zeKernel;
     ZE2UR_CALL_THROWS(zeKernelCreate, (zeModule, &zeKernelDesc, &zeKernel));
 
-    auto urDevice = std::find_if(hProgram->Context->getDevices().begin(),
-                                 hProgram->Context->getDevices().end(),
-                                 [zeDevice = zeDevice](const auto &urDevice) {
-                                   return urDevice->ZeDevice == zeDevice;
-                                 });
-    assert(urDevice != hProgram->Context->getDevices().end());
+    auto urDevice =
+        std::find_if(v2_cast(hProgram->Context)->getDevices().begin(),
+                     v2_cast(hProgram->Context)->getDevices().end(),
+                     [zeDevice = zeDevice](const auto &urDevice) {
+                       return urDevice->ZeDevice == zeDevice;
+                     });
+    assert(urDevice != v2_cast(hProgram->Context)->getDevices().end());
     auto deviceId = (*urDevice)->Id.value();
 
     deviceKernels[deviceId].emplace(*urDevice, zeKernel, true);
@@ -87,7 +92,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
     const ur_kernel_native_properties_t *pProperties)
     : hProgram(hProgram),
       deviceKernels(context ? context->getPlatform()->getNumDevices() : 0) {
-  ur::level_zero::urProgramRetain(hProgram);
+  ur::level_zero::urProgramRetain(common_cast(hProgram));
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
@@ -118,7 +123,7 @@ ur_result_t ur_kernel_handle_t_::release() {
     }
   }
 
-  UR_CALL_THROWS(ur::level_zero::urProgramRelease(hProgram));
+  UR_CALL_THROWS(ur::level_zero::urProgramRelease(common_cast(hProgram)));
 
   delete this;
 
@@ -309,8 +314,8 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
   auto hZeKernel = deviceKernel.hKernel.get();
 
   if (pGlobalWorkOffset != NULL) {
-    UR_CALL(
-        setKernelGlobalOffset(hContext, hZeKernel, workDim, pGlobalWorkOffset));
+    UR_CALL(setKernelGlobalOffset(v2_cast(hContext), hZeKernel, workDim,
+                                  pGlobalWorkOffset));
   }
 
   ZE2UR_CALL(zeKernelSetGroupSize,
@@ -370,38 +375,39 @@ std::vector<char> ur_kernel_handle_t_::getSourceAttributes() const {
   return attributes;
 }
 
-namespace ur::level_zero {
-ur_result_t urKernelCreate(ur_program_handle_t hProgram,
+ur_result_t urKernelCreate(::ur_program_handle_t hProgramOpque,
                            const char *pKernelName,
-                           ur_kernel_handle_t *phKernel) try {
-  *phKernel = new ur_kernel_handle_t_(hProgram, pKernelName);
+                           ::ur_kernel_handle_t *phKernelOpque) try {
+  *v2_cast(phKernelOpque) =
+      new ur_kernel_handle_t_(common_cast(hProgramOpque), pKernelName);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urKernelGetNativeHandle(ur_kernel_handle_t hKernel,
-                                    ur_native_handle_t *phNativeKernel) try {
+ur_result_t urKernelGetNativeHandle(::ur_kernel_handle_t hKernelOpque,
+                                    ::ur_native_handle_t *phNativeKernel) try {
   // Return the handle of the kernel for the first device
-  *phNativeKernel =
-      reinterpret_cast<ur_native_handle_t>(hKernel->getNativeZeHandle());
+  *phNativeKernel = reinterpret_cast<ur_native_handle_t>(
+      v2_cast(hKernelOpque)->getNativeZeHandle());
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t
-urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
-                               ur_context_handle_t hContext,
-                               ur_program_handle_t hProgram,
+urKernelCreateWithNativeHandle(::ur_native_handle_t hNativeKernel,
+                               ::ur_context_handle_t hContextOpque,
+                               ::ur_program_handle_t hProgramOpque,
                                const ur_kernel_native_properties_t *pProperties,
-                               ur_kernel_handle_t *phKernel) try {
+                               ::ur_kernel_handle_t *phKernelOpque) try {
+  auto hProgram = common_cast(hProgramOpque);
   if (!hProgram) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
-  *phKernel =
-      new ur_kernel_handle_t_(hNativeKernel, hProgram, hContext, pProperties);
+  *v2_cast(phKernelOpque) = new ur_kernel_handle_t_(
+      hNativeKernel, hProgram, v2_cast(hContextOpque), pProperties);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -409,8 +415,8 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
 
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
-    ur_kernel_handle_t hKernel) try {
-  hKernel->RefCount.retain();
+    ::ur_kernel_handle_t hKernelOpque) try {
+  v2_cast(hKernelOpque)->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -418,15 +424,15 @@ ur_result_t urKernelRetain(
 
 ur_result_t urKernelRelease(
     /// [in] handle for the Kernel to release
-    ur_kernel_handle_t hKernel) try {
-  return hKernel->release();
+    ::ur_kernel_handle_t hKernelOpque) try {
+  return v2_cast(hKernelOpque)->release();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelSetExecInfo(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
+    ::ur_kernel_handle_t hKernelOpque,
     /// [in] name of the execution attribute
     ur_kernel_exec_info_t propName,
     /// [in] size in byte the attribute value
@@ -436,6 +442,7 @@ ur_result_t urKernelSetExecInfo(
     /// [in][range(0, propSize)] pointer to memory location holding the property
     /// value.
     const void *pPropValue) try {
+  auto hKernel = v2_cast(hKernelOpque);
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
@@ -446,9 +453,9 @@ ur_result_t urKernelSetExecInfo(
 
 ur_result_t urKernelGetGroupInfo(
     /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
+    ::ur_kernel_handle_t hKernelOpque,
     /// [in] handle of the Device object
-    ur_device_handle_t hDevice,
+    ::ur_device_handle_t hDeviceOpque,
     /// [in] name of the work Group property to query
     ur_kernel_group_info_t paramName,
     /// [in] size of the Kernel Work Group property value
@@ -459,6 +466,8 @@ ur_result_t urKernelGetGroupInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *pParamValueSizeRet) try {
+  auto hKernel = v2_cast(hKernelOpque);
+  auto hDevice = common_cast(hDeviceOpque);
   UrReturnHelper returnValue(paramValueSize, pParamValue, pParamValueSizeRet);
 
   // No locking needed here, we only read const members
@@ -530,9 +539,9 @@ ur_result_t urKernelGetGroupInfo(
 
 ur_result_t urKernelGetSubGroupInfo(
     /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
+    ::ur_kernel_handle_t hKernelOpque,
     /// [in] handle of the Device object
-    ur_device_handle_t hDevice,
+    ::ur_device_handle_t hDeviceOpque,
     /// [in] name of the SubGroup property to query
     ur_kernel_sub_group_info_t propName,
     /// [in] size of the Kernel SubGroup property value
@@ -545,7 +554,7 @@ ur_result_t urKernelGetSubGroupInfo(
     size_t *pPropSizeRet) try {
   UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
 
-  auto props = hKernel->getProperties(hDevice);
+  auto props = v2_cast(hKernelOpque)->getProperties(common_cast(hDeviceOpque));
 
   // No locking needed here, we only read const members
   if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE) {
@@ -565,9 +574,10 @@ ur_result_t urKernelGetSubGroupInfo(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
+ur_result_t urKernelGetInfo(::ur_kernel_handle_t hKernelOpque,
                             ur_kernel_info_t paramName, size_t propSize,
                             void *pKernelInfo, size_t *pPropSizeRet) try {
+  auto hKernel = v2_cast(hKernelOpque);
 
   UrReturnHelper ReturnValue(propSize, pKernelInfo, pPropSizeRet);
 
@@ -575,9 +585,9 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
   switch (paramName) {
   case UR_KERNEL_INFO_CONTEXT:
     return ReturnValue(
-        ur_context_handle_t{hKernel->getProgramHandle()->Context});
+        ::ur_context_handle_t{hKernel->getProgramHandle()->Context});
   case UR_KERNEL_INFO_PROGRAM:
-    return ReturnValue(ur_program_handle_t{hKernel->getProgramHandle()});
+    return ReturnValue(common_cast(hKernel->getProgramHandle()));
   case UR_KERNEL_INFO_FUNCTION_NAME: {
     auto kernelName = hKernel->getCommonProperties().name;
     return ReturnValue(static_cast<const char *>(kernelName.c_str()));
@@ -613,9 +623,11 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
 }
 
 ur_result_t urKernelGetSuggestedLocalWorkSize(
-    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
-    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    ::ur_kernel_handle_t hKernelOpque, ::ur_queue_handle_t hQueueOpque,
+    uint32_t workDim, [[maybe_unused]] const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
+  auto hKernel = v2_cast(hKernelOpque);
+  auto hQueue = v2_cast(hQueueOpque);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
@@ -638,20 +650,22 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
 }
 
 ur_result_t urKernelGetSuggestedLocalWorkSizeWithArgs(
-    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    [[maybe_unused]] uint32_t numArgs,
+    ::ur_kernel_handle_t hKernelOpque, ::ur_queue_handle_t hQueueOpque,
+    uint32_t workDim, const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, [[maybe_unused]] uint32_t numArgs,
     [[maybe_unused]] const ur_exp_kernel_arg_properties_t *pArgs,
     size_t *pSuggestedLocalWorkSize) {
-  return ur::level_zero::urKernelGetSuggestedLocalWorkSize(
-      hKernel, hQueue, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+  return ur::level_zero::v2::urKernelGetSuggestedLocalWorkSize(
+      hKernelOpque, hQueueOpque, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pSuggestedLocalWorkSize);
 }
 
 ur_result_t urKernelSuggestMaxCooperativeGroupCount(
-    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
-    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
-    uint32_t *pGroupCountRet) {
+    ::ur_kernel_handle_t hKernelOpque, ::ur_device_handle_t hDeviceOpque,
+    uint32_t workDim, const size_t *pLocalWorkSize,
+    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
+  auto hKernel = v2_cast(hKernelOpque);
+  auto hDevice = common_cast(hDeviceOpque);
   (void)dynamicSharedMemorySize;
 
   uint32_t wg[3];
@@ -668,4 +682,4 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

@@ -122,11 +122,12 @@ SPIRVLowerBitCastToNonStandardTypePass::run(Function &F,
   // parameter, since it added by an optimization.
   bool Changed = false;
 
-  // SPV_INTEL_vector_compute allows to use vectors with any number of
-  // components. Since this method only lowers vectors with non-standard
-  // in pure SPIR-V number of components, there is no need to do anything in
-  // case SPV_INTEL_vector_compute is enabled.
-  if (Opts.isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
+  // SPV_EXT_long_vector and SPV_INTEL_vector_compute allow to use vectors with
+  // any number of components. Since this method only lowers vectors with
+  // non-standard in pure SPIR-V number of components, there is no need to do
+  // anything in case any of them is enabled.
+  if (Opts.isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector) ||
+      Opts.isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     return PreservedAnalyses::all();
 
   // The basic pattern we're trying to fix is this InstCombine pattern:

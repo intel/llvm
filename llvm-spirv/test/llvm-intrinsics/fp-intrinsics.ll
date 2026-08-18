@@ -508,3 +508,20 @@ entry:
 }
 
 declare float @llvm.ldexp.f32.i32(float, i32)
+
+; CHECK: Function [[ResTy2:[0-9]+]]
+; CHECK: FunctionParameter {{[0-9]+}} [[xsincos:[0-9]+]]
+; CHECK: Variable [[PtrTy2:[0-9]+]] [[CosPtr:[0-9]+]] 7
+; CHECK: ExtInst [[var2]] [[SinVal:[0-9]+]] [[extinst_id]] sincos [[xsincos]] [[CosPtr]]
+; CHECK: Load [[var2]] [[CosVal:[0-9]+]] [[CosPtr]]
+; CHECK: CompositeConstruct [[ResTy2]] [[RetVal2:[0-9]+]] [[SinVal]] [[CosVal]]
+; CHECK: ReturnValue [[RetVal2]]
+; CHECK: FunctionEnd
+
+define spir_func {double, double} @TestSincos(double %x) {
+entry:
+  %t = tail call {double, double} @llvm.sincos.f64(double %x)
+  ret {double, double} %t
+}
+
+declare {double, double} @llvm.sincos.f64(double)

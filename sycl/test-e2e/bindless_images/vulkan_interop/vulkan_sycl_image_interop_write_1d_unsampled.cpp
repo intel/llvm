@@ -9,6 +9,9 @@
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
 
+// UNSUPPORTED: linux && arch-intel_gpu_mtl_u
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22858
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 /*
@@ -55,17 +58,14 @@
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32
 
-// On Linux L0, there are problem with semaphores and latest drivers.
-// GSD-12371 GSD-12339  We need driver version 38362 or later.
-
-// RUN-IF: !level_zero, %{run} %t.out --type float --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type half --channels 2 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int32 --channels 4 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint32 --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int16 --channels 2 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint16 --channels 4 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint8 --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int8 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type float --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type half --channels 2 32 --semaphores
+// RUN: %{run} %t.out --type int32 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type uint32 --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type int16 --channels 2 32 --semaphores
+// RUN: %{run} %t.out --type uint16 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type uint8 --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type int8 --channels 4 32 --semaphores
 
 
 /*

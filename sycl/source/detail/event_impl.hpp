@@ -20,6 +20,7 @@
 #include <cassert>
 #include <condition_variable>
 #include <optional>
+#include <utility>
 
 namespace sycl {
 inline namespace _V1 {
@@ -456,10 +457,19 @@ protected:
   /// True only for events imported via ipc::event::open().
   bool MOpenedFromIpc = false;
 
+  /// Exported IPC handle data for a producer IPC event.
+  void *MIPCHandleData = nullptr;
+  size_t MIPCHandleDataSize = 0;
+
 public:
   bool isIPCEnabled() const noexcept { return MIPCEnabled; }
   bool isOpenedFromIpc() const noexcept { return MOpenedFromIpc; }
   void setIPCEnabled(bool Value) { MIPCEnabled = Value; }
+
+  /// Returns the exported IPC handle data for this producer IPC event,
+  /// obtaining it from the backend on the first call and caching it on the
+  /// event.
+  std::pair<void *, size_t> getOrCreateIPCHandle();
 
 protected:
   /// Indicates that the task associated with this event has been submitted by
