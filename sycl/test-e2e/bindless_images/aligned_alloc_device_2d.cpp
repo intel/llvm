@@ -1,3 +1,5 @@
+// REQUIRES: aspect-usm_device_allocations
+
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_bindless_images_2d_usm
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_2d_usm
@@ -105,6 +107,10 @@ template <typename T> int runTest() {
 
       void *imgMem =
           sycl::aligned_alloc_device(devicePitchAlign, pitch * height, q);
+      if (imgMem == nullptr) {
+        std::cout << "Failed to allocate aligned device memory!\n";
+        return 1;
+      }
 
       for (size_t j = 0; j < height; ++j) {
         q.memcpy(static_cast<char *>(imgMem) + j * pitch,
@@ -135,8 +141,9 @@ template <typename T> int runTest() {
         for (int c = 0; c < channels; ++c) {
           if (out[i][c] != dataIn[i][c]) {
             std::cout << "Failure at pitch " << pitch << ": mismatch at index "
-                      << i << " channel " << c << " expected " << dataIn[i][c]
-                      << " got " << out[i][c] << "\n";
+                      << i << " channel " << c << " expected "
+                      << static_cast<double>(dataIn[i][c]) << " got "
+                      << static_cast<double>(out[i][c]) << "\n";
             return 1;
           }
         }
