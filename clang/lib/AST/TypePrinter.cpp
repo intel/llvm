@@ -1176,6 +1176,9 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
     case CC_AArch64SVEPCS:
       OS << " __attribute__((aarch64_sve_pcs))";
       break;
+    case CC_NativeCPUFunction:
+      // Do nothing. This CC is not available as an attribute.
+      break;
     case CC_DeviceKernel:
       OS << " __attribute__((device_kernel))";
       break;
@@ -1190,9 +1193,6 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       break;
     case CC_X86RegCall:
       OS << " __attribute__((regcall))";
-      break;
-    case CC_SpirFunction:
-      // Do nothing. These CCs are not available as attributes.
       break;
     case CC_Swift:
       OS << " __attribute__((swiftcall))";

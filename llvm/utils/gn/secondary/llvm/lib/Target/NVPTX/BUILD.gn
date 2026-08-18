@@ -43,6 +43,7 @@ static_library("LLVMNVPTXCodeGen") {
     "NVPTXAsmPrinter.cpp",
     "NVPTXAssignValidGlobalNames.cpp",
     "NVPTXAtomicLower.cpp",
+    "NVPTXCodeGenPassBuilder.cpp",
     "NVPTXCtorDtorLowering.cpp",
     "NVPTXDwarfDebug.cpp",
     "NVPTXForwardParams.cpp",

@@ -5992,7 +5992,7 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
     break;
   }
   case ParsedAttr::AT_NativeCPULibclcCall:
-    CC = CC_SpirFunction;
+    CC = CC_NativeCPUFunction;
     break;
   default: llvm_unreachable("unexpected attribute kind");
   }

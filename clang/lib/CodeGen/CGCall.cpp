@@ -96,7 +96,7 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
     return llvm::CallingConv::AArch64_VectorCall;
   case CC_AArch64SVEPCS:
     return llvm::CallingConv::AArch64_SVE_VectorCall;
-  case CC_SpirFunction:
+  case CC_NativeCPUFunction:
     return llvm::CallingConv::SPIR_FUNC;
   case CC_DeviceKernel:
     return CGM.getTargetCodeGenInfo().getDeviceKernelCallingConv();
@@ -349,7 +349,7 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
   }
 
   if (D->hasAttr<NativeCPULibclcCallAttr>())
-    return CC_SpirFunction;
+    return CC_NativeCPUFunction;
 
   return CC_C;
 }
