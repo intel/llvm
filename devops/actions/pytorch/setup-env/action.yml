@@ -1,0 +1,19 @@
+name: 'Setup PyTorch Build/Test Environment'
+description: 'Export the common environment variables used by the PyTorch build and test jobs'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Environment Variables
+      shell: bash
+      run: |
+        # We can't do this in a normal 'env:' section because the github.workspace
+        # variable is wrong when using containers, only the Bash variable
+        # GITHUB_WORKSPACE is correct.
+        SYCL_INSTALL_DIR="$GITHUB_WORKSPACE/install"
+        echo "SYCL_INSTALL_DIR=$SYCL_INSTALL_DIR" >> $GITHUB_ENV
+        echo "PYTORCH_SRC_DIR=$GITHUB_WORKSPACE/pytorch" >> $GITHUB_ENV
+        echo "VENV_DIR=$GITHUB_WORKSPACE/pytorch.dpclang" >> $GITHUB_ENV
+        echo "PATH=$SYCL_INSTALL_DIR/bin:$PATH" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=$SYCL_INSTALL_DIR/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "PKG_CONFIG_PATH=$SYCL_INSTALL_DIR/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV

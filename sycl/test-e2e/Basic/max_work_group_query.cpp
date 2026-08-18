@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
 
 #include <cassert>
 #include <iostream>

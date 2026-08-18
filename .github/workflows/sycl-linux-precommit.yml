@@ -100,7 +100,7 @@ jobs:
           ref: ${{ github.ref || github.sha }}
           testing_mode: full
           target_devices: native_cpu:cpu
-          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
           extra_lit_opts: --param sycl_build_targets="native_cpu"
           extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
 

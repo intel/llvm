@@ -4,6 +4,7 @@
 
 // XFAIL: *
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14116
+#include <iostream>
 
 #include <cuda.h>
 #include <sycl/detail/core.hpp>

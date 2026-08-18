@@ -20,6 +20,7 @@
 
 // XFAIL:gpu
 // XFAIL-TRACKER: GSD-5768
+#include <iostream>
 
 #include "common.hpp"
 #include "joint_matrix_out_bounds_impl.hpp"

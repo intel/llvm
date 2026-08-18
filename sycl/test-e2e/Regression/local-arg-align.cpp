@@ -13,6 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/cl.h>
 #include <iostream>
 
 #include <sycl/detail/core.hpp>

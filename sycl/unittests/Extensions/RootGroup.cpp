@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <gtest/gtest.h>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 
 // Include helpers for device image, kernel info, and Unified Runtime (UR) mocks
@@ -41,6 +42,8 @@ struct KernelInfo<QueryKernel> : public unittest::MockKernelInfoBase {
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
+
+template void sycl::unittest::registerKernelNames<QueryKernel>();
 
 static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"QueryKernel"});

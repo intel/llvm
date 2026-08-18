@@ -645,15 +645,15 @@ declare dso_local spir_func float @_Z30sub_group_clustered_reduce_maxfj(float, i
 
 ; CHECK-COMMON-LABEL: @testClusteredArithmeticHalf
 
-; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_addDhj(half 0xH0000, i32 2)
-; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_mulDhj(half 0xH0000, i32 2)
-; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_minDhj(half 0xH0000, i32 2)
-; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_maxDhj(half 0xH0000, i32 2)
+; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_addDhj(half 0.000000e+00, i32 2)
+; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_mulDhj(half 0.000000e+00, i32 2)
+; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_minDhj(half 0.000000e+00, i32 2)
+; CHECK-LLVM: call spir_func half @_Z30sub_group_clustered_reduce_maxDhj(half 0.000000e+00, i32 2)
 
-; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFAddiiDhj(i32 3, i32 3, half 0xH0000, i32 2)
-; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMuliiDhj(i32 3, i32 3, half 0xH0000, i32 2)
-; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMiniiDhj(i32 3, i32 3, half 0xH0000, i32 2)
-; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMaxiiDhj(i32 3, i32 3, half 0xH0000, i32 2)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFAddiiDhj(i32 3, i32 3, half 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMuliiDhj(i32 3, i32 3, half 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMiniiDhj(i32 3, i32 3, half 0.000000e+00, i32 2)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMaxiiDhj(i32 3, i32 3, half 0.000000e+00, i32 2)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testClusteredArithmeticHalf(ptr addrspace(1) captures(none)) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !26 !kernel_arg_base_type !26 !kernel_arg_type_qual !6 {

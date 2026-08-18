@@ -347,8 +347,6 @@ static bool dynamicWGLocalMemory(Module &M) {
                              llvm::MDNode::get(NewFunc->getContext(), NewMD));
       };
 
-      FixupMetadata("kernel_arg_buffer_location",
-                    ConstantAsMetadata::get(Builder.getInt32(-1)));
       FixupMetadata("kernel_arg_runtime_aligned",
                     ConstantAsMetadata::get(Builder.getFalse()));
       FixupMetadata("kernel_arg_exclusive_ptr",

@@ -14,6 +14,7 @@
 //   simd<int, 4> v = 1;
 //   auto v1 = v.select<2, 1>(0);
 //   v1[0] = 0; // v1[0] returns writable simd_view
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

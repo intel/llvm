@@ -14,27 +14,29 @@
 
 #include <vector>
 
-struct ur_event_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_event_handle_t_ : handle_base {
   using native_type = cl_event;
   native_type CLEvent;
-  ur_context_handle_t Context;
-  ur_queue_handle_t Queue;
+  ur_context_handle_t_ *Context;
+  ur_queue_handle_t_ *Queue;
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
 
-  ur_event_handle_t_(native_type Event, ur_context_handle_t Ctx,
-                     ur_queue_handle_t Queue)
+  ur_event_handle_t_(native_type Event, ur_context_handle_t_ *Ctx,
+                     ur_queue_handle_t_ *Queue)
       : handle_base(), CLEvent(Event), Context(Ctx), Queue(Queue) {
-    urContextRetain(Context);
+    ur::opencl::urContextRetain(cast(Context));
     if (Queue) {
-      urQueueRetain(Queue);
+      ur::opencl::urQueueRetain(cast(Queue));
     }
   }
 
   ~ur_event_handle_t_() {
-    urContextRelease(Context);
+    ur::opencl::urContextRelease(cast(Context));
     if (Queue) {
-      urQueueRelease(Queue);
+      ur::opencl::urQueueRelease(cast(Queue));
     }
     if (IsNativeHandleOwned) {
       clReleaseEvent(CLEvent);
@@ -47,8 +49,10 @@ struct ur_event_handle_t_ : ur::opencl::handle_base {
       CL_RETURN_ON_FAILURE(clGetEventInfo(CLEvent, CL_EVENT_COMMAND_QUEUE,
                                           sizeof(native_queue), &native_queue,
                                           nullptr));
+      ur_queue_handle_t OpaqueQueue = nullptr;
       UR_RETURN_ON_FAILURE(ur_queue_handle_t_::makeWithNative(
-          native_queue, Context, nullptr, Queue));
+          native_queue, cast(Context), nullptr, OpaqueQueue));
+      Queue = cast(OpaqueQueue);
     }
 
     return UR_RESULT_SUCCESS;
@@ -63,19 +67,22 @@ inline ur_result_t createUREvent(cl_event Event, ur_context_handle_t Context,
                                  ur_queue_handle_t Queue,
                                  ur_event_handle_t *ReturnedEvent) {
   assert(Queue);
+  auto UrQueue = cast(Queue);
   if (ReturnedEvent) {
     try {
       auto UREvent =
-          std::make_unique<ur_event_handle_t_>(Event, Context, Queue);
-      *ReturnedEvent = UREvent.release();
-      UR_RETURN_ON_FAILURE(Queue->storeLastEvent(*ReturnedEvent));
+          std::make_unique<ur_event_handle_t_>(Event, cast(Context), UrQueue);
+      *ReturnedEvent = cast(UREvent.release());
+      UR_RETURN_ON_FAILURE(UrQueue->storeLastEvent(*ReturnedEvent));
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
   } else {
-    UR_RETURN_ON_FAILURE(Queue->storeLastEvent(nullptr));
+    UR_RETURN_ON_FAILURE(UrQueue->storeLastEvent(nullptr));
   }
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

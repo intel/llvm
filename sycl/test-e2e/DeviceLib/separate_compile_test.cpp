@@ -1,5 +1,8 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// UNSUPPORTED: target-amd || target-nvidia
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
+//
+// UNSUPPORTED: target-nvidia
 // RUN: %clangxx -fsycl -fsycl-link %S/std_complex_math_test.cpp -o %t_device.o %{mathflags}
 // RUN: %clangxx -fsycl-device-only -Xclang -fsycl-int-header=std_complex_math_test_ihdr.h %S/std_complex_math_test.cpp -Wno-sycl-strict %{mathflags}
 // >> host compilation...

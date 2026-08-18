@@ -32,17 +32,17 @@ SYCL_EXTERNAL void native_math_cuda(
   // CHECK: tail call float @llvm.nvvm.cos.approx.f
   // CHECK: tail call noundef float @llvm.nvvm.div.approx.f
   res_acc[8] = sycl::native::tan(input_acc[0]);
-  // CHECK: fmul float {{.*}}, 0x3FF7154760000000
+  // CHECK: fmul float {{.*}}, f0x3FB8AA3B
   // CHECK: tail call noundef float @llvm.nvvm.ex2.approx.f
   res_acc[9] = sycl::native::exp(input_acc[0]);
-  // CHECK: fmul float {{.*}}, 0x400A934F00000000
+  // CHECK: fmul float {{.*}}, f0x40549A78
   // CHECK: tail call noundef float @llvm.nvvm.ex2.approx.f
   res_acc[10] = sycl::native::exp10(input_acc[0]);
   // CHECK: tail call float @llvm.nvvm.lg2.approx.f
-  // CHECK: fmul float {{.*}}, 0x3FE62E4300000000
+  // CHECK: fmul float {{.*}}, f0x3F317218 
   res_acc[11] = sycl::native::log(input_acc[0]);
   // CHECK: tail call float @llvm.nvvm.lg2.approx.f
-  // CHECK: fmul float {{.*}}, 0x3FD3441360000000
+  // CHECK: fmul float {{.*}}, 3.010300e-01
   res_acc[12] = sycl::native::log10(input_acc[0]);
 
   // CHECK: tail call float @llvm.nvvm.lg2.approx.f

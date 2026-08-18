@@ -13,6 +13,7 @@
 // accessor - based ESIMD intrinsics when stateless memory accesses are
 // enforced, i.e. accessor based accesses are automatically converted to
 // stateless accesses with newly introduced predicate parameter.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

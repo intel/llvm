@@ -38,7 +38,14 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
           std::move(UrKernel), *getSyclObjImpl(Context), shared_from_this(),
           OwnerBundle, ArgMask, UrProgram, CacheMutex);
     }
-    return nullptr;
+    // RTC lookup miss. After sycl::link({RTC_obj, SYCLBIN_obj}) the merged
+    // image carries both ImageOriginKernelCompiler and ImageOriginSYCLBIN.
+    // Kernels that came from the SYCLBIN contribution are not registered
+    // with the runtime kernel-compiler ProgramManager, so we must fall
+    // through to the SYCLBIN urKernelCreate path rather than reporting
+    // "not found" solely because MRTCBinInfo is set.
+    if (!(getOriginMask() & ImageOriginSYCLBIN) || !hasKernelName(Name))
+      return nullptr;
   }
 
   ur_program_handle_t UrProgram = get_ur_program();

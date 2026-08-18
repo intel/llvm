@@ -24,7 +24,8 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
   verifyProps(MPropList);
 }
 
-sampler_impl::sampler_impl(cl_sampler clSampler, context_impl &syclContext) {
+sampler_impl::sampler_impl(OpenCLSamplerT clSampler,
+                           context_impl &syclContext) {
   adapter_impl &Adapter = syclContext.getAdapter();
   ur_sampler_handle_t Sampler{};
   Adapter.call<UrApiKind::urSamplerCreateWithNativeHandle>(

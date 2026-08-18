@@ -41,5 +41,6 @@
 ; CHECK-LLVM: define spir_kernel void @read_write_image_nontemporal
 ; CHECK-LLVM: call spir_func <4 x float> [[READ_IMAGEF:@[a-zA-Z0-9_]+]](
 ; CHECK-LLVM: call spir_func void [[WRITE_IMAGEF:@[a-zA-Z0-9_]+]](
-; CHECK-LLVM: call spir_func <4 x float> [[READ_IMAGEF]](
-; CHECK-LLVM: call spir_func void [[WRITE_IMAGEF]](
+; CHECK-LLVM: call spir_func <4 x float> [[READ_IMAGEF]]({{.*}}){{.*}} !spirv.nontemporal [[NONTEMPMD:![0-9]+]]
+; CHECK-LLVM: call spir_func void [[WRITE_IMAGEF]]({{.*}}){{.*}} !spirv.nontemporal [[NONTEMPMD]]
+; CHECK-LLVM: [[NONTEMPMD]] = !{i32 1}

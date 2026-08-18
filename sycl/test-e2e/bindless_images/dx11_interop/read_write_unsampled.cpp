@@ -4,12 +4,18 @@
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
 
+// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22234
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+#include <iostream>
 
 #include "dx11_interop.h"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 #ifdef TEST_SEMAPHORE_IMPORT
 #include <d3d11_4.h> // Used for ID3D11Device5 / ID3D11DeviceContext4 / ID3D11Fence
@@ -51,6 +57,30 @@ void populateD3D11Texture(D3D11ProgramState &d3d11ProgramState,
                                    static_cast<const void *>(inputData),
                                    rowPitch, depthPitch);
   ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState.key));
+}
+
+// Block the CPU until all previously-submitted D3D11 work has completed on
+// the GPU. UpdateSubresource may return once the copy is queued, before it
+// has actually completed on the D3D GPU. Holding the keyed mutex around the
+// SYCL kernel excludes other keyed-mutex participants, but a successful
+// AcquireSync gives the SYCL queue no execution dependency on the earlier
+// D3D upload, so the kernel could read stale/zero texels. Waiting on a
+// D3D11_QUERY_EVENT after the upload ensures the texture contents are ready
+// before SYCL reads them.
+void waitForD3D11Idle(D3D11ProgramState &d3d11ProgramState) {
+  assert(d3d11ProgramState.device && d3d11ProgramState.deviceContext);
+  D3D11_QUERY_DESC queryDesc{};
+  queryDesc.Query = D3D11_QUERY_EVENT;
+  queryDesc.MiscFlags = 0;
+  ComPtr<ID3D11Query> query;
+  ThrowIfFailed(d3d11ProgramState.device->CreateQuery(&queryDesc, &query));
+  d3d11ProgramState.deviceContext->End(query.Get());
+  d3d11ProgramState.deviceContext->Flush();
+  BOOL done = FALSE;
+  while (d3d11ProgramState.deviceContext->GetData(query.Get(), &done,
+                                                  sizeof(done), 0) != S_OK) {
+    // Spin until the GPU has processed everything up to the query.
+  }
 }
 
 syclexp::unsampled_image_handle
@@ -371,6 +401,13 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
         texFormat, inputData.data(), keyedMutex.Get());
   }
 
+#ifndef TEST_SEMAPHORE_IMPORT
+  // Ensure the asynchronous D3D11 upload above has actually completed on the
+  // D3D GPU before the SYCL kernel reads the shared texture. The semaphore
+  // variant orders this with an ID3D11Fence instead (see below).
+  waitForD3D11Idle(d3d11ProgramState);
+#endif
+
   // Unfortunately, DX11 does not expose the texture allocation information
   // like DX12, so we have to calculate it manually the best we can (no mips).
   const size_t allocationSize =
@@ -379,9 +416,14 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
       sharedHandle, allocationSize, syclImageDesc, syclQueue);
 
 #ifdef TEST_SEMAPHORE_IMPORT
+  // Order the D3D11 upload before the SYCL kernel via the shared fence.
+  // The fence was created with initial value 0, so we must signal/wait on a
+  // fresh, monotonically-increasing value: waiting on 0 would be satisfied
+  // immediately (the fence already holds 0) and would not actually block on
+  // the queued D3D upload, defeating the synchronization.
+  ++fenceVal;
   ThrowIfFailed(context4->Signal(fence.Get(), fenceVal));
   syclQueue.ext_oneapi_wait_external_semaphore(syclSemaphore, fenceVal);
-  fenceVal++;
 #endif
   // Submit the SYCL kernel.
   // When IDXGIKeyedMutex importing into SYCL is implemented, we'll be able to
@@ -394,11 +436,12 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState.key));
 
 #ifdef TEST_SEMAPHORE_IMPORT
+  // Order the SYCL kernel's writes before the D3D11 read-back on a fresh value.
+  ++fenceVal;
   syclQueue.submit([&](sycl::handler &cgh) {
     cgh.ext_oneapi_signal_external_semaphore(syclSemaphore, fenceVal);
   });
   waitD3D11Fence(fence.Get(), fenceVal, fenceEvent);
-  fenceVal++;
 #endif
 
   // Read-back and verify
@@ -435,8 +478,16 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 }
 
 int main() {
-  // Create SYCL queue, relying on SYCL device selection
+  // Create SYCL queue, relying on SYCL device selection.
+#ifdef TEST_SEMAPHORE_IMPORT
+  // External semaphore ops require an in-order queue backed by immediate
+  // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+  sycl::queue syclQueue{
+      {sycl::property::queue::in_order{},
+       sycl::ext::intel::property::queue::immediate_command_list{}}};
+#else
   sycl::queue syclQueue;
+#endif
   sycl::device syclDevice = syclQueue.get_device();
 
   // Initialize D3D11 and create DX11 programs state from the SYCL device

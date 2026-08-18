@@ -10,6 +10,7 @@
 
 // The test checks that 2D workitem addressing works correctly with SIMD
 // kernels.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

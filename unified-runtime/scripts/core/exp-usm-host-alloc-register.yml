@@ -29,8 +29,11 @@ type: enum
 desc: "USM host memory registration flags."
 name: $x_exp_usm_host_alloc_register_flags_t
 etors:
-    - name: TBD
-      desc: "Reserved for future use."
+    - name: READ_ONLY
+      desc: |-
+            Device access to the registered range is read-only.  The behavior
+            is undefined if device code writes to a range registered with this
+            flag.
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "USM host memory registration properties."

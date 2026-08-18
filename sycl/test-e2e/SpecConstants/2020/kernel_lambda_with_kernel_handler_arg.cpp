@@ -7,6 +7,7 @@
 // correctly with user's lambda with and without sycl::kernel_handler argument
 
 #include <sycl/detail/core.hpp>
+#include <sycl/h_item.hpp>
 
 #include <sycl/specialization_id.hpp>
 

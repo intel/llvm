@@ -1,5 +1,8 @@
 // FIXME unsupported on CUDA and HIP until fallback libdevice becomes available
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda
+//
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 //
 // RUN: %{build} -o %t.out
 //
@@ -15,3 +18,4 @@
 // CHECK: The test passed.
 
 #include "discard_events_kernel_using_assert.hpp"
+#include <sycl/builtins.hpp>

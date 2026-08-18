@@ -12,6 +12,7 @@
 // and using optional compile-time esimd::properties.
 // The slm_block_load() calls in this test do not use the mask operand and
 // do not require PVC features.
+#include <iostream>
 
 #include "Inputs/block_load.hpp"
 

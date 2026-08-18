@@ -345,8 +345,8 @@ declare dso_local spir_func float @_Z22sub_group_shuffle_downfj(float, i32) loca
 ; CHECK-SPIRV: FunctionEnd
 
 ; CHECK-LLVM-LABEL: @testShuffleRelativeHalf
-; CHECK-LLVM: call spir_func half @_Z20sub_group_shuffle_upDhj(half 0xH0000, i32 0)
-; CHECK-LLVM: call spir_func half @_Z22sub_group_shuffle_downDhj(half 0xH0000, i32 0)
+; CHECK-LLVM: call spir_func half @_Z20sub_group_shuffle_upDhj(half 0.000000e+00, i32 0)
+; CHECK-LLVM: call spir_func half @_Z22sub_group_shuffle_downDhj(half 0.000000e+00, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testShuffleRelativeHalf(ptr addrspace(1) captures(none)) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !26 !kernel_arg_base_type !26 !kernel_arg_type_qual !6 {

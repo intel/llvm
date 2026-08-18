@@ -5,8 +5,10 @@
 
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
+// UNSUPPORTED-INTENDED: Won't fix. See
+// https://github.com/intel/llvm/issues/10793.
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -Wno-error=deprecated-declarations
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s

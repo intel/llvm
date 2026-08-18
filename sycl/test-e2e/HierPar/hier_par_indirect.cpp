@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/h_item.hpp>
 
 void __attribute__((noinline)) foo(sycl::group<1> work_group) {
   work_group.parallel_for_work_item([&](sycl::h_item<1> index) {});

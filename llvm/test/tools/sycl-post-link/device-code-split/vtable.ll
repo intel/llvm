@@ -70,7 +70,7 @@ target triple = "spir64-unknown-unknown"
 @_ZTI8Derived2 = linkonce_odr dso_local constant { i8 addrspace(4)*, i8*, i8* } { i8 addrspace(4)* bitcast (i8 addrspace(4)* addrspace(4)* getelementptr inbounds (i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* addrspacecast (i8 addrspace(4)* addrspace(1)* @_ZTVN10__cxxabiv120__si_class_type_infoE to i8 addrspace(4)* addrspace(4)*), i64 2) to i8 addrspace(4)*), i8* getelementptr inbounds ([10 x i8], [10 x i8]* @_ZTS8Derived2, i32 0, i32 0), i8* bitcast ({ i8 addrspace(4)*, i8* }* @_ZTI4Base to i8*) }, align 8
 
 ; Function Attrs: mustprogress norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlvE_(%class.Base addrspace(4)* addrspace(1)* noundef align 8 %_arg_Ptrs, i8 addrspace(1)* noundef align 1 %_arg_Storage) local_unnamed_addr #0 !srcloc !48 !kernel_arg_buffer_location !49 !sycl_fixed_targets !50 !sycl_kernel_omit_args !51 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlvE_(%class.Base addrspace(4)* addrspace(1)* noundef align 8 %_arg_Ptrs, i8 addrspace(1)* noundef align 1 %_arg_Storage) local_unnamed_addr #0 !srcloc !48 !sycl_fixed_targets !50 !sycl_kernel_omit_args !51 {
 entry:
   %0 = bitcast i8 addrspace(1)* %_arg_Storage to %class.Derived1 addrspace(1)*
   %1 = addrspacecast i8 addrspace(1)* %_arg_Storage to %class.Derived1 addrspace(4)*
@@ -160,7 +160,6 @@ attributes #1 = { mustprogress norecurse nounwind "frame-pointer"="all" "no-trap
 !46 = !{!"host", i32 0}
 !47 = !{!"clang version 17.0.0 "}
 !48 = !{i32 546}
-!49 = !{i32 -1, i32 -1}
 !50 = !{}
 !51 = !{i1 false, i1 false}
 !52 = !{!53, !53, i64 0}

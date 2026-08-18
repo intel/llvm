@@ -121,8 +121,8 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
   emitIfdef((Twine("GET_") + Table.PreprocessorGuard + "_IMPL"), OS);
 
   // The primary data table contains all the fields defined for this map.
-  OS << "std::map<std::string, " << Table.CppTypeName << "> " << Table.Name
-     << " = {\n";
+  OS << "inline std::map<std::string, " << Table.CppTypeName << "> "
+     << Table.Name << " = {\n";
   // Iterate over the key-value pairs the dynamic table will contain.
   for (unsigned I = 0; I < Table.Entries.size(); ++I) {
     const Record *Entry = Table.Entries[I];

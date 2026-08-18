@@ -15,7 +15,7 @@ on:
       - 'docs/**' # documentation
       - '**.md'   # README
       - '**/check-code-style.yml' # check-code-style workflow
-      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
+      - '**/check-in-tree-build.yml' # check-in-tree-build workflow
       - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
       - '**/backport-to-branch.yml' # backport-to-branch workflow
       - '**/patch-release.yaml' # patch-release workflow
@@ -51,6 +51,7 @@ on:
 
 env:
   LLVM_VERSION: 23
+  SPIRV_TOOLS_INSTALL: ${{ github.workspace }}/spirv-tools-install
 
 jobs:
   build_and_test_linux:
@@ -68,16 +69,22 @@ jobs:
       - name: Install dependencies
         run: |
           curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
-          curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
           echo "deb https://apt.llvm.org/noble/ llvm-toolchain-noble main" | sudo tee -a /etc/apt/sources.list
-          echo "deb https://packages.lunarg.com/vulkan noble main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
-            clang-${{ env.LLVM_VERSION }} \
-            spirv-tools
+            clang-${{ env.LLVM_VERSION }}
           # Linux systems in GitHub Actions already have older versions of clang
           # pre-installed. Make sure to override these with the relevant version.
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
+      - name: Restore SPIRV-Tools cache
+        # The prebuild-spirv-tools workflow owns populating this cache.
+        # The primary key never matches (no one saves it); restore-keys
+        # pulls the most recent prebuild entry.
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.SPIRV_TOOLS_INSTALL }}
+          key: spirv-tools-main-latest
+          restore-keys: spirv-tools-main-
       - name: Checkout LLVM sources
         uses: actions/checkout@v5
         with:
@@ -115,6 +122,7 @@ jobs:
             -DSPIRV_SKIP_CLANG_BUILD=ON \
             -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
             -DLLVM_LIT_ARGS="-sv --no-progress-bar" \
+            -DCMAKE_PREFIX_PATH=${{ env.SPIRV_TOOLS_INSTALL }} \
             -G "Unix Makefiles"
       - name: Build
         run: |

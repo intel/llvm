@@ -11,6 +11,7 @@
 // The test verifies ESIMD API that substracts 2 32-bit integer scalars/vectors
 // with borrow returning the result as 2 parts: borrow flag the input modified
 // operand and substraction result as return from function.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

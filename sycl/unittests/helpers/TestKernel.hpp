@@ -81,3 +81,8 @@ static sycl::unittest::MockDeviceImage Imgs[] = {
     sycl::unittest::generateDefaultImage({"TestKernelWithStream"}),
     sycl::unittest::generateDefaultImage({"TestKernelWithPtr"})};
 static sycl::unittest::MockDeviceImageArray<4> ImgArray{Imgs};
+
+inline void registerTestKernelNames() {
+  sycl::unittest::registerKernelNames<
+      TestKernel, TestKernelWithAcc, TestKernelWithStream, TestKernelWithPtr>();
+}

@@ -228,7 +228,8 @@ public:
                           /*IsConstPtr=*/true);
   }
 
-  image_impl(cl_mem MemObject, const context &SyclContext, event AvailableEvent,
+  image_impl(OpenCLMemT MemObject, const context &SyclContext,
+             event AvailableEvent,
              std::unique_ptr<SYCLMemObjAllocator> Allocator,
              uint8_t Dimensions);
 

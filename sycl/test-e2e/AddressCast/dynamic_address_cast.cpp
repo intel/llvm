@@ -8,6 +8,8 @@
 
 // Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit
 // UNSUPPORTED: cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22224
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

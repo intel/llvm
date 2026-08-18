@@ -49,6 +49,10 @@ static zex_counter_based_event_exp_flags_t createZeFlags(queue_type queueType,
     zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_KERNEL_TIMESTAMP;
   }
 
+  if (flags & EVENT_FLAGS_IPC) {
+    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IPC;
+  }
+
   if (queueType == QUEUE_IMMEDIATE) {
     zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IMMEDIATE;
   }

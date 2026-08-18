@@ -15,6 +15,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
@@ -154,6 +155,10 @@ struct AMDGPUKernelMetaData {
   uint32_t WavefrontSize = KInvalidValue;
   /// Maximum flat work-group size supported by the kernel in work-items.
   uint32_t MaxFlatWorkgroupSize = KInvalidValue;
+  /// Per-argument {offset, size} in bytes, read from the ".args" array in code
+  /// object metadata. Explicit user arguments are first, followed by
+  /// hidden arguments.
+  SmallVector<std::pair<uint32_t, uint32_t>, 8> ArgMDs;
 };
 
 /// Reads AMDGPU specific metadata from the ELF file and propagates the
@@ -229,6 +234,23 @@ LLVM_ABI Error containerizeOpenMPSPIRVImage(
     std::unique_ptr<MemoryBuffer> &Binary, llvm::Triple Triple,
     StringRef CompileOpts = "", StringRef LinkOpts = "");
 } // namespace intel
+
+// Default compression level for --compress.
+constexpr int DefaultSYCLCompressionLevel = 10;
+
+/// zstd-compress a SYCL device image.
+/// Errors if zstd is unavailable at build time.
+/// \param Input The uncompressed image bytes.
+/// \param Output Receives the compressed bytes on a hit; left untouched on a
+///        skip.
+/// \param Level zstd compression level.
+/// \param Threshold Skip compression when Input.size() < Threshold.
+/// \param Verbose Emit the "[Compression]" size/level lines to errs().
+/// \returns true if compression ran.
+LLVM_ABI Expected<bool>
+compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
+                        SmallVectorImpl<uint8_t> &Output, int Level = 10,
+                        size_t Threshold = 512, bool Verbose = false);
 } // namespace offloading
 } // namespace llvm
 

@@ -12,5 +12,6 @@
 #include "version.hpp"
 
 #include <sycl/multi_ptr.hpp>
+#include <sycl/pointers.hpp>
 
 #endif // __SYCL_KHR_SPLIT_HEADERS_MULTI_PTR

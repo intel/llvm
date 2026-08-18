@@ -114,6 +114,8 @@ auto convert_reduction_properties(BinaryOperation combiner,
   } else {
     // Invalid, will be disabled by SFINAE at the caller side. Make sure no hard
     // error is emitted from here.
+    (void)combiner;
+    (void)properties;
   }
 }
 } // namespace detail

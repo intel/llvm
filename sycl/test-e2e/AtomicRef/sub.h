@@ -14,6 +14,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -40,14 +41,14 @@ void sub_fetch_local_test(queue q, size_t N) {
          int gid = it.get_global_id(0);
          if (gid == 0)
            loc[0] = T(N);
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          auto atm = AtomicRef < T,
               (order == memory_order::acquire || order == memory_order::release)
                   ? memory_order::relaxed
                   : order,
               scope, space > (loc[0]);
          out[gid] = atm.fetch_sub(Difference(1), order);
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          if (gid == 0)
            sum[0] = loc[0];
        });

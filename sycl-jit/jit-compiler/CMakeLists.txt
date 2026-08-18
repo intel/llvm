@@ -187,10 +187,7 @@ if(WIN32)
   target_link_libraries(sycl-jit PRIVATE Shlwapi)
 endif()
 
-target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
-# Host GCC can hit -Werror=conversion on Clang headers in DeviceCompilation.cpp;
-target_compile_options(sycl-jit PRIVATE
-  $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=conversion>)
+sycl_jit_apply_target_warning_flags(sycl-jit)
 
 # Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.
 # This classification remains intact even if the same paths are added as normal

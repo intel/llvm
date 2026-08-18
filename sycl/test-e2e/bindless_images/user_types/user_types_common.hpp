@@ -6,6 +6,7 @@
 #endif
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 

@@ -39,8 +39,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Apr 22, 2026
-        return "9f1624abf5073f81549f9d49c1cb5d3f8d3bcd83"
+        # Jul 01, 2026
+        return "2f1c59bd731477de9b99b95a37bad5ebc9dae922"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -159,6 +159,13 @@ class ComputeBench(Suite):
             [5, 100],  # num_kernels
         )
         for runtime, with_graphs, num_kernels in sin_kernel_graph_params:
+            if (
+                (options.ur_adapter != "level_zero_v2")
+                and (runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW)
+                and (with_graphs == 1)
+            ):
+                # old adapter doesn't support graph mode for SYCL
+                continue
             benches.append(
                 GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
             )

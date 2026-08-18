@@ -15,6 +15,7 @@
 // - argument type - half, float
 // - math function - sin, cos, ..., div_ieee, pow
 // - SYCL vs ESIMD APIs
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

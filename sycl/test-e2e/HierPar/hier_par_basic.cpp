@@ -15,6 +15,7 @@
 #include <iostream>
 #include <memory>
 #include <sycl/detail/core.hpp>
+#include <sycl/h_item.hpp>
 
 using namespace sycl;
 

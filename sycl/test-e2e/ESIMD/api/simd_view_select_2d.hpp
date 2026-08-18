@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // Smoke test for 2D region select API which can be used to represent 2D tiles.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

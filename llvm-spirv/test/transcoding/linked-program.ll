@@ -5,7 +5,11 @@
 ; RUN: spirv-link %t.spv -o %t.linked.spv
 ; RUN: llvm-spirv -r %t.linked.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
-; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ spirv-link %t.llc.spv -o %t.llc.linked.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.linked.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s < %t.llc.rev.ll %}
 ;
 ; This checks that SPIR-V programs with global variables are still consumable
 ; after spirv-link.

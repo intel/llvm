@@ -2,8 +2,8 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
-
 #include <sycl/ext/oneapi/group_local_memory.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <cassert>
 #include <vector>
@@ -57,7 +57,7 @@ int main() {
             Ptr->Values[Item.get_local_linear_id()] *=
                 Item.get_local_linear_id();
 
-            Item.barrier();
+            group_barrier(Item.get_group());
             // Check that the memory is accessible from other work-items
             size_t LocalIdx = Item.get_local_linear_id() ^ 1;
             size_t GlobalIdx = Item.get_global_linear_id() ^ 1;
@@ -89,7 +89,7 @@ int main() {
                     int[WgSize]>(Item.get_group());
             (*Ptr)[Item.get_local_linear_id()] = Item.get_local_linear_id();
 
-            Item.barrier();
+            group_barrier(Item.get_group());
             // Check that the memory is accessible from other work-items
             size_t LocalIdx = Item.get_local_linear_id() ^ 1;
             size_t GlobalIdx = Item.get_global_linear_id() ^ 1;

@@ -612,11 +612,13 @@ TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
     EventInOrder
         .get_profiling_info<sycl::info::event_profiling::command_start>();
   } catch (sycl::exception &Exception) {
-    ASSERT_FALSE(std::string(Exception.what())
-                     .find("Profiling information is unavailable as the queue "
-                           "associated with the event does not have the "
-                           "'enable_profiling' property.") ==
-                 std::string::npos);
+    ASSERT_FALSE(
+        std::string(Exception.what())
+            .find("Profiling information is unavailable as the queue "
+                  "associated with the event does not have the "
+                  "'enable_profiling' property or the event was not created "
+                  "with the 'enable_profiling' property.") ==
+        std::string::npos);
     Success = false;
   }
   ASSERT_EQ(Success, false);

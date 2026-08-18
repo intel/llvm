@@ -984,6 +984,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(ur_bool_t{true});
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // HIP supports enqueueing native work through the urNativeEnqueueExp
     return ReturnValue(ur_bool_t{true});
@@ -1021,6 +1023,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     int RuntimeVersion = 0;
     UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
@@ -1056,6 +1060,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);

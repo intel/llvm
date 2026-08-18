@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/cl.h>
 #include <iostream>
 #include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>

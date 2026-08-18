@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/relational.h>
-#include <libspirv/spirv.h>
+#include "clc/clc_convert.h"
+#include "clc/relational/clc_signbit.h"
 
-#define _CLC_SPIRV_BUILTIN __spirv_SignBitSet
-#define _CLC_BUILTIN_IMPL __builtin_signbitf
-#include "genunary.inc"
+#define __CLC_FUNCTION __spirv_SignBitSet
+#define __CLC_IMPL_FUNCTION(x) __clc_signbit
+#define __CLC_BODY "relational_unary_def.inc"
+#include "clc/math/gentype.inc"

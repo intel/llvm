@@ -14,6 +14,7 @@
 //
 // The test checks that ESIMD kernels support printf functionality.
 // Currently vector and pointer arguments are not supported.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out %threads_lib
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
-//
-// TODO: Behaviour is unstable for level zero on Windows. Enable when fixed.
-// UNSUPPORTED: (windows && level_zero)
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 

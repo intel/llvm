@@ -29,6 +29,9 @@ enum Instruction {
   FunctionMetadata = 0,
   FunctionAttribute = 1,
   GlobalVariableMetadata = 2,
-  GlobalVariableAttribute = 3
+  GlobalVariableAttribute = 3,
+  Linkage = 4
 };
+
+enum LinkageType { AvailableExternally = 0 };
 } // namespace NonSemanticAuxData

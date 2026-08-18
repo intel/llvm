@@ -1,0 +1,385 @@
+SPIR-V NonSemantic AuxData Instructions
+=======================================
+
+Version 1.00
+
+Contact
+-------
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator
+
+Contributors
+------------
+
+- Nick Sarnie, Intel
+- Dmitry Sidorov, AMD
+
+Notice
+------
+
+Copyright (c) 2026 The Khronos Group Inc. Copyright terms at
+http://www.khronos.org/registry/speccopyright.html
+
+Status
+------
+
+- Complete draft. Defined and consumed by the SPIRV-LLVM-Translator;
+  not formally ratified by the SPIR-V Working Group.
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2026-05-05
+| Revision           | 2
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.6 Revision 7.
+
+This instruction set requires either SPIR-V 1.6 or *SPV_KHR_non_semantic_info* extension.
+
+Overview
+--------
+
+The *NonSemantic.AuxData* extended instruction set encodes auxiliary
+data attached to LLVM IR `Function` and `GlobalVariable` objects
+specifically, LLVM *attributes* and LLVM *metadata*, so that this
+information can survive a round trip through SPIR-V and be restored
+on reverse translation.
+
+The information described by these instructions is, by construction,
+*non-semantic*: a SPIR-V consumer that does not understand or does not
+care about LLVM-level annotations may safely strip every instruction
+in this set without changing the meaning of the module. The set exists
+purely to act as a transparent transport for tooling that needs to
+preserve LLVM metadata (for example, frontend or middle-end
+contracts expressed via attribute/metadata strings) across a SPIR-V
+boundary.
+
+Import this extended instruction set using an `OpExtInstImport`
+"NonSemantic.AuxData" instruction.
+
+Terminology
+-----------
+
+The terms below are used as defined in the LLVM Language Reference
+Manual (https://llvm.org/docs/LangRef.html):
+
+- *Function attribute* / *Global variable attribute* - an attribute
+  attached to an LLVM `Function` or `GlobalVariable`. May be either
+  an enum-kind attribute (e.g. `nounwind`, `readonly`) or a string
+  attribute, with or without a string value;
+
+- *Function metadata* / *global variable metadata* - a named LLVM
+  `MDNode` attached to a `Function` or `GlobalVariable`. The node's
+  operands are an ordered list, each of which is either an `MDString`
+  or a `ValueAsMetadata` wrapping a constant.
+
+- *Linkage type* - the linkage classification of an LLVM `GlobalValue`,
+  as enumerated by `llvm::GlobalValue::LinkageTypes` and described in
+  the "Linkage Types" section of the LLVM Language Reference Manual.
+
+The phrase "global object" refers collectively to either an LLVM
+`Function` or an LLVM `GlobalVariable`.
+
+1. Binary Form
+--------------
+
+All instructions in this set:
+
+- have a 'Result Type' that must be *OpTypeVoid*;
+- produce a 'Result <id>' that is not consumed by any other
+  instruction;
+- have no associated capability and require no capability beyond
+  what is required to use `OpExtInst` against a non-semantic
+  extended instruction set;
+- may appear at module scope, after all type, constant, and global
+  declarations they reference have been declared, in the locations
+  permitted for non-semantic instructions by *SPV_KHR_non_semantic_info*.
+
+A producer should emit all *NonSemantic.AuxData* instructions in the
+section of the module reserved for debug / non-semantic instructions
+and must emit every operand 'OpString' and operand 'OpConstant' before the
+*NonSemantic.AuxData* instruction that uses it.
+
+A producer must not use this set to encode information that is
+already representable through, and is in fact represented through,
+another SPIR-V mechanism. In particular, the SPIRV-LLVM-Translator
+deliberately does *not* emit *NonSemantic.AuxData* instructions for:
+
+- LLVM metadata named `spirv.Decorations` and
+  `spirv.ParameterDecorations` (these are already lowered to native
+  *OpDecorate* / *OpMemberDecorate* chains);
+- LLVM debug-info metadata (the `!dbg` attachment, kind
+  `LLVMContext::MD_dbg`), which is encoded via `OpLine`,
+  *NonSemantic.Shader.DebugInfo.100* / *OpenCL.DebugInfo.100*, or
+  similar facilities.
+
+A consumer must tolerate the absence of any individual
+*NonSemantic.AuxData* instruction; the set has no internal ordering
+or dependency requirements between its own instructions.
+
+Enumeration
+~~~~~~~~~~~
+
+The following table lists the instruction numbers assigned by this
+extended instruction set:
+
+[width="60%"]
+|========================================
+| Instruction number | Instruction name
+|  0 | <<NonSemanticAuxDataFunctionMetadata,*NonSemanticAuxDataFunctionMetadata*>>
+|  1 | <<NonSemanticAuxDataFunctionAttribute,*NonSemanticAuxDataFunctionAttribute*>>
+|  2 | <<NonSemanticAuxDataGlobalVariableMetadata,*NonSemanticAuxDataGlobalVariableMetadata*>>
+|  3 | <<NonSemanticAuxDataGlobalVariableAttribute,*NonSemanticAuxDataGlobalVariableAttribute*>>
+|  4 | <<NonSemanticAuxDataLinkage,*NonSemanticAuxDataLinkage*>>
+|========================================
+
+[[LinkageType]]
+Linkage Type
+^^^^^^^^^^^^
+
+The 'Linkage Type' operand of the
+<<NonSemanticAuxDataLinkage,*NonSemanticAuxDataLinkage*>> instruction
+is the '<id>' of a 32-bit integer *OpConstant* whose value is one of
+the entries in the table below. The set of recognized values may grow
+in future revisions of this specification; values not listed here are
+reserved. A consumer that does not recognize a 'Linkage Type' value
+must ignore the enclosing instruction.
+
+[width="80%",cols="1,3,4"]
+|========================================
+| Value | Name | Meaning
+| 0 | *AvailableExternally* | The target has LLVM `available_externally` linkage. The definition is provided for the consumer's benefit (for example, to enable inlining) but is not emitted as a separate symbol; consumers that lower the SPIR-V module back to LLVM IR should set this linkage on the corresponding `GlobalValue` after reverse translation, and should not consider the definition to participate in linking.
+|========================================
+
+Instructions
+~~~~~~~~~~~~
+
+[cols="2*1,3*2,1,3,3,3"]
+|======
+9+a|[[NonSemanticAuxDataFunctionAttribute]]*NonSemanticAuxDataFunctionAttribute* +
+ +
+Record one LLVM-IR function attribute attached to an `OpFunction`. +
+ +
+'Result Type' must be *OpTypeVoid*. +
+ +
+'Target' is the '<id>' of the *OpFunction* the attribute is attached
+to. +
+ +
+'Attribute Name' is the '<id>' of an *OpString*. For LLVM string-kind
+attributes (`AttributeImpl::isStringAttribute()` is true) it contains
+the attribute key exactly as it appears in the LLVM module
+(for example `"sycl-unique-id"`, `"foo"`). For LLVM enum-kind
+attributes (for example `nounwind`, `readonly`) it contains the
+attribute spelling as produced by `llvm::Attribute::getNameFromAttrKind`
+(for example `"nounwind"`). +
+ +
+'Attribute Value' is the '<id>' of an *OpString* holding the string
+value associated with a string-kind attribute (for example `"32"` in
+`"sycl-device-global-size"="32"`). 'Attribute Value' must be omitted
+when the source attribute has no value (for example `"foo"` or any
+enum-kind attribute), and must be present otherwise. +
+ +
+For an LLVM attribute that is neither a string-kind attribute nor a
+plain enum-kind attribute (for example a typed or integer attribute
+that has no compact textual key/value form), the producer shall emit
+'Attribute Name' as the '<id>' of an *OpString* containing the full
+textual rendering returned by `llvm::Attribute::getAsString()`, and
+shall omit 'Attribute Value'. A consumer encountering such a form
+should treat the entire string as an opaque attribute spelling.
+
+| 7 or 8 | 12 | '<id>' +
+'Result Type' | 'Result <id>' | '<id> Set' | 1
+| '<id>' 'Target'
+| '<id>' 'Attribute Name'
+| Optional +
+  '<id>' 'Attribute Value'
+|======
+
+
+[cols="2*1,3*2,1,3,3,3"]
+|======
+9+a|[[NonSemanticAuxDataGlobalVariableAttribute]]*NonSemanticAuxDataGlobalVariableAttribute* +
+ +
+Record one LLVM-IR attribute attached to a global variable. +
+ +
+'Result Type' must be *OpTypeVoid*. +
+ +
+'Target' is the '<id>' of the *OpVariable* (declared at module scope)
+the attribute is attached to. +
+ +
+'Attribute Name' and 'Attribute Value' have the same form, the same
+encoding rules, and the same optionality rules as the corresponding
+operands of <<NonSemanticAuxDataFunctionAttribute,*NonSemanticAuxDataFunctionAttribute*>>.
+
+| 7 or 8 | 12 | '<id>' +
+'Result Type' | 'Result <id>' | '<id> Set' | 3
+| '<id>' 'Target'
+| '<id>' 'Attribute Name'
+| Optional +
+  '<id>' 'Attribute Value'
+|======
+
+
+[cols="2*1,3*2,1,3,3,3"]
+|======
+9+a|[[NonSemanticAuxDataFunctionMetadata]]*NonSemanticAuxDataFunctionMetadata* +
+ +
+Record one named LLVM-IR metadata attachment on an `OpFunction`. +
+ +
+'Result Type' must be *OpTypeVoid*. +
+ +
+'Target' is the '<id>' of the *OpFunction* the metadata is attached
+to. +
+ +
+'Metadata Name' is the '<id>' of an *OpString* containing the metadata
+kind name, exactly as it appears in the LLVM module (for example
+`"foo"`, `"absolute_symbol"`, `"prof"`). +
+ +
+'Metadata Value' operands form a variable-length, ordered list
+mirroring the operand list of the source `MDNode`. Each operand
+shall be one of: +
+ +
+- the '<id>' of an *OpString*, encoding an `MDString` operand whose
+  value is that string; or +
+- the '<id>' of any other SPIR-V value (typically an *OpConstant* or
+  *OpConstantComposite*), encoding a `ValueAsMetadata` operand
+  wrapping the corresponding LLVM constant. The translation between
+  the SPIR-V value and the LLVM constant follows the normal forward
+  / reverse rules of the surrounding SPIR-V value translation. +
+ +
+The number of 'Metadata Value' operands MAY be zero (for an empty
+`MDNode`). It is unbounded otherwise.
+
+A consumer must skip a *NonSemanticAuxDataFunctionMetadata*
+instruction whose 'Metadata Name' is already attached to 'Target'
+through some other reverse-translation path, to avoid creating
+duplicate metadata attachments.
+
+| 7 + 'variable' | 12 | '<id>' +
+'Result Type' | 'Result <id>' | '<id> Set' | 0
+| '<id>' 'Target'
+| '<id>' 'Metadata Name'
+| 'Metadata Value', 'Metadata Value', ... (zero or more)
+|======
+
+
+[cols="2*1,3*2,1,3,3,3"]
+|======
+9+a|[[NonSemanticAuxDataGlobalVariableMetadata]]*NonSemanticAuxDataGlobalVariableMetadata* +
+ +
+Record one named LLVM-IR metadata attachment on a global variable. +
+ +
+'Result Type' must be *OpTypeVoid*. +
+ +
+'Target' is the '<id>' of the *OpVariable* (declared at module scope)
+the metadata is attached to. +
+ +
+'Metadata Name' and 'Metadata Value' operands have the same form,
+the same encoding rules, the same exclusions, and the same
+duplicate-skip recommendation as the corresponding operands of
+<<NonSemanticAuxDataFunctionMetadata,*NonSemanticAuxDataFunctionMetadata*>>.
+
+| 7 + 'variable' | 12 | '<id>' +
+'Result Type' | 'Result <id>' | '<id> Set' | 2
+| '<id>' 'Target'
+| '<id>' 'Metadata Name'
+| 'Metadata Value', 'Metadata Value', ... (zero or more)
+|======
+
+
+[cols="2*1,3*2,1,3,3"]
+|======
+8+a|[[NonSemanticAuxDataLinkage]]*NonSemanticAuxDataLinkage* +
+ +
+Record the LLVM-IR linkage type of a global object. +
+ +
+'Result Type' must be *OpTypeVoid*. +
+ +
+'Target' is the '<id>' of the *OpFunction* or of the module-scope
+*OpVariable* whose linkage is being recorded. Linkage is a property
+of the LLVM `GlobalValue` base class, so the same instruction is used
+regardless of which kind of global object 'Target' refers to. +
+ +
+At most one *NonSemanticAuxDataLinkage* instruction should reference
+any given 'Target'; if a producer emits more than one, a consumer
+must honor only the last one in module order. +
+ +
+'Linkage Type' is the '<id>' of a 32-bit integer *OpConstant* whose
+value is taken from the <<LinkageType,*Linkage Type*>> table. +
+ +
+A producer must not emit this instruction for the default LLVM
+linkage (`external`); the absence of a *NonSemanticAuxDataLinkage*
+record on a global object means the object carries the linkage that
+the SPIR-V module otherwise implies. A consumer that sees a
+'Linkage Type' value it does not recognize must silently ignore the
+instruction.
+
+| 7 | 12 | '<id>' +
+'Result Type' | 'Result <id>' | '<id> Set' | 4
+| '<id>' 'Target'
+| '<id>' 'Linkage Type'
+|======
+
+2. Encoding Notes
+-----------------
+
+This section is informative; it is not part of the normative content
+of the specification.
+
+Round-trip behaviour
+~~~~~~~~~~~~~~~~~~~~
+
+The set is designed to be lossless on a producer/consumer pair that
+both opt in to its use. For each global object the SPIRV-LLVM-Translator
+walks `Function::getAttributes().getFnAttrs()` (or
+`GlobalVariable::getAttributes()`) once and emits one
+`...Attribute` instruction per attribute, then walks
+`GlobalObject::getAllMetadata()` once and emits one `...Metadata`
+instruction per metadata attachment, in the order the LLVM data
+structures yield them. The reverse path performs the inverse
+operation, calling the LLVM API that adds an attribute or sets a
+metadata kind on the corresponding global object.
+
+The specification sets no restrictions regarding how much
+`NonSemanticAuxData` instructions can annotate a single 'Target' nor
+it forbids a case of duplicated information being attached to the
+'Target'. It is SPIR-V consumer duty to ensure LLVM module validity
+after the round-trip.
+
+Interaction with attribute-kind translation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Some LLVM enum-kind attributes are also produced as a side effect of
+unrelated reverse translation (for example, `nounwind` is set on
+intrinsic-like callees regardless of *NonSemantic.AuxData*). When the
+reverse translator processes a `...Attribute` instruction whose
+'Attribute Name' resolves to an `Attribute::AttrKind` already present
+on the target, it must skip the instruction so as not to duplicate
+the attribute. The same skip rule applies for string-kind attributes
+already present on the target.
+
+Issues
+------
+
+None.
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|xxxx-xx-xx|Nick Sarnie|Initial draft
+|2|2026-05-05|Dmitry Sidorov|Finalize spec, add available_externally
+|========================================

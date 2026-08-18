@@ -4,6 +4,7 @@
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=FLAT %{run} %t.out
 
 #include "../helpers.hpp"
+#include <algorithm>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/platform.hpp>

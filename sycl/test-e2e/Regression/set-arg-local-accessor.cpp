@@ -2,6 +2,8 @@
 //
 // RUN: %{build} %opencl_lib -o %t.out
 // RUN: %{run} %t.out
+#include <CL/cl.h>
+#include <iostream>
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>

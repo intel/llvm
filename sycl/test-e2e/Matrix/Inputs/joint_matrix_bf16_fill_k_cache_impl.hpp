@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-------------------------------------------------------------------------===//
+#include <iostream>
 
 #include <random>
 #include <sycl/usm.hpp>
@@ -179,7 +180,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
 #ifdef SLM
             slm_read_write<colsA, colsB, MCache2, NCache2, KCache2, vnniFactor,
                            SGs>(pA, pB, tileA, tileB, sg, k2, m2, n2, sgSize);
-            it.barrier(access::fence_space::local_space);
+            group_barrier(it.get_group());
 #endif // SLM
             joint_matrix<sub_group, TOperand, use::a, TM, TK, layout::row_major>
                 tA[MCache1 / TM][KCache2 / KCache1]
@@ -295,7 +296,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
             } // k1
 #endif              // MANUAL_UNROLL
 #ifdef SLM
-            it.barrier(access::fence_space::local_space);
+            group_barrier(it.get_group());
 #endif // SLM
 #ifdef PREFETCH
             auto prefetch_offsetA = (m2 * MCache2 + sgId * prefRow) * colsA +

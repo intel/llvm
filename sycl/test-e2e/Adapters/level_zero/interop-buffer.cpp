@@ -2,8 +2,13 @@
 // L0 adapter incorrectly reports memory leaks because it doesn't take into
 // account direct calls to L0 API.
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22284
+// UNSUPPORTED: linux && run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 // RUN: %{build} -Wno-error=deprecated-declarations %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out
 

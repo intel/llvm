@@ -16,6 +16,7 @@
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2
 // producers. Producer stores data to SLM, then all threads read SLM and store
 // data to surface.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

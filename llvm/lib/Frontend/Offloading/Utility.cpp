@@ -18,7 +18,9 @@
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/ObjectYAML/ELFYAML.h"
 #include "llvm/ObjectYAML/yaml2obj.h"
+#include "llvm/Support/Compression.h"
 #include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 using namespace llvm;
@@ -315,6 +317,27 @@ private:
       KernelData.WavefrontSize = V.second.getUInt();
     } else if (IsKey(V.first, ".max_flat_workgroup_size")) {
       KernelData.MaxFlatWorkgroupSize = V.second.getUInt();
+    } else if (IsKey(V.first, ".args")) {
+      auto ArgsArray = V.second.getArray();
+      for (auto ArgIt = ArgsArray.begin(), ArgEnd = ArgsArray.end();
+           ArgIt != ArgEnd; ++ArgIt) {
+        auto ArgMap = ArgIt->getMap();
+
+        auto OffsetIt = ArgMap.find(".offset");
+        if (OffsetIt == ArgMap.end())
+          return createStringError(
+              inconvertibleErrorCode(),
+              "Missing required .offset key in kernel argument metadata map");
+
+        auto SizeIt = ArgMap.find(".size");
+        if (SizeIt == ArgMap.end())
+          return createStringError(
+              inconvertibleErrorCode(),
+              "Missing required .size key in kernel argument metadata map");
+
+        KernelData.ArgMDs.emplace_back(OffsetIt->second.getUInt(),
+                                       SizeIt->second.getUInt());
+      }
     }
 
     return Error::success();
@@ -462,8 +485,12 @@ void sycl::writeSymbolTable(ArrayRef<StringRef> Names, SmallString<0> &Out) {
   uint32_t StringDataOffset =
       sizeof(SymbolTableHeader) + Count * sizeof(SymbolTableEntry);
 
-  // Pre-size the output to hold the header and entry array; string data is
-  // appended below.
+  // Compute total size and reserve to prevent reallocation while writing
+  // entries via pointer (append() could otherwise invalidate the pointer).
+  uint32_t TotalSize = StringDataOffset;
+  for (StringRef N : Names)
+    TotalSize += N.size() + 1;
+  Out.reserve(TotalSize);
   Out.resize(StringDataOffset);
 
   // Write the header.
@@ -480,4 +507,35 @@ void sycl::writeSymbolTable(ArrayRef<StringRef> Names, SmallString<0> &Out) {
     Out.push_back('\0');
     CurrentOffset += Names[I].size() + 1;
   }
+}
+
+Expected<bool>
+offloading::compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
+                                    SmallVectorImpl<uint8_t> &Output, int Level,
+                                    size_t Threshold, bool Verbose) {
+  if (!compression::zstd::isAvailable())
+    return createStringError(
+        "Device image compression was requested, but LLVM was built without "
+        "zstd support. Rebuild with LLVM_ENABLE_ZSTD enabled to use this "
+        "feature.");
+
+  if (Input.size() < Threshold)
+    return false;
+
+#if LLVM_ENABLE_EXCEPTIONS
+  try {
+#endif
+    compression::zstd::compress(Input, Output, Level);
+#if LLVM_ENABLE_EXCEPTIONS
+  } catch (const std::exception &ex) {
+    return createStringError(std::string("Failed to compress the device "
+                                         "image: \n") +
+                             std::string(ex.what()));
+  }
+#endif
+  if (Verbose)
+    errs() << "[Compression] Original image size: " << Input.size() << "\n"
+           << "[Compression] Compressed image size: " << Output.size() << "\n"
+           << "[Compression] Compression level used: " << Level << "\n";
+  return true;
 }

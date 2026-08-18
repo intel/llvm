@@ -24,6 +24,7 @@
 // so long as ocloc is installed and should be able to
 // successfully run and pass these tests.
 
+#include <CL/cl.h>
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>

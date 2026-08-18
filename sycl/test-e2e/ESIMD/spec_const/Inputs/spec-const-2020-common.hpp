@@ -1,6 +1,7 @@
 // The test checks that ESIMD kernels support SYCL 2020 specialization constants
 // for all basic types, particularly a specialization constant can be redifined
 // and correct new value is used after redefinition.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

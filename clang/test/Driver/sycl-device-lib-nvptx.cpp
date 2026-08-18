@@ -9,4 +9,4 @@
 // RUN: %clangxx -###  --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fno-sycl-libspirv --sysroot=%S/Inputs/SYCL \
 // RUN: -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 | FileCheck -check-prefix=CHK-ONLY-NEEDED %s
 
-// CHK-ONLY-NEEDED: llvm-link"{{.*}}"-only-needed"{{.*}}"{{.*}}devicelib-nvptx64-nvidia-cuda.bc"{{.*}}
+// CHK-ONLY-NEEDED: llvm-link"{{.*}}"--only-needed"{{.*}}"{{.*}}devicelib-nvptx64-nvidia-cuda.bc"{{.*}}

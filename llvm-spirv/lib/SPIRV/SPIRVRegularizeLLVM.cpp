@@ -134,11 +134,11 @@ void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
   case Intrinsic::bswap: {
     BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
     IRBuilder<> IRB(EntryBB);
-    auto *BSwap = IRB.CreateIntrinsic(Intrinsic::bswap, Intrinsic->getType(),
-                                      F->getArg(0));
+    Value *BSwap = IRB.CreateIntrinsic(Intrinsic::bswap, Intrinsic->getType(),
+                                       F->getArg(0));
     IRB.CreateRet(BSwap);
     IntrinsicLowering IL(M->getDataLayout());
-    IL.LowerIntrinsicCall(BSwap);
+    IL.LowerIntrinsicCall(cast<CallInst>(BSwap));
     break;
   }
   default:
@@ -725,14 +725,15 @@ bool SPIRVRegularizeLLVMBase::regularize() {
             BO->setIsExact(false);
         }
 
-        // FIXME: This is not valid handling for freeze instruction
-        if (auto *FI = dyn_cast<FreezeInst>(&II)) {
-          auto *V = FI->getOperand(0);
-          if (isa<UndefValue>(V))
-            V = Constant::getNullValue(V->getType());
-          FI->replaceAllUsesWith(V);
-          FI->dropAllReferences();
-          ToErase.push_back(FI);
+        if (!Opts.isAllowedToUseExtension(ExtensionID::SPV_KHR_poison_freeze)) {
+          if (auto *FI = dyn_cast<FreezeInst>(&II)) {
+            Value *V = FI->getOperand(0);
+            if (isa<UndefValue>(V))
+              V = Constant::getNullValue(V->getType());
+            FI->replaceAllUsesWith(V);
+            FI->dropAllReferences();
+            ToErase.push_back(FI);
+          }
         }
 
         // Remove metadata not supported by SPIRV
@@ -774,8 +775,12 @@ bool SPIRVRegularizeLLVMBase::regularize() {
               llvm::toCABI(Cmpxchg->getSuccessOrdering()));
           auto FailureOrder = static_cast<OCLMemOrderKind>(
               llvm::toCABI(Cmpxchg->getFailureOrdering()));
-          Value *EqualSem = getInt32(M, OCLMemOrderMap::map(SuccessOrder));
-          Value *UnequalSem = getInt32(M, OCLMemOrderMap::map(FailureOrder));
+          unsigned SCMask =
+              getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
+          Value *EqualSem =
+              getInt32(M, OCLMemOrderMap::map(SuccessOrder) | SCMask);
+          Value *UnequalSem =
+              getInt32(M, OCLMemOrderMap::map(FailureOrder) | SCMask);
           Value *Val = Cmpxchg->getNewValOperand();
           Value *Comparator = Cmpxchg->getCompareOperand();
 

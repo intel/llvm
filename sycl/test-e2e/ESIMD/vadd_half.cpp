@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 
 // Test addition of simd<sycl::half, N> objects.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

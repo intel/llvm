@@ -21,6 +21,7 @@
 //       -O1        |    /* no option */
 //       -O2        |    /* no option */
 //       -O3        |    /* no option */
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

@@ -1,2 +1,0 @@
-__SYCL_PARAM_TRAITS_SPEC(event, command_execution_status, info::event_command_status, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS)
-__SYCL_PARAM_TRAITS_SPEC(event, reference_count, uint32_t, UR_EVENT_INFO_REFERENCE_COUNT)

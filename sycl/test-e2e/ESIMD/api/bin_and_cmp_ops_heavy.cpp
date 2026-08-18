@@ -5,8 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Exclude PVC not to run same test cases twice (via the *_pvc.cpp variant).
 // UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: Exclude PVC not to run same test cases twice (via the
+// *_pvc.cpp variant).
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
@@ -20,6 +21,7 @@
 // (emulated) results larger than certain threshold. Might need to tune the cr0
 // once this feature is available in ESIMD.
 //
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

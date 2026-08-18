@@ -75,6 +75,11 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     UR_CALL(SafeAllocate(Context, Device, Size, &NewProperties, Params.Pool,
                          Type, &Allocated));
   } else {
+    // Check if the device is not NULL as AllocExportableMemoryExp requires it
+    if (!Device) {
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
     UR_CALL(
         getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp(
             Context, Device, Alignment, Size, Params.HandleTypeToExport,

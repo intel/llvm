@@ -394,10 +394,30 @@ private:
   }
 
   bool forceLoaded = false;
+  std::set<std::string> staticLoadedAdapters;
 
 public:
+  void markAdapterAsStaticallyLoaded(const std::string &adapterName) {
+    staticLoadedAdapters.insert(adapterName);
+  }
+
+  bool isStaticallyLoaded(const fs::path &adapterPath) const {
+    std::string pathStr = adapterPath.string();
+    for (const auto &name : staticLoadedAdapters) {
+      if (pathStr.find(name) != std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void enableMock() {
     adaptersLoadPaths.clear();
+
+    // Set it to prevent context_t::init() from loading static adapters
+    // (guarded by !adaptersForceLoaded()): the mock adapter must not coexist
+    // with other platforms.
+    forceLoaded = true;
 
     std::vector<fs::path> loadPaths;
     auto adapterNamePath = fs::path{mockAdapterName};

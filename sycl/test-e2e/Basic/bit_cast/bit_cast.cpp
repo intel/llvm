@@ -4,6 +4,7 @@
 // RUN: %if windows %{  %{run} %t2.out  %}
 
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 
 #include <iostream>
 #include <math.h>

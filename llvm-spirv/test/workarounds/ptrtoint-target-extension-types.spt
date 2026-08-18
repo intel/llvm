@@ -17,6 +17,8 @@
 2 Capability Linkage
 2 Capability Kernel
 
+11 Extension "SPV_INTEL_vector_compute"
+
 5 ExtInstImport 1 "OpenCL.std"
 3 MemoryModel 2 2
 27 EntryPoint 6 35 "_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE_clES4_E4TestEE" 5 6

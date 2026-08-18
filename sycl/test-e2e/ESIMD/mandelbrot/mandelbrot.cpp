@@ -10,6 +10,7 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{run} %t.out %t.dir/output.ppm %S/golden_hw.ppm
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

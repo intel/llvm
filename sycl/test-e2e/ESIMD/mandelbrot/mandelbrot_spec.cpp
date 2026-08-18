@@ -13,6 +13,7 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{run} %t.out %t.dir/output_spec.ppm %S/golden_hw.ppm 512 -2.09798 -1.19798 0.004 4.0
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

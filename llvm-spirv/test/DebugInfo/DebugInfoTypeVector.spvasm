@@ -74,7 +74,7 @@
          %38 = OpExtInst %void %2 DebugSource %36 %37
          %39 = OpExtInst %void %2 DebugTypedef %31 %35 %38 0 0 %30
          %40 = OpExtInst %void %2 DebugTypePointer %39 CrossWorkgroup None
-         %41 = OpExtInst %void %2 DebugTypeFunction None %15 %40
+         %41 = OpExtInst %void %2 DebugTypeFunction None %void %40
          %45 = OpExtInst %void %2 DebugTypeBasic %43 %uint_32 Unsigned
          %46 = OpExtInst %void %2 DebugTypedef %42 %45 %38 0 0 %30
          %49 = OpExtInst %void %2 DebugSource %48 %28

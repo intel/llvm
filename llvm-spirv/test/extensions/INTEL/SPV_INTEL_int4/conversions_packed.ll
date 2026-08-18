@@ -17,13 +17,12 @@
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_EXT_float8,+SPV_INTEL_int4,+SPV_KHR_bfloat16
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -o %t.rev.bc -r --spirv-target-env=SPV-IR
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
-
-; TODO: RUNx: spirv-val
 
 ; CHECK-SPIRV-DAG: Capability Float8EXT
 ; CHECK-SPIRV-DAG: Capability Int4TypeINTEL
@@ -92,7 +91,7 @@ target triple = "spir-unknown-unknown"
 
 ; CHECK-LLVM-LABEL: int4_e4m3_32
 ; CHECK-LLVM: %[[#Cast:]] = bitcast i32 1 to <8 x i4>
-; CHECK-LLVM: %[[#Conv:]] = call <8 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv8_i(<8 x i4> %[[#Cast]])
+; CHECK-LLVM: %[[#Conv:]] = call spir_func <8 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv8_i(<8 x i4> %[[#Cast]])
 ; CHECK-LLVM: ret <8 x i8> %[[#Conv]]
 
 ; Function Attrs: nounwind readnone
@@ -110,7 +109,7 @@ declare dso_local spir_func <8 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTEL
 ; CHECK-SPIRV: ReturnValue [[#Cast2]]
 
 ; CHECK-LLVM-LABEL: hf16_int4_32
-; CHECK-LLVM: %[[#Conv:]] = call <8 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv8_Dh(<8 x half> splat (half 0xH3C00))
+; CHECK-LLVM: %[[#Conv:]] = call spir_func <8 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv8_Dh(<8 x half> splat (half 1.000000e+00))
 ; CHECK-LLVM: [[#Cast:]] = bitcast <8 x i4> %[[#Conv]] to i32
 ; CHECK-LLVM: ret i32 %[[#Cast]]
 
@@ -133,7 +132,7 @@ declare dso_local spir_func i32 @_Z38__builtin_spirv_ConvertFP16ToInt4INTELi(<8 
 
 ; CHECK-LLVM-LABEL: int4_e4m3_8
 ; CHECK-LLVM: %[[#Cast:]] = bitcast i8 1 to <2 x i4>
-; CHECK-LLVM: %[[#Conv:]] = call <2 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv2_i(<2 x i4> %[[#Cast]])
+; CHECK-LLVM: %[[#Conv:]] = call spir_func <2 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv2_i(<2 x i4> %[[#Cast]])
 ; CHECK-LLVM: ret <2 x i8> %[[#Conv]]
 
 ; Function Attrs: nounwind readnone
@@ -151,7 +150,7 @@ declare dso_local spir_func <2 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTEL
 ; CHECK-SPIRV: ReturnValue [[#Cast2]]
 
 ; CHECK-LLVM-LABEL: hf16_int4_8
-; CHECK-LLVM: %[[#Conv:]] = call <2 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv2_Dh(<2 x half> splat (half 0xH3C00))
+; CHECK-LLVM: %[[#Conv:]] = call spir_func <2 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv2_Dh(<2 x half> splat (half 1.000000e+00))
 ; CHECK-LLVM: [[#Cast:]] = bitcast <2 x i4> %[[#Conv]] to i8
 ; CHECK-LLVM: ret i8 %[[#Cast]]
 
@@ -174,7 +173,7 @@ declare dso_local spir_func i8 @_Z38__builtin_spirv_ConvertFP16ToInt4INTELc(<2 x
 
 ; CHECK-LLVM-LABEL: int4_e4m3_16
 ; CHECK-LLVM: %[[#Cast:]] = bitcast i16 1 to <4 x i4>
-; CHECK-LLVM: %[[#Call:]] = call <4 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv4_i(<4 x i4> %[[#Cast]])
+; CHECK-LLVM: %[[#Call:]] = call spir_func <4 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv4_i(<4 x i4> %[[#Cast]])
 ; CHECK-LLVM: ret <4 x i8> %[[#Call]]
 
 define spir_func <4 x i8> @int4_e4m3_16() {
@@ -195,7 +194,7 @@ declare dso_local spir_func <4 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTEL
 
 ; CHECK-LLVM-LABEL: int4_e4m3_64
 ; CHECK-LLVM: %[[#Cast:]] = bitcast i64 1 to <16 x i4>
-; CHECK-LLVM: %[[#Call:]] = call <16 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv16_i(<16 x i4> %[[#Cast]])
+; CHECK-LLVM: %[[#Call:]] = call spir_func <16 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv16_i(<16 x i4> %[[#Cast]])
 ; CHECK-LLVM: ret <16 x i8> %[[#Call]]
 
 define spir_func <16 x i8> @int4_e4m3_64() {
@@ -216,7 +215,7 @@ declare dso_local spir_func <16 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTE
 
 ; CHECK-LLVM-LABEL: int4_e4m3_vec2xi8
 ; CHECK-LLVM: %[[#Cast:]] = bitcast <2 x i8> splat (i8 1) to <4 x i4>
-; CHECK-LLVM: %[[#Call:]] = call <4 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv4_i(<4 x i4> %[[#Cast]])
+; CHECK-LLVM: %[[#Call:]] = call spir_func <4 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTELDv4_i(<4 x i4> %[[#Cast]])
 ; CHECK-LLVM: ret <4 x i8> %[[#Call]]
 
 define spir_func <4 x i8> @int4_e4m3_vec2xi8() {
@@ -235,13 +234,13 @@ declare dso_local spir_func <4 x i8> @_Z38__builtin_spirv_ConvertInt4ToE4M3INTEL
 ; CHECK-SPIRV: ReturnValue [[#Cast2]]
 
 ; CHECK-LLVM-LABEL: hf16_int4_16
-; CHECK-LLVM: %[[#Call:]] = call <4 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv4_Dh(<4 x half> splat (half 0xH3C00))
+; CHECK-LLVM: %[[#Call:]] = call spir_func <4 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv4_Dh(<4 x half> splat (half 1.000000e+00))
 ; CHECK-LLVM: %[[#Cast:]] = bitcast <4 x i4> %[[#Call]] to i16
 ; CHECK-LLVM: ret i16 %[[#Cast]]
 
 define spir_func i16 @hf16_int4_16() {
 entry:
-  %0 = call i16 @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv4_Dh(<4 x half> <half 1.0, half 1.0, half 1.0, half 1.0>)
+  %0 = call spir_func i16 @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv4_Dh(<4 x half> <half 1.0, half 1.0, half 1.0, half 1.0>)
   ret i16 %0
 }
 
@@ -255,13 +254,13 @@ declare dso_local spir_func i16 @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv4_D
 ; CHECK-SPIRV: ReturnValue [[#Cast2]]
 
 ; CHECK-LLVM-LABEL: hf16_int4_64
-; CHECK-LLVM: %[[#Call:]] = call <16 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv16_Dh(<16 x half> splat (half 0xH3C00))
+; CHECK-LLVM: %[[#Call:]] = call spir_func <16 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv16_Dh(<16 x half> splat (half 1.000000e+00))
 ; CHECK-LLVM: %[[#Cast:]] = bitcast <16 x i4> %[[#Call]] to i64
 ; CHECK-LLVM: ret i64 %[[#Cast]]
 
 define spir_func i64 @hf16_int4_64() {
 entry:
-  %0 = call i64 @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv16_Dh(<16 x half> <half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0>)
+  %0 = call spir_func i64 @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv16_Dh(<16 x half> <half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0, half 1.0>)
   ret i64 %0
 }
 
@@ -275,13 +274,13 @@ declare dso_local spir_func i64 @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv16_
 ; CHECK-SPIRV: ReturnValue [[#Cast]]
 
 ; CHECK-LLVM-LABEL: hf16_int4_vec2xi8
-; CHECK-LLVM: %[[#Call:]] = call <4 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv4_Dh(<4 x half> splat (half 0xH3C00))
+; CHECK-LLVM: %[[#Call:]] = call spir_func <4 x i4> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELDv4_Dh(<4 x half> splat (half 1.000000e+00))
 ; CHECK-LLVM: %[[#Cast:]] = bitcast <4 x i4> %[[#Call]] to <2 x i8>
 ; CHECK-LLVM: ret <2 x i8> %[[#Cast]]
 
 define spir_func <2 x i8> @hf16_int4_vec2xi8() {
 entry:
-  %0 = call <2 x i8> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELKDv4_Dh(<4 x half> <half 1.0, half 1.0, half 1.0, half 1.0>)
+  %0 = call spir_func <2 x i8> @_Z38__builtin_spirv_ConvertFP16ToInt4INTELKDv4_Dh(<4 x half> <half 1.0, half 1.0, half 1.0, half 1.0>)
   ret <2 x i8> %0
 }
 

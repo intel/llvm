@@ -2,6 +2,7 @@
 
 // RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "sycl_complex_helper.hpp"
 

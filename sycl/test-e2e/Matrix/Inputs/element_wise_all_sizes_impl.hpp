@@ -1,3 +1,4 @@
+#include <iostream>
 //===---element_wise_all_ops_all_sizes_impl.hpp - DPC++ joint_matrix-------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

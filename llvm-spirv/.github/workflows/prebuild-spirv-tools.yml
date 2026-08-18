@@ -1,0 +1,50 @@
+# This workflow builds SPIRV-Tools from main once per day and caches the
+# install tree. The build- and test-workflows only restore from this cache
+# (via restore-keys prefix match), so this workflow owns the freshness of
+# the tools.
+#
+# workflow_dispatch is provided for manual refresh when a SPIRV-Tools fix
+# needs to be picked up before the next scheduled run, or to bootstrap the
+# cache on first deployment.
+name: Prebuild SPIRV-Tools
+
+on:
+  schedule:
+    - cron: 0 23 * * *
+  workflow_dispatch:
+
+env:
+  SPIRV_TOOLS_INSTALL: ${{ github.workspace }}/spirv-tools-install
+
+jobs:
+  prebuild:
+    name: Build and cache SPIRV-Tools main
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Get current date for SPIRV-Tools cache key
+        id: date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Check for existing cache entry
+        id: spirv-tools-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.SPIRV_TOOLS_INSTALL }}
+          key: spirv-tools-main-${{ steps.date.outputs.date }}
+          lookup-only: true
+      - name: Build and install SPIRV-Tools
+        if: steps.spirv-tools-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools SPIRV-Tools
+          python3 SPIRV-Tools/utils/git-sync-deps
+          cmake -S SPIRV-Tools -B SPIRV-Tools/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ env.SPIRV_TOOLS_INSTALL }} \
+            -DSPIRV_SKIP_TESTS=ON \
+            -G "Unix Makefiles"
+          make -C SPIRV-Tools/build install -j$(nproc)
+      - name: Save SPIRV-Tools cache
+        if: steps.spirv-tools-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.SPIRV_TOOLS_INSTALL }}
+          key: spirv-tools-main-${{ steps.date.outputs.date }}

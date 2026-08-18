@@ -2,8 +2,10 @@
 // RUN: %{run} %t.out
 
 // "Hello world" bfloat16 test which checks conversion algorithms on host.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 #include <cstdint>
 #include <type_traits>

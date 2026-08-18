@@ -1,8 +1,10 @@
 // REQUIRES: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
 
 int main() {
   sycl::queue q;

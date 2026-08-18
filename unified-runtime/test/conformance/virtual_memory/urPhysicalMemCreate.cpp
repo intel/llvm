@@ -55,7 +55,7 @@ using urPhysicalMemCreateWithFlagsParamTest =
     uur::urPhysicalMemTestWithParam<ur_physical_mem_flags_t>;
 UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urPhysicalMemCreateWithFlagsParamTest,
-    ::testing::Values(UR_PHYSICAL_MEM_FLAG_TBD),
+    ::testing::Values(UR_PHYSICAL_MEM_FLAG_ENABLE_IPC),
     uur::deviceTestWithParamPrinter<ur_physical_mem_flags_t>);
 
 TEST_P(urPhysicalMemCreateWithFlagsParamTest, Success) {

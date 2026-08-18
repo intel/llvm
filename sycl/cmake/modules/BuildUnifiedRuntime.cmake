@@ -1,5 +1,8 @@
 # Builds in-tree UR
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../unified-runtime/cmake")
+include(helpers)
+
 # TODO: taken from sycl/plugins/CMakeLists.txt - maybe we should handle this
 # within UR (although it is an obscure warning that the build system here
 # seems to specifically enable)
@@ -220,6 +223,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUR_BUILD_ADAPTER_HIP:BOOL=${UR_BUILD_ADAPTER_HIP}
       -DUR_BUILD_ADAPTER_NATIVE_CPU:BOOL=${UR_BUILD_ADAPTER_NATIVE_CPU}
       -DUR_STATIC_LOADER:BOOL=${UR_STATIC_LOADER}
+      -DUR_STATIC_ADAPTER_OPENCL:BOOL=${UR_STATIC_ADAPTER_OPENCL}
       -DUMF_BUILD_EXAMPLES:BOOL=${UMF_BUILD_EXAMPLES}
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
@@ -268,14 +272,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       ${LLVM_BINARY_DIR}/lib/ur_loaderd.lib
       ${LLVM_BINARY_DIR}/lib/ur_commond.lib
       dbghelp)
+    # Link static adapters into the loader
+    foreach(adapter ${SYCL_ENABLE_BACKENDS})
+      ur_adapter_is_static(${adapter} adapter_is_static)
+      set(build_var "UR_BUILD_ADAPTER_${adapter}")
+      string(TOUPPER "${build_var}" build_var)
+      if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
+        target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+          ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
+      endif()
+    endforeach()
   endif()
-  foreach(adatper ${SYCL_ENABLE_BACKENDS})
-    if(adapter MATCHES "level_zero")
-      set(shared "NOT;${UR_STATIC_ADAPTER_L0}")
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+    ur_adapter_is_static(${adapter} adapter_is_static)
+    if(adapter_is_static)
+      set(shared FALSE)
     else()
       set(shared TRUE)
     endif()
-    urd_copy_library_to_build(ur_adapter_${adatper}d "${shared}")
+    urd_copy_library_to_build(ur_adapter_${adapter}d "${shared}")
   endforeach()
   # Also copy umfd.dll/umfd.lib
   urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
@@ -290,9 +305,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       DESTINATION "bin" COMPONENT unified-runtime-loader)
   endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
-    install(
-      FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
-      DESTINATION "bin" COMPONENT ur_adapter_${adapter})
+    ur_adapter_is_static(${adapter} adapter_is_static)
+    if(NOT adapter_is_static)
+      install(
+        FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
+        DESTINATION "bin" COMPONENT ur_adapter_${adapter})
+    endif()
   endforeach()
   if(UMF_BUILD_SHARED_LIBRARY)
     # Also install umfd.dll

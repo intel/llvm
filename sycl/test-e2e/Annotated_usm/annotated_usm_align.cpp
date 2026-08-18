@@ -3,6 +3,7 @@
 
 // This e2e test checks the alignment of the annotated USM allocation (host &
 // device) in various cases
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_device.hpp>

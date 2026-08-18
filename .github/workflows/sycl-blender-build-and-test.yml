@@ -67,15 +67,15 @@ jobs:
         uses: ./devops/actions/blender/oidn
         with:
           cmake_install_prefix: ${{ env.OIDN_INSTALL_DIR }}
-          c_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/clang${{ runner.os == 'Windows' && '.exe' || '' }}
-          cxx_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/clang++${{ runner.os == 'Windows' && '.exe' || '' }}
+          c_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/dpclang${{ runner.os == 'Windows' && '.exe' || '' }}
+          cxx_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/dpclang++${{ runner.os == 'Windows' && '.exe' || '' }}
 
       - name: Build Embree
         uses: ./devops/actions/blender/embree
         with:
           cmake_install_prefix: ${{ env.EMBREE_INSTALL_DIR }}
-          c_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/clang${{ runner.os == 'Windows' && '.exe' || '' }}
-          cxx_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/clang++${{ runner.os == 'Windows' && '.exe' || '' }}
+          c_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/dpclang${{ runner.os == 'Windows' && '.exe' || '' }}
+          cxx_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/dpclang++${{ runner.os == 'Windows' && '.exe' || '' }}
 
       - name: Build Blender
         uses: ./devops/actions/blender/blender-build

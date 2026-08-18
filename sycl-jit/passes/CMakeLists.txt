@@ -10,7 +10,7 @@ if (NOT WIN32 AND NOT CYGWIN)
     intrinsics_gen
   )
 
-  target_compile_options(SYCLJITPassesPlugin PRIVATE ${SYCL_JIT_WARNING_FLAGS})
+  sycl_jit_apply_target_warning_flags(SYCLJITPassesPlugin)
 
   # Mark LLVM headers as system headers to ignore warnigns in them. This
   # classification remains intact even if the same path is added as a normal
@@ -58,7 +58,7 @@ add_llvm_library(SYCLJITPasses
   SYCLLowerIR
 )
 
-target_compile_options(SYCLJITPasses PRIVATE ${SYCL_JIT_WARNING_FLAGS})
+sycl_jit_apply_target_warning_flags(SYCLJITPasses)
 
 # Mark LLVM headers as system headers to ignore warnigns in them. This
 # classification remains intact even if the same path is added as a normal

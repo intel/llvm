@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <iostream>
 #include <sycl/usm.hpp>
 
 template <typename T> T mul2(T x) { return x * 2; }

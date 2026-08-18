@@ -12,6 +12,7 @@
 // resulting into 64-bit result and returning the result as 2 parts:
 // lower 32-bits in the input modified operand and upper 32-bits as return
 // from function.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

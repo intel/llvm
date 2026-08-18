@@ -62,7 +62,7 @@ int main() {
   sycl::queue q{};
   sycl::device dev = q.get_device();
   sycl::context ctx = q.get_context();
-  if (!dev.get_info<sycl::info::device::usm_shared_allocations>()) {
+  if (!dev.has(sycl::aspect::usm_shared_allocations)) {
     std::cout << "Shared USM is not supported. Skipping test.\n";
     return 0;
   }

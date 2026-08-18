@@ -176,10 +176,6 @@ protected:
   }
 
 public:
-  // SPIR supports the half type and the only llvm intrinsic allowed in SPIR is
-  // memcpy as per section 3 of the SPIR spec.
-  bool useFP16ConversionIntrinsics() const override { return false; }
-
   llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override {
     return {};
   }
@@ -513,9 +509,10 @@ public:
       Diags.Report(diag::err_target_spirv_requires_vulkan);
       return false;
     }
-    if (getTriple().getEnvironment() < llvm::Triple::Pixel ||
-        getTriple().getEnvironment() > llvm::Triple::Amplification) {
-      Diags.Report(diag::err_target_spirv_requires_shader_stage);
+    if (getTriple().getEnvironment() != llvm::Triple::UnknownEnvironment &&
+        (getTriple().getEnvironment() < llvm::Triple::Pixel ||
+         getTriple().getEnvironment() > llvm::Triple::Amplification)) {
+      Diags.Report(diag::err_target_spirv_invalid_shader_stage);
       return false;
     }
     return true;
@@ -532,8 +529,9 @@ public:
     assert(Triple.getArch() == llvm::Triple::spirv32 &&
            "Invalid architecture for 32-bit SPIR-V.");
     assert((getTriple().getOS() == llvm::Triple::UnknownOS ||
-            getTriple().getOS() == llvm::Triple::ChipStar) &&
-           "32-bit SPIR-V target must use unknown or chipstar OS");
+            getTriple().getOS() == llvm::Triple::ChipStar ||
+            getTriple().getOS() == llvm::Triple::Vulkan) &&
+           "32-bit SPIR-V target must use unknown, chipstar, or vulkan OS");
     assert(getTriple().getEnvironment() == llvm::Triple::UnknownEnvironment &&
            "32-bit SPIR-V target must use unknown environment type");
     PointerWidth = PointerAlign = 32;
@@ -556,8 +554,9 @@ public:
     assert(Triple.getArch() == llvm::Triple::spirv64 &&
            "Invalid architecture for 64-bit SPIR-V.");
     assert((getTriple().getOS() == llvm::Triple::UnknownOS ||
-            getTriple().getOS() == llvm::Triple::ChipStar) &&
-           "64-bit SPIR-V target must use unknown or chipstar OS");
+            getTriple().getOS() == llvm::Triple::ChipStar ||
+            getTriple().getOS() == llvm::Triple::Vulkan) &&
+           "64-bit SPIR-V target must use unknown, chipstar, or vulkan OS");
     assert(getTriple().getEnvironment() == llvm::Triple::UnknownEnvironment &&
            "64-bit SPIR-V target must use unknown environment type");
     PointerWidth = PointerAlign = 64;

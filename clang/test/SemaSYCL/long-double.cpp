@@ -1,5 +1,4 @@
 // RUN: %clang_cc1 -triple spir64 -aux-triple x86_64-linux-gnu -fsycl-is-device -verify -fsyntax-only %s
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device -fsyntax-only %s
 // RUN: %clang_cc1 -triple spir64 -aux-triple x86_64-linux-gnu -fsycl-is-device -fsyntax-only -mlong-double-64 %s
 
 template <typename Name, typename Func>

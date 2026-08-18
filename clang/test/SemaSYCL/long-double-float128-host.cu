@@ -1,7 +1,5 @@
 // RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-host \
 // RUN:   -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only -verify %s
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device \
-// RUN:   -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only -verify %s
 // RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-host -fcuda-is-device \
 // RUN:   -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only -verify %s
 

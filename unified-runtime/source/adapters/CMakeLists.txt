@@ -2,8 +2,23 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(helpers)
+
 function(add_ur_adapter name)
     add_ur_library(${name} ${ARGN})
+    string(REPLACE "ur_adapter_" "" UR_ADAPTER_NAME ${name})
+    string(TOUPPER ${UR_ADAPTER_NAME} UR_ADAPTER_NAME)
+    ur_adapter_is_static(${UR_ADAPTER_NAME} adapter_is_static)
+    if(WIN32 AND NOT adapter_is_static)
+        set(ADAPTER_RESOURCE_FILE ${CMAKE_CURRENT_BINARY_DIR}/${name}.rc)
+        configure_file(
+            ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/UrAdapterVersion.rc.in
+            ${ADAPTER_RESOURCE_FILE}
+            @ONLY
+        )
+        target_sources(${name} PRIVATE ${ADAPTER_RESOURCE_FILE})
+    endif()
     if(MSVC)
         set(TARGET_LIBNAME ${name})
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)

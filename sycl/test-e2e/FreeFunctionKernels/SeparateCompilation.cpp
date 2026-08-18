@@ -1,5 +1,6 @@
 // RUN: %{build} %S/SumKernel.cc %S/ProductKernel.cc -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "ProductKernel.hpp"
 #include "SumKernel.hpp"

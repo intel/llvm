@@ -18,7 +18,6 @@ int main() {
 
   assert(e.get_info<info::event::command_execution_status>() ==
          info::event_command_status::complete);
-  assert(e.get_info<info::event::reference_count>() == 0);
   auto submit_time =
       e.get_profiling_info<sycl::info::event_profiling::command_submit>();
   auto start_time =

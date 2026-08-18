@@ -48,10 +48,10 @@ int main() {
                        range<3>{2, 2, MaxWGSize * 3});
   tests<class B4, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<3>{2, 3, 5});
   tests<class B5, uint64_t>(Q, 1, 2, std::multiplies<>{}, range<3>{2, 3, 8});
-  tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99,
-                       ext::oneapi::minimum<>{}, range<3>{MaxWGSize, 8, 3});
-  tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99,
-                       ext::oneapi::maximum<>{}, range<3>{3, MaxWGSize, 3});
+  tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99, minimum<>{},
+                       range<3>{MaxWGSize, 8, 3});
+  tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99, maximum<>{},
+                       range<3>{3, MaxWGSize, 3});
   tests<class B8, float>(Q, 1, 99, std::multiplies<>{}, range<3>{3, 3, 5});
 
   tests<class C1, CustomVec<long long>>(Q, 0, 99, CustomVecPlus<long long>{},

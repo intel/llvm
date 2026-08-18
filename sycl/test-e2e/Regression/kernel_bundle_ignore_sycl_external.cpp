@@ -4,6 +4,7 @@
 // XFAIL: target-nvidia
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16417
 // UNSUPPORTED: target-amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

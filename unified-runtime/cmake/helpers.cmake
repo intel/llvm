@@ -116,6 +116,11 @@ function(add_ur_target_compile_options name)
             $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+            # icx by default emits calls to _intel_fast_memcpy/_intel_fast_memset.
+            # Use plain memcpy/memset so that no libirc dependency is introduced.
+            target_compile_options(${name} PRIVATE -no-intel-lib=libirc)
+        endif()
         if (UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE -Werror -Wextra)
         endif()
@@ -123,9 +128,12 @@ function(add_ur_target_compile_options name)
             target_compile_options(${name} PRIVATE -fvisibility=hidden)
         endif()
     elseif(MSVC)
+        # Select the dynamic CRT (/MD, /MDd) via the canonical property rather
+        # than a hardcoded flag, so it can be overridden per target.
+        set_target_properties(${name} PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
         target_compile_options(${name} PRIVATE
             $<$<CXX_COMPILER_ID:MSVC>:/MP>  # clang-cl.exe does not support /MP
-            /MD$<$<CONFIG:Debug>:d>
 
             /W3
             /GS     # Enable: Buffer security check
@@ -285,4 +293,23 @@ function(configure_linker_file input output)
     )
     # Write stripped output to file for use by the linker
     file(GENERATE OUTPUT ${output} CONTENT "${stripped}")
+endfunction()
+
+# Determine whether the given adapter is statically linked into the loader by
+# querying the corresponding UR_STATIC_ADAPTER_* variable (if it exists).
+# Sets OUT_VAR in the caller's scope to TRUE if the adapter is static,
+# FALSE otherwise.
+function(ur_adapter_is_static adapter out_var)
+  set(static_var "UR_STATIC_ADAPTER_${adapter}")
+  string(TOUPPER "${static_var}" static_var)
+  string(TOUPPER "${adapter}" adapter)
+  # Special case: LEVEL_ZERO uses UR_STATIC_ADAPTER_L0
+  if(adapter STREQUAL "LEVEL_ZERO")
+    set(static_var "UR_STATIC_ADAPTER_L0")
+  endif()
+  if(DEFINED ${static_var} AND ${static_var})
+    set(${out_var} TRUE PARENT_SCOPE)
+  else()
+    set(${out_var} FALSE PARENT_SCOPE)
+  endif()
 endfunction()

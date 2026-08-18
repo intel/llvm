@@ -10,6 +10,7 @@
 // RUN: %{run} %t1.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;

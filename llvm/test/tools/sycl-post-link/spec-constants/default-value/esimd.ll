@@ -38,7 +38,7 @@ target triple = "spir64-unknown-unknown"
 
 declare spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(%struct.A addrspace(4)* sret(%struct.A) align 4, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef)
 
-define spir_kernel void @func1() !kernel_arg_buffer_location !7 !sycl_kernel_omit_args !8 {
+define spir_kernel void @func1() !sycl_kernel_omit_args !8 {
 entry:
   %a.i = alloca %struct.A, align 4
   %a.ascast.i = addrspacecast %struct.A* %a.i to %struct.A addrspace(4)*
@@ -62,5 +62,4 @@ entry:
 !4 = !{!"char*"}
 !5 = !{!""}
 !6 = !{i1 false}
-!7 = !{i32 -1}
 !8 = !{i1 true}

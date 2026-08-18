@@ -7,6 +7,7 @@
 // specialization constants in AOT mode
 
 #include <sycl/detail/core.hpp>
+#include <sycl/h_item.hpp>
 
 #include <sycl/specialization_id.hpp>
 

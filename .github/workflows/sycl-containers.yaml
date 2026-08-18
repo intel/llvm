@@ -51,6 +51,11 @@ jobs:
             file: ubuntu2404_build
             tag: latest
             build_args: ""
+          # To test toolchain build with gcc 7.5.0
+          - name: Build SLE15 SP4 Docker image
+            file: sle15sp4_build
+            tag: latest
+            build_args: ""
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

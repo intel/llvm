@@ -4,6 +4,7 @@
 
 // UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17847
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/backend.hpp>

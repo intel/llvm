@@ -50,21 +50,27 @@ struct CompileTimeKernelInfoTy {
   using ParamDescGetterT = kernel_param_desc_t (*)(int);
   ParamDescGetterT ParamDescGetter = nullptr;
 
-  bool HasSpecialCaptures = [this]() constexpr {
+  // GCC 9 ICEs on constexpr lambdas capturing `this` in default member
+  // initializers (cp/constexpr.c:5214), so use a static helper instead.
+  static constexpr bool
+  computeHasSpecialCaptures(unsigned numParams,
+                            ParamDescGetterT paramDescGetter) {
     // No-compile time info for the kernel (i.e., kernel_bundle/interop/etc.),
     // be conservative:
-    if (NumParams == 0)
+    if (numParams == 0)
       return true;
 
-    for (unsigned I = 0; I < NumParams; ++I) {
-      auto ParamDesc = ParamDescGetter(I);
+    for (unsigned I = 0; I < numParams; ++I) {
+      auto ParamDesc = paramDescGetter(I);
       if (ParamDesc.kind != kernel_param_kind_t::kind_std_layout &&
           ParamDesc.kind != kernel_param_kind_t::kind_pointer)
         return true;
     }
 
     return false;
-  }();
+  }
+
+  bool HasSpecialCaptures = computeHasSpecialCaptures(NumParams, ParamDescGetter);
 };
 
 template <class Kernel>

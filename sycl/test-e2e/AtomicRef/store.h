@@ -13,6 +13,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -87,7 +88,7 @@ void store_local_test(queue q, size_t N) {
         size_t gid = it.get_global_id(0);
         auto atm = AtomicRef<T, memory_order::relaxed, scope, space>(loc[0]);
         atm.store(T(gid), order);
-        it.barrier(access::fence_space::local_space);
+        group_barrier(it.get_group());
         if (gid == 0)
           st[0] = loc[0];
       });

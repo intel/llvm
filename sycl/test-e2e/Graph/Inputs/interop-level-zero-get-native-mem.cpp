@@ -2,6 +2,7 @@
 // This test was taken from
 // `sycl/test-e2e/Adapter/interop-level-zero-get-native-mem.cpp` This test has
 // been simplified to only work with signle device.
+#include <iostream>
 
 #include "../graph_common.hpp"
 // Level-Zero

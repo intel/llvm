@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 
 // Regression test for checking USM-based gather/scatter with 32 elements.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

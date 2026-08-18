@@ -91,19 +91,19 @@ $Kernel2 = comdat any
 $Kernel3 = comdat any
 
 ; Function Attrs: mustprogress norecurse nounwind
-define weak_odr dso_local spir_kernel void @Kernel1() local_unnamed_addr #0 comdat !srcloc !5 !kernel_arg_buffer_location !6 !sycl_fixed_targets !6 !sycl_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @Kernel1() local_unnamed_addr #0 comdat !srcloc !5 !sycl_fixed_targets !6 !sycl_kernel_omit_args !6 {
 entry:
   ret void
 }
 
 ; Function Attrs: mustprogress norecurse nounwind
-define weak_odr dso_local spir_kernel void @Kernel2() local_unnamed_addr #0 comdat !srcloc !8 !kernel_arg_buffer_location !6 !sycl_fixed_targets !6 !sycl_joint_matrix !7 !sycl_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @Kernel2() local_unnamed_addr #0 comdat !srcloc !8 !sycl_fixed_targets !6 !sycl_joint_matrix !7 !sycl_kernel_omit_args !6 {
 entry:
   ret void
 }
 
 ; Function Attrs: mustprogress norecurse nounwind
-define weak_odr dso_local spir_kernel void @Kernel3() local_unnamed_addr #0 comdat !srcloc !9 !kernel_arg_buffer_location !6 !sycl_fixed_targets !6 !sycl_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @Kernel3() local_unnamed_addr #0 comdat !srcloc !9 !sycl_fixed_targets !6 !sycl_kernel_omit_args !6 {
 entry:
   ret void
 }

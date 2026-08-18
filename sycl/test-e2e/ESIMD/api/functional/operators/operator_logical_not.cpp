@@ -14,6 +14,7 @@
 // The test verifies that data from simd is not corrupted after calling logical
 // not operator, that logical not operator return type is as expected and
 // logical not operator result values is correct.
+#include <iostream>
 
 #include "../shared_element.hpp"
 #include "common.hpp"

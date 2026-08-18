@@ -13,6 +13,7 @@
 // and optional compile-time esimd::properties.
 // The copyto_copyfrom() calls in this test use cache-hint
 // properties which require PVC+ target device.
+#include <iostream>
 
 #include "Inputs/copyto_copyfrom.hpp"
 

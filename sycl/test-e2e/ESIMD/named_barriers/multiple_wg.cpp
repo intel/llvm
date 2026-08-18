@@ -16,6 +16,7 @@
 // SLM and surface size is 16 bytes, 8 bytes per group.
 // Each work-group contain 2 threads: 1 producer and 1 consumer.
 // Producers store to SLM; consumers read SLM and store data to surface.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

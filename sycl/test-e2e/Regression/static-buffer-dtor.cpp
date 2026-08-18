@@ -14,6 +14,7 @@
 
 // Failing on HIP AMD
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 #include <sycl/detail/core.hpp>
 

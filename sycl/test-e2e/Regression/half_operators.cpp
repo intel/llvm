@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 
 using namespace sycl;
 

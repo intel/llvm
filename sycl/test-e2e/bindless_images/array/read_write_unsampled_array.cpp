@@ -13,6 +13,8 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
+#include <sycl/vector.hpp>
 #include <type_traits>
 
 namespace syclexp = sycl::ext::oneapi::experimental;

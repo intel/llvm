@@ -10,6 +10,7 @@
 
 // CHECK-OPT: <--- urProgramBuildExp(
 // CHECK-SAME-OPT: -ze-intel-enable-auto-large-GRF-mode
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

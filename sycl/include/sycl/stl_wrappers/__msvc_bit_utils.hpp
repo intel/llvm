@@ -20,14 +20,19 @@
 // reality (no x86 ISA), and selects the STL's scalar fallback paths if the
 // dispatches are ever reached.
 //
+// Reads of `std::__isa_available` from device code are permitted by a
+// named-symbol allowlist in clang's SemaExpr (see `isMsvcSTLGlobalVar`),
+// so no per-decl attribute is needed here.
+//
 // Mirror the source structure of MSVC STL's __msvc_bit_utils.hpp, which
-// declares the symbol inside `namespace std { extern "C" { ... } }`. The
-// `extern "C"` makes namespace placement linkage-neutral, but matching the
-// MSVC source layout keeps this wrapper visually aligned with what it shadows.
+// declares the symbol inside `namespace std { extern "C" { ... } }`.
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
 namespace std {
 extern "C" {
-int __isa_available __attribute__((sycl_global_var)) __attribute__((weak)) = 0;
+// `inline` makes the definition ODR-safe: this header may be included by
+// several device TUs that are later device-linked into one image, and the
+// C++17 inline-variable rule tells the linker to keep exactly one copy.
+inline int __isa_available = 0;
 }
 } // namespace std
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
@@ -36,7 +41,9 @@ int __isa_available __attribute__((sycl_global_var)) __attribute__((weak)) = 0;
 // include search directories.
 #if defined(__has_include_next)
 // GCC/clang support go through this path.
+#if __has_include_next(<__msvc_bit_utils.hpp>)
 #include_next <__msvc_bit_utils.hpp>
+#endif
 #else
 // MSVC doesn't support "#include_next", so we have to be creative.
 // Our header is located in "stl_wrappers/__msvc_bit_utils.hpp" so it won't be
@@ -44,5 +51,7 @@ int __isa_available __attribute__((sycl_global_var)) __attribute__((weak)) = 0;
 // has the layout where the following would result in the
 // <__msvc_bit_utils.hpp> we want. This is obviously hacky, but the best we
 // can do...
+#if __has_include(<../include/__msvc_bit_utils.hpp>)
 #include <../include/__msvc_bit_utils.hpp>
+#endif
 #endif

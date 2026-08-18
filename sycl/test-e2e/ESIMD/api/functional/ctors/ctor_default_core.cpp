@@ -15,6 +15,7 @@
 //  - call simd default constructor
 //  - verify that values from simd is equal to default value of provided
 //    underlying type
+#include <iostream>
 
 #include "ctor_default.hpp"
 

@@ -6,6 +6,7 @@
     clang++ -fsycl  -fPIC -shared -o simple_lib.so simple_lib.cpp
 
 */
+#include <iostream>
 
 #include "simple_lib.h"
 #include <sycl/detail/core.hpp>

@@ -42,6 +42,7 @@ if (SPHINX_FOUND)
       aio
       arpa/inet
       assert
+      byteswap
       cpio
       ctype
       dirent
@@ -53,14 +54,19 @@ if (SPHINX_FOUND)
       float
       glob
       inttypes
+      libgen
       locale
       nl_types
       net/if
       netinet/in
+      netinet/tcp
       poll
       pthread
+      pwd
+      sched
       setjmp
       signal
+      spawn
       stdbit
       stdio
       stdlib

@@ -8,40 +8,25 @@
 
 #pragma once
 
+#include <sycl/detail/export.hpp>
 #include <sycl/detail/half_type_impl.hpp>
 
 // For std::hash, seems to be the most lightweight header provide it under
 // C++17:
 #include <optional>
 
-#ifdef __SYCL_DEVICE_ONLY__
-#include <iosfwd>
-#else
-#include <sycl/detail/iostream_proxy.hpp>
-#endif
+#include <iosfwd> // for ostream, istream
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail::half_impl {
 
-#ifdef __SYCL_DEVICE_ONLY__
-// std::istream/std::ostream aren't usable on device, so don't provide a
-// definition to save compile time by using lightweight `<iosfwd>`.
-std::ostream &operator<<(std::ostream &O, sycl::half const &rhs);
-std::istream &operator>>(std::istream &I, sycl::half &rhs);
-#else
-inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
-}
-
-inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
-  float ValFloat = 0.0f;
-  I >> ValFloat;
-  rhs = ValFloat;
-  return I;
-}
-#endif
+// Stream operators are defined out-of-line in the SYCL runtime. The header
+// only carries forward declarations so that <ostream>/<istream> are not
+// pulled into device compilation. Consumers that print sycl::half values
+// must include <iostream> (or <ostream>/<istream>) themselves.
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &O, sycl::half const &rhs);
+__SYCL_EXPORT std::istream &operator>>(std::istream &I, sycl::half &rhs);
 
 } // namespace detail::half_impl
 } // namespace _V1

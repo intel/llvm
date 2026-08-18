@@ -12,6 +12,7 @@
 
 // The test verifies that basic ESIMD API works properly with
 // private memory allocated on stack.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

@@ -620,6 +620,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue("");
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(true));
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(static_cast<ur_bool_t>(true));
+#else
+    return ReturnValue(static_cast<ur_bool_t>(false));
+#endif
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -1108,6 +1114,13 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(true);
+#else
+    return ReturnValue(false);
+#endif
+  }
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // L0 doesn't support enqueueing native work through the urNativeEnqueueExp
     return ReturnValue(static_cast<ur_bool_t>(false));
@@ -1277,6 +1290,16 @@ ur_result_t urDeviceGetInfo(
     // L0 supports importing external memory.
     return ReturnValue(true);
   }
+  case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP: {
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2)
+    // Registering existing host memory as a USM host allocation relies on the
+    // external system memory mapping extension being supported by the driver.
+    return ReturnValue(
+        Device->Platform->ZeExternalMemoryMappingExtensionSupported);
+#else
+    return ReturnValue(false);
+#endif
+  }
   case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
     return ReturnValue(Device->Platform->ZeExternalSemaphoreExt.Supported);
   }
@@ -1367,6 +1390,25 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(true);
 #endif
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+    return ReturnValue(true);
+#else
+    return ReturnValue(false);
+#endif
+  case UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP: {
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+    constexpr uint32_t MinDriverBuild = 38646;
+    ZeStruct<ze_driver_properties_t> ZeDriverProperties;
+    ZE2UR_CALL(zeDriverGetProperties,
+               (Device->Platform->ZeDriver, &ZeDriverProperties));
+    const uint32_t DriverBuild = ZeDriverProperties.driverVersion & 0xFFFF;
+    return ReturnValue(static_cast<ur_bool_t>(Device->isBMGOrNewer() &&
+                                              DriverBuild >= MinDriverBuild));
+#else
+    return ReturnValue(false);
+#endif
+  }
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
@@ -1567,17 +1609,26 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(false);
     }
 
-    ze_record_replay_graph_exp_properties_t GraphProperties{};
+    // The experimental variant of the extension reports its capabilities
+    // through a structure with a different type value; an older driver would
+    // not recognize the stable one and would leave graphFlags unset. The
+    // structure layout (stype, pNext, graphFlags) is identical between the two
+    // variants, so the stable type can be reused with the experimental value.
+    constexpr ze_structure_type_t ZeStructTypeRecordReplayGraphExpProperties =
+        static_cast<ze_structure_type_t>(0x00030029);
+    ze_record_replay_graph_ext_properties_t GraphProperties{};
     GraphProperties.stype =
-        ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXP_PROPERTIES;
+        Device->Platform->ZeGraphExt.UsesLegacyExperimentalApi
+            ? ZeStructTypeRecordReplayGraphExpProperties
+            : ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
     GraphProperties.pNext = nullptr;
     ZeStruct<ze_device_properties_t> DeviceProperties;
     DeviceProperties.pNext = &GraphProperties;
     ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProperties));
 
-    constexpr ze_record_replay_graph_exp_flags_t GraphModeMask =
-        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_IMMUTABLE_GRAPH |
-        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_MUTABLE_GRAPH;
+    constexpr ze_record_replay_graph_ext_flags_t GraphModeMask =
+        ZE_RECORD_REPLAY_GRAPH_EXT_FLAG_IMMUTABLE_GRAPH |
+        ZE_RECORD_REPLAY_GRAPH_EXT_FLAG_MUTABLE_GRAPH;
     return ReturnValue(static_cast<ur_bool_t>(
         (GraphProperties.graphFlags & GraphModeMask) != 0));
   }

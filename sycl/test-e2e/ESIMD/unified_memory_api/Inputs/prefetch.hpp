@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This file contains tests that use various variants of prefetch API to make
 // sure they do not cause any issues.
+#include <iostream>
 
 #include "common.hpp"
 

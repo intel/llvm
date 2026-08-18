@@ -8,9 +8,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-#include "external/driver_experimental/zex_graph.h"
 #include "logger/ur_logger.hpp"
 #include "usm.hpp"
+#include <level_zero/ze_api.h>
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -62,6 +62,20 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   case ZE_RESULT_ERROR_MODULE_LINK_FAILURE:
     return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+  case ZE_RESULT_ERROR_INVALID_GRAPH:
+    return UR_RESULT_ERROR_INVALID_GRAPH;
+  case ZE_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED:
+    return UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED;
+  case ZE_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED:
+    return UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED;
+  case ZE_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT:
+    return UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT;
+  case ZE_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING:
+    return UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING;
+  case ZE_RESULT_ERROR_GRAPH_UNJOINED_FORKS:
+    return UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS;
+  case ZE_RESULT_ERROR_GRAPH_INTERNAL_EVENT:
+    return UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -363,8 +377,8 @@ getZeStructureType<ze_pitched_alloc_2dimage_linear_pitch_exp_info_t>() {
 }
 template <>
 ze_structure_type_ext_t
-getZexStructureType<ze_record_replay_graph_exp_properties_t>() {
-  return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXP_PROPERTIES;
+getZexStructureType<ze_record_replay_graph_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR

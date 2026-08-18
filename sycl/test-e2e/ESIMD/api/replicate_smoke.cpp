@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 //
 // The test checks main functionality of the esimd::replicate_vs_w_hs function.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

@@ -8,7 +8,7 @@
 ; CHECK-DAG: Capability AtomicFloat16AddEXT
 ; CHECK: TypeInt [[TypeIntID:[0-9]+]] 32 0
 ; CHECK-DAG: Constant [[TypeIntID]] [[ScopeCrossDevice:[0-9]+]] 0 {{$}}
-; CHECK-DAG: Constant [[TypeIntID]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
+; CHECK-DAG: Constant [[TypeIntID]] [[MemSem_SequentiallyConsistent:[0-9]+]] 528
 ; CHECK: TypeFloat [[TypeFloatHalfID:[0-9]+]] 16
 ; CHECK: Variable {{[0-9]+}} [[HalfPointer:[0-9]+]]
 ; CHECK: Constant [[TypeFloatHalfID]] [[HalfValue:[0-9]+]] 20800

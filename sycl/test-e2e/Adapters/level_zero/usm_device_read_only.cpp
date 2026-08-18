@@ -1,10 +1,11 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED: windows && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22099
 
 // RUN: %{build} -o %t.out

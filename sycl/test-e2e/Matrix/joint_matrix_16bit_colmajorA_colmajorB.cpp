@@ -20,6 +20,7 @@
 
 // XFAIL: run-mode && gpu-intel-dg2
 // XFAIL-TRACKER: GSD-5768
+#include <iostream>
 
 #include "common.hpp"
 

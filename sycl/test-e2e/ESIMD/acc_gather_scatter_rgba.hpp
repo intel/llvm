@@ -8,6 +8,7 @@
 
 // The test checks functionality of the gather_rgba/scatter_rgba accessor-based
 // ESIMD intrinsics.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
