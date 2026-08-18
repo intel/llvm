@@ -20,12 +20,15 @@ struct QueueParameter {
 inline std::string PrintQueueParam(
     const testing::TestParamInfo<std::tuple<uur::DeviceTuple, QueueParameter>>
         &info) {
+  const auto &device = std::get<0>(info.param).device;
   const QueueParameter &queue_param = std::get<1>(info.param);
   std::string mode_str =
       (queue_param.submission_mode == UR_QUEUE_FLAG_SUBMISSION_BATCHED)
           ? "Batched"
           : "Immediate";
-  return mode_str + "_BatchSize_" + std::to_string(queue_param.batch_size);
+  return uur::GetPlatformAndDeviceName(device) + "__" +
+         uur::GTestSanitizeString(mode_str + "_BatchSize_" +
+                                  std::to_string(queue_param.batch_size));
 }
 
 struct urEnqueueUSMOperationsOrderingIOQTest
