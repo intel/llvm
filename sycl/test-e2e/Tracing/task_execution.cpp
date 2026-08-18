@@ -37,7 +37,7 @@ int main() {
     // CHECK-NEXT: [SYCL] Task begin (event={{.*}},instanceID={{.*}})
     // CHECK-DAG:          enqueue_kernel_data : {{.*}}
     // CHECK-DAG:          sym_column_no : {{.*}}
-    // CHECK-DAG:          sym_line_no : 37
+    // CHECK-DAG:          sym_line_no : 36
     // CHECK-DAG:          sym_source_file_name : {{.*}}task_execution.cpp
     // CHECK-DAG:          queue_id : 1
     // CHECK-DAG:          sym_function_name : typeinfo name for main::E2ETestKernel
