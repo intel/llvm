@@ -11,8 +11,13 @@
 #define OFFSET 8
 
 // Atomically reserves space to the printf data buffer and returns a pointer to
-// it
-__global char *__printf_alloc(uint bytes) {
+// it.
+//
+// This helper is referenced by the AMDGPUPrintfRuntimeBinding backend pass,
+// which only introduces the reference late in the pipeline (after the device
+// bitcode libraries have already been internalized and dead-stripped). Mark it
+// as used so the definition is retained and available when the pass runs.
+__attribute__((used)) __global char *__printf_alloc(uint bytes) {
   __constant amdhsa_implicit_kernarg_v5 *args =
       (__constant amdhsa_implicit_kernarg_v5 *)
           __builtin_amdgcn_implicitarg_ptr();

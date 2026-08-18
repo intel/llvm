@@ -1,6 +1,3 @@
-// UNSUPPORTED: target-amd
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
-// HIP doesn't support printf.
 // CUDA doesn't support vector format specifiers ("%v").
 // XFAIL: run-mode && spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21618
