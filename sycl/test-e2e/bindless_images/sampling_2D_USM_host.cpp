@@ -1,6 +1,4 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images_2d_usm
-// XFAIL: level_zero
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17663
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
@@ -49,10 +47,6 @@ int main() {
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::linear);
 
-    // Extension: image descriptor
-    sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, 1, sycl::image_channel_type::fp32);
-
     auto devicePitchAlign = dev.get_info<
         sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
     auto deviceMaxPitch =
@@ -66,6 +60,12 @@ int main() {
     size_t pitch = devicePitchAlign *
                    std::ceil(float(widthInBytes) / float(devicePitchAlign));
     assert(pitch <= deviceMaxPitch);
+
+    // Extension: image descriptor
+    sycl::ext::oneapi::experimental::image_descriptor desc(
+        {width, height}, 1, sycl::image_channel_type::fp32,
+        sycl::ext::oneapi::experimental::image_type::standard, 1, 1, 0, pitch,
+        0);
 
     // Host USM allocation
     auto imgMem =
