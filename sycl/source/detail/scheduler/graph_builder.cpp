@@ -165,8 +165,8 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
 
   MVisitedCmds.clear();
 
-  for (SYCLMemObjI *MemObject : MMemObjs)
-    for (Command *AllocaCmd : MemObject->MRecord->MAllocaCommands)
+  for (const auto &MemObj : MMemObjs)
+    for (Command *AllocaCmd : MemObj.MRecord->MAllocaCommands)
       printDotRecursive(Stream, MVisitedCmds, AllocaCmd);
 
   Stream << "}" << std::endl;
@@ -236,7 +236,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
                                               LeafLimit,
                                               std::move(AllocateDependency)});
 
-  MMemObjs.push_back(MemObject);
+  MMemObjs.push_back({MemObject, MemObject->MRecord});
   return MemObject->MRecord.get();
 }
 
@@ -1065,14 +1065,17 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   // First, mark all allocas for deletion and their direct users for traversal
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
+    if (!AllocaCmd)
+      continue;
+
     markNodeAsVisited(AllocaCmd, MVisitedCmds);
 
     for (Command *UserCmd : AllocaCmd->MUsers)
       // Linked alloca cmd may be in users of this alloca. We're not going to
       // visit it.
-      if (UserCmd->getType() != Command::CommandType::ALLOCA)
+      if (UserCmd && UserCmd->getType() != Command::CommandType::ALLOCA)
         MCmdsToVisit.push(UserCmd);
-      else
+      else if (UserCmd)
         markNodeAsVisited(UserCmd, MVisitedCmds);
 
     AllocaCmd->MMarks.MToBeDeleted = true;
@@ -1084,6 +1087,9 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   // Make sure the Linked Allocas are marked visited by the previous walk.
   // Remove allocation commands from the users of their dependencies.
   for (AllocaCommandBase *AllocaCmd : AllocaCommands) {
+    if (!AllocaCmd)
+      continue;
+
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
     if (LinkedCmd) {
@@ -1100,11 +1106,14 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     Command *Cmd = MCmdsToVisit.front();
     MCmdsToVisit.pop();
 
+    if (!Cmd)
+      continue;
+
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
 
     for (Command *UserCmd : Cmd->MUsers)
-      if (UserCmd->getType() != Command::CommandType::ALLOCA)
+      if (UserCmd && UserCmd->getType() != Command::CommandType::ALLOCA)
         MCmdsToVisit.push(UserCmd);
 
     // Delete all dependencies on any allocations being removed
@@ -1126,7 +1135,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     for (auto DepCmdIt : ShouldBeUpdated) {
       if (!DepCmdIt.second)
         continue;
-      DepCmdIt.first->MUsers.erase(Cmd);
+      if (DepCmdIt.first)
+        DepCmdIt.first->MUsers.erase(Cmd);
     }
 
     // If all dependencies have been removed this way, mark the command for
@@ -1183,7 +1193,8 @@ void Scheduler::GraphBuilder::cleanupCommand(
   // Update dependency users
   for (DepDesc &Dep : Cmd->MDeps) {
     Command *DepCmd = Dep.MDepCommand;
-    DepCmd->MUsers.erase(Cmd);
+    if (DepCmd)
+      DepCmd->MUsers.erase(Cmd);
   }
 
   Cmd->getEvent()->setCommand(nullptr);
@@ -1191,12 +1202,22 @@ void Scheduler::GraphBuilder::cleanupCommand(
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
-  const auto It = std::find_if(
-      MMemObjs.begin(), MMemObjs.end(),
-      [MemObject](const SYCLMemObjI *Obj) { return Obj == MemObject; });
+  const auto It = std::find_if(MMemObjs.begin(), MMemObjs.end(),
+                               [MemObject](const MemObjEntry &Entry) {
+                                 return Entry.MMemObj == MemObject;
+                               });
   if (It != MMemObjs.end())
     MMemObjs.erase(It);
   MemObject->MRecord.reset();
+}
+
+void Scheduler::GraphBuilder::removeRecordForMemObj(
+    const std::shared_ptr<MemObjRecord> &Record) {
+  const auto It = std::find_if(
+      MMemObjs.begin(), MMemObjs.end(),
+      [&Record](const MemObjEntry &Entry) { return Entry.MRecord == Record; });
+  if (It != MMemObjs.end())
+    MMemObjs.erase(It);
 }
 
 // Make Cmd depend on DepEvent from different context. Connection is performed
