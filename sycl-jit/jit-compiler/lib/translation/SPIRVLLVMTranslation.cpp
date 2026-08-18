@@ -63,7 +63,7 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
       SPIRV::ExtensionID::SPV_KHR_uniform_group_instructions,
       SPIRV::ExtensionID::SPV_INTEL_masked_gather_scatter,
       SPIRV::ExtensionID::SPV_INTEL_tensor_float32_conversion,
-      SPIRV::ExtensionID::SPV_INTEL_optnone,
+      SPIRV::ExtensionID::SPV_EXT_optnone,
       SPIRV::ExtensionID::SPV_KHR_non_semantic_info,
       SPIRV::ExtensionID::SPV_KHR_cooperative_matrix,
       SPIRV::ExtensionID::SPV_EXT_shader_atomic_float16_add,
