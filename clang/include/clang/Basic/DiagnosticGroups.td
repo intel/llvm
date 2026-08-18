@@ -1780,6 +1780,10 @@ def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
 def SyclPrivateAllocaPositiveSize : DiagGroup<"sycl-private-alloca-positive-size">;
+// -Wno-sycl-undefined-func-in-image silences sycl-post-link's "Undefined
+// function ... found in ..." warning. No clang-side diagnostic uses this
+// group; the driver forwards the -Wno-... form to sycl-post-link.
+def SyclUndefinedFuncInImage : DiagGroup<"sycl-undefined-func-in-image">;
 
 // Common warnings for SYCL and OpenMP offloading
 def OffloadTarget : DiagGroup<"offload-target">;

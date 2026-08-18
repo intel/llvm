@@ -299,11 +299,21 @@ static bool isIntrinsicOrBuiltin(const Function &F) {
          isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName());
 }
 
+// Silence the "Undefined function ... found in ..." warning below.
+// Set indirectly by clang when the user passes
+// -Wno-sycl-undefined-func-in-image; also directly settable on the
+// sycl-post-link command line for tool-level tests.
+static cl::opt<bool> SuppressUndefinedFuncWarnings(
+    "suppress-undefined-func-warnings", cl::Hidden, cl::init(false),
+    cl::desc("Suppress the sycl-post-link warning about undefined functions "
+             "in a device image (driver-forwarded from "
+             "-Wno-sycl-undefined-func-in-image)."));
+
 // Checks for use of undefined user functions and emits a warning message.
 static void
 checkForCallsToUndefinedFunctions(const Module &M,
                                   bool AllowDeviceImageDependencies) {
-  if (AllowDeviceImageDependencies)
+  if (AllowDeviceImageDependencies || SuppressUndefinedFuncWarnings)
     return;
   for (const Function &F : M) {
     if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
