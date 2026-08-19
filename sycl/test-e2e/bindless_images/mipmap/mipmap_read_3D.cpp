@@ -61,7 +61,6 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
     unsigned int numLevels = 2;
     sycl::ext::oneapi::experimental::image_descriptor desc(
         {width, height, depth}, 4, CType,
-        sycl::ext::oneapi::experimental::image_color_space::linear,
         sycl::ext::oneapi::experimental::image_type::mipmap, numLevels);
 
     // Extension: define a sampler object -- extended mipmap attributes

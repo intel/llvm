@@ -79,7 +79,6 @@ bool run_test() {
     // Extension: image descriptor -- number of levels
     sycl::ext::oneapi::experimental::image_descriptor desc(
         {width, height}, NElems, ChannelType,
-        sycl::ext::oneapi::experimental::image_color_space::linear,
         sycl::ext::oneapi::experimental::image_type::mipmap, numLevels);
 
     // Extension: define a sampler object -- extended mipmap attributes

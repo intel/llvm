@@ -99,7 +99,6 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
 
   try {
     syclexp::image_descriptor desc(dims, NChannels, CType,
-                                   syclexp::image_color_space::linear,
                                    syclexp::image_type::cubemap, 1, 6);
 
     // Extension: allocate memory on device and create the handle.

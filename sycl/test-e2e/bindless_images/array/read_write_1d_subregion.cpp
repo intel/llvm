@@ -38,7 +38,6 @@ int main() {
   // Image descriptor - can use the same for both images
   sycl::ext::oneapi::experimental::image_descriptor desc(
       {width}, 1, sycl::image_channel_type::fp32,
-      sycl::ext::oneapi::experimental::image_color_space::linear,
       sycl::ext::oneapi::experimental::image_type::array, 1, layers);
 
   try {

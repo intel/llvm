@@ -192,12 +192,10 @@ bool run_copy_test_with(sycl::device &dev, sycl::queue &q,
   } else {
     descSrc = syclexp::image_descriptor(
         {dims[0], NDims > 2 ? dims[1] : 0}, channelNumSrc, channelTypeSrc,
-        syclexp::image_color_space::linear, syclexp::image_type::array, 1,
-        NDims > 2 ? dims[2] : dims[1]);
+        syclexp::image_type::array, 1, NDims > 2 ? dims[2] : dims[1]);
     descDest = syclexp::image_descriptor(
         {dims[0], NDims > 2 ? dims[1] : 0}, channelNumDest, channelTypeDest,
-        syclexp::image_color_space::linear, syclexp::image_type::array, 1,
-        NDims > 2 ? dims[2] : dims[1]);
+        syclexp::image_type::array, 1, NDims > 2 ? dims[2] : dims[1]);
   }
 
   bool verified = true;

@@ -44,7 +44,6 @@ int main() {
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
         {width, height}, 1, sycl::image_channel_type::fp32,
-        sycl::ext::oneapi::experimental::image_color_space::linear,
         sycl::ext::oneapi::experimental::image_type::array, 1, layers);
 
     // Extension: allocate memory on device and create the handle

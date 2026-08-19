@@ -47,9 +47,9 @@ int main() {
   std::vector<sycl::float4> outputLinear(numElems);
 
   try {
-    syclexp::image_descriptor srgbDesc(sycl::range<2>{width, height}, 4,
-                                       sycl::image_channel_type::unorm_int8,
-                                       syclexp::image_color_space::srgb);
+    syclexp::image_descriptor srgbDesc(
+        sycl::range<2>{width, height}, 4, sycl::image_channel_type::unorm_int8,
+        syclexp::image_type::standard, 1, 1, syclexp::image_color_space::srgb);
     syclexp::image_descriptor linearDesc(sycl::range<2>{width, height}, 4,
                                          sycl::image_channel_type::unorm_int8);
 
