@@ -99,29 +99,37 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
   }
 };
 
+// The argument type as the kernel sees it. Deliberately not `std::decay_t`,
+// which turns an array into a pointer: an array has to keep being bound as the
+// bytes it is, which is what `handler::setArgHelper` does with it.
+template <typename T>
+using plain_arg_t = std::remove_cv_t<std::remove_reference_t<T>>;
+
 // An argument that can be bound as plain bytes, i.e. one that carries no
 // requirement for the scheduler to track. Accessors, local accessors, streams
 // and work group memory are deliberately excluded and keep using the command
 // group path; `HasSpecialCaptures` in the runtime draws the same line.
 template <typename T>
 inline constexpr bool is_plain_kernel_arg_v =
-    std::is_arithmetic_v<std::decay_t<T>> || std::is_enum_v<std::decay_t<T>> ||
-    std::is_pointer_v<std::decay_t<T>> ||
-    std::is_same_v<std::decay_t<T>, raw_kernel_arg>;
+    std::is_arithmetic_v<plain_arg_t<T>> || std::is_enum_v<plain_arg_t<T>> ||
+    std::is_pointer_v<plain_arg_t<T>> ||
+    std::is_same_v<plain_arg_t<T>, raw_kernel_arg>;
 
 // A pointer has to keep its kind. The runtime binds a pointer argument as
 // UR_EXP_KERNEL_ARG_TYPE_POINTER, which the OpenCL adapter passes to
 // clSetKernelArgMemPointerINTEL rather than to clSetKernelArg, so plain bytes
-// are not a substitute.
+// are not a substitute. The Native CPU adapter draws the same distinction: it
+// puts a pointer argument straight into the argument slot, whereas a value
+// argument lands there as the address of the adapter's own copy.
 template <typename T>
 sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
   using sycl::detail::kernel_param_kind_t;
-  if constexpr (std::is_same_v<std::decay_t<T>, raw_kernel_arg>)
+  if constexpr (std::is_same_v<plain_arg_t<T>, raw_kernel_arg>)
     return {RawKernelArgAccess::getData(Arg), RawKernelArgAccess::getSize(Arg),
             kernel_param_kind_t::kind_std_layout};
   else
-    return {&Arg, sizeof(T),
-            std::is_pointer_v<std::decay_t<T>>
+    return {&Arg, sizeof(plain_arg_t<T>),
+            std::is_pointer_v<plain_arg_t<T>>
                 ? kernel_param_kind_t::kind_pointer
                 : kernel_param_kind_t::kind_std_layout};
 }

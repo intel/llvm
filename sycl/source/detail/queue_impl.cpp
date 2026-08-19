@@ -894,6 +894,12 @@ void queue_impl::submit_kernel_obj_direct_without_event(
   KData.setNDRDesc(NDRDescT(RangeView));
   KData.getArgs().reserve(Args.size());
 
+  // The kernel may have come from a bundle, and the bundle has to travel with
+  // it the way the handler path lets it: it is what lets enqueueImpKernel
+  // initialize the device globals a bundle keeps to itself.
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl =
+      KernelImpl->get_kernel_bundle();
+
   // This overload carries no properties, so a kernel that needs work group
   // scratch memory can never have been given a size. The handler path reports
   // that in handler.cpp, so report it here too rather than launching a kernel
@@ -930,13 +936,13 @@ void queue_impl::submit_kernel_obj_direct_without_event(
     if (SchedulerBypass)
       return {submit_kernel_scheduler_bypass(
                   KData, CGData.MEvents, /*EventNeeded*/ false,
-                  KernelImpl.get(), /*KernelBundleImpPtr*/ nullptr, CodeLoc,
+                  KernelImpl.get(), KernelBundleImpl.get(), CodeLoc,
                   IsTopCodeLoc),
               /*SchedulerBypass*/ true};
 
     auto CommandGroup = std::make_unique<detail::CGExecKernel>(
         KData.getNDRDesc(), /*HostKernel*/ nullptr, KernelImpl,
-        /*KernelBundle*/ nullptr, std::move(CGData), std::move(KData).getArgs(),
+        KernelBundleImpl, std::move(CGData), std::move(KData).getArgs(),
         *KData.getDeviceKernelInfoPtr(),
         std::vector<std::shared_ptr<detail::stream_impl>>{},
         std::vector<std::shared_ptr<const void>>{}, detail::CGType::Kernel,

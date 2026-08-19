@@ -77,12 +77,14 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 7, I, "typed arguments");
 
-  // The same arguments as raw bytes, which is how a caller that only knows the
-  // signature as sizes has to pass them.
+  // The same scalar arguments as raw bytes, which is how a caller that only
+  // knows the signature as sizes has to pass them. The pointer stays typed:
+  // `raw_kernel_arg` always binds as plain bytes, and a USM pointer bound that
+  // way only reaches the kernel on Level Zero, hence the separate
+  // nd_launch_kernel_obj_direct_raw_ptr.cpp for that case.
   int A = 10, B = 20;
   Q.memset(Memory, 0, N * sizeof(int));
-  oneapiext::nd_launch(Q, Ndr, ScalarsKernel,
-                       oneapiext::raw_kernel_arg{&Memory, sizeof(Memory)},
+  oneapiext::nd_launch(Q, Ndr, ScalarsKernel, Memory,
                        oneapiext::raw_kernel_arg{&A, sizeof(A)},
                        oneapiext::raw_kernel_arg{&B, sizeof(B)});
   Q.wait();
