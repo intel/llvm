@@ -41,7 +41,8 @@ This extension is written against the SYCL 2020 revision 7 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-The `nd_launch` overloads that take the kernel arguments as a `span` depend on
+The `nd_launch` overloads that take the kernel arguments as a `sycl::span`
+depend on
 version 2 of
 link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg],
 which is what lets an element of that sequence represent a pointer argument.
@@ -174,7 +175,9 @@ implementation supports.
 
 |2
 |Adds the `nd_launch` overloads that take the arguments of a `sycl::kernel` as
- a `span` of `raw_kernel_arg`.
+ a `sycl::span` of `raw_kernel_arg`, and specifies that a parameter pack
+ overload handed such a sequence as its only argument passes it on as the
+ argument list.
 |===
 
 
@@ -535,11 +538,11 @@ namespace sycl::ext::oneapi::experimental {
 
 template <int Dimensions>
 void nd_launch(sycl::queue q, sycl::nd_range<Dimensions> r,
-               const sycl::kernel& k, span<const raw_kernel_arg> args);
+               const sycl::kernel& k, sycl::span<const raw_kernel_arg> args);
 
 template <int Dimensions>
 void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
-               const sycl::kernel& k, span<const raw_kernel_arg> args);
+               const sycl::kernel& k, sycl::span<const raw_kernel_arg> args);
 
 }
 ----
@@ -550,16 +553,19 @@ as a basic kernel, using the number of work-items specified by a
 at index `i`, as if it had been passed to `set_arg`. The sequence referenced by
 `args` need only remain valid until the function returns.
 
-An application that calls one of the parameter pack overloads above with a
-single argument whose type is convertible to `span<const raw_kernel_arg>` is
-ill-formed.
+If one of the parameter pack overloads above is called with a single argument
+whose type is convertible to `sycl::span<const raw_kernel_arg>`, that argument
+is the kernel argument list and the effects are those of the overload taking a
+`sycl::span`.
 
 [_Note:_ These overloads exist for an application whose kernel argument list is
 only known at run time, which would otherwise have to instantiate a parameter
-pack overload for each number of arguments it may encounter. Since `span` has
-no implicit conversion from a container, an application holding its arguments
-in a `std::vector<raw_kernel_arg>` passes `{args.data(), args.size()}`. Passing
-a single `raw_kernel_arg` still selects the parameter pack overload. _end note_]
+pack overload for each number of arguments it may encounter. An application
+holding its arguments in a `std::vector<raw_kernel_arg>`, in a `std::array` of
+them or in a `std::span` of them can therefore pass the container itself, since
+all of those convert to a `sycl::span`. A single `raw_kernel_arg` still selects
+the parameter pack overload, as it is one argument rather than a sequence of
+them. _end note_]
 
 [_Note:_ An element that represents a pointer argument has to be constructed
 with the `pointer_arg` overload of `raw_kernel_arg`, as described in

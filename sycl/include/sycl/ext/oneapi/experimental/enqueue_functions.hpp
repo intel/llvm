@@ -136,6 +136,15 @@ sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
                 : kernel_param_kind_t::kind_std_layout};
 }
 
+// True when a parameter pack overload was handed the argument list itself, as a
+// container that converts to the span the sibling overload takes. A pack is an
+// exact match and wins overload resolution, so such a call has to be forwarded
+// rather than bound as one argument.
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_container_v =
+    sizeof...(ArgsT) == 1 &&
+    (std::is_convertible_v<ArgsT, sycl::span<const raw_kernel_arg>> && ...);
+
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
@@ -436,28 +445,37 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   }
 }
 
+template <int Dimensions>
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               const kernel &KernelObj, sycl::span<const raw_kernel_arg> Args);
+
 template <int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                const kernel &KernelObj, ArgsT &&...Args) {
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(Range, KernelObj);
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+    nd_launch(CGH, Range, KernelObj,
+              sycl::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+  } else {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.parallel_for(Range, KernelObj);
+  }
 }
+
+template <int Dimensions>
+void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
+               sycl::span<const raw_kernel_arg> Args,
+               const sycl::detail::code_location &CodeLoc =
+                   sycl::detail::code_location::current());
 
 template <int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
                ArgsT &&...Args) {
-  // A container of raw_kernel_arg converts to the span the sibling overload
-  // takes, but a pack is an exact match and wins overload resolution, which
-  // would bind the container object itself as one argument. Diagnose it here,
-  // so that no other branch is instantiated for such a call.
-  constexpr bool ArgListPassedAsContainer =
-      sizeof...(ArgsT) == 1 &&
-      (std::is_convertible_v<ArgsT, span<const raw_kernel_arg>> && ...);
-  if constexpr (ArgListPassedAsContainer) {
-    static_assert(!ArgListPassedAsContainer,
-                  "The kernel argument list must be passed as "
-                  "sycl::span<const raw_kernel_arg>, e.g. {Args.data(), "
-                  "Args.size()}");
+  // A container of raw_kernel_arg is the argument list, not one argument, and
+  // the pack is what overload resolution picks for it, so hand it over to the
+  // overload that takes a span.
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+    nd_launch(std::move(Q), Range, KernelObj,
+              sycl::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
   } else if constexpr ((detail::is_plain_kernel_arg_v<ArgsT> && ...)) {
     // Bind the arguments straight from this call, so that neither a handler nor
     // a command group object has to be created. The array is one element longer
@@ -484,7 +502,7 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
 
 template <int Dimensions>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
-               const kernel &KernelObj, span<const raw_kernel_arg> Args) {
+               const kernel &KernelObj, sycl::span<const raw_kernel_arg> Args) {
   // set_arg only takes an rvalue raw_kernel_arg; an lvalue would select the
   // generic overload and bind the object itself as the argument.
   for (size_t I = 0; I < Args.size(); ++I)
@@ -497,9 +515,8 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
 // otherwise need one instantiation of the pack overload per argument count.
 template <int Dimensions>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
-               span<const raw_kernel_arg> Args,
-               const sycl::detail::code_location &CodeLoc =
-                   sycl::detail::code_location::current()) {
+               sycl::span<const raw_kernel_arg> Args,
+               const sycl::detail::code_location &CodeLoc) {
   sycl::detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   sycl::submit_kernel_obj_direct_without_event_impl(
       Q, sycl::detail::nd_range_view(Range), KernelObj, Args,
