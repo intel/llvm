@@ -240,6 +240,17 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
           make_error_code(errc::nd_range),
           "Total number of work-items in a work-group cannot exceed " +
               std::to_string(KernelWGSize) + " for this kernel");
+  } else if (Backend == sycl::backend::ext_oneapi_cuda ||
+             Backend == sycl::backend::ext_oneapi_hip) {
+    // CUDA and HIP:
+    // The underlying driver rejects launches whose total work-group size
+    // exceeds UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, so surface the same
+    // diagnostic as the OpenCL 1.x path above.
+    if (TotalNumberOfWIs > MaxWGSize)
+      throw sycl::exception(
+          make_error_code(errc::nd_range),
+          "Total number of work-items in a work-group cannot exceed " +
+              std::to_string(MaxWGSize));
   } else {
     // TODO: Should probably have something similar for the other backends
   }
