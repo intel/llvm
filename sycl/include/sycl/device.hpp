@@ -98,8 +98,7 @@ public:
                 !std::is_same_v<DeviceSelector, detail::device_impl>>,
             typename =
                 detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
-  explicit device(const DeviceSelector &deviceSelector)
-      : device(detail::select_device(deviceSelector)) {}
+  explicit device(const DeviceSelector &deviceSelector) : device(detail::select_device(deviceSelector)) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
