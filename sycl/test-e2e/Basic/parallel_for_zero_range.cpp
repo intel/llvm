@@ -1,6 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// The native_cpu UR adapter explicitly rejects zero global work size in
+// urEnqueueKernelLaunch (DIE_NO_IMPLEMENTATION ->
+// UR_RESULT_ERROR_UNSUPPORTED_FEATURE).
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: CMPLRLLVM-77780
+
 // SYCL 2020 (Work-group data parallel kernels): "When the global size is
 // zero, the kernel function is not executed, the local size is ignored, and
 // any dependencies are satisfied."
