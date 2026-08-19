@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 13
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 12
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -69,6 +69,5 @@
 // CHECK-NEXT: ESIMD/matrix_transpose2.cpp
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
-// CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
