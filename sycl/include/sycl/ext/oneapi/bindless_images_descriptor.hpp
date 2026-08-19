@@ -117,8 +117,8 @@ struct image_descriptor {
       : width(dims[0]), height(dims[1]), depth(dims[2]),
         num_channels(num_channels), channel_type(channel_type),
         color_space(color_space), type(type), num_levels(num_levels),
-        array_size(array_size), num_samples(num_samples),
-        row_pitch(row_pitch), slice_pitch(slice_pitch) {
+        array_size(array_size), num_samples(num_samples), row_pitch(row_pitch),
+        slice_pitch(slice_pitch) {
     verify();
   };
 #else

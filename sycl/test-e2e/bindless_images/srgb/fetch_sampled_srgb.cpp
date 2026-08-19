@@ -55,9 +55,10 @@ int main() {
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::nearest);
 
-    syclexp::image_descriptor srgbDesc(
-        sycl::range<2>{width, height}, 4, sycl::image_channel_type::unorm_int8,
-        syclexp::image_type::standard, 1, 1, syclexp::image_color_space::srgb);
+    syclexp::image_descriptor srgbDesc(sycl::range<2>{width, height}, 4,
+                                       sycl::image_channel_type::unorm_int8,
+                                       syclexp::image_type::standard, 1, 1, 0,
+                                       0, 0, syclexp::image_color_space::srgb);
     syclexp::image_descriptor linearDesc(sycl::range<2>{width, height}, 4,
                                          sycl::image_channel_type::unorm_int8);
 
