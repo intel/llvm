@@ -411,6 +411,9 @@ ur_result_t urUSMGetMemAllocInfo(
     case ZE_MEMORY_TYPE_SHARED:
       MemAllocaType = UR_USM_TYPE_SHARED;
       break;
+    case ZE_MEMORY_TYPE_HOST_IMPORTED:
+      MemAllocaType = UR_USM_TYPE_HOST;
+      break;
     default:
       UR_LOG(ERR, "urUSMGetMemAllocInfo: unexpected usm memory type");
       return UR_RESULT_ERROR_INVALID_VALUE;
