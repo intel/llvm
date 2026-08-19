@@ -106,6 +106,30 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, Sum, I, "handler form of the span overload");
 
+  // The container holding the arguments converts to that span, so passing it
+  // has to bind the arguments it holds rather than the container object.
+  Q.memset(Memory, 0, N * sizeof(int));
+  oneapiext::nd_launch(Q, Ndr, Kernel, Args);
+  Q.wait();
+  for (size_t I = 0; I < N; ++I)
+    Failed += Check(Memory, Sum, I, "argument list passed as a container");
+
+  Q.memset(Memory, 0, N * sizeof(int));
+  Q.submit([&](sycl::handler &CGH) {
+     oneapiext::nd_launch(CGH, Ndr, Kernel, Args);
+   }).wait();
+  for (size_t I = 0; I < N; ++I)
+    Failed += Check(Memory, Sum, I, "container through the handler form");
+
+  // A mutable span of the same sequence names the same argument list.
+  Q.memset(Memory, 0, N * sizeof(int));
+  oneapiext::nd_launch(
+      Q, Ndr, Kernel,
+      sycl::span<oneapiext::raw_kernel_arg>{Args.data(), Args.size()});
+  Q.wait();
+  for (size_t I = 0; I < N; ++I)
+    Failed += Check(Memory, Sum, I, "argument list as a mutable span");
+
   // A one element span is the boundary against the parameter pack overload,
   // which a single raw_kernel_arg selects instead.
   std::vector<oneapiext::raw_kernel_arg> OneArg{
