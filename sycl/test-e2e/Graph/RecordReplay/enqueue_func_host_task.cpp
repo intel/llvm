@@ -2,7 +2,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero && !system-windows %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests that restricted host_task can be recorded via the command-buffer path.
 

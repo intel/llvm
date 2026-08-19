@@ -1737,11 +1737,14 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
-  // Omit copying if mode is discard one.
+  // Omit copying if mode is discard one and the accessor covers the full
+  // memory object; a ranged discard accessor must still preserve elements
+  // outside its range (SYCL 2020 §4.7.6.4).
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
-      MDstReq.MAccessMode == access::mode::discard_write) {
+  if ((MDstReq.MAccessMode == access::mode::discard_read_write ||
+       MDstReq.MAccessMode == access::mode::discard_write) &&
+      MDstReq.isFullMemoryAccess()) {
     Command::waitForEvents(Queue, EventImpls, UREvent);
 
     return UR_RESULT_SUCCESS;

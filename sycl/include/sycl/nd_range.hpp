@@ -39,37 +39,41 @@ private:
 public:
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   nd_range(range<Dimensions> globalSize, range<Dimensions> localSize,
-           id<Dimensions> offset)
+           id<Dimensions> offset) noexcept
       : globalSize(globalSize), localSize(localSize), offset(offset) {}
 
-  nd_range(range<Dimensions> globalSize, range<Dimensions> localSize)
+  nd_range(range<Dimensions> globalSize, range<Dimensions> localSize) noexcept
       : globalSize(globalSize), localSize(localSize), offset(id<Dimensions>()) {
   }
 
-  range<Dimensions> get_global_range() const { return globalSize; }
+  range<Dimensions> get_global_range() const noexcept { return globalSize; }
 
-  range<Dimensions> get_local_range() const { return localSize; }
+  range<Dimensions> get_local_range() const noexcept { return localSize; }
 
-  range<Dimensions> get_group_range() const { return globalSize / localSize; }
+  range<Dimensions> get_group_range() const noexcept {
+    return globalSize / localSize;
+  }
 
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  id<Dimensions> get_offset() const { return offset; }
+  id<Dimensions> get_offset() const noexcept { return offset; }
 
   // Common special member functions for by-value semantics
   nd_range(const nd_range<Dimensions> &rhs) = default;
   nd_range(nd_range<Dimensions> &&rhs) = default;
   nd_range<Dimensions> &operator=(const nd_range<Dimensions> &rhs) = default;
   nd_range<Dimensions> &operator=(nd_range<Dimensions> &&rhs) = default;
-  nd_range() = default;
+  ~nd_range() = default;
 
-  // Common member functions for by-value semantics
-  bool operator==(const nd_range<Dimensions> &rhs) const {
-    return (rhs.globalSize == this->globalSize) &&
-           (rhs.localSize == this->localSize) && (rhs.offset == this->offset);
+  // Common hidden friend functions for by-value semantics
+  friend bool operator==(const nd_range<Dimensions> &lhs,
+                         const nd_range<Dimensions> &rhs) {
+    return (lhs.globalSize == rhs.globalSize) &&
+           (lhs.localSize == rhs.localSize) && (lhs.offset == rhs.offset);
   }
 
-  bool operator!=(const nd_range<Dimensions> &rhs) const {
-    return !(*this == rhs);
+  friend bool operator!=(const nd_range<Dimensions> &lhs,
+                         const nd_range<Dimensions> &rhs) {
+    return !(lhs == rhs);
   }
 
   friend class sycl::_V1::detail::nd_range_view;

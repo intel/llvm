@@ -150,7 +150,7 @@ if(UR_BUILD_ADAPTER_L0)
     # Note: UR compile options cause issues under MSVC
     if(NOT MSVC)
         foreach(TARGET IN ITEMS ze_loader ze_validation_layer ze_tracing_layer ze_null)
-            if (TARGET TARGET)
+            if (TARGET ${TARGET})
                 add_ur_target_compile_options(${TARGET})
                 add_ur_target_link_options(${TARGET})
                 target_compile_options(${TARGET} PRIVATE
