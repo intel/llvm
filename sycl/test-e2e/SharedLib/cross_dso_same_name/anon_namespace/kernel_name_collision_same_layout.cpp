@@ -1,0 +1,19 @@
+// REQUIRES: linux
+// UNSUPPORTED: native_cpu
+// UNSUPPORTED-INTENDED: native_cpu compiles kernels as native function symbols
+// that get interposed by the dynamic linker with RTLD_GLOBAL.
+//
+// RUN: rm -rf %t.dir && mkdir -p %t.dir
+// RUN: %{build} -DBUILD_LIB_ADD -fPIC -shared -o %t.dir/lib_add.so
+// RUN: %{build} -DBUILD_LIB_MUL -fPIC -shared -o %t.dir/lib_mul.so
+// RUN: %{build} -DBUILD_MAIN '-DLIB_DIR="%t.dir"' -ldl -o %t.out
+// RUN: %{run} %t.out
+
+#define DLOPEN_FLAGS (RTLD_NOW | RTLD_GLOBAL)
+#define KERNEL_CLASS_DECL                                                      \
+  namespace {                                                                  \
+  class KernelFunctor;                                                         \
+  }
+#define LIB_ADD "lib_add.so"
+#define LIB_MUL "lib_mul.so"
+#include "../kernel_name_collision_same_layout.inc"
