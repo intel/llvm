@@ -247,8 +247,7 @@ are needed to pass along this information.
 
 For the Old Offload Model support of NoRDC Mode see [NonRelocatableDeviceCode.md](NonRelocatableDeviceCode.md).
 
-The default compiler behavior is `-fsycl-rdc`, which incorporates linking of device code.
-If `-fno-sycl-rdc` is specified, the compiler skips linking of device code and performs
+If `-fno-sycl-rdc` is specified, the compiler finalizes device code and performs
 offload processing on every module individually.
 
 With the new offload model, `-fno-sycl-rdc` can be specified at the link step:
