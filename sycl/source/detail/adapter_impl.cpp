@@ -14,6 +14,10 @@
 
 #include "adapter_impl.hpp"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -38,6 +42,16 @@ void adapter_impl::ur_failed_throw_exception(sycl::errc errc,
   throw set_ur_error(sycl::exception(sycl::make_error_code(errc), message),
                      ur_result);
 }
+
+#ifdef _WIN32
+bool isProcessShuttingDown() {
+  using RtlDllShutdownInProgress_t = BOOLEAN(WINAPI *)();
+  static RtlDllShutdownInProgress_t FnPtr =
+      reinterpret_cast<RtlDllShutdownInProgress_t>(GetProcAddress(
+          GetModuleHandleA("ntdll.dll"), "RtlDllShutdownInProgress"));
+  return FnPtr && FnPtr();
+}
+#endif
 
 } // namespace detail
 } // namespace _V1

@@ -224,6 +224,15 @@ private:
   UrFuncPtrMapT UrFuncPtrs;
 }; // class adapter_impl
 
+#ifdef _WIN32
+// Returns true once ExitProcess()/LdrShutdownProcess() has begun for the
+// current process, regardless of which module's context this is called
+// from. Unlike DllMain's lpReserved parameter, this is safe to query from
+// code that is not itself running inside a DllMain callback (e.g. an
+// atexit() callback registered by a separately-loaded DLL).
+bool isProcessShuttingDown();
+#endif
+
 template <typename URResource> class Managed {
   static constexpr auto Release = []() constexpr {
     if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
@@ -278,6 +287,17 @@ public:
       return;
 
     try {
+#ifdef _WIN32
+      if (Adapter->getBackend() != backend::ext_oneapi_level_zero &&
+          isProcessShuttingDown()) {
+        // The process is exiting and it is unsafe to make this backend call
+        // (e.g. this destructor is running from a separately-loaded DLL's
+        // own atexit teardown after ExitProcess has begun). Leak the
+        // resource rather than risk a crash; the OS will reclaim it.
+        R = nullptr;
+        return;
+      }
+#endif
       Adapter->call<Release>(R);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~Managed", e);
