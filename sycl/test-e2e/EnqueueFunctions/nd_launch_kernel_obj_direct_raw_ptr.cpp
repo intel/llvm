@@ -1,19 +1,18 @@
 // REQUIRES: aspect-usm_shared_allocations
-// REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Tests the nd_launch overload that takes an already built sycl::kernel with
-// every argument, the USM pointer included, passed as raw bytes. That is what a
-// caller which only knows the signature as sizes has to do.
+// every argument passed through raw_kernel_arg, the USM pointer included. That
+// is what a caller which only knows the signature as sizes has to do.
 //
-// A `raw_kernel_arg` is bound as UR_EXP_KERNEL_ARG_TYPE_VALUE, which for a
-// pointer parameter is only equivalent to UR_EXP_KERNEL_ARG_TYPE_POINTER on
-// Level Zero. The OpenCL adapter passes a value argument to clSetKernelArg,
-// which rejects a USM pointer with CL_INVALID_MEM_OBJECT, and the Native CPU
-// adapter puts the address of its own copy of the bytes into the argument slot
-// instead of the pointer itself. Hence the Level Zero requirement above, the
-// same restriction the RawKernelArg tests carry.
+// The pointer is passed through the pointer form of raw_kernel_arg. Passing the
+// bytes of a pointer instead would bind it as a value argument, which only
+// reaches the kernel on Level Zero: the OpenCL adapter passes a value argument
+// to clSetKernelArg, which rejects a USM pointer with CL_INVALID_MEM_OBJECT,
+// and the Native CPU adapter puts the address of its own copy of the bytes into
+// the argument slot instead of the pointer itself. The RawKernelArg tests cover
+// the byte form of a pointer, on Level Zero only.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
@@ -53,13 +52,15 @@ int main() {
   int A = 10, B = 20;
   sycl::kernel ScalarsKernel = getKernel<addScalars>(Q);
   Q.memset(Memory, 0, N * sizeof(int));
-  oneapiext::nd_launch(Q, Ndr, ScalarsKernel,
-                       oneapiext::raw_kernel_arg{&Memory, sizeof(Memory)},
-                       oneapiext::raw_kernel_arg{&A, sizeof(A)},
-                       oneapiext::raw_kernel_arg{&B, sizeof(B)});
+  oneapiext::nd_launch(
+      Q, Ndr, ScalarsKernel,
+      oneapiext::raw_kernel_arg{&Memory, oneapiext::pointer_arg},
+      oneapiext::raw_kernel_arg{&A, sizeof(A)},
+      oneapiext::raw_kernel_arg{&B, sizeof(B)});
   Q.wait();
   for (size_t I = 0; I < N; ++I)
-    Failed += Check(Memory, 30, I, "pointer and scalars as raw bytes");
+    Failed +=
+        Check(Memory, 30, I, "pointer and scalars through raw_kernel_arg");
 
   sycl::free(Memory, Q);
   return Failed;

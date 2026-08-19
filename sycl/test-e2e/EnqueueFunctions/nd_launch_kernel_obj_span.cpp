@@ -62,9 +62,11 @@ int main() {
   constexpr int Sum = 1 + 20 + 300 + 4;
 
   // The argument list is built at run time, which is the case these overloads
-  // exist for.
+  // exist for. The pointer says that it is one, so that it is bound as a
+  // pointer rather than as the bytes it is made of, which only the Level Zero
+  // backend binds as a pointer.
   std::vector<oneapiext::raw_kernel_arg> Args;
-  Args.emplace_back(&Memory, sizeof(Memory));
+  Args.emplace_back(&Memory, oneapiext::pointer_arg);
   Args.emplace_back(&A, sizeof(A));
   Args.emplace_back(&B, sizeof(B));
   Args.emplace_back(&C, sizeof(C));
@@ -85,12 +87,13 @@ int main() {
 
   // The parameter pack overload has to agree element for element.
   Q.memset(Memory, 0, N * sizeof(int));
-  oneapiext::nd_launch(Q, Ndr, Kernel,
-                       oneapiext::raw_kernel_arg{&Memory, sizeof(Memory)},
-                       oneapiext::raw_kernel_arg{&A, sizeof(A)},
-                       oneapiext::raw_kernel_arg{&B, sizeof(B)},
-                       oneapiext::raw_kernel_arg{&C, sizeof(C)},
-                       oneapiext::raw_kernel_arg{&D, sizeof(D)});
+  oneapiext::nd_launch(
+      Q, Ndr, Kernel,
+      oneapiext::raw_kernel_arg{&Memory, oneapiext::pointer_arg},
+      oneapiext::raw_kernel_arg{&A, sizeof(A)},
+      oneapiext::raw_kernel_arg{&B, sizeof(B)},
+      oneapiext::raw_kernel_arg{&C, sizeof(C)},
+      oneapiext::raw_kernel_arg{&D, sizeof(D)});
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, Sum, I, "parameter pack overload");
@@ -105,7 +108,8 @@ int main() {
 
   // A one element span is the boundary against the parameter pack overload,
   // which a single raw_kernel_arg selects instead.
-  std::vector<oneapiext::raw_kernel_arg> OneArg{{&Memory, sizeof(Memory)}};
+  std::vector<oneapiext::raw_kernel_arg> OneArg{
+      {&Memory, oneapiext::pointer_arg}};
   Q.memset(Memory, 0, N * sizeof(int));
   oneapiext::nd_launch(Q, Ndr, getKernel<increment>(Q),
                        sycl::span<const oneapiext::raw_kernel_arg>{

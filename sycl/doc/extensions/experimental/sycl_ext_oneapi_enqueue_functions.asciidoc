@@ -41,6 +41,11 @@ This extension is written against the SYCL 2020 revision 7 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
+The `nd_launch` overloads that take the kernel arguments as a `span` depend on
+version 2 of
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg],
+which is what lets an element of that sequence represent a pointer argument.
+
 
 == Status
 
@@ -542,8 +547,8 @@ void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
 _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
 as a basic kernel, using the number of work-items specified by a
 `sycl::nd_range`. The element `args[i]` is passed to the kernel as the argument
-at index `i`. The sequence referenced by `args` need only remain valid until
-the function returns.
+at index `i`, as if it had been passed to `set_arg`. The sequence referenced by
+`args` need only remain valid until the function returns.
 
 An application that calls one of the parameter pack overloads above with a
 single argument whose type is convertible to `span<const raw_kernel_arg>` is
@@ -555,6 +560,12 @@ pack overload for each number of arguments it may encounter. Since `span` has
 no implicit conversion from a container, an application holding its arguments
 in a `std::vector<raw_kernel_arg>` passes `{args.data(), args.size()}`. Passing
 a single `raw_kernel_arg` still selects the parameter pack overload. _end note_]
+
+[_Note:_ An element that represents a pointer argument has to be constructed
+with the `pointer_arg` overload of `raw_kernel_arg`, as described in
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg],
+since a `raw_kernel_arg` holding the bytes of a pointer is only guaranteed to
+bind that pointer on the Level Zero backend. _end note_]
 
 a|
 [frame=all,grid=none]

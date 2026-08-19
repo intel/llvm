@@ -391,7 +391,7 @@ public:
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   /// As above, for arguments that are already a sequence of `raw_kernel_arg`,
-  /// each of which is plain bytes.
+  /// each of which carries its own kind.
   void submit_kernel_obj_direct_without_event(
       const detail::nd_range_view &RangeView,
       const std::shared_ptr<detail::kernel_impl> &KernelImpl,

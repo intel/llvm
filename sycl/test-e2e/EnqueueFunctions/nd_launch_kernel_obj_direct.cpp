@@ -78,10 +78,9 @@ int main() {
     Failed += Check(Memory, 7, I, "typed arguments");
 
   // The same scalar arguments as raw bytes, which is how a caller that only
-  // knows the signature as sizes has to pass them. The pointer stays typed:
-  // `raw_kernel_arg` always binds as plain bytes, and a USM pointer bound that
-  // way only reaches the kernel on Level Zero, hence the separate
-  // nd_launch_kernel_obj_direct_raw_ptr.cpp for that case.
+  // knows the signature as sizes has to pass them. Mixing them with a typed
+  // pointer has to work; nd_launch_kernel_obj_direct_raw_ptr.cpp covers an
+  // argument list that is raw throughout.
   int A = 10, B = 20;
   Q.memset(Memory, 0, N * sizeof(int));
   oneapiext::nd_launch(Q, Ndr, ScalarsKernel, Memory,
