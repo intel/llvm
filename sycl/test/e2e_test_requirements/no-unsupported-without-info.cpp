@@ -4,7 +4,8 @@
 // an UNSUPPORTED directive incorrectly, or broke the format of an
 // existing UNSUPPORTED test.
 
-// For more info see: https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md#marking-tests-as-unsupported
+// For more info see:
+// https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md#marking-tests-as-unsupported
 
 // The expected format is:
 // UNSUPPORTED: lit,features
