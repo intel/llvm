@@ -500,10 +500,13 @@ bool isInternalSPIRVBuiltin(StringRef Name, StringRef &DemangledName) {
     return false;
   constexpr unsigned DemangledNameLenStart = 2;
   size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
-  if (!Name.substr(Start, Name.size() - 1)
-           .starts_with(kSPIRVName::InternalBuiltinPrefix))
+  if (!Name.substr(Start).starts_with(kSPIRVName::InternalBuiltinPrefix))
     return false;
-  DemangledName = llvm::itaniumDemangle(Name.data(), false);
+  size_t Len = 0;
+  if (Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
+          .getAsInteger(10, Len))
+    return false;
+  DemangledName = Name.substr(Start, Len);
   DemangledName.consume_front(kSPIRVName::InternalBuiltinPrefix);
   return true;
 }
