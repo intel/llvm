@@ -129,12 +129,9 @@ struct urEnqueueUSMOperationsOrderingIOQTest
   }
 
   // Execute the in-order execution test for a specific USM allocation type.
-  // Returns true if test ran successfully, false if allocation or execution failed.
+  // The caller must verify support before invoking this method.
+  // Returns true if the test ran successfully, false if it failed.
   bool runOrderingTestForUSMType(ur_usm_type_t usm_type) {
-
-    EXPECT_TRUE(isUSMTypeSupported(usm_type))
-        << "Attempting to run test with unsupported USM type";
-
     auto usm_deleter = [this](void *ptr) {
       if (ptr) {
         (void)urUSMFree(context, ptr);
@@ -263,14 +260,6 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     return true;
   }
 
-  // Legacy wrapper for compatibility.
-  bool runForAlloc(ur_usm_type_t usm_type) {
-    if (!isUSMTypeSupported(usm_type)) {
-      return false;
-    }
-    return runOrderingTestForUSMType(usm_type);
-  }
-
   std::shared_ptr<std::vector<char>> il_binary;
   std::vector<ur_program_metadata_t> metadatas{};
   std::string kernel_name;
@@ -292,12 +281,23 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     PrintQueueParam);
 
 TEST_P(urEnqueueUSMOperationsOrderingIOQTest, InOrderDiscardEventsOrdering) {
-  bool any_ran = false;
-  any_ran |= runForAlloc(UR_USM_TYPE_HOST);
-  any_ran |= runForAlloc(UR_USM_TYPE_SHARED);
-  any_ran |= runForAlloc(UR_USM_TYPE_DEVICE);
+  bool any_supported = false;
 
-  if (!any_ran) {
+  const ur_usm_type_t usm_types[] = {
+      UR_USM_TYPE_HOST,
+      UR_USM_TYPE_SHARED,
+      UR_USM_TYPE_DEVICE,
+  };
+  for (ur_usm_type_t usm_type : usm_types) {
+    if (!isUSMTypeSupported(usm_type)) {
+      continue;
+    }
+
+    any_supported = true;
+    ASSERT_TRUE(runOrderingTestForUSMType(usm_type));
+  }
+
+  if (!any_supported) {
     GTEST_SKIP() << "No supported USM allocation type found for this device.";
   }
 }
