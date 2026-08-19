@@ -135,7 +135,9 @@ sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
   using ArgT = unqualified_arg_t<T>;
   if constexpr (std::is_same_v<ArgT, raw_kernel_arg>)
     return {RawKernelArgAccess::getData(Arg), RawKernelArgAccess::getSize(Arg),
-            kernel_param_kind_t::kind_std_layout};
+            RawKernelArgAccess::isPointer(Arg)
+                ? kernel_param_kind_t::kind_pointer
+                : kernel_param_kind_t::kind_std_layout};
   else
     return {&Arg, sizeof(ArgT), kernel_arg_kind_v<T>};
 }

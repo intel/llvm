@@ -80,8 +80,8 @@ void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 // As above, for an argument list that is already a contiguous sequence of
-// `raw_kernel_arg`. Every element of such a sequence is plain bytes, so no
-// per-argument kind has to be carried and the caller needs no conversion step.
+// `raw_kernel_arg`, which carries its own kind per element, so the caller needs
+// no conversion step.
 void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
     const kernel &Kernel,

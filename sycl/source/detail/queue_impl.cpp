@@ -885,7 +885,8 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
 namespace {
 // The two argument forms differ only in how one element yields the bytes to
-// bind and their kind: a raw_kernel_arg is always plain bytes.
+// bind and their kind: a raw_kernel_arg carries plain bytes unless it was built
+// as a pointer argument.
 inline sycl::detail::KernelArgView
 makeKernelArgView(const sycl::detail::KernelArgView &Arg) {
   return Arg;
@@ -895,7 +896,9 @@ makeKernelArgView(const ext::oneapi::experimental::raw_kernel_arg &Arg) {
   namespace syclex_detail = ext::oneapi::experimental::detail;
   return {syclex_detail::RawKernelArgAccess::getData(Arg),
           syclex_detail::RawKernelArgAccess::getSize(Arg),
-          sycl::detail::kernel_param_kind_t::kind_std_layout};
+          syclex_detail::RawKernelArgAccess::isPointer(Arg)
+              ? sycl::detail::kernel_param_kind_t::kind_pointer
+              : sycl::detail::kernel_param_kind_t::kind_std_layout};
 }
 } // namespace
 
