@@ -1,62 +1,39 @@
-// This test is intended to ensure that we have no tests marked as
-// UNSUPPORTED without an information added to a test.
-// For more info see: sycl/test-e2e/README.md
-//
-// The format we check is:
+// This test verifies that there are no untracked UNSUPPORTED tests.
+
+// If this test fails for your patch, it means that you either introduced
+// an UNSUPPORTED directive incorrectly, or broke the format of an
+// existing UNSUPPORTED test.
+
+// For more info see: https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md#marking-tests-as-unsupported
+
+// The expected format is:
 // UNSUPPORTED: lit,features
 // UNSUPPORTED-TRACKER: [GitHub issue URL|Internal tracker ID]
 // *OR*
 // UNSUPPORTED: lit,features
-// UNSUPPORTED-INTENDED: explanation why the test isn't intended to be run with this feature
-//
+// UNSUPPORTED-INTENDED: explanation why the test isn't intended to run
+// with this feature
+
 // GitHub issue URL format:
 //     https://github.com/owner/repo/issues/12345
-//
+
 // Internal tracker ID format:
 //     PROJECT-123456
-//
+
 // REQUIRES: linux
-//
-// Explanation of the command:
-// - search for all "UNSUPPORTED" occurrences, display line with match and the next one
-//   -I, --include to drop binary files and other unrelated files
-// - in the result, search for "UNSUPPORTED" again, but invert the result - this
-//   allows us to get the line *after* UNSUPPORTED
-// - in those lines, check that UNSUPPORTED-TRACKER or UNSUPPORTED-INTENDED is
-//   present and correct. Once again, invert the search to get all "bad" lines
-//   and save the test names in the temp file
-// - make a final count of how many ill-formatted directives there are and
-//   verify that against the reference
-// - ...and check if the list of improperly UNSUPPORTED tests needs to be updated.
-//
-// RUN: grep -rI "UNSUPPORTED:" %S/../../test-e2e \
-// RUN: -A 1 --include=*.cpp --no-group-separator | \
+
+// Command explanation:
+// - Search for all "UNSUPPORTED" occurrences and print each matching line
+//   plus the next line. The -I and --include options skip binary and
+//   unrelated files.
+// - In that output, search for "UNSUPPORTED" again and invert the match.
+//   This leaves the line *after* each UNSUPPORTED line.
+// - In those lines, verify that UNSUPPORTED-TRACKER or
+//   UNSUPPORTED-INTENDED is present and correctly formatted. Invert this
+//   match again to keep only "bad" lines.
+// - There must be no bad lines, so we assert that the final grep fails
+//   by using the not operator.
+
+// RUN: grep -rI "UNSUPPORTED:" %S/../../test-e2e -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "UNSUPPORTED:" | \
-// RUN: grep -Pv "(?:UNSUPPORTED-TRACKER:\s+(?:(?:https:\/\/github.com\/[\w\d-]+\/[\w\d-]+\/issues\/[\d]+)|(?:[\w]+-[\d]+)))|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
-// RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-UNSUPPORTED-WITHOUT-INFO
-// RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | FileCheck %s
-//
-// The number below is a number of tests which are *improperly* UNSUPPORTED, i.e.
-// we either don't have a tracker associated with a failure listed in those
-// tests, or it is listed in a wrong format.
-// Note: strictly speaking, that is not amount of files, but amount of UNSUPPORTED
-// directives. If a test contains several UNSUPPORTED directives, some of them may be
-// valid and other may not.
-//
-// That number *must not* increase. Any PR which causes this number to grow
-// should be rejected and it should be updated to either keep the number as-is
-// or have it reduced (preferably, down to zero).
-//
-// If you see this test failed for your patch, it means that you either
-// introduced UNSUPPORTED directive to a test improperly, or broke the format of an
-// existing UNSUPPORTED tests.
-// Another possibility (and that is a good option) is that you updated some
-// tests to match the required format and in that case you should just update
-// (i.e. reduce) the number and the list below.
-//
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 1
-//
-// List of improperly UNSUPPORTED tests.
-// Remove the CHECK once the test has been properly UNSUPPORTED.
-//
-// CHECK: KernelAndProgram/multiple-kernel-linking.cpp
+// RUN: not grep -Pv "(?:UNSUPPORTED-TRACKER:\s+(?:(?:https:\/\/github.com\/[\w\d-]+\/[\w\d-]+\/issues\/[\d]+)|(?:[\w]+-[\d]+)))|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
