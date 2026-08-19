@@ -20,10 +20,10 @@
 // CHK-RDC-NOT: -foffload-include-binary
 // CHK-RDC-NOT: --no-sycl-rdc
 
-// -fno-sycl-rdc at link step: --no-sycl-rdc forwarded, --sycl-device-link must NOT appear.
+// -fno-sycl-rdc at link step: silently ignored (same as upstream), no --no-sycl-rdc or --sycl-device-link.
 // RUN: touch %t.o
 // RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu \
 // RUN:   --sysroot=%S/Inputs/SYCL -fsycl -fno-sycl-rdc %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
-// CHK-LINK: clang-linker-wrapper{{.*}} "--no-sycl-rdc"
+// CHK-LINK-NOT: clang-linker-wrapper{{.*}} "--no-sycl-rdc"
 // CHK-LINK-NOT: clang-linker-wrapper{{.*}} "--sycl-device-link"
