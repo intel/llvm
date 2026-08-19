@@ -62,6 +62,32 @@ ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
+uint32_t getMaxCooperativeGroupCountWithDynamicSharedMemory(
+    uint32_t suggestedGroupCount, uint32_t computeUnitCount,
+    uint32_t maxSharedLocalMemory, uint32_t staticSharedLocalMemory,
+    size_t dynamicSharedLocalMemory) {
+
+  if (dynamicSharedLocalMemory == 0)
+    return suggestedGroupCount;
+
+  // Reject a per-group allocation that cannot fit on one compute unit
+  // and avoid overflowing the combined allocation size.
+  if (staticSharedLocalMemory > maxSharedLocalMemory ||
+      dynamicSharedLocalMemory > maxSharedLocalMemory - staticSharedLocalMemory)
+    return 0;
+
+  const size_t sharedLocalMemoryPerGroup =
+      staticSharedLocalMemory + dynamicSharedLocalMemory;
+
+  // Cap the driver's estimate by the number of groups that can reside given
+  // the requested local memory per group.
+  const uint64_t sharedLocalMemoryGroupCount =
+      (uint64_t)computeUnitCount *
+      (maxSharedLocalMemory / sharedLocalMemoryPerGroup);
+  return static_cast<uint32_t>(
+      std::min((uint64_t)suggestedGroupCount, sharedLocalMemoryGroupCount));
+}
+
 ur_result_t setKernelGlobalOffset(ur_context_handle_t Context,
                                   ze_kernel_handle_t Kernel, uint32_t WorkDim,
                                   const size_t *GlobalWorkOffset) {
