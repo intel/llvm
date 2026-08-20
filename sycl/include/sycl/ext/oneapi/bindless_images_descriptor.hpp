@@ -51,7 +51,7 @@ enum class image_type : unsigned int {
 };
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 /// image color space enum
-enum class image_color_space : uint32_t {
+enum class image_color_space : unsigned int {
   linear = 0,
   srgb = 1,
 };
@@ -63,9 +63,6 @@ struct image_descriptor {
   size_t depth{0};
   unsigned int num_channels{4};
   image_channel_type channel_type{image_channel_type::fp32};
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  image_color_space color_space{image_color_space::linear};
-#endif
   image_type type{image_type::standard};
   // The following fields map to ur_image_desc_t on the bindless-images path
   // only. Core UR image creation requires numMipLevel/numSamples to be 0; the
@@ -75,6 +72,9 @@ struct image_descriptor {
   unsigned int num_samples{0}; // -- ur_image_desc_t::numSamples (bindless)
   size_t row_pitch{0};         // -- ur_image_desc_t::rowPitch
   size_t slice_pitch{0};       // -- ur_image_desc_t::slicePitch
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  image_color_space color_space{image_color_space::linear};
+#endif
 
   image_descriptor() = default;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -86,9 +86,9 @@ struct image_descriptor {
                    unsigned int num_samples = 0,
                    image_color_space color_space = image_color_space::linear)
       : width(dims[0]), height(0), depth(0), num_channels(num_channels),
-        channel_type(channel_type), color_space(color_space), type(type),
-        num_levels(num_levels), array_size(array_size),
-        num_samples(num_samples) {
+        channel_type(channel_type), type(type), num_levels(num_levels),
+        array_size(array_size), num_samples(num_samples),
+        color_space(color_space) {
     verify();
   }
 
@@ -100,10 +100,9 @@ struct image_descriptor {
                    size_t slice_pitch = 0,
                    image_color_space color_space = image_color_space::linear)
       : width(dims[0]), height(dims[1]), depth(0), num_channels(num_channels),
-        channel_type(channel_type), color_space(color_space), type(type),
-        num_levels(num_levels), array_size(array_size),
-        num_samples(num_samples), row_pitch(row_pitch),
-        slice_pitch(slice_pitch) {
+        channel_type(channel_type), type(type), num_levels(num_levels),
+        array_size(array_size), num_samples(num_samples), row_pitch(row_pitch),
+        slice_pitch(slice_pitch), color_space(color_space) {
     verify();
   }
 
@@ -115,10 +114,10 @@ struct image_descriptor {
                    size_t slice_pitch = 0,
                    image_color_space color_space = image_color_space::linear)
       : width(dims[0]), height(dims[1]), depth(dims[2]),
-        num_channels(num_channels), channel_type(channel_type),
-        color_space(color_space), type(type), num_levels(num_levels),
-        array_size(array_size), num_samples(num_samples), row_pitch(row_pitch),
-        slice_pitch(slice_pitch) {
+        num_channels(num_channels), channel_type(channel_type), type(type),
+        num_levels(num_levels), array_size(array_size),
+        num_samples(num_samples), row_pitch(row_pitch),
+        slice_pitch(slice_pitch), color_space(color_space) {
     verify();
   };
 #else
