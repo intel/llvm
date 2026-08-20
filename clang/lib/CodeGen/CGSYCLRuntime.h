@@ -51,10 +51,6 @@ public:
                           llvm::Value *Addr);
 };
 
-/// Embeds the per-TU finalized SYCL device binary into the host module when
-/// -foffload-include-binary is set (-fno-sycl-rdc compile step).
-void embedSYCLNoRDCBinary(CodeGenModule &CGM);
-
 } // namespace CodeGen
 } // namespace clang
 

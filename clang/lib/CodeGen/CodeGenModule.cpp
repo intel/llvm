@@ -1248,11 +1248,6 @@ void CodeGenModule::Release() {
   else
     EmitCXXGlobalInitFunc();
   EmitCXXGlobalCleanUpFunc();
-  embedSYCLNoRDCBinary(*this);
-  // Stop early if the SYCL no-RDC bitcode link failed — the module may be
-  // in an inconsistent state and further IR generation could crash.
-  if (getDiags().hasFatalErrorOccurred())
-    return;
   registerGlobalDtorsWithAtExit();
   EmitCXXThreadLocalInitFunc();
   if (ObjCRuntime)

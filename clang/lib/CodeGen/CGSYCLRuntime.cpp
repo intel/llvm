@@ -14,18 +14,10 @@
 #include "CodeGenFunction.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
-#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/SourceLocation.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
-#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
-#include "llvm/IR/DiagnosticInfo.h"
-#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/Linker/Linker.h"
-#include "llvm/Support/VirtualFileSystem.h"
-#include "llvm/Support/raw_ostream.h"
 #include <assert.h>
 
 using namespace clang;
@@ -138,70 +130,6 @@ bool CGSYCLRuntime::actOnGlobalVarEmit(CodeGenModule &CGM, const VarDecl &D,
                         Twine(RegAttr->getNumber()).str());
   // TODO consider reversing the error/success return values
   return true;
-}
-
-void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
-  if (!CGM.getLangOpts().SYCLIsHost ||
-      CGM.getCodeGenOpts().OffloadBinaryToEmbedFile.empty())
-    return;
-  auto BinaryOrErr = CGM.getFileSystem()->getBufferForFile(
-      CGM.getCodeGenOpts().OffloadBinaryToEmbedFile, /*MaxSize=*/-1,
-      /*RequiresNullTerminator=*/false);
-  if (std::error_code EC = BinaryOrErr.getError()) {
-    CGM.getDiags().Report(diag::err_cannot_open_file)
-        << CGM.getCodeGenOpts().OffloadBinaryToEmbedFile << EC.message();
-    return;
-  }
-  // The input is a wrapper bitcode module produced by clang-linker-wrapper
-  // --sycl-device-link. It already contains the correct __sycl.tgt_bin_desc
-  // structure and __sycl_register_lib constructor. Link it directly into the
-  // host module so the SYCL runtime finds the device image at program startup.
-  llvm::LLVMContext &Ctx = CGM.getModule().getContext();
-  llvm::Expected<std::unique_ptr<llvm::Module>> DevModOrErr =
-      llvm::parseBitcodeFile((*BinaryOrErr)->getMemBufferRef(), Ctx);
-  if (!DevModOrErr) {
-    CGM.getDiags().Report(diag::err_fe_linking_module)
-        << CGM.getCodeGenOpts().OffloadBinaryToEmbedFile
-        << llvm::toString(DevModOrErr.takeError());
-    return;
-  }
-  // Propagate the host data layout so the linker doesn't warn about mismatched
-  // layouts (the wrapper .bc is created without a data layout set).
-  (*DevModOrErr)->setDataLayout(CGM.getModule().getDataLayout());
-  // ClangDiagnosticHandler is not yet installed here (it is set up after
-  // Gen->HandleTranslationUnit returns). Without intervention, DK_Linker
-  // diagnostics from linkModules would bypass Clang's diagnostic engine and
-  // print directly to stderr. Route them through DiagnosticsEngine instead.
-  struct LinkerDiagHandler : public llvm::DiagnosticHandler {
-    DiagnosticsEngine &Diags;
-    StringRef ModuleName;
-    llvm::DiagnosticHandler *Prev;
-    LinkerDiagHandler(DiagnosticsEngine &Diags, StringRef ModuleName,
-                      llvm::DiagnosticHandler *Prev)
-        : Diags(Diags), ModuleName(ModuleName), Prev(Prev) {}
-    bool handleDiagnostics(const llvm::DiagnosticInfo &DI) override {
-      if (DI.getKind() == llvm::DK_Linker) {
-        std::string Msg;
-        llvm::raw_string_ostream OS(Msg);
-        llvm::DiagnosticPrinterRawOStream DP(OS);
-        DI.print(DP);
-        Diags.Report(diag::err_fe_linking_module) << ModuleName << Msg;
-        return true;
-      }
-      return Prev ? Prev->handleDiagnostics(DI) : false;
-    }
-  };
-  std::unique_ptr<llvm::DiagnosticHandler> PrevHandler =
-      Ctx.getDiagnosticHandler();
-  auto *Prev = PrevHandler.get();
-  auto RestoreHandler = llvm::scope_exit(
-      [&]() { Ctx.setDiagnosticHandler(std::move(PrevHandler)); });
-  Ctx.setDiagnosticHandler(std::make_unique<LinkerDiagHandler>(
-      CGM.getDiags(), CGM.getCodeGenOpts().OffloadBinaryToEmbedFile, Prev));
-  if (llvm::Linker::linkModules(CGM.getModule(), std::move(*DevModOrErr)))
-    CGM.getDiags().Report(diag::err_fe_linking_module)
-        << CGM.getCodeGenOpts().OffloadBinaryToEmbedFile
-        << "linking wrapper bitcode into host module failed";
 }
 
 bool Util::matchQualifiedTypeName(const CXXRecordDecl *RecTy,

@@ -9,6 +9,7 @@
 #include "clang/CodeGen/ModuleLinker.h"
 
 #include "clang/Basic/CodeGenOptions.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Module.h"
@@ -45,5 +46,33 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
     LinkModules.push_back({std::move(ModuleOrErr.get()), F.PropagateAttrs,
                            F.Internalize, F.LinkFlags});
   }
+
+  // For SYCL no-RDC, link the per-TU device wrapper bitcode produced by
+  // clang-linker-wrapper --sycl-device-link into the host module so the SYCL
+  // runtime finds the device image at program startup.
+  if (CI.getLangOpts().SYCLIsHost &&
+      !CI.getCodeGenOpts().OffloadBinaryToEmbedFile.empty()) {
+    auto BCBuf = CI.getFileManager().getBufferForFile(
+        CI.getCodeGenOpts().OffloadBinaryToEmbedFile);
+    if (!BCBuf) {
+      CI.getDiagnostics().Report(diag::err_cannot_open_file)
+          << CI.getCodeGenOpts().OffloadBinaryToEmbedFile
+          << BCBuf.getError().message();
+      return true;
+    }
+    llvm::Expected<std::unique_ptr<llvm::Module>> MOrErr =
+        llvm::parseBitcodeFile((*BCBuf)->getMemBufferRef(), Ctx);
+    if (!MOrErr) {
+      CI.getDiagnostics().Report(diag::err_fe_linking_module)
+          << CI.getCodeGenOpts().OffloadBinaryToEmbedFile
+          << llvm::toString(MOrErr.takeError());
+      return true;
+    }
+    LinkModules.push_back({std::move(*MOrErr),
+                           /*PropagateAttrs=*/false,
+                           /*Internalize=*/false,
+                           /*LinkFlags=*/0});
+  }
+
   return false;
 }
