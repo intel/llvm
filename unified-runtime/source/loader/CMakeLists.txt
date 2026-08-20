@@ -292,4 +292,18 @@ if(CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM" AND
     target_sources(ur_loader PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/intel_fast_mem_stub.c
     )
+
+    # Force the stub object symbols to be kept regardless of archive order and
+    # propagate it to consumers.
+    if(MSVC)
+        target_link_options(ur_loader INTERFACE
+            "/INCLUDE:_intel_fast_memcpy"
+            "/INCLUDE:_intel_fast_memset"
+        )
+    else()
+        target_link_options(ur_loader INTERFACE
+            "-Wl,-u,_intel_fast_memcpy"
+            "-Wl,-u,_intel_fast_memset"
+        )
+    endif()
 endif()
