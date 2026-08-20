@@ -10,7 +10,27 @@
 #include <iostream>
 
 #include "imf_utils.hpp"
+#include <algorithm>
 #include <sycl/ext/intel/math.hpp>
+#include <vector>
+
+template <typename Query> bool check_subnormal(const sycl::device &dev) {
+  constexpr const char *label =
+      std::is_same_v<Query, sycl::info::device::half_fp_config> ? "FP16"
+                                                                : "FP32";
+  std::vector<sycl::info::fp_config> cfg;
+  try {
+    cfg = dev.get_info<Query>();
+  } catch (const sycl::exception &e) {
+    std::cerr << label << " fp_config query failed: " << e.what() << "\n";
+    throw;
+  }
+  const bool result = std::find(cfg.begin(), cfg.end(),
+                                sycl::info::fp_config::denorm) != cfg.end();
+  std::cout << label << " subnormal support : " << (result ? "YES" : "NO")
+            << "\n";
+  return result;
+}
 
 int main() {
 
@@ -19,19 +39,26 @@ int main() {
             << device_queue.get_device().get_info<sycl::info::device::name>()
             << "\n";
 
+  // Query FP16 and FP32 subnormal support. Subnormal inputs/outputs produce
+  // meaningful results only when the device preserves them.
+  const sycl::device &dev = device_queue.get_device();
+  const bool has_half_subnormal =
+      check_subnormal<sycl::info::device::half_fp_config>(dev);
+  const bool has_single_subnormal =
+      check_subnormal<sycl::info::device::single_fp_config>(dev);
+
   // half2int tests
   {
     std::initializer_list<uint16_t> input_vals = {
-        0x8001, 0x83FF, 0x1,    0x3FF,  0x8000, 0x0,   0x0256,
-        0x3800, 0xBE00, 0x7C00, 0xFC00, 0x7E00, 0x7bff};
+        0x8000, 0x0, 0x3800, 0xBE00, 0x7C00, 0xFC00, 0x7E00, 0x7bff};
     std::initializer_list<int> ref_vals_rd = {
-        -1, -1, 0, 0, 0, 0, 0, 0, -2, 2147483647, -2147483648, 0, 65504};
+        0, 0, 0, -2, 2147483647, -2147483648, 0, 65504};
     std::initializer_list<int> ref_vals_rn = {
-        0, 0, 0, 0, 0, 0, 0, 0, -2, 2147483647, -2147483648, 0, 65504};
+        0, 0, 0, -2, 2147483647, -2147483648, 0, 65504};
     std::initializer_list<int> ref_vals_ru = {
-        0, 0, 1, 1, 0, 0, 1, 1, -1, 2147483647, -2147483648, 0, 65504};
+        0, 0, 1, -1, 2147483647, -2147483648, 0, 65504};
     std::initializer_list<int> ref_vals_rz = {
-        0, 0, 0, 0, 0, 0, 0, 0, -1, 2147483647, -2147483648, 0, 65504};
+        0, 0, 0, -1, 2147483647, -2147483648, 0, 65504};
 
     test_host(input_vals, ref_vals_rd,
               FT1(sycl::half, sycl::ext::intel::math::half2int_rd));
@@ -52,17 +79,41 @@ int main() {
               FT1(sycl::half, sycl::ext::intel::math::half2int_rz));
     test(device_queue, input_vals, ref_vals_rz,
          FT1(sycl::half, sycl::ext::intel::math::half2int_rz));
+
+    if (has_half_subnormal) {
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1,
+                                                        0x3FF, 0x0256};
+      std::initializer_list<int> sub_ref_vals_rd = {-1, -1, 0, 0, 0};
+      std::initializer_list<int> sub_ref_vals_rn = {0, 0, 0, 0, 0};
+      std::initializer_list<int> sub_ref_vals_ru = {0, 0, 1, 1, 1};
+      std::initializer_list<int> sub_ref_vals_rz = {0, 0, 0, 0, 0};
+
+      test_host(sub_input_vals, sub_ref_vals_rd,
+                FT1(sycl::half, sycl::ext::intel::math::half2int_rd));
+      test(device_queue, sub_input_vals, sub_ref_vals_rd,
+           FT1(sycl::half, sycl::ext::intel::math::half2int_rd));
+
+      test_host(sub_input_vals, sub_ref_vals_rn,
+                FT1(sycl::half, sycl::ext::intel::math::half2int_rn));
+      test(device_queue, sub_input_vals, sub_ref_vals_rn,
+           FT1(sycl::half, sycl::ext::intel::math::half2int_rn));
+
+      test_host(sub_input_vals, sub_ref_vals_ru,
+                FT1(sycl::half, sycl::ext::intel::math::half2int_ru));
+      test(device_queue, sub_input_vals, sub_ref_vals_ru,
+           FT1(sycl::half, sycl::ext::intel::math::half2int_ru));
+
+      test_host(sub_input_vals, sub_ref_vals_rz,
+                FT1(sycl::half, sycl::ext::intel::math::half2int_rz));
+      test(device_queue, sub_input_vals, sub_ref_vals_rz,
+           FT1(sycl::half, sycl::ext::intel::math::half2int_rz));
+    }
   }
 
   {
     std::initializer_list<uint16_t> input_vals = {
-        0x8001, // max negative subnormal
-        0x83FF, // min negative subnormal
-        0x1,    // min positive subnormal
-        0x3FF,  // max positive subnormal
         0x0,
         0x8000, // -0
-        0x0256, // subnormal half-precision value
         0x5648, // 100.5
         0x5658, // 101.5
         0x564C, // 100.75
@@ -72,13 +123,13 @@ int main() {
         0xD648, // -100.5
     };
     std::initializer_list<unsigned int> ref_vals_rd = {
-        0, 0, 0, 0, 0, 0, 0, 100, 101, 100, 4294967295, 0, 65504, 0};
+        0, 0, 100, 101, 100, 4294967295, 0, 65504, 0};
     std::initializer_list<unsigned int> ref_vals_rn = {
-        0, 0, 0, 0, 0, 0, 0, 100, 102, 101, 4294967295, 0, 65504, 0};
+        0, 0, 100, 102, 101, 4294967295, 0, 65504, 0};
     std::initializer_list<unsigned int> ref_vals_ru = {
-        0, 0, 1, 1, 0, 0, 1, 101, 102, 101, 4294967295, 0, 65504, 0};
+        0, 0, 101, 102, 101, 4294967295, 0, 65504, 0};
     std::initializer_list<unsigned int> ref_vals_rz = {
-        0, 0, 0, 0, 0, 0, 0, 100, 101, 100, 4294967295, 0, 65504, 0};
+        0, 0, 100, 101, 100, 4294967295, 0, 65504, 0};
 
     test_host(input_vals, ref_vals_rd,
               FT1(sycl::half, sycl::ext::intel::math::half2uint_rd));
@@ -99,17 +150,40 @@ int main() {
               FT1(sycl::half, sycl::ext::intel::math::half2uint_rz));
     test(device_queue, input_vals, ref_vals_rz,
          FT1(sycl::half, sycl::ext::intel::math::half2uint_rz));
+
+   if (has_half_subnormal) {
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1, 0x3FF, 0x0256};
+      std::initializer_list<unsigned int> sub_ref_vals_rd = {0, 0, 0, 0, 0};
+      std::initializer_list<unsigned int> sub_ref_vals_rn = {0, 0, 0, 0, 0};
+      std::initializer_list<unsigned int> sub_ref_vals_ru = {0, 0, 1, 1, 1};
+      std::initializer_list<unsigned int> sub_ref_vals_rz = {0, 0, 0, 0, 0};
+
+      test_host(sub_input_vals, sub_ref_vals_rd,
+                FT1(sycl::half, sycl::ext::intel::math::half2uint_rd));
+      test(device_queue, sub_input_vals, sub_ref_vals_rd,
+           FT1(sycl::half, sycl::ext::intel::math::half2uint_rd));
+
+      test_host(sub_input_vals, sub_ref_vals_rn,
+                FT1(sycl::half, sycl::ext::intel::math::half2uint_rn));
+      test(device_queue, sub_input_vals, sub_ref_vals_rn,
+           FT1(sycl::half, sycl::ext::intel::math::half2uint_rn));
+
+      test_host(sub_input_vals, sub_ref_vals_ru,
+                FT1(sycl::half, sycl::ext::intel::math::half2uint_ru));
+      test(device_queue, sub_input_vals, sub_ref_vals_ru,
+           FT1(sycl::half, sycl::ext::intel::math::half2uint_ru));
+
+      test_host(sub_input_vals, sub_ref_vals_rz,
+                FT1(sycl::half, sycl::ext::intel::math::half2uint_rz));
+      test(device_queue, sub_input_vals, sub_ref_vals_rz,
+           FT1(sycl::half, sycl::ext::intel::math::half2uint_rz));
+    }
   }
 
   {
     std::initializer_list<uint16_t> input_vals = {
-        0x8001, // max negative subnormal
-        0x83FF, // min negative subnormal
-        0x1,    // min positive subnormal
-        0x3FF,  // max positive subnormal
         0x0,
         0x8000, // -0
-        0x0256, // subnormal half-precision value
         0x5648, // 100.5
         0x5658, // 101.5
         0x564C, // 100.75
@@ -123,17 +197,13 @@ int main() {
     };
 
     std::initializer_list<short> ref_vals_rd = {
-        -1,  -1,    0,      0, 0,     0,     0,      100, 101,
-        100, 32767, -32768, 0, 32767, 32767, -32768, -101};
+        0, 0, 100, 101, 100, 32767, -32768, 0, 32767, 32767, -32768, -101};
     std::initializer_list<short> ref_vals_rn = {
-        0,   0,     0,      0, 0,     0,     0,      100, 102,
-        101, 32767, -32768, 0, 32767, 32767, -32768, -100};
+        0, 0, 100, 102, 101, 32767, -32768, 0, 32767, 32767, -32768, -100};
     std::initializer_list<short> ref_vals_ru = {
-        0,   0,     1,      1, 0,     0,     1,      101, 102,
-        101, 32767, -32768, 0, 32767, 32767, -32768, -100};
+        0, 0, 101, 102, 101, 32767, -32768, 0, 32767, 32767, -32768, -100};
     std::initializer_list<short> ref_vals_rz = {
-        0,   0,     0,      0, 0,     0,     0,      100, 101,
-        100, 32767, -32768, 0, 32767, 32767, -32768, -100};
+        0, 0, 100, 101, 100, 32767, -32768, 0, 32767, 32767, -32768, -100};
 
     test_host(input_vals, ref_vals_rd,
               FT1(sycl::half, sycl::ext::intel::math::half2short_rd));
@@ -154,17 +224,40 @@ int main() {
               FT1(sycl::half, sycl::ext::intel::math::half2short_rz));
     test(device_queue, input_vals, ref_vals_rz,
          FT1(sycl::half, sycl::ext::intel::math::half2short_rz));
+
+    if (has_half_subnormal) {
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1, 0x3FF, 0x0256};
+      std::initializer_list<short> sub_ref_vals_rd = {-1, -1, 0, 0, 0};
+      std::initializer_list<short> sub_ref_vals_rn = {0, 0, 0, 0, 0};
+      std::initializer_list<short> sub_ref_vals_ru = {0, 0, 1, 1, 1};
+      std::initializer_list<short> sub_ref_vals_rz = {0, 0, 0, 0, 0};
+
+      test_host(sub_input_vals, sub_ref_vals_rd,
+                FT1(sycl::half, sycl::ext::intel::math::half2short_rd));
+      test(device_queue, sub_input_vals, sub_ref_vals_rd,
+           FT1(sycl::half, sycl::ext::intel::math::half2short_rd));
+
+      test_host(sub_input_vals, sub_ref_vals_rn,
+                FT1(sycl::half, sycl::ext::intel::math::half2short_rn));
+      test(device_queue, sub_input_vals, sub_ref_vals_rn,
+           FT1(sycl::half, sycl::ext::intel::math::half2short_rn));
+
+      test_host(sub_input_vals, sub_ref_vals_ru,
+                FT1(sycl::half, sycl::ext::intel::math::half2short_ru));
+      test(device_queue, sub_input_vals, sub_ref_vals_ru,
+           FT1(sycl::half, sycl::ext::intel::math::half2short_ru));
+
+      test_host(sub_input_vals, sub_ref_vals_rz,
+                FT1(sycl::half, sycl::ext::intel::math::half2short_rz));
+      test(device_queue, sub_input_vals, sub_ref_vals_rz,
+           FT1(sycl::half, sycl::ext::intel::math::half2short_rz));
+    }
   }
 
   {
     std::initializer_list<uint16_t> input_vals = {
-        0x8001, // max negative subnormal
-        0x83FF, // min negative subnormal
-        0x1,    // min positive subnormal
-        0x3FF,  // max positive subnormal
         0x0,
         0x8000, // -0
-        0x0256, // subnormal half-precision value
         0x5648, // 100.5
         0x5658, // 101.5
         0x564C, // 100.75
@@ -178,17 +271,13 @@ int main() {
     };
 
     std::initializer_list<unsigned short> ref_vals_rd = {
-        0,   0,     0, 0,     0,     0,     0, 100, 101,
-        100, 65535, 0, 65504, 64960, 62784, 0, 46};
+        0, 0, 100, 101, 100, 65535, 0, 65504, 64960, 62784, 0, 46};
     std::initializer_list<unsigned short> ref_vals_rn = {
-        0,   0,     0, 0,     0,     0,     0, 100, 102,
-        101, 65535, 0, 65504, 64960, 62784, 0, 47};
+        0, 0, 100, 102, 101, 65535, 0, 65504, 64960, 62784, 0, 47};
     std::initializer_list<unsigned short> ref_vals_ru = {
-        0,   0,     1, 1,     0,     0,     1, 101, 102,
-        101, 65535, 0, 65504, 64960, 62784, 0, 47};
+        0, 0, 101, 102, 101, 65535, 0, 65504, 64960, 62784, 0, 47};
     std::initializer_list<unsigned short> ref_vals_rz = {
-        0,   0,     0, 0,     0,     0,     0, 100, 101,
-        100, 65535, 0, 65504, 64960, 62784, 0, 46};
+        0, 0, 100, 101, 100, 65535, 0, 65504, 64960, 62784, 0, 46};
 
     test_host(input_vals, ref_vals_rd,
               FT1(sycl::half, sycl::ext::intel::math::half2ushort_rd));
@@ -209,13 +298,40 @@ int main() {
               FT1(sycl::half, sycl::ext::intel::math::half2ushort_rz));
     test(device_queue, input_vals, ref_vals_rz,
          FT1(sycl::half, sycl::ext::intel::math::half2ushort_rz));
+
+    if (has_half_subnormal) {
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1, 0x3FF, 0x0256};
+      std::initializer_list<unsigned short> sub_ref_vals_rd = {0, 0, 0, 0, 0};
+      std::initializer_list<unsigned short> sub_ref_vals_rn = {0, 0, 0, 0, 0};
+      std::initializer_list<unsigned short> sub_ref_vals_ru = {0, 0, 1, 1, 1};
+      std::initializer_list<unsigned short> sub_ref_vals_rz = {0, 0, 0, 0, 0};
+
+      test_host(sub_input_vals, sub_ref_vals_rd,
+                FT1(sycl::half, sycl::ext::intel::math::half2ushort_rd));
+      test(device_queue, sub_input_vals, sub_ref_vals_rd,
+           FT1(sycl::half, sycl::ext::intel::math::half2ushort_rd));
+
+      test_host(sub_input_vals, sub_ref_vals_rn,
+                FT1(sycl::half, sycl::ext::intel::math::half2ushort_rn));
+      test(device_queue, sub_input_vals, sub_ref_vals_rn,
+           FT1(sycl::half, sycl::ext::intel::math::half2ushort_rn));
+
+      test_host(sub_input_vals, sub_ref_vals_ru,
+                FT1(sycl::half, sycl::ext::intel::math::half2ushort_ru));
+      test(device_queue, sub_input_vals, sub_ref_vals_ru,
+           FT1(sycl::half, sycl::ext::intel::math::half2ushort_ru));
+
+      test_host(sub_input_vals, sub_ref_vals_rz,
+                FT1(sycl::half, sycl::ext::intel::math::half2ushort_rz));
+      test(device_queue, sub_input_vals, sub_ref_vals_rz,
+           FT1(sycl::half, sycl::ext::intel::math::half2ushort_rz));
+    }
   }
 
   {
     std::initializer_list<uint16_t> input_vals = {
-        0x8001, 0x83FF, 0x1, 0x3FF, 0x0,
+        0x0,
         0x8000, // -0
-        0x0256, // subnormal half-precision value
         0x5648, // 100.5
         0x5658, // 101.5
         0x564C, // 100.75
@@ -231,11 +347,6 @@ int main() {
     };
 
     std::initializer_list<long long int> ref_vals_rd = {
-        -1,
-        -1,
-        0,
-        0,
-        0,
         0,
         0,
         100,
@@ -253,11 +364,6 @@ int main() {
     std::initializer_list<long long int> ref_vals_rn = {
         0,
         0,
-        0,
-        0,
-        0,
-        0,
-        0,
         100,
         102,
         101,
@@ -273,11 +379,6 @@ int main() {
     std::initializer_list<long long int> ref_vals_ru = {
         0,
         0,
-        1,
-        1,
-        0,
-        0,
-        1,
         101,
         102,
         101,
@@ -291,11 +392,6 @@ int main() {
         10008,
         -19};
     std::initializer_list<long long int> ref_vals_rz = {
-        0,
-        0,
-        0,
-        0,
-        0,
         0,
         0,
         100,
@@ -330,17 +426,41 @@ int main() {
               FT1(sycl::half, sycl::ext::intel::math::half2ll_rz));
     test(device_queue, input_vals, ref_vals_rz,
          FT1(sycl::half, sycl::ext::intel::math::half2ll_rz));
+
+    if (has_half_subnormal) {
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1,
+                                                        0x3FF, 0x0256};
+      std::initializer_list<long long int> sub_ref_vals_rd = {-1, -1, 0, 0, 0};
+      std::initializer_list<long long int> sub_ref_vals_rn = {0, 0, 0, 0, 0};
+      std::initializer_list<long long int> sub_ref_vals_ru = {0, 0, 1, 1, 1};
+      std::initializer_list<long long int> sub_ref_vals_rz = {0, 0, 0, 0, 0};
+
+      test_host(sub_input_vals, sub_ref_vals_rd,
+                FT1(sycl::half, sycl::ext::intel::math::half2ll_rd));
+      test(device_queue, sub_input_vals, sub_ref_vals_rd,
+           FT1(sycl::half, sycl::ext::intel::math::half2ll_rd));
+
+      test_host(sub_input_vals, sub_ref_vals_rn,
+                FT1(sycl::half, sycl::ext::intel::math::half2ll_rn));
+      test(device_queue, sub_input_vals, sub_ref_vals_rn,
+           FT1(sycl::half, sycl::ext::intel::math::half2ll_rn));
+
+      test_host(sub_input_vals, sub_ref_vals_ru,
+                FT1(sycl::half, sycl::ext::intel::math::half2ll_ru));
+      test(device_queue, sub_input_vals, sub_ref_vals_ru,
+           FT1(sycl::half, sycl::ext::intel::math::half2ll_ru));
+
+      test_host(sub_input_vals, sub_ref_vals_rz,
+                FT1(sycl::half, sycl::ext::intel::math::half2ll_rz));
+      test(device_queue, sub_input_vals, sub_ref_vals_rz,
+           FT1(sycl::half, sycl::ext::intel::math::half2ll_rz));
+    }
   }
 
   {
     std::initializer_list<uint16_t> input_vals = {
-        0x8001, // max negative subnormal
-        0x83FF, // min negative subnormal
-        0x1,    // min positive subnormal
-        0x3FF,  // max positive subnormal
         0x0,
         0x8000, // -0
-        0x0256, // subnormal half-precision value
         0x5648, // 100.5
         0x5658, // 101.5
         0x564C, // 100.75
@@ -354,12 +474,8 @@ int main() {
         0x4CE3, // 19.546875
     };
 
+    // clang-format off
     std::initializer_list<unsigned long long> ref_vals_rd = {
-        0,
-        0,
-        0,
-        0,
-        0,
         0,
         0,
         100,
@@ -376,11 +492,6 @@ int main() {
     std::initializer_list<unsigned long long> ref_vals_rn = {
         0,
         0,
-        0,
-        0,
-        0,
-        0,
-        0,
         100,
         102,
         101,
@@ -395,11 +506,6 @@ int main() {
     std::initializer_list<unsigned long long> ref_vals_ru = {
         0,
         0,
-        1,
-        1,
-        0,
-        0,
-        1,
         101,
         102,
         101,
@@ -414,11 +520,6 @@ int main() {
     std::initializer_list<unsigned long long> ref_vals_rz = {
         0,
         0,
-        0,
-        0,
-        0,
-        0,
-        0,
         100,
         101,
         100,
@@ -430,6 +531,7 @@ int main() {
         0,
         10008,
         19};
+    // clang-format on
 
     test_host(input_vals, ref_vals_rd,
               FT1(sycl::half, sycl::ext::intel::math::half2ull_rd));
@@ -450,6 +552,38 @@ int main() {
               FT1(sycl::half, sycl::ext::intel::math::half2ull_rz));
     test(device_queue, input_vals, ref_vals_rz,
          FT1(sycl::half, sycl::ext::intel::math::half2ull_rz));
+
+    if (has_half_subnormal) {
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1, 0x3FF, 0x0256};
+      std::initializer_list<unsigned long long> sub_ref_vals_rd = {0, 0, 0, 0,
+                                                                   0};
+      std::initializer_list<unsigned long long> sub_ref_vals_rn = {0, 0, 0, 0,
+                                                                   0};
+      std::initializer_list<unsigned long long> sub_ref_vals_ru = {0, 0, 1, 1,
+                                                                   1};
+      std::initializer_list<unsigned long long> sub_ref_vals_rz = {0, 0, 0, 0,
+                                                                   0};
+
+      test_host(sub_input_vals, sub_ref_vals_rd,
+                FT1(sycl::half, sycl::ext::intel::math::half2ull_rd));
+      test(device_queue, sub_input_vals, sub_ref_vals_rd,
+           FT1(sycl::half, sycl::ext::intel::math::half2ull_rd));
+
+      test_host(sub_input_vals, sub_ref_vals_rn,
+                FT1(sycl::half, sycl::ext::intel::math::half2ull_rn));
+      test(device_queue, sub_input_vals, sub_ref_vals_rn,
+           FT1(sycl::half, sycl::ext::intel::math::half2ull_rn));
+
+      test_host(sub_input_vals, sub_ref_vals_ru,
+                FT1(sycl::half, sycl::ext::intel::math::half2ull_ru));
+      test(device_queue, sub_input_vals, sub_ref_vals_ru,
+           FT1(sycl::half, sycl::ext::intel::math::half2ull_ru));
+
+      test_host(sub_input_vals, sub_ref_vals_rz,
+                FT1(sycl::half, sycl::ext::intel::math::half2ull_rz));
+      test(device_queue, sub_input_vals, sub_ref_vals_rz,
+           FT1(sycl::half, sycl::ext::intel::math::half2ull_rz));
+    }
   }
 
   {
@@ -680,10 +814,6 @@ int main() {
 
   {
     std::initializer_list<unsigned int> input_vals = {
-        0x807FFFFF, // min negative subnormnl
-        0x80000001, // max negative subnormal
-        0x1,        // min positive subnormal
-        0x7FFFFF,   // max positive subnormal
         0x0,        // 0
         0x80000000, // -0
         0x7F800000, // +infinity
@@ -699,31 +829,20 @@ int main() {
         0xC770B000, // -61616
         0x47D54980, // 109203
         0xCD3EC5C0, // -200039423.564234
-        0x21B877AA, // 1.25e-18
         0xC01D3A93, // -2.4567e-16
-        0x0F81B224, // 1.2789e-29
-        0x8CE08054, // -3.45899e-31
     };
-
     std::initializer_list<uint16_t> ref_vals_rd = {
-        0x8001, 0x8001, 0,      0,      0,      0x8000, 0x7C00, 0xFC00,
-        0x49A0, 0x6409, 0x7BFF, 0xFBFF, 0xF4E3, 0x67E6, 0x7B84, 0xFB86,
-        0x7BFF, 0xFC00, 0,      0xC0EA, 0,      0x8001};
-
+        0,      0x8000, 0x7C00, 0xFC00, 0x49A0, 0x6409, 0x7BFF, 0xFBFF,
+        0xF4E3, 0x67E6, 0x7B84, 0xFB86, 0x7BFF, 0xFC00, 0xC0EA};
     std::initializer_list<uint16_t> ref_vals_rn = {
-        0x8000, 0x8000, 0,      0,      0,      0x8000, 0x7C00, 0xFC00,
-        0x49A0, 0x6409, 0x7BFF, 0xFBFF, 0xF4E2, 0x67E7, 0x7B84, 0xFB86,
-        0x7C00, 0xFC00, 0,      0xC0EA, 0,      0x8000};
-
+        0,      0x8000, 0x7C00, 0xFC00, 0x49A0, 0x6409, 0x7BFF, 0xFBFF,
+        0xF4E2, 0x67E7, 0x7B84, 0xFB86, 0x7C00, 0xFC00, 0xC0EA};
     std::initializer_list<uint16_t> ref_vals_ru = {
-        0x8000, 0x8000, 1,      1,      0,      0x8000, 0x7C00, 0xFC00,
-        0x49A0, 0x640A, 0x7BFF, 0xFBFF, 0xF4E2, 0x67E7, 0x7B85, 0xFB85,
-        0x7C00, 0xFBFF, 1,      0xC0E9, 1,      0x8000};
-
+        0,      0x8000, 0x7C00, 0xFC00, 0x49A0, 0x640A, 0x7BFF, 0xFBFF,
+        0xF4E2, 0x67E7, 0x7B85, 0xFB85, 0x7C00, 0xFBFF, 0xC0E9};
     std::initializer_list<uint16_t> ref_vals_rz = {
-        0x8000, 0x8000, 0,      0,      0,      0x8000, 0x7C00, 0xFC00,
-        0x49A0, 0x6409, 0x7BFF, 0xFBFF, 0xF4E2, 0x67E6, 0x7B84, 0xFB85,
-        0x7BFF, 0xFBFF, 0,      0xC0E9, 0,      0x8000};
+        0,      0x8000, 0x7C00, 0xFC00, 0x49A0, 0x6409, 0x7BFF, 0xFBFF,
+        0xF4E2, 0x67E6, 0x7B84, 0xFB85, 0x7BFF, 0xFBFF, 0xC0E9};
 
     test_host(input_vals, ref_vals_rd,
               FT2(uint16_t, float, sycl::ext::intel::math::float2half_rd));
@@ -744,6 +863,82 @@ int main() {
               FT2(uint16_t, float, sycl::ext::intel::math::float2half_rz));
     test(device_queue, input_vals, ref_vals_rz,
          FT2(uint16_t, float, sycl::ext::intel::math::float2half_rz));
+
+    // Normal FP32 inputs whose magnitude is so small they produce a FP16
+    // subnormal output. Requires has_half_subnormal so the output is not
+    // flushed to zero.
+    if (has_half_subnormal) {
+      std::initializer_list<unsigned int> sub_out_input_vals = {
+          0x21B877AA, // 1.25e-18  -> FP16 subnormal output in ru
+          0x0F81B224, // 1.2789e-29 -> FP16 subnormal output in ru
+          0x8CE08054, // -3.45899e-31 -> FP16 subnormal output in rd
+      };
+      std::initializer_list<uint16_t> sub_out_ref_vals_rd = {0, 0, 0x8001};
+      std::initializer_list<uint16_t> sub_out_ref_vals_rn = {0, 0, 0x8000};
+      std::initializer_list<uint16_t> sub_out_ref_vals_ru = {1, 1, 0x8000};
+      std::initializer_list<uint16_t> sub_out_ref_vals_rz = {0, 0, 0x8000};
+
+      test_host(sub_out_input_vals, sub_out_ref_vals_rd,
+                FT2(uint16_t, float, sycl::ext::intel::math::float2half_rd));
+      test(device_queue, sub_out_input_vals, sub_out_ref_vals_rd,
+           FT2(uint16_t, float, sycl::ext::intel::math::float2half_rd));
+
+      test_host(sub_out_input_vals, sub_out_ref_vals_rn,
+                FT2(uint16_t, float, sycl::ext::intel::math::float2half_rn));
+      test(device_queue, sub_out_input_vals, sub_out_ref_vals_rn,
+           FT2(uint16_t, float, sycl::ext::intel::math::float2half_rn));
+
+      test_host(sub_out_input_vals, sub_out_ref_vals_ru,
+                FT2(uint16_t, float, sycl::ext::intel::math::float2half_ru));
+      test(device_queue, sub_out_input_vals, sub_out_ref_vals_ru,
+           FT2(uint16_t, float, sycl::ext::intel::math::float2half_ru));
+
+      test_host(sub_out_input_vals, sub_out_ref_vals_rz,
+                FT2(uint16_t, float, sycl::ext::intel::math::float2half_rz));
+      test(device_queue, sub_out_input_vals, sub_out_ref_vals_rz,
+           FT2(uint16_t, float, sycl::ext::intel::math::float2half_rz));
+    }
+
+    // FP32 subnormal inputs: the input itself must not be flushed to zero
+    // before conversion. The guard is has_single_subnormal only — if FP32
+    // subnormals are not preserved the conversion result is meaningless
+    // regardless of FP16 subnormal support.
+    if (has_single_subnormal) {
+      std::initializer_list<unsigned int> sub_in_input_vals = {
+          0x807FFFFF, // min negative subnormal
+          0x80000001, // max negative subnormal
+          0x1,        // min positive subnormal
+          0x7FFFFF,   // max positive subnormal
+      };
+      std::initializer_list<uint16_t> sub_in_ref_vals_rd = {0x8001, 0x8001, 0,
+                                                            0};
+      std::initializer_list<uint16_t> sub_in_ref_vals_rn = {0x8000, 0x8000, 0,
+                                                            0};
+      std::initializer_list<uint16_t> sub_in_ref_vals_ru = {0x8000, 0x8000, 1,
+                                                            1};
+      std::initializer_list<uint16_t> sub_in_ref_vals_rz = {0x8000, 0x8000, 0,
+                                                            0};
+
+      test_host(sub_in_input_vals, sub_in_ref_vals_rd,
+                FT2(uint16_t, float, sycl::ext::intel::math::float2half_rd));
+      test(device_queue, sub_in_input_vals, sub_in_ref_vals_rd,
+           FT2(uint16_t, float, sycl::ext::intel::math::float2half_rd));
+
+      test_host(sub_in_input_vals, sub_in_ref_vals_rn,
+                FT2(uint16_t, float, sycl::ext::intel::math::float2half_rn));
+      test(device_queue, sub_in_input_vals, sub_in_ref_vals_rn,
+           FT2(uint16_t, float, sycl::ext::intel::math::float2half_rn));
+
+      test_host(sub_in_input_vals, sub_in_ref_vals_ru,
+                FT2(uint16_t, float, sycl::ext::intel::math::float2half_ru));
+      test(device_queue, sub_in_input_vals, sub_in_ref_vals_ru,
+           FT2(uint16_t, float, sycl::ext::intel::math::float2half_ru));
+
+      test_host(sub_in_input_vals, sub_in_ref_vals_rz,
+                FT2(uint16_t, float, sycl::ext::intel::math::float2half_rz));
+      test(device_queue, sub_in_input_vals, sub_in_ref_vals_rz,
+           FT2(uint16_t, float, sycl::ext::intel::math::float2half_rz));
+    }
   }
 
   return 0;
