@@ -304,24 +304,24 @@ public:
 namespace detail {
 template <int Dimensions>
 size_t getOffsetForId(range<Dimensions> Range, id<Dimensions> Id,
-                      id<Dimensions> Offset) noexcept {
+                      id<Dimensions> Offset) {
   size_t offset = 0;
   for (int i = 0; i < Dimensions; ++i)
     offset = offset * Range[i] + Offset[i] + Id[i];
   return offset;
 }
 
-inline id<1> getDelinearizedId(const range<1> &, size_t Index) noexcept {
+inline id<1> getDelinearizedId(const range<1> &, size_t Index) {
   return {Index};
 }
 
-inline id<2> getDelinearizedId(const range<2> &Range, size_t Index) noexcept {
+inline id<2> getDelinearizedId(const range<2> &Range, size_t Index) {
   size_t X = Index % Range[1];
   size_t Y = Index / Range[1];
   return {Y, X};
 }
 
-inline id<3> getDelinearizedId(const range<3> &Range, size_t Index) noexcept {
+inline id<3> getDelinearizedId(const range<3> &Range, size_t Index) {
   size_t D1D2 = Range[1] * Range[2];
   size_t Z = Index / D1D2;
   size_t ZRest = Index % D1D2;
