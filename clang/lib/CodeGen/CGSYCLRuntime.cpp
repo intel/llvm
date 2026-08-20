@@ -168,10 +168,10 @@ void clang::CodeGen::embedSYCLNoRDCBinary(CodeGenModule &CGM) {
   // Propagate the host data layout so the linker doesn't warn about mismatched
   // layouts (the wrapper .bc is created without a data layout set).
   (*DevModOrErr)->setDataLayout(CGM.getModule().getDataLayout());
-  // The default ClangDiagnosticHandler asserts that CurLinkModule is set for
-  // DK_Linker diagnostics, which is only true inside BackendConsumer's link
-  // loop. Install a handler that forwards DK_Linker to Clang's diag engine
-  // directly, and delegates everything else to the existing handler.
+  // ClangDiagnosticHandler is not yet installed here (it is set up after
+  // Gen->HandleTranslationUnit returns). Without intervention, DK_Linker
+  // diagnostics from linkModules would bypass Clang's diagnostic engine and
+  // print directly to stderr. Route them through DiagnosticsEngine instead.
   struct LinkerDiagHandler : public llvm::DiagnosticHandler {
     DiagnosticsEngine &Diags;
     StringRef ModuleName;
