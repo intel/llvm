@@ -15,7 +15,7 @@ jobs:
   code_formatter:
     runs-on: ubuntu-24.04
     container:
-      image: 'ghcr.io/llvm/ci-ubuntu-24.04-format'
+      image: 'ghcr.io/llvm/ci-ubuntu-24.04-format@sha256:13310e947e51'
     timeout-minutes: 30
     concurrency:
       group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
