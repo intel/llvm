@@ -50,7 +50,7 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
   // For SYCL no-RDC, link the per-TU device wrapper bitcode produced by
   // clang-linker-wrapper --sycl-device-link into the host module so the SYCL
   // runtime finds the device image at program startup.
-  if (CI.getLangOpts().SYCLIsHost &&
+  if (CI.getLangOpts().SYCLIsHost && !CI.getLangOpts().CUDA &&
       !CI.getCodeGenOpts().OffloadBinaryToEmbedFile.empty()) {
     auto BCBuf = CI.getFileManager().getBufferForFile(
         CI.getCodeGenOpts().OffloadBinaryToEmbedFile);
