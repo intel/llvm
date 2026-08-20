@@ -142,8 +142,8 @@ public:
 #endif
   }
 
-  size_t get_local_id(int dimention) const noexcept {
-    return get_local_id()[dimention];
+  size_t get_local_id(int dimension) const noexcept {
+    return get_local_id()[dimension];
   }
 
   size_t get_local_linear_id() const noexcept {
