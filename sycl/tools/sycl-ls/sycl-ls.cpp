@@ -255,7 +255,8 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     auto Arch = Device.get_info<syclex::info::device::architecture>();
     auto CanonicalArch = getCanonicalArchitectureName(Arch);
     std::cout << Prepend << "Architecture: " << CanonicalArch << std::endl;
-    std::cout << Prepend << "GPU Family: " << getGPUFamily(Arch) << std::endl;
+    if (Device.get_info<info::device::device_type>() == info::device_type::gpu)
+      std::cout << Prepend << "GPU Family: " << getGPUFamily(Arch) << std::endl;
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;
