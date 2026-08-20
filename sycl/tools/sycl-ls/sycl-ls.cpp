@@ -207,7 +207,8 @@ static void printDeviceInfo(const device &Device, bool Verbose,
 
   if (Verbose) {
     std::string DeviceTypeName = getDeviceTypeName(Device);
-    std::cout << Prepend << "Type              : " << DeviceTypeName << std::endl;
+    std::cout << Prepend << "Type              : " << DeviceTypeName
+              << std::endl;
     std::cout << Prepend << "Version           : " << DeviceVersion
               << std::endl;
     std::cout << Prepend << "Name              : " << DeviceName << std::endl;
