@@ -7912,6 +7912,9 @@ public:
   QualType CheckSizelessVectorCompareOperands(ExprResult &LHS, ExprResult &RHS,
                                               SourceLocation Loc,
                                               BinaryOperatorKind Opc);
+  QualType CheckMatrixCompareOperands(ExprResult &LHS, ExprResult &RHS,
+                                      SourceLocation Loc,
+                                      BinaryOperatorKind Opc);
   QualType CheckVectorLogicalOperands(ExprResult &LHS, ExprResult &RHS,
                                       SourceLocation Loc,
                                       BinaryOperatorKind Opc);
@@ -11847,8 +11850,7 @@ public:
                                 const TemplateArgumentListInfo *TemplateArgs);
 
   ExprResult CheckVarOrConceptTemplateTemplateId(
-      const CXXScopeSpec &SS, const DeclarationNameInfo &NameInfo,
-      TemplateTemplateParmDecl *Template, SourceLocation TemplateLoc,
+      const DeclarationNameInfo &NameInfo, TemplateTemplateParmDecl *Template,
       const TemplateArgumentListInfo *TemplateArgs);
 
   ExprResult

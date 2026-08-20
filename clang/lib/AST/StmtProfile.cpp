@@ -2380,6 +2380,14 @@ void StmtProfiler::VisitCXXUnresolvedConstructExpr(
   ID.AddInteger(S->isListInitialization());
 }
 
+void StmtProfiler::VisitDependentTemplateIdExpr(
+    const DependentTemplateIdExpr *S) {
+  VisitExpr(S);
+  VisitTemplateName(S->getTemplateName());
+  VisitTemplateArguments(S->template_arguments().data(),
+                         S->getNumTemplateArgs());
+}
+
 void StmtProfiler::VisitCXXDependentScopeMemberExpr(
     const CXXDependentScopeMemberExpr *S) {
   ID.AddBoolean(S->isImplicitAccess());
