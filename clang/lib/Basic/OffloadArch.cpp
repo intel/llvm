@@ -186,6 +186,19 @@ void fillValidOffloadArchList(llvm::SmallVectorImpl<llvm::StringRef> &Values) {
   llvm::AMDGPU::fillValidArchListAMDGCN(Values, llvm::Triple::NoSubArch);
 }
 
+OffloadArch getSubArchOffloadArch(llvm::Triple::SubArchType SubArch) {
+  llvm::AMDGPU::GPUKind AK = llvm::AMDGPU::getGPUKindFromSubArch(SubArch);
+  if (AK == llvm::AMDGPU::GK_NONE)
+    return OffloadArch::getUnknown();
+  return OffloadArch::getAMDGPU(AK);
+}
+
+llvm::Triple::SubArchType getOffloadArchSubArch(OffloadArch ID) {
+  if (!ID.isAMDGPU())
+    return llvm::Triple::NoSubArch;
+  return llvm::AMDGPU::getSubArch(ID.amdgpuKind());
+}
+
 llvm::Triple OffloadArchToTriple(const llvm::Triple &DefaultToolchainTriple,
                                  OffloadArch ID) {
   if (ID.isSPIRV())
@@ -201,7 +214,8 @@ llvm::Triple OffloadArchToTriple(const llvm::Triple &DefaultToolchainTriple,
   }
 
   if (ID.isAMDGPU())
-    return llvm::Triple("amdgcn-amd-amdhsa");
+    return llvm::Triple(llvm::Triple::amdgpu, llvm::Triple::NoSubArch,
+                        llvm::Triple::AMD, llvm::Triple::AMDHSA);
 
   if (ID.isIntelCPU())
     return llvm::Triple("spir64_x86_64-unknown-unknown");

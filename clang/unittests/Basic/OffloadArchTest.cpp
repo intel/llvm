@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/OffloadArch.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 
 using namespace clang;
@@ -88,4 +89,28 @@ TEST(OffloadArchTest, IntelGPUFamilyArchParsing) {
   EXPECT_EQ(StringToOffloadArch("ptl"),
             OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
                                   OffloadArch::IntelArch::PTL));
+}
+
+// Every AMDGPU gfx OffloadArch must round-trip through its subarch and
+// back. This guards against adding a GPU to the TargetParser data but
+// forgetting to update either getOffloadArchSubArch or the
+// getSubArchOffloadArch table (the two are position-sensitive and easy to leave
+// out of sync).
+TEST(OffloadArchTest, AMDGPUSubArchRoundTrip) {
+  for (int I = static_cast<int>(llvm::Triple::FirstAMDGPUSubArch);
+       I <= static_cast<int>(llvm::Triple::LastAMDGPUSubArch); ++I) {
+    auto SubArch = static_cast<llvm::Triple::SubArchType>(I);
+
+    // Some subarch slots are gaps with no associated GPU; skip them.
+    OffloadArch Arch = getSubArchOffloadArch(SubArch);
+    if (Arch.isUnknown())
+      continue;
+
+    EXPECT_TRUE(Arch.isAMDGPU());
+    EXPECT_EQ(getOffloadArchSubArch(Arch), SubArch)
+        << "subarch round-trip failed for " << OffloadArchToString(Arch);
+  }
+
+  EXPECT_EQ(getOffloadArchSubArch(OffloadArch::getSPIRV()),
+            llvm::Triple::NoSubArch);
 }
