@@ -1,5 +1,5 @@
 // Does a run with a SYCL device, where neon polyvector type errors are ignored.
-// afterwards compile for the host where neon polyvector type errors aren't ignored
+// Afterwards compile for the host where neon polyvector type errors aren't ignored.
 
 // polyvector type errors get ignored with SYCL enabled
 // RUN: %clang_cc1 %s -fsycl-is-device -triple spir64 -aux-triple arm64-unknown-linux-gnu -target-feature +neon -fsyntax-only -verify=quiet
