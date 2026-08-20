@@ -6631,6 +6631,11 @@ static bool hasVectorComputeMetadata(Module *M) {
 bool LLVMToSPIRVBase::translate() {
   BM->setGeneratorVer(KTranslatorVer);
 
+  if (!BM->getErrorLog().checkError(
+          M->getModuleInlineAsm().empty(), SPIRVEC_InvalidLlvmModule,
+          "Module-level inline assembly is not supported in SPIR-V"))
+    return false;
+
   if (isEmptyLLVMModule(M))
     BM->addCapability(CapabilityLinkage);
 
