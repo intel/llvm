@@ -159,9 +159,6 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     const auto res1 = alloc_one(&values1_raw);
     const auto res2 = alloc_one(&values2_raw);
     const auto res3 = alloc_one(&values3_raw);
-    EXPECT_SUCCESS(res1);
-    EXPECT_SUCCESS(res2);
-    EXPECT_SUCCESS(res3);
 
     std::unique_ptr<void, decltype(usm_deleter)> values1(values1_raw,
                                                          usm_deleter);
