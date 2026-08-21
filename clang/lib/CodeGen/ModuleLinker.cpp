@@ -58,14 +58,19 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
       CI.getDiagnostics().Report(diag::err_cannot_open_file)
           << CI.getCodeGenOpts().OffloadBinaryToEmbedFile
           << BCBuf.getError().message();
+      LinkModules.clear();
       return true;
     }
     llvm::Expected<std::unique_ptr<llvm::Module>> MOrErr =
         llvm::parseBitcodeFile((*BCBuf)->getMemBufferRef(), Ctx);
     if (!MOrErr) {
-      CI.getDiagnostics().Report(diag::err_fe_linking_module)
-          << CI.getCodeGenOpts().OffloadBinaryToEmbedFile
-          << llvm::toString(MOrErr.takeError());
+      llvm::handleAllErrors(
+          MOrErr.takeError(), [&](llvm::ErrorInfoBase &EIB) {
+            CI.getDiagnostics().Report(diag::err_fe_linking_module)
+                << CI.getCodeGenOpts().OffloadBinaryToEmbedFile
+                << EIB.message();
+          });
+      LinkModules.clear();
       return true;
     }
     // The wrapper .bc from clang-linker-wrapper has no data layout set.
