@@ -5,8 +5,6 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
-// UNSUPPORTED: windows && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22284
 // UNSUPPORTED: linux && run-mode
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 // RUN: %{build} -Wno-error=deprecated-declarations %level_zero_options -o %t.out
