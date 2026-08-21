@@ -2074,22 +2074,10 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         Properties.native_vector_width_float = 1u;
         Properties.native_vector_width_half = 8u;
 
-        ze_result_t (*zeDeviceGetVectorWidthPropertiesExtFn)(
-            ze_device_handle_t, uint32_t *,
-            ze_device_vector_width_properties_ext_t *) = nullptr;
-
-        if (UrPlatform->zeDriverExtensionMap.count(
-                ZE_DEVICE_VECTOR_SIZES_EXT_NAME)) {
-          ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                          (UrPlatform->ZeDriver,
-                           "zeDeviceGetVectorWidthPropertiesExt",
-                           reinterpret_cast<void **>(
-                               &zeDeviceGetVectorWidthPropertiesExtFn)));
-        }
-
-        if (zeDeviceGetVectorWidthPropertiesExtFn != nullptr) {
+        if (UrPlatform->ZeDeviceVectorWidthExt.Supported) {
           uint32_t Count = 0;
-          ZE_CALL_NOCHECK(zeDeviceGetVectorWidthPropertiesExtFn,
+          ZE_CALL_NOCHECK(UrPlatform->ZeDeviceVectorWidthExt
+                              .zeDeviceGetVectorWidthPropertiesExt,
                           (ZeDevice, &Count, nullptr));
 
           std::vector<ZeStruct<ze_device_vector_width_properties_ext_t>>
@@ -2099,7 +2087,8 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
           ZeStruct<ze_device_vector_width_properties_ext_t>
               MaxVectorWidthProperties;
 
-          ZE_CALL_NOCHECK(zeDeviceGetVectorWidthPropertiesExtFn,
+          ZE_CALL_NOCHECK(UrPlatform->ZeDeviceVectorWidthExt
+                              .zeDeviceGetVectorWidthPropertiesExt,
                           (ZeDevice, &Count, PropertiesVector.data()));
           if (!PropertiesVector.empty()) {
             // Find the largest vector_width_size property
