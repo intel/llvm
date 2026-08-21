@@ -4,6 +4,9 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images_2d_usm
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_2d_usm
 
+// Level Zero on Windows supports custom pitch as of driver version 101.8974.
+// REQUIRES-INTEL-DRIVER: win: 101.8974
+
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
