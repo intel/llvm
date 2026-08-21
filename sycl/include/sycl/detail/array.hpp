@@ -27,8 +27,6 @@ template <int dimensions = 1> class array {
   static_assert(dimensions >= 1, "Array cannot be 0-dimensional.");
 
 public:
-  array() = default;
-
   /* The following constructor is only available in the array struct
    * specialization where: dimensions==1 */
   template <int N = dimensions>
