@@ -11,11 +11,32 @@
 #include <detail/scheduler/scheduler.hpp>
 
 #include <memory>
+#include <set>
 #include <vector>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+namespace {
+// Walk Cmd's dep graph and gather every host-task dep event that
+// Command::enqueue would otherwise wait on synchronously via
+// Command::waitForPreparedHostEvents.
+void collectPendingHostDepEvents(Command *Cmd, std::vector<EventImplPtr> &Out,
+                                 std::set<Command *> &Visited) {
+  if (!Cmd || !Visited.insert(Cmd).second)
+    return;
+  if (Cmd->isSuccessfullyEnqueued())
+    return;
+  if (!Cmd->isHostTask())
+    for (const EventImplPtr &E : Cmd->getPreparedHostDepsEvents())
+      Out.push_back(E);
+  for (const EventImplPtr &E : Cmd->getPreparedDepsEvents())
+    collectPendingHostDepEvents(E->getCommand(), Out, Visited);
+  for (const EventImplPtr &E : Cmd->getPreparedHostDepsEvents())
+    collectPendingHostDepEvents(E->getCommand(), Out, Visited);
+}
+} // namespace
 
 void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
                                              ReadLockT &GraphReadLock,
@@ -26,6 +47,26 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
   // event has been waited on by another thread
   if (!Cmd)
     return;
+
+  // Drain synchronous host-task dep waits before enqueueing under the
+  // graph read lock.
+  {
+    std::vector<EventImplPtr> PendingHostEvents;
+    std::set<Command *> Visited;
+    collectPendingHostDepEvents(Cmd, PendingHostEvents, Visited);
+    if (!PendingHostEvents.empty()) {
+      GraphReadLock.unlock();
+      for (const EventImplPtr &E : PendingHostEvents)
+        E->waitInternal();
+      GraphReadLock.lock();
+      // A concurrent cleanup may have destroyed Cmd while we were unlocked.
+      // Re-fetch through the event; the Command destructor nulls the raw
+      // back-pointer, so this reliably returns nullptr in that case.
+      Cmd = Event.getCommand();
+      if (!Cmd)
+        return;
+    }
+  }
 
   EnqueueResultT Res;
   bool Enqueued =
@@ -80,22 +121,23 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     return false;
   }
 
-  // Recursively enqueue all the implicit + explicit backend level dependencies
-  // first and exit immediately if any of the commands cannot be enqueued.
-  for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
+  // Loop through dependencies, then host dependencies, enqueing all
+  // the impliciat + explicit deps, exiting if any cannot be enqueued.
+
+  std::vector<EventImplPtr> DepsSnapshot = Cmd->getPreparedDepsEvents();
+  for (const EventImplPtr &Event : DepsSnapshot) {
     if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;
   }
 
-  // Recursively enqueue all the implicit + explicit host dependencies and
-  // exit immediately if any of the commands cannot be enqueued.
-  // Host task execution is asynchronous. In current implementation enqueue for
-  // this command will wait till host task completion by waitInternal call on
-  // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
+  // Host dependencies.
+  // Host_task deps are waited on synchronously inside Command::enqueue
+  // TODO: implement enqueue of blocked commands on host task
   // completion stage and eliminate this event waiting in enqueue.
-  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
+  std::vector<EventImplPtr> HostDepsSnapshot = Cmd->getPreparedHostDepsEvents();
+  for (const EventImplPtr &Event : HostDepsSnapshot) {
     if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
@@ -115,6 +157,12 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // on completion of C and starts cleanup process. This thread is still in the
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
+  //
+  // The deadlock hazard from synchronous host-task-event waits inside
+  // Command::enqueue is avoided at the top-level entry points (see
+  // Scheduler::waitForEvent) by draining those events *before* calling
+  // enqueueCommand, so that the internal waitForPreparedHostEvents calls
+  // are no-ops. See CMPLRLLVM-77682.
   bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
   if (Result)
     Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
