@@ -2828,7 +2828,7 @@ void StmtPrinter::VisitConceptSpecializationExpr(ConceptSpecializationExpr *E) {
   OS << E->getFoundDecl()->getName();
   printTemplateArgumentList(OS, E->getTemplateArgsAsWritten()->arguments(),
                             Policy,
-                            E->getNamedConcept()->getTemplateParameters());
+                            E->getConceptDecl()->getTemplateParameters());
 }
 
 void StmtPrinter::VisitRequiresExpr(RequiresExpr *E) {

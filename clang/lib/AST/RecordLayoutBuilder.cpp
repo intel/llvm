@@ -3426,9 +3426,6 @@ bool ASTContext::defaultsToMsStruct() const {
           getAuxTargetInfo()->hasMicrosoftRecordLayout());
 }
 
-/// getASTRecordLayout - Get or compute information about the layout of the
-/// specified record (struct/union/class), which indicates its size and field
-/// position information.
 const ASTRecordLayout &
 ASTContext::getASTRecordLayout(const RecordDecl *D) const {
   bool CheckAuxABI = false;

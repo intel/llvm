@@ -3167,7 +3167,7 @@ bool Sema::SubstTypeConstraint(
   }
   return AttachTypeConstraint(
       TC->getNestedNameSpecifierLoc(), TC->getConceptNameInfo(),
-      TC->getNamedConcept(),
+      TC->getNamedConcept().getAsTemplateDecl(),
       /*FoundDecl=*/TC->getConceptReference()->getFoundDecl(), &InstArgs, Inst,
       Inst->isParameterPack()
           ? cast<CXXFoldExpr>(TC->getImmediatelyDeclaredConstraint())
@@ -4569,8 +4569,7 @@ ExprResult Sema::SubstConceptTemplateArguments(
 
   MultiLevelTemplateArgumentList MLTALForConstraint =
       getTemplateInstantiationArgs(
-          CSE->getNamedConcept(),
-          CSE->getNamedConcept()->getLexicalDeclContext(),
+          CSE->getConceptDecl(), CSE->getConceptDecl()->getLexicalDeclContext(),
           /*Final=*/false,
           /*Innermost=*/NewArgList,
           /*RelativeToPrimary=*/true,
