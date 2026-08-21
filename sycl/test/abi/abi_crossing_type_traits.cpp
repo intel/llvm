@@ -37,8 +37,8 @@ int main() {
       accessor<int, 1, access::mode::read_write, access::target::device>, false,
       false, false>();
   check_type_traits<local_accessor<int, 1>, false, false, false>();
-  check_type_traits<id<3>, true, true, true>();
-  check_type_traits<range<3>, true, true, true>();
+  check_type_traits<id<3>, true, false, true>();
+  check_type_traits<range<3>, true, false, true>();
   check_type_traits<item<3>, true, false, true>();
   check_type_traits<nd_item<3>, true, false, true>();
   check_type_traits<nd_range<3>, true, false, true>();
