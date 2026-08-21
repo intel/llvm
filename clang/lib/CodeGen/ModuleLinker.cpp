@@ -68,6 +68,9 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
           << llvm::toString(MOrErr.takeError());
       return true;
     }
+    // The wrapper .bc from clang-linker-wrapper has no data layout set.
+    // Stamp the host layout so linkModules doesn't warn about a mismatch.
+    (*MOrErr)->setDataLayout(CI.getTarget().getDataLayoutString());
     LinkModules.push_back({std::move(*MOrErr),
                            /*PropagateAttrs=*/false,
                            /*Internalize=*/false,
