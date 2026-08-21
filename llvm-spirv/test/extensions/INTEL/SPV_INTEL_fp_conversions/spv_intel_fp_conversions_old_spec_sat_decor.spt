@@ -1,0 +1,38 @@
+; Negative test: The SaturatedToLargestFloat8NormalConversionEXT decoration
+; must not be placed on the old SPV_INTEL_fp_conversions opcodes OpClampConvertFToFINTEL
+; (6216) and OpClampStochasticRoundFToFINTEL (6218).
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: not llvm-spirv -r %t.spv -o %t.rev.bc 2>&1 | FileCheck %s
+
+; CHECK: InvalidInstruction
+; CHECK: SaturatedToLargestFloat8NormalConversionEXT is not valid on OpClampConvertFToFINTEL or OpClampStochasticRoundFToFINTEL.
+
+119734787 65536 393230 11 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Float16Buffer
+2 Capability Int8
+2 Capability Float8EXT
+2 Capability FloatConversionsFtoFINTEL
+5 Extension "SPV_EXT_float8"
+8 Extension "SPV_INTEL_fp_conversions"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+3 Source 0 0
+6 Name 4 "clamp_with_sat_decor"
+4 Name 5 "entry"
+8 Decorate 4 LinkageAttributes "clamp_with_sat_decor" Export
+3 Decorate 9 SaturatedToLargestFloat8NormalConversionEXT
+4 TypeInt 2 8 0
+3 TypeFunction 3 2
+3 TypeFloat 6 16
+4 TypeFloat 8 8 4214
+4 Constant 6 7 15360
+5 Function 2 4 0 3
+2 Label 5
+4 ClampConvertFToFINTEL 8 9 7
+4 Bitcast 2 10 9
+2 ReturnValue 10
+1 FunctionEnd

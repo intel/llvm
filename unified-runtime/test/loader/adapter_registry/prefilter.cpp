@@ -139,4 +139,31 @@ TEST_F(adapterPreFilterTest, testPrefilterWithNotAllFilter) {
   EXPECT_FALSE(cudaExists);
 }
 
+TEST_F(adapterPreFilterTest, testStaticAdapterFilteredOutByBackend) {
+  SetUp("level_zero:gpu");
+  EXPECT_TRUE(registry->includesAdapter("ur_adapter_level_zero"));
+  EXPECT_TRUE(registry->includesAdapter("ur_adapter_level_zero_v2"));
+  EXPECT_FALSE(registry->includesAdapter("ur_adapter_opencl"));
+}
+
+TEST_F(adapterPreFilterTest, testStaticAdapterIncludedWhenSelected) {
+  SetUp("opencl:gpu");
+  EXPECT_TRUE(registry->includesAdapter("ur_adapter_opencl"));
+  EXPECT_FALSE(registry->includesAdapter("ur_adapter_level_zero"));
+  EXPECT_FALSE(registry->includesAdapter("ur_adapter_level_zero_v2"));
+}
+
+TEST_F(adapterPreFilterTest, testStaticAdapterExcludedByNegativeFilter) {
+  SetUp("!opencl:*");
+  EXPECT_FALSE(registry->includesAdapter("ur_adapter_opencl"));
+  EXPECT_TRUE(registry->includesAdapter("ur_adapter_level_zero"));
+}
+
+TEST_F(adapterPreFilterTest, testStaticAdapterIncludedWhenAcceptAll) {
+  SetUp("*:*");
+  EXPECT_TRUE(registry->includesAdapter("ur_adapter_level_zero"));
+  EXPECT_TRUE(registry->includesAdapter("ur_adapter_level_zero_v2"));
+  EXPECT_TRUE(registry->includesAdapter("ur_adapter_opencl"));
+}
+
 #endif

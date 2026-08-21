@@ -99,8 +99,9 @@ void SPIRVLowerBoolBase::handleCastInstructions(Instruction &I) {
     Type *Ty = Type::getInt32Ty(*Context);
     if (auto *VT = dyn_cast<FixedVectorType>(OpTy))
       Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
+    bool IsSigned = I.getOpcode() == Instruction::SIToFP;
     auto *Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-    auto *One = getScalarOrVectorConstantInt(Ty, 1, false);
+    auto *One = getScalarOrVectorConstantInt(Ty, IsSigned ? ~0 : 1, IsSigned);
     assert(Zero && One && "Couldn't create constant int");
     auto *Sel = SelectInst::Create(Op, One, Zero, "", I.getIterator());
     Sel->setDebugLoc(I.getDebugLoc());
