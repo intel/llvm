@@ -1447,7 +1447,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
                                  bool HasESIMD) {
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
-  SmallVector<uint8_t, 256> KernelNamesBytes;
 
   const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
@@ -1485,7 +1484,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       SpirFixupKernels.emplace_back(&F);
 
       auto KernelName = F.getName();
-      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
       auto *KernelNameGV = GetOrCreateGlobalString(
           M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
 
@@ -1509,9 +1507,11 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  std::string AsanKernelMetadataName =
+      ("__AsanKernelMetadata_" + computeMetadataUniqueId(M)).str();
   GlobalVariable *AsanSpirKernelMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__AsanKernelMetadata", nullptr,
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, AsanKernelMetadataName, nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
   // Add device global attributes
@@ -1519,9 +1519,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   AsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   AsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
-  AsanSpirKernelMetadata->addAttribute(
-      "sycl-unique-id",
-      computeKernelMetadataUniqueId("__AsanKernelMetadata", KernelNamesBytes));
+  AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       AsanKernelMetadataName);
   AsanSpirKernelMetadata->setDSOLocal(true);
 
   // Handle SpirFixupKernels
@@ -1887,6 +1886,12 @@ Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB,
         AsanMemToShadow,
         {Shadow, ConstantInt::get(IRB.getInt32Ty(), AddressSpace)},
         "shadow_ptr");
+  }
+  if (TargetTriple.isOSDarwin() &&
+      TargetTriple.getArch() == llvm::Triple::aarch64) {
+    // Strip MTE-tag bits before translating to shadow address
+    Shadow = IRB.CreateAnd(Shadow,
+                           ConstantInt::get(IntptrTy, ~(uint64_t(0x0f) << 56)));
   }
   // Shadow >> scale
   Shadow = IRB.CreateLShr(Shadow, Mapping.Scale);
@@ -2263,7 +2268,7 @@ void AddressSanitizer::getInterestingMemoryOperands(
 }
 
 static bool isPointerOperand(Value *V) {
-  return V->getType()->isPointerTy() || isa<PtrToIntInst>(V);
+  return V->getType()->isPointerTy() || isa<PtrToIntInst, PtrToAddrInst>(V);
 }
 
 // This is a rough heuristic; it may cause both false positives and
@@ -2729,12 +2734,22 @@ void ModuleAddressSanitizer::poisonOneInitializer(Function &GlobalInit) {
   // Add a call to poison all external globals before the given function starts.
   Value *ModuleNameAddr =
       ConstantExpr::getPointerCast(getOrCreateModuleName(), IntptrTy);
-  IRB.CreateCall(AsanPoisonGlobals, ModuleNameAddr);
+  CallInst *CallBefore = IRB.CreateCall(AsanPoisonGlobals, ModuleNameAddr);
+  if (DISubprogram *SP = GlobalInit.getSubprogram())
+    CallBefore->setDebugLoc(
+        DILocation::get(SP->getContext(), SP->getScopeLine(), 0, SP));
 
   // Add calls to unpoison all globals before each return instruction.
   for (auto &BB : GlobalInit)
-    if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator()))
-      CallInst::Create(AsanUnpoisonGlobals, "", RI->getIterator());
+    if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
+      CallInst *CallAfter =
+          CallInst::Create(AsanUnpoisonGlobals, "", RI->getIterator());
+      if (RI->getDebugLoc())
+        CallAfter->setDebugLoc(RI->getDebugLoc());
+      else if (DISubprogram *SP = GlobalInit.getSubprogram())
+        CallAfter->setDebugLoc(
+            DILocation::get(SP->getContext(), SP->getScopeLine(), 0, SP));
+    }
 }
 
 void ModuleAddressSanitizer::createInitializerPoisonCalls() {
@@ -3130,9 +3145,11 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  std::string AsanDeviceGlobalMetadataName =
+      ("__AsanDeviceGlobalMetadata_" + computeMetadataUniqueId(M)).str();
   GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__AsanDeviceGlobalMetadata", nullptr,
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, AsanDeviceGlobalMetadataName, nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
 
@@ -4788,9 +4805,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
     replaceDbgDeclare(AI, LocalStackBaseAlloca, DIB, DIExprFlags, Desc.Offset);
     Value *NewAllocaPtr = IRB.CreatePtrAdd(
         LocalStackBase, ConstantInt::get(IntptrTy, Desc.Offset));
-    NewAllocaPtr = TargetTriple.isSPIROrSPIRV()
-                       ? IRB.CreateAddrSpaceCast(NewAllocaPtr, AI->getType())
-                       : NewAllocaPtr;
+    if (NewAllocaPtr->getType() != AI->getType())
+      NewAllocaPtr = IRB.CreateAddrSpaceCast(NewAllocaPtr, AI->getType());
     AI->replaceAllUsesWith(NewAllocaPtr);
     NewAllocaPtrs.push_back(NewAllocaPtr);
   }

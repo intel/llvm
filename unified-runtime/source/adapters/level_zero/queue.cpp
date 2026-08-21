@@ -1660,19 +1660,11 @@ void ur::level_zero::v1::ur_queue_handle_t_::clearEndTimeRecordings() {
     auto &Event = Entry.first;
     auto &EndTimeRecording = Entry.second;
 
-    // Write the result back to the event if it is not dead.
-    uint64_t ContextEndTime =
+    // Write the result back to the event if it is not dead. A single
+    // GPU-written timestamp has no separate start value to detect wrap-around
+    // against.
+    Event->RecordEventEndTimestamp =
         (EndTimeRecording & TimestampMaxValue) * ZeTimerResolution;
-
-    // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
-    // Note, it will not report correct time if there were multiple wrap
-    // arounds, and the longer term plan is to enlarge the capacity of the
-    // HW timestamps.
-    if (ContextEndTime < Event->RecordEventStartTimestamp)
-      ContextEndTime += TimestampMaxValue * ZeTimerResolution;
-
-    // Store it in the event.
-    Event->RecordEventEndTimestamp = ContextEndTime;
   }
   EndTimeRecordings.clear();
   EvictedEndTimeRecordings.clear();

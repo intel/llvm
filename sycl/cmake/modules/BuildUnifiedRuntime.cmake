@@ -110,7 +110,11 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMemoryFramework ALIAS ur_umf)
+# ur_umf only exists when some enabled backend actually links UMF (see
+# UR_UMF_REQUIRED in unified-runtime/source/common/CMakeLists.txt).
+if(TARGET ur_umf)
+  add_library(UnifiedMemoryFramework ALIAS ur_umf)
+endif()
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -128,6 +132,15 @@ if(TARGET UnifiedRuntimeLoader)
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
     RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
+
+  # The loader dlopen()s its shared layers from its own directory, so they have
+  # to be installed alongside it.
+  if(TARGET ur_sanitizer_layer)
+    install(TARGETS ur_sanitizer_layer
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
+    )
+  endif()
 endif()
 
 add_custom_target(UnifiedRuntimeAdapters)

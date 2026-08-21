@@ -24,7 +24,7 @@
 #include "tracing/ur_tracing_layer.hpp"
 #endif
 #if UR_ENABLE_SANITIZER
-#include "sanitizer/ur_sanitizer_layer.hpp"
+#include "sanitizer/ur_sanitizer_layer_proxy.hpp"
 #endif
 
 #include <atomic>
@@ -76,8 +76,8 @@ public:
   // Initialize tracing layer after sanitizer layer to make sure tracing
   // layer will properly print all API calls.
 #if UR_ENABLE_SANITIZER
-      {ur_sanitizer_layer::getContext(),
-       ur_sanitizer_layer::context_t::forceDelete},
+      {ur_sanitizer_layer_proxy::getContext(),
+       ur_sanitizer_layer_proxy::context_t::forceDelete},
 #endif
 #if UR_ENABLE_TRACING
       {ur_tracing_layer::getContext(),
@@ -92,7 +92,7 @@ public:
         ur_tracing_layer::context_t::getNames(),
 #endif
 #if UR_ENABLE_SANITIZER
-        ur_sanitizer_layer::context_t::getNames(),
+        ur_sanitizer_layer_proxy::context_t::getNames(),
 #endif
     };
     std::string s;
@@ -111,7 +111,7 @@ public:
   codeloc_data codelocData;
 
   void parseEnvEnabledLayers();
-  void initLayers();
+  ur_result_t initLayers();
   void tearDownLayers() const;
 };
 
