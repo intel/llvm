@@ -83,6 +83,22 @@ public:
     return std::make_shared<event_impl>(Event, SyclContext, private_tag{});
   }
 
+  /// Constructs an event from a UR event that the runtime created in \p Context
+  /// itself and hands ownership of over to the event, e.g. a host-signalled
+  /// proxy standing in for a cross-context dependency. Unlike
+  /// create_from_handle() the context is already known, so it is not queried
+  /// back from the adapter, and the event does not start out complete.
+  static std::shared_ptr<event_impl>
+  create_from_owned_handle(ur_event_handle_t Event, context_impl &Context) {
+    auto EventImpl = std::make_shared<event_impl>(
+        HostEventState::HES_NotComplete, private_tag{});
+    EventImpl->setContextImpl(Context);
+    EventImpl->setHandle(Event);
+    // There is no queue behind the event, so there is nothing to flush.
+    EventImpl->MIsFlushed = true;
+    return EventImpl;
+  }
+
   static std::shared_ptr<event_impl> create_device_event(queue_impl &queue) {
     return std::make_shared<event_impl>(queue, private_tag{});
   }

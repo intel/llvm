@@ -1428,6 +1428,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_GRAPH_GET_ID_EXP:
     os << "UR_FUNCTION_GRAPH_GET_ID_EXP";
     break;
+  case UR_FUNCTION_EVENT_CREATE_HOST_SIGNAL_EXP:
+    os << "UR_FUNCTION_EVENT_CREATE_HOST_SIGNAL_EXP";
+    break;
+  case UR_FUNCTION_EVENT_HOST_SIGNAL_EXP:
+    os << "UR_FUNCTION_EVENT_HOST_SIGNAL_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -3453,6 +3459,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_HOST_SIGNAL_EVENT_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_HOST_SIGNAL_EVENT_SUPPORT_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -5919,6 +5928,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_HOST_SIGNAL_EVENT_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -14529,6 +14551,42 @@ inline std::ostream &operator<<(
   os << ".pUserData = ";
 
   ur::details::printPtr(os, *(params->ppUserData));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_event_create_host_signal_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_event_create_host_signal_exp_params_t
+        *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_event_host_signal_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_event_host_signal_exp_params_t *params) {
+
+  os << ".hEvent = ";
+
+  ur::details::printPtr(os, *(params->phEvent));
 
   return os;
 }
@@ -23265,6 +23323,12 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_EVENT_SET_CALLBACK: {
     os << (const struct ur_event_set_callback_params_t *)params;
+  } break;
+  case UR_FUNCTION_EVENT_CREATE_HOST_SIGNAL_EXP: {
+    os << (const struct ur_event_create_host_signal_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_EVENT_HOST_SIGNAL_EXP: {
+    os << (const struct ur_event_host_signal_exp_params_t *)params;
   } break;
   case UR_FUNCTION_EVENT_CREATE_EXP: {
     os << (const struct ur_event_create_exp_params_t *)params;

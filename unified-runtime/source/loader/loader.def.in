@@ -107,10 +107,12 @@ EXPORTS
 	urEnqueueUSMSharedAllocExp
 	urEnqueueWriteHostPipe
 	urEventCreateExp
+	urEventCreateHostSignalExp
 	urEventCreateWithNativeHandle
 	urEventGetInfo
 	urEventGetNativeHandle
 	urEventGetProfilingInfo
+	urEventHostSignalExp
 	urEventRelease
 	urEventRetain
 	urEventSetCallback
@@ -346,10 +348,12 @@ EXPORTS
 	urPrintEnqueueUsmSharedAllocExpParams
 	urPrintEnqueueWriteHostPipeParams
 	urPrintEventCreateExpParams
+	urPrintEventCreateHostSignalExpParams
 	urPrintEventCreateWithNativeHandleParams
 	urPrintEventGetInfoParams
 	urPrintEventGetNativeHandleParams
 	urPrintEventGetProfilingInfoParams
+	urPrintEventHostSignalExpParams
 	urPrintEventInfo
 	urPrintEventNativeProperties
 	urPrintEventReleaseParams

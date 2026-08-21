@@ -832,7 +832,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_HOST_SIGNAL_EVENT_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -9697,6 +9697,78 @@ ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [out] A pointer to the native handle of the command-buffer.
     ur_native_handle_t *phNativeCommandBuffer) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create an event in the unsignalled state that can only be signalled
+///        from the host.
+///
+/// @details
+///     - The returned event is not associated with any queue and is not
+///       signalled by any enqueued command. It becomes complete only when
+///       ::urEventHostSignalExp is called on it.
+///     - The event may be passed in the wait list of any command enqueued to a
+///       queue belonging to `hContext`. Such a command does not start executing
+///       until the event has been signalled from the host.
+///     - Because the event orders device work against a host action, an adapter
+///       is permitted to occupy a device submission channel for as long as the
+///       event remains unsignalled. Callers must therefore guarantee that every
+///       event they create is eventually signalled, including on error and
+///       teardown paths.
+///     - The event carries no data-visibility guarantee between devices. Any
+///       cross-device data transfer must be expressed as a separate command,
+///       and the event must be signalled only after that command has completed.
+///     - The application may call this function from simultaneous threads.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device does not report
+///         ::UR_DEVICE_INFO_HOST_SIGNAL_EVENT_SUPPORT_EXP as true.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urEventCreateHostSignalExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Signal an event created with ::urEventCreateHostSignalExp.
+///
+/// @details
+///     - Commands waiting on `hEvent` are released. Signalling an event that
+///       has already been signalled has no effect.
+///     - Passing an event that was not created by ::urEventCreateHostSignalExp
+///       results in ::UR_RESULT_ERROR_INVALID_EVENT.
+///     - The application may call this function from simultaneous threads.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///         + If `hEvent` was not created by ::urEventCreateHostSignalExp.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+ur_result_t UR_APICALL urEventHostSignalExp(
+    /// [in] handle of the event object to signal
+    ur_event_handle_t hEvent) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

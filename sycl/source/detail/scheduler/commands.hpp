@@ -308,6 +308,24 @@ public:
     return MPreparedDepsEvents;
   }
 
+  /// A dependency of another context that was replaced with a proxy event of
+  /// this command's context, see CrossContextProxy. The proxy is in
+  /// MPreparedDepsEvents, i.e. it is an ordinary backend dependency of this
+  /// command; the pair is what connecting the two on the host needs.
+  struct CrossContextProxyDep {
+    EventImplPtr Dep;
+    EventImplPtr Proxy;
+  };
+
+  const std::vector<CrossContextProxyDep> &getCrossContextProxyDeps() const {
+    return MCrossContextProxyDeps;
+  }
+
+  /// Filled while the graph is built, handed over to the host task thread pool
+  /// when this command is enqueued. Kept afterwards: the graph processor reads
+  /// it without holding MEnqueueMtx.
+  std::vector<CrossContextProxyDep> MCrossContextProxyDeps;
+
   // XPTI instrumentation. Copy code location details to the internal struct.
   // Memory is allocated in this method and released in destructor.
   void copySubmissionCodeLocation();

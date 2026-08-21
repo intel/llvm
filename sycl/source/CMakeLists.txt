@@ -295,6 +295,7 @@ set(SYCL_COMMON_SOURCES
     "detail/composite_device/composite_device.cpp"
     "detail/config.cpp"
     "detail/context_impl.cpp"
+    "detail/cross_context_proxy.cpp"
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
     "detail/device_global_map.cpp"

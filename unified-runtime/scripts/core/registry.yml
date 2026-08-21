@@ -760,7 +760,13 @@ etors:
 - name: GRAPH_GET_ID_EXP
   desc: Enumerator for $xGraphGetIdExp
   value: '326'
-max_id: '326'
+- name: EVENT_CREATE_HOST_SIGNAL_EXP
+  desc: Enumerator for $xEventCreateHostSignalExp
+  value: '327'
+- name: EVENT_HOST_SIGNAL_EXP
+  desc: Enumerator for $xEventHostSignalExp
+  value: '328'
+max_id: '328'
 ---
 type: enum
 desc: Defines structure types

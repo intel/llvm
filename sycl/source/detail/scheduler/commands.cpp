@@ -10,7 +10,9 @@
 #include <detail/host_task.hpp>
 
 #include <detail/context_impl.hpp>
+#include <detail/cross_context_proxy.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/helpers.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -753,6 +755,23 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   context_impl *WorkerContext = getWorkerContext();
   // If contexts don't match we'll connect them using host task
   if (&DepEventContext != WorkerContext && WorkerContext) {
+    // Prefer letting the adapter resolve the dependency: create an unsignalled
+    // event in the worker's context, make this command wait on it and have the
+    // host task thread pool signal it once DepEvent has retired. Unlike the
+    // host task connection below this does not hold the command back in the
+    // graph, so it is handed to the adapter right away. A host task is not
+    // submitted to a device queue, so there is nothing to gain there - it keeps
+    // waiting on the host.
+    if (!isHostTask()) {
+      if (EventImplPtr Proxy =
+              CrossContextProxy::create(*WorkerContext, DepEvent)) {
+        MPreparedDepsEvents.push_back(Proxy);
+        MCrossContextProxyDeps.push_back(
+            {std::move(DepEvent), std::move(Proxy)});
+        return nullptr;
+      }
+    }
+
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
@@ -897,6 +916,16 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
+
+  // Every dependency that was replaced with a proxy event is enqueued by now -
+  // the graph processor sees to that - so the blocking wait for it can be
+  // handed over to the host task thread pool. Done before this command is
+  // submitted, so that the pool - which may well be a single thread - gets the
+  // jobs in dependency order. Reached at most once per command: the status
+  // checks above are done under MEnqueueMtx.
+  for (const CrossContextProxyDep &P : MCrossContextProxyDeps)
+    CrossContextProxy::signalWhenRetired(P.Dep, P.Proxy, MEvent);
+
   ur_result_t Res = enqueueImp();
 
   if (UR_RESULT_SUCCESS != Res)

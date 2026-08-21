@@ -12570,6 +12570,93 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventCreateHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urEventCreateHostSignalExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_event_create_host_signal_exp_params_t params = {&hContext, &phEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urEventCreateHostSignalExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urEventCreateHostSignalExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urEventCreateHostSignalExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urEventHostSignalExp(
+    /// [in] handle of the event object to signal
+    ur_event_handle_t hEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_event_host_signal_exp_params_t params = {&hEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urEventHostSignalExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urEventHostSignalExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urEventHostSignalExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueHostTaskExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
@@ -14027,6 +14114,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnCreateHostSignalExp = driver::urEventCreateHostSignalExp;
+
+  pDdiTable->pfnHostSignalExp = driver::urEventHostSignalExp;
 
   pDdiTable->pfnCreateExp = driver::urEventCreateExp;
 
