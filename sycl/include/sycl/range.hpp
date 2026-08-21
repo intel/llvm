@@ -82,8 +82,6 @@ public:
     return result;                                                             \
   }
 
-#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
-  // Enable operators with integral types only
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
@@ -104,27 +102,6 @@ public:
     }                                                                          \
     return result;                                                             \
   }
-#else
-// RFC: remove these as well?
-#define __SYCL_GEN_OPT(op)                                                     \
-  __SYCL_GEN_OPT_BASE(op)                                                      \
-  friend range<Dimensions> operator op(const range<Dimensions> &lhs,           \
-                                       const size_t &rhs) {                    \
-    range<Dimensions> result(lhs);                                             \
-    for (int i = 0; i < Dimensions; ++i) {                                     \
-      result.common_array[i] = lhs.common_array[i] op rhs;                     \
-    }                                                                          \
-    return result;                                                             \
-  }                                                                            \
-  friend range<Dimensions> operator op(const size_t &lhs,                      \
-                                       const range<Dimensions> &rhs) {         \
-    range<Dimensions> result(rhs);                                             \
-    for (int i = 0; i < Dimensions; ++i) {                                     \
-      result.common_array[i] = lhs op rhs.common_array[i];                     \
-    }                                                                          \
-    return result;                                                             \
-  }
-#endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
   __SYCL_GEN_OPT(+)
   __SYCL_GEN_OPT(-)
