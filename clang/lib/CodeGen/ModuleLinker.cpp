@@ -64,12 +64,10 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
     llvm::Expected<std::unique_ptr<llvm::Module>> MOrErr =
         llvm::parseBitcodeFile((*BCBuf)->getMemBufferRef(), Ctx);
     if (!MOrErr) {
-      llvm::handleAllErrors(
-          MOrErr.takeError(), [&](llvm::ErrorInfoBase &EIB) {
-            CI.getDiagnostics().Report(diag::err_fe_linking_module)
-                << CI.getCodeGenOpts().OffloadBinaryToEmbedFile
-                << EIB.message();
-          });
+      llvm::handleAllErrors(MOrErr.takeError(), [&](llvm::ErrorInfoBase &EIB) {
+        CI.getDiagnostics().Report(diag::err_fe_linking_module)
+            << CI.getCodeGenOpts().OffloadBinaryToEmbedFile << EIB.message();
+      });
       LinkModules.clear();
       return true;
     }
