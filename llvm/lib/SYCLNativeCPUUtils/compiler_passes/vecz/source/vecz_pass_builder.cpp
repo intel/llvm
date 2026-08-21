@@ -123,12 +123,11 @@ void VeczPassMachinery::addClassToPassNames() {
 
   // Register a callback which skips all passes once we've failed to vectorize
   // a function.
-  PIC.registerShouldRunOptionalPassCallback([&](StringRef, llvm::Any IR) {
-    const Function *const *FPtr = any_cast<const Function *>(&IR);
-    const Function *F = FPtr ? *FPtr : nullptr;
+  PIC.registerShouldRunOptionalPassCallback([&](StringRef, llvm::IRUnitRef IR) {
+    const Function *F = dyn_cast<Function>(IR);
     if (!F) {
-      if (const auto *const *L = any_cast<const Loop *>(&IR)) {
-        F = (*L)->getHeader()->getParent();
+      if (const auto *const L = dyn_cast<Loop>(IR)) {
+        F = L->getHeader()->getParent();
       } else {
         // Always run module passes
         return true;
