@@ -2225,7 +2225,7 @@ void TypePrinter::printHLSLAttributedResourceAfter(
     OS << " [[hlsl::is_counter]]";
   if (Attrs.IsArray)
     OS << " [[hlsl::is_array]]";
-  if (Attrs.IsMultiSampled)
+  if (Attrs.isMultiSampled())
     OS << " [[hlsl::is_ms]]";
 
   QualType ContainedTy = T->getContainedType();

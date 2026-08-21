@@ -576,7 +576,7 @@ LLVM_ABI FunctionPass *createIndirectBrExpandPass();
 LLVM_ABI FunctionPass *createCFIFixupLegacy();
 
 /// Creates CFI Instruction Inserter pass. \see CFIInstrInserter.cpp
-LLVM_ABI FunctionPass *createCFIInstrInserter();
+LLVM_ABI FunctionPass *createCFIInstrInserterLegacy();
 
 /// Creates CFGuard longjmp target identification pass.
 /// \see CFGuardLongjmp.cpp

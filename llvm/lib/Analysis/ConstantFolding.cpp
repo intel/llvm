@@ -2651,9 +2651,8 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
         return GetConstantFoldFPValue128(Result, Ty);
       }
 
-      LibFunc Fp128Func = NotLibFunc;
-      if (TLI && TLI->getLibFunc(Name, Fp128Func) && TLI->has(Fp128Func) &&
-          Fp128Func == LibFunc_logl)
+      if (TLI && TLI->getLibFunc(Name) == LibFunc_logl &&
+          TLI->has(LibFunc_logl))
         return ConstantFoldFP128(logf128, Op->getValueAPF(), Ty);
     }
 #endif
@@ -3028,8 +3027,8 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     if (!TLI)
       return nullptr;
 
-    LibFunc Func = NotLibFunc;
-    if (!TLI->getLibFunc(Name, Func))
+    LibFunc Func = TLI->getLibFunc(Name);
+    if (Func == NotLibFunc)
       return nullptr;
 
     switch (Func) {
@@ -3375,8 +3374,8 @@ static Constant *ConstantFoldLibCall2(StringRef Name, Type *Ty,
   if (!TLI)
     return nullptr;
 
-  LibFunc Func = NotLibFunc;
-  if (!TLI->getLibFunc(Name, Func))
+  LibFunc Func = TLI->getLibFunc(Name);
+  if (Func == NotLibFunc)
     return nullptr;
 
   const auto *Op1 = dyn_cast<ConstantFP>(Operands[0]);
@@ -4749,8 +4748,7 @@ Constant *llvm::ConstantFoldCall(const CallBase *Call, Function *F,
   if (IID == Intrinsic::not_intrinsic) {
     if (!TLI)
       return nullptr;
-    LibFunc LibF;
-    if (!TLI->getLibFunc(*F, LibF))
+    if (TLI->getLibFunc(*F) == NotLibFunc)
       return nullptr;
   }
 
@@ -4789,8 +4787,11 @@ bool llvm::isMathLibCallNoop(const CallBase *Call,
   if (!F)
     return false;
 
-  LibFunc Func;
-  if (!TLI || !TLI->getLibFunc(*F, Func))
+  if (!TLI)
+    return false;
+
+  LibFunc Func = TLI->getLibFunc(*F);
+  if (Func == NotLibFunc)
     return false;
 
   if (Call->arg_size() == 1) {

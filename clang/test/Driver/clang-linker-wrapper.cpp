@@ -197,7 +197,7 @@
 // CHK-CMDS-AOT-AMD: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-AOT-AMD-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
 // CHK-CMDS-AOT-AMD-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
-// CHK-CMDS-AOT-AMD-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.amdgcn.gfx803.img. --target=amdgcn-amd-amdhsa -mcpu={{.*}}
+// CHK-CMDS-AOT-AMD-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.amdgpu8.03.gfx803.img. --target=amdgpu8.03-amd-amdhsa -mcpu={{.*}}
 // CHK-CMDS-AOT-AMD-NEXT: clang-offload-bundler{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
 // CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[BUNDLEROUT]]
 // CHK-CMDS-AOT-AMD-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
@@ -243,7 +243,7 @@
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT1:.*]].bc, input: {{.*}}.bc
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]]
-// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.amdgcn.gfx803.img. --target=amdgcn-amd-amdhsa -mcpu={{.*}}
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.amdgpu8.03.gfx803.img. --target=amdgpu8.03-amd-amdhsa -mcpu={{.*}}
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang-offload-bundler{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT2:.*]].bc, input: [[BUNDLEROUT]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT2]]

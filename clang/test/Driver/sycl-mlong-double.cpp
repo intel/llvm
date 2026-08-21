@@ -15,11 +15,11 @@
 // CHECK-80-NOT: clang{{.*}} "-triple" "-spir64-unknown-unknown" {{.*}} "-mlong-double-80"
 
 // RUN: not %clangxx -c -fsycl -mlong-double-128 --target=x86_64-unknown-linux-gnu -fsycl-targets=amd_gpu_gfx1031 %s -### 2>&1 | FileCheck --check-prefix=CHECK-128-AMD %s
-// CHECK-128-AMD: error: unsupported option '-mlong-double-128' for target 'amdgcn-amd-amdhsa'
+// CHECK-128-AMD: error: unsupported option '-mlong-double-128' for target 'amdgpu10.31-amd-amdhsa'
 // CHECK-128-AMD-NOT: clang{{.*}} "-triple" "-amd_gpu_gfx1031" {{.*}} "-mlong-double-128"
 
 // RUN: not %clangxx -c -fsycl -mlong-double-80 --target=x86_64-unknown-linux-gnu -fsycl-targets=amd_gpu_gfx1031 %s -### 2>&1 | FileCheck --check-prefix=CHECK-80-AMD %s
-// CHECK-80-AMD: error: unsupported option '-mlong-double-80' for target 'amdgcn-amd-amdhsa'
+// CHECK-80-AMD: error: unsupported option '-mlong-double-80' for target 'amdgpu10.31-amd-amdhsa'
 // CHECK-80-AMD-NOT: clang{{.*}} "-triple" "-amd_gpu_gfx1031" {{.*}} "-mlong-double-80"
 
 // RUN: not %clangxx -c -fsycl -mlong-double-128 --target=x86_64-unknown-linux-gnu -fsycl-targets=nvptx64-nvidia-cuda %s -### 2>&1 | FileCheck --check-prefix=CHECK-128-NVPTX %s
