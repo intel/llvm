@@ -56,7 +56,8 @@ private:
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
 public:
-  id() noexcept = default;
+  // Explicitly call base default ctor to avoid GCC deleting the defaulted one.
+  id() noexcept : base() {}
 
   /* The following constructor is only available in the id struct
    * specialization where: Dimensions==1 */
