@@ -8,16 +8,6 @@
 
 static constexpr uint32_t MAGIC_NUM1 = 2;
 
-// Execute a verification stage with data-dependent ordering constraints.
-// Proceeds only if all preconditions are met, preventing reordering of stages.
-//
-// Parameters:
-//   values1, values2, values3: shared memory arrays
-//   i: array index for this work-item
-//   expected_value1: precondition check for values1[i]
-//   expected_value2: precondition check for values2[i]
-//   expected_value3: precondition check for values3[i]
-//   increment: amount to add to values1[i] if preconditions pass
 static void execute_ordering_stage(uint32_t *values1, uint32_t *values2,
                                    uint32_t *values3, size_t i,
                                    uint32_t expected_value1,
@@ -30,18 +20,6 @@ static void execute_ordering_stage(uint32_t *values1, uint32_t *values2,
   }
 }
 
-// Execute a verification stage with data-dependent ordering constraints and
-// update values2. Proceeds only if all preconditions are met, preventing
-// reordering of stages.
-//
-// Parameters:
-//   values1, values2, values3: shared memory arrays
-//   i: array index for this work-item
-//   expected_value1: precondition check for values1[i]
-//   expected_value2: precondition check for values2[i]
-//   expected_value3: precondition check for values3[i]
-//   increment: amount to add to values1[i] if preconditions pass
-//   new_values2_value: value to set for values2[i] after increment
 static void execute_ordering_stage_and_update_values2(
     uint32_t *values1, uint32_t *values2, uint32_t *values3, size_t i,
     uint32_t expected_value1, uint32_t expected_value2,
@@ -63,32 +41,55 @@ int main() {
   uint32_t *values3 = sycl::malloc_shared<uint32_t>(array_size, queue);
 
   queue.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<class discard_events_ordering_usm>(
+    cgh.parallel_for<class discard_events_ordering_usm_stage_1>(
         sycl::range<1>{array_size}, [=](sycl::item<1> itemID) {
           size_t i = itemID.get_id(0);
           uint32_t idx = static_cast<uint32_t>(i);
-
-          // Execute all stages in strict order.
-          // Each stage can only proceed if the previous stage's conditions are
-          // met. This enforces in-order execution semantics.
-
           execute_ordering_stage_and_update_values2(
               values1, values2, values3, i, 0, idx, idx, idx, MAGIC_NUM1);
+        });
+  });
 
+  queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<class discard_events_ordering_usm_stage_2>(
+        sycl::range<1>{array_size}, [=](sycl::item<1> itemID) {
+          size_t i = itemID.get_id(0);
+          uint32_t idx = static_cast<uint32_t>(i);
           execute_ordering_stage(values1, values2, values3, i, idx, MAGIC_NUM1,
                                  idx, DISCARD_EVENTS_STAGE_2_INCREMENT);
+        });
+  });
 
+  queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<class discard_events_ordering_usm_stage_3>(
+        sycl::range<1>{array_size}, [=](sycl::item<1> itemID) {
+          size_t i = itemID.get_id(0);
+          uint32_t idx = static_cast<uint32_t>(i);
           execute_ordering_stage_and_update_values2(
               values1, values2, values3, i,
               idx + DISCARD_EVENTS_STAGE_2_INCREMENT,
               idx + DISCARD_EVENTS_STAGE_2_INCREMENT, idx,
               DISCARD_EVENTS_STAGE_3_INCREMENT, idx);
+        });
+  });
 
+  queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<class discard_events_ordering_usm_stage_4>(
+        sycl::range<1>{array_size}, [=](sycl::item<1> itemID) {
+          size_t i = itemID.get_id(0);
+          uint32_t idx = static_cast<uint32_t>(i);
           execute_ordering_stage(values1, values2, values3, i,
                                  idx + DISCARD_EVENTS_STAGE_2_INCREMENT +
                                      DISCARD_EVENTS_STAGE_3_INCREMENT,
                                  idx, idx, DISCARD_EVENTS_STAGE_4_INCREMENT);
+        });
+  });
 
+  queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<class discard_events_ordering_usm_stage_5>(
+        sycl::range<1>{array_size}, [=](sycl::item<1> itemID) {
+          size_t i = itemID.get_id(0);
+          uint32_t idx = static_cast<uint32_t>(i);
           execute_ordering_stage(values1, values2, values3, i,
                                  idx + DISCARD_EVENTS_STAGE_2_INCREMENT +
                                      DISCARD_EVENTS_STAGE_3_INCREMENT +

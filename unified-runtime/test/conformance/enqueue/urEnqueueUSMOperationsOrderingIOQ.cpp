@@ -55,10 +55,12 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
     auto entry_points = uur::KernelsEnvironment::instance->GetEntryPointNames(
         "discard_events_ordering_usm");
-    ASSERT_FALSE(entry_points.empty());
-    kernel_name = entry_points[0];
-    ASSERT_FALSE(kernel_name.empty());
-    ASSERT_SUCCESS(urKernelCreate(program, kernel_name.c_str(), &kernel));
+    ASSERT_EQ(entry_points.size(), 5u);
+    for (size_t stage = 0; stage < entry_points.size(); ++stage) {
+      ASSERT_FALSE(entry_points[stage].empty());
+      ASSERT_SUCCESS(urKernelCreate(program, entry_points[stage].c_str(),
+                                    &kernels[stage]));
+    }
 
     const QueueParameter params = getParam();
     const ur_queue_flag_t submission_mode = params.submission_mode;
@@ -82,8 +84,10 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     if (queue) {
       ASSERT_SUCCESS(urQueueRelease(queue));
     }
-    if (kernel) {
-      ASSERT_SUCCESS(urKernelRelease(kernel));
+    for (ur_kernel_handle_t kernel : kernels) {
+      if (kernel) {
+        ASSERT_SUCCESS(urKernelRelease(kernel));
+      }
     }
     if (program) {
       ASSERT_SUCCESS(urProgramRelease(program));
@@ -212,7 +216,8 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     const size_t global_offset[] = {0};
     const size_t global_size[] = {array_size};
 
-    auto enqueue_kernel_with_pointers = [&](void *p1, void *p2, void *p3) {
+    auto enqueue_kernel_with_pointers = [&](ur_kernel_handle_t kernel, void *p1,
+                                            void *p2, void *p3) {
       ur_exp_kernel_arg_properties_t args[] = {ptr_arg(p1, 0), ptr_arg(p2, 1),
                                                ptr_arg(p3, 2)};
       EXPECT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
@@ -220,17 +225,22 @@ struct urEnqueueUSMOperationsOrderingIOQTest
           nullptr, 0, nullptr, nullptr));
     };
 
-    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
-    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
+    enqueue_kernel_with_pointers(kernels[0], values1.get(), values2.get(),
+                                 values3.get());
+    enqueue_kernel_with_pointers(kernels[1], values1.get(), values2.get(),
+                                 values3.get());
 
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, tmp.data(), values1.get(),
                                       allocation_size, 0, nullptr, nullptr));
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, values2.get(), tmp.data(),
                                       allocation_size, 0, nullptr, nullptr));
 
-    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
-    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
-    enqueue_kernel_with_pointers(values1.get(), values2.get(), values3.get());
+    enqueue_kernel_with_pointers(kernels[2], values1.get(), values2.get(),
+                                 values3.get());
+    enqueue_kernel_with_pointers(kernels[3], values1.get(), values2.get(),
+                                 values3.get());
+    enqueue_kernel_with_pointers(kernels[4], values1.get(), values2.get(),
+                                 values3.get());
 
     EXPECT_SUCCESS(urEnqueueUSMMemcpy(queue, false, out1.data(), values1.get(),
                                       allocation_size, 0, nullptr, nullptr));
@@ -259,9 +269,8 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
   std::shared_ptr<std::vector<char>> il_binary;
   std::vector<ur_program_metadata_t> metadatas{};
-  std::string kernel_name;
   ur_program_handle_t program = nullptr;
-  ur_kernel_handle_t kernel = nullptr;
+  ur_kernel_handle_t kernels[5] = {};
   ur_queue_handle_t queue = nullptr;
 };
 
