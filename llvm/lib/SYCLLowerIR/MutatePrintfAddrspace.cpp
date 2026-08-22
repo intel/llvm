@@ -21,6 +21,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -70,7 +71,7 @@ ModulePass *llvm::createSYCLMutatePrintfAddrspaceLegacyPass() {
 PreservedAnalyses
 SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto *CASLiteralType = PointerType::get(M.getContext(), ConstantAddrspaceID);
-  Function *CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType);
+  Function *CASPrintfFunc = nullptr;
 
   FunctionVecTy FunctionsToDrop;
   bool ModuleChanged = false;
@@ -82,6 +83,8 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
     if (F.getArg(0)->getType() == CASLiteralType)
       // No need to replace the literal type and its printf users
       continue;
+    if (!CASPrintfFunc)
+      CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType);
     ModuleChanged |=
         setFuncCallsOntoCASPrintf(&F, CASPrintfFunc, FunctionsToDrop);
   }
@@ -106,7 +109,9 @@ Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType) {
   FunctionCallee CASPrintfFuncCallee =
       M.getOrInsertFunction("_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy);
   auto *CASPrintfFunc = cast<Function>(CASPrintfFuncCallee.getCallee());
-  CASPrintfFunc->setCallingConv(CallingConv::SPIR_FUNC);
+  Triple TT(M.getTargetTriple());
+  if (TT.isSPIROrSPIRV())
+    CASPrintfFunc->setCallingConv(CallingConv::SPIR_FUNC);
   CASPrintfFunc->setDSOLocal(true);
   return CASPrintfFunc;
 }
