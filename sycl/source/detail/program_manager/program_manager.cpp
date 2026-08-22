@@ -876,6 +876,18 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+
+  if (m_DumpImagesLevel == 2 && !m_UseSpvFile) {
+    static uint32_t RuntimeSeqID = 0;
+    std::lock_guard<std::mutex> Lock(m_DumpedImagesMutex);
+    for (const RTDeviceBinaryImage *BinImg : ImgWithDeps) {
+      if (m_DumpedImages.insert(BinImg).second) {
+        CheckAndDecompressImage(BinImg);
+        dumpImage(*BinImg, ++RuntimeSeqID);
+      }
+    }
+  }
+
   auto BuildF = [this, &ImgWithDeps, &DevImgWithDeps, &ContextImpl, &Devs,
                  &CompileOpts, &LinkOpts, &SpecConsts, AllowUnresolvedSymbols] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
@@ -1209,6 +1221,11 @@ static ur_result_t doCompile(adapter_impl &Adapter, ur_program_handle_t Program,
 
 ProgramManager::ProgramManager()
     : m_SanitizerFoundInImage(SanitizerType::None) {
+  if (const char *DumpImagesEnv = std::getenv("SYCL_DUMP_IMAGES")) {
+    int Val = std::atoi(DumpImagesEnv);
+    m_DumpImagesLevel = Val == 2 ? 2 : 1;
+  }
+
   const char *SpvFile = std::getenv(UseSpvEnv);
   // If a SPIR-V file is specified with an environment variable,
   // register the corresponding image
@@ -1673,7 +1690,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
                               bool RegisterImgExports,
                               RTDeviceBinaryImage **OutImage,
                               std::vector<kernel_id> *OutKernelIDs) {
-  const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
+  const bool DumpImages = m_DumpImagesLevel == 1 && !m_UseSpvFile;
   const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
   const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
   // Treat the image as empty one
@@ -1778,16 +1795,19 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
   }
 
   if (DumpImages) {
-    const bool NeedsSequenceID =
-        std::any_of(m_BinImg2KernelIDs.begin(), m_BinImg2KernelIDs.end(),
-                    [&](auto &CurrentImg) {
-                      return CurrentImg.first->getFormat() == Img->getFormat();
-                    });
+    std::lock_guard<std::mutex> Lock(m_DumpedImagesMutex);
+    if (m_DumpedImages.insert(Img.get()).second) {
+      const bool NeedsSequenceID = std::any_of(
+          m_BinImg2KernelIDs.begin(), m_BinImg2KernelIDs.end(),
+          [&](auto &CurrentImg) {
+            return CurrentImg.first->getFormat() == Img->getFormat();
+          });
 
-    // Check if image is compressed, and decompress it before dumping.
-    CheckAndDecompressImage(Img.get());
+      // Check if image is compressed, and decompress it before dumping.
+      CheckAndDecompressImage(Img.get());
 
-    dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
+      dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
+    }
   }
 
   std::shared_ptr<std::vector<kernel_id>> &KernelIDs =

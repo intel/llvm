@@ -536,6 +536,13 @@ protected:
   // Protects m_DeviceKernelInfoMap.
   mutable std::mutex m_DeviceKernelInfoMapMutex;
 
+  // Level of SYCL_DUMP_IMAGES: 0=off, 1=all loaded, 2=only used at runtime
+  unsigned m_DumpImagesLevel = 0;
+
+  // Tracks images already dumped to avoid duplicates.
+  std::set<const RTDeviceBinaryImage *> m_DumpedImages;
+  std::mutex m_DumpedImagesMutex;
+
   // Sanitizer type used in device image
   SanitizerType m_SanitizerFoundInImage;
 
