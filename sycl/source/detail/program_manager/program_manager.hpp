@@ -418,8 +418,9 @@ private:
         const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
         bool CreatedFromBinary = false, bool AllowUnresolvedSymbols = false);
 
-  /// Dumps image to current directory
-  void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
+  /// Dumps image to current directory, returns the name of the written file.
+  std::string dumpImage(const RTDeviceBinaryImage &Img,
+                        uint32_t SequenceID = 0) const;
 
   std::set<const RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
@@ -536,11 +537,9 @@ protected:
   // Protects m_DeviceKernelInfoMap.
   mutable std::mutex m_DeviceKernelInfoMapMutex;
 
-  // Level of SYCL_DUMP_IMAGES: 0=off, 1=all loaded, 2=only used at runtime
-  unsigned m_DumpImagesLevel = 0;
-
-  // Tracks images already dumped to avoid duplicates.
-  std::set<const RTDeviceBinaryImage *> m_DumpedImages;
+  // Maps images dumped upon use to the file they were dumped to, to avoid
+  // duplicate dumps and to report the file name on subsequent uses.
+  std::map<const RTDeviceBinaryImage *, std::string> m_DumpedImages;
   std::mutex m_DumpedImagesMutex;
 
   // Sanitizer type used in device image
