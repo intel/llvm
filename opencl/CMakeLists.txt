@@ -15,6 +15,11 @@ endif()
 # library.
 set(BUILD_SHARED_LIBS ON)
 
+if(NOT LLVM_MAIN_SRC_DIR)
+  find_package(LLVM REQUIRED CONFIG)
+  include(AddLLVM)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/../unified-runtime/cmake")
 
 include(FetchOpenCL)
