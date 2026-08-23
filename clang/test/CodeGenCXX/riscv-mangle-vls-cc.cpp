@@ -56,7 +56,7 @@ template void template_<int>(int);
 // CHECK-DAG: @_Z9vector_ccv
 __attribute__((riscv_vector_cc)) void vector_cc() {}
 
-// CHECK-DAG: @"_ZNK3$_0clB16riscv_vls_cc_128Ev"
+// CHECK-DAG: @"_ZNK3lamM3$_0clB16riscv_vls_cc_128Ev"
 auto lam = []() __attribute__((riscv_vls_cc(128))) {};
 void use_lam() { lam(); }
 
