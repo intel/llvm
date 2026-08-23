@@ -21,7 +21,7 @@ __attribute__((always_inline)) void bar() {}
 // CHECK: define {{.*}}void @_Z3barv() #[[ALWAYSINLINE:[0-9]+]]
 
 auto lambda = []() __attribute__((always_inline)) { return 42; };
-// CHECK: define {{.*}} @"_ZNK3$_1clEv"({{.*}}) #[[ALWAYSINLINE]]
+// CHECK: define {{.*}} @"_ZNK6lambdaM3$_1clEv"({{.*}}) #[[ALWAYSINLINE]]
 
 int caller() {
   bar();
