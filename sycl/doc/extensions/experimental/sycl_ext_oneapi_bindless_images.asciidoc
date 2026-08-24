@@ -182,6 +182,11 @@ enum class image_type : /* unspecified */ {
   gather,
 };
 
+enum class image_color_space : /* unspecified */ {
+  linear,
+  srgb,
+};
+
 struct image_descriptor {
   size_t width{0};
   size_t height{0};
@@ -194,6 +199,7 @@ struct image_descriptor {
   unsigned int num_samples{0};
   size_t row_pitch{0};
   size_t slice_pitch{0};
+  image_color_space color_space{image_color_space::linear};
 
   image_descriptor() = default;
 
@@ -201,19 +207,22 @@ struct image_descriptor {
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
                    unsigned int num_levels = 1, unsigned int array_size = 1,
-                   unsigned int num_samples = 0);
+                   unsigned int num_samples = 0,
+                   image_color_space color_space = image_color_space::linear);
 
   image_descriptor(range<2> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
                    unsigned int num_levels = 1, unsigned int array_size = 1,
-                   unsigned int num_samples = 0, size_t row_pitch = 0, size_t slice_pitch = 0);
+                   unsigned int num_samples = 0, size_t row_pitch = 0, size_t slice_pitch = 0,
+                   image_color_space color_space = image_color_space::linear);
 
   image_descriptor(range<3> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
                    unsigned int num_levels = 1, unsigned int array_size = 1,
-                   unsigned int num_samples = 0, size_t row_pitch = 0, size_t slice_pitch = 0);
+                   unsigned int num_samples = 0, size_t row_pitch = 0, size_t slice_pitch = 0,
+                   image_color_space color_space = image_color_space::linear);
 
   image_descriptor get_mip_level_desc(unsigned int level) const;
 
@@ -313,6 +322,21 @@ When an API also accepts an explicit pitch parameter (for example,
 explicit parameter takes precedence when it is non-zero. The `row_pitch` value
 carried in the `image_descriptor` is used only when no non-zero explicit pitch
 is supplied.
+====
+
+The `color_space` member specifies whether the image's raw pixel data is
+stored in sRGB or linear color space, and defaults to `linear`.
+When set to `srgb`, hardware applies the IEC 61966-2-1 sRGB decode on fetch
+or sample, returning linear values to the kernel.
+
+The `verify` member function will reject a `color_space` of `srgb` unless
+`num_channels` is `4` and `channel_type` is `unorm_int8`.
+
+[NOTE]
+====
+`image_color_space` and hardware sRGB decode are only available when the
+`-fpreview-breaking-changes` flag is enabled, and are currently only
+implemented in the Level Zero backend.
 ====
 
 ==== Querying image support
