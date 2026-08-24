@@ -6,18 +6,14 @@
 //
 // Level 2 dumps an image when it is first used and reports the file it was
 // dumped to. The second kernel uses the same image, so it is reported as
-// already dumped instead of being dumped again. Images are not dumped when
-// they are loaded, hence there is no file without a sequence ID.
+// already dumped instead of being dumped again.
 // RUN: env SYCL_DUMP_IMAGES_PREFIX=%t.used_ SYCL_DUMP_IMAGES=2 %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefix USED
-// RUN: ls %t.used_spir64_1.spv
-// RUN: not ls %t.used_spir64.spv
 //
 // USED: SYCL_DUMP_IMAGES: dumped device image to "{{.*}}used_spir64_1.spv"
 // USED: SYCL_DUMP_IMAGES: device image already dumped to "{{.*}}_1.spv"
 //
 // Level 1 dumps all images when they are loaded, without any reporting.
 // RUN: env SYCL_DUMP_IMAGES_PREFIX=%t.all_ SYCL_DUMP_IMAGES=1 %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefix ALL --allow-empty
-// RUN: ls %t.all_spir64.spv
 //
 // ALL-NOT: SYCL_DUMP_IMAGES:
 

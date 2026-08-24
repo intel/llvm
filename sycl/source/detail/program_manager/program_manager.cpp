@@ -1692,8 +1692,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
                               bool RegisterImgExports,
                               RTDeviceBinaryImage **OutImage,
                               std::vector<kernel_id> *OutKernelIDs) {
-  const bool DumpImages =
-      SYCLConfig<SYCL_DUMP_IMAGES>::dumpAll() && !m_UseSpvFile;
   const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
   const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
   // Treat the image as empty one
@@ -1797,7 +1795,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       m_VFSet2BinImage[SetName].insert(Img.get());
   }
 
-  if (DumpImages) {
+  if (SYCLConfig<SYCL_DUMP_IMAGES>::dumpAll() && !m_UseSpvFile) {
     const bool NeedsSequenceID =
         std::any_of(m_BinImg2KernelIDs.begin(), m_BinImg2KernelIDs.end(),
                     [&](auto &CurrentImg) {
@@ -1806,7 +1804,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
     // Check if image is compressed, and decompress it before dumping.
     CheckAndDecompressImage(Img.get());
-
     dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
   }
 

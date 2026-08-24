@@ -179,12 +179,10 @@ private:
 // Any other value - dump all device images loaded into the runtime.
 template <> class SYCLConfig<SYCL_DUMP_IMAGES> {
   using BaseT = SYCLConfigBase<SYCL_DUMP_IMAGES>;
-
   enum Level { Off = 0, All = 1, UsedOnly = 2 };
 
 public:
   static bool dumpUsedOnly() { return getLevel() == UsedOnly; }
-
   static bool dumpAll() { return getLevel() == All; }
 
 private:
