@@ -34,7 +34,11 @@ inline namespace _V1 {
 
 namespace ext::intel {
 namespace property {
-struct __SYCL_TYPE(buffer_location) buffer_location {
+// Local divergence from the v6.3.0 import: __SYCL_TYPE(buffer_location) dropped.
+// The sycl_type 'buffer_location' arg was removed from clang (FPGA metadata
+// removal, intel/llvm#22499); it is a no-op under the new compiler and otherwise
+// errors as an unsupported attribute argument during RTC device compilation.
+struct buffer_location {
   template <int A = 0> struct instance {
     template <int B>
     constexpr bool operator==(const buffer_location::instance<B> &) const {
