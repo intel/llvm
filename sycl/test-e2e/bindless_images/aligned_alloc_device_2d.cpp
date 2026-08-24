@@ -4,8 +4,8 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images_2d_usm
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_2d_usm
 
-// Support for ZE_STRUCTURE_TYPE_CUSTOM_PITCH_EXP_DESC was added in Level Zero build 38646.
-// REQUIRES-INTEL-DRIVER: lin: 38646
+// Support for ZE_STRUCTURE_TYPE_CUSTOM_PITCH_EXP_DESC was added in Level Zero
+// build 38646. REQUIRES-INTEL-DRIVER: lin: 38646
 
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
