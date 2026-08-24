@@ -198,8 +198,12 @@ int main() {
   using DRC = sycl::info::device::reference_count;
   // expected-warning@+1{{'reference_count' is deprecated: info::event::reference_count is not part of SYCL 2020}}
   using ERC = sycl::info::event::reference_count;
+  // expected-warning@+1{{'function_name' is deprecated: info::kernel::function_name is deprecated.}}
+  using KFN = sycl::info::kernel::function_name;
   // expected-warning@+1{{'reference_count' is deprecated: info::kernel::reference_count is deprecated.}}
   using KRC = sycl::info::kernel::reference_count;
+  // expected-warning@+1{{'context' is deprecated: info::kernel::context is deprecated. Use kernel::get_context() instead.}}
+  using KC = sycl::info::kernel::context;
   // expected-warning@+1{{'reference_count' is deprecated: info::queue::reference_count is not part of SYCL 2020}}
   using QRC = sycl::info::queue::reference_count;
 

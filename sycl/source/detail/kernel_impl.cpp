@@ -124,11 +124,12 @@ std::string_view kernel_impl::getName() const {
     Adapter.call<UrApiKind::urKernelGetInfo>(
         MKernel, UR_KERNEL_INFO_FUNCTION_NAME, 0u, nullptr, &NameSize);
     if (NameSize > 0) {
-      MName.resize(NameSize);
+      std::string Name(NameSize, '\0');
       Adapter.call<UrApiKind::urKernelGetInfo>(MKernel,
                                                UR_KERNEL_INFO_FUNCTION_NAME,
-                                               NameSize, MName.data(), nullptr);
-      MName.pop_back();
+                                               NameSize, Name.data(), nullptr);
+      Name.pop_back();
+      MName = std::move(Name);
     }
   });
 
