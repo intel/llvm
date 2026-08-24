@@ -2,6 +2,15 @@
 
 set(SYCL_JIT_RESOURCE_CPP "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp")
 set(SYCL_JIT_RESOURCE_OBJ "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp.o")
+set(SYCL_JIT_RESOURCE_SHARD_DIR "${CMAKE_CURRENT_BINARY_DIR}/resource-shards")
+set(SYCL_JIT_RESOURCE_NUM_SHARDS 16)
+# `generate.py` packs #embed'd files into fixed resource-shard-N.cpp units for
+# parallel compilation. This count allows path declaration at configure time.
+set(SYCL_JIT_RESOURCE_SHARD_CPPS)
+math(EXPR SYCL_JIT_RESOURCE_LAST_SHARD "${SYCL_JIT_RESOURCE_NUM_SHARDS} - 1")
+foreach(shard_index RANGE 0 ${SYCL_JIT_RESOURCE_LAST_SHARD})
+  list(APPEND SYCL_JIT_RESOURCE_SHARD_CPPS "${SYCL_JIT_RESOURCE_SHARD_DIR}/resource-shard-${shard_index}.cpp")
+endforeach()
 
 if (WIN32)
 set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "c:/sycl-jit-toolchain/")
@@ -76,8 +85,8 @@ add_custom_target(rtc-prepare-resources
 )
 
 add_custom_command(
-  OUTPUT ${SYCL_JIT_RESOURCE_CPP}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
+  OUTPUT ${SYCL_JIT_RESOURCE_CPP} ${SYCL_JIT_RESOURCE_SHARD_CPPS}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT} --shard-dir ${SYCL_JIT_RESOURCE_SHARD_DIR} --num-shards ${SYCL_JIT_RESOURCE_NUM_SHARDS}
   DEPENDS
   rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_DEPS}
@@ -111,6 +120,21 @@ else()
   endif()
 endif()
 
+# Compile each of the fixed set of resource-shard-N.cpp files (declared above).
+set(SYCL_JIT_RESOURCE_SHARD_OBJS)
+foreach(shard_cpp IN LISTS SYCL_JIT_RESOURCE_SHARD_CPPS)
+  set(shard_obj "${shard_cpp}.o")
+  add_custom_command(
+    OUTPUT ${shard_obj}
+    COMMAND
+    ${clang_exe} --target=${LLVM_HOST_TRIPLE} ${shard_cpp} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${shard_obj} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
+    DEPENDS
+    ${shard_cpp}
+    ${SYCL_JIT_RESOURCE_CPP}
+  )
+  list(APPEND SYCL_JIT_RESOURCE_SHARD_OBJS ${shard_obj})
+endforeach()
+
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_OBJ}
   COMMAND
@@ -140,6 +164,7 @@ add_llvm_library(sycl-jit
    lib/helper/ErrorHelper.cpp
 
    ${SYCL_JIT_RESOURCE_OBJ}
+   ${SYCL_JIT_RESOURCE_SHARD_OBJS}
 
    SHARED
 
@@ -187,10 +212,7 @@ if(WIN32)
   target_link_libraries(sycl-jit PRIVATE Shlwapi)
 endif()
 
-target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
-# Host GCC can hit -Werror=conversion on Clang headers in DeviceCompilation.cpp;
-target_compile_options(sycl-jit PRIVATE
-  $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=conversion>)
+sycl_jit_apply_target_warning_flags(sycl-jit)
 
 # Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.
 # This classification remains intact even if the same paths are added as normal

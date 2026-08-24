@@ -11,8 +11,10 @@
 //
 // The test checks functionality of the gather/scatter local
 // accessor-based ESIMD intrinsics.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
+#include <sycl/group_barrier.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -46,7 +48,7 @@ template <typename T, unsigned VL> bool test(queue q) {
     nd_range<1> NDRange{range<1>{GlobalRange}, range<1>{LocalRange}};
     q.submit([&](handler &CGH) {
        auto LocalAcc = local_accessor<T, 1>(Size, CGH);
-       auto Acc = buf.template get_access<access::mode::read_write>(CGH);
+       auto Acc = buf.template get_access<access_mode::read_write>(CGH);
        CGH.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
          uint32_t GID = Item.get_global_id(0);
          uint32_t LID = Item.get_local_id(0);
@@ -54,7 +56,7 @@ template <typename T, unsigned VL> bool test(queue q) {
          simd<T, VL> ValuesToSLM(GID * 100, 1);
          ValuesToSLM.copy_to(LocalAcc, LID * VL * sizeof(T));
 
-         Item.barrier();
+         group_barrier(Item.get_group());
 
          if (LID == 0) {
            for (int LID = 0; LID < LocalRange; LID++) {

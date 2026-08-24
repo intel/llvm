@@ -13,7 +13,7 @@ template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
 
   void operator()(sycl::handler &cgh) {
     auto C =
-        this->getOutputBuffer().template get_access<sycl::access::mode::write>(
+        this->getOutputBuffer().template get_access<sycl::access_mode::write>(
             cgh);
     cgh.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},

@@ -22,7 +22,7 @@ bool func(sycl::queue &Queue, int depth = 0) {
   // Submit command group(work) to queue.
   Queue.submit([&](sycl::handler &cgh) {
     // Get write only access to the buffer on a device.
-    auto Accessor = Buffer.get_access<sycl::access::mode::write>(cgh);
+    auto Accessor = Buffer.get_access<sycl::access_mode::write>(cgh);
     // Execute kernel.
     cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
       Accessor[WIid] = static_cast<int>(WIid.get(0));

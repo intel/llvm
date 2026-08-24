@@ -65,6 +65,10 @@ checkDevSupportDeviceRequirements(const device_impl &Dev,
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
                                 const device_impl &DevImpl);
 
+/// Returns the SYCL device architecture name string (e.g. "intel_gpu_pvc")
+/// for \p DeviceImpl, or "unknown" when the architecture is not recognized.
+const char *getArchName(const device_impl &DeviceImpl);
+
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;

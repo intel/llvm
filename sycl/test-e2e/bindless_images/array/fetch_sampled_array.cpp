@@ -2,8 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_image_array
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-INTENDED: image array not currently supported on AMD
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -13,6 +11,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/half_type.hpp>
+#include <sycl/vector.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

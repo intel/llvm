@@ -15,9 +15,6 @@
 #ifndef __has_extension
 #define __has_extension(x) 0
 #endif
-#ifdef __HAS_EXT_VECTOR_TYPE__
-#error "Undefine __HAS_EXT_VECTOR_TYPE__ macro"
-#endif
 #if __has_extension(attribute_ext_vector_type)
 #define __HAS_EXT_VECTOR_TYPE__
 #endif

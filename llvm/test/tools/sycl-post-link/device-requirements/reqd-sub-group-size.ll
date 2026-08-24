@@ -44,19 +44,19 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB = comdat any
 $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC = comdat any
 
 ; Function Attrs: norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !48 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !50 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !48 !intel_reqd_sub_group_size !50 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
 ; Function Attrs: norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !51 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !52 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !51 !intel_reqd_sub_group_size !52 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
 ; Function Attrs: norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !53 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !50 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !53 !intel_reqd_sub_group_size !50 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
@@ -119,7 +119,7 @@ attributes #0 = { norecurse nounwind "frame-pointer"="all" "no-trapping-math"="t
 !47 = !{!"clang version 17.0.0 (https://github.com/jzc/llvm eed5b5576bef314433e8ae7313620dae399c9d22)"}
 !48 = !{i32 170}
 !49 = !{}
-!50 = !{i32 16}
+!50 =!{i32 16}
 !51 = !{i32 351}
 !52 = !{i32 32}
 !53 = !{i32 532}

@@ -16,7 +16,7 @@ if(WIN32)
   set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 else()
   # On other platforms, install to lib/dpcpp-<major_ver>/sycl
-  set(bc_dir "lib/dpcpp-${DPCPP_VERSION_MAJOR}/sycl")
+  set(bc_dir "lib${LLVM_LIBDIR_SUFFIX}/dpcpp-${DPCPP_VERSION_MAJOR}/sycl")
   set(install_dest_bc ${bc_dir})
   set(bc_binary_dir "${CMAKE_BINARY_DIR}/${bc_dir}")
 endif()

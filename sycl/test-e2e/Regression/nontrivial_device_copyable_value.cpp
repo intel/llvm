@@ -28,7 +28,7 @@ int main() {
     buffer<int, 1> Buff{&Res, range<1>{1}};
 
     Q.submit([&](sycl::handler &cgh) {
-      auto Acc = Buff.get_access<access::mode::write>(cgh);
+      auto Acc = Buff.get_access<access_mode::write>(cgh);
       cgh.single_task<class Kernel>([=] { Acc[0] = C.i; });
     });
   }

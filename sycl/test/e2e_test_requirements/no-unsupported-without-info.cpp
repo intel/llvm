@@ -1,160 +1,40 @@
-// This test is intended to ensure that we have no tests marked as
-// UNSUPPORTED without an information added to a test.
-// For more info see: sycl/test-e2e/README.md
-//
-// The format we check is:
+// This test verifies that there are no untracked UNSUPPORTED tests.
+
+// If this test fails for your patch, it means that you either introduced
+// an UNSUPPORTED directive incorrectly, or broke the format of an
+// existing UNSUPPORTED test.
+
+// For more info see:
+// https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md#marking-tests-as-unsupported
+
+// The expected format is:
 // UNSUPPORTED: lit,features
 // UNSUPPORTED-TRACKER: [GitHub issue URL|Internal tracker ID]
 // *OR*
 // UNSUPPORTED: lit,features
-// UNSUPPORTED-INTENDED: explanation why the test isn't intended to be run with this feature
-//
+// UNSUPPORTED-INTENDED: explanation why the test isn't intended to run
+// with this feature
+
 // GitHub issue URL format:
 //     https://github.com/owner/repo/issues/12345
-//
+
 // Internal tracker ID format:
 //     PROJECT-123456
-//
+
 // REQUIRES: linux
-//
-// Explanation of the command:
-// - search for all "UNSUPPORTED" occurrences, display line with match and the next one
-//   -I, --include to drop binary files and other unrelated files
-// - in the result, search for "UNSUPPORTED" again, but invert the result - this
-//   allows us to get the line *after* UNSUPPORTED
-// - in those lines, check that UNSUPPORTED-TRACKER or UNSUPPORTED-INTENDED is
-//   present and correct. Once again, invert the search to get all "bad" lines
-//   and save the test names in the temp file
-// - make a final count of how many ill-formatted directives there are and
-//   verify that against the reference
-// - ...and check if the list of improperly UNSUPPORTED tests needs to be updated.
-//
-// RUN: grep -rI "UNSUPPORTED:" %S/../../test-e2e \
-// RUN: -A 1 --include=*.cpp --no-group-separator | \
+
+// Command explanation:
+// - Search for all "UNSUPPORTED" occurrences and print each matching line
+//   plus the next line. The -I and --include options skip binary and
+//   unrelated files.
+// - In that output, search for "UNSUPPORTED" again and invert the match.
+//   This leaves the line *after* each UNSUPPORTED line.
+// - In those lines, verify that UNSUPPORTED-TRACKER or
+//   UNSUPPORTED-INTENDED is present and correctly formatted. Invert this
+//   match again to keep only "bad" lines.
+// - There must be no bad lines, so we assert that the final grep fails
+//   by using the not operator.
+
+// RUN: grep -rI "UNSUPPORTED:" %S/../../test-e2e -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "UNSUPPORTED:" | \
-// RUN: grep -Pv "(?:UNSUPPORTED-TRACKER:\s+(?:(?:https:\/\/github.com\/[\w\d-]+\/[\w\d-]+\/issues\/[\d]+)|(?:[\w]+-[\d]+)))|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
-// RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-UNSUPPORTED-WITHOUT-INFO
-// RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | FileCheck %s
-//
-// The number below is a number of tests which are *improperly* UNSUPPORTED, i.e.
-// we either don't have a tracker associated with a failure listed in those
-// tests, or it is listed in a wrong format.
-// Note: strictly speaking, that is not amount of files, but amount of UNSUPPORTED
-// directives. If a test contains several UNSUPPORTED directives, some of them may be
-// valid and other may not.
-//
-// That number *must not* increase. Any PR which causes this number to grow
-// should be rejected and it should be updated to either keep the number as-is
-// or have it reduced (preferably, down to zero).
-//
-// If you see this test failed for your patch, it means that you either
-// introduced UNSUPPORTED directive to a test improperly, or broke the format of an
-// existing UNSUPPORTED tests.
-// Another possibility (and that is a good option) is that you updated some
-// tests to match the required format and in that case you should just update
-// (i.e. reduce) the number and the list below.
-//
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 99
-//
-// List of improperly UNSUPPORTED tests.
-// Remove the CHECK once the test has been properly UNSUPPORTED.
-//
-// CHECK: Adapters/level_zero/batch_event_status.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-buffer-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop.cpp
-// CHECK-NEXT: Adapters/level_zero/queue_profiling.cpp
-// CHECK-NEXT: Adapters/level_zero/usm_device_read_only.cpp
-// CHECK-NEXT: AmdNvidiaJIT/kernel_and_bundle.cpp
-// CHECK-NEXT: Assert/assert_in_simultaneous_kernels.cpp
-// CHECK-NEXT: Assert/assert_in_simultaneously_multiple_tus.cpp
-// CHECK-NEXT: Assert/check_resource_leak.cpp
-// CHECK-NEXT: Basic/buffer/buffer_create.cpp
-// CHECK-NEXT: Basic/build_log.cpp
-// CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
-// CHECK-NEXT: Basic/submit_time.cpp
-// CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
-// CHECK-NEXT: DeviceLib/built-ins/printf.cpp
-// CHECK-NEXT: DeviceLib/separate_compile_test.cpp
-// CHECK-NEXT: ESIMD/api/replicate_smoke.cpp
-// CHECK-NEXT: ESIMD/api/simd_copy_to_from.cpp
-// CHECK-NEXT: ESIMD/api/simd_copy_to_from_stateful.cpp
-// CHECK-NEXT: ESIMD/api/simd_subscript_operator.cpp
-// CHECK-NEXT: ESIMD/api/simd_view_subscript_operator.cpp
-// CHECK-NEXT: ESIMD/api/svm_gather_scatter.cpp
-// CHECK-NEXT: ESIMD/api/svm_gather_scatter_scalar_off.cpp
-// CHECK-NEXT: ESIMD/ext_math.cpp
-// CHECK-NEXT: ESIMD/ext_math_fast.cpp
-// CHECK-NEXT: ESIMD/ext_math_saturate.cpp
-// CHECK-NEXT: ESIMD/fp_in_phi.cpp
-// CHECK-NEXT: ESIMD/matrix_transpose2.cpp
-// CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
-// CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
-// CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
-// CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: HierPar/hier_par_wgscope.cpp
-// CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
-// CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/popcnt.cpp
-// CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
-// CHECK-NEXT: KernelAndProgram/cache-build-result.cpp
-// CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options-env.cpp
-// CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options.cpp
-// CHECK-NEXT: KernelAndProgram/level-zero-static-link-flow.cpp
-// CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
-// CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_abc.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_ops.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_ops_half.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_ops_int8.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_ops_int8_packed.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_all_sizes.cpp
-// CHECK-NEXT: Matrix/SG32/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SG32/get_coordinate_ops.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_all_sizes.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_apply_bf16.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_apply_two_matrices.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_SLM.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_init.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll_init.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_ss_int8.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_su_int8.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_transposeC.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_us_int8.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_uu_int8.cpp
-// CHECK-NEXT: Matrix/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
-// CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
-// CHECK-NEXT: Printf/char.cpp
-// CHECK-NEXT: Printf/double.cpp
-// CHECK-NEXT: Printf/float.cpp
-// CHECK-NEXT: Printf/int.cpp
-// CHECK-NEXT: Printf/mixed-address-space.cpp
-// CHECK-NEXT: Printf/percent-symbol.cpp
-// CHECK-NEXT: Regression/barrier_waitlist_with_interop_event.cpp
-// CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
-// CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
-// CHECK-NEXT: Regression/no-split-reqd-wg-size-2.cpp
-// CHECK-NEXT: Regression/no-split-reqd-wg-size.cpp
-// CHECK-NEXT: Regression/static-buffer-dtor.cpp
-// CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
-// CHECK-NEXT: SpecConstants/2020/non_native/gpu.cpp
-// CHECK-NEXT: SubGroup/generic_reduce.cpp
-// CHECK-NEXT: Tracing/code_location_queue_copy.cpp
-// CHECK-NEXT: Tracing/code_location_queue_parallel_for.cpp
-// CHECK-NEXT: Tracing/code_location_queue_submit.cpp
-// CHECK-NEXT: Tracing/task_execution.cpp
-// CHECK-NEXT: Tracing/task_execution_handler.cpp
-// CHECK-NEXT: Tracing/usm/queue_copy_released_pointer.cpp
-// CHECK-NEXT: Tracing/usm/queue_single_task_nullptr.cpp
-// CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
-// CHECK-NEXT: USM/badmalloc.cpp
+// RUN: not grep -Pv "(?:UNSUPPORTED-TRACKER:\s+(?:(?:https:\/\/github.com\/[\w\d-]+\/[\w\d-]+\/issues\/[\d]+)|(?:[\w]+-[\d]+)))|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t

@@ -2,7 +2,8 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
-// REQUIRES-INTEL-DRIVER: lin: 38303 win: 101.9999
+// UNSUPPORTED: windows && run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22576
 
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
@@ -63,6 +64,7 @@
 // RUN: %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
 
 // clang-format on
+#include <iostream>
 
 #include "d3d12_setup.hpp"
 

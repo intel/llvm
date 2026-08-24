@@ -1,0 +1,281 @@
+//==----- SYCLBINSerializeSpecConst.cpp - Spec const override unit test ----==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// End-to-end unit test for the [SYCL/specialization constants] /
+// [SYCL/specialization constants default values] override pass added to the
+// SYCLBIN serializer. Drives a real kernel_bundle whose underlying
+// device_image_impl carries spec-const descriptor + default-value
+// properties, then asserts the override emits both property sets in the
+// SYCLBIN with byte-equivalent content.
+
+#include <detail/kernel_bundle_impl.hpp>
+#include <detail/syclbin.hpp>
+#include <sycl/sycl.hpp>
+
+#include <helpers/MockDeviceImage.hpp>
+#include <helpers/MockKernelInfo.hpp>
+#include <helpers/UrMock.hpp>
+
+#include <gtest/gtest.h>
+
+#include <cstdint>
+#include <cstring>
+
+class SYCLBINSerializeSpecConstKernel;
+MOCK_INTEGRATION_HEADER(SYCLBINSerializeSpecConstKernel)
+
+namespace {
+
+// Synthetic spec-const descriptor: one scalar leaf, ID=42, offset=0, size=4.
+// Defaults blob holds the 4-byte int value 0x11223344.
+struct ScalarSpecConst {
+  static constexpr uint32_t ID = 42;
+  static constexpr uint32_t Offset = 0;
+  static constexpr uint32_t Size = 4;
+  static constexpr uint32_t DefaultValue = 0x11223344;
+};
+
+// A second scalar spec const, so multi-constant blob layout (each descriptor
+// indexed by its own BlobOffset) is exercised. It is the second entry in the
+// flat default/set-values blob, at BlobOffset == ScalarSpecConst::Size.
+struct ScalarSpecConstB {
+  static constexpr uint32_t ID = 43;
+  static constexpr uint32_t Offset = 0;
+  static constexpr uint32_t Size = 4;
+  static constexpr uint32_t DefaultValue = 0x0A0B0C0D;
+};
+
+sycl::unittest::MockDeviceImage makeImageWithSpecConst() {
+  using namespace sycl::unittest;
+
+  // Build descriptor properties using the mock helper. Both share the same
+  // ValData blob so their default values are laid out back-to-back: A at
+  // offset 0, B at offset ScalarSpecConst::Size.
+  std::vector<char> ValData;
+  MockProperty SCDescriptor = makeSpecConstant<uint32_t>(
+      ValData, "my_spec_const", {ScalarSpecConst::ID},
+      {ScalarSpecConst::Offset},
+      std::tuple<uint32_t>{ScalarSpecConst::DefaultValue});
+  MockProperty SCDescriptorB = makeSpecConstant<uint32_t>(
+      ValData, "my_spec_const_b", {ScalarSpecConstB::ID},
+      {ScalarSpecConstB::Offset},
+      std::tuple<uint32_t>{ScalarSpecConstB::DefaultValue});
+
+  MockPropertySet PropSet;
+  addSpecConstants({std::move(SCDescriptor), std::move(SCDescriptorB)},
+                   std::move(ValData), PropSet);
+
+  std::vector<unsigned char> Bin{0x01, 0x02, 0x03, 0x04};
+  std::vector<MockOffloadEntry> Entries =
+      makeEmptyKernels({"SYCLBINSerializeSpecConstKernel"});
+
+  return MockDeviceImage{SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64,
+                         /*CompileOptions=*/"",
+                         /*LinkOptions=*/"",
+                         std::move(Bin),
+                         std::move(Entries),
+                         std::move(PropSet)};
+}
+
+sycl::unittest::MockDeviceImage Imgs[] = {makeImageWithSpecConst()};
+sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
+
+} // namespace
+
+// Override: [SYCL/specialization constants] descriptor and
+// [SYCL/specialization constants default values] blob must round-trip
+// byte-equivalent through the override pass when the source image already
+// carries them in its static property sets.
+TEST(SYCLBINSerializeSpecConst, DescriptorAndDefaultValueRoundTrip) {
+  using namespace sycl::detail;
+  sycl::unittest::UrMock<> Mock;
+
+  const sycl::device Dev = sycl::platform().get_devices()[0];
+  sycl::context Ctx{Dev};
+
+  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+
+  std::vector<char> Bytes =
+      sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
+  ASSERT_FALSE(Bytes.empty());
+
+  SYCLBIN Parsed{Bytes.data(), Bytes.size()};
+
+  // Locate the abstract module that carries our spec const.
+  bool Found = false;
+  for (const auto &AM : Parsed.AbstractModules) {
+    ASSERT_NE(AM.Metadata, nullptr);
+    auto SCIt =
+        AM.Metadata->getPropSets().find("SYCL/specialization constants");
+    if (SCIt == AM.Metadata->getPropSets().end())
+      continue;
+    auto DescIt = SCIt->second.find("my_spec_const");
+    if (DescIt == SCIt->second.end())
+      continue;
+    Found = true;
+
+    // Descriptor: 3 little-endian uint32_t per scalar leaf -> ID, Offset,
+    // Size.
+    ASSERT_EQ(DescIt->second.getType(), PropertyValue::BYTE_ARRAY);
+    const PropertyValue::SizeTy DescBytes = DescIt->second.getByteArraySize();
+    ASSERT_EQ(DescBytes, 3u * sizeof(uint32_t));
+    uint32_t Triple[3];
+    std::memcpy(Triple, DescIt->second.asByteArray(), sizeof(Triple));
+    EXPECT_EQ(Triple[0], ScalarSpecConst::ID);
+    EXPECT_EQ(Triple[1], ScalarSpecConst::Offset);
+    EXPECT_EQ(Triple[2], ScalarSpecConst::Size);
+
+    // Default values blob: a single "all" property holding the flat blob,
+    // indexed by each descriptor's BlobOffset (0 here). This matches the
+    // reader (device_image_impl::getSpecConstsDefValBlob), which consumes the
+    // single first property, not one property per spec-const name.
+    auto DVIt = AM.Metadata->getPropSets().find(
+        "SYCL/specialization constants default values");
+    ASSERT_NE(DVIt, AM.Metadata->getPropSets().end());
+    auto DVPropIt = DVIt->second.find("all");
+    ASSERT_NE(DVPropIt, DVIt->second.end());
+    ASSERT_EQ(DVPropIt->second.getType(), PropertyValue::BYTE_ARRAY);
+    ASSERT_GE(DVPropIt->second.getByteArraySize(),
+              static_cast<PropertyValue::SizeTy>(ScalarSpecConst::Size));
+    uint32_t Got = 0;
+    std::memcpy(&Got, DVPropIt->second.asByteArray(), sizeof(Got));
+    EXPECT_EQ(Got, ScalarSpecConst::DefaultValue);
+  }
+  EXPECT_TRUE(Found) << "Expected my_spec_const in serialized SYCLBIN";
+
+  // The set-values property set must be ABSENT when no spec constant was
+  // user-set: it is only emitted by ext_oneapi_get_content when at least one
+  // descriptor has IsSet==true.
+  for (const auto &AM : Parsed.AbstractModules) {
+    ASSERT_NE(AM.Metadata, nullptr);
+    EXPECT_EQ(AM.Metadata->getPropSets().find(
+                  "SYCL/specialization constants set values"),
+              AM.Metadata->getPropSets().end())
+        << "set-values property must not be emitted when nothing was set";
+  }
+}
+
+// When a spec constant is user-set before ext_oneapi_get_content, the
+// serializer must additionally emit the optional [SYCL/specialization
+// constants set values] property set carrying the runtime-effective blob, so
+// the reader can restore the per-descriptor IsSet state on reload.
+TEST(SYCLBINSerializeSpecConst, SetValueEmitsSetValuesProperty) {
+  using namespace sycl::detail;
+  sycl::unittest::UrMock<> Mock;
+
+  const sycl::device Dev = sycl::platform().get_devices()[0];
+  sycl::context Ctx{Dev};
+
+  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+
+  // Apply a user value distinct from the default so IsSet flips to true on the
+  // underlying device_image_impl.
+  const uint32_t UserValue = 0x55667788;
+  ASSERT_NE(UserValue, ScalarSpecConst::DefaultValue);
+  bool Applied = false;
+  for (device_image_impl &DevImg :
+       sycl::detail::getSyclObjImpl(KB)->device_images()) {
+    if (DevImg.has_specialization_constant("my_spec_const")) {
+      DevImg.set_specialization_constant_raw_value("my_spec_const", &UserValue);
+      Applied = true;
+    }
+  }
+  ASSERT_TRUE(Applied) << "my_spec_const not found on any device image";
+
+  std::vector<char> Bytes =
+      sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
+  ASSERT_FALSE(Bytes.empty());
+
+  SYCLBIN Parsed{Bytes.data(), Bytes.size()};
+
+  bool FoundSetValues = false;
+  for (const auto &AM : Parsed.AbstractModules) {
+    ASSERT_NE(AM.Metadata, nullptr);
+    auto SVIt = AM.Metadata->getPropSets().find(
+        "SYCL/specialization constants set values");
+    if (SVIt == AM.Metadata->getPropSets().end())
+      continue;
+    FoundSetValues = true;
+
+    // Single "all" blob holding the flat value blob, byte-equal to the
+    // user-set value at the descriptor's BlobOffset (0 here).
+    auto AllIt = SVIt->second.find("all");
+    ASSERT_NE(AllIt, SVIt->second.end());
+    ASSERT_EQ(AllIt->second.getType(), PropertyValue::BYTE_ARRAY);
+    ASSERT_GE(AllIt->second.getByteArraySize(),
+              static_cast<PropertyValue::SizeTy>(ScalarSpecConst::Size));
+    uint32_t Got = 0;
+    std::memcpy(&Got, AllIt->second.asByteArray(), sizeof(Got));
+    EXPECT_EQ(Got, UserValue);
+  }
+  EXPECT_TRUE(FoundSetValues)
+      << "Expected set-values property after set_specialization_constant";
+}
+
+// Regression guard for the writer/reader order mismatch: with two spec
+// constants, set ONLY the second one. The emitted set-values "all" blob must
+// place the user value at the second descriptor's BlobOffset and leave the
+// first slot at its default - i.e. the two constants' slices must not be
+// swapped. (The writer must not re-emit descriptors from the name-keyed
+// runtime map, which would reorder them relative to the flat blob.)
+TEST(SYCLBINSerializeSpecConst, SetSecondOfTwoKeepsBlobOrder) {
+  using namespace sycl::detail;
+  sycl::unittest::UrMock<> Mock;
+
+  const sycl::device Dev = sycl::platform().get_devices()[0];
+  sycl::context Ctx{Dev};
+
+  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+
+  const uint32_t UserValueB = 0x55667788;
+  ASSERT_NE(UserValueB, ScalarSpecConstB::DefaultValue);
+  bool Applied = false;
+  for (device_image_impl &DevImg :
+       sycl::detail::getSyclObjImpl(KB)->device_images()) {
+    if (DevImg.has_specialization_constant("my_spec_const_b")) {
+      DevImg.set_specialization_constant_raw_value("my_spec_const_b",
+                                                   &UserValueB);
+      Applied = true;
+    }
+  }
+  ASSERT_TRUE(Applied) << "my_spec_const_b not found on any device image";
+
+  std::vector<char> Bytes =
+      sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
+  ASSERT_FALSE(Bytes.empty());
+
+  SYCLBIN Parsed{Bytes.data(), Bytes.size()};
+
+  bool FoundSetValues = false;
+  for (const auto &AM : Parsed.AbstractModules) {
+    ASSERT_NE(AM.Metadata, nullptr);
+    auto SVIt = AM.Metadata->getPropSets().find(
+        "SYCL/specialization constants set values");
+    if (SVIt == AM.Metadata->getPropSets().end())
+      continue;
+    FoundSetValues = true;
+
+    auto AllIt = SVIt->second.find("all");
+    ASSERT_NE(AllIt, SVIt->second.end());
+    ASSERT_EQ(AllIt->second.getType(), PropertyValue::BYTE_ARRAY);
+    // Blob holds both constants: A at offset 0, B at offset Size.
+    ASSERT_GE(AllIt->second.getByteArraySize(),
+              static_cast<PropertyValue::SizeTy>(ScalarSpecConst::Size +
+                                                 ScalarSpecConstB::Size));
+    const auto *Blob = AllIt->second.asByteArray();
+    uint32_t GotA = 0, GotB = 0;
+    std::memcpy(&GotA, Blob, sizeof(GotA));
+    std::memcpy(&GotB, Blob + ScalarSpecConst::Size, sizeof(GotB));
+    // A untouched -> still its default; B -> the user value. A swap would show
+    // up as GotA==UserValueB / GotB==ScalarSpecConst::DefaultValue.
+    EXPECT_EQ(GotA, ScalarSpecConst::DefaultValue);
+    EXPECT_EQ(GotB, UserValueB);
+  }
+  EXPECT_TRUE(FoundSetValues)
+      << "Expected set-values property after set_specialization_constant";
+}

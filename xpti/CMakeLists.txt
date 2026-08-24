@@ -93,7 +93,7 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
 # Install CMake config files.
 include(CMakePackageConfigHelpers)
 set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
-set(LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX})
+set(LIB_INSTALL_DIR lib${LLVM_LIBDIR_SUFFIX})
 set(CONFIG_INSTALL_DIR ${LIB_INSTALL_DIR}/cmake/xpti)
 
 configure_package_config_file(

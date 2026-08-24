@@ -9,7 +9,7 @@
 #pragma once
 
 #include "../common.hpp"
-#include "../device.hpp"
+#include "../common/device.hpp"
 #include "common/ur_ref_count.hpp"
 
 #include "context.hpp"
@@ -21,9 +21,11 @@
 #include "lockable.hpp"
 #include "ur/ur.hpp"
 
-namespace v2 {
+#include <atomic>
 
-struct ur_queue_immediate_out_of_order_t : ur_object, ur_queue_t_ {
+namespace ur::level_zero::v2 {
+
+struct ur_queue_immediate_out_of_order_t : ur_object_t, ur_queue_t_ {
 private:
   // Number of command lists was chosen experimentally as a compromise
   // between number of allowed concurrent launches and overhead of
@@ -48,16 +50,39 @@ private:
 
   std::array<ur_event_handle_t, numCommandLists> barrierEvents;
 
-  uint32_t getNextCommandListId() {
+  uint32_t getNextCommandListId(const ur_event_handle_t *phWaitEvents = nullptr,
+                                uint32_t numWaitEvents = 0) {
     bool captureActive;
     auto &cmdListManager =
         (*commandListManagers.get_no_lock())[captureCmdListManagerIdx];
     cmdListManager.queryGraphCaptureActive(&captureActive);
+    if (captureActive) {
+      return captureCmdListManagerIdx;
+    }
 
-    return captureActive
-               ? captureCmdListManagerIdx
-               : commandListIndex.fetch_add(1, std::memory_order_relaxed) %
-                     numCommandLists;
+    // Any waitlist event that was produced by another queue that is
+    // currently recording a graph, this operation joins that capture and must
+    // be appended on the dedicated capture command list. Remember the
+    // originating ("primary") queue so that subsequent operations - even those
+    // without an explicit dependency on the primary queue - keep being routed
+    // onto the capture command list. The L0 driver then automatically enters
+    // capture mode on that command list, putting it into a temporary recording
+    // state that lasts until the primary queue stops recording.
+    for (uint32_t i = 0; i < numWaitEvents; i++) {
+      auto *srcQueue = phWaitEvents[i]->getQueue();
+      if (!srcQueue || srcQueue == this) {
+        continue;
+      }
+      bool srcCaptureActive = false;
+      if (srcQueue->queueIsGraphCapteEnabledExp(&srcCaptureActive) ==
+              UR_RESULT_SUCCESS &&
+          srcCaptureActive) {
+        return captureCmdListManagerIdx;
+      }
+    }
+
+    return commandListIndex.fetch_add(1, std::memory_order_relaxed) %
+           numCommandLists;
   }
 
 public:
@@ -87,18 +112,17 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendEventsWait(
         waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
   ur_result_t
   enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
                                   uint32_t numEventsInWaitList,
                                   const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) override {
-    return enqueueEventsWaitWithBarrier(numEventsInWaitList, phEventWaitList,
-                                        phEvent);
-  }
+                                  ur_event_handle_t *phEvent) override;
 
   ur_result_t enqueueMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
                                    size_t offset, size_t size, void *pDst,
@@ -108,7 +132,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemBufferRead(
         hBuffer, blockingRead, offset, size, pDst, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -123,7 +148,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemBufferWrite(
         hBuffer, blockingWrite, offset, size, pSrc, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -139,7 +165,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemBufferReadRect(
         hBuffer, blockingRead, bufferOrigin, hostOrigin, region, bufferRowPitch,
         bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, waitListView,
@@ -156,7 +183,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemBufferWriteRect(
         hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
@@ -172,7 +200,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemBufferCopy(
         hBufferSrc, hBufferDst, srcOffset, dstOffset, size, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -188,7 +217,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemBufferCopyRect(
         hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region, srcRowPitch,
         srcSlicePitch, dstRowPitch, dstSlicePitch, waitListView,
@@ -204,7 +234,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemBufferFill(
         hBuffer, pPattern, patternSize, offset, size, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -220,7 +251,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemImageRead(
         hImage, blockingRead, origin, region, rowPitch, slicePitch, pDst,
         waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
@@ -236,7 +268,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemImageWrite(
         hImage, blockingWrite, origin, region, rowPitch, slicePitch, pSrc,
         waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
@@ -251,7 +284,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemImageCopy(
         hImageSrc, hImageDst, srcOrigin, dstOrigin, region, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -266,7 +300,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemBufferMap(
         hBuffer, blockingMap, mapFlags, offset, size, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this), ppRetMap);
@@ -279,7 +314,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendMemUnmap(
         hMem, pMappedPtr, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -293,7 +329,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMFill(
         pMem, patternSize, pPattern, size, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -306,7 +343,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMMemcpy(
         blocking, pDst, pSrc, size, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -320,7 +358,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMFill2D(
         pMem, pitch, patternSize, pPattern, width, height, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -335,7 +374,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMMemcpy2D(
         blocking, pDst, dstPitch, pSrc, srcPitch, width, height, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -349,7 +389,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMPrefetch(
         pMem, size, flags, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -374,7 +415,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId]
         .appendDeviceGlobalVariableWrite(
             hProgram, name, blockingWrite, count, offset, pSrc, waitListView,
@@ -389,7 +431,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId]
         .appendDeviceGlobalVariableRead(
             hProgram, name, blockingRead, count, offset, pDst, waitListView,
@@ -405,7 +448,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendReadHostPipe(
         hProgram, pipe_symbol, blocking, pDst, size, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -420,7 +464,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendWriteHostPipe(
         hProgram, pipe_symbol, blocking, pSrc, size, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -434,7 +479,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMAllocHelper(
         this, pPool, size, pProperties, waitListView, ppMem,
         createEventIfRequested(eventPool.get(), phEvent, this),
@@ -449,7 +495,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMAllocHelper(
         this, pPool, size, pProperties, waitListView, ppMem,
         createEventIfRequested(eventPool.get(), phEvent, this),
@@ -465,7 +512,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMAllocHelper(
         this, pPool, size, pProperties, waitListView, ppMem,
         createEventIfRequested(eventPool.get(), phEvent, this),
@@ -479,7 +527,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMFreeExp(
         this, pPool, pMem, waitListView,
         createEvent(eventPool.get(), phEvent, this));
@@ -498,7 +547,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].bindlessImagesImageCopyExp(
         pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
         pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
@@ -513,7 +563,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId]
         .bindlessImagesWaitExternalSemaphoreExp(
             hSemaphore, hasWaitValue, waitValue, waitListView,
@@ -528,7 +579,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId]
         .bindlessImagesSignalExternalSemaphoreExp(
             hSemaphore, hasSignalValue, signalValue, waitListView,
@@ -542,7 +594,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId]
         .appendTimestampRecordingExp(
             blocking, waitListView,
@@ -557,7 +610,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendCommandBufferExp(
         hCommandBuffer, waitListView,
         createEventAndRetain(eventPool.get(), phEvent, this));
@@ -572,7 +626,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendNativeCommandExp(
         pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
         waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
@@ -589,7 +644,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId]
         .appendKernelLaunchWithArgsExp(
             hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
@@ -620,15 +676,18 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendGraph(
         hGraph, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
   ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
-    return commandListManagers.lock()[captureCmdListManagerIdx]
-        .queryGraphCaptureActive(pResult);
+    UR_CALL(commandListManagers.lock()[captureCmdListManagerIdx]
+                .queryGraphCaptureActive(pResult));
+
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t queueGetGraphExp(ur_exp_graph_handle_t *phGraph) override {
@@ -645,7 +704,8 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    auto commandListId = getNextCommandListId();
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendHostTaskExp(
         pfnHostTask, data, pProperties, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
@@ -656,4 +716,4 @@ public:
   ur::RefCount RefCount;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

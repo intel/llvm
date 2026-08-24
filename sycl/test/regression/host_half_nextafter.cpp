@@ -3,6 +3,7 @@
 //
 // Checks that sycl::nextafter with sycl::half on host correctly converts based
 // on half-precision.
+#include <iostream>
 
 #include <sycl/sycl.hpp>
 

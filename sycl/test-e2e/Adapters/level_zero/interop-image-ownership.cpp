@@ -1,8 +1,9 @@
 // REQUIRES: target-spir, level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
 
-// the ze_debug=4 memory check will fail on this test, since it itentionally
-// makes an 'unbalanced' create/destroy situation for the test.
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-INTENDED: the ze_debug=4 memory check will fail on this test,
+// since it itentionally makes an 'unbalanced' create/destroy situation for the
+// test.
 
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
@@ -19,7 +20,7 @@
 // UNSUPPORTED: spirv-backend && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/KhronosGroup/SPIRV-Headers/issues/487
 
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} %level_zero_options -o %t.out -Wno-error=deprecated-declarations
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // This test verifies that ownership is working correctly.
@@ -37,6 +38,7 @@
 
 // clang++ -fsycl -o wfd.bin -I$SYCL_HOME/build/install/include/sycl -lze_loader
 // interop-level-zero-image-ownership.cpp
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/accessor_image.hpp>
@@ -121,7 +123,7 @@ void test(sycl::ext::oneapi::level_zero::ownership Ownership) {
 
       Queue.submit([&](sycl::handler &cgh) {
         auto write_acc =
-            Image_2D.get_access<pixelT, sycl::access::mode::write>(cgh);
+            Image_2D.get_access<pixelT, sycl::access_mode::write>(cgh);
 
         cgh.parallel_for(ImgRange_2D, [=](sycl::item<2> Item) {
           auto location = sycl::int2{Item[0], Item[1]};

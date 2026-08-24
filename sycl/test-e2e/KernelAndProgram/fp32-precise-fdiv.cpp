@@ -16,6 +16,7 @@
 
 // CHECK-WITHOUT-NOT: <--- urProgramBuild{{.*}}fp32-correctly-rounded-divide-sqrt{{.*}} -> UR_RESULT_SUCCESS
 // CHECK-WITHOUT: <--- urProgramBuild{{.*}} -> UR_RESULT_SUCCESS
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

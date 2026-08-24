@@ -11,6 +11,7 @@
 
 // This test verifies the intrinsic fence.
 // It is based on https://en.wikipedia.org/wiki/Memory_barrier#Example
+#include <iostream>
 
 #include <cmath>
 #include <numeric>

@@ -79,10 +79,10 @@ void SPIRVToLLVMDbgTran::addDbgInfoVersion() {
 DIFile *
 SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
                               std::optional<DIFile::ChecksumInfo<StringRef>> CS,
-                              std::optional<StringRef> Source) {
+                              std::optional<std::string> Source) {
   return getOrInsert(FileMap, FileName, [this, FileName, CS, Source]() {
     SplitFileName Split(FileName);
-    // Use the first builder from the map to crete DIFile since it's
+    // Use the first builder from the map to create DIFile since it's
     // relations with other debug metadata is not going through DICompileUnit
     if (!Split.BaseName.empty())
       return BuilderMap.begin()->second->createFile(Split.BaseName, Split.Path,
@@ -136,11 +136,11 @@ const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
   return String->getStr();
 }
 
-const std::string
+std::optional<std::string>
 SPIRVToLLVMDbgTran::getStringSourceContinued(const SPIRVId Id,
                                              SPIRVExtInst *DebugInst) {
   if (!isValidId(Id) || getDbgInst<SPIRVDebug::DebugInfoNone>(Id))
-    return "";
+    return std::nullopt;
   std::string Str = BM->get<SPIRVString>(Id)->getStr();
   using namespace SPIRVDebug::Operand::SourceContinued;
   for (auto *I : DebugInst->getContinuedInstructions()) {
@@ -1019,7 +1019,8 @@ void SPIRVToLLVMDbgTran::transFunctionBody(DISubprogram *DIS, SPIRVId FuncId) {
   SPIRVEntry *E = BM->getEntry(FuncId);
   if (E->getOpCode() == OpFunction) {
     SPIRVFunction *BF = static_cast<SPIRVFunction *>(E);
-    llvm::Function *F = SPIRVReader->transFunction(BF);
+    llvm::Function *F =
+        SPIRVReader->transFunction(BF, BM->getFunctionProgramAddrSpace());
     assert(F && "Translation of function failed!");
     if (!F->hasMetadata("dbg"))
       F->setMetadata("dbg", DIS);
@@ -1644,7 +1645,7 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
   }
 }
 
-DbgInstPtr
+DbgRecord *
 SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
                                         BasicBlock *BB) {
   auto GetLocalVar = [&](SPIRVId Id) -> std::pair<DILocalVariable *, DebugLoc> {
@@ -1676,7 +1677,7 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[VariableIdx])) {
       auto *Null =
           ConstantPointerNull::get(PointerType::get(M->getContext(), 0));
-      DbgInstPtr DbgDeclare = DIB.insertDeclare(
+      DbgRecord *DbgDeclare = DIB.insertDeclare(
           Null, LocalVar.first, GetExpression(Ops[ExpressionIdx]), Loc, BB);
       return DbgDeclare;
     }
@@ -1690,7 +1691,7 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     Value *Val = GetValue(Ops[ValueIdx]);
     DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
     DebugLoc Loc = transDebugScope(DebugInst);
-    DbgInstPtr DbgValIntr = getDIBuilder(DebugInst).insertDbgValueIntrinsic(
+    DbgRecord *DbgRec = getDIBuilder(DebugInst).insertDbgValue(
         Val, LocalVar.first, Expr, Loc, BB);
 
     std::vector<ValueAsMetadata *> MDs;
@@ -1699,10 +1700,9 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     }
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
-      cast<DbgVariableRecord>(cast<DbgRecord *>(DbgValIntr))
-          ->setRawLocation(AL);
+      cast<DbgVariableRecord>(DbgRec)->setRawLocation(AL);
     }
-    return DbgValIntr;
+    return DbgRec;
   }
   default:
     if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()))

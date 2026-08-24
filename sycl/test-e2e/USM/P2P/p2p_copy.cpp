@@ -1,7 +1,9 @@
 // REQUIRES: cuda || hip || level_zero
 // RUN:  %{build} -o %t.out
 // RUN:  %{run} %t.out
+#include <iostream>
 
+#include <algorithm>
 #include <cassert>
 #include <numeric>
 #include <sycl/detail/core.hpp>

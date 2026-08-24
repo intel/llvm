@@ -1,5 +1,9 @@
 // FIXME flaky fail on CUDA and HIP
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22966
+//
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 //
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
@@ -49,7 +53,7 @@ template <class kernel_name> void enqueueKernel(queue *Q) {
   sycl::buffer<int, 1> Buf(numOfItems);
 
   Q->submit([&](handler &CGH) {
-    auto Acc = Buf.template get_access<mode::read_write>(CGH);
+    auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
     CGH.parallel_for<kernel_name>(numOfItems, [=](sycl::id<1> wiID) {
       Acc[wiID] = 0;

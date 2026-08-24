@@ -8,11 +8,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: opencl && arch-intel_gpu_pvc
-//
 // This is a regression test for the VC BE bug which generates incorrect code in
 // some cases in presence of variable (not compile-time constant) mask
 // (aka predicate) in the scatter operation.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -138,7 +137,7 @@ int main(int argc, char **argv) {
     sycl::buffer<int, 1> Bbuf(B, range<1>(VL));
 
     return q.submit([&](handler &cgh) {
-      auto b = Bbuf.template get_access<access::mode::read_write>(cgh);
+      auto b = Bbuf.template get_access<access_mode::read_write>(cgh);
       KernelAcc kernel(b);
       cgh.single_task(kernel);
     });

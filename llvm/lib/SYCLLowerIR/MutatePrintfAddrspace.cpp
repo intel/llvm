@@ -69,8 +69,7 @@ ModulePass *llvm::createSYCLMutatePrintfAddrspaceLegacyPass() {
 
 PreservedAnalyses
 SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
-  Type *Int8Type = Type::getInt8Ty(M.getContext());
-  auto *CASLiteralType = PointerType::get(Int8Type, ConstantAddrspaceID);
+  auto *CASLiteralType = PointerType::get(M.getContext(), ConstantAddrspaceID);
   Function *CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType);
 
   FunctionVecTy FunctionsToDrop;

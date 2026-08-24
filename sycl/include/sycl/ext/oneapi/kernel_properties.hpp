@@ -147,12 +147,6 @@ struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
   static constexpr const char *value =
       SizeListToStr<static_cast<size_t>(Aspects)...>::value;
 };
-template <aspect... Aspects>
-struct FunctionPropertyMetaInfo<device_has_key::value_t<Aspects...>> {
-  static constexpr const char *name = "sycl-device-has";
-  static constexpr const char *value =
-      SizeListToStr<static_cast<size_t>(Aspects)...>::value;
-};
 
 template <typename T, typename = void>
 struct HasKernelPropertiesGetMethod : std::false_type {};

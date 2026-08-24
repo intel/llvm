@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 
 // Smoke test for simd_mask API functionality.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

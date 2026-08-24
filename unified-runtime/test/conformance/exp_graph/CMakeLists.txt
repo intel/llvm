@@ -7,6 +7,9 @@ add_conformance_devices_test(exp_graph
   urGraphCreateExp.cpp
   urGraphDestroyExp.cpp
   urGraphDumpContentsExp.cpp
+  urGraphExecutableGraphGetNativeHandleExp.cpp
+  urGraphGetIdExp.cpp
+  urGraphGetNativeHandleExp.cpp
   urGraphInstantiateGraphExp.cpp
   urGraphIsEmptyExp.cpp
   urGraphSetDestructionCallbackExp.cpp

@@ -10,7 +10,6 @@
 
 #include <sycl/detail/aligned_allocator.hpp> // for aligned_allocator
 
-#include <algorithm>   // for max
 #include <cstddef>     // for size_t
 #include <type_traits> // for enable_if_t
 
@@ -84,7 +83,8 @@ private:
 
   template <typename T = AllocatorT>
   EnableIfDefaultAllocator<T> setAlignImpl(std::size_t RequiredAlign) {
-    MAllocator.setAlignment(std::max<size_t>(RequiredAlign, 64));
+    MAllocator.setAlignment(RequiredAlign < size_t{64} ? size_t{64}
+                                                       : RequiredAlign);
   }
 
   AllocatorT MAllocator;

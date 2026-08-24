@@ -15,9 +15,11 @@ using namespace sycl::ext::oneapi::experimental;
 
 namespace {
 
+#if LLVM_ENABLE_ASSERTIONS
 constexpr const char *UnsupportedRoundingAssertRegex =
     "fp8_e8m0_x: only rounding::upward and rounding::toward_zero are "
     "\" \"supported";
+#endif // LLVM_ENABLE_ASSERTIONS
 
 bool checkCode(float Input, rounding Mode, uint8_t Expected) {
   const float Values[1] = {Input};
@@ -441,6 +443,7 @@ TEST(FP8E8M0Test, X2NotAssignableFromSingleULL) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e8m0_x2 &, unsigned long long>));
 }
 
+#if LLVM_ENABLE_ASSERTIONS
 TEST(FP8E8M0Test, CArrayHalfToEvenRounding) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
   EXPECT_DEATH(
@@ -502,6 +505,7 @@ TEST(FP8E8M0Test, MarrayFloatToEvenRounding) {
       },
       UnsupportedRoundingAssertRegex);
 }
+#endif // LLVM_ENABLE_ASSERTIONS
 
 TEST(FP8E8M0Test, VariadicFloatReferences) {
   float x = 1.0f;

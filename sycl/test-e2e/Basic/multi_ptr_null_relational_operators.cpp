@@ -1,5 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/multi_ptr.hpp>
@@ -32,7 +33,7 @@ void nullptrRelationalOperatorTest() {
     sycl::buffer<int, 1> buf(1);
     queue
         .submit([&](sycl::handler &cgh) {
-          auto dev_acc = buf.get_access<sycl::access::mode::write>(cgh);
+          auto dev_acc = buf.get_access<sycl::access_mode::write>(cgh);
           if constexpr (address_space ==
                         sycl::access::address_space::local_space) {
             sycl::local_accessor<int, 1> locAcc(1, cgh);

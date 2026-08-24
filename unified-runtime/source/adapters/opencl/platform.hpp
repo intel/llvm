@@ -12,13 +12,15 @@
 
 #include <vector>
 
+namespace ur::opencl {
+
 struct ur_device_handle_t_;
 
-struct ur_platform_handle_t_ : ur::opencl::handle_base {
+struct ur_platform_handle_t_ : handle_base {
   using native_type = cl_platform_id;
   native_type CLPlatform = nullptr;
   std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
-  std::map<cl_device_id, ur_device_handle_t> SubDevices;
+  std::map<cl_device_id, ur_device_handle_t_ *> SubDevices;
   std::mutex SubDevicesLock;
 
   ur_platform_handle_t_(const ur_platform_handle_t_ &) = delete;
@@ -66,3 +68,5 @@ struct ur_platform_handle_t_ : ur::opencl::handle_base {
     return UR_RESULT_SUCCESS;
   }
 };
+
+} // namespace ur::opencl

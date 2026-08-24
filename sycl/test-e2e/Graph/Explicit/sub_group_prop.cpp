@@ -7,3 +7,4 @@
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/sub_group_prop.cpp"
+#include <algorithm>

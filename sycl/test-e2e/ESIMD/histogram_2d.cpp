@@ -8,6 +8,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -156,7 +157,7 @@ int main(int argc, char *argv[]) {
       nd_range<2> Range(GlobalRange, LocalRange);
 
       auto e = q.submit([&](handler &cgh) {
-        auto readAcc = Img.get_access<uint4, access::mode::read>(cgh);
+        auto readAcc = Img.get_access<uint4, access_mode::read>(cgh);
 
         cgh.parallel_for<class Hist>(
             Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {

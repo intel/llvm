@@ -5,14 +5,12 @@
 // XFAIL: windows && gpu-intel-dg2
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
 
-// XFAIL: windows && arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21986
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
+#include <iostream>
 
 #include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
@@ -22,14 +20,14 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+// imgSizeBytes is now passed in: it must be the real (tiling-padded) import
+// size, not globalSize.size()*sizeof(float).
 template <typename InteropMemHandleT>
 void runSycl(const sycl::device &syclDevice, sycl::range<2> globalSize,
              sycl::range<2> localSize, InteropMemHandleT extMemInHandle,
-             InteropMemHandleT extMemOutHandle) {
+             InteropMemHandleT extMemOutHandle, size_t imgSizeBytes) {
 
   sycl::queue syclQueue{syclDevice};
-
-  const size_t imgSizeBytes = globalSize.size() * sizeof(float);
 
 #ifdef _WIN32
   syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemInDesc{
@@ -125,6 +123,9 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
   VkImage vkOutputImage;
   VkDeviceMemory vkOutputImageMemory;
 
+  // Real import size; set to the image memory requirement below.
+  size_t importSizeBytes = imgSizeBytes;
+
   // Initialize image input data.
   std::vector<float> inputVec(imgSizeElems, 0.f);
   for (int i = 0; i < imgSizeElems; ++i) {
@@ -134,20 +135,28 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
 
   // Create/allocate device images.
   {
+    // STORAGE_BIT: SYCL reads/writes this as a storage image; without it the
+    // layout is transfer-only and imported reads land at the wrong offset.
     vkInputImage = vkutil::createImage(imgType, imgInFormat, imgExtent,
-                                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                       VK_IMAGE_USAGE_STORAGE_BIT |
+                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                        1 /*mipLevels*/);
     VkMemoryRequirements memRequirements;
     auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
         vkInputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
+    // Import must describe the whole (padded) allocation the driver requires.
+    importSizeBytes = std::max<size_t>(imgSizeBytes, memRequirements.size);
     vkInputImageMemory = vkutil::allocateDeviceMemory(
         imgSizeBytes, inputImageMemoryTypeIndex, vkInputImage);
     VK_CHECK_CALL(vkBindImageMemory(vk_device, vkInputImage, vkInputImageMemory,
                                     0 /*memoryOffset*/));
 
+    // STORAGE_BIT: same as input image; the kernel writes it as a storage
+    // image.
     vkOutputImage = vkutil::createImage(imgType, imgOutFormat, imgExtent,
-                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                        VK_IMAGE_USAGE_STORAGE_BIT |
+                                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                             VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                         1 /*mipLevels*/);
     VkMemoryRequirements outputMemRequirements;
@@ -269,7 +278,8 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
 
   // Call into SYCL to fetch from input image, and populate the output image.
   printString("Calling into SYCL with interop memory handles\n");
-  runSycl(syclDevice, dims, localSize, imgMemIn, imgMemOut);
+  // Pass the real import size so the SYCL import matches the Vulkan allocation.
+  runSycl(syclDevice, dims, localSize, imgMemIn, imgMemOut, importSizeBytes);
 
   // Copy image memory to temporary staging buffer, and back to host.
   printString("Copying image memory to host\n");

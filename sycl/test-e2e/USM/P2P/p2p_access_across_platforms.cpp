@@ -2,6 +2,7 @@
 // RUN:  %{run} %t.out
 
 // Tests that P2P access is not reported as possible across platforms.
+#include <iostream>
 
 #include <cassert>
 #include <sycl/detail/core.hpp>

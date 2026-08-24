@@ -38,8 +38,8 @@ int main() {
   tests<class B1, int>(Q, ~0, 99, std::bit_and<>{}, range<1>{8});
   tests<class B2, int>(Q, 0, 0xff99, std::bit_xor<>{}, range<1>{MaxWGSize + 1});
   tests<class B4, short>(Q, 1, 2, std::multiplies<>{}, range<1>{7});
-  tests<class B5, int>(Q, (std::numeric_limits<int>::max)(), -99,
-                       ext::oneapi::minimum<>{}, range<2>{MaxWGSize, 2});
+  tests<class B5, int>(Q, (std::numeric_limits<int>::max)(), -99, minimum<>{},
+                       range<2>{MaxWGSize, 2});
 
   // Check with CUSTOM type.
   tests<class C1>(Q, CustomVec<long long>(0), CustomVec<long long>(99),

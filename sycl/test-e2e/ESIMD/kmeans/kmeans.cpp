@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/points.csv
+#include <iostream>
 
 #include "kmeans.h"
 #include "../esimd_test_utils.hpp"

@@ -1,3 +1,4 @@
+#include <iostream>
 using std::pair;
 using std::tuple;
 using std::vector;

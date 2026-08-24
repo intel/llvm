@@ -11,6 +11,7 @@
 // The test verifies ESIMD API that adds 2 32-bit integer scalars/vectors with
 // carry returning the result as 2 parts: carry flag the input modified operand
 // and addition result as return from function.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

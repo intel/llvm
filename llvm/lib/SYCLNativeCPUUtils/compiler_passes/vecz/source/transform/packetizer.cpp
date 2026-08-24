@@ -3035,8 +3035,9 @@ ValuePacket Packetizer::Impl::packetizeBinaryOp(BinaryOperator *BinOp) {
             B.getInt32(
                 multi_llvm::getVectorElementCount(VecTy).getKnownMinValue()));
       }
-      auto *const NewBinOp = B.CreateIntrinsic(VPId, {LHS[0]->getType()},
-                                               {LHS[0], RHS[0], Mask, EVL});
+      Value *NewBinOpValue = B.CreateIntrinsic(VPId, {LHS[0]->getType()},
+                                                {LHS[0], RHS[0], Mask, EVL});
+      auto *const NewBinOp = cast<CallInst>(NewBinOpValue);
       NewBinOp->copyIRFlags(BinOp, true);
       NewBinOp->copyMetadata(*BinOp);
       results.push_back(NewBinOp);

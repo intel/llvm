@@ -47,7 +47,7 @@ device::device() : device(default_selector_v) {}
 device::device(const device &rhs) = default;
 device::device(device &&rhs) = default;
 
-device::device(cl_device_id DeviceId) {
+device::device(OpenCLDeviceIdT DeviceId) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
   // The implementation constructor takes ownership of the native handle so we
@@ -58,7 +58,7 @@ device::device(cl_device_id DeviceId) {
       nullptr, &Device);
   impl = &detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
               .getOrMakeDeviceImpl(Device);
-  __SYCL_OCL_CALL(clRetainDevice, DeviceId);
+  detail::retainOpenCLDevice(detail::ur::cast<ur_native_handle_t>(DeviceId));
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -85,7 +85,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   return devices;
 }
 
-cl_device_id device::get() const { return impl->get(); }
+OpenCLDeviceIdT device::get() const { return impl->get(); }
 
 bool device::is_cpu() const { return impl->is_cpu(); }
 
@@ -256,6 +256,7 @@ __SYCL_DEVICE_INFO_INST(is_endian_little, bool)
 __SYCL_DEVICE_INFO_INST(is_available, bool)
 __SYCL_DEVICE_INFO_INST(is_compiler_available, bool)
 __SYCL_DEVICE_INFO_INST(is_linker_available, bool)
+// Legacy SYCL 1.2.1 descriptor kept on the ABI surface intentionally.
 __SYCL_DEVICE_INFO_INST(execution_capabilities,
                         std::vector<info::execution_capability>)
 __SYCL_DEVICE_INFO_INST(queue_profiling, bool)
@@ -279,6 +280,7 @@ __SYCL_DEVICE_INFO_INST(partition_affinity_domains,
 __SYCL_DEVICE_INFO_INST(partition_type_property, info::partition_property)
 __SYCL_DEVICE_INFO_INST(partition_type_affinity_domain,
                         info::partition_affinity_domain)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(atomic64, bool)
 __SYCL_DEVICE_INFO_INST(reference_count, uint32_t)
 __SYCL_DEVICE_INFO_INST(usm_device_allocations, bool)
@@ -288,8 +290,10 @@ __SYCL_DEVICE_INFO_INST(usm_restricted_shared_allocations, bool)
 __SYCL_DEVICE_INFO_INST(usm_system_allocations, bool)
 __SYCL_DEVICE_INFO_INST(image_max_array_size, size_t)
 __SYCL_DEVICE_INFO_INST(opencl_c_version, std::string)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(sub_group_independent_forward_progress, bool)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_srgb, bool)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_intel_pci_address, std::string)
 __SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_count, uint32_t)
 __SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_simd_width, uint32_t)
@@ -303,6 +307,7 @@ __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_1d, id<1>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_2d, id<2>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_3d, id<3>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_global_work_groups, size_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_oneapi_cuda_cluster_group, bool)
 #undef __SYCL_DEVICE_INFO_INST
 

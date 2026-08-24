@@ -3,6 +3,7 @@
 
 // RUN: %{build} -o %t.out -O3
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

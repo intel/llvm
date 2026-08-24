@@ -82,8 +82,11 @@ get_kernel_device_specific_info_helper(ur_kernel_handle_t Kernel,
                                        ur_device_handle_t Device,
                                        adapter_impl &Adapter, void *Result,
                                        size_t Size) {
+  // use explicit static cast for compatibility with gcc 7.5.0
   Adapter.call<UrApiKind::urKernelGetSubGroupInfo>(
-      Kernel, Device, UrInfoCode<Param>::value, Size, Result, nullptr);
+      Kernel, Device,
+      static_cast<ur_kernel_sub_group_info_t>(UrInfoCode<Param>::value), Size,
+      Result, nullptr);
 }
 
 template <typename Param>
@@ -102,11 +105,15 @@ get_kernel_device_specific_info_helper(ur_kernel_handle_t Kernel,
                                        ur_device_handle_t Device,
                                        adapter_impl &Adapter, void *Result,
                                        size_t Size) {
+  // use explicit static cast for compatibility with gcc 7.5.0
   ur_result_t Error = Adapter.call_nocheck<UrApiKind::urKernelGetGroupInfo>(
-      Kernel, Device, UrInfoCode<Param>::value, Size, Result, nullptr);
+      Kernel, Device,
+      static_cast<ur_kernel_group_info_t>(UrInfoCode<Param>::value), Size,
+      Result, nullptr);
   if (Error != UR_RESULT_SUCCESS)
-    kernel_get_group_info::handleErrorOrWarning(Error, UrInfoCode<Param>::value,
-                                                Adapter);
+    kernel_get_group_info::handleErrorOrWarning(
+        Error, static_cast<ur_kernel_group_info_t>(UrInfoCode<Param>::value),
+        Adapter);
 }
 
 template <typename Param>
@@ -160,8 +167,10 @@ uint32_t get_kernel_device_specific_info_with_input(ur_kernel_handle_t Kernel,
   uint32_t Result = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Adapter.call<UrApiKind::urKernelGetSubGroupInfo>(
-      Kernel, Device, UrInfoCode<Param>::value, sizeof(uint32_t), &Result,
-      nullptr);
+      Kernel, Device,
+      // use explicit static cast for compatibility with gcc 7.5.0
+      static_cast<ur_kernel_sub_group_info_t>(UrInfoCode<Param>::value),
+      sizeof(uint32_t), &Result, nullptr);
 
   return Result;
 }

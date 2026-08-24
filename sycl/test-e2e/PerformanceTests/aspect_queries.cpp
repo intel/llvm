@@ -1,5 +1,6 @@
 // RUN: %{build} -O3 -DSYCL_DISABLE_IMAGE_ASPECT_WARNING=1 -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <chrono>
 #include <sycl/detail/core.hpp>

@@ -9,6 +9,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include <iostream>
 #include <windows.h>
 
 // Windows Runtime C++ Template Library (ComPtr and friends)

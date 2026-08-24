@@ -8,12 +8,12 @@
 
 #pragma once
 
+#include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/ur.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
 
 #include <unified-runtime/ur_api.h>
@@ -22,6 +22,7 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
+#include <iostream>
 #include <memory>
 #include <mutex>
 
@@ -74,6 +75,16 @@ public:
   void checkUrResult(ur_result_t ur_result) const {
     if (__builtin_expect(ur_result != UR_RESULT_SUCCESS, false))
       ur_failed_throw_exception(errc, ur_result);
+  }
+
+  /// \throw SYCL 2020 exception(errc) with \p Msg and the UR result code if
+  /// ur_result is not UR_RESULT_SUCCESS.
+  template <sycl::errc errc = sycl::errc::runtime>
+  void checkUrResult(ur_result_t ur_result, const std::string &Msg) const {
+    if (__builtin_expect(ur_result != UR_RESULT_SUCCESS, false))
+      throw set_ur_error(sycl::exception(sycl::make_error_code(errc),
+                                         Msg + ": " + codeToString(ur_result)),
+                         ur_result);
   }
 
   std::vector<ur_platform_handle_t> &getUrPlatforms() {

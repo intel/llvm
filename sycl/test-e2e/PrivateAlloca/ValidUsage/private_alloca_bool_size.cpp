@@ -3,6 +3,7 @@
 
 // Test checking size of 'bool' type. This is not expected to be ever used, but,
 // as 'bool' is an integral type, it is a possible scenario.
+#include <iostream>
 
 #include "Inputs/private_alloca_test.hpp"
 

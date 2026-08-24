@@ -13,12 +13,15 @@
 
 // Test case for the sycl_ext_oneapi_kernel_compiler_spirv extension. This test
 // loads pre-compiled kernels from a SPIR-V file and runs them.
+#include <iostream>
 
+#include <CL/cl.h>
 #include <array>
 #include <cassert>
 #include <fstream>
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
@@ -58,8 +61,8 @@ void testSimpleKernel(sycl::queue &q, const sycl::kernel &kernel,
   sycl::buffer output_buffer(output_array.data(), sycl::range<1>(N));
 
   q.submit([&](sycl::handler &cgh) {
-    cgh.set_arg(0, input_buffer.get_access<sycl::access::mode::read>(cgh));
-    cgh.set_arg(1, output_buffer.get_access<sycl::access::mode::write>(cgh));
+    cgh.set_arg(0, input_buffer.get_access<sycl::access_mode::read>(cgh));
+    cgh.set_arg(1, output_buffer.get_access<sycl::access_mode::write>(cgh));
     cgh.parallel_for(sycl::range<1>{N}, kernel);
   });
 
@@ -95,7 +98,7 @@ void testParam(sycl::queue &q, const sycl::kernel &kernel) {
     cgh.set_arg(1, b_ptr);
     // Pass sycl::accessor for OpTypePointer(CrossWorkgroup) parameter.
     cgh.set_arg(
-        2, output_buffer.template get_access<sycl::access::mode::write>(cgh));
+        2, output_buffer.template get_access<sycl::access_mode::write>(cgh));
     // Pass sycl::local_accessor for OpTypePointer(Workgroup) parameter.
     cgh.set_arg(3, local);
     cgh.parallel_for(sycl::range<1>{1}, kernel);

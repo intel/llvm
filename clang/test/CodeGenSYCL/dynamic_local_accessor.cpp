@@ -15,7 +15,7 @@
 // CHECK-IR: store ptr addrspace(3) [[PTR]], ptr addrspace(4) [[PTR]].addr.ascast, align 8
 // CHECK-IR: [[PTR_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(3), ptr addrspace(4) [[PTR]].addr.ascast, align 8
 //
-// CHECK-IR: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable_or_null(24) %{{[a-zA-Z0-9_]+}}, ptr addrspace(3) noundef %{{[a-zA-Z0-9_]+}}, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %agg.{{[a-zA-Z0-9_]+}}, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %agg.{{[a-zA-Z0-9_]+}}, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %agg.{{[a-zA-Z0-9_]+}}) #{{[0-9_]+}}
+// CHECK-IR: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable_or_null(24) %{{[a-zA-Z0-9_]+}}, ptr addrspace(3) noundef %{{[a-zA-Z0-9_]+}}, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %agg.{{[a-zA-Z0-9_]+}}.ascast.ascast, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %agg.{{[a-zA-Z0-9_]+}}.ascast.ascast, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %agg.{{[a-zA-Z0-9_]+}}.ascast.ascast) #{{[0-9_]+}}
 //
 // CHECK-INT-HEADER: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-INT-HEADER-NEXT: //--- _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_4itemILi1EEEE_

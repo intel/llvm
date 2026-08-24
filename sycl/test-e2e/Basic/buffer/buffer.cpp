@@ -33,7 +33,7 @@ int main() {
       buffer<int, 1> b(data1, range<1>(10), {property::buffer::use_host_ptr()});
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class init_a>(range<1>{10},
                                        [=](id<1> index) { B[index] = 0; });
       });
@@ -49,7 +49,7 @@ int main() {
       buffer<int, 1> b(data1.data(), range<1>(10));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class init_b>(range<1>{10},
                                        [=](id<1> index) { B[index] = 0; });
       });
@@ -72,9 +72,9 @@ int main() {
       buffer<int, 1> e(res.data(), range<1>(bufsSize));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
-        auto D = d.get_access<access::mode::write>(cgh);
-        auto E = e.get_access<access::mode::write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
+        auto D = d.get_access<access_mode::write>(cgh);
+        auto E = e.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class init_c>(range<1>{bufsSize}, [=](id<1> index) {
           B[index]++;
           D[index] = B[index] + B[index] + 1;
@@ -162,7 +162,7 @@ int main() {
       Buffer.set_final_data(nullptr);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class Nullptr>(range<1>{10},
                                         [=](id<1> index) { B[index] = 1; });
       });
@@ -177,7 +177,7 @@ int main() {
       Buffer.set_final_data(result);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class rawPointer>(range<1>{10},
                                            [=](id<1> index) { B[index] = 1; });
       });
@@ -193,7 +193,7 @@ int main() {
       Buffer.set_final_data(resultWeak);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class weakPointer>(range<1>{10},
                                             [=](id<1> index) { B[index] = 1; });
       });
@@ -209,7 +209,7 @@ int main() {
       Buffer.set_final_data(result);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class sharedPointer>(
             range<1>{10}, [=](id<1> index) { B[index] = 1; });
       });
@@ -230,7 +230,7 @@ int main() {
       queue myQueue;
       resultShared.reset();
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class sharedPointerAndReset>(
             range<1>{10}, [=](id<1> index) { B[index] = 1; });
       });
@@ -246,7 +246,7 @@ int main() {
       Buffer.set_final_data(result.begin());
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class vectorIterator>(
             range<1>{10}, [=](id<1> index) { B[index] = 1; });
       });
@@ -262,7 +262,7 @@ int main() {
       Buffer.set_final_data(nullptr);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class nullptAndUseHost>(
             range<1>{10}, [=](id<1> index) { B[index] = 1; });
       });
@@ -278,7 +278,7 @@ int main() {
       Buffer.set_final_data(result);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class rawPointerAndUseHost>(
             range<1>{10}, [=](id<1> index) { B[index] = 1; });
       });
@@ -295,7 +295,7 @@ int main() {
       Buffer.set_final_data(resultWeak);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class sharedPointerUseHost>(
             range<1>{10}, [=](id<1> index) { B[index] = 1; });
       });
@@ -316,7 +316,7 @@ int main() {
       queue myQueue;
       resultShared.reset();
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class sharedPointerAndResetUseHost>(
             range<1>{10}, [=](id<1> index) { B[index] = 1; });
       });
@@ -333,7 +333,7 @@ int main() {
       Buffer.set_final_data(result.begin());
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class vectorIteratorAndUseHost>(
             range<1>{10}, [=](id<1> index) { B[index] = 1; });
       });
@@ -348,13 +348,13 @@ int main() {
       Buffer.set_final_data((int *)result);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class bufferByRange2Init>(
             range<2>{20, 20}, [=](id<2> index) { B[index] = 0; });
       });
 
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class bufferByRange2>(
             range<2>{10, 10}, [=](id<2> index) { B[index] = 1; });
       });
@@ -388,13 +388,13 @@ int main() {
       Buffer.set_final_data((int *)result);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = Buffer.get_access<access::mode::write>(cgh);
+        auto B = Buffer.get_access<access_mode::write>(cgh);
         cgh.parallel_for<class bufferByRangeOffsetInit>(
             range<2>{20, 20}, [=](id<2> index) { B[index] = 0; });
       });
 
       myQueue.submit([&](handler &cgh) {
-        accessor<int, 2, access::mode::write, access::target::device,
+        accessor<int, 2, access_mode::write, access::target::device,
                  access::placeholder::false_t>
             B(Buffer, cgh, range<2>(10, 10), id<2>(10, 10));
         cgh.parallel_for<class bufferByRangeOffset>(
@@ -429,7 +429,7 @@ int main() {
       buffer<int, 1> b(data1.begin() + 2, data1.begin() + 5);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class iter_constuctor>(
             range<1>{3}, [=](id<1> index) { B[index] = 20; });
       });
@@ -448,7 +448,7 @@ int main() {
       buffer<int, 1> b(data1.cbegin() + 2, data1.cbegin() + 5);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class const_iter_constuctor>(
             range<1>{3}, [=](id<1> index) { B[index] = 20; });
       });
@@ -467,7 +467,7 @@ int main() {
       b.set_final_data(data2.begin() + 2);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class iter_constuctor_set_final_data>(
             range<1>{3}, [=](id<1> index) { B[index] = 20; });
       });
@@ -490,7 +490,7 @@ int main() {
       b.set_write_back(true);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class wb>(range<1>{10},
                                    [=](id<1> index) { B[index] = 0; });
       });
@@ -552,11 +552,11 @@ int main() {
 
       Queue.submit([&](sycl::handler &cgh) {
         auto Accessor_bool =
-            buf_bool_shrd.get_access<sycl::access::mode::write>(cgh);
+            buf_bool_shrd.get_access<sycl::access_mode::write>(cgh);
         auto Accessor_int =
-            buf_int_shrd.get_access<sycl::access::mode::write>(cgh);
+            buf_int_shrd.get_access<sycl::access_mode::write>(cgh);
         auto Accessor_float =
-            buf_float_shrd.get_access<sycl::access::mode::write>(cgh);
+            buf_float_shrd.get_access<sycl::access_mode::write>(cgh);
         cgh.parallel_for<class FillBuffer>(r, [=](sycl::id<1> WIid) {
           Accessor_bool[WIid] = true;
           Accessor_int[WIid] = 3;
@@ -584,7 +584,7 @@ int main() {
       b.set_write_back(false);
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class notwb>(range<1>{10},
                                       [=](id<1> index) { B[index] = 0; });
       });
@@ -605,8 +605,8 @@ int main() {
       buffer<int, 1> b(data2.data(), range<1>(10));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto A = a.get_access<access::mode::read_write>(cgh);
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto A = a.get_access<access_mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class override_lambda>(
             range<1>{10}, [=](id<1> index) { A[index] = 0; });
       });
@@ -623,10 +623,10 @@ int main() {
     {
       buffer<int, 1> a(data1.data(), range<1>(10));
       buffer<int, 1> b(data2);
-      accessor<int, 1, access::mode::read_write, access::target::device,
+      accessor<int, 1, access_mode::read_write, access::target::device,
                access::placeholder::true_t>
           A(a);
-      accessor<int, 1, access::mode::read_write, access::target::device,
+      accessor<int, 1, access_mode::read_write, access::target::device,
                access::placeholder::true_t>
           B(b);
       queue myQueue;
@@ -670,8 +670,8 @@ int main() {
       assert(AccA.size() == AccB.size());
     }
 
-    auto AH0 = host_accessor<char, 0, access::mode::read_write>(Buf_1);
-    auto BH0 = host_accessor<char, 0, access::mode::read_write>(Buf_2);
+    auto AH0 = host_accessor<char, 0, access_mode::read_write>(Buf_1);
+    auto BH0 = host_accessor<char, 0, access_mode::read_write>(Buf_2);
     assert(AH0.byte_size() == sizeof(char));
     assert(BH0.byte_size() == sizeof(char));
     assert(AH0.size() == 1);
@@ -680,10 +680,10 @@ int main() {
     queue Queue;
     Queue.submit([&](handler &CGH) {
       auto AK0 =
-          accessor<char, 0, access::mode::read_write, access::target::device>(
+          accessor<char, 0, access_mode::read_write, access::target::device>(
               Buf_1, CGH);
       auto BK0 =
-          accessor<char, 0, access::mode::read_write, access::target::device>(
+          accessor<char, 0, access_mode::read_write, access::target::device>(
               Buf_2, CGH);
       assert(AK0.byte_size() == sizeof(char));
       assert(BK0.byte_size() == sizeof(char));

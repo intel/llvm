@@ -477,6 +477,117 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
   return Offset;
 }
 
+// Convert floating-point value to hexadecimal format (e.g., 0x1.921f9fp+1)
+// Overload for float and double
+template <typename T>
+typename std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>,
+                          unsigned>
+floatingPointToHexStr(T AbsVal, char *Digits) {
+  unsigned Offset = 0;
+
+  // Handle special case of zero
+  if (AbsVal == T{0.0}) {
+    Digits[Offset++] = '0';
+    Digits[Offset++] = 'x';
+    Digits[Offset++] = '0';
+    Digits[Offset++] = 'p';
+    Digits[Offset++] = '+';
+    Digits[Offset++] = '0';
+    return Offset;
+  }
+
+  // Determine type characteristics and extract bits
+  using UIntType =
+      typename std::conditional<sizeof(T) == 8, uint64_t, uint32_t>::type;
+
+  UIntType bits;
+  if constexpr (sizeof(T) == 4) {
+    bits = sycl::bit_cast<uint32_t>(AbsVal);
+  } else {
+    bits = sycl::bit_cast<uint64_t>(AbsVal);
+  }
+
+  // float: 23-bit mantissa, 8-bit exponent, bias 127
+  // double: 52-bit mantissa, 11-bit exponent, bias 1023
+  constexpr int MantissaBits = sizeof(T) == 8 ? 52 : 23;
+  constexpr int ExponentBias = sizeof(T) == 8 ? 1023 : 127;
+  constexpr UIntType MantissaMask = (UIntType{1} << MantissaBits) - 1;
+  constexpr UIntType ExponentMask =
+      sizeof(T) == 8 ? (0x7ffULL << 52) : (0xffU << 23);
+
+  UIntType mantissa = bits & MantissaMask;
+  int exponent = static_cast<int>((bits & ExponentMask) >> MantissaBits);
+
+  // Prefix
+  Digits[Offset++] = '0';
+  Digits[Offset++] = 'x';
+
+  // Handle denormalized numbers
+  if (exponent == 0) {
+    Digits[Offset++] = '0';
+    exponent = 1 - ExponentBias;
+  } else {
+    Digits[Offset++] = '1';
+    exponent -= ExponentBias;
+  }
+
+  // Output fractional part if non-zero
+  if (mantissa != 0) {
+    Digits[Offset++] = '.';
+
+    // Convert mantissa to hex digits. Leading zeros after the radix point are
+    // significant and must be preserved.
+    int nibbles = (MantissaBits + 3) / 4;
+    int shift = MantissaBits - 4;
+
+    for (int i = 0; i < nibbles && shift >= 0; ++i, shift -= 4) {
+      unsigned nibble = static_cast<unsigned>((mantissa >> shift) & 0xf);
+      Digits[Offset++] = nibble < 10 ? '0' + nibble : 'a' + (nibble - 10);
+    }
+
+    // Handle any remaining bits (e.g. float's 23-bit mantissa)
+    if (shift < 0 && shift > -4) {
+      unsigned nibble = static_cast<unsigned>((mantissa << (-shift)) & 0xf);
+      Digits[Offset++] = nibble < 10 ? '0' + nibble : 'a' + (nibble - 10);
+    }
+  }
+
+  // Exponent
+  Digits[Offset++] = 'p';
+  if (exponent >= 0) {
+    Digits[Offset++] = '+';
+  } else {
+    Digits[Offset++] = '-';
+    exponent = -exponent;
+  }
+
+  // Output exponent in decimal
+  if (exponent >= 1000) {
+    Digits[Offset++] = digitToChar(exponent / 1000);
+    exponent %= 1000;
+  }
+  if (exponent >= 100) {
+    Digits[Offset++] = digitToChar(exponent / 100);
+    exponent %= 100;
+  }
+  if (exponent >= 10) {
+    Digits[Offset++] = digitToChar(exponent / 10);
+    exponent %= 10;
+  }
+  Digits[Offset++] = digitToChar(exponent);
+
+  return Offset;
+}
+
+// Convert half and bfloat16 to hexadecimal format by converting to float first
+template <typename T>
+typename std::enable_if_t<std::is_same_v<T, half> ||
+                              std::is_same_v<T, ext::oneapi::bfloat16>,
+                          unsigned>
+floatingPointToHexStr(T AbsVal, char *Digits) {
+  return floatingPointToHexStr(static_cast<float>(AbsVal), Digits);
+}
+
 // Returns number of symbols written to the buffer
 template <typename T>
 inline EnableIfFP<T, unsigned>
@@ -494,12 +605,15 @@ ScalarToStr(const T &Val, char *Buf, unsigned Flags, int, int Precision = -1) {
     Buf[Offset++] = '+';
   }
 
-  bool IsSci = false;
-  if (Flags & detail::Scientific)
-    IsSci = true;
+  // Check if hexfloat (both Fixed and Scientific flags set)
+  bool IsHex = (Flags & detail::Fixed) && (Flags & detail::Scientific);
+  bool IsSci = (Flags & detail::Scientific) && !(Flags & detail::Fixed);
 
-  // TODO: manipulators for floating-point output - hexfloat, fixed
-  Offset += floatingPointToDecStr(AbsVal, Buf + Offset, Precision, IsSci);
+  if (IsHex) {
+    Offset += floatingPointToHexStr(AbsVal, Buf + Offset);
+  } else {
+    Offset += floatingPointToDecStr(AbsVal, Buf + Offset, Precision, IsSci);
+  }
 
   return Offset;
 }

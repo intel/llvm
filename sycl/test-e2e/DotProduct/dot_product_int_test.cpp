@@ -66,10 +66,10 @@ static bool testss(queue &Q) {
   buffer<int, 1> Dbuf(D, range<1>(RangeLength));
 
   Q.submit([&](handler &cgh) {
-    auto Ap = Abuf.get_access<access::mode::read>(cgh);
-    auto Bp = Bbuf.get_access<access::mode::read>(cgh);
-    auto Cp = Cbuf.get_access<access::mode::read>(cgh);
-    auto Dp = Dbuf.get_access<access::mode::write>(cgh);
+    auto Ap = Abuf.get_access<access_mode::read>(cgh);
+    auto Bp = Bbuf.get_access<access_mode::read>(cgh);
+    auto Cp = Cbuf.get_access<access_mode::read>(cgh);
+    auto Dp = Dbuf.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class tss>(range<1>(RangeLength), [=](id<1> I) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
@@ -105,10 +105,10 @@ static bool testuu(queue &Q) {
   buffer<int, 1> Dbuf(D, range<1>(RangeLength));
 
   Q.submit([&](handler &cgh) {
-    auto Ap = Abuf.get_access<access::mode::read>(cgh);
-    auto Bp = Bbuf.get_access<access::mode::read>(cgh);
-    auto Cp = Cbuf.get_access<access::mode::read>(cgh);
-    auto Dp = Dbuf.get_access<access::mode::write>(cgh);
+    auto Ap = Abuf.get_access<access_mode::read>(cgh);
+    auto Bp = Bbuf.get_access<access_mode::read>(cgh);
+    auto Cp = Cbuf.get_access<access_mode::read>(cgh);
+    auto Dp = Dbuf.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class tuu>(range<1>(RangeLength), [=](id<1> I) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
@@ -144,10 +144,10 @@ static bool testsu(queue &Q) {
   buffer<int, 1> Dbuf(D, range<1>(RangeLength));
 
   Q.submit([&](handler &cgh) {
-    auto Ap = Abuf.get_access<access::mode::read>(cgh);
-    auto Bp = Bbuf.get_access<access::mode::read>(cgh);
-    auto Cp = Cbuf.get_access<access::mode::read>(cgh);
-    auto Dp = Dbuf.get_access<access::mode::write>(cgh);
+    auto Ap = Abuf.get_access<access_mode::read>(cgh);
+    auto Bp = Bbuf.get_access<access_mode::read>(cgh);
+    auto Cp = Cbuf.get_access<access_mode::read>(cgh);
+    auto Dp = Dbuf.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class tsu>(range<1>(RangeLength), [=](id<1> I) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
@@ -183,10 +183,10 @@ static bool testus(queue &Q) {
   buffer<int, 1> Dbuf(D, range<1>(RangeLength));
 
   Q.submit([&](handler &cgh) {
-    auto Ap = Abuf.get_access<access::mode::read>(cgh);
-    auto Bp = Bbuf.get_access<access::mode::read>(cgh);
-    auto Cp = Cbuf.get_access<access::mode::read>(cgh);
-    auto Dp = Dbuf.get_access<access::mode::write>(cgh);
+    auto Ap = Abuf.get_access<access_mode::read>(cgh);
+    auto Bp = Bbuf.get_access<access_mode::read>(cgh);
+    auto Cp = Cbuf.get_access<access_mode::read>(cgh);
+    auto Dp = Dbuf.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class tus>(range<1>(RangeLength), [=](id<1> I) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);

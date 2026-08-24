@@ -16,7 +16,7 @@ void bar() {
 }
 
 // Check some weird calling convention that is not supported even by x86_64 aux.
-// no-aux-warning@+1 {{'__swiftasynccall__' calling convention is not supported for this target}}
+// expected-warning@+1 {{'__swiftasynccall__' calling convention is not supported for this target}}
 void __attribute__((__swiftasynccall__)) g(void) {}
 
 template <typename name, typename Func>
@@ -51,6 +51,16 @@ static void callee() noexcept {
 void foo() {
    invoke(callee);
 }
+
+class A {
+public:
+  // expected-warning@+1 {{'thiscall' calling convention is not supported for this target}}
+  virtual void  __attribute__((thiscall)) boo() {}
+};
+
+class B : public A {
+  virtual void boo() override {}
+};
 
 int main() {
   //expected-error@+1 {{SYCL device code does not support variadic functions}}

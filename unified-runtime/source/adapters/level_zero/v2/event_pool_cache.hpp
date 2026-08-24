@@ -18,11 +18,11 @@
 #include <ur/ur.hpp>
 #include <ze_api.h>
 
-#include "../device.hpp"
+#include "../common/device.hpp"
 #include "event_pool.hpp"
 #include "event_provider.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 namespace raii {
 using cache_borrowed_event_pool =
@@ -40,21 +40,21 @@ public:
   raii::cache_borrowed_event_pool borrow(DeviceId, event_flags_t flags);
 
 private:
-  ur_context_handle_t hContext;
-  ur_mutex mutex;
-  ProviderCreateFunc providerCreate;
-
   struct event_descriptor {
     DeviceId device;
     event_flags_t flags;
 
-    uint64_t index() {
+    uint64_t index() const {
       return uint64_t(flags) | (uint64_t(device) << EVENT_FLAGS_USED_BITS);
     }
   };
+
+  ur_context_handle_t hContext;
+  ur_mutex mutex;
+  ProviderCreateFunc providerCreate;
 
   // Indexed by event_descriptor::index()
   std::vector<std::vector<std::unique_ptr<event_pool>>> pools;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

@@ -1,5 +1,5 @@
 // REQUIRES: target-spir, level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} %level_zero_options -o %t.out -Wno-error=deprecated-declarations
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 
 // spir-v gen for legacy images at O0 not working
@@ -31,6 +31,7 @@
 
 // clang++ -fsycl -o las.bin -I$SYCL_HOME/build/install/include/sycl -lze_loader
 // interop-level-zero-image-get-native-mem.cpp
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/accessor_image.hpp>
@@ -92,7 +93,7 @@ int main() {
 
     Q.submit([&](handler &cgh) {
        auto image_acc =
-           image_2D.get_access<pixelT, sycl::access::mode::read>(cgh);
+           image_2D.get_access<pixelT, sycl::access_mode::read>(cgh);
        auto passBackAcc = passBack.get_host_access(sycl::write_only);
        cgh.host_task([=](const interop_handle &IH) {
          // There is nothing with image handles in the L0 API except
@@ -112,7 +113,7 @@ int main() {
 
     // Then use that image to read and stream out the data.
     Q.submit([&](handler &cgh) {
-       auto read_acc = NewImg.get_access<pixelT, sycl::access::mode::read>(cgh);
+       auto read_acc = NewImg.get_access<pixelT, sycl::access_mode::read>(cgh);
        sycl::stream out(2024, 400, cgh);
        cgh.single_task([=]() {
          for (unsigned y = 0; y < height; y++) {

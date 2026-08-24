@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 // REQUIRES: opencl, opencl_icd
 
+#include <CL/cl.h>
 #include <iostream>
 #include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
@@ -33,8 +34,8 @@ void checkBufferValues(BufferT Buffer, ValueT Value) {
 template <typename DataT>
 void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
   Q.submit([&](handler &CGH) {
-    auto SrcA = Src.template get_access<mode::read>(CGH);
-    auto DstA = Dst.template get_access<mode::write>(CGH);
+    auto SrcA = Src.template get_access<access_mode::read>(CGH);
+    auto DstA = Dst.template get_access<access_mode::write>(CGH);
 
     auto Func = [=](interop_handle IH) {
       auto NativeQ = IH.get_native_queue<backend::opencl>();
@@ -59,7 +60,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
 
 template <typename DataT> void modify(buffer<DataT, 1> &B, queue &Q) {
   Q.submit([&](handler &CGH) {
-    auto Acc = B.template get_access<mode::read_write>(CGH);
+    auto Acc = B.template get_access<access_mode::read_write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] += 1; };
 
@@ -70,8 +71,8 @@ template <typename DataT> void modify(buffer<DataT, 1> &B, queue &Q) {
 template <typename DataT, DataT B1Init, DataT B2Init>
 void init(buffer<DataT, 1> &B1, buffer<DataT, 1> &B2, queue &Q) {
   Q.submit([&](handler &CGH) {
-    auto Acc1 = B1.template get_access<mode::write>(CGH);
-    auto Acc2 = B2.template get_access<mode::write>(CGH);
+    auto Acc1 = B1.template get_access<access_mode::write>(CGH);
+    auto Acc2 = B2.template get_access<access_mode::write>(CGH);
 
     CGH.parallel_for<Init<DataT>>(BUFFER_SIZE, [=](item<1> Id) {
       Acc1[Id] = -1;
@@ -155,7 +156,7 @@ void test3(queue &Q) {
   buffer<int, 1> Buffer{BUFFER_SIZE * 128};
 
   event Event = Q.submit([&](handler &CGH) {
-    auto Acc1 = Buffer.get_access<mode::write>(CGH);
+    auto Acc1 = Buffer.get_access<access_mode::write>(CGH);
 
     CGH.parallel_for<class Init3>(BUFFER_SIZE,
                                   [=](item<1> Id) { Acc1[Id] = 123; });
@@ -177,7 +178,7 @@ void test4(queue &Q) {
   buffer<int, 1> Buffer{BUFFER_SIZE};
 
   Q.submit([&](handler &CGH) {
-    auto Acc = Buffer.get_access<mode::write>(CGH);
+    auto Acc = Buffer.get_access<access_mode::write>(CGH);
     auto Func = [=](interop_handle IH) { /*A no-op */ };
     CGH.host_task(Func);
   });
@@ -188,7 +189,7 @@ void test5(queue &Q) {
   buffer<int, 1> Buffer2{BUFFER_SIZE};
 
   Q.submit([&](handler &CGH) {
-    auto Acc = Buffer1.template get_access<mode::write>(CGH);
+    auto Acc = Buffer1.template get_access<access_mode::write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
     CGH.parallel_for<class Test5Init>(Acc.get_count(), Kernel);

@@ -46,9 +46,6 @@ using namespace llvm::util;
 
 namespace {
 
-/// Enable preview breaking changes.
-static bool PreviewBreakingChanges = false;
-
 /// Note: Returned values are a part of ABI. If you want to change them
 /// then coordinate it with SYCL Runtime.
 int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
@@ -61,6 +58,8 @@ int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
     return 2;
   case SYCLBinaryImageFormat::BIF_LLVMBC:
     return 3;
+  case SYCLBinaryImageFormat::BIF_Compressed:
+    return 4;
   default:
     llvm_unreachable("unexpected SYCLBinaryImageFormat");
   }
@@ -538,7 +537,6 @@ struct Wrapper {
 
   Constant *wrapImage(const SYCLImage &Image, Twine ImageID,
                       StringRef OffloadKindTag) {
-    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
     // -- version 3: removed ManifestStart, ManifestEnd pointers
@@ -774,9 +772,7 @@ struct Wrapper {
 
 Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          const SmallVector<SYCLImage> &Images,
-                                         SYCLWrappingOptions Options,
-                                         bool _PreviewBreakingChanges) {
-  PreviewBreakingChanges = _PreviewBreakingChanges;
+                                         SYCLWrappingOptions Options) {
   Wrapper W(M, Options);
   GlobalVariable *Desc = W.createFatbinDesc(Images);
   if (!Desc)

@@ -16,6 +16,7 @@
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
+#include <clang/Config/config.h>
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/CudaInstallationDetector.h>
 #include <clang/Driver/Driver.h>
@@ -43,6 +44,8 @@
 #include <llvm/SYCLLowerIR/LowerInvokeSimd.h>
 #include <llvm/SYCLLowerIR/SYCLDeviceLibBF16.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
+#include <llvm/SYCLLowerIR/SYCLUtils.h>
+#include <llvm/SYCLLowerIR/SanitizerUtils.h>
 #include <llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h>
 #include <llvm/SYCLPostLink/ModuleSplitter.h>
 #include <llvm/Support/BLAKE3.h>
@@ -170,9 +173,10 @@ template <> struct std::hash<auto_pch_key> {
 namespace {
 std::string getLibPathSuffix() {
 #ifdef _WIN32
-  return "/lib/";
+  return llvm::formatv("/{0}/", CLANG_INSTALL_LIBDIR_BASENAME);
 #else
-  return llvm::formatv("/lib/dpcpp-{0}/sycl/", DPCPP_VERSION_MAJOR);
+  return llvm::formatv("/{0}/dpcpp-{1}/sycl/", CLANG_INSTALL_LIBDIR_BASENAME,
+                       DPCPP_VERSION_MAJOR);
 #endif
 }
 class SYCLToolchain {
@@ -244,7 +248,6 @@ class SYCLToolchain {
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 
-      Files->clearStatCache();
       return Success;
     }
   };
@@ -843,13 +846,12 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     LibNames.push_back(Libclc);
   }
 
+  std::string TripleName = (Format == BinaryFormat::PTX) ? "nvptx64-nvidia-cuda"
+                                                         : "amdgcn-amd-amdhsa";
+
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
-    std::string TripleName = (Format == BinaryFormat::PTX)
-                                 ? "nvptx64-nvidia-cuda"
-                                 : "amdgcn-amd-amdhsa";
-
     std::string LibPath =
         (LibName.find("libspirv") != std::string::npos)
             ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
@@ -1039,8 +1041,9 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   // Otherwise: Port over the `removeSYCLKernelsConstRefArray` and
   // `removeDeviceGlobalFromCompilerUsed` methods.
 
-  assert(!(isModuleUsingAsan(*Module) || isModuleUsingMsan(*Module) ||
-           isModuleUsingTsan(*Module)));
+  assert(!(utils::isModuleUsingAsan(*Module) ||
+           utils::isModuleUsingMsan(*Module) ||
+           utils::isModuleUsingTsan(*Module)));
   // Otherwise: Run `SanitizerKernelMetadataPass`.
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly

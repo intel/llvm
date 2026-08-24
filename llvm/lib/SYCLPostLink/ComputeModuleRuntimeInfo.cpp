@@ -17,6 +17,7 @@
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include <queue>
@@ -42,18 +43,6 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
   return AsEnum;
 }
 } // namespace
-
-bool isModuleUsingAsan(const Module &M) {
-  return M.getNamedGlobal("__AsanKernelMetadata");
-}
-
-bool isModuleUsingMsan(const Module &M) {
-  return M.getNamedGlobal("__MsanKernelMetadata");
-}
-
-bool isModuleUsingTsan(const Module &M) {
-  return M.getNamedGlobal("__TsanKernelMetadata");
-}
 
 // Gets 1- to 3-dimension work-group related information for function Func.
 // Returns an empty vector if not present.
@@ -248,11 +237,14 @@ PropSetRegTy computeModuleProperties(const Module &M,
       if (!GV.hasExternalLinkage())
         continue;
 
+      // Only named structs carry the device_global type name.
+      auto *ST = dyn_cast<StructType>(GV.getValueType());
+      if (!ST || !ST->hasName())
+        continue;
+
       // Check if it's a device_global by type name (declarations don't have
       // attributes).
-      std::string TypeName;
-      raw_string_ostream(TypeName) << *GV.getValueType();
-
+      StringRef TypeName = ST->getStructName();
       if (TypeName.find("device_global") == std::string::npos)
         continue;
 
@@ -400,11 +392,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
   }
 
   {
-    if (isModuleUsingAsan(M))
+    if (utils::isModuleUsingAsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
-    else if (isModuleUsingMsan(M))
+    else if (utils::isModuleUsingMsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
-    else if (isModuleUsingTsan(M))
+    else if (utils::isModuleUsingTsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "tsan");
   }
 

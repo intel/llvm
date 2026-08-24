@@ -11,8 +11,8 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/info/device.hpp>
 
+#include <iosfwd>
 #include <optional>
-#include <ostream>
 #include <string>
 
 namespace sycl {
@@ -22,11 +22,6 @@ namespace detail {
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
-
-template <typename T>
-std::ostream &operator<<(std::ostream &os, std::optional<T> const &opt) {
-  return opt ? os << opt.value() : os << "not set ";
-}
 
 // the ONEAPI_DEVICE_SELECTOR string gets broken down into these targets
 // will will match devices. If the target is negative, such as !opencl:*

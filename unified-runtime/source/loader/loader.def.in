@@ -106,6 +106,7 @@ EXPORTS
 	urEnqueueUSMPrefetch
 	urEnqueueUSMSharedAllocExp
 	urEnqueueWriteHostPipe
+	urEventCreateExp
 	urEventCreateWithNativeHandle
 	urEventGetInfo
 	urEventGetNativeHandle
@@ -122,6 +123,7 @@ EXPORTS
 	urGetDeviceProcAddrTable
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
+	urGetEventExpProcAddrTable
 	urGetEventProcAddrTable
 	urGetGraphExpProcAddrTable
 	urGetIPCExpProcAddrTable
@@ -143,15 +145,21 @@ EXPORTS
 	urGraphDestroyExp
 	urGraphDumpContentsExp
 	urGraphExecutableGraphDestroyExp
+	urGraphExecutableGraphGetNativeHandleExp
+	urGraphGetIdExp
+	urGraphGetNativeHandleExp
 	urGraphInstantiateGraphExp
 	urGraphIsEmptyExp
 	urGraphSetDestructionCallbackExp
 	urIPCCloseMemHandleExp
 	urIPCClosePhysMemHandleExp
+	urIPCGetEventHandleExp
 	urIPCGetMemHandleExp
 	urIPCGetPhysMemHandleExp
+	urIPCOpenEventHandleExp
 	urIPCOpenMemHandleExp
 	urIPCOpenPhysMemHandleExp
+	urIPCPutEventHandleExp
 	urIPCPutMemHandleExp
 	urIPCPutPhysMemHandleExp
 	urKernelCreate
@@ -337,6 +345,7 @@ EXPORTS
 	urPrintEnqueueUsmPrefetchParams
 	urPrintEnqueueUsmSharedAllocExpParams
 	urPrintEnqueueWriteHostPipeParams
+	urPrintEventCreateExpParams
 	urPrintEventCreateWithNativeHandleParams
 	urPrintEventGetInfoParams
 	urPrintEventGetNativeHandleParams
@@ -363,6 +372,8 @@ EXPORTS
 	urPrintExpEnqueueExtProperties
 	urPrintExpEnqueueNativeCommandFlags
 	urPrintExpEnqueueNativeCommandProperties
+	urPrintExpEventDesc
+	urPrintExpEventFlags
 	urPrintExpExternalMemDesc
 	urPrintExpExternalMemType
 	urPrintExpExternalSemaphoreDesc
@@ -374,6 +385,7 @@ EXPORTS
 	urPrintExpImageCopyInputTypes
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
+	urPrintExpImageUserPitchDesc
 	urPrintExpKernelArgMemObjTuple
 	urPrintExpKernelArgProperties
 	urPrintExpKernelArgType
@@ -386,12 +398,16 @@ EXPORTS
 	urPrintExpUsmHostAllocRegisterFlags
 	urPrintExpUsmHostAllocRegisterProperties
 	urPrintExpWin32Handle
+	urPrintExpWin32Name
 	urPrintFunction
 	urPrintFunctionParams
 	urPrintGraphCreateExpParams
 	urPrintGraphDestroyExpParams
 	urPrintGraphDumpContentsExpParams
 	urPrintGraphExecutableGraphDestroyExpParams
+	urPrintGraphExecutableGraphGetNativeHandleExpParams
+	urPrintGraphGetIdExpParams
+	urPrintGraphGetNativeHandleExpParams
 	urPrintGraphInstantiateGraphExpParams
 	urPrintGraphIsEmptyExpParams
 	urPrintGraphSetDestructionCallbackExpParams
@@ -402,10 +418,13 @@ EXPORTS
 	urPrintImageInfo
 	urPrintIpcCloseMemHandleExpParams
 	urPrintIpcClosePhysMemHandleExpParams
+	urPrintIpcGetEventHandleExpParams
 	urPrintIpcGetMemHandleExpParams
 	urPrintIpcGetPhysMemHandleExpParams
+	urPrintIpcOpenEventHandleExpParams
 	urPrintIpcOpenMemHandleExpParams
 	urPrintIpcOpenPhysMemHandleExpParams
+	urPrintIpcPutEventHandleExpParams
 	urPrintIpcPutMemHandleExpParams
 	urPrintIpcPutPhysMemHandleExpParams
 	urPrintKernelArgLocalProperties

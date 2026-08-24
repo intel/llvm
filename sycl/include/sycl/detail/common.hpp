@@ -12,8 +12,8 @@
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 #include <sycl/detail/nd_loop.hpp>
 
-#include <array>   // for array
-#include <cstddef> // for size_t
+#include <array>       // for array
+#include <cstddef>     // for size_t
 #include <type_traits> // for enable_if_t
 #include <utility>     // for index_sequence, make_i...
 
@@ -57,7 +57,7 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
 // or ranges classes. When extending the new values are filled with
 // DefaultValue, truncation just removes extra values.
 template <int NewDim, int DefaultValue, template <int> class T, int OldDim>
-static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
+T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
   T<NewDim> NewObj = detail::InitializedVal<NewDim, T>::template get<0>();
   const int CopyDims = NewDim > OldDim ? OldDim : NewDim;
   for (int I = 0; I < CopyDims; ++I)
@@ -106,13 +106,18 @@ struct ArrayCreator<DataT, FlattenF> {
   static constexpr auto Create() { return std::array<DataT, 0>{}; }
 };
 
-// to output exceptions caught in ~destructors
+// to output exceptions caught in ~destructors.
+// The symbol is always declared/exported regardless of the consumer's NDEBUG
+// state so a debug TU never links against a release-built library and gets an
+// undefined reference; only the macro that *calls* it is gated.
+__SYCL_EXPORT void reportExceptionToStream(const char *Prefix,
+                                           const char *What);
 #ifndef NDEBUG
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
-  {                                                                            \
-    std::cerr << str << " " << e.what() << std::endl;                          \
+  do {                                                                         \
+    ::sycl::_V1::detail::reportExceptionToStream(str, e.what());               \
     assert(false);                                                             \
-  }
+  } while (0)
 #else
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e) (void)e;
 #endif

@@ -82,7 +82,7 @@ public:
   ///
   /// \param PlatformId is an OpenCL cl_platform_id instance.
 #ifdef __SYCL_INTERNAL_API
-  explicit platform(cl_platform_id PlatformId);
+  explicit platform(OpenCLPlatformT PlatformId);
 #endif
 
   /// Constructs a SYCL platform instance using a device_selector.
@@ -114,15 +114,25 @@ public:
 
   platform &operator=(platform &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const platform &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const platform &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const platform &lhs, const platform &rhs) {
+    return lhs.impl == rhs.impl;
+  }
+
+  friend bool operator!=(const platform &lhs, const platform &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Returns an OpenCL interoperability platform.
   ///
   /// \return an instance of OpenCL cl_platform_id.
 #ifdef __SYCL_INTERNAL_API
-  cl_platform_id get() const;
+  OpenCLPlatformT get() const;
 #endif
 
   /// Checks if platform supports specified extension.
@@ -197,11 +207,13 @@ public:
 #pragma clang diagnostic pop
 #endif // defined(__clang__)
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Return this platform's default context
   ///
   /// \return the default context
   __SYCL_DEPRECATED("use khr_get_default_context() instead")
   context ext_oneapi_get_default_context() const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   std::vector<device> ext_oneapi_get_composite_devices() const;
 

@@ -11,6 +11,12 @@
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 #include "adapters/level_zero/ur_interface_loader.hpp"
 #endif
+#ifdef UR_STATIC_ADAPTER_OPENCL
+#include "adapters/opencl/ur_interface_loader.hpp"
+#endif
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO_V2
+#include "adapters/level_zero/v2/ur_interface_loader.hpp"
+#endif
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
@@ -31,16 +37,44 @@ ur_result_t context_t::init() {
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
 #endif
 
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#if defined(UR_STATIC_ADAPTER_LEVEL_ZERO) ||                                   \
+    defined(UR_STATIC_ADAPTER_LEVEL_ZERO_V2) ||                                \
+    defined(UR_STATIC_ADAPTER_OPENCL)
   // If the adapters were force loaded, it means the user wants to use
   // a specific adapter library. Don't load any static adapters.
   if (!adapter_registry.adaptersForceLoaded()) {
-    auto &level_zero = platforms.emplace_back(nullptr);
-    ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable);
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+    if (adapter_registry.includesAdapter("ur_adapter_level_zero")) {
+      auto &level_zero = platforms.emplace_back(nullptr);
+      ur::level_zero::v1::urAdapterGetDdiTables(&level_zero.dditable);
+      adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_level_zero");
+    }
+#endif
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO_V2
+    if (adapter_registry.includesAdapter("ur_adapter_level_zero_v2")) {
+      auto &level_zero_v2 = platforms.emplace_back(nullptr);
+      ur::level_zero::v2::urAdapterGetDdiTables(&level_zero_v2.dditable);
+      adapter_registry.markAdapterAsStaticallyLoaded(
+          "ur_adapter_level_zero_v2");
+    }
+#endif
+#ifdef UR_STATIC_ADAPTER_OPENCL
+    if (adapter_registry.includesAdapter("ur_adapter_opencl")) {
+      auto &opencl = platforms.emplace_back(nullptr);
+      ur::opencl::urAdapterGetDdiTables(&opencl.dditable);
+      adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_opencl");
+    }
+#endif
   }
 #endif
 
   for (const auto &adapterPaths : adapter_registry) {
+    // Skip dynamic adapters that have already been statically registered
+    // to avoid double-registration of the same backend.
+    if (!adapterPaths.empty() &&
+        adapter_registry.isStaticallyLoaded(adapterPaths[0])) {
+      continue;
+    }
     for (const auto &path : adapterPaths) {
       auto handle = LibLoader::loadAdapterLibrary(path.string().c_str());
       if (handle) {

@@ -72,6 +72,26 @@ constant.
 
 See also [SYCL2020-SpecializationConstants.md](./SYCL2020-SpecializationConstants.md).
 
+### [SYCL/specialization constants set values]
+
+__Key:__ `"all"`.
+
+__Value type:__ Byte array. ("2")
+
+__Value:__ Byte representation of the flat blob of user-set specialization
+constant values, laid out like [SYCL/specialization constants default values].
+
+__Notes:__
+
+1. Optional. Emitted only by `kernel_bundle::ext_oneapi_get_content` when a
+specialization constant was set to a non-default value before serialization.
+2. If present, the reader marks every descriptor as set so the host query
+returns the round-tripped value instead of the static default. If missing, the
+default-value behavior applies. Unknown to older readers, so backward
+compatible with no version bump.
+
+See also [SYCL2020-SpecializationConstants.md](./SYCL2020-SpecializationConstants.md).
+
 ### [SYCL/kernel param opt]
 
 __Key:__ Kernel name.

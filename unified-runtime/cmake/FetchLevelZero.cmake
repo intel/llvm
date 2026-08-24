@@ -13,7 +13,7 @@ find_package(PkgConfig QUIET)
 # just try to search for the path.
 if(NOT UR_FORCE_FETCH_LEVEL_ZERO)
   if(PkgConfig_FOUND)
-    pkg_check_modules(level-zero level-zero>=1.29.0)
+    pkg_check_modules(level-zero level-zero>=1.32.0)
     if(level-zero_FOUND)
       set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
       set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
@@ -54,7 +54,7 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
   set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
   # Remember to update the pkg_check_modules minimum version above when updating the
   # clone tag
-  set(UR_LEVEL_ZERO_LOADER_TAG v1.29.0)
+  set(UR_LEVEL_ZERO_LOADER_TAG v1.32.0)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
@@ -90,8 +90,16 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
 
   target_compile_options(ze_loader PRIVATE
     $<$<IN_LIST:$<CXX_COMPILER_ID>,GNU;Clang;Intel;IntelLLVM>:-Wno-error>
-    $<$<CXX_COMPILER_ID:MSVC>:/WX- /UUNICODE>
+    $<$<CXX_COMPILER_ID:MSVC>:/WX- /UUNICODE /GL->
     )
+  # Neutralize the dllexport macros so a consuming DLL doesn't re-export the
+  # ze*/zes*/zel* symbols from this statically-linked loader.
+  if(WIN32 AND (UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2))
+    target_compile_definitions(ze_loader PRIVATE
+      ZE_APIEXPORT=
+      ZE_DLLEXPORT=
+    )
+  endif()
 endif()
 
 add_library(LevelZeroLoader INTERFACE)

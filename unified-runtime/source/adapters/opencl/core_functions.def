@@ -8,7 +8,7 @@
 // TODO: clGetDeviceAndHostTimer
 
 // Introduced in OpenCL 2.2
-CL_CORE_FUNCTION(clSetProgramSpecializationConstant)
+CL_CORE_FUNCTION(clSetProgramSpecializationConstant, clSetProgramSpecializationConstantFn)
 
 // Introduced in OpenCL 3.0
-CL_CORE_FUNCTION(clSetContextDestructorCallback)
+CL_CORE_FUNCTION(clSetContextDestructorCallback, clSetContextDestructorCallbackFn)

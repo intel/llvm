@@ -24,7 +24,7 @@ $_ZTSZ4mainEUlN2cl4sycl14kernel_handlerEE_ = comdat any
 @_ZL8coeff_id2 = internal addrspace(1) constant %"class.cl::sycl::specialization_id.1" { %struct.coeff2_str_aligned_t { %"class.std::array" zeroinitializer, i64 0, [7 x i8] undef, i8 undef } }, align 32
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlN2cl4sycl14kernel_handlerEE_() local_unnamed_addr #0 comdat !kernel_arg_buffer_location !6 !sycl_kernel_omit_args !7 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlN2cl4sycl14kernel_handlerEE_() local_unnamed_addr #0 comdat !sycl_kernel_omit_args !7 {
   %1 = alloca %struct.coeff_str_aligned_t, align 32
   %2 = addrspacecast %struct.coeff_str_aligned_t* %1 to %struct.coeff_str_aligned_t addrspace(4)*
   %3 = bitcast %struct.coeff_str_aligned_t* %1 to i8*
@@ -76,7 +76,6 @@ attributes #4 = { convergent }
 !3 = !{i32 1, i32 2}
 !4 = !{i32 4, i32 100000}
 !5 = !{!"clang version 14.0.0"}
-!6 = !{i32 -1}
 !7 = !{i1 true}
 ; CHECK-IR: ![[#MN0]] = !{!"ef880fa09cf7a9d7____ZL8coeff_id", i32 0, i32 0, i32 4, i32 1, i32 4, i32 4, i32 2, i32 8, i32 4, i32 3, i32 16, i32 8, i32 -1, i32 24, i32 8}
 ; CHECK-IR: ![[#MN1]] = !{!"df991fa0adf9bad8____ZL8coeff_id2", i32 5, i32 0, i32 4, i32 6, i32 4, i32 4, i32 7, i32 8, i32 4, i32 8, i32 16, i32 8, i32 -1, i32 31, i32 1}

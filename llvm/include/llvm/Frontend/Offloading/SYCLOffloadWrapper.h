@@ -23,11 +23,16 @@ namespace llvm {
 namespace offloading {
 
 // SYCL binary image formats supported.
+//
+// BIF_Compressed marks a zstd-compressed payload. The runtime re-derives the
+// real format (SPIR-V / LLVM bitcode / native) post-decompression by reading
+// the magic-number, so any pre-compression tag is not preserved.
 enum class SYCLBinaryImageFormat {
-  BIF_None,   // Undetermined Image kind
-  BIF_Native, // Native Image kind
-  BIF_SPIRV,  // SPIR-V
-  BIF_LLVMBC  // LLVM bitcode
+  BIF_None,      // Undetermined Image kind
+  BIF_Native,    // Native Image kind
+  BIF_SPIRV,     // SPIR-V
+  BIF_LLVMBC,    // LLVM bitcode
+  BIF_Compressed // zstd-compressed image; format-of-original unknown
 };
 
 struct SYCLImage {
@@ -71,13 +76,10 @@ struct SYCLWrappingOptions {
 /// Wraps the input bundled images and accompanied data into the module \p M
 /// as global symbols and registers the images with the SYCL Runtime.
 /// \param Options Settings that allows to turn on optional data and settings.
-/// \param _PreviewBreakingChanges Enable preview breaking changes that are not
-///        backward compatible with the existing SYCL Runtime.
 /// \returns Error if wrapping fails, success otherwise.
 llvm::Error
 wrapSYCLBinaries(llvm::Module &M, const llvm::SmallVector<SYCLImage> &Images,
-                 SYCLWrappingOptions Options = SYCLWrappingOptions(),
-                 bool _PreviewBreakingChanges = false);
+                 SYCLWrappingOptions Options = SYCLWrappingOptions());
 
 } // namespace offloading
 } // namespace llvm

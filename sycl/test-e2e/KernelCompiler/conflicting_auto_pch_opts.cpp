@@ -5,6 +5,7 @@
 
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

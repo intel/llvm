@@ -35,6 +35,7 @@
 #ifndef SPIRV_SPIRVREGULARIZELLVM_H
 #define SPIRV_SPIRVREGULARIZELLVM_H
 
+#include "LLVMSPIRVOpts.h"
 #include "SPIRVInternal.h"
 
 #include "llvm/IR/Instructions.h"
@@ -45,7 +46,8 @@ namespace SPIRV {
 
 class SPIRVRegularizeLLVMBase {
 public:
-  SPIRVRegularizeLLVMBase() : M(nullptr), Ctx(nullptr) {}
+  explicit SPIRVRegularizeLLVMBase(const SPIRV::TranslatorOpts &Opts = {})
+      : M(nullptr), Ctx(nullptr), Opts(Opts) {}
 
   bool runRegularizeLLVM(llvm::Module &M);
   // Lower functions
@@ -116,25 +118,28 @@ public:
 private:
   llvm::Module *M;
   llvm::LLVMContext *Ctx;
+  const SPIRV::TranslatorOpts Opts;
 };
 
 class SPIRVRegularizeLLVMPass
-    : public llvm::PassInfoMixin<SPIRVRegularizeLLVMPass>,
+    : public llvm::RequiredPassInfoMixin<SPIRVRegularizeLLVMPass>,
       public SPIRVRegularizeLLVMBase {
 public:
+  explicit SPIRVRegularizeLLVMPass(const SPIRV::TranslatorOpts &Opts = {})
+      : SPIRVRegularizeLLVMBase(Opts) {}
+
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM) {
     return runRegularizeLLVM(M) ? llvm::PreservedAnalyses::none()
                                 : llvm::PreservedAnalyses::all();
   }
-
-  static bool isRequired() { return true; }
 };
 
 class SPIRVRegularizeLLVMLegacy : public llvm::ModulePass,
                                   public SPIRVRegularizeLLVMBase {
 public:
-  SPIRVRegularizeLLVMLegacy() : ModulePass(ID) {
+  explicit SPIRVRegularizeLLVMLegacy(const SPIRV::TranslatorOpts &Opts = {})
+      : ModulePass(ID), SPIRVRegularizeLLVMBase(Opts) {
     initializeSPIRVRegularizeLLVMLegacyPass(*PassRegistry::getPassRegistry());
   }
 

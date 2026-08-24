@@ -101,6 +101,7 @@ llvm/test/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
 # Clang offload tools
 clang/**/OffloadBundler.h @intel/dpcpp-tools-reviewers
 clang/**/OffloadBundler.cpp @intel/dpcpp-tools-reviewers
+clang/test/OffloadTools/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-linker-wrapper/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-sycl-linker/ @intel/dpcpp-tools-reviewers
@@ -181,10 +182,17 @@ sycl/doc/syclgraph/ @intel/sycl-graphs-reviewers
 
 # bindless images
 sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc @intel/bindless-images-reviewers
+sycl/doc/extensions/experimental/sycl_ext_oneapi_memory_export.asciidoc @intel/bindless-images-reviewers
 sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
+sycl/include/sycl/ext/oneapi/interop_common.hpp @intel/bindless-images-reviewers
+sycl/include/sycl/ext/oneapi/memory_export.hpp @intel/bindless-images-reviewers
 sycl/source/detail/bindless* @intel/bindless-images-reviewers
+sycl/source/detail/memory_export.cpp @intel/bindless-images-reviewers
 sycl/test/check_device_code/extensions/bindless_images.cpp @intel/bindless-images-reviewers
 sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
+sycl/test-e2e/CommonUtils/vulkan_common.hpp @intel/bindless-images-reviewers
+sycl/test-e2e/MemoryExport/ @intel/bindless-images-reviewers
+sycl/unittests/Extensions/BindlessImages/ @intel/bindless-images-reviewers
 
 # Miscellaneous sycl e2e tests
 sycl/test-e2e/BFloat16/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime

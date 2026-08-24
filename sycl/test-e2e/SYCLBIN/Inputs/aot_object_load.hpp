@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include <iostream>
 
 // Load-time regression test for CMPLRLLVM-75983: an AOT-only SYCLBIN
 // produced with -fsyclbin=object whose contents have unresolved imported

@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     buffer<int, 1> buf(&data, range<1>(1));
 
     event e = myQueue.submit([&](handler &cgh) {
-      auto ptr = buf.get_access<access::mode::read_write>(cgh);
+      auto ptr = buf.get_access<access_mode::read_write>(cgh);
 
       cgh.single_task<class my_kernel>([=]() {
 #ifdef USED_KERNEL

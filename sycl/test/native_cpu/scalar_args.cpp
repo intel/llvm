@@ -4,6 +4,7 @@
 
 #include <sycl/sycl.hpp>
 
+#include <algorithm>
 #include <iostream>
 
 using namespace sycl;

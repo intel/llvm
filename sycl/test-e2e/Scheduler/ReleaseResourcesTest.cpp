@@ -8,12 +8,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 
 #include "../helpers.hpp"
 
-using sycl_access_mode = sycl::access::mode;
+using sycl_access_mode = sycl::access_mode;
 
 int main() {
   bool Failed = false;

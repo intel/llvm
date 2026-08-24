@@ -14,6 +14,7 @@
 
 // RUN: %clangxx -fsycl -fsycl-targets=spirv64 --offload-new-driver %s -o %t1.out
 // RUN: %{run} %t1.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

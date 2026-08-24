@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -302,7 +303,7 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
       double etime = 0;
       if (block_size == 16 && MZ >= 16) {
         auto e = q.submit([&](handler &cgh) {
-          auto acc = buf.get_access<access::mode::read_write>(cgh);
+          auto acc = buf.get_access<access_mode::read_write>(cgh);
           cgh.parallel_for<class K16>(
               Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
                 transpose16(acc, MZ, ndi.get_global_id(0),
@@ -314,7 +315,7 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
           etime = esimd_test::report_time("kernel time", e, e);
       } else if (block_size == 8) {
         auto e = q.submit([&](handler &cgh) {
-          auto acc = buf.get_access<access::mode::read_write>(cgh);
+          auto acc = buf.get_access<access_mode::read_write>(cgh);
           cgh.parallel_for<class K08>(
               Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
                 transpose8(acc, MZ, ndi.get_global_id(0), ndi.get_global_id(1));

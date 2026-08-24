@@ -1,5 +1,5 @@
 // REQUIRES: target-spir, level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} %level_zero_options -o %t.out -Wno-error=deprecated-declarations
 // RUN: %{run} %t.out
 
 // spir-v gen for legacy images at O0 not working
@@ -23,6 +23,7 @@
 
 // clang++ -fsycl -o ilzi.bin -I$SYCL_HOME/build/install/include/sycl
 // -lze_loader interop-level-zero-image.cpp
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/accessor_image.hpp>
@@ -116,7 +117,7 @@ int main() {
 
       Queue.submit([&](sycl::handler &cgh) {
         auto write_acc =
-            Image_1D.get_access<pixelT, sycl::access::mode::write>(cgh);
+            Image_1D.get_access<pixelT, sycl::access_mode::write>(cgh);
 
         cgh.parallel_for(ImgRange_1D, [=](sycl::item<1> Item) {
           int x = Item[0];
@@ -127,7 +128,7 @@ int main() {
       Queue.wait_and_throw();
 
       // now check with host accessor.
-      auto read_acc = Image_1D.get_access<pixelT, access::mode::read>();
+      auto read_acc = Image_1D.get_access<pixelT, access_mode::read>();
       for (int col = 0; col < width; col++) {
         const pixelT somePixel = read_acc.read(col);
         // const pixelT expectedPixel = {col,col,col,col};
@@ -160,7 +161,7 @@ int main() {
 
       Queue.submit([&](sycl::handler &cgh) {
         auto write_acc =
-            Image_2D.get_access<pixelT, sycl::access::mode::write>(cgh);
+            Image_2D.get_access<pixelT, sycl::access_mode::write>(cgh);
 
         cgh.parallel_for(ImgRange_2D, [=](sycl::item<2> Item) {
           auto location = sycl::int2{Item[0], Item[1]};
@@ -172,7 +173,7 @@ int main() {
       Queue.wait_and_throw();
 
       // now check with host accessor.
-      auto read_acc = Image_2D.get_access<pixelT, access::mode::read>();
+      auto read_acc = Image_2D.get_access<pixelT, access_mode::read>();
       for (int row = 0; row < height; row++) {
         for (int col = 0; col < width; col++) {
           auto location = sycl::int2{col, row};
@@ -209,7 +210,7 @@ int main() {
 
       Queue.submit([&](sycl::handler &cgh) {
         auto write_acc =
-            Image_3D.get_access<pixelT, sycl::access::mode::write>(cgh);
+            Image_3D.get_access<pixelT, sycl::access_mode::write>(cgh);
 
         cgh.parallel_for(ImgRange_3D, [=](sycl::item<3> Item) {
           auto location = sycl::int4{Item[0], Item[1], Item[2], 0};
@@ -221,7 +222,7 @@ int main() {
       Queue.wait_and_throw();
 
       // now check with host accessor.
-      auto read_acc = Image_3D.get_access<pixelT, access::mode::read>();
+      auto read_acc = Image_3D.get_access<pixelT, access_mode::read>();
       for (int row = 0; row < height; row++) {
         for (int col = 0; col < width; col++) {
           for (int z = 0; z < depth; z++) {

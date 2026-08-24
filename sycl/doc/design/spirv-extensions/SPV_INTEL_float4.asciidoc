@@ -1,12 +1,11 @@
 :extension_name: SPV_INTEL_float4
 
-:hf4_capability_name: Float4E2M1INTEL
-:hf4_capability_token: 6212
 :hf4_matrix_capability_name: Float4E2M1CooperativeMatrixINTEL
 :hf4_matrix_capability_token: 6213
-:hf4_encoding: 6214
+:hf4_encoding_name: Float4E2M1EXT
 
 :khr_matrix_capability_name: CooperativeMatrixKHR
+:float4ext_capability_name: Float4EXT
 
 :joint_matrix_url:  https://https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions/SPV_INTEL_joint_matrix.asciidoc
 :fp_conv_url: https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions/SPV_INTEL_fp_conversions.asciidoc
@@ -55,8 +54,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2025-10-24
-| Revision           | 2
+| Last Modified Date | 2026-07-02
+| Revision           | 3
 |========================================
 
 == Dependencies
@@ -74,172 +73,62 @@ This extension interacts with {fp8_url}[*SPV_EXT_float8*] extension.
 
 This extension interacts with {fp_conv_url}[*SPV_INTEL_fp_conversions*] extension.
 
+This extension depends on the *SPV_EXT_ocp_microscaling_types* extension, which
+provides the *Float4E2M1EXT* encoding that this extension uses as a
+cooperative-matrix component type.
+
 This extension requires SPIR-V 1.0.
 
 Overview
 --------
 
-This extension extends the *OpTypeFloat* instruction to enable the definition of `FP4E2M1`
-floating-point format that has one sign bit, two exponent bits and one mantissa bits.
+The `FP4E2M1` floating-point type, which has one sign bit, two exponent bits and
+one mantissa bit, is defined by the multi-vendor *SPV_EXT_ocp_microscaling_types*
+extension as the *Float4E2M1EXT* encoding.
 
-The `FP4E2M1` special values are defined by the table below.
-
-[options="header"]
-[width="80%"]
-[cols="1,2"]
-|====
-| ^| `FP4E2M1`
-| Exponent Bias | 1
-| Max normal
-| S.11.1 = 6.0 (1.5 * 2^2^)
-
-| Min normal
-| S.01.0 = 1.0 (1.0 * 2^0^)
-
-| Max subnormal
-| S.00.1 = 0.5 (0.5 * 2^0^)
-
-| Min subnormal
-| S.00.1 = 0.5 (0.5 * 2^0^)
-
-| Infinity | N/A
-| NaN | N/A
-
-|====
+This extension enables that type to be used as an *OpTypeCooperativeMatrixKHR*
+component type, for which the microscaling extension has no analog.
 
 == Modifications to the SPIR-V Specification, Version 1.6
 
-Binary Form
-~~~~~~~~~~~
-
-FP Encoding
-~~~~~~~~~~~
-
-Add a new enum:
-
---
-[cols="^2,14,2,4",options="header",width = "100%"]
-|====
-2+^.^| FP Encoding | Width(s) | Enabling Capabilities
-| {hf4_encoding} | *Float4E2M1INTEL* +
-The floating point type is encoded as a 4-bit float type.
-This is encoded with the following encoding parameters: +
-
- - _bias_ is 1
- +
- - _sign bit_ is 1
- +
- - _w_ (exponent) is 2
- +
- - _t_ (significand) is 1
- +
- - _k_ (width) is 4
-| 4 | *Float4E2M1INTEL*
-
-|===
---
+The FP4 (E2M1) type is represented with the *{hf4_encoding_name}* floating-point
+encoding defined by the *SPV_EXT_ocp_microscaling_types* extension.
+This extension adds the capability to use that type as an *OpTypeCooperativeMatrixKHR*
+component type, for which the microscaling extension has no analog.
 
 === Capabilities
 
-Modify Section 3.31, Capability, adding rows to the Capability table:
+Modify Section 3.31, Capability, adding a row to the Capability table:
 
 --
 [options="header"]
 |====
-2+^| Capability ^| Implicitly Declares 
-| {hf4_capability_token} | *{hf4_capability_name}* +
-Uses *Float4E2M1INTEL* floating-point encoding. +
-|
-| {hf4_matrix_capability_token} | *{hf4_matrix_capability_name}* | *{khr_matrix_capability_name}*
+2+^| Capability ^| Implicitly Declares
+| {hf4_matrix_capability_token} | *{hf4_matrix_capability_name}* +
+Uses a cooperative matrix with a _Component Type_ of *OpTypeFloat* with the
+*{hf4_encoding_name}* encoding. | *{float4ext_capability_name}*, *{khr_matrix_capability_name}*
 |====
 --
 
-=== Memory Layout
-
-Add to Section 2.18.1. Memory Layout, FPE2M1 4 layout:
-
-Scalar floating point variables with a `Width` of 4 can only be declared in the `Private` or `Function` storage classes.
-In other storage classes, they must be included in an `OpTypeVector` with an even `Component Count`, where the first component in every pair is in bits 0-3 of the corresponding byte, and the second component is in bits 4-7.
-
 === Instructions
-
-==== 3.42.11. Conversion Instructions
-
-* Add the following paragraphs to *OpFConvert*:
- +
-When converting to floating-point values with the *Float4E2M1INTEL* encoding, out-of-range
-values and infinity and are converted to largest representable finite value with a matching sign.
-Conversion from NaNs is implementation-defined. +
- +
 
 ==== 3.49.6. Type-Declaration Instructions
 
 Add the following requirement to *OpTypeCooperativeMatrixKHR*:
 
-If _Component Type_ has a *Float4E2M1INTEL* encoding then *{hf4_matrix_capability_name}* must be declared.
+If _Component Type_ has a *{hf4_encoding_name}* encoding then *{hf4_matrix_capability_name}* must be declared.
 
 Validation Rules
 ~~~~~~~~~~~~~~~~
 
-Add the following bullets to section 2.16.1, Universal Validation Rules:
+The *SPV_EXT_ocp_microscaling_types* extension restricts the instructions that a
+*{hf4_encoding_name}*-encoded object may be used with, and does not permit the
+cooperative-matrix instructions.
+This extension additionally permits a cooperative matrix whose _Component Type_
+has the *{hf4_encoding_name}* encoding to be used with the following instructions:
 
-  * Variables with a type that is or includes a floating-point type with the *Float4E2M1INTEL* encoding must only be used with the following instructions:
-  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_miscellaneous_instructions[Miscellaneous Instructions] :
-  *** OpUndef
-  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_constant_creation_instructions[Constant Creation Instructions] :
-  *** OpConstant
-  *** OpConstantNull
-  *** OpConstantOp
-  *** OpConstantComposite
-  *** OpConstantCompositeContinuedINTEL
-  *** OpCooperativeMatrixConstructCheckedINTEL
-  *** OpSpecConstant
-  *** OpSpecConstantOp
-  *** OpSpecConstantComposite
-  *** OpSpecConstantCompositeContinuedINTEL
-  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_arithmetic_instructions[Arithmetic Instructions] :
-  *** OpCooperativeMatrixMulAddKHR
-  *** OpCooperativeMatrixMulAddScaledINTEL
-  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_composite_instructions[Composite Instructions] :
-  *** OpVectorExtractDynamic
-  *** OpVectorInsertDynamic
-  *** OpVectorShuffle
-  *** OpCompositeConstruct
-  *** OpCompositeExtract
-  *** OpCompositeInsert
-  *** OpCopyObject
-  *** OpCopyLogical
-  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_memory_instructions[Memory Instructions] :
-  *** OpPtrEqual
-  *** OpPtrNotEqual
-  *** OpPtrDiff
-  *** OpCooperativeMatrixLoadKHR
-  *** OpCooperativeMatrixStoreKHR
-  *** OpCooperativeMatrixLoadCheckedINTEL
-  *** OpCooperativeMatrixStoreCheckedINTEL
-  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_function_instructions[Function Instructions] :
-  *** OpFunction
-  *** OpFunctionParameter
-  *** OpFunctionCall
-  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_conversion_instructions[Conversion Instructions] :
-  *** OpConvertSToF
-  *** OpFConvert
-  *** OpConvertPtrToU
-  *** OpConvertUToPtr
-  *** OpPtrCastToGeneric
-  *** OpGenericCastToPtr
-  *** OpGenericCastToPtrExplicit
-  *** OpBitcast
-  *** OpClampConvertFToFINTEL
-  *** OpBiasedRoundFToFINTEL
-  *** OpClampBiasedRoundFToFINTEL
-  *** OpBiasedRoundFToSINTEL
-  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_control_flow_instructions[Control-Flow Instructions] :
-  *** OpReturnValue
-  *** OpSelect
-  *** OpPhi
-  *** OpLifetimeStart
-  *** OpLifetimeStop
+  * OpCooperativeMatrixMulAddKHR
+  * OpCooperativeMatrixMulAddScaledINTEL
 
 === Issues
 
@@ -255,4 +144,5 @@ Revision History
 |Rev|Date|Author|Changes
 |1|2024-06-15|Dmitry Sidorov|Initial revision
 |2|2025-10-24|Dmitry Sidorov|Prepare to publish
+|3|2026-07-02|Viktoria Maksimova|Represent the FP4E2M1 type with the SPV_EXT_ocp_microscaling_types Float4E2M1EXT encoding; narrow this extension to enabling that type as a cooperative-matrix component type
 |========================================

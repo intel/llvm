@@ -1,5 +1,6 @@
 // REQUIRES: opencl || level_zero, gpu, ocloc
 // UNSUPPORTED: arch-intel_gpu_dg2
+// UNSUPPORTED-INTENDED: see https://github.com/intel/llvm/pull/20643
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device dg2" %s -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=2 %{run} %t.out 2>&1 | FileCheck %s

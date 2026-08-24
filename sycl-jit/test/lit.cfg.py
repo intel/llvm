@@ -8,7 +8,7 @@ from lit.llvm.subst import ToolSubst
 
 config.name = "SYCL-JIT"
 
-config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
+config.test_format = lit.formats.ShTest(execute_external=not llvm_config.use_lit_shell, force_execute_external=True)
 
 # Define suffixes for test discovery
 config.suffixes = [".ll"]

@@ -56,12 +56,12 @@ __spirv_ControlBarrier(int scope, int memory,
     unsigned int env1, env2;
     __asm__ __volatile__("mov.u32 %0, %%envreg1;" : "=r"(env1));
     __asm__ __volatile__("mov.u32 %0, %%envreg2;" : "=r"(env2));
-    long long envreg1 = env1;
-    long long envreg2 = env2;
+    long envreg1 = env1;
+    long envreg2 = env2;
     // Bit field insert operation. Place 32 bits of envreg2 next to 32 bits of
     // envreg1: s64[envreg2][envreg1]. The resulting value is the address in
     // device global memory region, where atomic operations can be performed.
-    long long atomicAddr;
+    long atomicAddr;
     __asm__ __volatile__("bfi.b64 %0, %1, %2, 32, 32;"
                          : "=l"(atomicAddr)
                          : "l"(envreg1), "l"(envreg2));

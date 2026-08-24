@@ -1,4 +1,7 @@
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Remove this file once preview-breaking changes become the default ABI.
 __SYCL_ASPECT_DEPRECATED(host, 0, "removed in SYCL 2020, 'host' device has been removed")
 __SYCL_ASPECT_DEPRECATED(int64_base_atomics, 7, "use atomic64 instead")
 __SYCL_ASPECT_DEPRECATED(int64_extended_atomics, 8, "use atomic64 instead")
 __SYCL_ASPECT_DEPRECATED(usm_restricted_shared_allocations, 16, "deprecated in SYCL 2020")
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES

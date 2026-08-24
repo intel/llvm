@@ -12,6 +12,7 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 
 #include "helpers.hpp"
+#include <algorithm>
 
 template <typename T, int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))

@@ -766,7 +766,7 @@ public:
                 exception(make_error_code(Errc), BuildResult->Error.Msg),
                 BuildResult->Error.Code);
           else
-            throw exception();
+            throw exception(make_error_code(Errc));
         }
 
         // NewState == BuildState::BS_Initial

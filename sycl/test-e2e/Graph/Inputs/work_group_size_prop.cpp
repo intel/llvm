@@ -1,4 +1,5 @@
 // This test is adapted from "test-e2e/Basic/work_group_size_prop.cpp"
+#include <iostream>
 
 #include "../graph_common.hpp"
 

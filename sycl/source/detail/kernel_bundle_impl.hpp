@@ -13,6 +13,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/link_graph.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 #include <sycl/backend_types.hpp>
@@ -502,22 +503,36 @@ public:
           return detail::ProgramManager::isAOTBinaryTarget(
               Bin->getRawData().DeviceTargetSpec);
         };
-        std::stable_partition(GraphImgs.begin(), GraphImgs.end(),
-                              [&IsAOTImage](const device_image_plain &Img) {
-                                return !IsAOTImage(Img);
-                              });
-        auto AOTBegin =
-            std::find_if(GraphImgs.begin(), GraphImgs.end(), IsAOTImage);
-        size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTBegin);
+        // Manually partition (stable) instead of std::stable_partition,
+        // whose libstdc++ implementation can fall back to the deprecated
+        // std::get_temporary_buffer when it cannot allocate scratch space.
+        std::vector<device_image_plain> Reordered;
+        Reordered.reserve(GraphImgs.size());
+        size_t NumJITImgs = 0;
+        for (const device_image_plain &Img : GraphImgs)
+          if (!IsAOTImage(Img)) {
+            Reordered.push_back(Img);
+            ++NumJITImgs;
+          }
+        for (const device_image_plain &Img : GraphImgs)
+          if (IsAOTImage(Img))
+            Reordered.push_back(Img);
+        GraphImgs = std::move(Reordered);
         return {{GraphImgs.begin(), GraphImgs.begin() + NumJITImgs},
                 {GraphImgs.begin() + NumJITImgs, GraphImgs.end()}};
       }();
 
       // If there AOT binaries, the link should allow unresolved symbols.
+      // Only invoke the JIT link (urProgramLinkExp) when there is at least one
+      // JIT image; an AOT-only link (e.g. cross-library link of native AOT
+      // object SYCLBINs) has no SPIR-V to link and passing an empty program
+      // list to urProgramLinkExp is invalid. The AOT images are handled by the
+      // dynamicLink path below.
       std::vector<device_image_plain> LinkedResults =
-          detail::ProgramManager::getInstance().link(
-              JITImgs, GraphDevs, PropList,
-              /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
+          JITImgs.empty() ? std::vector<device_image_plain>{}
+                          : detail::ProgramManager::getInstance().link(
+                                JITImgs, GraphDevs, PropList,
+                                /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
 
       if (!AOTImgs.empty()) {
         // urProgramLinkExp's ze_module_program_exp_desc_t carries a single
@@ -756,11 +771,42 @@ public:
     std::vector<const detail::RTDeviceBinaryImage *> BestImages =
         SYCLBIN->getBestCompatibleImages(Devs, State);
     MDeviceImages.reserve(BestImages.size());
-    for (const detail::RTDeviceBinaryImage *Image : BestImages)
+    auto &PM = ProgramManager::getInstance();
+    // Reconcile an image's intrinsic classification with the state the SYCLBIN
+    // was loaded in. An export-only native AOT library classifies as
+    // executable but is surfaced for an object-state load so it can act as the
+    // provider side of a cross-library link; such an image must not be
+    // presented as already-linked. Only downgrade executable -> object for an
+    // object-state load; leave every other combination at the intrinsic state.
+    auto ReconcileState = [](bundle_state ImageState,
+                             bundle_state RequestedState) {
+      if (ImageState == bundle_state::executable &&
+          RequestedState == bundle_state::object)
+        return bundle_state::object;
+      return ImageState;
+    };
+    for (const detail::RTDeviceBinaryImage *Image : BestImages) {
+      // Build per-image kernel-id list from the [SYCL/kernel names] property
+      // set so that the C++ kernel_id-based APIs (has_kernel<K>(),
+      // get_kernel_ids(), ...) work on the reloaded bundle. The lookup goes
+      // through ProgramManager's name->kernel_id registry, which is
+      // populated at app start by the static integration-header registration
+      // of every kernel the host TU knows about. Names that have no
+      // registered kernel id (e.g. kernels defined in a different DSO that
+      // is not loaded) are silently skipped.
+      auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
+      for (const sycl_device_binary_property &KNProp : Image->getKernelNames())
+        if (std::optional<kernel_id> MaybeID =
+                PM.tryGetSYCLKernelID(KNProp->Name))
+          KernelIDs->push_back(*MaybeID);
+      std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
+
+      const bundle_state ImgState =
+          ReconcileState(ProgramManager::getBinImageState(Image), State);
       MDeviceImages.emplace_back(device_image_impl::create(
-          Image, Context, Devs, ProgramManager::getBinImageState(Image),
-          /*KernelIDs=*/nullptr, Managed<ur_program_handle_t>{},
-          ImageOriginSYCLBIN));
+          Image, Context, Devs, ImgState, std::move(KernelIDs),
+          Managed<ur_program_handle_t>{}, ImageOriginSYCLBIN));
+    }
     ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
                                                                State);
     fillUniqueDeviceImages();
@@ -1038,6 +1084,72 @@ public:
   size_t size() const noexcept { return MUniqueDeviceImages.size(); }
 
   bundle_state get_bundle_state() const { return MState; }
+
+  // Serialize this kernel_bundle into the SYCLBIN binary format. Always
+  // re-serializes from the live device images to reflect any state-promotion
+  // (compile/link/build) that may have replaced the original images, even when
+  // the bundle was originally constructed from a SYCLBIN file.
+  //
+  // For executable-state bundles whose source image is IR (SPIR-V) and which
+  // therefore have a built UR program, the per-device native binaries are
+  // extracted from the program via getProgramBinaryData and emitted as
+  // NativeDeviceCodeImages. This satisfies the spec requirement that an
+  // executable-state SYCLBIN contain native, ready-to-run binaries.
+  std::vector<char> ext_oneapi_get_content() const {
+    // Per the sycl_ext_oneapi_syclbin extension, the public surface uses a
+    // _Constraints:_ clause that excludes ext_oneapi_source via SFINAE on
+    // kernel_bundle<State>::ext_oneapi_get_content. This assert backstops the
+    // SFINAE in case the impl is reached through a different path.
+    assert(MState != bundle_state::ext_oneapi_source &&
+           "ext_oneapi_get_content reached on a source-state kernel_bundle.");
+
+    std::vector<SYCLBIN::ImageInput> Inputs;
+    Inputs.reserve(MUniqueDeviceImages.size());
+    for (device_image_impl &DevImg : device_images()) {
+      const RTDeviceBinaryImage *Bin = DevImg.get_bin_image_ref();
+      if (!Bin)
+        continue;
+      // Free-function kernels are not yet supported by the SYCLBIN
+      // serializer: their kernel-id registration would not survive a
+      // round-trip through the reader's name->kernel_id lookup. Detect at
+      // serialize time and surface a clear error instead of silently
+      // emitting a SYCLBIN whose kernels are unreachable on reload.
+      if (!Bin->getRegisteredKernels().empty())
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "ext_oneapi_get_content: free-function kernels are not yet "
+            "supported.");
+
+      SYCLBIN::ImageInput &In = Inputs.emplace_back();
+      In.Image = Bin;
+      In.DevImg = &DevImg;
+
+      // Always populate the device list so the serializer can use it as a
+      // fallback source for the per-image arch string when the static image
+      // carries no compile_target property.
+      devices_range Devs = DevImg.get_devices();
+      In.Devices.reserve(Devs.size());
+      for (device_impl &D : Devs)
+        In.Devices.push_back(&D);
+
+      // Promote IR -> native by reading back the JIT-built program bytes,
+      // but only when we're emitting an executable-state SYCLBIN. For
+      // input/object states we want to keep the IR payload as-is so the
+      // re-loaded bundle preserves the same source-side state.
+      const bool IsExecutable = MState == bundle_state::executable;
+      const bool IsIRSource =
+          Bin->getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV ||
+          Bin->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+      if (IsExecutable && IsIRSource && DevImg.get_ur_program() != nullptr &&
+          !Devs.empty()) {
+        In.NativeBinaries =
+            sycl::detail::getProgramBinaryData(DevImg.get_ur_program(), Devs);
+        // NativeBinaries is keyed 1:1 with Devices (already populated above).
+      }
+    }
+
+    return SYCLBIN::serializeImages(Inputs, static_cast<uint8_t>(MState));
+  }
 
   const SpecConstMapT &get_spec_const_map_ref() const noexcept {
     return MSpecConstValues;

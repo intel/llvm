@@ -23,13 +23,13 @@ $dg_int2 = comdat any
 ; CHECK-MOD2-NOT: @dg_int2
 
 ; Third kernel that uses no device-global variables
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel3RN2cl4sycl5queueEEUlvE_() #4 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel3RN2cl4sycl5queueEEUlvE_() #4 comdat {
 entry:
   ret void
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel1RN2cl4sycl5queueEEUlvE_() #2 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel1RN2cl4sycl5queueEEUlvE_() #2 comdat {
 entry:
   %0 = alloca %"class.cl::sycl::detail::accessor_common", align 1
   %1 = addrspacecast %"class.cl::sycl::detail::accessor_common"* %0 to %"class.cl::sycl::detail::accessor_common" addrspace(4)*
@@ -69,7 +69,7 @@ entry:
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZ7kernel2RN2cl4sycl5queueEEUlvE_() #3 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ7kernel2RN2cl4sycl5queueEEUlvE_() #3 comdat {
 entry:
   %0 = alloca %"class.cl::sycl::detail::accessor_common", align 1
   %1 = addrspacecast %"class.cl::sycl::detail::accessor_common"* %0 to %"class.cl::sycl::detail::accessor_common" addrspace(4)*
@@ -122,4 +122,3 @@ attributes #6 = { convergent nounwind }
 !3 = !{!"clang version 14.0.0"}
 !4 = !{i32 1, !"wchar_size", i32 2}
 !5 = !{i32 7, !"frame-pointer", i32 2}
-!6 = !{}

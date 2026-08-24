@@ -14,6 +14,8 @@ on:
 jobs:
   code_formatter:
     runs-on: ubuntu-24.04
+    container:
+      image: 'ghcr.io/llvm/ci-ubuntu-24.04-format@sha256:2201505efec61dde10ff149e2b6438c8bbdbefeb87c525a56df31cf0954ee6ca'
     timeout-minutes: 30
     concurrency:
       group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -21,30 +23,19 @@ jobs:
     if: (github.repository == 'llvm/llvm-project' || github.repository == 'intel/llvm') && !contains(github.event.pull_request.labels.*.name, 'disable-lint')
     steps:
       - name: Fetch LLVM sources
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          persist-credentials: false
           fetch-depth: 2
 
       - name: Get changed files
         id: changed-files
-        uses: step-security/changed-files@60967b822d3001fa82242f8d6b4ed46bc3600a68 # v47.0.1
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           separator: ","
           skip_initial_fetch: true
           base_sha: 'HEAD~1'
           sha: 'HEAD'
-
-      # We need to pull the script from the main branch, so that we ensure
-      # we get the latest version of this script.
-      - name: Fetch code formatting utils
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: ${{ github.repository }}
-          ref: ${{ github.base_ref }}
-          sparse-checkout: |
-            llvm/utils/git/code-format-helper.py
-          sparse-checkout-cone-mode: false
-          path: code-format-tools
 
       - name: "Listed files"
         env:
@@ -53,21 +44,6 @@ jobs:
           echo "Formatting files:"
           echo "$CHANGED_FILES"
 
-      - name: Install clang-format
-        uses: aminya/setup-cpp@1f17f92d6a52bfcb1a25348e2c526c2e5cbb1134 # v1.8.0
-        with:
-          clangformat: 20.1.8
-
-      - name: Setup Python env
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - run: |
-          python -m pip install --upgrade pip
-          python -m pip install PyGithub darker black
-
       - name: Run code formatter
         env:
           GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -75,7 +51,7 @@ jobs:
         # Create an empty comments file so the pr-write job doesn't fail.
         run: |
           echo "[]" > comments &&
-          python ./code-format-tools/llvm/utils/git/code-format-helper.py \
+          python ./llvm/utils/git/code-format-helper.py \
             --write-comment-to-file \
             --token ${{ secrets.GITHUB_TOKEN }} \
             --issue-number $GITHUB_PR_NUMBER \
@@ -83,7 +59,7 @@ jobs:
             --end-rev HEAD \
             --changed-files "$CHANGED_FILES"
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: workflow-args

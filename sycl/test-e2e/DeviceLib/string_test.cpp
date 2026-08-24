@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 enum USM_TEST_RES { USM_ALLOC_FAIL = -1, USM_TEST_PASS = 0, USM_TEST_FAIL = 1 };
@@ -30,8 +31,8 @@ bool kernel_test_memcpy(sycl::queue &deviceQueue) {
     sycl::buffer<char, 1> buffer1(src, sycl::range<1>(20));
     sycl::buffer<char, 1> buffer2(dst, sycl::range<1>(20));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto dst_acc = buffer2.get_access<sycl::access::mode::write>(cgh);
-      auto src_acc = buffer1.get_access<sycl::access::mode::read>(cgh);
+      auto dst_acc = buffer2.get_access<sycl::access_mode::write>(cgh);
+      auto src_acc = buffer1.get_access<sycl::access_mode::read>(cgh);
       cgh.single_task<class KernelTestMemcpy>([=]() {
         memcpy(dst_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
                src_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 20);
@@ -58,7 +59,7 @@ bool kernel_test_strcpy(sycl::queue &deviceQueue) {
   {
     sycl::buffer<CStr, 1> dst_buffer(dst, sycl::range<1>(5));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto dst_acc = dst_buffer.get_access<sycl::access::mode::write>(cgh);
+      auto dst_acc = dst_buffer.get_access<sycl::access_mode::write>(cgh);
       cgh.single_task<class KernelTestStrcpy>([=]() {
         char str[20] = "abcdefg012345xyzvvv";
         strcpy(dst_acc[0], str);
@@ -100,7 +101,7 @@ bool kernel_test_strncpy(sycl::queue &deviceQueue) {
   {
     sycl::buffer<CStr, 1> dst_buffer(dst, sycl::range<1>(3));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto dst_acc = dst_buffer.get_access<sycl::access::mode::write>(cgh);
+      auto dst_acc = dst_buffer.get_access<sycl::access_mode::write>(cgh);
       cgh.single_task<class KernelTestStrncpy>([=]() {
         char str[20] = "abcdefg012345xyzvvv";
         strncpy(dst_acc[0], str, 19);
@@ -147,7 +148,7 @@ bool kernel_test_strcmp(sycl::queue &deviceQueue) {
   {
     sycl::buffer<int, 1> res_buffer(res, sycl::range<1>(5));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto res_acc = res_buffer.get_access<sycl::access::mode::write>(cgh);
+      auto res_acc = res_buffer.get_access<sycl::access_mode::write>(cgh);
       cgh.single_task<class KernelTestStrcmp>([=]() {
         char str1[20] = "abcdefg012";
         char str2[20] = "abcd";
@@ -174,7 +175,7 @@ bool kernel_test_strncmp(sycl::queue &deviceQueue) {
   {
     sycl::buffer<int, 1> res_buffer(res, sycl::range<1>(10));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto res_acc = res_buffer.get_access<sycl::access::mode::write>(cgh);
+      auto res_acc = res_buffer.get_access<sycl::access_mode::write>(cgh);
       cgh.single_task<class KernelTestStrncmp>([=]() {
         char str1[20] = "abcdefg012";
         char str2[20] = "abcd";
@@ -215,8 +216,8 @@ bool kernel_test_strlen(sycl::queue &deviceQueue) {
     sycl::buffer<char, 1> buffer1(src, sycl::range<1>(20));
     sycl::buffer<size_t, 1> buffer2(len, sycl::range<1>(5));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto len_acc = buffer2.get_access<sycl::access::mode::write>(cgh);
-      auto src_acc = buffer1.get_access<sycl::access::mode::read_write>(cgh);
+      auto len_acc = buffer2.get_access<sycl::access_mode::write>(cgh);
+      auto src_acc = buffer1.get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task<class KernelTestStrlen>([=]() {
         len_acc[0] =
             strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
@@ -347,7 +348,7 @@ bool kernel_test_memset(sycl::queue &deviceQueue) {
   {
     sycl::buffer<unsigned char, 1> buffer1(dst, sycl::range<1>(20));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto dst_acc = buffer1.get_access<sycl::access::mode::write>(cgh);
+      auto dst_acc = buffer1.get_access<sycl::access_mode::write>(cgh);
       cgh.single_task<class KernelTestMemset>([=]() {
         memset(dst_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 'P',
                18);
@@ -458,15 +459,15 @@ bool kernel_test_memcmp(sycl::queue &deviceQueue) {
     sycl::buffer<char, 1> buffer_str7(str7, sycl::range<1>(sizeof(str7)));
     sycl::buffer<char, 1> buffer_str8(str8, sycl::range<1>(sizeof(str8)));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto results_acc = buffer1.get_access<sycl::access::mode::write>(cgh);
-      auto str1_acc = buffer_str1.get_access<sycl::access::mode::read>(cgh);
-      auto str2_acc = buffer_str2.get_access<sycl::access::mode::read>(cgh);
-      auto str3_acc = buffer_str3.get_access<sycl::access::mode::read>(cgh);
-      auto str4_acc = buffer_str4.get_access<sycl::access::mode::read>(cgh);
-      auto str5_acc = buffer_str5.get_access<sycl::access::mode::read>(cgh);
-      auto str6_acc = buffer_str6.get_access<sycl::access::mode::read>(cgh);
-      auto str7_acc = buffer_str7.get_access<sycl::access::mode::read>(cgh);
-      auto str8_acc = buffer_str8.get_access<sycl::access::mode::read>(cgh);
+      auto results_acc = buffer1.get_access<sycl::access_mode::write>(cgh);
+      auto str1_acc = buffer_str1.get_access<sycl::access_mode::read>(cgh);
+      auto str2_acc = buffer_str2.get_access<sycl::access_mode::read>(cgh);
+      auto str3_acc = buffer_str3.get_access<sycl::access_mode::read>(cgh);
+      auto str4_acc = buffer_str4.get_access<sycl::access_mode::read>(cgh);
+      auto str5_acc = buffer_str5.get_access<sycl::access_mode::read>(cgh);
+      auto str6_acc = buffer_str6.get_access<sycl::access_mode::read>(cgh);
+      auto str7_acc = buffer_str7.get_access<sycl::access_mode::read>(cgh);
+      auto str8_acc = buffer_str8.get_access<sycl::access_mode::read>(cgh);
       cgh.single_task<class KernelTestMemcmp>([=]() {
         results_acc[0] = memcmp(
             str1_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
@@ -520,7 +521,7 @@ bool kernel_test_memcmp_align(sycl::queue &deviceQueue) {
   {
     sycl::buffer<int, 1> cmp_buf(cmps, sycl::range<1>{16});
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto cmp_acc = cmp_buf.get_access<sycl::access::mode::write>(cgh);
+      auto cmp_acc = cmp_buf.get_access<sycl::access_mode::write>(cgh);
       cgh.single_task<class KernelTestMemcmpAlign>([=]() {
         uint8_t s1_buf[32], s2_buf[32];
         uint8_t *s1_ptr = &s1_buf[0];
@@ -591,19 +592,19 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
     sycl::buffer<char, 1> buffer2(dst, sycl::range<1>(16));
     sycl::buffer<char, 1> buffer3(dst1, sycl::range<1>(16));
     deviceQueue.submit([&](sycl::handler &cgh) {
-      sycl::accessor<char, 1, sycl::access::mode::read,
+      sycl::accessor<char, 1, sycl::access_mode::read,
                      sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           src_acc(buffer1, cgh);
 
       sycl::local_accessor<char, 1> local_acc(sycl::range<1>(16), cgh);
 
-      sycl::accessor<char, 1, sycl::access::mode::write,
+      sycl::accessor<char, 1, sycl::access_mode::write,
                      sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           dst_acc(buffer2, cgh);
 
-      sycl::accessor<char, 1, sycl::access::mode::write,
+      sycl::accessor<char, 1, sycl::access_mode::write,
                      sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           dst1_acc(buffer3, cgh);
@@ -649,7 +650,7 @@ int main() {
   sycl::device dev = deviceQueue.get_device();
   bool shared_usm_enabled = false;
   USM_TEST_RES usm_tres;
-  if (dev.get_info<sycl::info::device::usm_shared_allocations>())
+  if (dev.has(sycl::aspect::usm_shared_allocations))
     shared_usm_enabled = true;
   success = kernel_test_memcpy(deviceQueue);
   if (shared_usm_enabled) {

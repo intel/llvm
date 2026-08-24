@@ -103,6 +103,7 @@
 
 */
 // clang-format on
+#include <iostream>
 
 #include "d3d12_setup.hpp"
 

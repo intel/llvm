@@ -27,8 +27,8 @@ int main() {
           {ext::oneapi::property::buffer::use_pinned_host_memory()});
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto A = a.get_access<access::mode::read_write>(cgh);
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto A = a.get_access<access_mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class init_b>(range<1>{10}, [=](id<1> index) {
           B[index] = 0;
           A[index] = B[index] + 1;

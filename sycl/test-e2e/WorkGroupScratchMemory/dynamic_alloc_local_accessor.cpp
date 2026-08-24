@@ -10,6 +10,7 @@
 
 // Test work_group_dynamic extension with allocation size specified at runtime
 // and an additional local accessor.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
@@ -68,7 +69,7 @@ int main() {
   buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 
   Q.submit([&](handler &Cgh) {
-    auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+    auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
     sycl_ext::work_group_scratch_size static_size(WgSize * RepeatWG *
                                                   sizeof(int));
     sycl_ext::properties properties{static_size};

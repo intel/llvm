@@ -10,6 +10,7 @@
 #include <limits>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/vector.hpp>
 
 #include "helpers/common.hpp"
 #include <sycl/ext/oneapi/bindless_images.hpp>

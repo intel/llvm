@@ -10,6 +10,7 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 
 #include "helpers.hpp"
+#include <sycl/marray.hpp>
 
 static constexpr size_t M_ARRAY_SIZE = 5;
 

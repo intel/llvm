@@ -13,6 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/cl.h>
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
@@ -31,7 +32,7 @@ int main(int argc, char *argv[]) {
      local_accessor<cl_int, 1> a(1, h);
      local_accessor<float4, 1> b(1, h);
 
-     auto ares = res.get_access<access::mode::read_write>(h);
+     auto ares = res.get_access<access_mode::read_write>(h);
 
      // Manually capture kernel arguments to ensure an order with the int
      // argument first and the float4 argument second. If the two arguments are

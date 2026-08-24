@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 // RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
 // RUN: %{run} %t.view.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_physical_memory.hpp>
@@ -62,7 +63,7 @@ int spawner(int argc, char *argv[]) {
       syclexp::reserve_virtual_mem(0, AlignedByteSize, Context);
 
   // Create physical memory with IPC enabled
-  syclexp::properties PropList{syclexp::enable_ipc};
+  syclexp::properties PropList{syclexp::enable_ipc{true}};
   syclexp::physical_mem PhysMem{Device, Context, AlignedByteSize, PropList};
 
   // Map physical memory to virtual address

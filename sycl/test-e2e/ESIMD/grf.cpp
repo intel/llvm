@@ -22,6 +22,7 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
+#include <iostream>
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
 
 using namespace sycl;
@@ -65,7 +66,7 @@ int main(void) {
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read_write>(cgh);
+      auto PA = bufa.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class SyclKernel>(Size,
                                          [=](id<1> i) { PA[i] = PA[i] + 1; });
     });
@@ -85,7 +86,7 @@ int main(void) {
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read_write>(cgh);
+      auto PA = bufa.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernel>(Size, [=](id<1> i) SYCL_ESIMD_KERNEL {
         unsigned int offset = i * VL * sizeof(float);
         simd<float, VL> va;
@@ -115,7 +116,7 @@ int main(void) {
     sycl::ext::oneapi::experimental::properties prop{grf_size<256>};
 #endif
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read_write>(cgh);
+      auto PA = bufa.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernelSpecifiedGRF>(
           Size, prop, [=](id<1> i) SYCL_ESIMD_KERNEL {
             unsigned int offset = i * VL * sizeof(float);

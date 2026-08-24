@@ -6,10 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: There is a separate version of this test for PVC.
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // Regression test for SVM gather/scatter API.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

@@ -10,7 +10,7 @@
 #pragma once
 
 #include "../common.hpp"
-#include "../device.hpp"
+#include "../common/device.hpp"
 
 #include "command_list_cache.hpp"
 #include "common/ur_ref_count.hpp"
@@ -44,7 +44,7 @@
 // ur_queue_flags_t or globally, through the environment variable
 // UR_L0_V2_FORCE_BATCHED=1.
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 // The limit of regular command lists stored for execution; if exceeded, the
 // vector is cleared as part of queueFinish and slots are renewed.
@@ -159,7 +159,7 @@ public:
   void setGraphCapture(bool active) { graphCaptureActive = active; }
 };
 
-struct ur_queue_batched_t : ur_object, ur_queue_t_ {
+struct ur_queue_batched_t : ur_object_t, ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
@@ -242,10 +242,7 @@ public:
   enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
                                   uint32_t numEventsInWaitList,
                                   const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) override {
-    return enqueueEventsWaitWithBarrier(numEventsInWaitList, phEventWaitList,
-                                        phEvent);
-  }
+                                  ur_event_handle_t *phEvent) override;
 
   ur_result_t enqueueMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
                                    size_t offset, size_t size, void *pDst,
@@ -497,4 +494,4 @@ public:
   ur::RefCount RefCount;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

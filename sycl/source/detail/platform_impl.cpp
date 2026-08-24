@@ -13,13 +13,13 @@
 #include <detail/platform_impl.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <unordered_set>

@@ -18,6 +18,7 @@
 //   * A negative case: the property is not set when no property is passed.
 //   * Deprecated APIs: SYCL `queue::single_task`, `queue::parallel_for` and
 //   `queue::parallel_for_work_group` with a property list.
+#include <iostream>
 
 #include <numeric>
 #include <sycl/detail/core.hpp>

@@ -13,7 +13,7 @@
 #include "command_list_cache.hpp"
 
 #include "level_zero/common.hpp"
-#include "level_zero/device.hpp"
+#include "level_zero/common/device.hpp"
 #include "level_zero/ur_interface_loader.hpp"
 
 #include "../ze_helpers.hpp"
@@ -33,23 +33,9 @@
 #include <string>
 #include <unordered_set>
 
-using namespace v2;
+namespace v2 = ur::level_zero::v2;
 
 static constexpr size_t MAX_DEVICES = 10;
-
-const ur_dditable_t *ur::level_zero::ddi_getter::value() {
-  static ur_dditable_t table{};
-  table.Event.pfnRelease = ur::level_zero::urEventRelease;
-  return &table;
-};
-
-// mock necessary functions from context, we can't pull in entire context
-// implementation due to a lot of other dependencies
-std::vector<ur_device_handle_t> mockVec{};
-const std::vector<ur_device_handle_t> &
-ur_context_handle_t_::getDevices() const {
-  return mockVec;
-}
 
 enum ProviderType {
   TEST_PROVIDER_NORMAL,
@@ -67,15 +53,15 @@ static const char *provider_to_str(ProviderType p) {
   }
 }
 
-static std::string flags_to_str(event_flags_t flags) {
+static std::string flags_to_str(v2::event_flags_t flags) {
   std::string str;
-  if (flags & EVENT_FLAGS_COUNTER) {
+  if (flags & v2::EVENT_FLAGS_COUNTER) {
     str += "provider_counter";
   } else {
     str += "provider_normal";
   }
 
-  if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
+  if (flags & v2::EVENT_FLAGS_PROFILING_ENABLED) {
     str += "_profiling";
   } else {
     str += "_no_profiling";
@@ -84,11 +70,11 @@ static std::string flags_to_str(event_flags_t flags) {
   return str;
 }
 
-static const char *queue_to_str(queue_type e) {
+static const char *queue_to_str(v2::queue_type e) {
   switch (e) {
-  case QUEUE_REGULAR:
+  case v2::QUEUE_REGULAR:
     return "QUEUE_REGULAR";
-  case QUEUE_IMMEDIATE:
+  case v2::QUEUE_IMMEDIATE:
     return "QUEUE_IMMEDIATE";
   default:
     return nullptr;
@@ -97,7 +83,7 @@ static const char *queue_to_str(queue_type e) {
 
 struct ProviderParams {
   ProviderType provider;
-  event_flags_t flags;
+  v2::event_flags_t flags;
   v2::queue_type queue;
 };
 
@@ -127,40 +113,40 @@ struct EventPoolTest : public uur::urQueueTestWithParam<ProviderParams> {
     // statically with Level Zero loader, the driver will not be init otherwise.
     zeInit(ZE_INIT_FLAG_GPU_ONLY);
 
-    mockVec.push_back(device);
-
-    cache = std::unique_ptr<event_pool_cache>(new event_pool_cache(
+    cache = std::unique_ptr<v2::event_pool_cache>(new v2::event_pool_cache(
         nullptr, MAX_DEVICES,
-        [this, params](DeviceId,
-                       event_flags_t flags) -> std::unique_ptr<event_provider> {
+        [this, params](ur::level_zero::DeviceId, v2::event_flags_t flags)
+            -> std::unique_ptr<v2::event_provider> {
           // normally id would be used to find the appropriate device to create
           // the provider
           switch (params.provider) {
           case TEST_PROVIDER_COUNTER:
-            return std::make_unique<provider_counter>(
-                platform, context, params.queue, device, params.flags);
+            return std::make_unique<v2::provider_counter>(
+                ur::level_zero::common_cast(platform), v2::v2_cast(context),
+                params.queue, ur::level_zero::common_cast(device),
+                params.flags);
           case TEST_PROVIDER_NORMAL:
-            return std::make_unique<provider_normal>(context, params.queue,
-                                                     flags);
+            return std::make_unique<v2::provider_normal>(v2::v2_cast(context),
+                                                         params.queue, flags);
           }
           return nullptr;
         }));
   }
   void TearDown() override {
     cache.reset();
-    mockVec.clear();
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::TearDown());
   }
 
-  std::unique_ptr<event_pool_cache> cache;
+  std::unique_ptr<v2::event_pool_cache> cache;
 };
 
 static ProviderParams test_cases[] = {
-    {TEST_PROVIDER_NORMAL, 0, QUEUE_REGULAR},
-    {TEST_PROVIDER_NORMAL, EVENT_FLAGS_COUNTER, QUEUE_REGULAR},
-    {TEST_PROVIDER_NORMAL, EVENT_FLAGS_COUNTER, QUEUE_IMMEDIATE},
-    {TEST_PROVIDER_NORMAL, EVENT_FLAGS_COUNTER | EVENT_FLAGS_PROFILING_ENABLED,
-     QUEUE_IMMEDIATE},
+    {TEST_PROVIDER_NORMAL, 0, v2::QUEUE_REGULAR},
+    {TEST_PROVIDER_NORMAL, v2::EVENT_FLAGS_COUNTER, v2::QUEUE_REGULAR},
+    {TEST_PROVIDER_NORMAL, v2::EVENT_FLAGS_COUNTER, v2::QUEUE_IMMEDIATE},
+    {TEST_PROVIDER_NORMAL,
+     v2::EVENT_FLAGS_COUNTER | v2::EVENT_FLAGS_PROFILING_ENABLED,
+     v2::QUEUE_IMMEDIATE},
     // TODO: counter provided is not fully unimplemented
     // counter-based provider ignores event and queue type
     //{TEST_PROVIDER_COUNTER, EVENT_COUNTER, QUEUE_IMMEDIATE},
@@ -177,30 +163,31 @@ TEST_P(EventPoolTest, InvalidDevice) {
 }
 
 TEST_P(EventPoolTest, Basic) {
+  auto deviceId = ur::level_zero::common_cast(device)->Id.value();
   {
-    ur_event_handle_t first;
+    v2::ur_event_handle_t first;
     ze_event_handle_t zeFirst;
     {
-      auto pool = cache->borrow(device->Id.value(), getParam().flags);
+      auto pool = cache->borrow(deviceId, getParam().flags);
 
       first = pool->allocate();
       first->setQueue(nullptr);
       first->setCommandType(UR_COMMAND_KERNEL_LAUNCH);
       zeFirst = first->getZeEvent();
 
-      urEventRelease(first);
+      urEventRelease(v2::v2_cast(first));
     }
-    ur_event_handle_t second;
+    v2::ur_event_handle_t second;
     ze_event_handle_t zeSecond;
     {
-      auto pool = cache->borrow(device->Id.value(), getParam().flags);
+      auto pool = cache->borrow(deviceId, getParam().flags);
 
       second = pool->allocate();
       second->setQueue(nullptr);
       second->setCommandType(UR_COMMAND_KERNEL_LAUNCH);
       zeSecond = second->getZeEvent();
 
-      urEventRelease(second);
+      urEventRelease(v2::v2_cast(second));
     }
     ASSERT_EQ(first, second);
     ASSERT_EQ(zeFirst, zeSecond);
@@ -209,19 +196,20 @@ TEST_P(EventPoolTest, Basic) {
 
 TEST_P(EventPoolTest, Threaded) {
   std::vector<std::thread> threads;
+  auto deviceId = ur::level_zero::common_cast(device)->Id.value();
 
   for (int iters = 0; iters < 3; ++iters) {
     for (int th = 0; th < 10; ++th) {
       threads.emplace_back([&] {
-        auto pool = cache->borrow(device->Id.value(), getParam().flags);
-        std::vector<ur_event_handle_t> events;
+        auto pool = cache->borrow(deviceId, getParam().flags);
+        std::vector<v2::ur_event_handle_t> events;
         for (int i = 0; i < 100; ++i) {
           events.push_back(pool->allocate());
           events.back()->setQueue(nullptr);
           events.back()->setCommandType(UR_COMMAND_KERNEL_LAUNCH);
         }
         for (int i = 0; i < 100; ++i) {
-          urEventRelease(events[i]);
+          urEventRelease(v2::v2_cast(events[i]));
         }
       });
     }
@@ -233,8 +221,9 @@ TEST_P(EventPoolTest, Threaded) {
 }
 
 TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
-  auto pool = cache->borrow(device->Id.value(), getParam().flags);
-  std::list<ur_event_handle_t> events;
+  auto deviceId = ur::level_zero::common_cast(device)->Id.value();
+  auto pool = cache->borrow(deviceId, getParam().flags);
+  std::list<v2::ur_event_handle_t> events;
   for (int i = 0; i < 128; ++i) {
     auto event = pool->allocate();
     event->setQueue(nullptr);
@@ -243,7 +232,7 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
   }
   auto frontZeHandle = events.front()->getZeEvent();
   for (int i = 0; i < 8; ++i) {
-    urEventRelease(events.front());
+    urEventRelease(v2::v2_cast(events.front()));
     events.pop_front();
   }
   for (int i = 0; i < 8; ++i) {
@@ -257,7 +246,7 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
   ASSERT_EQ(frontZeHandle, events.back()->getZeEvent());
 
   for (auto e : events) {
-    urEventRelease(e);
+    urEventRelease(v2::v2_cast(e));
   }
 }
 
@@ -275,7 +264,7 @@ TEST_P(EventPoolTestWithQueue, WithTimestamp) {
   // Skip due to driver bug causing a sigbus
   SKIP_IF_DRIVER_TOO_OLD("Level-Zero", minL0DriverVersion, platform, device);
 
-  if (!(getParam().flags & EVENT_FLAGS_PROFILING_ENABLED)) {
+  if (!(getParam().flags & v2::EVENT_FLAGS_PROFILING_ENABLED)) {
     GTEST_SKIP() << "Profiling needs to be enabled";
   }
 
@@ -301,7 +290,7 @@ TEST_P(EventPoolTestWithQueue, WithTimestamp) {
   ur_event_handle_t second;
   ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &second));
   // even if the event is reused, it should not be timestamped anymore
-  ASSERT_FALSE(second->isTimestamped());
+  ASSERT_FALSE(v2::v2_cast(second)->isTimestamped());
   ASSERT_SUCCESS(urEventRelease(second));
 
   ASSERT_EQ(zeEventHostSignal(zeEvent.get()), ZE_RESULT_SUCCESS);

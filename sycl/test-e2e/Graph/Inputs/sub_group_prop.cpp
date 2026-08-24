@@ -1,7 +1,10 @@
 // This test is adapted from "test-e2e/Basic/sub_group_size_prop.cpp"
+#include <iostream>
 
 #include "../graph_common.hpp"
 #include <sycl/sub_group.hpp>
+
+#include <algorithm>
 
 enum class Variant { Function, Functor, FunctorAndProperty };
 

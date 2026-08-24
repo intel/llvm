@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
+#include <algorithm>
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <vector>
@@ -17,13 +18,13 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
 
   void operator()(sycl::handler &cgh) {
     auto A =
-        this->getInputBuffer(0).template get_access<sycl::access::mode::read>(
+        this->getInputBuffer(0).template get_access<sycl::access_mode::read>(
             cgh);
     auto B =
-        this->getInputBuffer(1).template get_access<sycl::access::mode::read>(
+        this->getInputBuffer(1).template get_access<sycl::access_mode::read>(
             cgh);
     auto C =
-        this->getOutputBuffer().template get_access<sycl::access::mode::write>(
+        this->getOutputBuffer().template get_access<sycl::access_mode::write>(
             cgh);
 
     cgh.parallel_for<KernelFunctor<T>>(

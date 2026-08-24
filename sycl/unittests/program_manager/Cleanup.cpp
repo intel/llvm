@@ -333,6 +333,14 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
 }
 
 TEST(ImageRemoval, NativePrograms) {
+#if defined(_WIN32) && defined(__INTEL_LLVM_COMPILER)
+  // Disabled on Windows built with icx: a Managed<ur_program_handle_t> can
+  // release its UR program through an already-freed adapter_impl (use-after-
+  // free), which on this configuration calls a null function pointer and
+  // crashes with SEH 0xC0000005. Tracked in
+  // https://github.com/intel/llvm/issues/22367
+  GTEST_SKIP() << "Disabled on Windows/icx, see intel/llvm#22367";
+#endif
   ProgramManagerExposed PM;
 
   sycl_device_binary_struct NativeImages[ImagesToKeepKernelOnly.size()];

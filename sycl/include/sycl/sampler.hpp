@@ -62,7 +62,8 @@ class sampler_impl;
 /// \sa sycl_api_acc
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(sampler) sampler {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(sampler)
+    __SYCL2020_DEPRECATED("sampler has been removed in SYCL 2020") sampler {
   friend sycl::detail::ImplUtils;
 
 public:
@@ -71,7 +72,7 @@ public:
           const property_list &propList = {});
 
 #ifdef __SYCL_INTERNAL_API
-  sampler(cl_sampler clSampler, const context &syclContext);
+  sampler(OpenCLSamplerT clSampler, const context &syclContext);
 #endif
 
   sampler(const sampler &rhs) = default;

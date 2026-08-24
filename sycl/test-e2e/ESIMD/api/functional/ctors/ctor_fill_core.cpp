@@ -14,6 +14,7 @@
 // actions:
 //  - construct simd with pre-defined base and step value
 //  - bitwise comparing expected and retrieved values
+#include <iostream>
 
 #include "ctor_fill.hpp"
 

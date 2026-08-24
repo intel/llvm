@@ -9,6 +9,7 @@
 
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142

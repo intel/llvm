@@ -11,11 +11,14 @@
 
 #include "unified-runtime/ur_api.h"
 
-#include "../enqueued_pool.hpp"
+#include "../common/enqueued_pool.hpp"
+#include "../common/ur_ref_count.hpp"
 #include "common.hpp"
-#include "common/ur_ref_count.hpp"
 #include "event.hpp"
+#include "ur_interface_loader.hpp"
 #include "ur_pool_manager.hpp"
+
+namespace ur::level_zero::v2 {
 
 struct UsmPool;
 
@@ -51,7 +54,7 @@ private:
   std::atomic_size_t PeakAllocatedMemorySize{0};
 };
 
-struct ur_usm_pool_handle_t_ : ur_object {
+struct ur_usm_pool_handle_t_ : v2::ur_object_t {
   ur_usm_pool_handle_t_(ur_context_handle_t hContext,
                         ur_usm_pool_desc_t *pPoolDes);
   ur_usm_pool_handle_t_(ur_context_handle_t hContext,
@@ -94,13 +97,18 @@ private:
 struct UsmPool {
   UsmPool(ur_usm_pool_handle_t urPool, umf::pool_unique_handle_t umfPool)
       : urPool(urPool), umfPool(std::move(umfPool)),
-        asyncPool([](ur_event_handle_t hEvent) { return hEvent->release(); },
-                  [context = urPool->getContextHandle()](void *ptr) {
-                    return ur::level_zero::urUSMFree(context, ptr);
-                  }) {}
+        asyncPool(
+            [](::ur_event_handle_t hEvent) {
+              return v2_cast(hEvent)->release();
+            },
+            [hContextOpque = v2_cast(urPool->getContextHandle())](void *ptr) {
+              return ur::level_zero::v2::urUSMFree(hContextOpque, ptr);
+            }) {}
   ur_usm_pool_handle_t urPool;
   umf::pool_unique_handle_t umfPool;
   // 'asyncPool' needs to be declared after 'umfPool' so its destructor is
   // invoked first.
   EnqueuedPool asyncPool;
 };
+
+} // namespace ur::level_zero::v2

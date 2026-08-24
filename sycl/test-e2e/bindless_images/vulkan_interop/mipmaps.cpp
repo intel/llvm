@@ -11,6 +11,7 @@
 
 // Define NOMINMAX to enable compilation on Windows
 #define NOMINMAX
+#include <iostream>
 
 #include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"

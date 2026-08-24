@@ -10,6 +10,7 @@
 // RUN: %{run} %t.out
 
 // This test verifies DPAS support for 2,4,8-bit integers.
+#include <iostream>
 
 #include "dpas_common.hpp"
 #include <sycl/half_type.hpp>

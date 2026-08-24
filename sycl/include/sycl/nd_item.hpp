@@ -47,7 +47,9 @@ template <int Dimensions = 1> class nd_item {
 public:
   static constexpr int dimensions = Dimensions;
 
-  id<Dimensions> get_global_id() const {
+  nd_item() = delete;
+
+  id<Dimensions> get_global_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>();
 #else
@@ -55,13 +57,13 @@ public:
 #endif
   }
 
-  size_t __SYCL_ALWAYS_INLINE get_global_id(int Dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_global_id(int Dimension) const noexcept {
     size_t Id = get_global_id()[Dimension];
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
-  size_t __SYCL_ALWAYS_INLINE get_global_linear_id() const {
+  size_t __SYCL_ALWAYS_INLINE get_global_linear_id() const noexcept {
     size_t LinId = 0;
     id<Dimensions> Index = get_global_id();
     range<Dimensions> Extent = get_global_range();
@@ -78,7 +80,7 @@ public:
     return LinId;
   }
 
-  id<Dimensions> get_local_id() const {
+  id<Dimensions> get_local_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
@@ -86,13 +88,13 @@ public:
 #endif
   }
 
-  size_t __SYCL_ALWAYS_INLINE get_local_id(int Dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_local_id(int Dimension) const noexcept {
     size_t Id = get_local_id()[Dimension];
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
-  size_t get_local_linear_id() const {
+  size_t get_local_linear_id() const noexcept {
     size_t LinId = 0;
     id<Dimensions> Index = get_local_id();
     range<Dimensions> Extent = get_local_range();
@@ -108,7 +110,7 @@ public:
     return LinId;
   }
 
-  group<Dimensions> get_group() const {
+  group<Dimensions> get_group() const noexcept {
     // TODO: ideally Group object should be stateless and have a contructor with
     // no arguments.
     return detail::Builder::createGroup(get_global_range(), get_local_range(),
@@ -116,15 +118,15 @@ public:
   }
 
   // Out-of-class definition in sub_group.hpp
-  sub_group get_sub_group() const;
+  sub_group get_sub_group() const noexcept;
 
-  size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const noexcept {
     size_t Id = get_group_id()[Dimension];
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
-  size_t __SYCL_ALWAYS_INLINE get_group_linear_id() const {
+  size_t __SYCL_ALWAYS_INLINE get_group_linear_id() const noexcept {
     size_t LinId = 0;
     id<Dimensions> Index = get_group_id();
     range<Dimensions> Extent = get_group_range();
@@ -140,7 +142,7 @@ public:
     return LinId;
   }
 
-  range<Dimensions> get_group_range() const {
+  range<Dimensions> get_group_range() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInNumWorkgroups<Dimensions, range<Dimensions>>();
 #else
@@ -148,13 +150,13 @@ public:
 #endif
   }
 
-  size_t __SYCL_ALWAYS_INLINE get_group_range(int Dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_group_range(int Dimension) const noexcept {
     size_t Range = get_group_range()[Dimension];
     __SYCL_ASSUME_ID_RANGE(Range);
     return Range;
   }
 
-  range<Dimensions> get_global_range() const {
+  range<Dimensions> get_global_range() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>();
 #else
@@ -162,13 +164,13 @@ public:
 #endif
   }
 
-  size_t get_global_range(int Dimension) const {
+  size_t get_global_range(int Dimension) const noexcept {
     size_t Val = get_global_range()[Dimension];
     __SYCL_ASSUME_ID_RANGE(Val);
     return Val;
   }
 
-  range<Dimensions> get_local_range() const {
+  range<Dimensions> get_local_range() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>();
 #else
@@ -176,14 +178,14 @@ public:
 #endif
   }
 
-  size_t get_local_range(int Dimension) const {
+  size_t get_local_range(int Dimension) const noexcept {
     size_t Id = get_local_range()[Dimension];
     __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  id<Dimensions> get_offset() const {
+  id<Dimensions> get_offset() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInGlobalOffset<Dimensions, id<Dimensions>>();
 #else
@@ -191,11 +193,12 @@ public:
 #endif
   }
 
-  nd_range<Dimensions> get_nd_range() const {
+  nd_range<Dimensions> get_nd_range() const noexcept {
     return nd_range<Dimensions>(get_global_range(), get_local_range(),
                                 get_offset());
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
@@ -230,6 +233,7 @@ public:
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
 #endif
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Asynchronously copies a number of elements specified by \p numElements
   /// from the source pointed by \p src to destination pointed by \p dest
@@ -246,7 +250,7 @@ public:
                                               src,
                                           [[maybe_unused]] size_t numElements,
                                           [[maybe_unused]] size_t srcStride)
-      const {
+      const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(
         __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
@@ -272,7 +276,7 @@ public:
                                           [[maybe_unused]] local_ptr<dataT> src,
                                           [[maybe_unused]] size_t numElements,
                                           [[maybe_unused]] size_t destStride)
-      const {
+      const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(
         __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
@@ -297,7 +301,7 @@ public:
   async_work_group_copy([[maybe_unused]] decorated_local_ptr<DestDataT> dest,
                         [[maybe_unused]] decorated_global_ptr<SrcDataT> src,
                         [[maybe_unused]] size_t numElements,
-                        [[maybe_unused]] size_t srcStride) const {
+                        [[maybe_unused]] size_t srcStride) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(
         __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
@@ -322,7 +326,7 @@ public:
   async_work_group_copy([[maybe_unused]] decorated_global_ptr<DestDataT> dest,
                         [[maybe_unused]] decorated_local_ptr<SrcDataT> src,
                         [[maybe_unused]] size_t numElements,
-                        [[maybe_unused]] size_t destStride) const {
+                        [[maybe_unused]] size_t destStride) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(
         __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
@@ -350,7 +354,7 @@ public:
                                                     access::decorated::legacy>
                                               Src,
                                           size_t NumElements,
-                                          size_t Stride) const {
+                                          size_t Stride) const noexcept {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     auto DestP = multi_ptr<uint8_t, DestS, access::decorated::legacy>(
@@ -376,7 +380,7 @@ public:
                                                     access::decorated::legacy>
                                               Src,
                                           size_t NumElements,
-                                          size_t Stride) const {
+                                          size_t Stride) const noexcept {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     using VecT = detail::change_base_type_t<T, uint8_t>;
@@ -399,7 +403,7 @@ public:
                    device_event>
   async_work_group_copy(multi_ptr<DestT, DestS, access::decorated::yes> Dest,
                         multi_ptr<SrcT, SrcS, access::decorated::yes> Src,
-                        size_t NumElements, size_t Stride) const {
+                        size_t NumElements, size_t Stride) const noexcept {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     using QualSrcT =
@@ -427,7 +431,7 @@ public:
                    device_event>
   async_work_group_copy(multi_ptr<DestT, DestS, access::decorated::yes> Dest,
                         multi_ptr<SrcT, SrcS, access::decorated::yes> Src,
-                        size_t NumElements, size_t Stride) const {
+                        size_t NumElements, size_t Stride) const noexcept {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     using VecT = detail::change_base_type_t<DestT, uint8_t>;
@@ -453,7 +457,7 @@ public:
   __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
   device_event
       async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
-                            size_t numElements) const {
+                            size_t numElements) const noexcept {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
@@ -466,7 +470,7 @@ public:
   __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
   device_event
       async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
-                            size_t numElements) const {
+                            size_t numElements) const noexcept {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
@@ -481,7 +485,7 @@ public:
       std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
   async_work_group_copy(decorated_local_ptr<DestDataT> dest,
                         decorated_global_ptr<SrcDataT> src,
-                        size_t numElements) const {
+                        size_t numElements) const noexcept {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
@@ -496,11 +500,12 @@ public:
       std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
   async_work_group_copy(decorated_global_ptr<DestDataT> dest,
                         decorated_local_ptr<SrcDataT> src,
-                        size_t numElements) const {
+                        size_t numElements) const noexcept {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
-  template <typename... eventTN> void wait_for(eventTN... events) const {
+  template <typename... eventTN>
+  void wait_for(eventTN... events) const noexcept {
     (events.wait(), ...);
   }
 
@@ -515,16 +520,20 @@ public:
   nd_item &operator=(const nd_item &rhs) = default;
   nd_item &operator=(nd_item &&rhs) = default;
 
-  bool operator==(const nd_item &) const { return true; }
-  bool operator!=(const nd_item &rhs) const { return !((*this) == rhs); }
+  friend bool operator==(const nd_item &, const nd_item &) noexcept {
+    return true;
+  }
+
+  friend bool operator!=(const nd_item &lhs, const nd_item &rhs) noexcept {
+    return !(lhs == rhs);
+  }
 
 protected:
   friend class detail::Builder;
-  nd_item() {}
   nd_item(const item<Dimensions, true> &, const item<Dimensions, false> &,
           const group<Dimensions> &) {}
 
-  id<Dimensions> get_group_id() const {
+  id<Dimensions> get_group_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInWorkgroupId<Dimensions, id<Dimensions>>();
 #else

@@ -9,6 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/cl.h>
 #include <cassert>
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -48,7 +49,7 @@ int main() {
   kernel krn = kb.get_kernel(kernelID);
 
   q.submit([&](handler &cgh) {
-    auto acc = buf.get_access<access::mode::read_write>(cgh);
+    auto acc = buf.get_access<access_mode::read_write>(cgh);
     cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 
@@ -71,18 +72,11 @@ int main() {
 
   const context krnCtx = krn.get_info<info::kernel::context>();
   assert(krnCtx == q.get_context());
-  const cl_uint krnRefCount = krn.get_info<info::kernel::reference_count>();
-  assert(krnRefCount > 0);
 
   // Use ext_oneapi_get_kernel_info extension and check that answers match.
   const context krnCtxExt =
       syclex::get_kernel_info<SingleTask, info::kernel::context>(ctx);
   assert(krnCtxExt == krnCtx);
-  // Reference count might be different because we have to retain the kernel
-  // handle first to fetch the info. So just check that it is not 0.
-  const cl_uint krnRefCountExt =
-      syclex::get_kernel_info<SingleTask, info::kernel::reference_count>(ctx);
-  assert(krnRefCountExt > 0);
 
   device dev = q.get_device();
   const size_t wgSize =
