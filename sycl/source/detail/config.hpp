@@ -173,6 +173,32 @@ private:
   }
 };
 
+// Enabled by any non-zero value, matching CUDA_LAUNCH_BLOCKING.
+template <> class SYCLConfig<SYCL_LAUNCH_BLOCKING> {
+  using BaseT = SYCLConfigBase<SYCL_LAUNCH_BLOCKING>;
+
+public:
+  static bool get() { return getCachedValue(); }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static bool getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+      return ValStr && std::atoi(ValStr) != 0;
+    };
+
+    static bool Enabled = Parser();
+    if (ResetCache)
+      Enabled = Parser();
+
+    return Enabled;
+  }
+};
+
 template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE> {
   using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>;
 

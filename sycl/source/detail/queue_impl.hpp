@@ -455,6 +455,32 @@ public:
     throw_asynchronous();
   }
 
+  /// Makes the just-completed submission of \p Type synchronous when
+  /// SYCL_LAUNCH_BLOCKING is set to a non-zero value, i.e. blocks until
+  /// everything enqueued to this queue has finished executing.
+  ///
+  /// Must be called with MMutex unlocked, as wait() acquires it.
+  void waitIfLaunchBlocking(CGType Type) {
+    // Barriers are excluded. They run no user work, so blocking on one adds no
+    // debugging value, and they may carry a dependency on an event the
+    // application only signals after the submission returns (e.g. an interop
+    // event), where waiting would risk a hang instead of exposing one.
+    if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist)
+      return;
+
+    if (!SYCLConfig<SYCL_LAUNCH_BLOCKING>::get())
+      return;
+
+    // Nothing is executed while a command graph is being recorded, and wait()
+    // is not a legal operation on a recording queue. Native recording does not
+    // go through setCommandGraph(), so MGraph is not set for it and the
+    // context-level flag has to be checked as well.
+    if (!MGraph.expired() || getContextImpl().isNativeRecordingActive())
+      return;
+
+    wait();
+  }
+
   /// Synchronous errors will be reported through SYCL exceptions.
   /// Asynchronous errors will be passed to the async_handler passed to the
   /// queue on construction. If no async_handler was provided then

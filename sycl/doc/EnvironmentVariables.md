@@ -30,6 +30,7 @@ compiler and runtime.
 | `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target architecture to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
 | `SYCL_GRAPH_FORCE_NATIVE_RECORDING` | '1' or '0' | When set to '1', forces every `command_graph` to use native recording as if `property::graph::enable_native_recording` was passed in its property list. When unset or set to any other value, native recording is enabled only when that property is set explicitly. Default is disabled. |
+| `SYCL_LAUNCH_BLOCKING` | Integer | Enable by specifying non-zero value. See [below](#sycl_launch_blocking). Default is '0'. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -113,6 +114,37 @@ A list of devices and their driver version following the pattern:
 `BackendName:XXX,DeviceType:YYY,DeviceVendorId:0xXYZW,DriverVersion:{{X.Y.Z.W}}`.
 Also may contain `PlatformVersion`, `DeviceName` and `PlatformName`. There is no
 fixed order of properties in the pattern.
+
+### `SYCL_LAUNCH_BLOCKING`
+
+When set to a non-zero value, every command submitted to any `sycl::queue`
+becomes synchronous: the submitting thread blocks until all work enqueued to that
+queue has completed before the submission call returns. This is the DPC++
+counterpart of CUDA's `CUDA_LAUNCH_BLOCKING=1` and is intended for debugging only
+- it serializes the application and will significantly reduce performance.
+
+It applies to all backends and to every queue in the process, including queues
+created by third-party libraries such as oneDNN or oneMKL. Kernels, explicit and
+implicit memory operations, host tasks, native commands and executable command
+graph submissions are all covered. The following are not:
+
+* barriers and markers (`ext_oneapi_submit_barrier`, `enqueue_wait_event`,
+  `enqueue_signal_event`, `submit_profiling_tag`), which run no user work and can
+  legally depend on an event the application only signals later,
+* commands recorded to a `command_graph`, with either recording mode, since
+  nothing executes at record time,
+* work the application launches itself on a native queue obtained from
+  `get_native()` or from a `host_task`'s `interop_handle`, since such launches do
+  not pass through the SYCL runtime.
+
+Because every submission becomes a queue-wide wait, two legal-but-unusual
+patterns deadlock in this mode: submitting to a queue from inside a `host_task`
+running on that same queue, and submitting a command that depends on an event the
+application only signals after the submission returns (for example an interop
+event passed to `handler::depends_on` or
+`queue::ext_oneapi_set_external_event`).
+
+Default is `0`.
 
 ## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
 
