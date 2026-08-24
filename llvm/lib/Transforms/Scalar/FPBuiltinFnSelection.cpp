@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/FPBuiltinFnSelection.h"
+#include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
@@ -20,10 +21,12 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/FormatVariadic.h"
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 #define DEBUG_TYPE "fpbuiltin-fn-selection"
 
@@ -85,9 +88,21 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
   case Intrinsic::fpbuiltin_fmul:
     Replacement = IRBuilder.CreateFMul(Args[0], Args[1]);
     break;
-  case Intrinsic::fpbuiltin_fdiv:
-    Replacement = IRBuilder.CreateFDiv(Args[0], Args[1]);
+  case Intrinsic::fpbuiltin_fdiv: {
+    // X / C --> X * (1 / C) when C has an exact FP reciprocal. InstCombine
+    // already does this for plain fdiv, but by the time this pass lowers
+    // llvm.fpbuiltin.fdiv to a real fdiv, InstCombine has already run and
+    // won't see it again, so the fold is replicated here.
+    Constant *C;
+    Constant *RecipC = nullptr;
+    if (match(Args[1], m_Constant(C)) && C->hasExactInverseFP())
+      RecipC = ConstantFoldBinaryOpOperands(
+          Instruction::FDiv, ConstantFP::get(BuiltinCall.getType(), 1.0), C,
+          BuiltinCall.getModule()->getDataLayout());
+    Replacement = RecipC ? IRBuilder.CreateFMul(Args[0], RecipC)
+                         : IRBuilder.CreateFDiv(Args[0], Args[1]);
     break;
+  }
   case Intrinsic::fpbuiltin_frem:
     Replacement = IRBuilder.CreateFRem(Args[0], Args[1]);
     break;
