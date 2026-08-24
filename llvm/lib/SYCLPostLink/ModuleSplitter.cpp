@@ -319,7 +319,8 @@ checkForCallsToUndefinedFunctions(const Module &M,
     if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
       WithColor::warning() << "Undefined function " << F.getName()
                            << " found in " << M.getName()
-                           << ". This may result in runtime errors.\n";
+                           << ". This may result in runtime errors "
+                              "[-Wsycl-undefined-func-in-image].\n";
   }
 }
 
