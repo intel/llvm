@@ -540,6 +540,9 @@ protected:
   // Maps images dumped upon use to the file they were dumped to, to avoid
   // duplicate dumps and to report the file name on subsequent uses.
   std::map<const RTDeviceBinaryImage *, std::string> m_DumpedImages;
+  // Sequence ID appended to the names of the files above.
+  uint32_t m_DumpedImagesSeqID = 0;
+  // Protects m_DumpedImages and m_DumpedImagesSeqID.
   std::mutex m_DumpedImagesMutex;
 
   // Sanitizer type used in device image

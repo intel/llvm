@@ -174,7 +174,7 @@ private:
 };
 
 // SYCL_DUMP_IMAGES controls dumping of device image binaries to files:
-// unset - dumping is disabled.
+// unset or 0 - dumping is disabled.
 // 2 - dump only the device images actually used at runtime.
 // Any other value - dump all device images loaded into the runtime.
 template <> class SYCLConfig<SYCL_DUMP_IMAGES> {
@@ -190,6 +190,10 @@ private:
     static unsigned int Value = []() -> unsigned int {
       const char *ValStr = BaseT::getRawValue();
       if (!ValStr)
+        return Off;
+      // An explicit 0 disables dumping. Any value other than 2, including a
+      // non-numeric one, keeps the historical "dump all images" behavior.
+      if (std::string(ValStr) == "0")
         return Off;
       return std::atoi(ValStr) == UsedOnly ? UsedOnly : All;
     }();

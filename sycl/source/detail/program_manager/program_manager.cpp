@@ -878,7 +878,6 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
 
   if (SYCLConfig<SYCL_DUMP_IMAGES>::dumpUsedOnly() && !m_UseSpvFile) {
-    static uint32_t RuntimeSeqID = 0;
     std::lock_guard<std::mutex> Lock(m_DumpedImagesMutex);
     for (const RTDeviceBinaryImage *BinImg : ImgWithDeps) {
       auto It = m_DumpedImages.find(BinImg);
@@ -888,7 +887,8 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
         continue;
       }
       CheckAndDecompressImage(BinImg);
-      It = m_DumpedImages.emplace(BinImg, dumpImage(*BinImg, ++RuntimeSeqID))
+      It = m_DumpedImages
+               .emplace(BinImg, dumpImage(*BinImg, ++m_DumpedImagesSeqID))
                .first;
       std::cerr << "SYCL_DUMP_IMAGES: dumped device image to \"" << It->second
                 << "\"\n";
@@ -1982,6 +1982,13 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
     // Drop reverse mapping
     m_BinImg2KernelIDs.erase(Img);
+
+    // Drop the record of this image having been dumped, the pointer used as
+    // its key is about to become dangling.
+    {
+      std::lock_guard<std::mutex> DumpedImagesGuard(m_DumpedImagesMutex);
+      m_DumpedImages.erase(Img);
+    }
 
     // Unregister exported symbol -> Img pair (needs to happen after the ID
     // unmap loop)
