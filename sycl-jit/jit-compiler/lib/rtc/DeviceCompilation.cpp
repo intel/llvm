@@ -287,9 +287,18 @@ class SYCLToolchain {
 
     std::vector<std::string> CommandLine;
     CommandLine.reserve(ASL.size() + 2);
-    CommandLine.emplace_back(ClangXXExe);
+    CommandLine.emplace_back(getClangXXExe());
     transform(ASL, std::back_inserter(CommandLine),
               [](const char *AS) { return std::string{AS}; });
+#ifdef JIT_MULTIVERSION_TOOLCHAIN
+    // The unified-runtime header spelling differs across SYCL versions: older
+    // headers use <ur_api.h>, newer ones <unified-runtime/ur_api.h>. Adding the
+    // unified-runtime dir itself as a search path makes the bare spelling
+    // resolve; the nested spelling already resolves via the install-relative
+    // include dir. Harmless for versions that use only the nested form.
+    CommandLine.emplace_back("-isystem");
+    CommandLine.emplace_back(getPrefix() + "/include/unified-runtime");
+#endif
     CommandLine.emplace_back(SourceFilePath);
     return CommandLine;
   }
@@ -313,9 +322,8 @@ class SYCLToolchain {
       PreprocessorOpts.DisablePCHOrModuleValidation =
           DisableValidationForModuleKind::PCH;
 
-      std::string PCHPath = (SYCLToolchain::instance().getPrefix() +
-                             "/remapped_persistent_preamble")
-                                .str();
+      std::string PCHPath = SYCLToolchain::instance().getPrefix() +
+                            "/remapped_persistent_preamble";
       PreprocessorOpts.ImplicitPCHInclude = PCHPath;
 
       auto PCHFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
@@ -361,7 +369,7 @@ class SYCLToolchain {
             DiagIds, DiagOpts, DiagConsumer, false);
 
         static std::string StoragePath =
-            (SYCLToolchain::instance().getPrefix() + "/preambles").str();
+            SYCLToolchain::instance().getPrefix() + "/preambles";
         return PrecompiledPreamble::Build(
             *Invocation, MainFileBuffer->get(), Bounds, Diags,
             Files->getVirtualFileSystemPtr(), PCHContainerOps,
@@ -625,16 +633,48 @@ public:
     return std::move(Lib);
   }
 
-  std::string_view getPrefix() const { return Prefix; }
-  std::string_view getClangXXExe() const { return ClangXXExe; }
-  std::string_view getLibclcDir() const { return LibclcDir; }
+#ifdef JIT_MULTIVERSION_TOOLCHAIN
+  // The embedded toolchain is laid out as one subtree per supported SYCL
+  // version, e.g. "<ToolchainPrefix>/latest/..." and
+  // "<ToolchainPrefix>/sycl-v-6.3.0/...". All toolchain paths (clang++,
+  // resource headers, sycl headers, libdevice, libclc) derive from getPrefix(),
+  // so selecting a version is just choosing the active subtree. The selection
+  // is stored thread-locally: concurrent RTC compilations may target different
+  // versions, and mutating a shared member would race. The runtime's version
+  // API sets it via setActiveToolchainVersion(); the default is "latest" (the
+  // live current headers), overridable by JIT_RTC_TOOLCHAIN_VERSION for
+  // testing.
+  static void setActiveToolchainVersion(StringRef VersionSubdir) {
+    activeVersionSubdir() = VersionSubdir.str();
+  }
+#endif
+
+  std::string getPrefix() const {
+    std::string_view Base{jit_compiler::resource::ToolchainPrefix.S,
+                          jit_compiler::resource::ToolchainPrefix.Size};
+#ifdef JIT_MULTIVERSION_TOOLCHAIN
+    return (Twine(Base) + activeVersionSubdir() + "/").str();
+#else
+    return std::string{Base};
+#endif
+  }
+  std::string getClangXXExe() const { return getPrefix() + "/bin/clang++"; }
+  std::string getLibclcDir() const {
+    return GetResourcesPath(getClangXXExe()) + "/lib/";
+  }
 
 private:
+#ifdef JIT_MULTIVERSION_TOOLCHAIN
+  static std::string &activeVersionSubdir() {
+    static thread_local std::string V = []() -> std::string {
+      if (const char *E = ::getenv("JIT_RTC_TOOLCHAIN_VERSION"))
+        return std::string{E};
+      return "latest";
+    }();
+    return V;
+  }
+#endif
   clang::IgnoringDiagConsumer IgnoreDiag;
-  std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
-                          jit_compiler::resource::ToolchainPrefix.Size};
-  std::string ClangXXExe = (Prefix + "/bin/clang++").str();
-  std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/";
 
   PrecompiledPreambles Preambles;
 };
@@ -852,10 +892,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
-    std::string LibPath =
-        (LibName.find("libspirv") != std::string::npos)
-            ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + getLibPathSuffix() + LibName).str();
+    std::string LibPath = (LibName.find("libspirv") != std::string::npos)
+                              ? (TC.getLibclcDir() + TripleName + "/" + LibName)
+                              : (TC.getPrefix() + getLibPathSuffix() + LibName);
 
     ModuleUPtr LibModule;
     if (auto Error =
@@ -1138,8 +1177,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath =
-          (SYCLToolchain::instance().getPrefix() + getLibPathSuffix() + LibName)
-              .str();
+          SYCLToolchain::instance().getPrefix() + getLibPathSuffix() + LibName;
       ModuleUPtr LibModule;
       if (auto Error = SYCLToolchain::instance()
                            .loadBitcodeLibrary(LibPath, Ctx)
