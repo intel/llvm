@@ -99,6 +99,14 @@ struct host_allocation_desc_t {
   ur_map_flags_t flags;
 };
 
+using event_unique_ptr_t =
+    std::unique_ptr<ur_event_handle_t_, void (*)(ur_event_handle_t)>;
+
+struct staging_allocation_t {
+  usm_unique_ptr_t allocation;
+  event_unique_ptr_t event;
+};
+
 // Manages memory buffer for integrated GPU.
 // For integrated devices the buffer has been allocated in host memory
 // and can be accessed by the device without copying.
@@ -172,7 +180,7 @@ private:
   usm_unique_ptr_t mapToPtr;
 
   std::vector<host_allocation_desc_t> hostAllocations;
-  std::vector<usm_unique_ptr_t> stagingAllocations;
+  std::vector<staging_allocation_t> stagingAllocations;
 
   void *getActiveDeviceAlloc(size_t offset = 0);
   void *allocateOnDevice(ur_device_handle_t hDevice, size_t size);
