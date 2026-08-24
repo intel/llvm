@@ -584,7 +584,7 @@ LLVM_ABI FunctionPass *createCFGuardLongjmpPass();
 
 /// Creates Windows EH Continuation Guard target identification pass.
 /// \see EHContGuardTargets.cpp
-LLVM_ABI FunctionPass *createEHContGuardTargetsPass();
+LLVM_ABI FunctionPass *createEHContGuardTargetsLegacy();
 
 /// Create Hardware Loop pass. \see HardwareLoops.cpp
 LLVM_ABI FunctionPass *createHardwareLoopsLegacyPass();

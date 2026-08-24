@@ -731,7 +731,7 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // PFWI lambda object:
   for (auto &C : PrivMemCaptures) {
     GetElementPtrInst *NewGEP = cast<GetElementPtrInst>(C.second->clone());
-    NewGEP->insertBefore(PFWICall);
+    NewGEP->insertBefore(PFWICall->getIterator());
     IRBuilder<> Bld(PFWICall->getContext());
     Bld.SetInsertPoint(PFWICall);
     Value *Val = C.first;
