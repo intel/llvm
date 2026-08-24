@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
-#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
@@ -58,9 +58,9 @@ static bool FixSanitizerKernelMetadata(Module &M) {
   SmallVector<GlobalVariable *, 4> KernelMetadatas;
   for (GlobalVariable &GV : M.globals()) {
     auto GVName = GV.getName();
-    if (GVName.starts_with("__AsanKernelMetadata") ||
-        GVName.starts_with("__MsanKernelMetadata") ||
-        GVName.starts_with("__TsanKernelMetadata")) {
+    if (GVName.starts_with(sycl::utils::ASAN_KERNEL_METADATA_PREFIX) ||
+        GVName.starts_with(sycl::utils::MSAN_KERNEL_METADATA_PREFIX) ||
+        GVName.starts_with(sycl::utils::TSAN_KERNEL_METADATA_PREFIX)) {
       KernelMetadatas.push_back(&GV);
     }
   }
@@ -131,7 +131,7 @@ PreservedAnalyses SanitizerPostOptimizerPass::run(Module &M,
   if (!FixSanitizerKernelMetadata(M))
     return PreservedAnalyses::all();
 
-  if (sycl::isModuleUsingMsan(M)) {
+  if (sycl::utils::isModuleUsingMsan(M)) {
     EliminateDeadCheck V;
     V.visit(M);
     V.eraseDeadCheck();

@@ -59,6 +59,11 @@ ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
                                       size_t GlobalWorkSize3D[3],
                                       uint32_t SuggestedLocalWorkSize3D[3]);
 
+uint32_t getMaxCooperativeGroupCountWithDynamicSharedMemory(
+    uint32_t suggestedGroupCount, uint32_t computeUnitCount,
+    uint32_t maxSharedLocalMemory, uint32_t staticSharedLocalMemory,
+    size_t dynamicSharedLocalMemory);
+
 /**
  * Handle uncommon conditions after kernel submission.
  * Resets the offset to {0, 0, 0} if one was supplied.

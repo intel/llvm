@@ -253,7 +253,7 @@ if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU OR
 
   # Build base libspirv library
   libclc_add_library(libspirv-${LIBCLC_TARGET}
-    ARCH ${ARCH}
+    ARCH ${LIBCLC_TARGET_ARCH}
     TRIPLE ${clang_triple}
     TARGET_TRIPLE ${LIBCLC_TARGET}
     COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-spirv-builtins"
@@ -274,7 +274,7 @@ if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU OR
     foreach(char_signedness signed unsigned)
       libclc_add_library(libspirv-${LIBCLC_TARGET}-${long_width}-${char_signedness}
         REMANGLE
-        ARCH ${ARCH}
+        ARCH ${LIBCLC_TARGET_ARCH}
         TRIPLE ${clang_triple}
         TARGET_TRIPLE ${LIBCLC_TARGET}
         COMPILE_OPTIONS ${compile_flags}
