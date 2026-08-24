@@ -411,6 +411,17 @@ public:
     return false;
   }
 
+  bool includesAdapter(const std::string &adapterName) const {
+    return std::any_of(
+        adaptersLoadPaths.cbegin(), adaptersLoadPaths.cend(),
+        [&](const std::vector<fs::path> &paths) {
+          return std::any_of(
+              paths.cbegin(), paths.cend(), [&](const fs::path &path) {
+                return path.string().find(adapterName) != std::string::npos;
+              });
+        });
+  }
+
   void enableMock() {
     adaptersLoadPaths.clear();
 

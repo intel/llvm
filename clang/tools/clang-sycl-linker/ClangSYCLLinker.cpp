@@ -169,6 +169,28 @@ static Expected<std::string> findProgram(const ArgList &Args, StringRef Name,
   return *Path;
 }
 
+/// Locate the 'ocloc' tool used for Intel GPU AOT compilation.
+static Expected<std::string> findOcloc(const ArgList &Args) {
+  if (Arg *A = Args.getLastArg(OPT_ocloc_path_EQ)) {
+    StringRef Dir = A->getValue();
+    if (Dir.empty())
+      return createStringError("no directory given for '" + A->getSpelling() +
+                               "'");
+    if (DryRun) {
+      SmallString<128> OclocPath(Dir);
+      sys::path::append(OclocPath, "ocloc");
+      return std::string(OclocPath);
+    }
+    // Only look in the given directory.  The tool name is resolved by
+    // findProgramByName, which takes care of any platform specific executable
+    // extension.
+    if (ErrorOr<std::string> Path = sys::findProgramByName("ocloc", {Dir}))
+      return *Path;
+    return createStringError("unable to find 'ocloc' in '" + Dir + "'");
+  }
+  return findProgram(Args, "ocloc", {getMainExecutable("ocloc")});
+}
+
 static void printCommands(ArrayRef<StringRef> CmdArgs) {
   if (CmdArgs.empty())
     return;
@@ -710,8 +732,7 @@ static Error runAOTCompileIntelCPU(StringRef InputFile, StringRef OutputFile,
 static Error runAOTCompileIntelGPU(StringRef InputFile, StringRef OutputFile,
                                    const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
-  Expected<std::string> OclocPath =
-      findProgram(Args, "ocloc", {getMainExecutable("ocloc")});
+  Expected<std::string> OclocPath = findOcloc(Args);
   if (!OclocPath)
     return OclocPath.takeError();
 
@@ -725,8 +746,11 @@ static Error runAOTCompileIntelGPU(StringRef InputFile, StringRef OutputFile,
   CmdArgs.push_back("-device");
   CmdArgs.push_back(Arch);
 
-  StringRef ExtraArgs = Args.getLastArgValue(OPT_ocloc_options_EQ);
-  ExtraArgs.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  // getAllArgValues returns a temporary vector; retain it so the StringRefs
+  // remain valid through the executeCommands call below.
+  std::vector<std::string> ExtraArgsStorage =
+      Args.getAllArgValues(OPT_ocloc_options_EQ);
+  llvm::append_range(CmdArgs, ExtraArgsStorage);
 
   CmdArgs.push_back("-output");
   CmdArgs.push_back(OutputFile);
@@ -747,9 +771,9 @@ static Error runAOTCompile(StringRef InputFile, StringRef OutputFile,
                            const ArgList &Args) {
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
   OffloadArch OA = StringToOffloadArch(Arch);
-  if (IsIntelGPUOffloadArch(OA))
+  if (OA.isIntelGPU())
     return runAOTCompileIntelGPU(InputFile, OutputFile, Args);
-  if (IsIntelCPUOffloadArch(OA))
+  if (OA.isIntelCPU())
     return runAOTCompileIntelCPU(InputFile, OutputFile, Args);
 
   llvm_unreachable("runAOTCompile dispatched on unsupported arch");
@@ -975,8 +999,8 @@ static Error runSYCLLink(ArrayRef<std::unique_ptr<MemoryBuffer>> Inputs,
     SplitModules = std::move(*SplitModulesOrErr);
   }
 
-  bool IsAOTCompileNeeded = IsIntelOffloadArch(
-      StringToOffloadArch(Args.getLastArgValue(OPT_arch_EQ)));
+  bool IsAOTCompileNeeded =
+      StringToOffloadArch(Args.getLastArgValue(OPT_arch_EQ)).isIntel();
 
   StringRef OutputFileNameExt = ".spv";
 

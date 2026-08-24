@@ -1737,11 +1737,14 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
-  // Omit copying if mode is discard one.
+  // Omit copying if mode is discard one and the accessor covers the full
+  // memory object; a ranged discard accessor must still preserve elements
+  // outside its range (SYCL 2020 §4.7.6.4).
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
-      MDstReq.MAccessMode == access::mode::discard_write) {
+  if ((MDstReq.MAccessMode == access::mode::discard_read_write ||
+       MDstReq.MAccessMode == access::mode::discard_write) &&
+      MDstReq.isFullMemoryAccess()) {
     Command::waitForEvents(Queue, EventImpls, UREvent);
 
     return UR_RESULT_SUCCESS;
@@ -2292,10 +2295,12 @@ std::string_view ExecCGCommand::getTypeString() const {
 // for users who need more control.
 static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
-  if (NDR.GlobalSize[0] != 0)
-    return; // GlobalSize is set - no need to adjust
-  // check the prerequisites:
-  assert(NDR.LocalSize[0] == 0);
+  if (NDR.NumWorkGroups[0] == 0)
+    return; // Not parallel_for_work_group -- nothing to fill in.
+  // In pfwg mode NumWorkGroups is the only field the user sets; GlobalSize
+  // and LocalSize must both be zero (see NDRDescT contract in
+  // ndrange_desc.hpp).
+  assert(NDR.GlobalSize[0] == 0 && NDR.LocalSize[0] == 0);
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
