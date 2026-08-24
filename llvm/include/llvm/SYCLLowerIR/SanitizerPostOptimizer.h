@@ -16,7 +16,7 @@
 namespace llvm {
 
 class SanitizerPostOptimizerPass
-    : public PassInfoMixin<SanitizerPostOptimizerPass> {
+    : public RequiredPassInfoMixin<SanitizerPostOptimizerPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };

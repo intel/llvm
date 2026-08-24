@@ -152,7 +152,7 @@ private:
 };
 
 class DeadArgumentEliminationSYCLPass
-    : public PassInfoMixin<DeadArgumentEliminationSYCLPass> {
+    : public RequiredPassInfoMixin<DeadArgumentEliminationSYCLPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
     return Impl.run(M, MAM);

@@ -48,7 +48,7 @@ struct SpecConstantDescriptor {
 
 using SpecIDMapTy = MapVector<StringRef, std::vector<SpecConstantDescriptor>>;
 
-class SpecConstantsPass : public PassInfoMixin<SpecConstantsPass> {
+class SpecConstantsPass : public RequiredPassInfoMixin<SpecConstantsPass> {
 public:
   // HandlingMode parameter controls spec constant handling:
   // - default_values: spec constant uses are replaced by default values.

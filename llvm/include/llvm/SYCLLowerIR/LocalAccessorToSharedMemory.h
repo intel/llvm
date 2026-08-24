@@ -24,7 +24,7 @@ class PassRegistry;
 /// runtime is expected to provide offsets rather than pointers to these
 /// functions.
 class LocalAccessorToSharedMemoryPass
-    : public PassInfoMixin<LocalAccessorToSharedMemoryPass> {
+    : public RequiredPassInfoMixin<LocalAccessorToSharedMemoryPass> {
 public:
   explicit LocalAccessorToSharedMemoryPass() {}
 

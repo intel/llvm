@@ -25,7 +25,7 @@ class PassRegistry;
 /// `_Z27__spirv_BuiltInGlobalOffseti`). These uses are replaced with an
 /// explicit offset parameter which is threaded through from the kernel
 /// entry point.
-class GlobalOffsetPass : public PassInfoMixin<GlobalOffsetPass> {
+class GlobalOffsetPass : public RequiredPassInfoMixin<GlobalOffsetPass> {
 public:
   explicit GlobalOffsetPass()
       : GlobalVMap(std::make_unique<llvm::ValueToValueMapTy>()) {}

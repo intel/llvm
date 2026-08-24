@@ -19,7 +19,7 @@ class Function;
 /// Utility pass to insert specialization constants values into the module as a
 /// metadata node.
 class SYCLSpecConstDataInserter
-    : public PassInfoMixin<SYCLSpecConstDataInserter> {
+    : public RequiredPassInfoMixin<SYCLSpecConstDataInserter> {
 public:
   SYCLSpecConstDataInserter(ArrayRef<unsigned char> SpecConstData)
       : SpecConstData(SpecConstData) {};
@@ -40,7 +40,7 @@ private:
 /// CSE), we do not track instructions that can be removed as a result of
 /// materialization, as the pipeline runs DCE pass afterwords.
 class SYCLSpecConstMaterializer
-    : public PassInfoMixin<SYCLSpecConstMaterializer> {
+    : public RequiredPassInfoMixin<SYCLSpecConstMaterializer> {
 public:
   SYCLSpecConstMaterializer() : SpecConstData(nullptr), SpecConstDataSize(0) {}
 

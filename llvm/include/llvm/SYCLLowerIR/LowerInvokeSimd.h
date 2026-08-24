@@ -17,7 +17,8 @@
 #include "llvm/Pass.h"
 
 namespace llvm {
-class SYCLLowerInvokeSimdPass : public PassInfoMixin<SYCLLowerInvokeSimdPass> {
+class SYCLLowerInvokeSimdPass
+    : public RequiredPassInfoMixin<SYCLLowerInvokeSimdPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };

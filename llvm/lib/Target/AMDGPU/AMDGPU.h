@@ -149,7 +149,8 @@ struct AMDGPULowerKernelAttributesPass
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
-struct AMDGPUOclcReflectPass : public PassInfoMixin<AMDGPUOclcReflectPass> {
+struct AMDGPUOclcReflectPass
+    : public RequiredPassInfoMixin<AMDGPUOclcReflectPass> {
 public:
   PreservedAnalyses run(Function &M, FunctionAnalysisManager &AM);
   static bool isRequired() { return true; }

@@ -17,7 +17,7 @@
 namespace llvm {
 
 class SYCLOptimizeBarriersPass
-    : public PassInfoMixin<SYCLOptimizeBarriersPass> {
+    : public RequiredPassInfoMixin<SYCLOptimizeBarriersPass> {
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
 

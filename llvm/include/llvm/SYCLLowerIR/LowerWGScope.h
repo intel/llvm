@@ -21,7 +21,8 @@ class FunctionPass;
 
 /// SPIRV target specific pass to transform work group-scope code to match SIMT
 /// execution model semantics - this code must be executed once per work group.
-class SYCLLowerWGScopePass : public PassInfoMixin<SYCLLowerWGScopePass> {
+class SYCLLowerWGScopePass
+    : public RequiredPassInfoMixin<SYCLLowerWGScopePass> {
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
 };

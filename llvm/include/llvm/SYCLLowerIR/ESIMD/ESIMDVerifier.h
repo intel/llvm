@@ -19,7 +19,7 @@ namespace llvm {
 
 class ModulePass;
 
-struct ESIMDVerifierPass : public PassInfoMixin<ESIMDVerifierPass> {
+struct ESIMDVerifierPass : public RequiredPassInfoMixin<ESIMDVerifierPass> {
   ESIMDVerifierPass(bool MayNeedForceStatelessMemModeAPI = true)
       : MayNeedForceStatelessMemModeAPI(MayNeedForceStatelessMemModeAPI) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);

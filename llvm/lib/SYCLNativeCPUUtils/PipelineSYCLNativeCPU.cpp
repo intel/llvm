@@ -117,7 +117,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
 
   if (SYCLDumpIR) {
     // Fixme: Use PrintModulePass after PR to fix dependencies/--shared-libs
-    struct DumpIR : public PassInfoMixin<DumpIR> {
+    struct DumpIR : public RequiredPassInfoMixin<DumpIR> {
       PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
         M.print(llvm::outs(), nullptr);
         return PreservedAnalyses::all();

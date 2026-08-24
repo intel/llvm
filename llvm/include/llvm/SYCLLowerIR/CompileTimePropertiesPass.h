@@ -28,7 +28,7 @@ class GlobalVariable;
 class IntrinsicInst;
 
 class CompileTimePropertiesPass
-    : public PassInfoMixin<CompileTimePropertiesPass> {
+    : public RequiredPassInfoMixin<CompileTimePropertiesPass> {
 public:
   // Enriches the module with metadata that describes the found variables for
   // the SPIRV-LLVM Translator.

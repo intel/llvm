@@ -19,7 +19,7 @@
 namespace llvm {
 
 class SYCLAddOptLevelAttributePass
-    : public PassInfoMixin<SYCLAddOptLevelAttributePass> {
+    : public RequiredPassInfoMixin<SYCLAddOptLevelAttributePass> {
 public:
   SYCLAddOptLevelAttributePass(int OptLevel = -1) : OptLevel{OptLevel} {};
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);

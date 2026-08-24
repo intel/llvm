@@ -21,7 +21,7 @@ namespace llvm {
 class ModulePass;
 
 class ConvertToMuxBuiltinsSYCLNativeCPUPass
-    : public PassInfoMixin<ConvertToMuxBuiltinsSYCLNativeCPUPass> {
+    : public RequiredPassInfoMixin<ConvertToMuxBuiltinsSYCLNativeCPUPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
