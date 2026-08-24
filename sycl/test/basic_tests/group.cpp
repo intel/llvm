@@ -14,9 +14,56 @@
 #include <cassert>
 #include <iostream>
 #include <sycl/sycl.hpp>
+#include <type_traits>
+#include <utility>
 
 using namespace std;
 using sycl::detail::Builder;
+
+template <typename T, typename = void>
+struct has_member_equal : std::false_type {};
+
+template <typename T>
+struct has_member_equal<
+    T, std::void_t<decltype(std::declval<const T &>().operator==(
+           std::declval<const T &>()))>> : std::true_type {};
+
+template <typename T, typename = void>
+struct has_member_not_equal : std::false_type {};
+
+template <typename T>
+struct has_member_not_equal<
+    T, std::void_t<decltype(std::declval<const T &>().operator!=(
+           std::declval<const T &>()))>> : std::true_type {};
+
+using Group = sycl::group<1>;
+using SubGroup = sycl::sub_group;
+
+static_assert(!has_member_equal<Group>::value);
+static_assert(!has_member_not_equal<Group>::value);
+static_assert(std::is_same_v<decltype(std::declval<const Group &>() ==
+                                      std::declval<const Group &>()),
+                             bool>);
+static_assert(std::is_same_v<decltype(std::declval<const Group &>() !=
+                                      std::declval<const Group &>()),
+                             bool>);
+static_assert(noexcept(std::declval<const Group &>() ==
+                       std::declval<const Group &>()));
+static_assert(noexcept(std::declval<const Group &>() !=
+                       std::declval<const Group &>()));
+
+static_assert(!has_member_equal<SubGroup>::value);
+static_assert(!has_member_not_equal<SubGroup>::value);
+static_assert(std::is_same_v<decltype(std::declval<const SubGroup &>() ==
+                                      std::declval<const SubGroup &>()),
+                             bool>);
+static_assert(std::is_same_v<decltype(std::declval<const SubGroup &>() !=
+                                      std::declval<const SubGroup &>()),
+                             bool>);
+static_assert(noexcept(std::declval<const SubGroup &>() ==
+                       std::declval<const SubGroup &>()));
+static_assert(noexcept(std::declval<const SubGroup &>() !=
+                       std::declval<const SubGroup &>()));
 
 int main() {
   sycl::group<1> one = Builder::createGroup<1>({8}, {4}, {1});
