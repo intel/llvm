@@ -1,0 +1,6 @@
+# Frozen, vendored SYCL toolchain snapshots. Mark as vendored so they are
+# collapsed in diffs and excluded from language stats; they are not authored
+# here (see README.md) and should not be hand-edited except for documented
+# new-clang compatibility patches.
+sycl-v-*/** linguist-vendored
+sycl-v-*/** -diff
