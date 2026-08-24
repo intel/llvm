@@ -347,34 +347,40 @@ static void migrateMemory(ze_command_list_handle_t cmdList, void *src,
 void *ur_discrete_buffer_handle_t::asyncMigrateDeviceAllocThroughHost(
     ur_device_handle_t hDevice, size_t offset, ze_command_list_handle_t cmdList,
     wait_list_view &waitListView) {
-  // Allocate a staging buffer on the host for the migration
-  void *stagingPtr{};
+  for (auto it = stagingAllocations.begin(); it != stagingAllocations.end();) {
+    if (zeEventQueryStatus(it->event->getZeEvent()) == ZE_RESULT_SUCCESS)
+      it = stagingAllocations.erase(it);
+    else
+      ++it;
+  }
+
+  void *hostPtr{};
 
   UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
-      hContext, nullptr, nullptr, UR_USM_TYPE_HOST, getSize(), &stagingPtr));
+      hContext, nullptr, nullptr, UR_USM_TYPE_HOST, getSize(), &hostPtr));
 
-  usm_unique_ptr_t stagingAlloc = usm_unique_ptr_t(stagingPtr, [this](void *p) {
+  usm_unique_ptr_t stagingAlloc = usm_unique_ptr_t(hostPtr, [this](void *p) {
     auto ret = hContext->getDefaultUSMPool()->free(p);
     if (ret != UR_RESULT_SUCCESS)
       UR_LOG(ERR, "Failed to free mapped memory: {}", ret);
   });
 
-  stagingAllocations.emplace_back(std::move(stagingAlloc));
-  auto const hostPtr = stagingAllocations.back().get();
-
-  // Copy data from the source device allocation to the staging buffer
   migrateMemory(cmdList, getActiveDeviceAlloc(0), hostPtr, getSize(),
                 waitListView);
 
-  // Allocate the destination buffer, if necessary
   auto const id = hDevice->Id.value();
   auto const dstPtr = deviceAllocations[id].get()
                           ? deviceAllocations[id].get()
                           : allocateOnDevice(hDevice, getSize());
 
-  // Copy data from the staging buffer to the destination device allocation
-  ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                    (cmdList, dstPtr, hostPtr, getSize(), nullptr, 0, nullptr));
+  event_unique_ptr_t event{hContext->getNativeEventsPool().allocate(),
+                           [](ur_event_handle_t handle) { handle->release(); }};
+
+  ZE2UR_CALL_THROWS(
+      zeCommandListAppendMemoryCopy,
+      (cmdList, dstPtr, hostPtr, getSize(), event->getZeEvent(), 0, nullptr));
+
+  stagingAllocations.push_back({std::move(stagingAlloc), std::move(event)});
   activeAllocationDevice = hDevice;
   return getActiveDeviceAlloc(offset);
 }
