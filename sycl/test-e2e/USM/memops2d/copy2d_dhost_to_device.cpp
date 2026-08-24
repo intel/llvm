@@ -13,3 +13,5 @@
 #include "copy2d_common.hpp"
 
 int main() { return test<Alloc::DirectHost, Alloc::Device>(); }
+
+// See https://github.com/intel/llvm/issues/21873

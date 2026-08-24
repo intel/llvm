@@ -18,3 +18,5 @@
 
 #include "common.hpp"
 #include "element_wise_all_ops_impl.hpp"
+
+// See https://github.com/intel/llvm/issues/21873

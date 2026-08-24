@@ -13,3 +13,5 @@
 #include "memcpy2d_common.hpp"
 
 int main() { return test<Alloc::Shared, Alloc::Shared>(); }
+
+// See https://github.com/intel/llvm/issues/21873

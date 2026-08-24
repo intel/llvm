@@ -265,3 +265,5 @@ int main() {
 
   return 0;
 }
+
+// See https://github.com/intel/llvm/issues/21873
