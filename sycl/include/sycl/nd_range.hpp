@@ -63,7 +63,9 @@ public:
   nd_range<Dimensions> &operator=(const nd_range<Dimensions> &rhs) = default;
   nd_range<Dimensions> &operator=(nd_range<Dimensions> &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   nd_range() = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   ~nd_range() = default;
 

@@ -59,10 +59,12 @@ int main() {
   assert(three_dim_nd_range.get_offset() == sycl::id<3>(0, 0, 0));
   cout << "three_dim_nd_range passed " << endl;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Check that a default-constructed nd_range has zeroed ranges and offset.
   sycl::nd_range<3> default_nd_range;
   assert(default_nd_range.get_global_range() == sycl::range<3>(0, 0, 0));
   assert(default_nd_range.get_local_range() == sycl::range<3>(0, 0, 0));
   assert(default_nd_range.get_offset() == sycl::id<3>(0, 0, 0));
   cout << "default nd_range passed " << endl;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }
