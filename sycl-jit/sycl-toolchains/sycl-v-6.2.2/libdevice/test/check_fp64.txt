@@ -1,0 +1,18 @@
+REQUIRES: libsycldevice
+
+Verify that the fallback functions in fp32 libdevice spirv file don't use fp64 type.
+
+RUN: llvm-spirv -r %libsycldevice_spv_dir/libsycl-fallback-cmath.spv -o %t1.bc
+RUN: llvm-dis %t1.bc -o %t1.ll
+RUN: FileCheck %s --input-file %t1.ll
+
+RUN: llvm-spirv -r %libsycldevice_spv_dir/libsycl-fallback-complex.spv -o %t2.bc
+RUN: llvm-dis %t2.bc -o %t2.ll
+RUN: FileCheck %s --input-file %t2.ll
+
+RUN: llvm-spirv -r %libsycldevice_spv_dir/libsycl-fallback-imf.spv -o %t3.bc
+RUN: llvm-dis %t3.bc -o %t3.ll
+RUN: FileCheck %s --input-file %t3.ll
+
+CHECK: target triple ={{.*}}spir64
+CHECK-NOT: double

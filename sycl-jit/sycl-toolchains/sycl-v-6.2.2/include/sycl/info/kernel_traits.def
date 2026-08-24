@@ -1,0 +1,5 @@
+__SYCL_PARAM_TRAITS_SPEC(kernel, num_args, uint32_t, UR_KERNEL_INFO_NUM_ARGS)
+__SYCL_PARAM_TRAITS_SPEC(kernel, attributes, std::string, UR_KERNEL_INFO_ATTRIBUTES)
+__SYCL_PARAM_TRAITS_SPEC(kernel, function_name, std::string, UR_KERNEL_INFO_FUNCTION_NAME)
+__SYCL_PARAM_TRAITS_SPEC(kernel, reference_count, uint32_t, UR_KERNEL_INFO_REFERENCE_COUNT)
+__SYCL_PARAM_TRAITS_SPEC(kernel, context, sycl::context, UR_KERNEL_INFO_CONTEXT)
