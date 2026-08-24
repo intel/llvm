@@ -5175,13 +5175,18 @@ void CGDebugInfo::EmitFuncDeclForCallSite(llvm::CallBase *CallOrInvoke,
     return;
   if (Func->getSubprogram())
     return;
+  // If the function has a definition, it either already has a
+  // subprogram or it is a nodebug function.
+  if (!Func->isDeclaration())
+    return;
 
   const FunctionDecl *CalleeDecl =
       cast<FunctionDecl>(CalleeGlobalDecl.getDecl());
 
   // Do not emit a declaration subprogram for a function with nodebug
-  // attribute, or if call site info isn't required.
-  if (CalleeDecl->hasAttr<NoDebugAttr>() ||
+  // attribute, or if call site info isn't required.  The attribute
+  // could be on a later redeclaration than the one the call resolves to.
+  if (CalleeDecl->getMostRecentDecl()->hasAttr<NoDebugAttr>() ||
       noSystemDebugInfo(CalleeDecl, CGM) ||
       getCallSiteRelatedAttrs() == llvm::DINode::FlagZero)
     return;
