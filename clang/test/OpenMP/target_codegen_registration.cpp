@@ -51,9 +51,9 @@
 // CHECK-DAG: [[SE:%.+]] = type { [64 x i32] }
 // CHECK-DAG: [[ST1:%.+]] = type { [228 x i32] }
 // CHECK-DAG: [[ST2:%.+]] = type { [1128 x i32] }
-// CHECK-DAG: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// CHECK-DAG: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 
-// TCHECK: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// TCHECK: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 
 // CHECK-DAG: [[A1:@.+]] = internal global [[SA]]
 // CHECK-DAG: [[A2:@.+]] ={{.*}} global [[SA]]

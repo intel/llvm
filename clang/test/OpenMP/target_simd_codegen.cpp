@@ -71,9 +71,9 @@
 // CHECK-DAG: [[KMP_TASK_T]] = type { ptr, ptr, i32, %{{[^,]+}}, %{{[^,]+}} }
 // CHECK-DAG: [[TT:%.+]] = type { i64, i8 }
 // CHECK-DAG: [[S1:%.+]] = type { double }
-// CHECK-DAG: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// CHECK-DAG: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 
-// TCHECK: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// TCHECK: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 
 // We have 8 target regions, but only 7 that actually will generate offloading
 // code, only 6 will have mapped arguments, and only 4 have all-constant map

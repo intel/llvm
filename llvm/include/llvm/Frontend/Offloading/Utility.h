@@ -47,7 +47,12 @@ struct EntryTy {
   uint64_t Data;
   /// An extra pointer, usually null.
   void *AuxAddr;
+  /// Pads sizeof(EntryTy) to 64 so MSVC /INCREMENTAL cannot insert gaps
+  /// between entries in llvm_offload_entries$OE.
+  uint64_t Padding = 0x0;
 };
+
+static_assert(sizeof(EntryTy) == 64, "EntryTy must be 64 bytes on all hosts");
 
 /// Offloading entry flags for CUDA / HIP. The first three bits indicate the
 /// type of entry while the others are a bit field for additional information.

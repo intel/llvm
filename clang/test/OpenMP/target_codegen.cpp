@@ -67,12 +67,12 @@
 // CHECK-DAG: [[TT:%.+]] = type { i64, i8 }
 // CHECK-DAG: [[S1:%.+]] = type { double }
 // CHECK-DAG: [[S2:%.+]] = type { i32, i32, i32 }
-// CHECK-DAG: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// CHECK-DAG: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 // CHECK-DAG: [[ANON_T:%.+]] = type { ptr, i32, i32 }
 // CHECK-32-DAG: [[KMP_PRIVATES_T]] = type { [3 x i64], ptr, i32, [3 x ptr], [3 x ptr] }
 // CHECK-64-DAG: [[KMP_PRIVATES_T]] = type { ptr, [3 x ptr], [3 x ptr], [3 x i64], i32 }
 
-// TCHECK: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// TCHECK: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 
 // We have 9 target regions, but only 8 that actually will generate offloading
 // code and have mapped arguments, and only 6 have all-constant map sizes.

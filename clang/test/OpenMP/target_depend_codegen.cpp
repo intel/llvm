@@ -39,9 +39,9 @@
 #define HEADER
 
 // CHECK-DAG: [[TT:%.+]] = type { i64, i8 }
-// CHECK-DAG: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// CHECK-DAG: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 
-// TCHECK: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// TCHECK: [[ENTTY:%.+]] = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr, i64 }
 
 // CHECK-DAG: [[SIZET:@.+]] = private unnamed_addr constant [4 x i64] [i64 0, i64 4, i64 {{16|12}}, i64 0]
 // CHECK-DAG: [[MAPT:@.+]] = private unnamed_addr constant [4 x i64] [i64 544, i64 800, i64 3, i64 288]
