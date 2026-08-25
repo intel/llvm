@@ -945,8 +945,8 @@ def Wno_nonportable_cfstrings : Joined<["-"], "Wno-nonportable-cfstrings">, Grou
 def Wnonportable_cfstrings : Joined<["-"], "Wnonportable-cfstrings">, Group<W_Group>,
   Visibility<[ClangOption, CC1Option]>;
 def Wno_sycl_strict : Flag<["-"], "Wno-sycl-strict">, Group<W_Group>, Flags<[HelpHidden]>, HelpText<"Disable warnings which enforce strict SYCL language compatibility.">;
-def Wsycl_undefined_func_in_image : Flag<["-"], "Wsycl-undefined-func-in-image">, Group<W_Group>, Flags<[HelpHidden]>, HelpText<"Warn when a device-code function is referenced but has no definition in the linked device image. By default they are enabled.">;
-def Wno_sycl_undefined_func_in_image : Flag<["-"], "Wno-sycl-undefined-func-in-image">, Group<W_Group>, Flags<[HelpHidden]>, HelpText<"Silence -Wsycl-undefined-func-in-image. Useful when the undefined symbol is resolved by the GPU driver / JIT. By default they are disabled.">;
+def Wsycl_undefined_func_in_image : Flag<["-"], "Wsycl-undefined-func-in-image">, Group<W_Group>, Flags<[HelpHidden]>, Visibility<[ClangOption, CLOption]>, HelpText<"Warn when a device-code function is referenced but has no definition in the linked device image. By default they are enabled.">;
+def Wno_sycl_undefined_func_in_image : Flag<["-"], "Wno-sycl-undefined-func-in-image">, Group<W_Group>, Flags<[HelpHidden]>, Visibility<[ClangOption, CLOption]>, HelpText<"Silence -Wsycl-undefined-func-in-image. Useful when the undefined symbol is resolved by the GPU driver / JIT. By default they are disabled.">;
 def Wp_COMMA : CommaJoined<["-"], "Wp,">,
   HelpText<"Pass the comma separated arguments in <arg> to the preprocessor">,
   MetaVarName<"<arg>">, Group<Preprocessor_Group>;
