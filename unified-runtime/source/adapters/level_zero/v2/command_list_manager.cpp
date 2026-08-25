@@ -1341,6 +1341,10 @@ ur_result_t ur_command_list_manager::beginGraphCapture() {
   if (!checkGraphExtensionSupport(hContextInternal)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  if (!hContextInternal->getPlatform()
+           ->ZeGraphExt.zeCommandListBeginGraphCaptureExp) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   ZE2UR_CALL(hContextInternal->getPlatform()
                  ->ZeGraphExt.zeCommandListBeginGraphCaptureExp,
@@ -1355,6 +1359,10 @@ ur_command_list_manager::beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph) {
   if (!checkGraphExtensionSupport(hContextInternal)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  if (!hContextInternal->getPlatform()
+           ->ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   ZE2UR_CALL(hContextInternal->getPlatform()
                  ->ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp,
@@ -1367,6 +1375,10 @@ ur_result_t
 ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   auto hContextInternal = hContext.get();
   if (!checkGraphExtensionSupport(hContextInternal)) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+  if (!hContextInternal->getPlatform()
+           ->ZeGraphExt.zeCommandListEndGraphCaptureExp) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -1396,6 +1408,10 @@ ur_command_list_manager::appendGraph(ur_exp_executable_graph_handle_t hGraph,
   if (!checkGraphExtensionSupport(hContextInternal)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  if (!hContextInternal->getPlatform()
+           ->ZeGraphExt.zeCommandListAppendGraphExp) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   auto zeSignalEvent = getSignalEvent(hEvent, UR_COMMAND_ENQUEUE_GRAPH_EXP);
   ZE2UR_CALL(
@@ -1413,6 +1429,9 @@ ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
   }
 
   auto &ZeGraphExt = hContext.get()->getPlatform()->ZeGraphExt;
+  if (!ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
   ze_result_t ZeResult = ZeGraphExt.normalizeGraphQueryResult(ZE_CALL_NOCHECK(
       ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp, (getZeCommandList())));
 
