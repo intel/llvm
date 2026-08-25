@@ -1,6 +1,4 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556

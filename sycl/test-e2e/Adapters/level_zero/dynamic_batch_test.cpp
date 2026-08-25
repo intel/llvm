@@ -1,5 +1,5 @@
 // REQUIRES: gpu, level_zero
-// UNSUPPORTED: ze_debug, level_zero_v2_adapter
+// UNSUPPORTED: ze_debug
 // UNSUPPORTED-INTENDED: regular-command-list autotuning trace
 // ("Raising/Lowering QueueBatchSize") is V1-only
 

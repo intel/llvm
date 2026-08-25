@@ -1,8 +1,5 @@
 // REQUIRES: gpu, level_zero
 
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: V1-only UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 vs =2 mode
-
 // RUN: %{build} %level_zero_options %threads_lib -o %t.out
 // RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 UR_L0_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s
 // RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=2 UR_L0_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-PER-THREAD-CMDLIST %s

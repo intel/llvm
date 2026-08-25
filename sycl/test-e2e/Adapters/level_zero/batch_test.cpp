@@ -4,9 +4,6 @@
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: V1-only; V2 does not preserve zeCommandListClose/
-// zeCommandQueueExecuteCommandLists flush points.
 
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556

@@ -3,10 +3,6 @@
 // UNSUPPORTED-INTENDED: ze_debug UR emits summary of leaks that contains
 // function names that we match in the test.
 
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: Level Zero v2 adapter performs lazy initialization
-// and does not support SYCL_EAGER_INIT=1, which this test requires.
-
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
