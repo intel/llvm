@@ -11493,21 +11493,15 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 
   // Forward -Wno-sycl-undefined-func-in-image to sycl-post-link. Users pass
-  // this to silence the "Undefined function ... found in ..." warning for
-  // device-code symbols that are resolved by the driver/JIT (e.g. Intel
-  // ray tracing builtins). The last -W...-sycl-undefined-func-in-image on
-  // the command line wins, matching normal -W option semantics. Iterate
-  // OPT_W_Joined only; other -W flag-form options in OPT_W_Group carry no
-  // value and Arg::getValue() would assert.
-  bool SuppressUndefFuncWarn = false;
-  for (const Arg *A : TCArgs.filtered(options::OPT_W_Joined)) {
-    StringRef Val = A->getValue();
-    if (Val == "sycl-undefined-func-in-image")
-      SuppressUndefFuncWarn = false;
-    else if (Val == "no-sycl-undefined-func-in-image")
-      SuppressUndefFuncWarn = true;
-  }
-  if (SuppressUndefFuncWarn)
+  // this to silence sycl-post-link's "Undefined function ... found in ..."
+  // warning for device-code symbols resolved by the driver/JIT (e.g. Intel
+  // ray tracing builtins). Last -W...sycl-undefined-func-in-image on the
+  // command line wins, matching normal -W option semantics.
+  if (const Arg *A = TCArgs.getLastArg(
+          options::OPT_Wsycl_undefined_func_in_image,
+          options::OPT_Wno_sycl_undefined_func_in_image);
+      A && A->getOption().matches(
+               options::OPT_Wno_sycl_undefined_func_in_image))
     addArgs(PostLinkArgs, TCArgs, {"-suppress-undefined-func-warnings"});
 
   // Forward -fsycl-id-queries-range= to sycl-post-link.
