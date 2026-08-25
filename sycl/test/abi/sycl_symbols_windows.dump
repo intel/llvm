@@ -4352,6 +4352,7 @@
 ?setDevice@HostProfilingInfo@detail@_V1@sycl@@QEAAXPEAVdevice_impl@234@@Z
 ?setDeviceKernelInfo@handler@_V1@sycl@@AEAAX$$QEAVkernel@23@@Z
 ?setDeviceKernelInfoPtr@handler@_V1@sycl@@AEAAXPEAVDeviceKernelInfo@detail@23@@Z
+?setFreeFunctionKernelInfoRT@handler@_V1@sycl@@AEAAXPEAVDeviceKernelInfo@detail@23@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelFunc@handler@_V1@sycl@@AEAAXPEAX@Z
 ?setKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
@@ -4378,6 +4379,7 @@
 ?sincos_impl@detail@_V1@sycl@@YAMMPEAM@Z
 ?sincos_impl@detail@_V1@sycl@@YANNPEAN@Z
 ?single_task@handler@_V1@sycl@@QEAAXVkernel@23@@Z
+?single_task_free_function@handler@_V1@sycl@@QEAAXPEAVDeviceKernelInfo@detail@23@@Z
 ?size@exception_list@_V1@sycl@@QEBA_KXZ
 ?size@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?size@stream@_V1@sycl@@QEBA_KXZ
