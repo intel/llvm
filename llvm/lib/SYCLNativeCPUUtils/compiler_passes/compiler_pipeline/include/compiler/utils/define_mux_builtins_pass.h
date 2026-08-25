@@ -25,7 +25,7 @@ namespace compiler {
 namespace utils {
 
 class DefineMuxBuiltinsPass final
-    : public llvm::PassInfoMixin<DefineMuxBuiltinsPass> {
+    : public llvm::OptionalPassInfoMixin<DefineMuxBuiltinsPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
