@@ -55,11 +55,20 @@ struct urEnqueueUSMOperationsOrderingIOQTest
 
     auto entry_points = uur::KernelsEnvironment::instance->GetEntryPointNames(
         "discard_events_ordering_usm");
-    ASSERT_EQ(entry_points.size(), 5u);
-    for (size_t stage = 0; stage < entry_points.size(); ++stage) {
-      ASSERT_FALSE(entry_points[stage].empty());
-      ASSERT_SUCCESS(urKernelCreate(program, entry_points[stage].c_str(),
-                                    &kernels[stage]));
+    ASSERT_GE(entry_points.size(), 5u);
+    for (size_t stage = 0; stage < 5; ++stage) {
+      const std::string stage_name =
+          "discard_events_ordering_usm_stage_" + std::to_string(stage + 1);
+      bool found_stage = false;
+      for (const std::string &entry_point : entry_points) {
+        if (entry_point.find(stage_name) != std::string::npos) {
+          ASSERT_SUCCESS(
+              urKernelCreate(program, entry_point.c_str(), &kernels[stage]));
+          found_stage = true;
+          break;
+        }
+      }
+      ASSERT_TRUE(found_stage) << "Missing entry point for " << stage_name;
     }
 
     const QueueParameter params = getParam();
