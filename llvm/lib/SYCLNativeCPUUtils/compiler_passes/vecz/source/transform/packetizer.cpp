@@ -3005,8 +3005,6 @@ ValuePacket Packetizer::Impl::packetizeGEP(GetElementPtrInst *GEP) {
   return results;
 }
 
-// VPIntrinsic::getForOpcode() was removed upstream (llvm/llvm-project#217861);
-// inline the equivalent opcode -> llvm.vp.* intrinsic ID lookup here.
 static Intrinsic::ID getVPIntrinsicForOpcode(unsigned IROPC) {
   switch (IROPC) {
   default:
