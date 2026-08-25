@@ -110,7 +110,7 @@ endif()
 # simply always link the incoming program so it ends up as CUBIN. Try to find
 # the cuda driver so we can enable this where possible.
 if (NOT TARGET cudadrv)
-    find_package(CUDA 10.1)
+    find_package(CUDAToolkit 10.1)
     add_library(cudadrv SHARED IMPORTED GLOBAL)
     set_target_properties(
         cudadrv PROPERTIES
