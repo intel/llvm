@@ -3,7 +3,7 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED: windows && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_acm_g10)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22287
 
 // RUN: %{build} -o %t2.out
