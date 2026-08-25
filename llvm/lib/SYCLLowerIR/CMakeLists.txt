@@ -4,9 +4,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   find_package(LLVMGenXIntrinsics QUIET)
 
   if (NOT LLVMGenXIntrinsics_FOUND)
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/wenju-he/vc-intrinsics.git)
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    set(LLVMGenXIntrinsics_GIT_TAG 8fe81421435a96ce413e09a6cd1001dd79ec8f40)
+    set(LLVMGenXIntrinsics_GIT_TAG 47fa68b3b5ca42fc59ff06fc93e7243a1d6d6fc9)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
@@ -93,3 +93,10 @@ add_llvm_component_library(LLVMSYCLLowerIR
 target_link_libraries(LLVMSYCLLowerIR
   PUBLIC LLVMGenXIntrinsics
   )
+
+# vc-intrinsics' add_compile_definitions(VC_INTR_LLVM_VERSION_MAJOR=...) in
+# its top-level CMakeLists.txt is directory-scoped and does not propagate to
+# LLVMSYCLLowerIR.
+# FIXME: Remove this once https://github.com/intel/vc-intrinsics is fixed.
+target_compile_definitions(LLVMSYCLLowerIR PUBLIC
+  VC_INTR_LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR})
