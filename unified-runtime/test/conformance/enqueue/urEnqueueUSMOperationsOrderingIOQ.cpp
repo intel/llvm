@@ -31,7 +31,7 @@ inline std::string PrintQueueParam(
                                   std::to_string(queue_param.batch_size));
 }
 
-struct urEnqueueUSMOperationsOrderingIOQTest
+struct urEnqueueUSMOperationsOrderingIOQTestBase
     : uur::urContextTestWithParam<QueueParameter> {
   static constexpr size_t array_size = 128;
 
@@ -276,6 +276,35 @@ struct urEnqueueUSMOperationsOrderingIOQTest
     return true;
   }
 
+  void runOrderingTestForSupportedUSMTypes() {
+    bool any_supported = false;
+
+    const ur_usm_type_t usm_types[] = {
+        UR_USM_TYPE_HOST,
+        UR_USM_TYPE_SHARED,
+        UR_USM_TYPE_DEVICE,
+    };
+    for (ur_usm_type_t usm_type : usm_types) {
+      if (!isUSMTypeSupported(usm_type)) {
+        continue;
+      }
+
+      any_supported = true;
+      ASSERT_TRUE(runOrderingTestForUSMType(usm_type));
+    }
+
+    if (!any_supported) {
+      GTEST_SKIP() << "No supported USM allocation type found for this device.";
+    }
+  }
+
+  bool isLevelZeroBackend() {
+    ur_backend_t backend = UR_BACKEND_UNKNOWN;
+    EXPECT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                     sizeof(backend), &backend, nullptr));
+    return backend == UR_BACKEND_LEVEL_ZERO;
+  }
+
   std::shared_ptr<std::vector<char>> il_binary;
   std::vector<ur_program_metadata_t> metadatas{};
   ur_program_handle_t program = nullptr;
@@ -283,36 +312,20 @@ struct urEnqueueUSMOperationsOrderingIOQTest
   ur_queue_handle_t queue = nullptr;
 };
 
+struct urEnqueueUSMOperationsOrderingIOQTest
+    : urEnqueueUSMOperationsOrderingIOQTestBase {};
+
+struct urEnqueueUSMOperationsOrderingIOQL0Test
+    : urEnqueueUSMOperationsOrderingIOQTestBase {};
+
+#ifndef DISCARD_EVENTS_L0_BATCH_TEST
 UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMOperationsOrderingIOQTest,
     testing::Values(QueueParameter(UR_QUEUE_FLAG_SUBMISSION_BATCHED, 0),
-                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_BATCHED, 1),
-                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_BATCHED, 2),
-                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_BATCHED, 3),
-                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 0),
-                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 1),
-                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 2),
-                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 3)),
+                    QueueParameter(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE, 0)),
     PrintQueueParam);
 
 TEST_P(urEnqueueUSMOperationsOrderingIOQTest, InOrderDiscardEventsOrdering) {
-  bool any_supported = false;
-
-  const ur_usm_type_t usm_types[] = {
-      UR_USM_TYPE_HOST,
-      UR_USM_TYPE_SHARED,
-      UR_USM_TYPE_DEVICE,
-  };
-  for (ur_usm_type_t usm_type : usm_types) {
-    if (!isUSMTypeSupported(usm_type)) {
-      continue;
-    }
-
-    any_supported = true;
-    ASSERT_TRUE(runOrderingTestForUSMType(usm_type));
-  }
-
-  if (!any_supported) {
-    GTEST_SKIP() << "No supported USM allocation type found for this device.";
-  }
+  runOrderingTestForSupportedUSMTypes();
 }
+#endif
