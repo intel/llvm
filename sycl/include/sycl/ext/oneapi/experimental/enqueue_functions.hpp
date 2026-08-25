@@ -197,8 +197,7 @@ namespace detail {
 // `Func` is spelled exactly once, in getDeviceKernelInfo<Func>() at the call
 // site. See CMPLRLLVM-77222.
 template <typename... ArgsT>
-void single_task_free_submit(const queue &Q,
-                             sycl::detail::DeviceKernelInfo *KI,
+void single_task_free_submit(const queue &Q, sycl::detail::DeviceKernelInfo *KI,
                              ArgsT &&...Args) {
   submit(Q, [&](handler &CGH) {
     CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);

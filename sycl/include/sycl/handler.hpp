@@ -1443,9 +1443,10 @@ public:
   // and enqueued via the fast (scheduler-bypass-capable) path in finalize().
   // Kernel arguments must have been set beforehand via set_arg(s).
   // `KI` is the free function kernel's DeviceKernelInfo, resolved by the caller
-  // via getDeviceKernelInfo<Func>(). Neither this method nor nd_launch_free_function
-  // is templated on `Func`, so the kernel's mangled signature is not re-spelled
-  // here (or in the submit closure that reaches them). See CMPLRLLVM-77222.
+  // via getDeviceKernelInfo<Func>(). Neither this method nor
+  // nd_launch_free_function is templated on `Func`, so the kernel's mangled
+  // signature is not re-spelled here (or in the submit closure that reaches
+  // them). See CMPLRLLVM-77222.
   void single_task_free_function(detail::DeviceKernelInfo *KI) {
     throwIfActionIsCreated();
     convertToRangeViewAndSetDescriptor(range<1>{1});
