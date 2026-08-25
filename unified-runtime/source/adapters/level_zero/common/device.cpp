@@ -920,10 +920,19 @@ ur_result_t urDeviceGetInfo(
       }
 
       auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
-      (void)ZesDevice;
       (void)ZesDeviceData;
       if (Result != UR_RESULT_SUCCESS) {
         return Result;
+      }
+
+      // Verify the query actually works so the enumeration isn't falsely
+      // advertised as supported.
+      uint32_t MemCount = 0;
+      if (ZE_CALL_NOCHECK(zesDeviceEnumMemoryModules,
+                          (ZesDevice, &MemCount, nullptr)) !=
+              ZE_RESULT_SUCCESS ||
+          MemCount == 0) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       }
 
       return ReturnValue(uint64_t{0});
