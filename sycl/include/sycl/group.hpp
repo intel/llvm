@@ -26,7 +26,6 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <exception>
-#include <sycl/exception.hpp>
 
 #include <memory> // for unique_ptr
 #endif
@@ -195,7 +194,8 @@ public:
 #ifdef __NativeCPU__
   __attribute__((__libclc_call__))
 #endif
-  void parallel_for_work_item(WorkItemFunctionT Func) const noexcept {
+  void
+  parallel_for_work_item(WorkItemFunctionT Func) const noexcept {
     // need barriers to enforce SYCL semantics for the work item loop -
     // compilers are expected to optimize when possible
     detail::workGroupBarrier();
@@ -249,8 +249,9 @@ public:
 #ifdef __NativeCPU__
   __attribute__((__libclc_call__))
 #endif
-  void parallel_for_work_item(range<Dimensions> flexibleRange,
-                              WorkItemFunctionT Func) const noexcept {
+  void
+  parallel_for_work_item(range<Dimensions> flexibleRange,
+                         WorkItemFunctionT Func) const noexcept {
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
@@ -314,7 +315,7 @@ public:
                                     accessMode == access::mode::write ||
                                     accessMode == access::mode::read_write,
                                 access::fence_space>
-          accessSpace = access::fence_space::global_and_local) const noexcept {
+          accessSpace = access::fence_space::global_and_local) const {
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory
