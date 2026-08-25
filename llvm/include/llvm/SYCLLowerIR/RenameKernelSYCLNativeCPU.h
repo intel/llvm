@@ -21,7 +21,7 @@ namespace llvm {
 class ModulePass;
 
 class RenameKernelSYCLNativeCPUPass
-    : public RequiredPassInfoMixin<RenameKernelSYCLNativeCPUPass> {
+    : public OptionalPassInfoMixin<RenameKernelSYCLNativeCPUPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };

@@ -24,8 +24,6 @@ class CopyProfPass : public RequiredPassInfoMixin<CopyProfPass> {
 public:
   CopyProfPass() = default;
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
-
-  static bool isRequired() { return true; }
 };
 
 // Module-level pass that inserts the CopyProf runtime initialization
@@ -34,8 +32,6 @@ class ModuleCopyProfPass : public RequiredPassInfoMixin<ModuleCopyProfPass> {
 public:
   ModuleCopyProfPass() = default;
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
-
-  static bool isRequired() { return true; }
 };
 
 // Late-stage pass that instruments store instructions to detect whether an
@@ -44,8 +40,6 @@ class CopyProfStoresPass : public RequiredPassInfoMixin<CopyProfStoresPass> {
 public:
   CopyProfStoresPass() = default;
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
-
-  static bool isRequired() { return true; }
 };
 
 } // namespace llvm

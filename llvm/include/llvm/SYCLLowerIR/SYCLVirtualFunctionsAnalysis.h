@@ -18,7 +18,7 @@
 namespace llvm {
 
 class SYCLVirtualFunctionsAnalysisPass
-    : public RequiredPassInfoMixin<SYCLVirtualFunctionsAnalysisPass> {
+    : public OptionalPassInfoMixin<SYCLVirtualFunctionsAnalysisPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

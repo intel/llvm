@@ -20,7 +20,7 @@
 namespace llvm {
 
 class SYCLPropagateAspectsUsagePass
-    : public RequiredPassInfoMixin<SYCLPropagateAspectsUsagePass> {
+    : public OptionalPassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
   SYCLPropagateAspectsUsagePass(bool FP64ConvEmu = false,
                                 std::set<StringRef> ExcludeAspects = {},

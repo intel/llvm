@@ -24,7 +24,7 @@ namespace llvm {
 class ModulePass;
 
 class SYCLMutatePrintfAddrspacePass
-    : public RequiredPassInfoMixin<SYCLMutatePrintfAddrspacePass> {
+    : public OptionalPassInfoMixin<SYCLMutatePrintfAddrspacePass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };

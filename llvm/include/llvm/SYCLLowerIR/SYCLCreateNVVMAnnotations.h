@@ -21,8 +21,6 @@ class SYCLCreateNVVMAnnotationsPass
     : public RequiredPassInfoMixin<SYCLCreateNVVMAnnotationsPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
-
-  static bool isRequired() { return true; }
 };
 
 } // namespace llvm

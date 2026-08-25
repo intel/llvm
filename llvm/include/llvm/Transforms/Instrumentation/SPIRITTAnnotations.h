@@ -20,7 +20,7 @@ namespace llvm {
 class ModulePass;
 
 class SPIRITTAnnotationsPass
-    : public RequiredPassInfoMixin<SPIRITTAnnotationsPass> {
+    : public OptionalPassInfoMixin<SPIRITTAnnotationsPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };

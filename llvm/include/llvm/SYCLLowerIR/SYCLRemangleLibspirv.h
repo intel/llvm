@@ -18,7 +18,7 @@
 namespace llvm {
 
 class SYCLRemangleLibspirvPass
-    : public RequiredPassInfoMixin<SYCLRemangleLibspirvPass> {
+    : public OptionalPassInfoMixin<SYCLRemangleLibspirvPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

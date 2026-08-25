@@ -22,8 +22,6 @@ class SYCLJointMatrixTransformPass
     : public RequiredPassInfoMixin<SYCLJointMatrixTransformPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
-
-  static bool isRequired() { return true; }
 };
 
 } // namespace llvm

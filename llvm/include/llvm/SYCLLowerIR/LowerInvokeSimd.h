@@ -18,7 +18,7 @@
 
 namespace llvm {
 class SYCLLowerInvokeSimdPass
-    : public RequiredPassInfoMixin<SYCLLowerInvokeSimdPass> {
+    : public OptionalPassInfoMixin<SYCLLowerInvokeSimdPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
