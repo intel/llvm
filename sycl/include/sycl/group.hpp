@@ -249,7 +249,7 @@ public:
   __attribute__((__libclc_call__))
 #endif
   void parallel_for_work_item(range<Dimensions> flexibleRange,
-                         WorkItemFunctionT Func) const noexcept {
+                              WorkItemFunctionT Func) const noexcept {
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
