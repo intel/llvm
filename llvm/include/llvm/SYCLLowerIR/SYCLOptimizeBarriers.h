@@ -20,8 +20,6 @@ class SYCLOptimizeBarriersPass
     : public RequiredPassInfoMixin<SYCLOptimizeBarriersPass> {
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
-
-  static bool isRequired() { return true; }
 };
 
 } // namespace llvm

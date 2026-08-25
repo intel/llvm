@@ -32,7 +32,7 @@ class PassRegistry;
 
 /// SPIRV (ESIMD) target specific pass to transform ESIMD specific constructs
 /// like intrinsics to a form parsable by the ESIMD-aware SPIRV translator.
-class SYCLLowerESIMDPass : public RequiredPassInfoMixin<SYCLLowerESIMDPass> {
+class SYCLLowerESIMDPass : public OptionalPassInfoMixin<SYCLLowerESIMDPass> {
 public:
   SYCLLowerESIMDPass(bool ModuleContainsScalar = true)
       : ModuleContainsScalarCode(ModuleContainsScalar) {}
@@ -48,7 +48,7 @@ ModulePass *createSYCLLowerESIMDPass();
 void initializeSYCLLowerESIMDLegacyPassPass(PassRegistry &);
 
 class ESIMDLowerLoadStorePass
-    : public RequiredPassInfoMixin<ESIMDLowerLoadStorePass> {
+    : public OptionalPassInfoMixin<ESIMDLowerLoadStorePass> {
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
 };
@@ -62,33 +62,33 @@ void initializeESIMDLowerLoadStorePass(PassRegistry &);
 // - Converts globals of type simd* to simd::raw_vector_t* globals (llvm vector
 // type pointer)
 class ESIMDOptimizeVecArgCallConvPass
-    : public RequiredPassInfoMixin<ESIMDOptimizeVecArgCallConvPass> {
+    : public OptionalPassInfoMixin<ESIMDOptimizeVecArgCallConvPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
 // Lowers calls to __esimd_set_kernel_properties
 class SYCLLowerESIMDKernelPropsPass
-    : public RequiredPassInfoMixin<SYCLLowerESIMDKernelPropsPass> {
+    : public OptionalPassInfoMixin<SYCLLowerESIMDKernelPropsPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
 // Fixes ESIMD Kernel attributes for wrapper functions for ESIMD kernels
 class SYCLFixupESIMDKernelWrapperMDPass
-    : public RequiredPassInfoMixin<SYCLFixupESIMDKernelWrapperMDPass> {
+    : public OptionalPassInfoMixin<SYCLFixupESIMDKernelWrapperMDPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
 class ESIMDRemoveHostCodePass
-    : public RequiredPassInfoMixin<ESIMDRemoveHostCodePass> {
+    : public OptionalPassInfoMixin<ESIMDRemoveHostCodePass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
 class ESIMDRemoveOptnoneNoinlinePass
-    : public RequiredPassInfoMixin<ESIMDRemoveOptnoneNoinlinePass> {
+    : public OptionalPassInfoMixin<ESIMDRemoveOptnoneNoinlinePass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
@@ -96,7 +96,7 @@ public:
 // Lowers calls __esimd_slm_alloc, __esimd_slm_free and __esimd_slm_init APIs.
 // See more details in the .cpp file.
 class ESIMDLowerSLMReservationCalls
-    : public RequiredPassInfoMixin<ESIMDLowerSLMReservationCalls> {
+    : public OptionalPassInfoMixin<ESIMDLowerSLMReservationCalls> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

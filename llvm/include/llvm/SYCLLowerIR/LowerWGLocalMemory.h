@@ -39,7 +39,7 @@ class ModulePass;
 class PassRegistry;
 
 class SYCLLowerWGLocalMemoryPass
-    : public RequiredPassInfoMixin<SYCLLowerWGLocalMemoryPass> {
+    : public OptionalPassInfoMixin<SYCLLowerWGLocalMemoryPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

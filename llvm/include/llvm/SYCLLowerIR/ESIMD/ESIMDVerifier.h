@@ -23,7 +23,6 @@ struct ESIMDVerifierPass : public RequiredPassInfoMixin<ESIMDVerifierPass> {
   ESIMDVerifierPass(bool MayNeedForceStatelessMemModeAPI = true)
       : MayNeedForceStatelessMemModeAPI(MayNeedForceStatelessMemModeAPI) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
-  static bool isRequired() { return true; }
 
   // The verifier pass allows more SYCL classes/methods when stateless
   // memory accesses are not explicitly disabled by compilation switches.
