@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import Iterator, List, Tuple
+from typing import List, Tuple
 
 from ..constants import (
     FAIL_TIMEOUT_PATTERN,

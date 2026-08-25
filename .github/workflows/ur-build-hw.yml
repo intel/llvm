@@ -179,13 +179,13 @@ jobs:
         echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
 
     - name: Test adapter specific
+      # Don't run adapter specific tests when building multiple adapters
+      if: ${{ matrix.adapter.other_name == '' }}
       uses: ./devops/actions/run-tests/ur
       with:
         test_type: 'adapter-specific'
         build_dir: build
         artifact_name: 'ur-${{matrix.adapter.name}}-${{steps.artifact_suffix.outputs.suffix}}-adapter-specific'
-      # Don't run adapter specific tests when building multiple adapters
-      if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
       uses: ./devops/actions/run-tests/ur

@@ -66,7 +66,6 @@ class SummaryReporter:
         skipped_from_log = test_lists.get("Skipped", test_lists.get("Unsupported", []))
         stats_count = get_count_from_stats(stats, ["Skipped", "Unsupported"])
 
-        # Priority 1: XML data (most reliable - structured output)
         if skipped_xml:
             return SkippedTestsResult(
                 tests=skipped_xml,
@@ -75,7 +74,6 @@ class SummaryReporter:
                 note="",
             )
 
-        # Priority 2: Log data
         if skipped_from_log:
             return SkippedTestsResult(
                 tests=skipped_from_log,
@@ -84,7 +82,6 @@ class SummaryReporter:
                 note="",
             )
 
-        # Priority 3: Stats only (no individual test names)
         if stats_count:
             return SkippedTestsResult(
                 tests=[],
@@ -93,7 +90,6 @@ class SummaryReporter:
                 note="Warning: Test names not available",
             )
 
-        # No data available
         return SkippedTestsResult(tests=[], count=0, source="none", note="")
 
     def _validate_skipped_counts(
@@ -148,7 +144,6 @@ class SummaryReporter:
         excluded_from_log = test_lists.get("Excluded", [])
         stats_count = get_count_from_stats(stats, ["Excluded"])
 
-        # Priority 1: Log data
         if excluded_from_log:
             return ExcludedTestsResult(
                 tests=excluded_from_log,
@@ -157,13 +152,11 @@ class SummaryReporter:
                 note="",
             )
 
-        # Priority 2: XML data
         if excluded_xml:
             return ExcludedTestsResult(
                 tests=excluded_xml, count=len(excluded_xml), source="xml", note=""
             )
 
-        # Priority 3: Stats only (no individual test names)
         if stats_count:
             return ExcludedTestsResult(
                 tests=[],
@@ -172,7 +165,6 @@ class SummaryReporter:
                 note="Warning: Test names not available",
             )
 
-        # No data available
         return ExcludedTestsResult(tests=[], count=0, source="none", note="")
 
     def _validate_excluded_counts(

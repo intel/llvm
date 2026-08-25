@@ -11,7 +11,6 @@ from .constants import (
     DEFAULT_LIT_JOBS,
     TEST_TYPE_ADAPTER_SPECIFIC,
     MAX_LINES_TO_SCAN,
-    MAX_JOBS,
 )
 from .models.config import TestConfig, TestExecutionContext
 from .outputs.github_actions import GitHubActionsOutput
@@ -39,10 +38,10 @@ def get_test_config(test_type: str) -> TestConfig:
 
 
 def calculate_jobs() -> int:
-    """Calculate parallel jobs (nproc/3 capped at MAX_JOBS)."""
+    """Calculate parallel jobs (nproc/3, min 1)."""
     try:
         nproc = os.cpu_count() or 4
-        return min(nproc // 3, MAX_JOBS)
+        return max(1, nproc // 3)
     except (OSError, AttributeError):
         return 4
 

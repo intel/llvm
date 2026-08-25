@@ -3,12 +3,11 @@
 import re
 
 # File I/O
+# Conservative upper bound for locating the LIT "Testing:" marker.
+# Non-verbose CI runs normally emit it much earlier.
 MAX_LINES_TO_SCAN = 1000
 
 SEPARATOR_WIDTH = 70
-
-# Job Calculation
-MAX_JOBS = 16
 
 # LIT Configuration
 DEFAULT_LIT_TIMEOUT = 120
