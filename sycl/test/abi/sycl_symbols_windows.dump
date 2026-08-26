@@ -36,6 +36,7 @@
 ??$get_info@Udevice@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVdevice@12@XZ
 ??$get_info@Udevices@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uext_codeplay_num_regs@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
+??$get_info@Uext_oneapi_immediate_command_list@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uglobal_work_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$range@$02@12@AEBVdevice@12@@Z
 ??$get_info@Umax_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@Umax_sub_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
