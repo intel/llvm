@@ -11497,11 +11497,9 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   // warning for device-code symbols resolved by the driver/JIT (e.g. Intel
   // ray tracing builtins). Last -W...sycl-undefined-func-in-image on the
   // command line wins, matching normal -W option semantics.
-  if (const Arg *A =
-          TCArgs.getLastArg(options::OPT_Wsycl_undefined_func_in_image,
-                            options::OPT_Wno_sycl_undefined_func_in_image);
-      A &&
-      A->getOption().matches(options::OPT_Wno_sycl_undefined_func_in_image))
+  if (!TCArgs.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                      options::OPT_Wno_sycl_undefined_func_in_image,
+                      /*Default=*/true))
     addArgs(PostLinkArgs, TCArgs, {"-suppress-undefined-func-warnings"});
 
   // Forward -fsycl-id-queries-range= to sycl-post-link.
