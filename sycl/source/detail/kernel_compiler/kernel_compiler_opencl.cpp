@@ -218,11 +218,10 @@ std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
   return QueryLog;
 }
 
-spirv_vec_t
-OpenCLC_to_SPIRV(const std::string &Source,
-                 const std::vector<uint32_t> &IPVersionVec,
-                 const std::vector<sycl::detail::string_view> &UserArgs,
-                 std::string *LogPtr) {
+il_vec_t OpenCLC_to_IL(const std::string &Source,
+                       const std::vector<uint32_t> &IPVersionVec,
+                       const std::vector<sycl::detail::string_view> &UserArgs,
+                       std::string *LogPtr) {
   // handles into ocloc shared lib
   static void *oclocInvokeHandle = nullptr;
   static void *oclocFreeOutputHandle = nullptr;
@@ -238,7 +237,10 @@ OpenCLC_to_SPIRV(const std::string &Source,
     CombinedUserArgs += " ";
   }
 
-  std::vector<const char *> Args = {"ocloc", "-q", "-spv_only", "-options",
+  // The IL ocloc is asked to emit: -spv_only selects the SPIR-V-only output.
+  const char *EmitILFlag = "-spv_only";
+
+  std::vector<const char *> Args = {"ocloc", "-q", EmitILFlag, "-options",
                                     CombinedUserArgs.c_str()};
 
   uint32_t NumOutputs = 0;
@@ -341,15 +343,16 @@ OpenCLC_to_SPIRV(const std::string &Source,
                       &SourceName, 0, nullptr, nullptr, nullptr, &NumOutputs,
                       &Outputs, &OutputLengths, &OutputNames);
 
-  // gather the results ( the SpirV and the Log)
-  spirv_vec_t SpirV;
+  // gather the results ( the IL and the Log)
+  const char *ILExtension = ".spv";
+  il_vec_t IL;
   std::string CompileLog;
   for (uint32_t i = 0; i < NumOutputs; i++) {
     size_t NameLen = strlen(OutputNames[i]);
-    if (NameLen >= 4 && strstr(OutputNames[i], ".spv") != nullptr &&
+    if (NameLen >= 4 && strstr(OutputNames[i], ILExtension) != nullptr &&
         Outputs[i] != nullptr) {
-      assert(SpirV.size() == 0 && "More than one SPIR-V output found.");
-      SpirV = spirv_vec_t(Outputs[i], Outputs[i] + OutputLengths[i]);
+      assert(IL.size() == 0 && "More than one IL output found.");
+      IL = il_vec_t(Outputs[i], Outputs[i] + OutputLengths[i]);
     } else if (!strcmp(OutputNames[i], "stdout.log")) {
       if (OutputLengths[i] > 0) {
         const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
@@ -370,14 +373,17 @@ OpenCLC_to_SPIRV(const std::string &Source,
     throw sycl::exception(build_errc, "ocloc reported compilation errors: {\n" +
                                           CompileLog + "\n}");
 
-  if (SpirV.empty())
-    throw sycl::exception(build_errc,
-                          "Unexpected output: ocloc did not return SPIR-V");
+  if (IL.empty()) {
+    const char *ILName = "SPIR-V";
+    throw sycl::exception(
+        build_errc,
+        std::string("Unexpected output: ocloc did not return ") + ILName);
+  }
 
   if (MemFreeError)
     throw sycl::exception(build_errc, "ocloc cannot safely free resources");
 
-  return SpirV;
+  return IL;
 }
 
 bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion) {
