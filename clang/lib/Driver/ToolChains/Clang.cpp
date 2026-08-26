@@ -12355,8 +12355,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         Devices.push_back(StringRef());
 
       // One --device-compiler/--device-linker per token; per-arch routing
-      // rides on the key (<triple>/<arch>). Preserves dd9abc1's per-token
-      // AOT forwarding invariant. Wrapper filters by key, no reparse.
+      // rides on the key (<triple>/<arch>).
       StringRef KindPrefix = Action::GetOffloadKindName(Action::OFK_SYCL);
       ArgStringList BuildArgs;
       for (StringRef Device : Devices) {
