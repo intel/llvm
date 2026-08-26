@@ -80,6 +80,15 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
+template <>
+bool queue_impl::get_info<info::queue::ext_oneapi_immediate_command_list>()
+    const {
+  ur_queue_flags_t Flags = 0;
+  getAdapter().call<UrApiKind::urQueueGetInfo>(MQueue, UR_QUEUE_INFO_FLAGS,
+                                               sizeof(Flags), &Flags, nullptr);
+  return (Flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) == 0;
+}
+
 static EventImplPtr
 prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
   auto EventImpl = detail::event_impl::create_device_event(QueueImpl);

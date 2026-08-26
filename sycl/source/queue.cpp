@@ -228,6 +228,7 @@ queue::get_info() const {
   template __SYCL_EXPORT RETURN_T queue::get_info<info::queue::NAME>() const;
 __SYCL_QUEUE_INFO_INST(context, sycl::context)
 __SYCL_QUEUE_INFO_INST(device, sycl::device)
+__SYCL_QUEUE_INFO_INST(ext_oneapi_immediate_command_list, bool)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_QUEUE_INFO_INST(reference_count, uint32_t)
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
