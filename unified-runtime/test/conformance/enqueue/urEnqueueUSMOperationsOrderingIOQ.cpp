@@ -17,4 +17,3 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 TEST_P(urEnqueueUSMOperationsOrderingIOQTest, InOrderDiscardEventsOrdering) {
   runOrderingTestForSupportedUSMTypes();
 }
-
