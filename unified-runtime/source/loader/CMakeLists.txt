@@ -163,98 +163,14 @@ if(UR_ENABLE_TRACING)
 endif()
 
 if(UR_ENABLE_SANITIZER)
+    # The sanitizer layer is a shared library of its own that the loader loads on
+    # demand through a proxy - see layers/ur_shared_layer.hpp.
     target_sources(ur_loader
         PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../ur/ur.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_allocator.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_allocator.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_buffer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_buffer.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_ddi.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_ddi.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_interceptor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_interceptor.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_libdevice.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_quarantine.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_quarantine.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_report.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_report.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_shadow.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_shadow.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_statistics.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_statistics.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_validator.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_validator.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_allocator.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_allocator.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_buffer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_buffer.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_ddi.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_ddi.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_interceptor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_interceptor.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_libdevice.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_origin.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_report.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_report.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_buffer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_buffer.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_ddi.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_ddi.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_interceptor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_interceptor.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_libdevice.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_report.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_report.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_shadow.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_shadow.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/backtrace.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/sanitizer_utils.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_allocator.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_allocator.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_common.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_libdevice.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_options.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_options.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_stackdepot.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_stackdepot.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_stacktrace.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_stacktrace.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_utils.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_utils.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/ur_shared_layer.cpp
     )
 
-    if(UR_ENABLE_SYMBOLIZER)
-        set(symbolizer_sources
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/symbolizer.cpp
-        )
-        target_sources(ur_loader
-            PRIVATE ${symbolizer_sources}
-        )
-        target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
-        target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
-        target_compile_definitions(ur_loader PRIVATE UR_HAVE_SYMBOLIZER)
-        # In in-tree build, if LLVM is built with libc++, we also need to build
-        # symbolizer.cpp with libc++ abi and link libc++ in.
-        if(NOT UR_STANDALONE_BUILD AND LLVM_LIBCXX_USED)
-            set_property(SOURCE
-                ${symbolizer_sources}
-                APPEND_STRING PROPERTY COMPILE_FLAGS
-                " -stdlib=libc++ ")
-            # Link with gcc_s fisrt to avoid some symbols resolve to libc++/libc++abi/libunwind's one
-            target_link_libraries(ur_loader PRIVATE gcc_s ${LIBCXX_PATH} ${LIBCXX_ABI_PATH})
-        endif()
-    endif()
-
-    target_include_directories(ur_loader PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../"
-    )
+    add_subdirectory(layers/sanitizer)
 endif()
 
 if(WIN32)
