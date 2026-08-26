@@ -307,7 +307,7 @@ static cl::opt<bool> SuppressUndefinedFuncWarnings(
     "suppress-undefined-func-warnings", cl::Hidden, cl::init(false),
     cl::desc("Suppress the sycl-post-link warning about undefined functions "
              "in a device image (driver-forwarded from "
-             "-Wno-sycl-undefined-func-in-image)."));
+             "in a device image"));
 
 // Checks for use of undefined user functions and emits a warning message.
 static void
