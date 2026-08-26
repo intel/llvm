@@ -302,7 +302,7 @@ static bool isIntrinsicOrBuiltin(const Function &F) {
 // Silence the "Undefined function ... found in ..." warning below.
 // Set indirectly by clang when the user passes
 // -Wno-sycl-undefined-func-in-image; also directly settable on the
-// sycl-post-link command line for tool-level tests.
+// Set indirectly by clang's -Wno-sycl-undefined-func-in-image
 static cl::opt<bool> SuppressUndefinedFuncWarnings(
     "suppress-undefined-func-warnings", cl::Hidden, cl::init(false),
     cl::desc("Suppress the sycl-post-link warning about undefined functions "
