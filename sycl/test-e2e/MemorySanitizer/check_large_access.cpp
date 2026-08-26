@@ -17,7 +17,7 @@ int main() {
   sycl::queue myQueue;
   myQueue
       .submit([&](sycl::handler &cgh) {
-        auto B = b.get_access<sycl::access::mode::read_write>(cgh);
+        auto B = b.get_access<sycl::access_mode::read_write>(cgh);
         cgh.parallel_for<class MyKernel>(
             sycl::range<1>{2}, [=](sycl::id<1> ID) {
               B[ID] = sycl::int3{(sycl::int3)ID[0]} / B[ID];

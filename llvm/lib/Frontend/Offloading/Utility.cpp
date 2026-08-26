@@ -18,7 +18,9 @@
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/ObjectYAML/ELFYAML.h"
 #include "llvm/ObjectYAML/yaml2obj.h"
+#include "llvm/Support/Compression.h"
 #include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 using namespace llvm;
@@ -160,16 +162,17 @@ offloading::getOffloadEntryArray(Module &M) {
         ZeroInitilaizer, "__dummy." + SectionName);
     DummyEntry->setSection(SectionName);
     DummyEntry->setAlignment(Align(object::OffloadBinary::getAlignment()));
-    appendToCompilerUsed(M, DummyEntry);
+    appendToUsed(M, DummyEntry);
   } else if (Triple.isOSBinFormatMachO()) {
     // Mach-O needs a dummy variable in the section (like ELF) to ensure the
-    // linker provides the section boundary symbols.
+    // linker provides the section boundary symbols. Mark it used so the
+    // section survives dead-stripping.
     auto *DummyEntry = new GlobalVariable(
         M, ZeroInitilaizer->getType(), true, GlobalVariable::InternalLinkage,
         ZeroInitilaizer, "__dummy." + SectionName);
     DummyEntry->setSection(SectionName);
     DummyEntry->setAlignment(Align(object::OffloadBinary::getAlignment()));
-    appendToCompilerUsed(M, DummyEntry);
+    appendToUsed(M, DummyEntry);
   } else {
     // The COFF linker will merge sections containing a '$' together into a
     // single section. The order of entries in this section will be sorted
@@ -505,4 +508,35 @@ void sycl::writeSymbolTable(ArrayRef<StringRef> Names, SmallString<0> &Out) {
     Out.push_back('\0');
     CurrentOffset += Names[I].size() + 1;
   }
+}
+
+Expected<bool>
+offloading::compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
+                                    SmallVectorImpl<uint8_t> &Output, int Level,
+                                    size_t Threshold, bool Verbose) {
+  if (!compression::zstd::isAvailable())
+    return createStringError(
+        "Device image compression was requested, but LLVM was built without "
+        "zstd support. Rebuild with LLVM_ENABLE_ZSTD enabled to use this "
+        "feature.");
+
+  if (Input.size() < Threshold)
+    return false;
+
+#if LLVM_ENABLE_EXCEPTIONS
+  try {
+#endif
+    compression::zstd::compress(Input, Output, Level);
+#if LLVM_ENABLE_EXCEPTIONS
+  } catch (const std::exception &ex) {
+    return createStringError(std::string("Failed to compress the device "
+                                         "image: \n") +
+                             std::string(ex.what()));
+  }
+#endif
+  if (Verbose)
+    errs() << "[Compression] Original image size: " << Input.size() << "\n"
+           << "[Compression] Compressed image size: " << Output.size() << "\n"
+           << "[Compression] Compression level used: " << Level << "\n";
+  return true;
 }

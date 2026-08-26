@@ -13,7 +13,7 @@ template <size_t TileRows, size_t TileCols> class divide;
 template <size_t TileRows, size_t TileCols> class logic;
 
 template <typename T, size_t Rows, size_t Cols, typename R>
-void assert_ops_ref(host_accessor<T, 2, access::mode::read> C, const R ref) {
+void assert_ops_ref(host_accessor<T, 2, access_mode::read> C, const R ref) {
   for (size_t i = 0; i < Rows; i++)
     for (size_t j = 0; j < Cols; j++) {
       auto diff = C[i][j] - ref;

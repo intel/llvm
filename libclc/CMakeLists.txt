@@ -36,7 +36,7 @@ set( LIBCLC_ARCHS_SPIRV spirv spirv32 spirv64 )
 set( LIBCLC_ARCHS_NATIVE_CPU native_cpu )
 set( LIBCLC_ARCHS_ALL ${LIBCLC_ARCHS_AMDGPU} ${LIBCLC_ARCHS_NVPTX} ${LIBCLC_ARCHS_SPIRV} ${LIBCLC_ARCHS_NATIVE_CPU} )
 
-set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
+set(LIBCLC_TARGET ${LLVM_DEFAULT_TARGET_TRIPLE})
 
 if(NOT LIBCLC_TARGET)
   message(FATAL_ERROR "libclc target is empty\n")
@@ -253,7 +253,7 @@ if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU OR
 
   # Build base libspirv library
   libclc_add_library(libspirv-${LIBCLC_TARGET}
-    ARCH ${ARCH}
+    ARCH ${LIBCLC_TARGET_ARCH}
     TRIPLE ${clang_triple}
     TARGET_TRIPLE ${LIBCLC_TARGET}
     COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-spirv-builtins"
@@ -274,7 +274,7 @@ if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU OR
     foreach(char_signedness signed unsigned)
       libclc_add_library(libspirv-${LIBCLC_TARGET}-${long_width}-${char_signedness}
         REMANGLE
-        ARCH ${ARCH}
+        ARCH ${LIBCLC_TARGET_ARCH}
         TRIPLE ${clang_triple}
         TARGET_TRIPLE ${LIBCLC_TARGET}
         COMPILE_OPTIONS ${compile_flags}

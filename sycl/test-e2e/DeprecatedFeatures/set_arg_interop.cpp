@@ -58,8 +58,8 @@ int main() {
     buffer<float, 1> FirstBuffer(Array, range<1>(1));
     buffer<int, 1> SecondBuffer(&Value, range<1>(1));
     Queue.submit([&](handler &CGH) {
-      CGH.set_arg(0, FirstBuffer.get_access<access::mode::write>(CGH));
-      CGH.set_arg(1, SecondBuffer.get_access<access::mode::write>(CGH));
+      CGH.set_arg(0, FirstBuffer.get_access<access_mode::write>(CGH));
+      CGH.set_arg(1, SecondBuffer.get_access<access_mode::write>(CGH));
       CGH.single_task(FirstKernel);
     });
   }
@@ -71,8 +71,8 @@ int main() {
   {
     buffer<float, 1> FirstBuffer(Array, range<1>(Count));
     Queue.submit([&](handler &CGH) {
-      auto Acc = FirstBuffer.get_access<access::mode::read_write>(CGH);
-      CGH.set_arg(0, FirstBuffer.get_access<access::mode::read_write>(CGH));
+      auto Acc = FirstBuffer.get_access<access_mode::read_write>(CGH);
+      CGH.set_arg(0, FirstBuffer.get_access<access_mode::read_write>(CGH));
       CGH.parallel_for(range<1>{Count}, SecondKernel);
     });
   }
@@ -85,7 +85,7 @@ int main() {
   {
     auto dev = Queue.get_device();
     auto ctxt = Queue.get_context();
-    if (dev.get_info<info::device::usm_shared_allocations>()) {
+    if (dev.has(aspect::usm_shared_allocations)) {
       float *data =
           static_cast<float *>(malloc_shared(Count * sizeof(float), dev, ctxt));
 
@@ -105,9 +105,9 @@ int main() {
   {
     buffer<float, 1> FirstBuffer(Array, range<1>(Count));
     Queue.submit([&](handler &CGH) {
-      auto Acc = FirstBuffer.get_access<access::mode::read_write>(CGH);
-      CGH.set_arg(0, FirstBuffer.get_access<access::mode::read_write>(CGH));
-      CGH.set_arg(1, sycl::accessor<float, 1, sycl::access::mode::read_write,
+      auto Acc = FirstBuffer.get_access<access_mode::read_write>(CGH);
+      CGH.set_arg(0, FirstBuffer.get_access<access_mode::read_write>(CGH));
+      CGH.set_arg(1, sycl::accessor<float, 1, sycl::access_mode::read_write,
                                     sycl::access::target::local>(
                          sycl::range<1>(Count), CGH));
       CGH.parallel_for(range<1>{Count}, ThirdKernel);

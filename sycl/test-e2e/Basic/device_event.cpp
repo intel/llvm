@@ -67,7 +67,7 @@ int test_strideN(size_t stride) {
     buffer<int, 1> out_buf(out_data, range<1>(nElems));
 
     myQueue.submit([&](handler &cgh) {
-      auto out_ptr = out_buf.get_access<access::mode::write>(cgh);
+      auto out_ptr = out_buf.get_access<access_mode::write>(cgh);
       local_accessor<int, 1> local_acc(range<1>(16), cgh);
 
       // Create work-groups with 16 work items in each group.

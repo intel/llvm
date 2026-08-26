@@ -3,7 +3,7 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1"
 target triple = "spir64-unknown-unknown"
 
-; CHECK: @__MsanKernelMetadata = appending dso_local local_unnamed_addr addrspace(1) global
+; CHECK: @[[MetadataName:__MsanKernelMetadata_[a-f0-9]+]] = dso_local local_unnamed_addr addrspace(1) global
 ; CHECK-SAME: [[ATTR0:#[0-9]+]]
 
 ; CHECK-NOT: _tls
@@ -31,4 +31,4 @@ entry:
 }
 
 ; CHECK: attributes [[ATTR0]]
-; CHECK-SAME: "sycl-device-global-size"="24" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="__MsanKernelMetadata3ff767e9a7a43f1f3968062dbb4ee3b4"
+; CHECK-SAME: "sycl-device-global-size"="24" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="[[MetadataName]]"

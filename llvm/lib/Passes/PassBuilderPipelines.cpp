@@ -62,7 +62,6 @@
 #include "llvm/Transforms/IPO/GlobalOpt.h"
 #include "llvm/Transforms/IPO/GlobalSplit.h"
 #include "llvm/Transforms/IPO/HotColdSplitting.h"
-#include "llvm/Transforms/IPO/IROutliner.h"
 #include "llvm/Transforms/IPO/InferFunctionAttrs.h"
 #include "llvm/Transforms/IPO/Inliner.h"
 #include "llvm/Transforms/IPO/Instrumentor.h"
@@ -246,10 +245,6 @@ static cl::opt<bool>
 static cl::opt<bool>
     EnableHotColdSplit("hot-cold-split",
                        cl::desc("Enable hot-cold splitting pass"));
-
-static cl::opt<bool> EnableIROutliner("ir-outliner", cl::init(false),
-                                      cl::Hidden,
-                                      cl::desc("Enable ir outliner pass"));
 
 static cl::opt<bool>
     DisablePreInliner("disable-preinline", cl::init(false), cl::Hidden,
@@ -581,7 +576,7 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
   // attention to it.
   if (!isThinLTOPreLink(Phase) || !PGOOpt ||
       PGOOpt->Action != PGOOptions::SampleUse)
-    LPM2.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
+    LPM2.addPass(LoopFullUnrollPass(static_cast<int>(Level),
                                     /* OnlyWhenForced= */ !PTO.LoopUnrolling,
                                     PTO.ForgetAllSCEVInLoopUnroll));
     invokeLoopOptimizerEndEPCallbacks(LPM2, Level);
@@ -641,7 +636,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 
   // The O1 pipeline has a separate pipeline creation function to simplify
   // construction readability.
-  if (Level.getSpeedupLevel() == 1)
+  if (Level == OptimizationLevel::O1)
     return buildO1FunctionSimplificationPipeline(Level, Phase);
 
   FunctionPassManager FPM;
@@ -768,7 +763,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // attention to it.
   if (!isThinLTOPreLink(Phase) || !PGOOpt ||
       PGOOpt->Action != PGOOptions::SampleUse)
-    LPM2.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
+    LPM2.addPass(LoopFullUnrollPass(static_cast<int>(Level),
                                     /* OnlyWhenForced= */ !PTO.LoopUnrolling,
                                     PTO.ForgetAllSCEVInLoopUnroll));
 
@@ -983,7 +978,7 @@ void PassBuilder::addPGOInstrPassesForO0(ModulePassManager &MPM,
 }
 
 static InlineParams getInlineParamsFromOptLevel(OptimizationLevel Level) {
-  return getInlineParamsFromOptLevel(Level.getSpeedupLevel());
+  return getInlineParamsFromOptLevel(static_cast<unsigned>(Level));
 }
 
 ModuleInlinerWrapperPass
@@ -1388,9 +1383,9 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     // We do UnrollAndJam in a separate LPM to ensure it happens before unroll
     if (EnableUnrollAndJam && PTO.LoopUnrolling)
       FPM.addPass(createFunctionToLoopPassAdaptor(
-          LoopUnrollAndJamPass(Level.getSpeedupLevel())));
+          LoopUnrollAndJamPass(static_cast<int>(Level))));
     FPM.addPass(LoopUnrollPass(LoopUnrollOptions(
-        Level.getSpeedupLevel(), /*OnlyWhenForced=*/!PTO.LoopUnrolling,
+        static_cast<int>(Level), /*OnlyWhenForced=*/!PTO.LoopUnrolling,
         PTO.ForgetAllSCEVInLoopUnroll)));
     FPM.addPass(WarnMissedTransformationsPass());
     // Now that we are done with loop unrolling, be it either by LoopVectorizer,
@@ -1419,7 +1414,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   // Cleanup after the loop optimization passes.
   FPM.addPass(InstCombinePass());
 
-  if (Level.getSpeedupLevel() > 1 && ExtraVectorizerPasses) {
+  if (Level > OptimizationLevel::O1 && ExtraVectorizerPasses) {
     ExtraFunctionPassManager<ShouldRunExtraVectorPasses> ExtraPasses;
     // At higher optimization levels, try to clean up any runtime overlap and
     // alignment checks inserted by the vectorizer. We want to track correlated
@@ -1470,7 +1465,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   // Optimize parallel scalar instruction chains into SIMD instructions.
   if (PTO.SLPVectorization) {
     FPM.addPass(SLPVectorizerPass());
-    if (Level.getSpeedupLevel() > 1 && ExtraVectorizerPasses) {
+    if (Level >= OptimizationLevel::O2 && ExtraVectorizerPasses) {
       FPM.addPass(EarlyCSEPass());
     }
   }
@@ -1488,10 +1483,10 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     // We do UnrollAndJam in a separate LPM to ensure it happens before unroll
     if (EnableUnrollAndJam && PTO.LoopUnrolling) {
       FPM.addPass(createFunctionToLoopPassAdaptor(
-          LoopUnrollAndJamPass(Level.getSpeedupLevel())));
+          LoopUnrollAndJamPass(static_cast<int>(Level))));
     }
     FPM.addPass(LoopUnrollPass(LoopUnrollOptions(
-        Level.getSpeedupLevel(), /*OnlyWhenForced=*/!PTO.LoopUnrolling,
+        static_cast<int>(Level), /*OnlyWhenForced=*/!PTO.LoopUnrolling,
         PTO.ForgetAllSCEVInLoopUnroll)));
     FPM.addPass(WarnMissedTransformationsPass());
     // Now that we are done with loop unrolling, be it either by LoopVectorizer,
@@ -1723,13 +1718,6 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // is that this has a higher code size cost than splitting early.
   if (EnableHotColdSplit && !isLTOPreLink(LTOPhase))
     MPM.addPass(HotColdSplittingPass());
-
-  // Search the code for similar regions of code. If enough similar regions can
-  // be found where extracting the regions into their own function will decrease
-  // the size of the program, we extract the regions, a deduplicate the
-  // structurally similar regions.
-  if (EnableIROutliner)
-    MPM.addPass(IROutlinerPass());
 
   // Now we need to do some global optimization transforms.
   // FIXME: It would seem like these should come first in the optimization
@@ -2114,7 +2102,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // libraries and other oracles.
   MPM.addPass(InferFunctionAttrsPass());
 
-  if (Level.getSpeedupLevel() > 1) {
+  if (Level >= OptimizationLevel::O2) {
     MPM.addPass(createModuleToFunctionPassAdaptor(
         CallSiteSplittingPass(), PTO.EagerlyInvalidateAnalyses));
 
@@ -2205,7 +2193,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // calls, etc, so let instcombine do this.
   FunctionPassManager PeepholeFPM;
   PeepholeFPM.addPass(InstCombinePass());
-  if (Level.getSpeedupLevel() > 1)
+  if (Level >= OptimizationLevel::O2)
     PeepholeFPM.addPass(AggressiveInstCombinePass());
   invokePeepholeEPCallbacks(PeepholeFPM, Level);
 
@@ -2328,14 +2316,14 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   invokeVectorizerStartEPCallbacks(MainFPM, Level);
 
   LoopPassManager LPM;
-  if (EnableLoopFlatten && Level.getSpeedupLevel() > 1)
+  if (EnableLoopFlatten && Level >= OptimizationLevel::O2)
     LPM.addPass(LoopFlattenPass());
   LPM.addPass(IndVarSimplifyPass());
   LPM.addPass(LoopDeletionPass());
   // FIXME: Add loop interchange.
 
   // Unroll small loops and perform peeling.
-  LPM.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
+  LPM.addPass(LoopFullUnrollPass(static_cast<int>(Level),
                                  /* OnlyWhenForced= */ !PTO.LoopUnrolling,
                                  PTO.ForgetAllSCEVInLoopUnroll));
   // The loop passes in LPM (LoopFullUnrollPass) do not preserve MemorySSA.

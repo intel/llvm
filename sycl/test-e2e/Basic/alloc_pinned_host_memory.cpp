@@ -3,11 +3,8 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED: windows && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_acm_g10)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22287
-
-// UNSUPPORTED: linux && level_zero
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 
 // RUN: %{build} -o %t2.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t2.out %if level_zero %{ 2>&1 | FileCheck %s %}
@@ -30,8 +27,8 @@ int main() {
           {ext::oneapi::property::buffer::use_pinned_host_memory()});
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto A = a.get_access<access::mode::read_write>(cgh);
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto A = a.get_access<access_mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class init_b>(range<1>{10}, [=](id<1> index) {
           B[index] = 0;
           A[index] = B[index] + 1;

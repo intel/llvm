@@ -25,7 +25,7 @@ int main() {
 
   // First operation
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf1.get_access<sycl::access::mode::write>(cgh);
+    auto acc = buf1.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class ReassocOp1>(sycl::range<1>(N),
                                        [=](sycl::id<1> idx) { acc[idx] = 10; });
   });
@@ -34,7 +34,7 @@ int main() {
   // Second operation depends on event
   auto evt2 = q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(event);
-    auto acc = buf2.get_access<sycl::access::mode::write>(cgh);
+    auto acc = buf2.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class ReassocOp2>(sycl::range<1>(N),
                                        [=](sycl::id<1> idx) { acc[idx] = 20; });
   });

@@ -35,7 +35,7 @@ struct IdxID3 {
 
 template <typename T>
 using AccAlias =
-    sycl::accessor<T, 1, sycl::access::mode::write, sycl::target::device>;
+    sycl::accessor<T, 1, sycl::access_mode::write, sycl::target::device>;
 
 template <typename T> struct InheritedAccessor : public AccAlias<T> {
 
@@ -67,9 +67,9 @@ template <typename Acc> struct Wrapper3 {
   Wrapper2<Acc> w2;
 };
 
-using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
-using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
-using AccCT = sycl::accessor<const int, 1, sycl::access::mode::read>;
+using ResAccT = sycl::accessor<int, 1, sycl::access_mode::read_write>;
+using AccT = sycl::accessor<int, 1, sycl::access_mode::read>;
+using AccCT = sycl::accessor<const int, 1, sycl::access_mode::read>;
 
 void implicit_conversion(const AccCT &acc, const ResAccT &res_acc) {
   auto v = acc[0];
@@ -188,7 +188,7 @@ void testLocalAccIters(std::vector<int> &vec, bool testConstIter = false,
     sycl::queue queue;
     sycl::buffer<int, 1> buf(vec.data(), vec.size());
     queue.submit([&](sycl::handler &cgh) {
-      auto globAcc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto globAcc = buf.get_access<sycl::access_mode::read_write>(cgh);
       if (test2D) {
         sycl::local_accessor<int, 2> locAcc(sycl::range<2>{2, 16}, cgh);
         testLocalAccItersImpl(cgh, globAcc, locAcc, testConstIter);
@@ -268,7 +268,7 @@ int main() {
                              {sycl::property::buffer::use_host_ptr()});
 
     Queue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
       assert(!acc.is_placeholder());
       assert(acc.byte_size() == sizeof(int));
       assert(acc.size() == 1);
@@ -289,7 +289,7 @@ int main() {
                                {sycl::property::buffer::use_host_ptr()});
 
       Queue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.parallel_for<class dim2_subscr>(Range, [=](sycl::item<2> itemID) {
           acc[itemID.get_id(0)][itemID.get_id(1)] += itemID.get_linear_id();
         });
@@ -316,7 +316,7 @@ int main() {
     {
       sycl::buffer<int, 1> Buf(Arr, 1);
       queue.submit([&](sycl::handler &cgh) {
-        auto acc = sycl::accessor<int, 2, sycl::access::mode::atomic,
+        auto acc = sycl::accessor<int, 2, sycl::access_mode::atomic,
                                   sycl::target::local>(range, cgh);
         cgh.parallel_for<class dim2_subscr_atomic>(
             sycl::nd_range<2>{range, range}, [=](sycl::nd_item<2>) {
@@ -337,7 +337,7 @@ int main() {
                                {sycl::property::buffer::use_host_ptr()});
 
       Queue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.parallel_for<class dim3_subscr>(Range, [=](sycl::item<3> itemID) {
           acc[itemID.get_id(0)][itemID.get_id(1)][itemID.get_id(2)] +=
               itemID.get_linear_id();
@@ -366,7 +366,7 @@ int main() {
     constexpr int dims = 1;
 
     using data_loc = int;
-    constexpr auto mode_loc = sycl::access::mode::read_write;
+    constexpr auto mode_loc = sycl::access_mode::read_write;
     constexpr auto target_loc = sycl::target::local;
     const auto range_loc = sycl::range<1>(1);
 
@@ -391,7 +391,7 @@ int main() {
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
       Queue.submit([&](sycl::handler &cgh) {
-        auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
+        auto dev_acc = buf.get_access(cgh, sycl::write_only, sycl::no_init);
 
         cgh.parallel_for<class test_discard_write>(
             sycl::range<1>{3}, [=](sycl::id<1> index) { dev_acc[index] = 42; });
@@ -414,7 +414,7 @@ int main() {
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
       Queue.submit([&](sycl::handler &cgh) {
-        auto dev_acc = buf.get_access<sycl::access::mode::write>(cgh);
+        auto dev_acc = buf.get_access<sycl::access_mode::write>(cgh);
 
         cgh.parallel_for<class test_discard_read_write>(
             sycl::range<1>{3}, [=](sycl::id<1> index) { dev_acc[index] = 42; });
@@ -435,7 +435,7 @@ int main() {
       sycl::buffer<int, 1> buf((int *)array, sycl::range<1>(10),
                                {sycl::property::buffer::use_host_ptr()});
       queue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
         cgh.parallel_for<class wrapped_access1>(
             sycl::range<1>(buf.size()), [=](sycl::item<1> it) {
@@ -466,8 +466,8 @@ int main() {
       sycl::buffer<int, 1> buf2((int *)array2, sycl::range<1>(10),
                                 {sycl::property::buffer::use_host_ptr()});
       queue.submit([&](sycl::handler &cgh) {
-        auto acc1 = buf1.get_access<sycl::access::mode::read_write>(cgh);
-        auto acc2 = buf2.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc1 = buf1.get_access<sycl::access_mode::read_write>(cgh);
+        auto acc2 = buf2.get_access<sycl::access_mode::read_write>(cgh);
         auto acc_wrapped =
             AccsWrapper<decltype(acc1), decltype(acc2)>{10, acc1, 5, acc2};
         cgh.parallel_for<class wrapped_access2>(
@@ -503,7 +503,7 @@ int main() {
       sycl::buffer<int, 1> buf((int *)array, sycl::range<1>(10),
                                {sycl::property::buffer::use_host_ptr()});
       queue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
         Wrapper1 wr1;
         auto wr2 = Wrapper2<decltype(acc)>{wr1, acc_wrapped};
@@ -533,8 +533,8 @@ int main() {
       sycl::buffer<int, 1> buf(array, sycl::range<1>(3));
 
       queue.submit([&](sycl::handler &cgh) {
-        auto acc1 = buf.get_access<sycl::access::mode::read>(cgh);
-        auto acc2 = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc1 = buf.get_access<sycl::access_mode::read>(cgh);
+        auto acc2 = buf.get_access<sycl::access_mode::read_write>(cgh);
 
         cgh.parallel_for<class two_accessors_to_buf>(
             sycl::range<1>{3},
@@ -559,7 +559,7 @@ int main() {
         sycl::buffer<int, 1> b(&data, sycl::range<1>(1));
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
-          sycl::accessor<int, 0, sycl::access::mode::read_write,
+          sycl::accessor<int, 0, sycl::access_mode::read_write,
                          sycl::target::device>
               B(b, cgh);
           cgh.single_task<class acc_with_zero_dim>([=]() {
@@ -591,13 +591,13 @@ int main() {
 
     sycl::queue queue;
     queue.submit([&](sycl::handler &cgh) {
-      sycl::accessor<int, 0, sycl::access::mode::read_write,
+      sycl::accessor<int, 0, sycl::access_mode::read_write,
                      sycl::target::device>
           acc1(buf1, cgh);
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
+      sycl::accessor<int, 1, sycl::access_mode::read_write,
                      sycl::target::device>
           acc2(buf2, cgh);
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
+      sycl::accessor<int, 1, sycl::access_mode::read_write,
                      sycl::target::device>
           acc3(buf3, cgh, sycl::range<1>(1));
       cgh.single_task<class acc_alloc_buf>([=]() {
@@ -607,11 +607,11 @@ int main() {
       });
     });
 
-    sycl::accessor<int, 0, sycl::access::mode::read, sycl::target::host_buffer>
+    sycl::accessor<int, 0, sycl::access_mode::read, sycl::target::host_buffer>
         acc4(buf1);
-    sycl::accessor<int, 1, sycl::access::mode::read, sycl::target::host_buffer>
+    sycl::accessor<int, 1, sycl::access_mode::read, sycl::target::host_buffer>
         acc5(buf2);
-    sycl::accessor<int, 1, sycl::access::mode::read, sycl::target::host_buffer>
+    sycl::accessor<int, 1, sycl::access_mode::read, sycl::target::host_buffer>
         acc6(buf3, sycl::range<1>(1));
 
     assert(acc4 == 2);
@@ -631,10 +631,9 @@ int main() {
 
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
-          sycl::accessor<int, 1, sycl::access::mode::write,
-                         sycl::target::device>
+          sycl::accessor<int, 1, sycl::access_mode::write, sycl::target::device>
               D(d, cgh);
-          sycl::accessor<int, 1, sycl::access::mode::read,
+          sycl::accessor<int, 1, sycl::access_mode::read,
                          sycl::target::constant_buffer>
               C(c, cgh);
 
@@ -661,10 +660,10 @@ int main() {
         sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
-        sycl::accessor<int, 1, sycl::access::mode::write, sycl::target::device,
+        sycl::accessor<int, 1, sycl::access_mode::write, sycl::target::device,
                        sycl::access::placeholder::true_t>
             D(d);
-        sycl::accessor<int, 1, sycl::access::mode::read,
+        sycl::accessor<int, 1, sycl::access_mode::read,
                        sycl::target::constant_buffer,
                        sycl::access::placeholder::true_t>
             C(c);
@@ -695,7 +694,7 @@ int main() {
     sycl::range<1> r(4);
     sycl::buffer<int, 1> b(r);
     try {
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
+      sycl::accessor<int, 1, sycl::access_mode::read_write,
                      sycl::access::target::device,
                      sycl::access::placeholder::true_t>
           acc(b);
@@ -726,7 +725,7 @@ int main() {
     sycl::range<1> r(4);
     sycl::buffer<int, 1> b(r);
     try {
-      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write,
+      using AccT = sycl::accessor<int, 1, sycl::access_mode::read_write,
                                   sycl::access::target::device,
                                   sycl::access::placeholder::true_t>;
       AccT acc(b);
@@ -760,7 +759,7 @@ int main() {
     sycl::range<1> r(4);
     sycl::buffer<int, 1> b(r);
     try {
-      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write,
+      using AccT = sycl::accessor<int, 1, sycl::access_mode::read_write,
                                   sycl::access::target::device,
                                   sycl::access::placeholder::true_t>;
       AccT acc(b);
@@ -797,7 +796,7 @@ int main() {
     sycl::range<1> r(4);
     sycl::buffer<int, 1> b(r);
     try {
-      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write,
+      using AccT = sycl::accessor<int, 1, sycl::access_mode::read_write,
                                   sycl::access::target::device,
                                   sycl::access::placeholder::true_t>;
       AccT acc(b);
@@ -852,10 +851,9 @@ int main() {
 
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
-          sycl::accessor<int, 1, sycl::access::mode::write,
-                         sycl::target::device>
+          sycl::accessor<int, 1, sycl::access_mode::write, sycl::target::device>
               AccA(A, cgh);
-          sycl::accessor<int, 1, sycl::access::mode::read,
+          sycl::accessor<int, 1, sycl::access_mode::read,
                          sycl::target::constant_buffer>
               AccB(B, cgh);
           InheritedAccessor<int> AccC(C, cgh);
@@ -888,7 +886,7 @@ int main() {
       {
         sycl::buffer buf(array, sycl::range<1>(3));
         q.submit([&](sycl::handler &h) {
-          auto acc = buf.get_access<sycl::access::mode::write>(h);
+          auto acc = buf.get_access<sycl::access_mode::write>(h);
           h.parallel_for<class A>(3, [=](sycl::id<1> i) {
             for (int j = 0; j < 3; ++j) {
               acc[i][j] = j + i * 10;
@@ -925,7 +923,7 @@ int main() {
 
     // illegal ranges
     try {
-      auto acc = b.get_access<sycl::access::mode::read_write>(illegalR, offset);
+      auto acc = b.get_access<sycl::access_mode::read_write>(illegalR, offset);
       assert(false && "operation should not have succeeded");
     } catch (sycl::exception &e) {
       assert(e.code() == sycl::errc::invalid && "errc should be errc::invalid");
@@ -933,7 +931,7 @@ int main() {
     try {
       sycl::queue q;
       q.submit([&](sycl::handler &cgh) {
-        auto acc = b.get_access<sycl::access::mode::read_write>(cgh, illegalR);
+        auto acc = b.get_access<sycl::access_mode::read_write>(cgh, illegalR);
       });
       q.wait_and_throw();
       assert(false &&
@@ -1174,7 +1172,7 @@ int main() {
     sycl::queue Queue;
     int Data[] = {32, 32};
 
-    using HostTaskAcc = sycl::accessor<int, 0, sycl::access::mode::read_write,
+    using HostTaskAcc = sycl::accessor<int, 0, sycl::access_mode::read_write,
                                        sycl::access::target::host_task>;
 
     // Explicit block to prompt copy-back to Data
@@ -1455,7 +1453,7 @@ int main() {
         queue
             .submit([&](sycl::handler &cgh) {
               auto B =
-                  IBuf.template get_access<sycl::access::mode::read_write>(cgh);
+                  IBuf.template get_access<sycl::access_mode::read_write>(cgh);
 
               cgh.single_task<class fill_with_potentially_zero_size>([=]() {
                 for (size_t I = 0; I < B.size(); ++I)
@@ -1530,7 +1528,7 @@ int main() {
 
   // default constructed accessor can be passed to a kernel (2).
   {
-    using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+    using AccT = sycl::accessor<int, 1, sycl::access_mode::read_write>;
     AccT acc;
     assert(acc.empty());
     sycl::queue q;

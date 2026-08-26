@@ -29,13 +29,13 @@
 // CHK-DEVICE-TRIPLE-SAME: "-O2"
 // CHK-DEVICE-TRIPLE: llvm-offload-binary{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
 
-// Check that path to libsycl.so is not passed to clang-linker-wrapper tool by default for SYCL compilation, but that -lsycl is.
+// Check if path to libsycl.so is passed to clang-linker-wrapper tool by default for SYCL compilation.
 // The test also checks if SYCL header include paths are added to the SYCL host and device compilation.
-// INTEL-RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
-// RUN:   | FileCheck -implicit-check-not="libsycl.so" -check-prefixes=CHECK-LSYCL,CHECK-SYCL-HEADERS-HOST,CHECK-SYCL-HEADERS-DEVICE %s
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHECK-LSYCL,CHECK-SYCL-HEADERS-HOST,CHECK-SYCL-HEADERS-DEVICE %s
 // CHECK-SYCL-HEADERS-DEVICE: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-SYCL-HEADERS-HOST: "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
-// CHECK-LSYCL: "-lsycl"
+// CHECK-LSYCL: clang-linker-wrapper{{.*}} "{{.*}}libsycl.so"
 // Check that -fsycl -fno-sycl does not pass libsycl.so to the linker.
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-RT %s
@@ -63,27 +63,27 @@
 
 /// Check -fsycl-device-image-split= is forwarded to clang-sycl-linker as the
 /// corresponding --module-split-mode= value.
-// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=kernel %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=kernel %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-KERNEL %s
 // CHK-SPLIT-KERNEL: clang-linker-wrapper{{.*}}"--device-linker=spir64-unknown-unknown=--module-split-mode=kernel"
-// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=translation_unit %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=translation_unit %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-TU %s
 // CHK-SPLIT-TU: clang-linker-wrapper{{.*}}"--device-linker=spir64-unknown-unknown=--module-split-mode=translation_unit"
-// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=link_unit %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=link_unit %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-LU %s
 // CHK-SPLIT-LU: clang-linker-wrapper{{.*}}"--device-linker=spir64-unknown-unknown=--module-split-mode=link_unit"
 
 /// Check the bare -fsycl-device-image-split flag aliases to 'translation_unit'.
-// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-TU %s
 
 /// Check that without -fsycl-device-image-split, no --module-split-mode= is passed.
-// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-SPLIT %s
 // CHK-NO-SPLIT-NOT: --module-split-mode=
 
 /// Check an invalid -fsycl-device-image-split= value is diagnosed.
-// RUN: not %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=bogus %s 2>&1 \
+// RUN: not %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=bogus %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-INVALID %s
 // CHK-SPLIT-INVALID: error: invalid value 'bogus' in '-fsycl-device-image-split='
 
@@ -95,6 +95,6 @@
 /// Check for option incompatibility with -fsycl
 // RUN: not %clang -### -fsycl -ffreestanding %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
-// RUN: not %clang -### -fsycl --offload-new-driver -static-libstdc++ %s 2>&1 \
+// RUN: not %clang --sysroot=%S/Inputs/SYCL -### -fsycl --offload-new-driver -static-libstdc++ %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
 // CHK-INCOMPATIBILITY: error: invalid argument '[[INCOMPATOPT]]' not allowed with '-fsycl'

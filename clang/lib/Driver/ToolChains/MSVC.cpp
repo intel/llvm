@@ -34,12 +34,14 @@
 #include <cstdio>
 
 #ifdef _WIN32
-  #define WIN32_LEAN_AND_MEAN
-  #define NOGDI
-  #ifndef NOMINMAX
-    #define NOMINMAX
-  #endif
-  #include <windows.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#define NOGDI
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #endif
 
 using namespace clang::driver;
@@ -108,9 +110,21 @@ class DeviceImageDepForcer {
   }
 
   bool isSystemLib(StringRef LibPath) const {
+    std::string Norm = collapseSeps(LibPath);
+    // A .lib living under any standard Microsoft toolchain directory (the
+    // Windows SDK / UCRT / NETFXSDK under "Windows Kits", or the VC and ATLMFC
+    // libs under "Microsoft Visual Studio") is a system library and must not be
+    // force-loaded. Match on the directory marker rather than one exact version
+    // dir: clang computes only the highest-installed SDK version, but the
+    // linker may resolve a lib against a different version listed earlier on
+    // the LIB env var, and both share the same marker.
+    for (StringRef Marker : {"\\Windows Kits\\", "\\Microsoft Visual Studio\\",
+                             "\\Microsoft SDKs\\"})
+      if (StringRef(Norm).contains_insensitive(Marker))
+        return true;
+    // Also exclude clang's own resource lib dir, which carries no such marker.
     // Compare against the dir plus a trailing '\' (SystemLibDirs are stored
     // that way) so "C:\sdk\lib" doesn't spuriously match "C:\sdk\library\...".
-    std::string Norm = collapseSeps(LibPath);
     for (const auto &Dir : SystemLibDirs)
       if (StringRef(Norm).starts_with_insensitive(Dir))
         return true;
@@ -623,9 +637,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // truncate the .debug_* sections to eight characters. PE/COFF doesn't allow
     // section names longer than eight bytes in executables - LLD uses the same
     // name length extension as in object files (where long names are allowed).
+    // Also 'lld-link' for hybrid object files if -marm64x is requested.
     if (Args.hasArg(options::OPT_gdwarf, options::OPT_gdwarf_2,
                     options::OPT_gdwarf_3, options::OPT_gdwarf_4,
-                    options::OPT_gdwarf_5, options::OPT_gdwarf_6))
+                    options::OPT_gdwarf_5, options::OPT_gdwarf_6,
+                    options::OPT_marm64x))
       Linker = "lld-link";
     else
       Linker = "link";
@@ -1067,6 +1083,37 @@ void MSVCToolChain::AddSystemIncludeWithSubfolder(
   addSystemInclude(DriverArgs, CC1Args, path);
 }
 
+void MSVCToolChain::AddMSVCStdlibMultilibIncludeArgs(
+    const ArgList &DriverArgs, ArgStringList &CC1Args,
+    bool HonorNostdincxx) const {
+  if (DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdlibinc) ||
+      (HonorNostdincxx && DriverArgs.hasArg(options::OPT_nostdincxx)))
+    return;
+
+  // Add multilib variant include paths in priority order.
+  for (const Multilib &M : getOrderedMultilibs()) {
+    if (M.isDefault())
+      continue;
+    if (std::optional<std::string> StdlibIncDir = getStdlibIncludePath()) {
+      SmallString<128> Dir(*StdlibIncDir);
+      llvm::sys::path::append(Dir, M.includeSuffix());
+      if (getDriver().getVFS().exists(Dir))
+        addSystemInclude(DriverArgs, CC1Args, Dir);
+    }
+  }
+}
+
+void MSVCToolChain::AddMSVCStdlibIncludeArgs(const ArgList &DriverArgs,
+                                             ArgStringList &CC1Args) const {
+  AddMSVCStdlibMultilibIncludeArgs(DriverArgs, CC1Args,
+                                   /*HonorNostdincxx=*/true);
+
+  if (!DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdlibinc) &&
+      !DriverArgs.hasArg(options::OPT_nostdincxx) && !VCToolChainPath.empty())
+    addSystemInclude(DriverArgs, CC1Args,
+                     getSubDirectoryPath(llvm::SubDirectoryType::Include));
+}
+
 void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_nostdinc))
@@ -1115,17 +1162,8 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   if (DriverArgs.hasArg(options::OPT_nostdlibinc))
     return;
 
-  // Add multilib variant include paths in priority order.
-  for (const Multilib &M : getOrderedMultilibs()) {
-    if (M.isDefault())
-      continue;
-    if (std::optional<std::string> StdlibIncDir = getStdlibIncludePath()) {
-      SmallString<128> Dir(*StdlibIncDir);
-      llvm::sys::path::append(Dir, M.includeSuffix());
-      if (getDriver().getVFS().exists(Dir))
-        addSystemInclude(DriverArgs, CC1Args, Dir);
-    }
-  }
+  AddMSVCStdlibMultilibIncludeArgs(DriverArgs, CC1Args,
+                                   /*HonorNostdincxx=*/false);
 
   // Honor %INCLUDE% and %EXTERNAL_INCLUDE%. It should have essential search
   // paths set by vcvarsall.bat. Skip if the user expressly set any of the
@@ -1220,7 +1258,17 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 
 void MSVCToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
                                                  ArgStringList &CC1Args) const {
-  // FIXME: There should probably be logic here to find libc++ on Windows.
+  // MSVC STL paths are added from AddClangSystemIncludeArgs during normal
+  // compilation to preserve clang-cl header search order.
+  if (DriverArgs.hasArg(options::OPT_print_cxx_stdlib_include_dirs) &&
+      !DriverArgs.hasArg(options::OPT_stdlib_EQ))
+    AddMSVCStdlibIncludeArgs(DriverArgs, CC1Args);
+}
+
+StringRef MSVCToolChain::GetCXXStdlibName(const ArgList &DriverArgs) const {
+  if (!DriverArgs.hasArg(options::OPT_stdlib_EQ))
+    return "msvcstl";
+  return ToolChain::GetCXXStdlibName(DriverArgs);
 }
 
 VersionTuple MSVCToolChain::computeMSVCVersion(const Driver *D,

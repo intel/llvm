@@ -5,10 +5,8 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED: windows && run-mode
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22284
-// UNSUPPORTED: linux && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 // RUN: %{build} -Wno-error=deprecated-declarations %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out
 
@@ -93,8 +91,8 @@ int main() {
 
     Queue.submit([&](sycl::handler &CGH) {
       auto Acc1 =
-          HostBufferInterop1.get_access<sycl::access::mode::read_write>(CGH);
-      auto Acc2 = HostBufferInterop2.get_access<sycl::access::mode::read_write>(
+          HostBufferInterop1.get_access<sycl::access_mode::read_write>(CGH);
+      auto Acc2 = HostBufferInterop2.get_access<sycl::access_mode::read_write>(
           CGH, range<1>(12));
 
       CGH.single_task<class SimpleKernel1>([=]() {
@@ -127,8 +125,8 @@ int main() {
     auto SubBuffer2 = buffer(HostBufferInterop2, id<1>(3), range<1>(9));
 
     Queue.submit([&](sycl::handler &CGH) {
-      auto Acc1 = SubBuffer1.get_access<sycl::access::mode::read_write>(CGH);
-      auto Acc2 = SubBuffer2.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc1 = SubBuffer1.get_access<sycl::access_mode::read_write>(CGH);
+      auto Acc2 = SubBuffer2.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel2>([=]() {
         for (int i = 0; i < 3; i++) {
           Acc1[i] = 77;
@@ -160,7 +158,7 @@ int main() {
     queue Queue1(Context1, default_selector_v);
     Queue1.submit([&](sycl::handler &CGH) {
       auto Acc =
-          HostBufferInterop2.get_access<sycl::access::mode::read_write>(CGH);
+          HostBufferInterop2.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel3>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] = 99;
@@ -172,7 +170,7 @@ int main() {
     queue Queue2(Context2, default_selector_v);
     Queue2.submit([&](sycl::handler &CGH) {
       auto Acc =
-          HostBufferInterop2.get_access<sycl::access::mode::read_write>(CGH);
+          HostBufferInterop2.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel4>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] *= 2;
@@ -249,9 +247,9 @@ int main() {
 
     Queue.submit([&](sycl::handler &CGH) {
       auto Acc1 =
-          SharedBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+          SharedBufferInterop.get_access<sycl::access_mode::read_write>(CGH);
       auto Acc2 =
-          DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+          DeviceBufferInterop.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel5>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc1[i] += 77;
@@ -277,7 +275,7 @@ int main() {
     // Use device buffer in two different contexts
     Queue.submit([&](sycl::handler &CGH) {
       auto Acc =
-          DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+          DeviceBufferInterop.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel6>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] = 99;
@@ -291,7 +289,7 @@ int main() {
     queue Queue2{Context2, Dev2};
     Queue2.submit([&](sycl::handler &CGH) {
       auto Acc =
-          DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+          DeviceBufferInterop.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel7>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] *= 2;
@@ -303,7 +301,7 @@ int main() {
     queue Queue3;
     Queue3.submit([&](sycl::handler &CGH) {
       auto Acc =
-          DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
+          DeviceBufferInterop.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel8>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] += 2;

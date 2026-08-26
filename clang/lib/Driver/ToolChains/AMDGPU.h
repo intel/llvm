@@ -40,7 +40,8 @@ public:
 
 void getAMDGPUTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                              const llvm::opt::ArgList &Args,
-                             std::vector<StringRef> &Features);
+                             std::vector<StringRef> &Features,
+                             bool ForAS = false);
 
 void addFullLTOPartitionOption(const Driver &D, const llvm::opt::ArgList &Args,
                                llvm::opt::ArgStringList &CmdArgs);
@@ -59,15 +60,15 @@ protected:
   /// FIXME: Should merge 2 linkers.
   const bool UseHIPLinker = false;
 
-  // Whether to link device libraries (for standalone OpenCL/LLVM IR
-  // compilation)
-  bool ShouldLinkDeviceLibs = false;
-
   // Offload kind this toolchain instance is used for (e.g. distinguishes
   // HIP from SYCL offloading to amdgcn).
   Action::OffloadKind OK;
 
   SYCLInstallationDetector SYCLInstallation;
+
+  // Whether to link device libraries (for standalone OpenCL/LLVM IR
+  // compilation)
+  bool ShouldLinkDeviceLibs = false;
 
   Tool *buildLinker() const override;
   StringRef getOptionDefault(options::ID OptID) const {

@@ -33,13 +33,13 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
+#include "clang/Basic/BuiltinTraits.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
-#include "clang/Basic/TypeTraits.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/AnalysisBasedWarnings.h"
@@ -237,6 +237,27 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
           ExprEvalContexts.empty() ||
           (!isUnevaluatedContext() && !isConstantEvaluatedContext());
       bool IsEsimdPrivateGlobal = SYCL().isSYCLEsimdPrivateGlobal(VD);
+      // Allowlist reads of specific MSVC STL runtime globals from device
+      // code. The MSVC STL reads globals like `std::__isa_available` from
+      // inline functions in <bit>, <vector>, <complex>, etc., which get
+      // pulled into SYCL device TUs. Without this exception, the
+      // non-const-global check below would reject those reads. SYCL's
+      // stl_wrappers provide device-side definitions of these globals.
+      // Mirrors the `isMsvcMathFn` allowlist below, which does the same for
+      // MSVC STL runtime function calls.
+      auto isMsvcSTLGlobalVar = [&](const VarDecl *VD) {
+        auto *AuxInfo = Context.getAuxTargetInfo();
+        if (!AuxInfo || !AuxInfo->getTriple().isWindowsMSVCEnvironment())
+          return false;
+        if (!VD->isInStdNamespace())
+          return false;
+        const IdentifierInfo *Id = VD->getIdentifier();
+        if (!Id)
+          return false;
+        return llvm::StringSwitch<bool>(Id->getName())
+            .Case("__isa_available", true)
+            .Default(false);
+      };
       // Non-const statics are not allowed in SYCL except for ESIMD or with the
       // SYCLGlobalVar or SYCLGlobalVariableAllowed attribute.
       if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&
@@ -255,7 +276,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                !SemaSYCL::isTypeDecoratedWithDeclAttribute<
                    SYCLGlobalVariableAllowedAttr>(VD->getType()) &&
                !SemaSYCL::isTypeDecoratedWithDeclAttribute<SYCLScopeAttr>(
-                   VD->getType()))
+                   VD->getType()) &&
+               !isMsvcSTLGlobalVar(VD))
         SYCL().DiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << SemaSYCL::KernelGlobalVariable;
       // ESIMD globals cannot be used in a SYCL context.
@@ -1996,8 +2018,8 @@ ExprResult Sema::CreateGenericSelectionExpr(
         // earlier because GCC does so.
         unsigned D = 0;
         if (ControllingExpr && Types[i]->getType()->isIncompleteType())
-          D = LangOpts.C2y ? diag::warn_c2y_compat_assoc_type_incomplete
-                           : diag::ext_assoc_type_incomplete;
+          D = LangOpts.C2y ? diag::compat_c2y_assoc_type_incomplete
+                           : diag::compat_pre_c2y_assoc_type_incomplete;
         else if (ControllingExpr && !Types[i]->getType()->isObjectType())
           D = diag::err_assoc_type_nonobject;
         else if (Types[i]->getType()->isVariablyModifiedType())
@@ -2188,9 +2210,29 @@ static PredefinedIdentKind getPredefinedExprKind(tok::TokenKind Kind) {
 /// getPredefinedExprDecl - Returns Decl of a given DeclContext that can be used
 /// to determine the value of a PredefinedExpr. This can be either a
 /// block, lambda, captured statement, function, otherwise a nullptr.
-static Decl *getPredefinedExprDecl(DeclContext *DC) {
-  while (DC && !isa<BlockDecl, CapturedDecl, FunctionDecl, ObjCMethodDecl>(DC))
+static Decl *getPredefinedExprDecl(Sema &S, DeclContext *DC) {
+  auto LSI = S.FunctionScopes.rbegin();
+
+  auto tryAdjustLambdaContext = [&S, &LSI](DeclContext *&DC) {
+    if (isLambdaCallOperator(DC)) {
+      auto E = S.FunctionScopes.rend();
+      while (LSI != E && isa<CapturingScopeInfo>(*LSI) &&
+             !isa<LambdaScopeInfo>(*LSI))
+        ++LSI;
+      assert(LSI != E && "Should be in a lambda scope info");
+      if (dyn_cast<LambdaScopeInfo>(*LSI)->BeforeCompoundStatement)
+        DC = DC->getParent();
+      ++LSI;
+    }
+  };
+
+  tryAdjustLambdaContext(DC);
+  while (DC &&
+         !isa<BlockDecl, CapturedDecl, FunctionDecl, ObjCMethodDecl>(DC)) {
     DC = DC->getParent();
+    tryAdjustLambdaContext(DC);
+  }
+
   return cast_or_null<Decl>(DC);
 }
 
@@ -2274,7 +2316,7 @@ Sema::ExpandFunctionLocalPredefinedMacros(ArrayRef<Token> Toks) {
   // Note: Although function local macros are defined only inside functions,
   // we ensure a valid `CurrentDecl` even outside of a function. This allows
   // expansion of macros into empty string literals without additional checks.
-  Decl *CurrentDecl = getPredefinedExprDecl(CurContext);
+  Decl *CurrentDecl = getPredefinedExprDecl(*this, CurContext);
   if (!CurrentDecl)
     CurrentDecl = Context.getTranslationUnitDecl();
 
@@ -3701,7 +3743,7 @@ static void ConvertUTF8ToWideString(unsigned CharByteWidth, StringRef Source,
 
 ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
                                      PredefinedIdentKind IK) {
-  Decl *currentDecl = getPredefinedExprDecl(CurContext);
+  Decl *currentDecl = getPredefinedExprDecl(*this, CurContext);
   if (!currentDecl) {
     Diag(Loc, diag::ext_predef_outside_function);
     currentDecl = Context.getTranslationUnitDecl();
@@ -4332,14 +4374,10 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
                                         Context.getComplexType(Res->getType()));
 
     // In C++, this is a GNU extension. In C, it's a C2y extension.
-    unsigned DiagId;
     if (getLangOpts().CPlusPlus)
-      DiagId = diag::ext_gnu_imaginary_constant;
-    else if (getLangOpts().C2y)
-      DiagId = diag::warn_c23_compat_imaginary_constant;
+      Diag(Tok.getLocation(), diag::ext_gnu_imaginary_constant);
     else
-      DiagId = diag::ext_c2y_imaginary_constant;
-    Diag(Tok.getLocation(), DiagId);
+      DiagCompat(Tok.getLocation(), diag_compat::imaginary_constant);
   }
   return Res;
 }
@@ -4748,6 +4786,7 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
     case Type::SubstTemplateTypeParm:
     case Type::MacroQualified:
     case Type::CountAttributed:
+    case Type::LateParsedAttr:
       // Keep walking after single level desugaring.
       T = T.getSingleStepDesugaredType(Context);
       break;
@@ -4806,9 +4845,7 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(QualType ExprType,
     // trait to an incomplete array is an extension.
     if (ExprKind == UETT_AlignOf && !getLangOpts().CPlusPlus &&
         ExprType->isIncompleteArrayType())
-      Diag(OpLoc, getLangOpts().C2y
-                      ? diag::warn_c2y_compat_alignof_incomplete_array
-                      : diag::ext_c2y_alignof_incomplete_array);
+      DiagCompat(OpLoc, diag_compat::alignof_incomplete_array);
     ExprType = Context.getBaseElementType(ExprType);
   }
 
@@ -5776,17 +5813,12 @@ struct ImmediateCallVisitor : DynamicRecursiveASTVisitor {
   }
 
   // A nested lambda might have parameters with immediate invocations
-  // in their default arguments, or init-captures that are evaluated in the
-  // enclosing context.
+  // in their default arguments.
   // The compound statement is not visited (as it does not constitute a
   // subexpression).
+  // FIXME: We should consider visiting and transforming captures
+  // with init expressions.
   bool VisitLambdaExpr(LambdaExpr *E) override {
-    auto Init = E->capture_init_begin();
-    for (auto C = E->capture_begin(), CEnd = E->capture_end(); C != CEnd;
-         ++C, ++Init) {
-      if (E->isInitCapture(C) && !TraverseLambdaCapture(E, C, *Init))
-        return false;
-    }
     return VisitCXXMethodDecl(E->getCallOperator());
   }
 
@@ -5801,51 +5833,16 @@ struct ImmediateCallVisitor : DynamicRecursiveASTVisitor {
 
 struct EnsureImmediateInvocationInDefaultArgs
     : TreeTransform<EnsureImmediateInvocationInDefaultArgs> {
-  using Base = TreeTransform<EnsureImmediateInvocationInDefaultArgs>;
-
   EnsureImmediateInvocationInDefaultArgs(Sema &SemaRef)
       : TreeTransform(SemaRef) {}
 
   bool AlwaysRebuild() { return true; }
-  bool ReplacingOriginal() { return true; }
 
-  // Lambda bodies are not subexpressions of the enclosing default initializer,
-  // but init-capture expressions are evaluated in the enclosing context. Keep
-  // the existing closure type and capture declarations so the existing body
-  // still refers to the right declarations.
-  ExprResult TransformLambdaExpr(LambdaExpr *E) {
-    SmallVector<Expr *, 4> CaptureInits(E->capture_inits());
-
-    bool Changed = false;
-    for (unsigned I = 0, N = E->capture_size(); I != N; ++I) {
-      const LambdaCapture *C = E->capture_begin() + I;
-      if (!E->isInitCapture(C))
-        continue;
-
-      auto *VD = cast<VarDecl>(C->getCapturedVar());
-      Expr *Init = CaptureInits[I];
-      ExprResult NewInit =
-          TransformInitializer(Init, VD->getInitStyle() == VarDecl::CallInit);
-      if (NewInit.isInvalid())
-        return ExprError();
-      Changed |= NewInit.get() != Init;
-      CaptureInits[I] = NewInit.get();
-    }
-
-    LambdaExpr *Lambda = E;
-    if (Changed) {
-      // Reuse the existing closure class: it owns the capture declarations,
-      // fields, and call operator body. Only the LambdaExpr's capture
-      // initializer list is replaced.
-      Lambda = LambdaExpr::Create(
-          SemaRef.Context, E->getLambdaClass(), E->getIntroducerRange(),
-          E->getCaptureDefault(), E->getCaptureDefaultLoc(),
-          E->hasExplicitParameters(), E->hasExplicitResultType(), CaptureInits,
-          E->getEndLoc(), E->containsUnexpandedParameterPack());
-    }
-
-    return SemaRef.MaybeBindToTemporary(Lambda);
-  }
+  // Lambda can only have immediate invocations in the default
+  // args of their parameters, which is transformed upon calling the closure.
+  // The body is not a subexpression, so we have nothing to do.
+  // FIXME: Immediate calls in capture initializers should be transformed.
+  ExprResult TransformLambdaExpr(LambdaExpr *E) { return E; }
   ExprResult TransformBlockExpr(BlockExpr *E) { return E; }
 
   // Make sure we don't rebuild the this pointer as it would
@@ -14901,8 +14898,7 @@ static QualType CheckIncrementDecrementOperand(Sema &S, Expr *Op,
       return QualType();
   } else if (ResType->isAnyComplexType()) {
     // C99 does not support ++/-- on complex types, we allow as an extension.
-    S.Diag(OpLoc, S.getLangOpts().C2y ? diag::warn_c2y_compat_increment_complex
-                                      : diag::ext_c2y_increment_complex)
+    S.DiagCompat(OpLoc, diag_compat::increment_complex)
         << IsInc << Op->getSourceRange();
   } else if (ResType->isPlaceholderType()) {
     ExprResult PR = S.CheckPlaceholderExpr(Op);
@@ -21217,6 +21213,14 @@ bool Sema::DiagIfReachable(SourceLocation Loc, ArrayRef<const Stmt *> Stmts,
   }
 
   if (getCurFunction()) {
+    // This queue flushes after the function is analyzed, by which time an
+    // ignore-all-warnings region live here is gone, so sample it now.  A note
+    // is not error-class either, so this also drops the notes that accompany a
+    // skipped warning.  They arrive on their own call, out of reach of the
+    // engine's rule that drops a note whose warning was ignored.
+    if (Diags.getIgnoreAllWarnings() &&
+        Diags.getDiagnosticIDs()->isWarningOrExtension(PD.getDiagID()))
+      return false;
     FunctionScopes.back()->PossiblyUnreachableDiags.push_back(
         sema::PossiblyUnreachableDiag(PD, Loc, Stmts));
     return true;

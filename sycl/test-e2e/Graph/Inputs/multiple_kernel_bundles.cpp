@@ -56,14 +56,14 @@ int main() {
         {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
     add_node(Graph, Queue, ([&](sycl::handler &CGH) {
-               auto Acc = Buf1.get_access<sycl::access::mode::write>(CGH);
+               auto Acc = Buf1.get_access<sycl::access_mode::write>(CGH);
                CGH.use_kernel_bundle(KernelBundleExecutable1);
                CGH.single_task<Kernel1Name>([=]() { Acc[0] = 42; });
              }));
 
     add_node(Graph, Queue, ([&](handler &CGH) {
                auto DataA =
-                   BufferA.template get_access<access::mode::read_write>(CGH);
+                   BufferA.template get_access<access_mode::read_write>(CGH);
                CGH.use_kernel_bundle(KernelBundleExecutable1);
                CGH.parallel_for(range<1>{Size},
                                 [=](item<1> Id) { DataA[Id]++; });
@@ -77,7 +77,7 @@ int main() {
     std::error_code ExceptionCode = make_error_code(sycl::errc::success);
     try {
       Graph.add([&](sycl::handler &CGH) {
-        auto Acc = Buf2.get_access<sycl::access::mode::write>(CGH);
+        auto Acc = Buf2.get_access<sycl::access_mode::write>(CGH);
         CGH.use_kernel_bundle(KernelBundleExecutable2);
         CGH.single_task<Kernel2Name>([=]() { Acc[0] = 24; });
       });

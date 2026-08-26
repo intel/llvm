@@ -9,15 +9,17 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/enqueued_pool.hpp"
 #include "common/ur_ref_count.hpp"
-#include "enqueued_pool.hpp"
 #include "event.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ur_pool_manager.hpp"
 #include "usm.hpp"
 #include <umf_helpers.hpp>
 
-usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
+namespace ur::level_zero::v1 {
+
+extern usm::DisjointPoolAllConfigs DisjointPoolConfigInstance;
 
 struct UsmPool {
   UsmPool(ur_usm_pool_handle_t UrPool, umf::pool_unique_handle_t UmfPool);
@@ -57,7 +59,7 @@ private:
   std::atomic_size_t PeakAllocatedMemorySize{0};
 };
 
-struct ur_usm_pool_handle_t_ : ur_object {
+struct ur_usm_pool_handle_t_ : ur_object_t {
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc, bool IsProxy = false);
   ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
@@ -103,7 +105,7 @@ public:
 class USMMemoryProviderBase {
 protected:
   ur_context_handle_t Context;
-  ur_device_handle_t Device;
+  ur::level_zero::ur_device_handle_t Device;
 
   ur_result_t &getLastStatusRef() {
     static thread_local ur_result_t LastStatus = UR_RESULT_SUCCESS;
@@ -120,7 +122,8 @@ public:
     *ErrCode = static_cast<int32_t>(getLastStatusRef());
     return UMF_RESULT_SUCCESS;
   };
-  virtual umf_result_t initialize(ur_context_handle_t, ur_device_handle_t) {
+  virtual umf_result_t initialize(ur_context_handle_t,
+                                  ur::level_zero::ur_device_handle_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
   virtual umf_result_t alloc(size_t, size_t, void **) {
@@ -171,7 +174,7 @@ private:
 
 public:
   umf_result_t initialize(ur_context_handle_t Ctx,
-                          ur_device_handle_t Dev) override;
+                          ur::level_zero::ur_device_handle_t Dev) override;
   umf_result_t alloc(size_t Size, size_t Align, void **Ptr) override;
   umf_result_t free(void *Ptr, size_t Size) override;
   umf_result_t get_min_page_size(const void *, size_t *) override;
@@ -273,3 +276,5 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
                           bool OwnZeMemHandle = true);
 
 extern const bool UseUSMAllocator;
+
+} // namespace ur::level_zero::v1

@@ -1,5 +1,5 @@
 //
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if level_zero %{ env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out %}
 
@@ -28,7 +28,7 @@ int main() {
   const int N = 8;
   int err_cnt = 0;
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     auto A = (int *)malloc_shared(N * sizeof(int), dev, ctx);
 
     for (int i = 0; i < N; i++) {

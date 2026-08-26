@@ -4,7 +4,7 @@
 // UNSUPPORTED: linux && gpu && !hip && !cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20757
 
-// XFAIL: windows && gpu-intel-gen12
+// XFAIL: !arch-intel_gpu_mtl_u && windows && gpu-intel-gen12
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21533
 
 //==--------------- reduce.cpp - SYCL sub_group reduce test ----*- C++ -*---==//

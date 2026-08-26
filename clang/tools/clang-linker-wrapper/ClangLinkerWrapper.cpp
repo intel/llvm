@@ -334,8 +334,30 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
     return Name.str();
   if (!Path)
     return createStringError(Path.getError(),
-                             "Unable to find '" + Name + "' in path");
+                             "unable to find '" + Name + "' in path");
   return *Path;
+}
+
+/// Locate the 'ocloc' tool used for Intel GPU AOT compilation.
+Expected<std::string> findOcloc(const ArgList &Args) {
+  if (Arg *A = Args.getLastArg(OPT_ocloc_path_EQ)) {
+    StringRef Dir = A->getValue();
+    if (Dir.empty())
+      return createStringError("no directory given for '" + A->getSpelling() +
+                               "'");
+    if (DryRun) {
+      SmallString<128> OclocPath(Dir);
+      sys::path::append(OclocPath, "ocloc");
+      return std::string(OclocPath);
+    }
+    // Only look in the given directory.  The tool name is resolved by
+    // findProgramByName, which takes care of any platform specific executable
+    // extension.
+    if (ErrorOr<std::string> Path = sys::findProgramByName("ocloc", {Dir}))
+      return *Path;
+    return createStringError("unable to find 'ocloc' in '" + Dir + "'");
+  }
+  return findProgram("ocloc", {getExecutableDir("ocloc")});
 }
 
 bool linkerSupportsLTO(const ArgList &Args) {
@@ -951,7 +973,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
       ",+SPV_INTEL_fp_max_error"
-      ",+SPV_INTEL_memory_access_aliasing";
+      ",+SPV_INTEL_memory_access_aliasing"
+      ",+SPV_INTEL_maximum_registers";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
@@ -1081,8 +1104,7 @@ runAOTCompileIntelGPU(StringRef InputFile, const ArgList &Args,
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
   SmallVector<StringRef, 8> CmdArgs;
-  Expected<std::string> OclocPath =
-      findProgram("ocloc", {getExecutableDir("ocloc")});
+  Expected<std::string> OclocPath = findOcloc(Args);
   if (!OclocPath)
     return OclocPath.takeError();
 
@@ -1133,6 +1155,41 @@ static Expected<StringRef> runAOTCompile(StringRef InputFile,
   }
   return createStringError(inconvertibleErrorCode(),
                            "Unsupported SYCL Triple and Arch");
+}
+
+/// Compress each SYCL device image in-place when --compress is set,
+/// tagging its Format as BIF_Compressed. --compress and --compression-level=
+/// are the same flags HIP forwards to clang-offload-bundler;
+static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
+                            const ArgList &Args) {
+  if (!Args.hasArg(OPT_compress))
+    return Error::success();
+
+  int Level = llvm::offloading::DefaultSYCLCompressionLevel;
+  if (auto *A = Args.getLastArg(OPT_compression_level_eq))
+    if (StringRef(A->getValue()).getAsInteger(10, Level))
+      return createStringError(
+          "invalid value for --offload-compression-level=: '%s'",
+          A->getValue());
+
+  for (auto &Image : Images) {
+    SmallVector<uint8_t, 0> CompressedBytes;
+    Expected<bool> DidCompressOrErr = offloading::compressSYCLDeviceImage(
+        ArrayRef<uint8_t>(
+            reinterpret_cast<const uint8_t *>(Image.Image->getBufferStart()),
+            Image.Image->getBufferSize()),
+        CompressedBytes, Level, /*Threshold=*/512, Verbose);
+    if (!DidCompressOrErr)
+      return DidCompressOrErr.takeError();
+    if (!*DidCompressOrErr)
+      continue;
+    Image.Image = MemoryBuffer::getMemBufferCopy(
+        StringRef(reinterpret_cast<const char *>(CompressedBytes.data()),
+                  CompressedBytes.size()),
+        Image.Image->getBufferIdentifier());
+    Image.Format = offloading::SYCLBinaryImageFormat::BIF_Compressed;
+  }
+  return Error::success();
 }
 
 /// Reads device images from the given \p InputFile and wraps them
@@ -1205,6 +1262,9 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
     Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
                         ImageTarget, SI.CompileOptions, SI.LinkOptions);
   }
+
+  if (Error E = compressImages(Images, Args))
+    return std::move(E);
 
   LLVMContext C;
   Module M("offload.wrapper.object", C);
@@ -1766,8 +1826,13 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (SaveTemps && linkerSupportsLTO(Args))
     CmdArgs.push_back("-Wl,--save-temps");
 
-  if (Args.hasArg(OPT_embed_bitcode))
-    CmdArgs.push_back("-Wl,--lto-emit-llvm");
+  if (Args.hasArg(OPT_embed_bitcode)) {
+    // SPIR-V does not use the LTO linker path, it links bitcode via llvm-link.
+    if (Triple.isSPIRV())
+      CmdArgs.push_back("-emit-llvm");
+    else
+      CmdArgs.push_back("-Wl,--lto-emit-llvm");
+  }
 
   for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
     CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
@@ -1954,8 +2019,10 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
   // TODO: Take into account Arch values considered as JIT: "native",
   // "spir64", "spir", "spirv32" and "spirv64" for SPIR and SPIR-V targets.
   // For now we only consider NoSubArch target as JIT.
-  bool IsJIT =
-      Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
+  // TODO: We allow non-SPIR targets through this path, this logic matches what
+  // we do for the old offload model, it is somewhat strange but at least one
+  // test relies on this behavior: kernel-bundle-merge-options.cpp on NVPTX.
+  bool IsJIT = Triple.getSubArch() == llvm::Triple::NoSubArch;
   if (IsJIT)
     std::for_each(SplitModules.begin(), SplitModules.end(),
                   [&CompileLinkOptions](module_split::SplitModule &M) {
@@ -2126,7 +2193,8 @@ Error containerizeRawImage(std::unique_ptr<MemoryBuffer> &Img, OffloadKind Kind,
                            const ArgList &Args) {
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Kind == OFK_OpenMP && Triple.isSPIRV() &&
-      Triple.getVendor() == llvm::Triple::Intel)
+      Triple.getVendor() == llvm::Triple::Intel &&
+      !Args.hasArg(OPT_embed_bitcode))
     return offloading::intel::containerizeOpenMPSPIRVImage(Img, Triple);
   return Error::success();
 }
@@ -3067,7 +3135,7 @@ getDeviceInput(const ArgList &Args) {
     OffloadFile::TargetID Target = Binary;
     SmallVector<OffloadFile::TargetID> CompatibleTargets;
     for (const auto &[ID, Input] : InputFiles)
-      if (Target == ID || object::areTargetsCompatible(Target, ID))
+      if (object::areTargetsEquivalent(Target, ID))
         CompatibleTargets.emplace_back(ID);
 
     // Seed a new image when no existing target can provide for this input.
@@ -3096,7 +3164,8 @@ getDeviceInput(const ArgList &Args) {
 
     SmallVector<OffloadFile::TargetID> CompatibleTargets = {Binary};
     for (const auto &[ID, Input] : InputFiles)
-      if (object::areTargetsCompatible(Binary, ID))
+      if (OffloadFile::TargetID(Binary) != ID &&
+          object::areTargetsCompatible(Binary, ID))
         CompatibleTargets.emplace_back(ID);
 
     for (const auto &[Index, ID] : llvm::enumerate(CompatibleTargets)) {

@@ -133,7 +133,7 @@ int main() {
   }
 
   Q.submit([&](handler &cgh) {
-    auto acc = buf.get_access<access::mode::write>(cgh);
+    auto acc = buf.get_access<access_mode::write>(cgh);
     cgh.set_args(acc);
     cgh.parallel_for(range<1>(1), K);
   });

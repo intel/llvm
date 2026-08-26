@@ -164,8 +164,8 @@ public:
   void addPostRegAlloc(PassManagerWrapper &PMW) const;
   void addPreEmitPass(PassManagerWrapper &PMWM) const;
   void addPreEmitRegAlloc(PassManagerWrapper &PMW) const;
-  Error addRegAssignmentFast(PassManagerWrapper &PMW) const;
-  Error addRegAssignmentOptimized(PassManagerWrapper &PMW) const;
+  Error addRegAssignAndRewriteFast(PassManagerWrapper &PMW) const;
+  Expected<bool> addRegAssignAndRewriteOptimized(PassManagerWrapper &PMW) const;
   void addPreRegAlloc(PassManagerWrapper &PMW) const;
   Error addFastRegAlloc(PassManagerWrapper &PMW) const;
   Error addOptimizedRegAlloc(PassManagerWrapper &PMW) const;
@@ -471,6 +471,16 @@ static cl::opt<bool> EnableDPPCombine(
 static cl::opt<bool> EnableAMDGPUAliasAnalysis("enable-amdgpu-aa", cl::Hidden,
   cl::desc("Enable AMDGPU Alias Analysis"),
   cl::init(true));
+
+static cl::opt<bool>
+    XnackSetting("amdgpu-xnack",
+                 cl::desc("Force amdgpu.xnack value for testing"),
+                 cl::ReallyHidden);
+
+static cl::opt<bool>
+    SramEccSetting("amdgpu-sramecc",
+                   cl::desc("Force amdgpu.sramecc for testing"),
+                   cl::ReallyHidden);
 
 // Enable lib calls simplifications
 static cl::opt<bool> EnableLibCallSimplify(
@@ -1088,8 +1098,7 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         // Add promote kernel arguments pass to the opt pipeline right before
         // infer address spaces which is needed to do actual address space
         // rewriting.
-        if (Level.getSpeedupLevel() > OptimizationLevel::O1.getSpeedupLevel() &&
-            EnablePromoteKernelArguments)
+        if (Level > OptimizationLevel::O1 && EnablePromoteKernelArguments)
           FPM.addPass(AMDGPUPromoteKernelArgumentsPass());
 
         // Add infer address spaces pass to the opt pipeline after inlining
@@ -1124,6 +1133,13 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerFullLinkTimeOptimizationLastEPCallback(
       [this](ModulePassManager &PM, OptimizationLevel Level) {
+        // Clean up redundant memory round-trips that the full-LTO pipeline,
+        // unlike the non-LTO/ThinLTO ones, otherwise leaves for codegen.
+        if (Level != OptimizationLevel::O0) {
+          PM.addPass(createModuleToFunctionPassAdaptor(
+              EarlyCSEPass(/*UseMemorySSA=*/true)));
+        }
+
         // When we are using -fgpu-rdc, we can only run accelerator code
         // selection after linking to prevent, otherwise we end up removing
         // potentially reachable symbols that were exported as external in other
@@ -1286,7 +1302,9 @@ GCNTargetMachine::GCNTargetMachine(const Target &T, const Triple &TT,
                                    std::optional<Reloc::Model> RM,
                                    std::optional<CodeModel::Model> CM,
                                    CodeGenOptLevel OL, bool JIT)
-    : AMDGPUTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL) {}
+    : AMDGPUTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL) {
+  setEnableDefaultMachineVerifier(false);
+}
 
 enum class OOBFlagValue {
   Any = 0,
@@ -1304,6 +1322,26 @@ static OOBFlagValue getOOBFlagValue(const Module &M, StringRef FlagName) {
   return static_cast<OOBFlagValue>(Flag->getZExtValue());
 }
 
+/// Returns the xnack/sramecc setting encoded by a module flag.
+/// Module flag values: 0 = disabled, 1 = enabled.
+/// An absent flag defaults to Any.
+AMDGPU::TargetIDSetting
+GCNTargetMachine::getTargetIDSettingFromModuleFlag(const Module &M,
+                                                   StringRef FlagName) {
+  using AMDGPU::TargetIDSetting;
+
+  if (XnackSetting.getNumOccurrences() > 0 && FlagName == "amdgpu.xnack")
+    return XnackSetting ? TargetIDSetting::On : TargetIDSetting::Off;
+  if (SramEccSetting.getNumOccurrences() > 0 && FlagName == "amdgpu.sramecc")
+    return SramEccSetting ? TargetIDSetting::On : TargetIDSetting::Off;
+
+  const auto *Flag =
+      mdconst::dyn_extract_or_null<ConstantInt>(M.getModuleFlag(FlagName));
+  if (!Flag)
+    return TargetIDSetting::Any;
+  return Flag->getZExtValue() == 0 ? TargetIDSetting::Off : TargetIDSetting::On;
+}
+
 const TargetSubtargetInfo *
 GCNTargetMachine::getSubtargetImpl(const Function &F) const {
   StringRef GPU = getGPUName(F);
@@ -1314,12 +1352,26 @@ GCNTargetMachine::getSubtargetImpl(const Function &F) const {
   OOBFlagValue TBufOOB = getOOBFlagValue(M, AMDGPUOOBMode::TBufferFlag);
   bool BufRelaxed = BufOOB == OOBFlagValue::Relaxed;
   bool TBufRelaxed = TBufOOB == OOBFlagValue::Relaxed;
+
+  using AMDGPU::TargetIDSetting;
+  TargetIDSetting Xnack = getTargetIDSettingFromModuleFlag(M, "amdgpu.xnack");
+  TargetIDSetting SramEcc =
+      getTargetIDSettingFromModuleFlag(M, "amdgpu.sramecc");
+
   SmallString<128> SubtargetKey(GPU);
   SubtargetKey.append(FS);
   if (BufRelaxed)
     SubtargetKey.append(",buf-oob=1");
   if (TBufRelaxed)
     SubtargetKey.append(",tbuf-oob=1");
+  if (Xnack != TargetIDSetting::Any) {
+    SubtargetKey.append(",xnack=");
+    SubtargetKey.push_back(Xnack == TargetIDSetting::On ? '1' : '0');
+  }
+  if (SramEcc != TargetIDSetting::Any) {
+    SubtargetKey.append(",sramecc=");
+    SubtargetKey.push_back(Xnack == TargetIDSetting::On ? '1' : '0');
+  }
 
   auto &I = SubtargetMap[SubtargetKey];
   if (!I) {
@@ -1343,7 +1395,7 @@ GCNTargetMachine::getSubtargetImpl(const Function &F) const {
     }
 
     I = std::make_unique<GCNSubtarget>(TargetTriple, GPU, FS, *this, BufRelaxed,
-                                       TBufRelaxed);
+                                       TBufRelaxed, Xnack, SramEcc);
   }
 
   I->setScalarizeGlobalBehavior(ScalarizeGlobal);
@@ -1610,7 +1662,7 @@ void AMDGPUPassConfig::addIRPasses() {
   if (isPassEnabled(EnableScalarIRPasses))
     addEarlyCSEOrGVNPass();
 
-  if (TM.getTargetTriple().getArch() == Triple::amdgpu &&
+  if (TM.getTargetTriple().isAMDGCN() &&
       TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA) {
     addPass(createLocalAccessorToSharedMemoryPassLegacy());
     addPass(createGlobalOffsetPassLegacy());
@@ -2463,11 +2515,6 @@ void AMDGPUCodeGenPassBuilder::addPreISel(PassManagerWrapper &PMW) const {
     flushFPMsToMPM(PMW);
     addModulePass(AMDGPUPerfHintAnalysisPass(TM), PMW);
   }
-
-  // FIXME: Why isn't this queried as required from AMDGPUISelDAGToDAG, and why
-  // isn't this in addInstSelector?
-  addFunctionPass(RequireAnalysisPass<UniformityInfoAnalysis, Function>(), PMW,
-                  /*Force=*/true);
 }
 
 void AMDGPUCodeGenPassBuilder::addILPOpts(PassManagerWrapper &PMW) const {
@@ -2533,7 +2580,7 @@ Error AMDGPUCodeGenPassBuilder::addFastRegAlloc(PassManagerWrapper &PMW) const {
   return Base::addFastRegAlloc(PMW);
 }
 
-Error AMDGPUCodeGenPassBuilder::addRegAssignmentFast(
+Error AMDGPUCodeGenPassBuilder::addRegAssignAndRewriteFast(
     PassManagerWrapper &PMW) const {
   if (auto Err = validateRegAllocOptions())
     return Err;
@@ -2616,7 +2663,7 @@ void AMDGPUCodeGenPassBuilder::addPreRegAlloc(PassManagerWrapper &PMW) const {
     addMachineFunctionPass(AMDGPUPrepareAGPRAllocPass(), PMW);
 }
 
-Error AMDGPUCodeGenPassBuilder::addRegAssignmentOptimized(
+Expected<bool> AMDGPUCodeGenPassBuilder::addRegAssignAndRewriteOptimized(
     PassManagerWrapper &PMW) const {
   if (auto Err = validateRegAllocOptions())
     return Err;
@@ -2667,7 +2714,7 @@ Error AMDGPUCodeGenPassBuilder::addRegAssignmentOptimized(
   addMachineFunctionPass(VirtRegRewriterPass(true), PMW);
 
   addMachineFunctionPass(AMDGPUMarkLastScratchLoadPass(), PMW);
-  return Error::success();
+  return true;
 }
 
 void AMDGPUCodeGenPassBuilder::addPostRegAlloc(PassManagerWrapper &PMW) const {

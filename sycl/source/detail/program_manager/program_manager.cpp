@@ -278,12 +278,19 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
 
   uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
   bool Is256GRF = GRFSizePropVal == 256;
+  bool Is512GRF = GRFSizePropVal == 512;
   bool IsAutoGRF = GRFSizePropVal == 0;
   if (Is256GRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
     CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
+  }
+  if (Is512GRF) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    // This option works for both LO AND OCL backends.
+    CompileOpts += "-ze-opt-register-file-size=512";
   }
   if (IsAutoGRF) {
     if (!CompileOpts.empty())

@@ -279,6 +279,11 @@ and not recommended to use in production environment.
     Pass "options" to the device code linker, when linking multiple device
     object modules. T is specific target device triple.
 
+**`--ocloc-path=<dir>`**
+
+    Path to the `ocloc` tool, which is used for ahead of time compilation
+    targeting Intel GPUs.
+
 ## Link options
 
 **`-fsycl-link`**

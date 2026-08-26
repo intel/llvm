@@ -94,7 +94,17 @@ ur_result_t DeviceInfo::allocShadowMemory() {
                                                      &ShadowContext));
   Shadow = GetShadowMemory(ShadowContext, Handle, Type);
   assert(Shadow && "Failed to get shadow memory");
-  UR_CALL(Shadow->Setup());
+  auto Result = Shadow->Setup();
+  // Release the shadow context if the operation failed or if the device type is
+  // CPU. Note that the singleton CPU shadow does not store per-device contexts.
+  if (Result != UR_RESULT_SUCCESS || Type == DeviceType::CPU) {
+    [[maybe_unused]] auto ReleaseResult =
+        getContext()->urDdiTable.Context.pfnRelease(ShadowContext);
+    assert(ReleaseResult == UR_RESULT_SUCCESS);
+  }
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
   UR_LOG_L(getContext()->logger, INFO, "ShadowMemory(Global): {} - {}",
            (void *)Shadow->ShadowBegin, (void *)Shadow->ShadowEnd);
   return UR_RESULT_SUCCESS;
@@ -209,39 +219,54 @@ TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   auto ContextInfo = getContextInfo(Context);
   auto &ProgramInfo = getProgramInfo(Program);
 
+  std::vector<std::string> TsanDeviceGlobalMetadataNames;
+  UR_CALL(GetProgramMetadataNames(Program, kSPIR_TsanDeviceGlobalMetadataPrefix,
+                                  TsanDeviceGlobalMetadataNames));
+  if (TsanDeviceGlobalMetadataNames.empty())
+    return UR_RESULT_SUCCESS;
+
   for (auto Device : Devices) {
     ur_queue_handle_t Queue = ContextInfo->getInternalQueue(Device);
+    for (const auto &TsanDeviceGlobalMetadataName :
+         TsanDeviceGlobalMetadataNames) {
 
-    size_t MetadataSize;
-    void *MetadataPtr;
-    auto Result = getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
-        Device, Program, kSPIR_TsanDeviceGlobalMetadata, &MetadataSize,
-        &MetadataPtr);
-    if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, INFO, "No device globals");
-      continue;
-    }
+      size_t MetadataSize;
+      void *MetadataPtr;
+      auto Result =
+          getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
+              Device, Program, TsanDeviceGlobalMetadataName.c_str(),
+              &MetadataSize, &MetadataPtr);
+      if (Result != UR_RESULT_SUCCESS)
+        continue;
 
-    const uint64_t NumOfDeviceGlobal = MetadataSize / sizeof(DeviceGlobalInfo);
-    assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
-           "DeviceGlobal metadata size is not correct");
-    std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
-    Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-        Queue, true, &GVInfos[0], MetadataPtr,
-        sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
-    if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
-               kSPIR_TsanDeviceGlobalMetadata, Result);
-      return Result;
-    }
+      const uint64_t NumOfDeviceGlobal =
+          MetadataSize / sizeof(DeviceGlobalInfo);
+      assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
+             "DeviceGlobal metadata size is not correct");
+      std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
+      Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+          Queue, true, &GVInfos[0], MetadataPtr,
+          sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
+      if (Result != UR_RESULT_SUCCESS) {
+        UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
+                 TsanDeviceGlobalMetadataName, Result);
+        return Result;
+      }
 
-    for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
-      const auto &GVInfo = GVInfos[i];
-      auto AI = TsanAllocInfo{GVInfo.Addr, GVInfo.Size};
-      ProgramInfo.AllocInfoForGlobals.emplace_back(std::move(AI));
+      for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
+        const auto &GVInfo = GVInfos[i];
+        auto AI = TsanAllocInfo{GVInfo.Addr, GVInfo.Size};
+        ProgramInfo.AllocInfoForGlobals.emplace_back(std::move(AI));
+      }
     }
   }
 
+  if (ProgramInfo.AllocInfoForGlobals.empty()) {
+    UR_LOG_L(getContext()->logger, INFO, "No device global");
+  } else {
+    UR_LOG_L(getContext()->logger, INFO, "Number of device globals: {}",
+             ProgramInfo.AllocInfoForGlobals.size());
+  }
   return UR_RESULT_SUCCESS;
 }
 

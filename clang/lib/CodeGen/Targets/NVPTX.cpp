@@ -15,6 +15,7 @@
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/Support/NVVMAttributes.h"
+#include "llvm/TargetParser/NVPTXTargetParser.h"
 
 using namespace clang;
 using namespace clang::CodeGen;
@@ -247,22 +248,21 @@ RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 // Copied from CGOpenMPRuntimeGPU
 static OffloadArch getOffloadArch(CodeGenModule &CGM) {
   if (!CGM.getTarget().hasFeature("ptx"))
-    return OffloadArch::Unknown;
+    return OffloadArch::getUnknown();
   for (const auto &Feature : CGM.getTarget().getTargetOpts().FeatureMap) {
     if (Feature.getValue()) {
       OffloadArch Arch = StringToOffloadArch(Feature.getKey());
-      if (Arch != OffloadArch::Unknown)
+      if (!Arch.isUnknown())
         return Arch;
     }
   }
-  return OffloadArch::Unknown;
+  return OffloadArch::getUnknown();
 }
 
 static bool supportsGridConstant(OffloadArch Arch) {
-  assert((Arch == OffloadArch::Unknown || IsNVIDIAOffloadArch(Arch)) &&
-         "Unexpected architecture");
-  static_assert(OffloadArch::Unknown < OffloadArch::SM_70);
-  return Arch >= OffloadArch::SM_70;
+  assert((Arch.isUnknown() || Arch.isNVPTX()) && "Unexpected architecture");
+  return !Arch.isUnknown() &&
+         llvm::NVPTX::getSmVersion(Arch.nvptxKind()) >= 700;
 }
 
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
