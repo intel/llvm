@@ -96,7 +96,7 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
   for (Function *F : FunctionsToDrop)
     F->eraseFromParent();
 
-  return ModuleChanged ? PreservedAnalyses::all() : PreservedAnalyses::none();
+  return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
 /// Helper implementations
