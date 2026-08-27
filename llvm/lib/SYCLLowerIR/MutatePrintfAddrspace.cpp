@@ -83,8 +83,11 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
     if (F.getArg(0)->getType() == CASLiteralType)
       // No need to replace the literal type and its printf users
       continue;
-    if (F.use_empty())
+    if (F.use_empty()) {
+      FunctionsToDrop.emplace_back(&F);
+      ModuleChanged = true;
       continue;
+    }
     if (!CASPrintfFunc)
       CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType);
     ModuleChanged |=
