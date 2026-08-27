@@ -90,7 +90,7 @@ struct urEnqueueUSMOperationsOrderingIOQTestBase
 
     ur_queue_flags_t supported_flags = 0;
     ASSERT_SUCCESS(
-      uur::GetDeviceQueueOnHostProperties(device, supported_flags));
+        uur::GetDeviceQueueOnHostProperties(device, supported_flags));
     if ((supported_flags & requested_flags) != requested_flags) {
       GTEST_SKIP() << "Requested queue properties are unsupported.";
     }
