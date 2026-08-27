@@ -199,6 +199,23 @@ public:
     // default address space in the same address space map. Hence the map needs
     // to be reset to allow mapping to the desired value of 'Default' entry for
     // SYCL and HIP/CUDA.
+    //
+    // Use the generic address space (4) as the default address space for all
+    // SPIR/SPIR-V users except OpenCL and HLSL.
+    //
+    // Motivation: we want to enable the LLVM compiler-rt and libc libraries in
+    // the SYCL and Intel OpenMP offloading toolchains. Those libraries are pure
+    // C/C++ sources compiled with '--target=spirv64-unknown-unknown', where the
+    // default address space is currently 0. When such objects are consumed by
+    // the Intel DPC++ compiler (which places unannotated pointers in the
+    // generic address space, 4), the default-address-space mismatch (0 vs 4)
+    // leads to runtime failures on Intel GPUs. The cleanest fix is to make the
+    // generic address space the default for SPIR targets so that C/C++ objects
+    // and DPC++ device code agree on the default address space.
+    //
+    // OpenCL and HLSL are deliberately excluded: they keep the private address
+    // space (0) as default to avoid churning their (extensive) lit tests, and
+    // their language semantics already define their own default address space.
     setAddressSpaceMap(
         /*DefaultIsGeneric=*/!(Opts.OpenCL || Opts.OpenCLCPlusPlus ||
                                Opts.HLSL));
