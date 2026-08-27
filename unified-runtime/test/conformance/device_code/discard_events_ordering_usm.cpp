@@ -45,8 +45,11 @@ int main() {
         sycl::range<1>{array_size}, [=](sycl::item<1> itemID) {
           size_t i = itemID.get_id(0);
           uint32_t idx = static_cast<uint32_t>(i);
-          execute_ordering_stage_and_update_values2(
-              values1, values2, values3, i, 0, idx, idx, idx, MAGIC_NUM1);
+          if (values1[i] == 0 && values2[i] == idx && values3[i] == idx) {
+            execute_ordering_stage_and_update_values2(
+                values1, values2, values3, i, 0, idx, idx, idx, MAGIC_NUM1);
+            values3[i] = idx;
+          }
         });
   });
 
