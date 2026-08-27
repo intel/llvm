@@ -43,6 +43,10 @@ env:
   UR_LOG_NATIVE_CPU: "level:error;flush:error"
   UR_LOG_OPENCL: "level:error;flush:error"
 
+# Free disk on the runner host before Docker must be enforced with a self-hosted
+# job-started hook (same machine as the job). A separate workflow job with the
+# same runs-on labels can land on a different host. See:
+# devops/scripts/gha_runner_job_started_hook.sh
 jobs:
   adapter_build_hw:
     name: Build & CTS
