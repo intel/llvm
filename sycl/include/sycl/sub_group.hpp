@@ -106,7 +106,7 @@ struct sub_group {
   __SYCL_DEPRECATED(
       "Sub-group barrier with no arguments is deprecated."
       "Use sycl::group_barrier with the sub-group as the argument instead.")
-  void barrier() const noexcept {
+  void barrier() const {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_ControlBarrier(
         __spv::Scope::Subgroup, __spv::Scope::Subgroup,
@@ -122,7 +122,7 @@ struct sub_group {
   __SYCL_DEPRECATED(
       "Sub-group barrier accepting fence_space is deprecated."
       "Use sycl::group_barrier with the sub-group as the argument instead.")
-  void barrier(access::fence_space accessSpace) const noexcept {
+  void barrier(access::fence_space accessSpace) const {
 #ifdef __SYCL_DEVICE_ONLY__
     int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
     __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
@@ -182,7 +182,7 @@ struct sub_group {
 protected:
   template <int dimensions> friend class sycl::nd_item;
   friend sub_group ext::oneapi::this_work_item::get_sub_group();
-  sub_group() noexcept = default;
+  sub_group() = default;
 };
 
 template <int Dimensions>
