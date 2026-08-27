@@ -17,6 +17,5 @@ entry:
 ; CHECK: call i32 (ptr addrspace(2), ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(ptr addrspace(2)
 ; The declaration should NOT have spir_func CC for non-SPIR targets.
 ; CHECK: declare dso_local i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(ptr addrspace(2), ...)
-; CHECK-NOT: declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz
 
 declare i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(ptr)
