@@ -3,7 +3,7 @@
 // RUN: %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -std=c++17 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // RUN: %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -std=c++20 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
-//==--- sub_group_interface.cpp - SYCL sub_group interface conformance test -==//
+//==-- sub_group_interface.cpp - SYCL sub_group interface conformance test -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
