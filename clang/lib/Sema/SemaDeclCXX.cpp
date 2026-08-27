@@ -7508,6 +7508,19 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
     SYCL().CheckSYCLScopeAttr(Record);
   }
 
+  // A kernel which merely constructs an object of a polymorphic class is
+  // detected by SYCLVirtualFunctionsAnalysisPass through the vtable it
+  // references, which requires the vtable definition (and not just a
+  // declaration) to be present in the module. The vtable of a class with a key
+  // function is normally only emitted in the translation unit defining that key
+  // function, which may be a different one from the one containing the kernel,
+  // so force its emission here for every translation unit that completes such a
+  // class.
+  if (getLangOpts().SYCLIsDevice &&
+      SemaSYCL::hasSYCLIndirectlyCallableVirtualMethod(Record))
+    MarkVTableUsed(Record->getInnerLocStart(), Record,
+                   /*DefinitionRequired=*/true);
+
   llvm::SmallDenseMap<OverloadedOperatorKind,
                       llvm::SmallVector<const FunctionDecl *, 2>, 4>
       TypeAwareDecls{{OO_New, {}},
@@ -19367,7 +19380,17 @@ bool Sema::DefineUsedVTables() {
     const CXXMethodDecl *KeyFunction = Context.getCurrentKeyFunction(Class);
     // V-tables for non-template classes with an owning module are always
     // uniquely emitted in that module.
-    if (Class->isInCurrentModuleUnit()) {
+    // For SYCL device compilation vtables of classes with 'indirectly_callable'
+    // virtual functions are emitted in every translation unit which references
+    // them, regardless of where the key function is defined: middle-end
+    // analyses of virtual functions (see SYCLVirtualFunctionsAnalysisPass) need
+    // to see the vtable initializer in order to figure out which virtual
+    // functions a kernel may reference. Such vtables are given linkonce_odr
+    // linkage by CodeGenModule::getVTableLinkage so that emitting them more
+    // than once is not a problem.
+    if (Class->isInCurrentModuleUnit() ||
+        (getLangOpts().SYCLIsDevice &&
+         SemaSYCL::hasSYCLIndirectlyCallableVirtualMethod(Class))) {
       DefineVTable = true;
     } else if (KeyFunction && !KeyFunction->hasBody()) {
       // If this class has a key function, but that key function is

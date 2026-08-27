@@ -539,6 +539,21 @@ public:
   static OffloadArch getOffloadArch(const TargetInfo &TI);
   static bool hasDependentExpr(Expr **Exprs, const size_t ExprsSize);
 
+  /// Returns true if \p D carries an 'add_ir_attributes_function' attribute
+  /// which contains \p Attr as one of the attribute names. Returns false if the
+  /// attribute arguments are still dependent, i.e. if the check cannot be
+  /// performed yet.
+  static bool hasSYCLAddIRAttributesFunctionAttr(const Decl *D, StringRef Attr);
+
+  /// Returns true if \p RD or any of its base classes declares a virtual member
+  /// function annotated with the SYCL 'indirectly_callable' compile-time
+  /// property, i.e. a virtual function which is meant to be callable from
+  /// device code. Base classes have to be taken into account because a derived
+  /// class does not have to override (nor annotate) an inherited virtual
+  /// function for its vtable to still refer to the annotated base class
+  /// version of it.
+  static bool hasSYCLIndirectlyCallableVirtualMethod(const CXXRecordDecl *RD);
+
   /// Emit a diagnostic about the given attribute having a deprecated name, and
   /// also emit a fixit hint to generate the new attribute name.
   void diagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
