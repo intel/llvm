@@ -173,15 +173,13 @@ private:
   }
 };
 
-// Enabled by any non-zero value, matching CUDA_LAUNCH_BLOCKING.
+// Enabled by any non-zero value.
 template <> class SYCLConfig<SYCL_LAUNCH_BLOCKING> {
   using BaseT = SYCLConfigBase<SYCL_LAUNCH_BLOCKING>;
 
 public:
   static bool get() { return getCachedValue(); }
-
   static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
-
   static const char *getName() { return BaseT::MConfigName; }
 
 private:
