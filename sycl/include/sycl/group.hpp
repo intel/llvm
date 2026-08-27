@@ -198,8 +198,7 @@ public:
 #ifdef __NativeCPU__
   __attribute__((__libclc_call__))
 #endif
-  void
-  parallel_for_work_item(WorkItemFunctionT Func) const noexcept {
+  void parallel_for_work_item(WorkItemFunctionT Func) const noexcept {
     // need barriers to enforce SYCL semantics for the work item loop -
     // compilers are expected to optimize when possible
     detail::workGroupBarrier();
@@ -253,9 +252,8 @@ public:
 #ifdef __NativeCPU__
   __attribute__((__libclc_call__))
 #endif
-  void
-  parallel_for_work_item(range<Dimensions> flexibleRange,
-                         WorkItemFunctionT Func) const noexcept {
+  void parallel_for_work_item(range<Dimensions> flexibleRange,
+                              WorkItemFunctionT Func) const noexcept {
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
