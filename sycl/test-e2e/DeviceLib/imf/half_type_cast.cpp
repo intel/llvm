@@ -151,8 +151,9 @@ int main() {
     test(device_queue, input_vals, ref_vals_rz,
          FT1(sycl::half, sycl::ext::intel::math::half2uint_rz));
 
-   if (has_half_subnormal) {
-      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1, 0x3FF, 0x0256};
+    if (has_half_subnormal) {
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1,
+                                                        0x3FF, 0x0256};
       std::initializer_list<unsigned int> sub_ref_vals_rd = {0, 0, 0, 0, 0};
       std::initializer_list<unsigned int> sub_ref_vals_rn = {0, 0, 0, 0, 0};
       std::initializer_list<unsigned int> sub_ref_vals_ru = {0, 0, 1, 1, 1};
