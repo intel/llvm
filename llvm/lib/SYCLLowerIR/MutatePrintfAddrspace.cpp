@@ -89,7 +89,8 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
       continue;
     }
     if (!CASPrintfFunc)
-      CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType, F.getCallingConv());
+      CASPrintfFunc =
+          getCASPrintfFunction(M, CASLiteralType, F.getCallingConv());
     ModuleChanged |=
         setFuncCallsOntoCASPrintf(&F, CASPrintfFunc, FunctionsToDrop);
   }
