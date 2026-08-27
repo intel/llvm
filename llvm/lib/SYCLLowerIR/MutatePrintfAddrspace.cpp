@@ -21,7 +21,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
-#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -52,7 +51,8 @@ static constexpr unsigned ConstantAddrspaceID = 2;
 // of the non-variadic (variadic template) calls.
 using FunctionVecTy = SmallVector<Function *, 8>;
 
-Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType);
+Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType,
+                               CallingConv::ID CC);
 size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
                                  FunctionVecTy &FunctionsToDrop);
 } // namespace
@@ -89,7 +89,7 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
       continue;
     }
     if (!CASPrintfFunc)
-      CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType);
+      CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType, F.getCallingConv());
     ModuleChanged |=
         setFuncCallsOntoCASPrintf(&F, CASPrintfFunc, FunctionsToDrop);
   }
@@ -105,7 +105,8 @@ namespace {
 /// Get the constant addrspace version of the __spirv_ocl_printf declaration,
 /// or generate it if the IR module doesn't have it yet. Also make it
 /// variadic so that it could replace all non-variadic generic AS versions.
-Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType) {
+Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType,
+                               CallingConv::ID CC) {
   Type *Int32Type = Type::getInt32Ty(M.getContext());
   auto *CASPrintfFuncTy = FunctionType::get(Int32Type, CASLiteralType,
                                             /*isVarArg=*/true);
@@ -114,9 +115,7 @@ Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType) {
   FunctionCallee CASPrintfFuncCallee =
       M.getOrInsertFunction("_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy);
   auto *CASPrintfFunc = cast<Function>(CASPrintfFuncCallee.getCallee());
-  Triple TT(M.getTargetTriple());
-  if (TT.isSPIROrSPIRV())
-    CASPrintfFunc->setCallingConv(CC);
+  CASPrintfFunc->setCallingConv(CC);
   CASPrintfFunc->setDSOLocal(true);
   return CASPrintfFunc;
 }
