@@ -41,6 +41,10 @@ struct sub_group {
   static constexpr sycl::memory_scope fence_scope =
       sycl::memory_scope::sub_group;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  sub_group() = delete;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   /* --- common interface members --- */
 
   id_type get_local_id() const {
@@ -194,12 +198,31 @@ struct sub_group {
 protected:
   template <int dimensions> friend class sycl::nd_item;
   friend sub_group ext::oneapi::this_work_item::get_sub_group();
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Tag used by the implementation to construct a sub_group. It also makes the
+  // constructor below user-provided, and hence sub_group a non-aggregate:
+  // otherwise `sycl::sub_group{}` would be a well-formed aggregate
+  // initialization in C++17, bypassing the deleted default constructor above.
+  struct private_tag {
+    explicit private_tag() = default;
+  };
+  sub_group(private_tag) {}
+#else
+  // Deprecated: the default constructor is merely inaccessible instead of
+  // deleted, which still lets `sycl::sub_group{}` through as an aggregate
+  // initialization in C++17. Kept for API compatibility.
   sub_group() = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 template <int Dimensions>
 sub_group nd_item<Dimensions>::get_sub_group() const noexcept {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  return sub_group(sub_group::private_tag{});
+#else
   return sub_group();
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }
 
 } // namespace _V1

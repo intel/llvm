@@ -36,7 +36,11 @@ template <int Dimensions> group<Dimensions> get_work_group() {
 
 inline sycl::sub_group get_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  return sycl::sub_group(sycl::sub_group::private_tag{});
+#else
   return sycl::sub_group();
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #else
   throw sycl::exception(
       sycl::make_error_code(sycl::errc::feature_not_supported),
