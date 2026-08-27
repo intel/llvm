@@ -116,7 +116,7 @@ Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType) {
   auto *CASPrintfFunc = cast<Function>(CASPrintfFuncCallee.getCallee());
   Triple TT(M.getTargetTriple());
   if (TT.isSPIROrSPIRV())
-    CASPrintfFunc->setCallingConv(CallingConv::SPIR_FUNC);
+    CASPrintfFunc->setCallingConv(CC);
   CASPrintfFunc->setDSOLocal(true);
   return CASPrintfFunc;
 }
