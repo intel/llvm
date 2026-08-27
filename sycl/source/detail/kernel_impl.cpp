@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/ur.hpp>
 
 #include <memory>
 
@@ -119,18 +120,9 @@ bool kernel_impl::hasSYCLMetadata() const noexcept {
 
 std::string_view kernel_impl::getName() const {
   std::call_once(MNameInitFlag, [&]() {
-    adapter_impl &Adapter = getAdapter();
-    size_t NameSize = 0;
-    Adapter.call<UrApiKind::urKernelGetInfo>(
-        MKernel, UR_KERNEL_INFO_FUNCTION_NAME, 0u, nullptr, &NameSize);
-    if (NameSize > 0) {
-      std::string Name(NameSize, '\0');
-      Adapter.call<UrApiKind::urKernelGetInfo>(MKernel,
-                                               UR_KERNEL_INFO_FUNCTION_NAME,
-                                               NameSize, Name.data(), nullptr);
-      Name.pop_back();
-      MName = std::move(Name);
-    }
+    std::string Name = urGetInfoString<UrApiKind::urKernelGetInfo>(
+        *this, UR_KERNEL_INFO_FUNCTION_NAME);
+    MName = std::move(Name);
   });
 
   return MName;
