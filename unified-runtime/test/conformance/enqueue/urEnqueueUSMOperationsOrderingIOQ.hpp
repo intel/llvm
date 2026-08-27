@@ -88,6 +88,13 @@ struct urEnqueueUSMOperationsOrderingIOQTestBase
     const ur_queue_flags_t requested_flags =
         UR_QUEUE_FLAG_DISCARD_EVENTS | submission_mode;
 
+    ur_queue_flags_t supported_flags = 0;
+    ASSERT_SUCCESS(
+      uur::GetDeviceQueueOnHostProperties(device, supported_flags));
+    if ((supported_flags & requested_flags) != requested_flags) {
+      GTEST_SKIP() << "Requested queue properties are unsupported.";
+    }
+
     ur_queue_properties_t props = {
         UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
         nullptr,
