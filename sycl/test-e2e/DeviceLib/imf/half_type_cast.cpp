@@ -901,10 +901,9 @@ int main() {
     }
 
     // FP32 subnormal inputs: the input itself must not be flushed to zero
-    // before conversion. The guard is has_single_subnormal only — if FP32
-    // subnormals are not preserved the conversion result is meaningless
-    // regardless of FP16 subnormal support.
-    if (has_single_subnormal) {
+    // before conversion, and the FP16 result must preserve subnormals rather
+    // than flushing to zero.
+    if (has_single_subnormal && has_half_subnormal) {
       std::initializer_list<unsigned int> sub_in_input_vals = {
           0x807FFFFF, // min negative subnormal
           0x80000001, // max negative subnormal
