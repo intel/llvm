@@ -115,10 +115,10 @@ public:
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
-  id<Dimensions> get_id() const noexcept { return index; }
+  id<Dimensions> get_id() const { return index; }
 
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
-  size_t get_id(int dimension) const noexcept { return index[dimension]; }
+  size_t get_id(int dimension) const { return index[dimension]; }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   id<Dimensions> get_group_id() const noexcept { return index; }
@@ -128,9 +128,9 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("calculate sycl::group::get_group_range() * "
                         "sycl::group::get_max_local_range() instead")
-  range<Dimensions> get_global_range() const noexcept { return globalRange; }
+  range<Dimensions> get_global_range() const { return globalRange; }
 
-  size_t get_global_range(int dimension) const noexcept {
+  size_t get_global_range(int dimension) const {
     return globalRange[dimension];
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -179,7 +179,7 @@ public:
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group::get_group_linear_id() instead")
-  size_t get_linear_id() const noexcept { return get_group_linear_id(); }
+  size_t get_linear_id() const { return get_group_linear_id(); }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   size_t get_group_linear_id() const noexcept {
