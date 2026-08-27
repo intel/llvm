@@ -68,7 +68,6 @@ class TestRunner:
 
     def __init__(self, context: TestExecutionContext):
         self.context = context
-        self.github_output = GitHubActionsOutput()
         self.jobs = calculate_jobs()
 
     def run(self) -> int:
@@ -125,32 +124,32 @@ class TestRunner:
                     cwd=self.context.workspace,
                 )
         except (OSError, PermissionError) as e:
-            self.github_output.print_error(f"Test execution failed: {e}")
+            GitHubActionsOutput.print_error(f"Test execution failed: {e}")
             return None
 
     def _validate_output(self) -> bool:
         log_path = self.context.log_file_path
 
         if not log_path.exists() or log_path.stat().st_size == 0:
-            self.github_output.print_error("No log generated")
+            GitHubActionsOutput.print_error("No log generated")
             return False
 
         return True
 
     def _publish_outputs(self, result: subprocess.CompletedProcess) -> None:
-        self.github_output.set_output("log-file", str(self.context.log_file_path))
+        GitHubActionsOutput.set_output("log-file", str(self.context.log_file_path))
 
         if (
             self.context.test_type == TEST_TYPE_ADAPTER_SPECIFIC
             and not check_log_has_tests(str(self.context.log_file_path))
         ):
             print("No adapter-specific tests found", file=sys.stderr)
-            self.github_output.set_output("skip-artifacts", "1")
+            GitHubActionsOutput.set_output("skip-artifacts", "1")
             return
 
         if self.context.xml_output_path.exists():
-            self.github_output.set_output("xml-file", str(self.context.xml_output_path))
+            GitHubActionsOutput.set_output("xml-file", str(self.context.xml_output_path))
         else:
-            self.github_output.print_warning(
+            GitHubActionsOutput.print_warning(
                 f"Expected XML file not found at {self.context.xml_output_path}"
             )

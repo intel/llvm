@@ -100,15 +100,14 @@ def _run_tests_command() -> int:
     workspace = sys.argv[4]
 
     # Validate inputs
-    gha = GitHubActionsOutput()
     if not PathValidator.validate_build_dir(build_dir, workspace):
-        gha.print_error("Invalid build_dir")
+        GitHubActionsOutput.print_error("Invalid build_dir")
         return 1
 
     try:
         config = get_test_config(test_type)
     except ValueError as e:
-        gha.print_error(str(e))
+        GitHubActionsOutput.print_error(str(e))
         return 1
 
     # Convert to paths and create context
@@ -137,7 +136,7 @@ def _run_tests_command() -> int:
     try:
         context.validate()
     except ValueError as e:
-        gha.print_error(str(e))
+        GitHubActionsOutput.print_error(str(e))
         return 1
 
     # Run tests
