@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Jul 01, 2026
-        return "2f1c59bd731477de9b99b95a37bad5ebc9dae922"
+        # Sep 03, 2026
+        return "96dfe10ad5d43900ff9cb66a71a45384a331a4a0"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -210,6 +210,9 @@ class ComputeBench(Suite):
                 and (with_graphs == 1)
             ):
                 # old adapter doesn't support graph mode for SYCL
+                continue
+            if runtime in SYCL_RUNTIMES and with_graphs == 1:
+                # TODO: this benchmark does not work with graphs enabled (on SYCL)
                 continue
             benches.append(
                 GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
@@ -1320,6 +1323,7 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
             f"--withGraphs={self._with_graphs}",
             "--withCopyOffload=1",
             "--immediateAppendCmdList=0",
+            "--UseNativeRecording=1",
         ]
 
 
@@ -1405,6 +1409,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--UseHostTasks={self._use_host_tasks}",
             f"--profilerType={self._profiler_type.value}",
             f"--EmulateGraphs={self._emulate_graphs}",
+            "--UseNativeRecording=1",
         ]
 
 
