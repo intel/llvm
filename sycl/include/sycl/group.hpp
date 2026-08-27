@@ -60,7 +60,8 @@ inline void workGroupBarrier() {
 //   private data for a given group across the entire group.The id of the
 //   current work-item is passed to any access to grab the correct data.
 template <typename T, int Dimensions = 1>
-class __SYCL_TYPE(private_memory) private_memory {
+class __SYCL_TYPE(private_memory)
+    __SYCL2020_DEPRECATED("Deprecated in SYCL 2020") private_memory {
 public:
   // Construct based directly off the number of work-items
   private_memory(const group<Dimensions> &G) {
@@ -103,28 +104,28 @@ private:
 /// \ingroup sycl_api
 template <int Dimensions = 1> class __SYCL_TYPE(group) group {
 public:
-#ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
   using id_type = id<Dimensions>;
   using range_type = range<Dimensions>;
   using linear_id_type = size_t;
   static constexpr int dimensions = Dimensions;
-#endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
-
   static constexpr sycl::memory_scope fence_scope =
       sycl::memory_scope::work_group;
 
   group() = delete;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
   id<Dimensions> get_id() const { return index; }
 
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
   size_t get_id(int dimension) const { return index[dimension]; }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   id<Dimensions> get_group_id() const { return index; }
 
   size_t get_group_id(int dimension) const { return index[dimension]; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("calculate sycl::group::get_group_range() * "
                         "sycl::group::get_max_local_range() instead")
   range<Dimensions> get_global_range() const { return globalRange; }
@@ -132,6 +133,7 @@ public:
   size_t get_global_range(int dimension) const {
     return globalRange[dimension];
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   id<Dimensions> get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -170,8 +172,10 @@ public:
 
   size_t operator[](int dimension) const { return index[dimension]; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group::get_group_linear_id() instead")
   size_t get_linear_id() const { return get_group_linear_id(); }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   size_t get_group_linear_id() const { return get_group_linear_id_impl(); }
 

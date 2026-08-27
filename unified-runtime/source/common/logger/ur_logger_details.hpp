@@ -9,6 +9,10 @@
 #include "ur_level.hpp"
 #include "ur_sinks.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cstring>
+
 namespace logger {
 
 struct LegacyMessage {
@@ -22,7 +26,9 @@ public:
          std::unique_ptr<logger::CallbackSink> callbackSink = nullptr)
       : standardSinkLevel(UR_LOGGER_LEVEL_QUIET), standardSink(std::move(sink)),
         callbackSinkLevel(UR_LOGGER_LEVEL_QUIET),
-        callbackSink(std::move(callbackSink)) {}
+        callbackSink(std::move(callbackSink)) {
+    captureSinkFormatting();
+  }
 
   Logger(ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET,
          std::unique_ptr<logger::Sink> sink = nullptr,
@@ -30,7 +36,9 @@ public:
          std::unique_ptr<logger::CallbackSink> callbackSink = nullptr)
       : standardSinkLevel(level), standardSink(std::move(sink)),
         callbackSinkLevel(callbackSinkLevel),
-        callbackSink(std::move(callbackSink)) {}
+        callbackSink(std::move(callbackSink)) {
+    captureSinkFormatting();
+  }
 
   void setLevel(ur_logger_level_t level) { this->standardSinkLevel = level; }
 
@@ -59,10 +67,11 @@ public:
       if (!isLegacySink && level < this->standardSinkLevel) {
         return;
       }
-      StderrSink(/*logger_name*/ "", /*skip_prefix*/ false,
-                 /*skip_linebreak*/ false)
-          .log(level, filename, lineno, isLegacySink ? p.message : format,
-               std::forward<Args>(args)...);
+      StderrSink fallbackSink(loggerName.data(), skipPrefix, skipLinebreak);
+      fallbackSink.setFileLine(addFileLine);
+      fallbackSink.log(level, filename, lineno,
+                       isLegacySink ? p.message : format,
+                       std::forward<Args>(args)...);
       return;
     }
 
@@ -86,6 +95,7 @@ public:
   void setLegacySink(std::unique_ptr<Sink> legacySink) {
     this->isLegacySink = true;
     this->standardSink = std::move(legacySink);
+    captureSinkFormatting();
   }
 
   void setCallbackSink(ur_logger_callback_t callBack, void *pUserData,
@@ -105,9 +115,29 @@ public:
   }
 
 private:
+  // `loggerName` must stay trivially destructible: the teardown path in `log()`
+  // may read these members after this Logger's own destructor has run, so it
+  // cannot own heap storage.
+  void captureSinkFormatting() {
+    if (standardSink) {
+      const std::string &name = standardSink->getLoggerName();
+      size_t length = std::min(name.size(), loggerName.size() - 1);
+      std::memcpy(loggerName.data(), name.data(), length);
+      loggerName[length] = '\0';
+      skipPrefix = standardSink->getSkipPrefix();
+      skipLinebreak = standardSink->getSkipLinebreak();
+      addFileLine = standardSink->getFileLine();
+    }
+  }
+
   ur_logger_level_t standardSinkLevel;
   std::unique_ptr<logger::Sink> standardSink;
   bool isLegacySink = false;
+
+  std::array<char, 32> loggerName = {};
+  bool skipPrefix = false;
+  bool skipLinebreak = false;
+  bool addFileLine = false;
 
   ur_logger_level_t callbackSinkLevel;
   std::unique_ptr<logger::CallbackSink> callbackSink;

@@ -812,6 +812,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeCopyOffloadListFlagSupported =
       this->isDriverVersionNewerOrSimilar(1, 15, 0);
 
+  ZE_CALL_NOCHECK(
+      zeDriverGetExtensionFunctionAddress,
+      (ZeDriver, "zeDeviceGetVectorWidthPropertiesExt",
+       reinterpret_cast<void **>(
+           &ZeDeviceVectorWidthExt.zeDeviceGetVectorWidthPropertiesExt)));
+
+  ZeDeviceVectorWidthExt.Supported =
+      ZeDeviceVectorWidthExt.zeDeviceGetVectorWidthPropertiesExt != nullptr;
   return UR_RESULT_SUCCESS;
 }
 

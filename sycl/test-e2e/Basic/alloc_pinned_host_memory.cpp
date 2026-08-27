@@ -3,11 +3,8 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED: windows && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_acm_g10)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22287
-
-// UNSUPPORTED: linux && level_zero
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 
 // RUN: %{build} -o %t2.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t2.out %if level_zero %{ 2>&1 | FileCheck %s %}
