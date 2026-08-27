@@ -181,6 +181,9 @@ jobs:
     - name: Test adapter specific
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
+      env:
+        # Enable Level Zero loader debug trace for L0 adapters only
+        ZE_ENABLE_LOADER_DEBUG_TRACE: ${{ startsWith(matrix.adapter.name, 'L0') && '1' || '' }}
       uses: ./devops/actions/run-tests/ur
       with:
         test_type: 'adapter-specific'
@@ -188,6 +191,9 @@ jobs:
         artifact_name: 'ur-${{matrix.adapter.name}}-${{steps.artifact_suffix.outputs.suffix}}-adapter-specific'
 
     - name: Test adapters
+      env:
+        # Enable Level Zero loader debug trace for L0 adapters only
+        ZE_ENABLE_LOADER_DEBUG_TRACE: ${{ startsWith(matrix.adapter.name, 'L0') && '1' || '' }}
       uses: ./devops/actions/run-tests/ur
       with:
         test_type: 'conformance'

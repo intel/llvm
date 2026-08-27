@@ -15,6 +15,14 @@ DEFAULT_LIT_JOBS = 50
 
 # Test Type Identifiers
 TEST_TYPE_ADAPTER_SPECIFIC = "adapter-specific"
+TEST_TYPE_CONFORMANCE = "conformance"
+
+# LIT Test Filters
+# These tests cause timeouts on CI and are excluded from adapter-specific runs
+LIT_FILTER_OUT_ADAPTER_SPECIFIC = (
+    "(adapters/level_zero/memcheck.test|"
+    "adapters/level_zero/v2/deferred_kernel_memcheck.test)"
+)
 
 # Constants
 TEST_NOT_SELECTED_MSG = "Test not selected"

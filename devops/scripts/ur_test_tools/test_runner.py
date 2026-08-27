@@ -10,6 +10,8 @@ from .constants import (
     DEFAULT_LIT_TIMEOUT,
     DEFAULT_LIT_JOBS,
     TEST_TYPE_ADAPTER_SPECIFIC,
+    TEST_TYPE_CONFORMANCE,
+    LIT_FILTER_OUT_ADAPTER_SPECIFIC,
     MAX_LINES_TO_SCAN,
 )
 from .models.config import TestConfig, TestExecutionContext
@@ -19,16 +21,13 @@ from .parsers.log_parser import _read_with_utf8_fallback
 
 def get_test_config(test_type: str) -> TestConfig:
     """Get test configuration for test type."""
-    if test_type == "adapter-specific":
+    if test_type == TEST_TYPE_ADAPTER_SPECIFIC:
         return TestConfig(
             target="check-unified-runtime-adapter",
             log_file="adapter_tests.log",
-            lit_filter_out=(
-                "(adapters/level_zero/memcheck.test|"
-                "adapters/level_zero/v2/deferred_kernel_memcheck.test)"
-            ),
+            lit_filter_out=LIT_FILTER_OUT_ADAPTER_SPECIFIC,
         )
-    elif test_type == "conformance":
+    elif test_type == TEST_TYPE_CONFORMANCE:
         return TestConfig(
             target="check-unified-runtime-conformance",
             log_file="conformance_tests.log",
@@ -97,8 +96,6 @@ class TestRunner:
 
         if self.context.config.lit_filter_out:
             self.context.env["LIT_FILTER_OUT"] = self.context.config.lit_filter_out
-
-        self.context.env["ZE_ENABLE_LOADER_DEBUG_TRACE"] = "1"
 
     def _build_cmake_command(self) -> List[str]:
         return [
