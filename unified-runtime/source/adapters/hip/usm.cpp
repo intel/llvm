@@ -8,6 +8,25 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
+#include <cstring>
+
+#include <unified-runtime/ur_api.h>
+
+// Per-adapter translator for umf2urResult's provider-specific error path.
+namespace umf {
+namespace {
+[[maybe_unused]] inline ur_result_t
+hipGetProviderNativeError(const char *providerName, int32_t nativeError) {
+  if (strcmp(providerName, "HIP") == 0) {
+    // HIP provider stores native errors of ur_result_t type
+    return static_cast<ur_result_t>(nativeError);
+  }
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace
+} // namespace umf
+
+#define UMF_GET_PROVIDER_NATIVE_ERROR ::umf::hipGetProviderNativeError
 
 #include "adapter.hpp"
 #include "common.hpp"
@@ -16,18 +35,6 @@
 #include "platform.hpp"
 #include "ur_util.hpp"
 #include "usm.hpp"
-
-namespace umf {
-ur_result_t getProviderNativeError(const char *providerName,
-                                   int32_t nativeError) {
-  if (strcmp(providerName, "HIP") == 0) {
-    // HIP provider stores native errors of ur_result_t type
-    return static_cast<ur_result_t>(nativeError);
-  }
-
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
 UR_APIEXPORT ur_result_t UR_APICALL

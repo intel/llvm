@@ -7,9 +7,6 @@
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>
 #include <sycl/sycl.hpp>
 
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)                    \
-  __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)
-
 int main() {
   auto testAspects = DeviceConfigFile::TargetTable.find("__TestAspectList");
   assert(testAspects != DeviceConfigFile::TargetTable.end());
@@ -24,6 +21,7 @@ int main() {
 
 #undef __SYCL_ASPECT
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   auto testDeprecatedAspects =
       DeviceConfigFile::TargetTable.find("__TestDeprecatedAspectList");
   assert(testDeprecatedAspects != DeviceConfigFile::TargetTable.end());
@@ -36,6 +34,5 @@ int main() {
 #include <sycl/info/aspects_deprecated.def>
 
 #undef __SYCL_ASPECT_DEPRECATED
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }
-
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS

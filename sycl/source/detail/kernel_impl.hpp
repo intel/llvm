@@ -243,6 +243,10 @@ public:
                : ProgramManager::getInstance().getDeviceKernelInfo(
                      std::string_view(getName()));
   }
+  template <int Dimensions>
+  size_t queryMaxNumWorkGroups(queue Queue,
+                               const range<Dimensions> &WorkGroupSize,
+                               size_t DynamicLocalMemorySize) const;
 
 private:
   Managed<ur_kernel_handle_t> MKernel;
@@ -273,10 +277,6 @@ private:
   bool exceedsOccupancyResourceLimits(const device &Device,
                                       const range<Dimensions> &WorkGroupSize,
                                       size_t DynamicLocalMemorySize) const;
-  template <int Dimensions>
-  size_t queryMaxNumWorkGroups(queue Queue,
-                               const range<Dimensions> &WorkGroupSize,
-                               size_t DynamicLocalMemorySize) const;
 
   void enableUSMIndirectAccess() const;
   std::optional<unsigned> getFreeFuncKernelArgSize() const;

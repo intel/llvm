@@ -9,8 +9,8 @@
 #include <vector>
 
 #include <string>
-constexpr sycl::access::mode sycl_read = sycl::access::mode::read;
-constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
+constexpr sycl::access_mode sycl_read = sycl::access_mode::read;
+constexpr sycl::access_mode sycl_write = sycl::access_mode::write;
 
 using namespace std;
 

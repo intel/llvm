@@ -39,7 +39,7 @@
 // In compile+link mode, trace files are named based on source file
 // RUN: rm -rf %t/traces3 && mkdir -p %t/traces3
 // RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
-// RUN:   --no-offloadlib -fno-sycl-instrument-device-code \
+// RUN:   -fno-sycl-instrument-device-code \
 // RUN:   -ftime-trace=%t/traces3 %t/src/test.cpp -o %t/myapp
 
 // Frontend traces should still be generated (named after source file)

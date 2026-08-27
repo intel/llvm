@@ -62,7 +62,9 @@ kernel::get_info_impl() const {
 __SYCL_KERNEL_INFO_INST(num_args, uint32_t)
 __SYCL_KERNEL_INFO_INST(attributes, std::string)
 __SYCL_KERNEL_INFO_INST(function_name, std::string)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_KERNEL_INFO_INST(reference_count, uint32_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_KERNEL_INFO_INST(context, sycl::context)
 #undef __SYCL_KERNEL_INFO_INST
 
@@ -240,6 +242,30 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_groups, size_t)
 // clang-format on
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+template <int Dimensions>
+size_t
+kernel::queryMaxNumWorkGroups(const device &Dev, sycl::range<Dimensions> Range,
+                              size_t Bytes, KernelExecInfoTy ExecInfo) const {
+  impl->getAdapter().call_nocheck<sycl::detail::UrApiKind::urKernelSetExecInfo>(
+      impl->getHandleRef(), UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
+      sizeof(ur_kernel_cache_config_t), nullptr, &(ExecInfo.CacheConfig));
+  sycl::queue Queue{Dev};
+  return impl->queryMaxNumWorkGroups<Dimensions>(
+      Queue, Range, Bytes + ExecInfo.DynamicWorkGroupMem);
+}
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<1>(
+    const device &Dev, sycl::range<1> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<2>(
+    const device &Dev, sycl::range<2> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
+
+template __SYCL_EXPORT size_t kernel::queryMaxNumWorkGroups<3>(
+    const device &Dev, sycl::range<3> Range, size_t Bytes,
+    kernel::KernelExecInfoTy ExecInfo) const;
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 

@@ -18,7 +18,7 @@
 
 #include "common.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 namespace raii {
 using command_list_unique_handle =
     std::unique_ptr<::_ze_command_list_handle_t,
@@ -117,4 +117,4 @@ private:
   raii::ze_command_list_handle_t
   createCommandList(const command_list_descriptor_t &desc);
 };
-} // namespace v2
+} // namespace ur::level_zero::v2

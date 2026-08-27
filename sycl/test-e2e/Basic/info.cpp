@@ -277,8 +277,10 @@ int main() {
   print_info<info::device::image3d_max_depth, size_t>(dev, "Image3D max depth");
   print_info<info::device::image_max_buffer_size, size_t>(
       dev, "Image max buffer size");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   print_info<info::device::image_max_array_size, size_t>(
       dev, "Image max array size");
+#endif
   print_info<info::device::max_samplers, std::uint32_t>(dev, "Max samplers");
   print_info<info::device::max_parameter_size, size_t>(dev,
                                                        "Max parameter size");
@@ -347,12 +349,14 @@ int main() {
   print_info<info::device::version, std::string>(dev, "Version");
   print_info<info::device::backend_version, std::string>(dev,
                                                          "Backend version");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   try {
     print_info<info::device::opencl_c_version, std::string>(dev,
                                                             "OpenCL C version");
   } catch (const sycl::exception &e) {
     assert(e.code() == sycl::errc::feature_not_supported);
   }
+#endif
   print_info<info::device::extensions, std::vector<std::string>>(dev,
                                                                  "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,
@@ -386,8 +390,6 @@ int main() {
   print_info<info::device::partition_type_affinity_domain,
              info::partition_affinity_domain>(dev,
                                               "Partition type affinity domain");
-  print_info<info::device::reference_count, sycl::opencl::cl_uint>(
-      dev, "Reference count");
 
   std::cout << separator << "Platform information\n" << separator;
   platform plt(dev.get_platform());

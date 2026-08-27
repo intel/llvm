@@ -235,6 +235,12 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
   UrDesc.height = ImgDesc.height;
   UrDesc.depth = ImgDesc.depth;
   UrDesc.arraySize = ImgDesc.array_size;
+
+  UrDesc.rowPitch = ImgDesc.row_pitch;
+  UrDesc.slicePitch = ImgDesc.slice_pitch;
+  UrDesc.numSamples = ImgDesc.num_samples;
+  UrDesc.numMipLevel = ImgDesc.num_levels;
+
   return UrDesc;
 }
 
@@ -304,8 +310,12 @@ static void fill_copy_args(
     impl->MDstImageDesc.depth = DestExtent[2];
   }
 
-  impl->MSrcImageDesc.rowPitch = SrcPitch;
-  impl->MDstImageDesc.rowPitch = DestPitch;
+  // Explicit pitch arg wins when non-zero; otherwise keep the descriptor's
+  // row_pitch already set by fill_image_desc().
+  if (SrcPitch != 0)
+    impl->MSrcImageDesc.rowPitch = SrcPitch;
+  if (DestPitch != 0)
+    impl->MDstImageDesc.rowPitch = DestPitch;
 }
 
 static void
@@ -319,8 +329,35 @@ fill_copy_args(detail::handler_impl *impl,
                sycl::range<3> DestExtent = {0, 0, 0},
                sycl::range<3> CopyExtent = {0, 0, 0}) {
 
-  size_t SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
-  size_t DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
+  // The UR adapters interpret pSrcImageDesc->rowPitch / pDstImageDesc->rowPitch
+  // as the row stride of whichever side is host/USM memory (see e.g.
+  // unified-runtime/source/adapters/level_zero/image_common.cpp). Host memory
+  // is always tightly packed, so for MEM_TO_IMAGE / IMAGE_TO_MEM we must not
+  // let the image descriptor's row_pitch (a device stride) reach the memory
+  // side. Derive the host pitch from the caller-supplied extent when present,
+  // otherwise from the descriptor width.
+  auto TightHostPitch = [&](sycl::range<3> Extent) {
+    size_t W = Extent[0] != 0 ? Extent[0] : Desc.width;
+    return W * Desc.num_channels * get_channel_size(Desc);
+  };
+
+  size_t SrcPitch = 0;
+  size_t DestPitch = 0;
+  switch (ImageCopyInputTypes) {
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE:
+    SrcPitch = TightHostPitch(SrcExtent);
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM:
+    DestPitch = TightHostPitch(DestExtent);
+    break;
+  default:
+    // MEM_TO_MEM and IMAGE_TO_IMAGE do not reach this overload from the
+    // handler; preserve the pre-existing extent-driven derivation as a
+    // safe fallback.
+    SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
+    DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
+    break;
+  }
 
   fill_copy_args(impl, Desc, Desc, ImageCopyFlags, ImageCopyInputTypes,
                  SrcPitch, DestPitch, SrcOffset, SrcExtent, DestOffset,
@@ -362,6 +399,14 @@ fill_copy_args(detail::handler_impl *impl,
   fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
                  ImageCopyInputTypes, SrcPitch, DestPitch, SrcOffset, SrcExtent,
                  DestOffset, DestExtent, CopyExtent);
+}
+
+static std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+getNativeGraphImpl(queue_impl &Queue) {
+  ur_exp_graph_handle_t UrGraphHandle = nullptr;
+  Queue.getAdapter().call<UrApiKind::urQueueGetGraphExp>(Queue.getHandleRef(),
+                                                         &UrGraphHandle);
+  return Queue.getContextImpl().getNativeGraph(UrGraphHandle);
 }
 
 } // namespace detail
@@ -638,7 +683,8 @@ detail::EventImplPtr handler::finalize() {
         std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::EnqueueNativeCommand:
-  case detail::CGType::CodeplayHostTask: {
+  case detail::CGType::CodeplayHostTask:
+  case detail::CGType::NativeHostTask: {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(
@@ -763,12 +809,31 @@ detail::EventImplPtr handler::finalize() {
   // Because command graph case is handled right above.
   assert(Queue);
 
-  // Native graph recording limitation
   if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "SYCL host_task is not supported in native recording mode. Use "
-        "zeCommandListAppendHostFunction as a workaround.");
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Only restricted host tasks may be captured in "
+                          "native recording mode. The restricted host tasks "
+                          "API needs to be used and support in the backend "
+                          "required on this device.");
+  }
+
+  // Host tasks in native recording mode are captured into the native graph
+  // rather than submitted to the scheduler.
+  if (type == detail::CGType::NativeHostTask && Queue->isNativeRecording()) {
+    auto GraphImpl = detail::getNativeGraphImpl(*Queue);
+    assert(GraphImpl && "Native graph handle expired while recording");
+
+    auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
+    // Store callback in the graph to manage its lifetime
+    auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
+        std::make_unique<detail::EnqueueHostTaskData>(
+            detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask)));
+
+    Queue->getAdapter().call<detail::UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), detail::NativeHostTask<false>, CallbackData,
+        nullptr, 0, nullptr, nullptr);
+
+    return detail::event_impl::create_completed_host_event();
   }
   if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
     throw sycl::exception(
@@ -868,6 +933,11 @@ void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
+}
+
+void handler::extractFreeFunctionArgsAndReqs() {
+  assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
+  impl->MKernelData.extractArgsAndReqs(/*IsKernelCreatedFromSource=*/false);
 }
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
@@ -1685,9 +1755,23 @@ void handler::SetHostTask(std::function<void()> Func) {
 void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
   range<1> r(1);
   setNDRangeDescriptor(detail::nd_range_view(r));
-  impl->MHostTask.reset(
-      new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
-                           true));
+  impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+  detail::queue_impl *Queue = impl->get_queue_or_null();
+  if (Queue) {
+    detail::adapter_impl &Adapter = getContextImpl().getAdapter();
+    ur_bool_t NativeHostTaskSupport = false;
+
+    const ur_result_t Res = Adapter.call_nocheck<UrApiKind::urDeviceGetInfo>(
+        detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+        UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
+        sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
+    if (Res == UR_RESULT_SUCCESS && NativeHostTaskSupport) {
+      setType(detail::CGType::NativeHostTask);
+      return;
+    }
+  }
+
   setType(detail::CGType::CodeplayHostTask);
 }
 

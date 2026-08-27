@@ -169,7 +169,7 @@ protected:
 
 TEST_F(IPCPhysMemTests, IPCGetPut) {
   {
-    syclexp::properties PropList{syclexp::enable_ipc};
+    syclexp::properties PropList{syclexp::enable_ipc{true}};
     syclexp::physical_mem PhysMem{Dev, Ctxt, PhysMemSize, PropList};
 
     syclexp::ipc::handle IPCMemHandle =
@@ -210,6 +210,7 @@ TEST_F(IPCPhysMemTests, IPCOpenClose) {
   EXPECT_EQ(urIPCClosePhysMemHandleExp_counter, 1);
 }
 
+#if __cpp_lib_span
 TEST_F(IPCPhysMemTests, IPCOpenCloseView) {
   {
     syclexp::ipc::handle_data_view_t HandleDataView{DummyHandleData,
@@ -226,6 +227,7 @@ TEST_F(IPCPhysMemTests, IPCOpenCloseView) {
   EXPECT_EQ(urIPCOpenPhysMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCClosePhysMemHandleExp_counter, 1);
 }
+#endif
 
 TEST_F(IPCPhysMemTests, IPCGetNoFlagEnableIpc) {
   syclexp::properties PropList{};
@@ -249,7 +251,7 @@ TEST_F(IPCPhysMemTests, IPCGetNoFlagEnableIpc) {
 
 TEST_F(IPCPhysMemTests, IPCCreateDevNoAspect) {
   mock::getCallbacks().set_after_callback("urDeviceGetInfo", nullptr);
-  syclexp::properties PropList{syclexp::enable_ipc};
+  syclexp::properties PropList{syclexp::enable_ipc{true}};
   bool exception = false;
 
   try {

@@ -16,11 +16,9 @@
 
 namespace ur::opencl {
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
-                                                ur_device_type_t DeviceType,
-                                                uint32_t,
-                                                ur_device_handle_t *phDevices,
-                                                uint32_t *pNumDevices) {
+ur_result_t urDeviceGet(ur_platform_handle_t hPlatform,
+                        ur_device_type_t DeviceType, uint32_t,
+                        ur_device_handle_t *phDevices, uint32_t *pNumDevices) {
 
   cl_device_type Type;
   switch (DeviceType) {
@@ -108,11 +106,9 @@ mapCLDeviceFpConfigToUR(cl_device_fp_config CLValue) {
   return URValue;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
-                                                    ur_device_info_t propName,
-                                                    size_t propSize,
-                                                    void *pPropValue,
-                                                    size_t *pPropSizeRet) {
+ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
+                            ur_device_info_t propName, size_t propSize,
+                            void *pPropValue, size_t *pPropSizeRet) {
   /* We can convert between OpenCL and UR outputs because the sizes
    * of OpenCL types are the same as UR.
    * | CL                 | UR                     | Size |
@@ -1446,12 +1442,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
+  case UR_DEVICE_INFO_NODE_MASK:
   case UR_DEVICE_INFO_LUID: {
-    // LUID is only available on Windows.
-    // Intel extension for device LUID. This returns the LUID as
-    // std::array<std::byte, 8>. For details about this extension,
+    // LUID and Device node mask are only available on Windows.
+    // Intel extension for device LUID and node mask. This returns the LUID as
+    // std::array<std::byte, 8> the node mask as uint32_t.
+    // For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-
+#ifndef _WIN32
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+#endif
     // Use the cl_khr_device_uuid extension, if available.
     bool isKhrDeviceLuidSupported = false;
     if (Device->checkDeviceExtensions({"cl_khr_device_uuid"},
@@ -1461,43 +1461,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
-    cl_bool isLuidValid;
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(Device->CLDevice, CL_DEVICE_LUID_VALID_KHR,
-                        sizeof(cl_bool), &isLuidValid, nullptr));
+    if (propName == UR_DEVICE_INFO_LUID) {
+      cl_bool isLuidValid;
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(Device->CLDevice, CL_DEVICE_LUID_VALID_KHR,
+                          sizeof(cl_bool), &isLuidValid, nullptr));
 
-    if (!isLuidValid) {
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      if (!isLuidValid) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+
+      static_assert(CL_LUID_SIZE_KHR == 8);
+      std::array<unsigned char, CL_LUID_SIZE_KHR> UUID{};
+      CL_RETURN_ON_FAILURE(clGetDeviceInfo(Device->CLDevice, CL_DEVICE_LUID_KHR,
+                                           UUID.size(), UUID.data(), nullptr));
+      return ReturnValue(UUID);
+    } else {
+      cl_uint nodeMask = 0;
+
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(Device->CLDevice, CL_DEVICE_NODE_MASK_KHR,
+                          sizeof(cl_uint), &nodeMask, nullptr));
+      if (nodeMask == 0) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+
+      return ReturnValue(nodeMask);
     }
-
-    static_assert(CL_LUID_SIZE_KHR == 8);
-    std::array<unsigned char, CL_LUID_SIZE_KHR> UUID{};
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Device->CLDevice, CL_DEVICE_LUID_KHR,
-                                         UUID.size(), UUID.data(), nullptr));
-    return ReturnValue(UUID);
-  }
-  case UR_DEVICE_INFO_NODE_MASK: {
-    // Device node mask is only available on Windows.
-    // Intel extension for device node mask. This returns the node mask as
-    // uint32_t. For details about this extension,
-    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-
-    // Use the cl_khr_device_uuid extension, if available.
-    bool isKhrDeviceLuidSupported = false;
-    if (Device->checkDeviceExtensions({"cl_khr_device_uuid"},
-                                      isKhrDeviceLuidSupported) !=
-            UR_RESULT_SUCCESS ||
-        !isKhrDeviceLuidSupported) {
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-    }
-
-    cl_int nodeMask = 0;
-
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Device->CLDevice,
-                                         CL_DEVICE_NODE_MASK_KHR,
-                                         sizeof(cl_int), &nodeMask, nullptr));
-
-    return ReturnValue(nodeMask);
   }
   case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP:
   case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
@@ -1605,10 +1595,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
-    ur_device_handle_t hDevice,
-    const ur_device_partition_properties_t *pProperties, uint32_t NumDevices,
-    ur_device_handle_t *phSubDevices, uint32_t *pNumDevicesRet) {
+ur_result_t
+urDevicePartition(ur_device_handle_t hDevice,
+                  const ur_device_partition_properties_t *pProperties,
+                  uint32_t NumDevices, ur_device_handle_t *phSubDevices,
+                  uint32_t *pNumDevicesRet) {
 
   auto Device = cast(hDevice);
   std::vector<cl_device_partition_property> CLProperties(
@@ -1687,7 +1678,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 }
 
 // Root devices ref count are unchanged through out the program lifetime.
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
+ur_result_t urDeviceRetain(ur_device_handle_t hDevice) {
   auto Device = cast(hDevice);
   if (Device->ParentDevice) {
     Device->RefCount.retain();
@@ -1697,8 +1688,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 }
 
 // Root devices ref count are unchanged through out the program lifetime.
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceRelease(ur_device_handle_t hDevice) {
+ur_result_t urDeviceRelease(ur_device_handle_t hDevice) {
   auto Device = cast(hDevice);
   if (Device->ParentDevice) {
     if (Device->RefCount.release()) {
@@ -1708,18 +1698,19 @@ urDeviceRelease(ur_device_handle_t hDevice) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
-    ur_device_handle_t hDevice, ur_native_handle_t *phNativeDevice) {
+ur_result_t urDeviceGetNativeHandle(ur_device_handle_t hDevice,
+                                    ur_native_handle_t *phNativeDevice) {
 
   auto Device = cast(hDevice);
   *phNativeDevice = reinterpret_cast<ur_native_handle_t>(Device->CLDevice);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ur_adapter_handle_t,
-    const ur_device_native_properties_t *pProperties,
-    ur_device_handle_t *phDevice) {
+ur_result_t
+urDeviceCreateWithNativeHandle(ur_native_handle_t hNativeDevice,
+                               ur_adapter_handle_t,
+                               const ur_device_native_properties_t *pProperties,
+                               ur_device_handle_t *phDevice) {
 
   auto SetDeviceProps = [&]() {
     cast(*phDevice)->IsNativeHandleOwned =
@@ -1790,9 +1781,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   return UR_RESULT_ERROR_INVALID_DEVICE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
-    ur_device_handle_t hDevice, uint64_t *pDeviceTimestamp,
-    uint64_t *pHostTimestamp) {
+ur_result_t urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
+                                        uint64_t *pDeviceTimestamp,
+                                        uint64_t *pHostTimestamp) {
   auto Device = cast(hDevice);
   oclv::OpenCLVersion DevVer, PlatVer;
   cl_device_id DeviceId = Device->CLDevice;
@@ -1825,9 +1816,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
-    ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
-    uint32_t NumBinaries, uint32_t *pSelectedBinary) {
+ur_result_t urDeviceSelectBinary(ur_device_handle_t hDevice,
+                                 const ur_device_binary_t *pBinaries,
+                                 uint32_t NumBinaries,
+                                 uint32_t *pSelectedBinary) {
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
   // image is preferred over SPIR-V for known devices (i.e. Intel devices)
@@ -1895,7 +1887,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   return UR_RESULT_ERROR_INVALID_BINARY;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
+ur_result_t urDeviceWaitExp(ur_device_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

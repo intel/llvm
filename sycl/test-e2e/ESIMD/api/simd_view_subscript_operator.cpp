@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: There is a separate version of this test for PVC.
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
@@ -48,8 +49,8 @@ template <class T> bool test(queue &q) {
     range<1> glob_range{1};
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufA.template get_access<access::mode::read>(cgh);
-      auto PB = bufB.template get_access<access::mode::read_write>(cgh);
+      auto PA = bufA.template get_access<access_mode::read>(cgh);
+      auto PB = bufB.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<TestID<T>>(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
         using namespace sycl::ext::intel::esimd;
         simd<T, VL> va;

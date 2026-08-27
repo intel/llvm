@@ -22,7 +22,7 @@ int main() {
   queue q;
   auto dev = q.get_device();
   auto ctx = q.get_context();
-  if (!dev.get_info<info::device::usm_shared_allocations>()) {
+  if (!dev.has(aspect::usm_shared_allocations)) {
     std::cout << "Shared USM is not supported. Skipping test." << std::endl;
     return 0;
   }

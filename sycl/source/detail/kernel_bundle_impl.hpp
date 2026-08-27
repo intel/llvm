@@ -503,22 +503,36 @@ public:
           return detail::ProgramManager::isAOTBinaryTarget(
               Bin->getRawData().DeviceTargetSpec);
         };
-        std::stable_partition(GraphImgs.begin(), GraphImgs.end(),
-                              [&IsAOTImage](const device_image_plain &Img) {
-                                return !IsAOTImage(Img);
-                              });
-        auto AOTBegin =
-            std::find_if(GraphImgs.begin(), GraphImgs.end(), IsAOTImage);
-        size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTBegin);
+        // Manually partition (stable) instead of std::stable_partition,
+        // whose libstdc++ implementation can fall back to the deprecated
+        // std::get_temporary_buffer when it cannot allocate scratch space.
+        std::vector<device_image_plain> Reordered;
+        Reordered.reserve(GraphImgs.size());
+        size_t NumJITImgs = 0;
+        for (const device_image_plain &Img : GraphImgs)
+          if (!IsAOTImage(Img)) {
+            Reordered.push_back(Img);
+            ++NumJITImgs;
+          }
+        for (const device_image_plain &Img : GraphImgs)
+          if (IsAOTImage(Img))
+            Reordered.push_back(Img);
+        GraphImgs = std::move(Reordered);
         return {{GraphImgs.begin(), GraphImgs.begin() + NumJITImgs},
                 {GraphImgs.begin() + NumJITImgs, GraphImgs.end()}};
       }();
 
       // If there AOT binaries, the link should allow unresolved symbols.
+      // Only invoke the JIT link (urProgramLinkExp) when there is at least one
+      // JIT image; an AOT-only link (e.g. cross-library link of native AOT
+      // object SYCLBINs) has no SPIR-V to link and passing an empty program
+      // list to urProgramLinkExp is invalid. The AOT images are handled by the
+      // dynamicLink path below.
       std::vector<device_image_plain> LinkedResults =
-          detail::ProgramManager::getInstance().link(
-              JITImgs, GraphDevs, PropList,
-              /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
+          JITImgs.empty() ? std::vector<device_image_plain>{}
+                          : detail::ProgramManager::getInstance().link(
+                                JITImgs, GraphDevs, PropList,
+                                /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
 
       if (!AOTImgs.empty()) {
         // urProgramLinkExp's ze_module_program_exp_desc_t carries a single
@@ -758,6 +772,19 @@ public:
         SYCLBIN->getBestCompatibleImages(Devs, State);
     MDeviceImages.reserve(BestImages.size());
     auto &PM = ProgramManager::getInstance();
+    // Reconcile an image's intrinsic classification with the state the SYCLBIN
+    // was loaded in. An export-only native AOT library classifies as
+    // executable but is surfaced for an object-state load so it can act as the
+    // provider side of a cross-library link; such an image must not be
+    // presented as already-linked. Only downgrade executable -> object for an
+    // object-state load; leave every other combination at the intrinsic state.
+    auto ReconcileState = [](bundle_state ImageState,
+                             bundle_state RequestedState) {
+      if (ImageState == bundle_state::executable &&
+          RequestedState == bundle_state::object)
+        return bundle_state::object;
+      return ImageState;
+    };
     for (const detail::RTDeviceBinaryImage *Image : BestImages) {
       // Build per-image kernel-id list from the [SYCL/kernel names] property
       // set so that the C++ kernel_id-based APIs (has_kernel<K>(),
@@ -774,10 +801,11 @@ public:
           KernelIDs->push_back(*MaybeID);
       std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
 
+      const bundle_state ImgState =
+          ReconcileState(ProgramManager::getBinImageState(Image), State);
       MDeviceImages.emplace_back(device_image_impl::create(
-          Image, Context, Devs, ProgramManager::getBinImageState(Image),
-          std::move(KernelIDs), Managed<ur_program_handle_t>{},
-          ImageOriginSYCLBIN));
+          Image, Context, Devs, ImgState, std::move(KernelIDs),
+          Managed<ur_program_handle_t>{}, ImageOriginSYCLBIN));
     }
     ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
                                                                State);

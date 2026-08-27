@@ -425,6 +425,7 @@ endif()
 add_custom_target(sycl-compiler
   DEPENDS append-file
           clang
+          dpllvm
           clang-offload-wrapper
           clang-offload-bundler
           clang-offload-deps
@@ -509,6 +510,7 @@ get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONEN
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
      clang
+     dpllvm
      clang-offload-wrapper
      clang-offload-bundler
      clang-offload-deps
@@ -534,11 +536,25 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      libsycldevice
-     unified-memory-framework
      unified-runtime-loader
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
+
+# The "unified-memory-framework" component (libumf) is only built (see
+# UR_UMF_REQUIRED in unified-runtime/source/common/CMakeLists.txt) when an
+# enabled backend actually links against it: level_zero, level_zero_v2, cuda,
+# and hip. native_cpu and offload implement USM allocation themselves and do
+# not use UMF. Deploying it unconditionally (e.g. on a macOS build that only
+# enables "opencl", which never references UMF) would either package an
+# unused library or, worse, race with a "umf" target that ninja has no
+# reason to build, causing an install failure.
+if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS OR
+    "level_zero_v2" IN_LIST SYCL_ENABLE_BACKENDS OR
+    "cuda" IN_LIST SYCL_ENABLE_BACKENDS OR
+    "hip" IN_LIST SYCL_ENABLE_BACKENDS)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS unified-memory-framework)
+endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS clang-nvlink-wrapper)
@@ -655,7 +671,16 @@ foreach(component IN LISTS SYCL_TOOLCHAIN_DEPLOY_COMPONENTS)
     endforeach()
   else()
     set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
-    sycl_add_install_command("${component}" "${component}" "${INSTALL_SCRIPT}" "")
+    set(COMPONENT_DEPS "")
+    if("${component}" STREQUAL "unified-memory-framework" AND TARGET umf)
+      # Only present in SYCL_TOOLCHAIN_DEPLOY_COMPONENTS when an enabled
+      # backend actually links UMF (see the gate above), in which case the
+      # "umf" target always exists too. Depend on it explicitly so ninja is
+      # guaranteed to build libumf* before this install step deploys it,
+      # regardless of parallel build ordering.
+      set(COMPONENT_DEPS "umf")
+    endif()
+    sycl_add_install_command("${component}" "${component}" "${INSTALL_SCRIPT}" "${COMPONENT_DEPS}")
   endif()
 endforeach()
 

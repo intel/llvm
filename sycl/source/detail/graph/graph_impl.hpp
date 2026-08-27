@@ -44,6 +44,7 @@ class queue_impl;
 class NDRDescT;
 class ArgDesc;
 class CG;
+struct EnqueueHostTaskData;
 } // namespace detail
 
 namespace ext {
@@ -324,10 +325,7 @@ public:
       ur_result_t Result =
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDumpContentsExp>(
               MNativeGraphHandle, FilePath.c_str());
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to dump native UR graph contents");
-      }
+      Adapter.checkUrResult(Result, "Failed to dump native UR graph contents");
     } else {
       /// Vector of nodes visited during the graph printing
       std::vector<node_impl *> VisitedNodes;
@@ -556,6 +554,11 @@ public:
   /// @param Callback Callable to invoke on graph destruction.
   void setDestructionCallback(std::function<void()> Callback);
 
+  /// Take ownership of callback data for a native-recorded host task and return
+  /// a non-owning pointer for passing to UR.
+  detail::EnqueueHostTaskData *
+  addNativeHostTaskCallback(std::unique_ptr<detail::EnqueueHostTaskData> Data);
+
 private:
   /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
   /// @param[in] Queue The queue to be recorded from.
@@ -633,6 +636,10 @@ private:
   ///
   /// @note Native recording requires immediate command lists.
   ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
+
+  /// Callback data for host tasks recorded in native recording mode.
+  std::vector<std::unique_ptr<detail::EnqueueHostTaskData>>
+      MNativeHostTaskCallbacks;
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.

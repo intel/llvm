@@ -10,6 +10,7 @@
 #include <optional>
 #include <ze_api.h>
 
+#include "../common/device.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool.hpp"
@@ -17,7 +18,9 @@
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
 
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
+
+namespace ur::level_zero::v2 {
 
 static uint64_t adjustEndEventTimestamp(uint64_t adjustedStartTimestamp,
                                         uint64_t endTimestamp,
@@ -53,9 +56,10 @@ uint64_t event_profiling_data_t::getEventEndTimestamp() {
   assert(zeTimerResolution);
   assert(timestampMaxValue);
 
-  adjustedEventEndTimestamp = adjustEndEventTimestamp(
-      adjustedEventStartTimestamp, recordEventEndTimestamp, timestampMaxValue,
-      zeTimerResolution);
+  // A timestamp-recording event holds a single GPU-written global timestamp,
+  // so there is no separate start value to detect a wrap-around against.
+  adjustedEventEndTimestamp =
+      (recordEventEndTimestamp & timestampMaxValue) * zeTimerResolution;
 
   return adjustedEventEndTimestamp;
 }
@@ -64,33 +68,30 @@ void event_profiling_data_t::reset() {
   // This ensures that the event is consider as not timestamped.
   // We can't touch the recordEventEndTimestamp
   // as it may still be overwritten by the driver.
-  // In case event is resued and recordStartTimestamp
+  // In case event is resued and initTimestampRecording
   // is called again, adjustedEventEndTimestamp will always be updated correctly
   // to the new value as we wait for the event to be signaled.
   // If the event is reused on another queue, this means that the original
   // queue must have been destroyed (and the even pool released back to the
   // context) and the timstamp is already wrriten, so there's no race-condition
   // possible.
-  adjustedEventStartTimestamp = 0;
   adjustedEventEndTimestamp = 0;
   timestampRecorded = false;
 }
 
-void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
+void event_profiling_data_t::initTimestampRecording(
+    ur_device_handle_t hDevice) {
   zeTimerResolution = hDevice->getTimerResolution();
   timestampMaxValue = hDevice->getTimestampMask();
-
-  uint64_t deviceStartTimestamp = 0;
-  UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
-      hDevice, &deviceStartTimestamp, nullptr));
-
-  assert(adjustedEventStartTimestamp == 0);
-  adjustedEventStartTimestamp = deviceStartTimestamp;
   timestampRecorded = true;
 }
 
-uint64_t event_profiling_data_t::getEventStartTimestmap() const {
-  return adjustedEventStartTimestamp;
+void ur_event_handle_t_::initTimestampRecording() {
+  // queue and device must be set before calling this
+  assert(hQueue);
+  assert(hDevice);
+
+  profilingData.initTimestampRecording(hDevice);
 }
 
 bool event_profiling_data_t::recordingStarted() const {
@@ -122,7 +123,7 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
 }
 
 ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
-                                       v2::raii::ze_event_handle_t hZeEvent,
+                                       event_variant hZeEvent,
                                        v2::event_flags_t flags)
     : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr) {}
 
@@ -140,18 +141,6 @@ void ur_event_handle_t_::onWaitListUse() {
   if (batchGeneration) {
     hQueue->onEventWaitListUse(batchGeneration.value());
   }
-}
-
-void ur_event_handle_t_::recordStartTimestamp() {
-  // queue and device must be set before calling this
-  assert(hQueue);
-  assert(hDevice);
-
-  profilingData.recordStartTimestamp(hDevice);
-}
-
-uint64_t ur_event_handle_t_::getEventStartTimestmap() const {
-  return profilingData.getEventStartTimestmap();
 }
 
 uint64_t ur_event_handle_t_::getEventEndTimestamp() {
@@ -186,6 +175,7 @@ struct event_teardown {
   }
 
   void operator()(const v2::raii::ze_event_handle_t &) { delete event; }
+  void operator()(const v2::raii::ipc_event_handle_t &) { delete event; }
 };
 
 ur_result_t ur_event_handle_t_::release() {
@@ -202,6 +192,14 @@ bool ur_event_handle_t_::isTimestamped() const {
 
 bool ur_event_handle_t_::isProfilingEnabled() const {
   return flags & v2::EVENT_FLAGS_PROFILING_ENABLED;
+}
+
+bool ur_event_handle_t_::isIpcCapable() const {
+  return flags & v2::EVENT_FLAGS_IPC;
+}
+
+bool ur_event_handle_t_::isIpcImported() const {
+  return flags & v2::EVENT_FLAGS_IPC_IMPORTED;
 }
 
 std::pair<uint64_t *, ze_event_handle_t>
@@ -241,21 +239,21 @@ ur_event_handle_t_::ur_event_handle_t_(
           ,
           nullptr) {}
 
-namespace ur::level_zero {
-ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
-  return hEvent->retain();
+ur_result_t urEventRetain(::ur_event_handle_t hEventOpque) try {
+  return v2_cast(hEventOpque)->retain();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventRelease(ur_event_handle_t hEvent) try {
-  return hEvent->release();
+ur_result_t urEventRelease(::ur_event_handle_t hEventOpque) try {
+  return v2_cast(hEventOpque)->release();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urEventWait(uint32_t numEvents,
-                        const ur_event_handle_t *phEventWaitList) try {
+                        const ::ur_event_handle_t *phEventWaitListOpque) try {
+  auto phEventWaitList = v2_cast(phEventWaitListOpque);
   for (uint32_t i = 0; i < numEvents; ++i) {
     phEventWaitList[i]->onWaitListUse();
     ZE2UR_CALL(zeEventHostSynchronize,
@@ -266,14 +264,15 @@ ur_result_t urEventWait(uint32_t numEvents,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
-                           size_t propValueSize, void *pPropValue,
-                           size_t *pPropValueSizeRet) try {
+ur_result_t urEventGetInfo(::ur_event_handle_t hEventOpque,
+                           ur_event_info_t propName, size_t propValueSize,
+                           void *pPropValue, size_t *pPropValueSizeRet) try {
+  auto event = v2_cast(hEventOpque);
   UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   switch (propName) {
   case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
-    auto zeStatus = ZE_CALL_NOCHECK(zeEventQueryStatus, (hEvent->getZeEvent()));
+    auto zeStatus = ZE_CALL_NOCHECK(zeEventQueryStatus, (event->getZeEvent()));
 
     if (zeStatus == ZE_RESULT_NOT_READY) {
       return returnValue(UR_EVENT_STATUS_SUBMITTED);
@@ -282,18 +281,18 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     }
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return returnValue(hEvent->RefCount.getCount());
+    return returnValue(event->RefCount.getCount());
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
-    auto urQueueHandle = reinterpret_cast<uintptr_t>(hEvent->getQueue()) -
+    auto urQueueHandle = reinterpret_cast<uintptr_t>(event->getQueue()) -
                          ur_queue_handle_t_::queue_offset;
     return returnValue(urQueueHandle);
   }
   case UR_EVENT_INFO_CONTEXT: {
-    return returnValue(hEvent->getContext());
+    return returnValue(event->getContext());
   }
   case UR_EVENT_INFO_COMMAND_TYPE: {
-    return returnValue(hEvent->getCommandType());
+    return returnValue(event->getCommandType());
   }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
@@ -308,7 +307,7 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
 
 ur_result_t urEventGetProfilingInfo(
     /// [in] handle of the event object
-    ur_event_handle_t hEvent,
+    ::ur_event_handle_t hEventOpque,
     /// [in] the name of the profiling property to query
     ur_profiling_info_t propName,
     /// [in] size in bytes of the profiling property value
@@ -318,36 +317,26 @@ ur_result_t urEventGetProfilingInfo(
     /// [out][optional] pointer to the actual size in bytes returned in
     /// propValue
     size_t *pPropValueSizeRet) try {
-  std::scoped_lock<ur_shared_mutex> lock(hEvent->Mutex);
+  auto event = v2_cast(hEventOpque);
+  std::scoped_lock<ur_shared_mutex> lock(event->Mutex);
 
   // The event must either have profiling enabled or be recording timestamps.
-  bool isTimestampedEvent = hEvent->isTimestamped();
-  if (!hEvent->isProfilingEnabled() && !isTimestampedEvent) {
+  bool isTimestampedEvent = event->isTimestamped();
+  if (!event->isProfilingEnabled() && !isTimestampedEvent) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
   UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   // For timestamped events we have the timestamps ready directly on the event
-  // handle, so we short-circuit the return.
+  // handle, so we short-circuit the return. The tag is an empty command, so
+  // all timestamps (queued, submit, start, end, complete) are the single
+  // GPU-written completion time.
   if (isTimestampedEvent) {
-    uint64_t contextStartTime = hEvent->getEventStartTimestmap();
-    switch (propName) {
-    case UR_PROFILING_INFO_COMMAND_QUEUED:
-    case UR_PROFILING_INFO_COMMAND_SUBMIT:
-      return returnValue(contextStartTime);
-    case UR_PROFILING_INFO_COMMAND_END:
-    case UR_PROFILING_INFO_COMMAND_START:
-    case UR_PROFILING_INFO_COMMAND_COMPLETE: {
-      return returnValue(hEvent->getEventEndTimestamp());
-    }
-    default:
-      UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
+    return returnValue(event->getEventEndTimestamp());
   }
 
-  auto hDevice = hEvent->getDevice();
+  auto hDevice = event->getDevice();
   if (!hDevice) {
     // no command has been enqueued with this event yet
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
@@ -360,14 +349,14 @@ ur_result_t urEventGetProfilingInfo(
 
   switch (propName) {
   case UR_PROFILING_INFO_COMMAND_START: {
-    ZE2UR_CALL(zeEventQueryKernelTimestamp, (hEvent->getZeEvent(), &tsResult));
+    ZE2UR_CALL(zeEventQueryKernelTimestamp, (event->getZeEvent(), &tsResult));
     uint64_t contextStartTime =
         (tsResult.global.kernelStart & timestampMaxValue) * zeTimerResolution;
     return returnValue(contextStartTime);
   }
   case UR_PROFILING_INFO_COMMAND_END:
   case UR_PROFILING_INFO_COMMAND_COMPLETE: {
-    ZE2UR_CALL(zeEventQueryKernelTimestamp, (hEvent->getZeEvent(), &tsResult));
+    ZE2UR_CALL(zeEventQueryKernelTimestamp, (event->getZeEvent(), &tsResult));
 
     uint64_t contextStartTime =
         (tsResult.global.kernelStart & timestampMaxValue);
@@ -396,19 +385,22 @@ ur_result_t urEventGetProfilingInfo(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventGetNativeHandle(ur_event_handle_t hEvent,
-                                   ur_native_handle_t *phNativeEvent) try {
-  *phNativeEvent = reinterpret_cast<ur_native_handle_t>(hEvent->getZeEvent());
+ur_result_t urEventGetNativeHandle(::ur_event_handle_t hEventOpque,
+                                   ::ur_native_handle_t *phNativeEvent) try {
+  *phNativeEvent =
+      reinterpret_cast<ur_native_handle_t>(v2_cast(hEventOpque)->getZeEvent());
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t
-urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
-                              ur_context_handle_t hContext,
+urEventCreateWithNativeHandle(::ur_native_handle_t hNativeEvent,
+                              ::ur_context_handle_t hContextOpque,
                               const ur_event_native_properties_t *pProperties,
-                              ur_event_handle_t *phEvent) try {
+                              ::ur_event_handle_t *phEventOpque) try {
+  auto hContext = v2_cast(hContextOpque);
+  auto phEvent = v2_cast(phEventOpque);
   if (!hNativeEvent) {
     assert((hContext->getNativeEventsPool().getFlags() &
             v2::EVENT_FLAGS_COUNTER) == 0);
@@ -416,21 +408,25 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
     *phEvent = hContext->getNativeEventsPool().allocate();
     ZE2UR_CALL(zeEventHostSignal, ((*phEvent)->getZeEvent()));
   } else {
-    *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);
+    *phEvent = new v2::ur_event_handle_t_(hContext, hNativeEvent, pProperties);
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventCreateExp(ur_context_handle_t hContext,
-                             ur_device_handle_t hDevice,
+ur_result_t urEventCreateExp(::ur_context_handle_t hContextOpque,
+                             ::ur_device_handle_t hDeviceOpque,
                              const ur_exp_event_desc_t *pEventDesc,
-                             ur_event_handle_t *phEvent) try {
-  if (!hContext || !hDevice)
-    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  if (!pEventDesc || !phEvent)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+                             ::ur_event_handle_t *phEventOpque) try {
+  UR_ASSERT(hContextOpque && hDeviceOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pEventDesc && phEventOpque, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(!(pEventDesc->flags & UR_EXP_EVENT_FLAGS_MASK),
+            UR_RESULT_ERROR_INVALID_ENUMERATION);
+
+  auto hContext = v2_cast(hContextOpque);
+  auto hDevice = common_cast(hDeviceOpque);
+  auto phEvent = v2_cast(phEventOpque);
 
   const v2::event_flags_t flags =
       v2::EVENT_FLAGS_COUNTER |
@@ -439,29 +435,21 @@ ur_result_t urEventCreateExp(ur_context_handle_t hContext,
            : 0) |
       (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP ? v2::EVENT_FLAGS_IPC : 0);
 
-  if (flags & v2::EVENT_FLAGS_IPC && flags & v2::EVENT_FLAGS_PROFILING_ENABLED)
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  UR_ASSERT(!(flags & v2::EVENT_FLAGS_IPC &&
+              flags & v2::EVENT_FLAGS_PROFILING_ENABLED),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   auto eventPool =
       hContext->getReusableEventPoolCache().borrow(hDevice->Id.value(), flags);
   assert(eventPool);
 
-  if (!(flags & v2::EVENT_FLAGS_IPC)) {
-    *phEvent = eventPool->allocate();
-    return UR_RESULT_SUCCESS;
-  }
-
-  v2::raii::cache_borrowed_event borrowed =
-      eventPool->getProvider()->allocate();
-  v2::raii::ze_event_handle_t ownedEvent(borrowed.release(),
-                                         /*ownZeHandle=*/true);
-  *phEvent = new ur_event_handle_t_(hContext, std::move(ownedEvent), flags);
-
-  // Handle IPC event creation specifics here...
-
+  // IPC events must not be recycled (their native handle may outlive this
+  // process's reference), so they get a detached, self-owning event.
+  *phEvent = (flags & v2::EVENT_FLAGS_IPC) ? eventPool->allocateDetached()
+                                           : eventPool->allocate();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

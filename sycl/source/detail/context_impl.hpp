@@ -269,7 +269,36 @@ public:
   /// @param UrGraphHandle The native UR graph handle to deregister
   void deregisterNativeGraph(ur_exp_graph_handle_t UrGraphHandle);
 
+  bool supportsReusableEvents();
+  bool supportsEventProfiling();
+  bool supportsIPCEvents();
+
+  /// @return True if any native graph recording is active on a queue
+  /// in this context.
+  bool isNativeRecordingActive() const {
+    return MNativeRecordingCount.load(std::memory_order_acquire) > 0;
+  }
+
+  /// Register that a native graph recording has begun on a queue in this
+  /// context.
+  void nativeRecordingBegan() {
+    MNativeRecordingCount.fetch_add(1, std::memory_order_release);
+  }
+
+  /// Register that a native graph recording has ended on a queue in this
+  /// context.
+  void nativeRecordingEnded() {
+    [[maybe_unused]] int64_t Prev =
+        MNativeRecordingCount.fetch_sub(1, std::memory_order_release);
+    assert(Prev > 0 && "Native recording counter underflow");
+  }
+
 private:
+  // Returns whether every device in the context reports \p Info as true,
+  // caching the result in \p Cache.
+  bool allDevicesSupport(ur_device_info_t Info, std::optional<bool> &Cache,
+                         std::mutex &CacheMutex);
+
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
   std::vector<device_impl *> MDevices;
@@ -278,6 +307,12 @@ private:
   property_list MPropList;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
+  std::optional<bool> MReusableEventsSupport;
+  std::mutex MReusableEventsSupportMutex;
+  std::optional<bool> MEventProfilingSupport;
+  std::mutex MEventProfilingSupportMutex;
+  std::optional<bool> MIPCEventSupport;
+  std::mutex MIPCEventSupportMutex;
 
   // Device pools.
   // Weak_ptr preventing circular dependency between memory_pool_impl and
@@ -357,6 +392,12 @@ private:
       std::weak_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>>
       MNativeGraphRegistry;
   mutable std::mutex MNativeGraphRegistryMutex;
+
+  // Count of active native graph recordings in this context. Incremented when
+  // a native capture begins on a queue and decremented when it ends. Used to
+  // preserve in-order dependencies that cross the native-recording capture
+  // boundary.
+  std::atomic<int64_t> MNativeRecordingCount{0};
 
   void verifyProps(const property_list &Props) const;
 };

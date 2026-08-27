@@ -672,6 +672,8 @@ public:
     }
 
     CASE(info::device::execution_capabilities) {
+      // Legacy SYCL 1.2.1 query retained for API/ABI compatibility only.
+      // New internal feature checks should use device::has(aspect::...).
       if (getBackend() != backend::opencl)
         throw exception(make_error_code(errc::invalid),
                         "info::device::execution_capabilities is available for "
@@ -822,6 +824,7 @@ public:
       return false;
     }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(info::device::usm_device_allocations) {
       return static_cast<bool>(
           get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
@@ -857,7 +860,7 @@ public:
                             "some time already");
       return std::string{}; // for return type deduction.
     }
-
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(ext::intel::info::device::max_mem_bandwidth) {
       if (!has(aspect::ext_intel_max_mem_bandwidth))
         throw exception(
@@ -865,7 +868,7 @@ public:
             "The device does not have the ext_intel_max_mem_bandwidth aspect");
       return get_info_impl<UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH>();
     }
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
       return get_info<
@@ -890,6 +893,7 @@ public:
           ext::oneapi::experimental::info::device::max_work_groups<3>,
           DependentFalse>();
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
       auto SupportFlags =
@@ -904,7 +908,7 @@ public:
       return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
-      size_t result[3];
+      size_t result[3] = {};
       getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
@@ -1230,10 +1234,12 @@ public:
       return MCache.get<AspectDesc<Aspect>>();
     }
 #define CASE(ASPECT) else if constexpr (Aspect == aspect::ASPECT)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(host) {
       // Deprecated
       return false;
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(cpu) { return is_cpu(); }
     CASE(gpu) { return is_gpu(); }
     CASE(accelerator) { return is_accelerator(); }
@@ -1242,12 +1248,14 @@ public:
     CASE(host_debuggable) { return false; }
     CASE(fp16) { return has_extension("cl_khr_fp16"); }
     CASE(fp64) { return has_extension("cl_khr_fp64"); }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(int64_base_atomics) {
       return has_extension("cl_khr_int64_base_atomics");
     }
     CASE(int64_extended_atomics) {
       return has_extension("cl_khr_int64_extended_atomics");
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(atomic64) { return get_info_impl<UR_DEVICE_INFO_ATOMIC_64>(); }
     CASE(image) { return get_info<info::device::image_support>(); }
     CASE(online_compiler) {
@@ -1257,11 +1265,16 @@ public:
       return get_info<info::device::is_linker_available>();
     }
     CASE(queue_profiling) { return get_info<info::device::queue_profiling>(); }
+
     CASE(usm_device_allocations) {
-      return get_info<info::device::usm_device_allocations>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(usm_host_allocations) {
-      return get_info<info::device::usm_host_allocations>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(ext_oneapi_cuda_cluster_group) {
       return get_info<info::device::ext_oneapi_cuda_cluster_group>();
@@ -1271,17 +1284,28 @@ public:
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
     }
     CASE(usm_shared_allocations) {
-      return get_info<info::device::usm_shared_allocations>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(usm_atomic_shared_allocations) {
       return (get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_restricted_shared_allocations) {
-      return get_info<info::device::usm_restricted_shared_allocations>();
+      ur_device_usm_access_capability_flags_t cap_flags =
+          get_info_impl<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
+      // Check that we don't support any cross device sharing
+      return !(cap_flags &
+               (UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
+                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     CASE(usm_system_allocations) {
-      return get_info<info::device::usm_system_allocations>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(ext_intel_device_id) {
       return has_info_desc(UR_DEVICE_INFO_DEVICE_ID);
@@ -1502,11 +1526,12 @@ public:
           arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
           arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
           arch::intel_gpu_ptl_u,   arch::intel_gpu_wcl,
-          arch::intel_gpu_cri};
+          arch::intel_gpu_nvl_s,   arch::intel_gpu_nvl_u,
+          arch::intel_gpu_nvl_p,   arch::intel_gpu_cri};
       try {
         return std::any_of(
             std::begin(supported_archs), std::end(supported_archs),
-            [=](const arch a) { return this->extOneapiArchitectureIs(a); });
+            [this](const arch a) { return this->extOneapiArchitectureIs(a); });
       } catch (const sycl::exception &) {
         // If we're here it means the device does not support architecture
         // querying
@@ -1622,6 +1647,10 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_ipc_event) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP>()
+          .value_or(0);
+    }
     CASE(ext_oneapi_device_wait) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
           .value_or(0);
@@ -1629,6 +1658,11 @@ public:
     CASE(ext_oneapi_ipc_physical_memory) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_per_event_profiling) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP>()
           .value_or(0);
     }
     else {
@@ -1964,7 +1998,7 @@ public:
           .value_or(ext::oneapi::experimental::architecture::unknown);
     } else if (is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
                             backend::ext_oneapi_hip == CurrentBackend)) {
-      auto MapArchIDToArchName = [&](const char *arch) {
+      auto MapArchIDToArchName = [&](std::string_view arch) {
         for (const auto &Item : NvidiaAmdGPUArchitectures) {
           if (std::string_view(Item.first) == arch)
             return Item.second;
@@ -1975,7 +2009,7 @@ public:
           get_info_impl<UrInfoCode<info::device::version>::value>();
       std::string_view DeviceArchSubstr =
           std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
-      return MapArchIDToArchName(DeviceArchSubstr.data());
+      return MapArchIDToArchName(DeviceArchSubstr);
     } else if (is_cpu() && backend::opencl == CurrentBackend) {
       return LookupIPVersion(IntelCPUArchitectures)
           .value_or(ext::oneapi::experimental::architecture::x86_64);
@@ -2060,6 +2094,9 @@ public:
              (architecture::intel_gpu_ptl_h == DeviceArch) ||
              (architecture::intel_gpu_ptl_u == DeviceArch) ||
              (architecture::intel_gpu_wcl == DeviceArch) ||
+             (architecture::intel_gpu_nvl_s == DeviceArch) ||
+             (architecture::intel_gpu_nvl_u == DeviceArch) ||
+             (architecture::intel_gpu_nvl_p == DeviceArch) ||
              (architecture::intel_gpu_cri == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
@@ -2367,9 +2404,14 @@ private:
       EagerCache<InfoInitializer>,               //
       CallOnceCache<InfoInitializer,
                     ext::oneapi::experimental::info::device::architecture>, //
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       AspectCache<EagerCache, aspect::fp16, aspect::fp64,
                   aspect::int64_base_atomics, aspect::int64_extended_atomics,
                   aspect::ext_oneapi_atomic16>,
+#else
+      AspectCache<EagerCache, aspect::fp16, aspect::fp64,
+                  aspect::ext_oneapi_atomic16>,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       AspectCache<
           CallOnceCache,
           // Slow, >100ns (for baseline cached ~30..40ns):
