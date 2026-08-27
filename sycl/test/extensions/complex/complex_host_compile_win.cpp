@@ -7,7 +7,7 @@
 // keeps parsing under MSVC host compilation.
 
 // RUN: %clangxx -fsycl -fsycl-host-compiler=cl -fsycl-host-compiler-options='/std:c++20 /MD /EHsc /permissive- /DSYCL_DISABLE_FSYCL_SYCLHPP_WARNING' %s -c -o %t.o
-// UNSUPPORTED: linux
+// REQUIRES: windows
 
 #define SYCL_EXT_ONEAPI_COMPLEX
 #include <sycl/ext/oneapi/experimental/complex/complex.hpp>
