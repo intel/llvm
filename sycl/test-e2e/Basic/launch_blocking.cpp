@@ -5,9 +5,8 @@
 // REQUIRES: aspect-usm_shared_allocations
 //
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
-// RUN: env SYCL_LAUNCH_BLOCKING=1 %{run} %t.out blocking
-// RUN: env SYCL_LAUNCH_BLOCKING=2 %{run} %t.out blocking
+// RUN: env SYCL_LAUNCH_BLOCKING=1 %{run} %t.out
+// RUN: env SYCL_LAUNCH_BLOCKING=2 %{run} %t.out
 
 #include <cassert>
 #include <iostream>
@@ -26,33 +25,22 @@ constexpr size_t N = 1024;
 // test down noticeably on a CPU device.
 constexpr int SpinCount = 20000;
 
-// Set by the RUN lines that enable blocking mode. Without blocking a submission
-// may legitimately have completed already, so the checks only apply when this
-// is set.
-static bool Blocking = false;
-
-// The spin loop, also run on the host to get the expected result. The loop
-// count is read from memory so that the device-side loop cannot be folded away.
-static int spin(const int *Limit) {
+static void spinAndTag(int *Out, size_t Idx, const int *Limit, int Tag) {
   int Acc = 0;
   for (int I = 0; I < *Limit; ++I)
     Acc += I % 7;
-  return Acc;
-}
-
-// Spins, then writes a result the caller can attribute to this submission.
-static void spinAndTag(int *Out, size_t Idx, const int *Limit, int Tag) {
-  Out[Idx] = spin(Limit) + Tag;
+  Out[Idx] = Acc + Tag;
 }
 
 static void check(sycl::queue &Q, const int *Out, const int *Limit, int Tag,
                   const char *What) {
-  if (Blocking) {
-    const int Expected = spin(Limit) + Tag;
-    if (Out[0] != Expected)
-      std::cerr << "result of " << What << " is not visible yet" << std::endl;
-    assert(Out[0] == Expected && "submission was not synchronous");
-  }
+  int Acc = 0;
+  for (int I = 0; I < *Limit; ++I)
+    Acc += I % 7;
+  const int Expected = Acc + Tag;
+  if (Out[0] != Expected)
+    std::cerr << "result of " << What << " is not visible yet" << std::endl;
+  assert(Out[0] == Expected && "submission was not synchronous");
   Q.wait();
 }
 
@@ -116,9 +104,9 @@ static void runOnQueue(sycl::queue &Q, const char *Order) {
       HostTaskDone = true;
     });
   });
-  if (Blocking && !HostTaskDone)
+  if (!HostTaskDone)
     std::cerr << "host_task has not run yet" << std::endl;
-  assert((!Blocking || HostTaskDone) && "submission was not synchronous");
+  assert(HostTaskDone && "submission was not synchronous");
   Q.wait();
 
   // A kernel depending on a host task cannot bypass the scheduler, so this
@@ -140,9 +128,7 @@ static void runOnQueue(sycl::queue &Q, const char *Order) {
   std::cout << Order << " queue: OK" << std::endl;
 }
 
-int main(int argc, char *argv[]) {
-  Blocking = argc > 1;
-
+int main() {
   sycl::queue InOrder{sycl::property::queue::in_order{}};
   runOnQueue(InOrder, "in-order");
 
