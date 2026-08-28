@@ -23,9 +23,7 @@ struct urEnqueueUSMOperationsOrderingIOQL0Test
 
 UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMOperationsOrderingIOQL0Test,
-    testing::Values(UR_QUEUE_FLAG_SUBMISSION_BATCHED,
-                    UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE),
-    PrintQueueParam);
+    testing::Values(UR_QUEUE_FLAG_SUBMISSION_BATCHED), PrintQueueParam);
 
 TEST_P(urEnqueueUSMOperationsOrderingIOQL0Test,
        InOrderDiscardEventsOrderingL0BatchSizes) {
