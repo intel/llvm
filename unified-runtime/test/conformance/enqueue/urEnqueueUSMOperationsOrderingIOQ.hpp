@@ -21,35 +21,25 @@
 #include "../device_code/discard_events_ordering_usm_consts.h"
 #include <uur/fixtures.h>
 
-// Test parameter for submission mode.
-// Tests in-order execution with discard_events optimization to ensure
-// batching doesn't break ordering semantics.
-struct QueueParameter {
-  ur_queue_flag_t submission_mode;
-
-  QueueParameter(ur_queue_flag_t mode) : submission_mode(mode) {}
-};
-
 inline std::string PrintQueueParam(
-    const testing::TestParamInfo<std::tuple<uur::DeviceTuple, QueueParameter>>
+    const testing::TestParamInfo<std::tuple<uur::DeviceTuple, ur_queue_flag_t>>
         &info) {
   const auto &device = std::get<0>(info.param).device;
-  const QueueParameter &queue_param = std::get<1>(info.param);
-  std::string mode_str =
-      (queue_param.submission_mode == UR_QUEUE_FLAG_SUBMISSION_BATCHED)
-          ? "Batched"
-          : "Immediate";
+  const ur_queue_flag_t submission_mode = std::get<1>(info.param);
+  std::string mode_str = (submission_mode == UR_QUEUE_FLAG_SUBMISSION_BATCHED)
+                             ? "Batched"
+                             : "Immediate";
   return uur::GetPlatformAndDeviceName(device) + "__" +
          uur::GTestSanitizeString(mode_str);
 }
 
 struct urEnqueueUSMOperationsOrderingIOQTestBase
-    : uur::urContextTestWithParam<QueueParameter> {
+    : uur::urContextTestWithParam<ur_queue_flag_t> {
   static constexpr size_t array_size = 128;
 
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urContextTestWithParam<QueueParameter>::SetUp());
+        uur::urContextTestWithParam<ur_queue_flag_t>::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
         "discard_events_ordering_usm", platform, il_binary));
@@ -83,8 +73,7 @@ struct urEnqueueUSMOperationsOrderingIOQTestBase
       ASSERT_TRUE(found_stage) << "Missing entry point for " << stage_name;
     }
 
-    const QueueParameter params = getParam();
-    const ur_queue_flag_t submission_mode = params.submission_mode;
+    const ur_queue_flag_t submission_mode = getParam();
     const ur_queue_flags_t requested_flags =
         UR_QUEUE_FLAG_DISCARD_EVENTS | submission_mode;
 
@@ -128,7 +117,7 @@ struct urEnqueueUSMOperationsOrderingIOQTestBase
       ASSERT_SUCCESS(urProgramRelease(program));
     }
     UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urContextTestWithParam<QueueParameter>::TearDown());
+        uur::urContextTestWithParam<ur_queue_flag_t>::TearDown());
   }
 
   bool isHostUSMSupported() {
