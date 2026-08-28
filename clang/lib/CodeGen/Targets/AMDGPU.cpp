@@ -352,10 +352,10 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
     M.handleAMDGPUFlatWorkGroupSizeAttr(F, FlatWGS, ReqdWGS);
   } else if (M.getLangOpts().SYCLIsDevice) {
     if (const auto *SYCLReqdWGS = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      auto GetDim = [](std::optional<llvm::APSInt> V) -> unsigned {
-        return V ? (unsigned)V->getZExtValue() : 1;
+      auto GetDim = [](std::optional<llvm::APSInt> V) -> uint64_t {
+        return V ? V->getZExtValue() : 1;
       };
-      unsigned Size = GetDim(SYCLReqdWGS->getXDimVal()) *
+      uint64_t Size = GetDim(SYCLReqdWGS->getXDimVal()) *
                       GetDim(SYCLReqdWGS->getYDimVal()) *
                       GetDim(SYCLReqdWGS->getZDimVal());
       std::string AttrVal = llvm::utostr(Size) + "," + llvm::utostr(Size);

@@ -20,7 +20,6 @@ from .outputs.github_actions import GitHubActionsOutput
 
 
 def main() -> int:
-    """Unified CLI entry point."""
     if len(sys.argv) < 2:
         print("Error: Missing command", file=sys.stderr)
         return 1
@@ -40,7 +39,6 @@ def main() -> int:
 
 
 def main_test_summary(command: str) -> int:
-    """Entry point for ur_test_summary CLI."""
     try:
         if len(sys.argv) < 3:
             print(
@@ -81,7 +79,6 @@ def main_test_summary(command: str) -> int:
 
 
 def main_ci_utils(command: str) -> int:
-    """Entry point for ur_ci_utils CLI."""
     if command == "run-tests":
         return _run_tests_command()
 
@@ -91,7 +88,6 @@ def main_ci_utils(command: str) -> int:
 
 
 def _run_tests_command() -> int:
-    """Execute run-tests command."""
     if len(sys.argv) < 5:
         print(
             f"Error: run-tests <test_type> <build_dir> <workspace>",
@@ -104,15 +100,14 @@ def _run_tests_command() -> int:
     workspace = sys.argv[4]
 
     # Validate inputs
-    gha = GitHubActionsOutput()
     if not PathValidator.validate_build_dir(build_dir, workspace):
-        gha.print_error("Invalid build_dir")
+        GitHubActionsOutput.print_error("Invalid build_dir")
         return 1
 
     try:
         config = get_test_config(test_type)
     except ValueError as e:
-        gha.print_error(str(e))
+        GitHubActionsOutput.print_error(str(e))
         return 1
 
     # Convert to paths and create context
@@ -141,7 +136,7 @@ def _run_tests_command() -> int:
     try:
         context.validate()
     except ValueError as e:
-        gha.print_error(str(e))
+        GitHubActionsOutput.print_error(str(e))
         return 1
 
     # Run tests

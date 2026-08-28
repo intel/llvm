@@ -1,14 +1,15 @@
 """UR Test Tools - Modular test orchestration and summary generation."""
 
-__version__ = "1.0.0"
-__author__ = "Unified Runtime Team"
-
 from .models import (
-    TestLists,
-    TestCounts,
-    TimingSummary,
+    # Configuration
     TestConfig,
     SummaryConfigFromLines,
+    # Normalized result model
+    TestStatus,
+    TestResult,
+    TestRunResult,
+    # Legacy (to be removed)
+    TimingSummary,
 )
 from .test_runner import TestRunner
 from .summary_generator import SummaryReporter
@@ -23,11 +24,12 @@ from .outputs import (
 __all__ = [
     "__version__",
     "__author__",
-    "TestLists",
-    "TestCounts",
-    "TimingSummary",
     "TestConfig",
     "SummaryConfigFromLines",
+    "TestStatus",
+    "TestResult",
+    "TestRunResult",
+    "TimingSummary",  # Legacy
     "TestRunner",
     "SummaryReporter",
     "PathValidator",

@@ -664,6 +664,16 @@ public:
 
   bool isNativeRecording() const;
 
+  struct NativeRecordingResult {
+    ur_exp_graph_handle_t CapturedGraph = nullptr;
+    bool RecordingActive = false;
+    ur_result_t Result = UR_RESULT_SUCCESS;
+  };
+
+  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph);
+
+  NativeRecordingResult endNativeRecording();
+
   ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>

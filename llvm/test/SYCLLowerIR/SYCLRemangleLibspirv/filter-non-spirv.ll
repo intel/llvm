@@ -23,7 +23,7 @@ define void @_Z10user_func1Dv4_l(<4 x i64>) { unreachable }
 ; CHECK-DAG: define void @_Z10user_func1Dv4_l(
 
 ; LLVM intrinsic.
-declare i64 @llvm.abs.i64(i64)
+declare i64 @llvm.abs.i64(i64, i1)
 ; CHECK-DAG: declare i64 @llvm.abs.i64(
 
 ; Non-mangled function.

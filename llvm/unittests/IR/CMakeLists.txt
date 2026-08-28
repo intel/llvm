@@ -22,6 +22,7 @@ add_llvm_unittest(IRTests
   ConstantRangeListTest.cpp
   ConstantsTest.cpp
   DataLayoutTest.cpp
+  DiagnosticInfoTest.cpp
   DebugInfoTest.cpp
   DebugTypeODRUniquingTest.cpp
   DemandedBitsTest.cpp

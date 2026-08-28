@@ -128,6 +128,7 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXLowerAggrCopiesPass(PR);
   initializeNVPTXProxyRegErasurePass(PR);
   initializeNVPTXForwardParamsPassPass(PR);
+  initializeNVPTXAddressFolderPassPass(PR);
   initializeNVPTXDAGToDAGISelLegacyPass(PR);
   initializeNVPTXAAWrapperPassPass(PR);
   initializeNVPTXExternalAAWrapperPass(PR);
@@ -441,6 +442,8 @@ bool NVPTXPassConfig::addInstSelector() {
 
 void NVPTXPassConfig::addPreRegAlloc() {
   addPass(createNVPTXForwardParamsPass());
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createNVPTXAddressFolderPass());
   // Remove Proxy Register pseudo instructions used to keep `callseq_end` alive.
   addPass(createNVPTXProxyRegErasurePass());
 }

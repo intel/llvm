@@ -464,6 +464,8 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     EnqueueKernel();
   } else {
     ResultEvent->setWorkerQueue(weak_from_this());
+    ResultEvent->setPotentiallyNativeRecorded(
+        getContextImpl().isNativeRecordingActive());
     ResultEvent->setStateIncomplete();
     ResultEvent->setSubmissionTime();
 
@@ -514,6 +516,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
       ResEvent->setQueue(*this);
     }
     ResEvent->setWorkerQueue(weak_from_this());
+    ResEvent->setPotentiallyNativeRecorded(
+        getContextImpl().isNativeRecordingActive());
     ResEvent->setSubmissionTime();
     ResEvent->setEnqueued();
     ResEvent->setStateIncomplete();
@@ -658,6 +662,34 @@ bool queue_impl::isNativeRecording() const {
       getAdapter().call_nocheck<UrApiKind::urQueueIsGraphCaptureEnabledExp>(
           MQueue, &IsGraphCaptureEnabled);
   return Result == UR_RESULT_SUCCESS && IsGraphCaptureEnabled;
+}
+
+queue_impl::NativeRecordingResult
+queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph) {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  NativeRecordingResult BeginResult;
+  BeginResult.Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueBeginCaptureIntoGraphExp>(
+          MQueue, Graph);
+  BeginResult.RecordingActive = BeginResult.Result == UR_RESULT_SUCCESS;
+  if (BeginResult.RecordingActive) {
+    getContextImpl().nativeRecordingBegan();
+  }
+  return BeginResult;
+}
+
+queue_impl::NativeRecordingResult queue_impl::endNativeRecording() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  NativeRecordingResult EndResult;
+  EndResult.Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueEndGraphCaptureExp>(
+          MQueue, &EndResult.CapturedGraph);
+  EndResult.RecordingActive =
+      EndResult.Result != UR_RESULT_SUCCESS && isNativeRecording();
+  if (!EndResult.RecordingActive) {
+    getContextImpl().nativeRecordingEnded();
+  }
+  return EndResult;
 }
 
 ext::oneapi::experimental::queue_state

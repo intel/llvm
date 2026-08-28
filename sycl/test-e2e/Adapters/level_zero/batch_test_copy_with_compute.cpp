@@ -5,7 +5,7 @@
 // UNSUPPORTED-INTENDED: V1-only; V2 does not preserve zeCommandListClose/
 // zeCommandQueueExecuteCommandLists flush points.
 
-// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
 // RUN: %{build} -o %t.out

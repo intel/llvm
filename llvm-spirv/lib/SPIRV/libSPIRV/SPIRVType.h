@@ -439,10 +439,17 @@ public:
     if (CompCount == 8 || CompCount == 16)
       V.push_back(CapabilityVector16);
 
-    if (Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
-      if (CompCount == 1 || (CompCount > 4 && CompCount < 8) ||
-          (CompCount > 8 && CompCount < 16) || CompCount > 16)
+    if (CompCount == 1 || (CompCount > 4 && CompCount < 8) ||
+        (CompCount > 8 && CompCount < 16) || CompCount > 16) {
+      // A VectorCompute module keeps using CapabilityVectorAnyINTEL;
+      // otherwise use multi-vendor LongVectorEXT
+      if (!Module->isVectorCompute() &&
+          Module->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector))
+        V.push_back(CapabilityLongVectorEXT);
+      else if (Module->isAllowedToUseExtension(
+                   ExtensionID::SPV_INTEL_vector_compute))
         V.push_back(CapabilityVectorAnyINTEL);
+    }
     return V;
   }
 
@@ -456,7 +463,8 @@ protected:
     SPIRVEntry::validate();
     CompType->validate();
 #ifndef NDEBUG
-    if (!(Module->isAllowedToUseExtension(
+    if (!Module->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector) &&
+        !(Module->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_vector_compute))) {
       assert(CompCount == 2 || CompCount == 3 || CompCount == 4 ||
              CompCount == 8 || CompCount == 16);
@@ -655,6 +663,7 @@ public:
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     return std::vector<SPIRVEntry *>(1, get<SPIRVType>(SampledType));
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC9(Id, SampledType, Desc.Dim, Desc.Depth, Desc.Arrayed,
@@ -800,6 +809,8 @@ public:
     MemberTypeIdVec.resize(WordCount - FixedWC);
   }
 
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
+
   // TODO: Should we attach operands of continued instructions as well?
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     std::vector<SPIRVEntry *> Operands(MemberTypeIdVec.size());
@@ -872,6 +883,7 @@ public:
       Operands.push_back(getEntry(I));
     return Operands;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeIdVec)

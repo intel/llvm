@@ -53,27 +53,24 @@ namespace SPIRV {
 // Emit absolute path only in debug mode.
 #ifdef NDEBUG
 #define SPIRVCK(Condition, ErrCode, ErrMsg)                                    \
-  getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                       \
-                           std::string() + (ErrMsg), #Condition)
+  getErrorLog().checkError(Condition, SPIRVEC_##ErrCode, (ErrMsg), #Condition)
 #else
 #define SPIRVCK(Condition, ErrCode, ErrMsg)                                    \
-  getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                       \
-                           std::string() + (ErrMsg), #Condition, __FILE__,     \
-                           __LINE__)
+  getErrorLog().checkError(Condition, SPIRVEC_##ErrCode, (ErrMsg), #Condition, \
+                           __FILE__, __LINE__)
 #endif // NDEBUG
 
 // Check condition and set error code and error msg. If fail returns false.
 // Emit absolute path only in debug mode.
 #ifdef NDEBUG
 #define SPIRVCKRT(Condition, ErrCode, ErrMsg)                                  \
-  if (!getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                  \
-                                std::string() + (ErrMsg), #Condition))         \
+  if (!getErrorLog().checkError(Condition, SPIRVEC_##ErrCode, (ErrMsg),        \
+                                #Condition))                                   \
     return false;
 #else
 #define SPIRVCKRT(Condition, ErrCode, ErrMsg)                                  \
-  if (!getErrorLog().checkError(Condition, SPIRVEC_##ErrCode,                  \
-                                std::string() + (ErrMsg), #Condition,          \
-                                __FILE__, __LINE__))                           \
+  if (!getErrorLog().checkError(Condition, SPIRVEC_##ErrCode, (ErrMsg),        \
+                                #Condition, __FILE__, __LINE__))               \
     return false;
 #endif // NDEBUG
 
@@ -110,6 +107,11 @@ public:
                   const std::string &DetailedMsg = "",
                   const char *CondString = nullptr,
                   const char *FileName = nullptr, unsigned LineNumber = 0);
+  // const char* overload which avoids constructing any std::string for the
+  // message on success path. Only builds the string on failure.
+  bool checkError(bool Condition, SPIRVErrorCode ErrCode,
+                  const char *DetailedMsg, const char *CondString = nullptr,
+                  const char *FileName = nullptr, unsigned LineNumber = 0);
   // Check if Condition is satisfied and set ErrCode and DetailedMsg with Value
   // text representation if not. Returns true if no error.
   bool checkError(bool Condition, SPIRVErrorCode ErrCode, llvm::Value *Value,
@@ -121,6 +123,15 @@ protected:
   SPIRVErrorCode ErrorCode;
   std::string ErrorMsg;
 };
+
+inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
+                                      const char *Msg, const char *CondString,
+                                      const char *FileName, unsigned LineNo) {
+  if (Cond)
+    return Cond;
+  return checkError(Cond, ErrCode, std::string(Msg ? Msg : ""), CondString,
+                    FileName, LineNo);
+}
 
 inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
                                       llvm::Value *Value,
@@ -143,12 +154,12 @@ inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
                                       const std::string &Msg,
                                       const char *CondString,
                                       const char *FileName, unsigned LineNo) {
-  std::stringstream SS;
   if (Cond)
     return Cond;
   // Do not overwrite previous failure.
   if (ErrorCode != SPIRVEC_Success)
     return Cond;
+  std::stringstream SS;
   SS << SPIRVErrorMap::map(ErrCode) << " " << Msg;
   if (SPIRVDbgErrorMsgIncludesSourceInfo && FileName)
     SS << " [Src: " << FileName << ":" << LineNo << " " << CondString << " ]";

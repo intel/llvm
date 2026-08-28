@@ -8,7 +8,7 @@
 ; RUN: not llvm-spirv -r %t.spv -o %t.bc 2>&1 | FileCheck %s
 
 ; CHECK: InvalidInstruction
-; CHECK: SaturatedToLargestFloat8NormalConversionEXT decoration is only valid on OpFConvert/OpConvertSToF/OpConvertUToF whose Result Type uses Float8E4M3EXT or Float8E5M2EXT encoding.
+; CHECK: SaturatedToLargestFloat8NormalConversionEXT decoration is only valid on OpFConvert/OpConvertSToF/OpConvertUToF/OpStochasticRoundFToFINTEL whose Result Type uses Float8E4M3EXT or Float8E5M2EXT encoding.
 
                OpCapability Addresses
                OpCapability Linkage

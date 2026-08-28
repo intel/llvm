@@ -19,9 +19,9 @@ class TestConfig:
             raise ValueError("target and log_file are required")
 
 
-@dataclass(frozen=True)
+@dataclass
 class TestExecutionContext:
-    """Context for test execution (immutable)."""
+    """Context for test execution."""
 
     test_type: str
     build_dir: Path

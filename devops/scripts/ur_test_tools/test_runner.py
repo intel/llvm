@@ -9,9 +9,12 @@ from typing import List, Optional
 from .constants import (
     DEFAULT_LIT_TIMEOUT,
     DEFAULT_LIT_JOBS,
+    LIT_COMMON_REPORTING_OPTIONS,
+    LIT_CI_OPTIONS,
     TEST_TYPE_ADAPTER_SPECIFIC,
+    TEST_TYPE_CONFORMANCE,
+    LIT_FILTER_OUT_ADAPTER_SPECIFIC,
     MAX_LINES_TO_SCAN,
-    MAX_JOBS,
 )
 from .models.config import TestConfig, TestExecutionContext
 from .outputs.github_actions import GitHubActionsOutput
@@ -20,16 +23,13 @@ from .parsers.log_parser import _read_with_utf8_fallback
 
 def get_test_config(test_type: str) -> TestConfig:
     """Get test configuration for test type."""
-    if test_type == "adapter-specific":
+    if test_type == TEST_TYPE_ADAPTER_SPECIFIC:
         return TestConfig(
             target="check-unified-runtime-adapter",
             log_file="adapter_tests.log",
-            lit_filter_out=(
-                "(adapters/level_zero/memcheck.test|"
-                "adapters/level_zero/v2/deferred_kernel_memcheck.test)"
-            ),
+            lit_filter_out=LIT_FILTER_OUT_ADAPTER_SPECIFIC,
         )
-    elif test_type == "conformance":
+    elif test_type == TEST_TYPE_CONFORMANCE:
         return TestConfig(
             target="check-unified-runtime-conformance",
             log_file="conformance_tests.log",
@@ -39,10 +39,10 @@ def get_test_config(test_type: str) -> TestConfig:
 
 
 def calculate_jobs() -> int:
-    """Calculate parallel jobs (nproc/3 capped at MAX_JOBS)."""
+    """Calculate parallel jobs (nproc/3, min 1)."""
     try:
         nproc = os.cpu_count() or 4
-        return min(nproc // 3, MAX_JOBS)
+        return max(1, nproc // 3)
     except (OSError, AttributeError):
         return 4
 
@@ -70,7 +70,6 @@ class TestRunner:
 
     def __init__(self, context: TestExecutionContext):
         self.context = context
-        self.github_output = GitHubActionsOutput()
         self.jobs = calculate_jobs()
 
     def run(self) -> int:
@@ -84,22 +83,25 @@ class TestRunner:
         if not self._validate_output():
             return 1
 
-        self._publish_outputs(result)
+        self._publish_outputs()
         return result.returncode
 
     def _setup_environment(self) -> None:
-        lit_opts = (
-            f"--show-unsupported --show-pass --show-xfail --no-progress-bar "
-            f"-v --timeout {DEFAULT_LIT_TIMEOUT} -j {DEFAULT_LIT_JOBS} "
-            f"--time-tests --show-flakypass --show-skipped "
-            f"--xunit-xml-output {self.context.xml_output_path}"
-        )
-        self.context.env["LIT_OPTS"] = lit_opts
+        # Build LIT options: common reporting + CI-specific + dynamic config
+        lit_opts_parts = [
+            *LIT_COMMON_REPORTING_OPTIONS,
+            *LIT_CI_OPTIONS,
+            "--timeout",
+            str(DEFAULT_LIT_TIMEOUT),
+            "-j",
+            str(DEFAULT_LIT_JOBS),
+            "--xunit-xml-output",
+            str(self.context.xml_output_path),
+        ]
+        self.context.env["LIT_OPTS"] = " ".join(lit_opts_parts)
 
         if self.context.config.lit_filter_out:
             self.context.env["LIT_FILTER_OUT"] = self.context.config.lit_filter_out
-
-        self.context.env["ZE_ENABLE_LOADER_DEBUG_TRACE"] = "1"
 
     def _build_cmake_command(self) -> List[str]:
         return [
@@ -128,33 +130,37 @@ class TestRunner:
                     env=self.context.env,
                     cwd=self.context.workspace,
                 )
-        except (OSError, PermissionError) as e:
-            self.github_output.print_error(f"Test execution failed: {e}")
+        except OSError as e:
+            GitHubActionsOutput.print_error(f"Test execution failed: {e}")
             return None
 
     def _validate_output(self) -> bool:
         log_path = self.context.log_file_path
 
         if not log_path.exists() or log_path.stat().st_size == 0:
-            self.github_output.print_error("No log generated")
+            GitHubActionsOutput.print_error("No log generated")
             return False
 
         return True
 
-    def _publish_outputs(self, result: subprocess.CompletedProcess) -> None:
-        self.github_output.set_output("log-file", str(self.context.log_file_path))
+    def _publish_outputs(self) -> None:
+        GitHubActionsOutput.set_output("log-file", str(self.context.log_file_path))
 
         if (
             self.context.test_type == TEST_TYPE_ADAPTER_SPECIFIC
             and not check_log_has_tests(str(self.context.log_file_path))
         ):
             print("No adapter-specific tests found", file=sys.stderr)
-            self.github_output.set_output("skip-artifacts", "1")
+            GitHubActionsOutput.set_output("skip-artifacts", "1")
             return
 
+        GitHubActionsOutput.set_output("skip-artifacts", "0")
+
         if self.context.xml_output_path.exists():
-            self.github_output.set_output("xml-file", str(self.context.xml_output_path))
+            GitHubActionsOutput.set_output(
+                "xml-file", str(self.context.xml_output_path)
+            )
         else:
-            self.github_output.print_warning(
+            GitHubActionsOutput.print_warning(
                 f"Expected XML file not found at {self.context.xml_output_path}"
             )
