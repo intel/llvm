@@ -10,6 +10,28 @@ MAX_LINES_TO_SCAN = 1000
 SEPARATOR_WIDTH = 70
 
 # LIT Configuration
+# Following LLVM's model: define common defaults + allow invocation-specific overrides.
+#
+# LIT_COMMON_REPORTING_OPTIONS describes WHAT test information to show (semantics).
+# These align with standalone builds (unified-runtime/test/CMakeLists.txt).
+#
+# LIT_CI_OPTIONS describes HOW to format output for CI tooling (execution policy).
+# Standalone uses --succinct instead for developer-friendly interactive feedback.
+LIT_COMMON_REPORTING_OPTIONS = [
+    "--show-unsupported",
+    "--show-pass",
+    "--show-xfail",
+    "--time-tests",
+    "--show-flakypass",
+    "--show-skipped",
+]
+
+# CI-specific options: verbose output for log parsing and reporting tools
+LIT_CI_OPTIONS = [
+    "-v",
+    "--no-progress-bar",
+]
+
 DEFAULT_LIT_TIMEOUT = 120
 DEFAULT_LIT_JOBS = 50
 

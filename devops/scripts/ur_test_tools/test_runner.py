@@ -9,6 +9,8 @@ from typing import List, Optional
 from .constants import (
     DEFAULT_LIT_TIMEOUT,
     DEFAULT_LIT_JOBS,
+    LIT_COMMON_REPORTING_OPTIONS,
+    LIT_CI_OPTIONS,
     TEST_TYPE_ADAPTER_SPECIFIC,
     TEST_TYPE_CONFORMANCE,
     LIT_FILTER_OUT_ADAPTER_SPECIFIC,
@@ -85,13 +87,15 @@ class TestRunner:
         return result.returncode
 
     def _setup_environment(self) -> None:
-        lit_opts = (
-            f"--show-unsupported --show-pass --show-xfail --no-progress-bar "
-            f"-v --timeout {DEFAULT_LIT_TIMEOUT} -j {DEFAULT_LIT_JOBS} "
-            f"--time-tests --show-flakypass --show-skipped "
-            f"--xunit-xml-output {self.context.xml_output_path}"
-        )
-        self.context.env["LIT_OPTS"] = lit_opts
+        # Build LIT options: common reporting + CI-specific + dynamic config
+        lit_opts_parts = [
+            *LIT_COMMON_REPORTING_OPTIONS,
+            *LIT_CI_OPTIONS,
+            "--timeout", str(DEFAULT_LIT_TIMEOUT),
+            "-j", str(DEFAULT_LIT_JOBS),
+            "--xunit-xml-output", str(self.context.xml_output_path),
+        ]
+        self.context.env["LIT_OPTS"] = " ".join(lit_opts_parts)
 
         if self.context.config.lit_filter_out:
             self.context.env["LIT_FILTER_OUT"] = self.context.config.lit_filter_out
@@ -150,7 +154,9 @@ class TestRunner:
         GitHubActionsOutput.set_output("skip-artifacts", "0")
 
         if self.context.xml_output_path.exists():
-            GitHubActionsOutput.set_output("xml-file", str(self.context.xml_output_path))
+            GitHubActionsOutput.set_output(
+                "xml-file", str(self.context.xml_output_path)
+            )
         else:
             GitHubActionsOutput.print_warning(
                 f"Expected XML file not found at {self.context.xml_output_path}"
