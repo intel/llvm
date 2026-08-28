@@ -46,10 +46,15 @@ runs:
     if: ${{ always() && steps.run_tests.outputs['skip-artifacts'] != '1' }}
     shell: bash
     env:
-      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
     run: |
+      if [ -z "$LOG_FILE" ]; then
+        echo "::warning::Test log path not provided by runner; skipping log filtering."
+        exit 0
+      fi
+
       if [ ! -f "$LOG_FILE" ]; then
-        echo "::warning::Test log not found"
+        echo "::warning::Test log '$LOG_FILE' does not exist; skipping log filtering."
         exit 0
       fi
 
@@ -61,8 +66,13 @@ runs:
     if: steps.run_tests.outcome != 'success'
     shell: bash
     env:
-      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
     run: |
+      if [ -z "$LOG_FILE" ] || [ ! -f "$LOG_FILE" ]; then
+        echo "::warning::Test execution failed, but no test log is available."
+        exit 1
+      fi
+
       devops/scripts/ur-test extract-errors "$LOG_FILE"
       exit 1
 
@@ -70,18 +80,23 @@ runs:
     if: ${{ always() && steps.run_tests.outputs['skip-artifacts'] != '1' }}
     shell: bash
     env:
-      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
-      XML_FILE: ${{ steps.run_tests.outputs['xml-file'] || 'adapter_tests_results.xml' }}
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
+      XML_FILE: ${{ steps.run_tests.outputs['xml-file'] }}
       ARTIFACT_NAME: ${{ inputs.artifact_name }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     run: |
+      if [ -z "$LOG_FILE" ]; then
+        echo "::warning::Test log path not provided by runner; skipping summary."
+        exit 0
+      fi
+
       if [ ! -f "$LOG_FILE" ]; then
-        echo "::warning::Test log not found"
+        echo "::warning::Test log '$LOG_FILE' does not exist; skipping summary."
         exit 0
       fi
 
       if [ ! -s "$LOG_FILE" ]; then
-        echo "::warning::Test log is empty"
+        echo "::warning::Test log is empty; skipping summary."
         exit 0
       fi
 
@@ -100,8 +115,8 @@ runs:
     if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
     shell: bash
     env:
-      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] || 'adapter_tests.log' }}
-      XML_FILE: ${{ steps.run_tests.outputs['xml-file'] || 'adapter_tests_results.xml' }}
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
+      XML_FILE: ${{ steps.run_tests.outputs['xml-file'] }}
     run: |
       set -f  # Disable glob expansion
 
