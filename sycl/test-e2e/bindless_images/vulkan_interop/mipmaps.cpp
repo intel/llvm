@@ -386,7 +386,7 @@ bool run_tests(VulkanContext &vkCtx) {
                     sycl::image_channel_order::rg, class float_2d_large>(
       vkCtx, {8, 8}, {4, 2}, 2, 0);
 
-  valid &= run_test<3, char, 2, sycl::image_channel_type::signed_int8,
+  valid &= run_test<3, int8_t, 2, sycl::image_channel_type::signed_int8,
                     sycl::image_channel_order::rg, class float_3d>(
       vkCtx, {8, 8, 8}, {2, 2, 2}, 2, 0);
 
