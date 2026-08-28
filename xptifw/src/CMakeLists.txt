@@ -87,6 +87,7 @@ function(add_xpti_library LIB_NAME)
   # Set library version so the generated library is versioned.
   set_target_properties(${LIB_NAME} PROPERTIES
     VERSION ${XPTIFW_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
   )
 
   # Set the location of the library installation
