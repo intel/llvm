@@ -204,12 +204,20 @@ class ComputeBench(Suite):
             [5, 100],  # num_kernels
         )
         for runtime, with_graphs, num_kernels in sin_kernel_graph_params:
+            device_arch = getattr(options, "device_architecture", "").lower()
             if (
                 (options.ur_adapter != "level_zero_v2")
                 and runtime in SYCL_RUNTIMES
                 and (with_graphs == 1)
             ):
                 # old adapter doesn't support graph mode for SYCL
+                continue
+            if (
+                "pvc" in device_arch
+                and runtime == RUNTIMES.SYCL
+                and with_graphs == 1
+            ):
+                # PVC does not support graph record/replay for this benchmark.
                 continue
             benches.append(
                 GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
