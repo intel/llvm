@@ -185,16 +185,23 @@ struct urEnqueueUSMOperationsOrderingIOQTestBase
     };
 
     const auto res1 = alloc_one(&values1_raw);
-    const auto res2 = alloc_one(&values2_raw);
-    const auto res3 = alloc_one(&values3_raw);
-
     std::unique_ptr<void, decltype(usm_deleter)> values1(values1_raw,
                                                          usm_deleter);
+
+    const auto res2 = alloc_one(&values2_raw);
     std::unique_ptr<void, decltype(usm_deleter)> values2(values2_raw,
                                                          usm_deleter);
+
+    const auto res3 = alloc_one(&values3_raw);
     std::unique_ptr<void, decltype(usm_deleter)> values3(values3_raw,
                                                          usm_deleter);
 
+    EXPECT_SUCCESS(res1);
+    EXPECT_SUCCESS(res2);
+    EXPECT_SUCCESS(res3);
+    EXPECT_NE(values1, nullptr);
+    EXPECT_NE(values2, nullptr);
+    EXPECT_NE(values3, nullptr);
     if (res1 != UR_RESULT_SUCCESS || res2 != UR_RESULT_SUCCESS ||
         res3 != UR_RESULT_SUCCESS || !values1 || !values2 || !values3) {
       return false;
