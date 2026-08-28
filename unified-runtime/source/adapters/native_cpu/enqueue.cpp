@@ -162,6 +162,7 @@ static ur_result_t urEnqueueKernelLaunch(
 
   if (pGlobalWorkSize[0] == 0 || (workDim > 1 && pGlobalWorkSize[1] == 0) ||
       (workDim > 2 && pGlobalWorkSize[2] == 0)) {
+    hKernel->_localArgInfo.clear();
     return withTimingEvent(UR_COMMAND_KERNEL_LAUNCH, hQueue,
                            numEventsInWaitList, phEventWaitList, phEvent,
                            []() { return UR_RESULT_SUCCESS; });
