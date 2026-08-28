@@ -309,8 +309,7 @@ checkForCallsToUndefinedFunctions(const Module &M,
   for (const Function &F : M) {
     if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
       WithColor::warning()
-          << "Undefined function " << F.getName() << " found in "
-          << M.getName()
+          << "Undefined function " << F.getName() << " found in " << M.getName()
           << ". This may result in runtime errors. Use "
              "-Wno-sycl-undefined-func-in-image to suppress this warning.\n";
   }
@@ -1249,12 +1248,11 @@ Error splitSYCLModule(
     function_ref<Error(std::unique_ptr<ModuleDesc>)> PostSplitCallback) {
   auto MD = std::make_unique<ModuleDesc>(std::move(M));
   // FIXME: false arguments are temporary for now.
-  auto Splitter = getDeviceCodeSplitter(
-      std::move(MD), Settings.Mode,
-      /*IROutputOnly=*/false,
-      /*EmitOnlyKernelsAsEntryPoints=*/false,
-      Settings.AllowDeviceImageDependencies,
-      Settings.SuppressUndefinedFuncWarnings);
+  auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
+                                        /*IROutputOnly=*/false,
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false,
+                                        Settings.AllowDeviceImageDependencies,
+                                        Settings.SuppressUndefinedFuncWarnings);
 
   size_t ID = 0;
   while (Splitter->hasMoreSplits()) {
