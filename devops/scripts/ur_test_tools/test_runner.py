@@ -81,7 +81,7 @@ class TestRunner:
         if not self._validate_output():
             return 1
 
-        self._publish_outputs(result)
+        self._publish_outputs()
         return result.returncode
 
     def _setup_environment(self) -> None:
@@ -123,7 +123,7 @@ class TestRunner:
                     env=self.context.env,
                     cwd=self.context.workspace,
                 )
-        except (OSError, PermissionError) as e:
+        except OSError as e:
             GitHubActionsOutput.print_error(f"Test execution failed: {e}")
             return None
 
@@ -136,7 +136,7 @@ class TestRunner:
 
         return True
 
-    def _publish_outputs(self, result: subprocess.CompletedProcess) -> None:
+    def _publish_outputs(self) -> None:
         GitHubActionsOutput.set_output("log-file", str(self.context.log_file_path))
 
         if (
@@ -146,6 +146,8 @@ class TestRunner:
             print("No adapter-specific tests found", file=sys.stderr)
             GitHubActionsOutput.set_output("skip-artifacts", "1")
             return
+
+        GitHubActionsOutput.set_output("skip-artifacts", "0")
 
         if self.context.xml_output_path.exists():
             GitHubActionsOutput.set_output("xml-file", str(self.context.xml_output_path))
