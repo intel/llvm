@@ -240,6 +240,19 @@ target_link_libraries(sycl-jit
   ${CMAKE_THREAD_LIBS_INIT}
 )
 
+# In LLVM_LINK_LLVM_DYLIB builds sycl-jit links libLLVM.so rather than the LLVM
+# component libraries, so it does not inherit their INTERFACE properties:
+#  - LLVMSPIRVLib is not part of libLLVM.so, so the SPIRVLib component listed
+#    above resolves to the dylib (which lacks its symbols); link it explicitly.
+#  - rtc/ESIMD.cpp includes a vc-intrinsics header (GenXSPIRVWriterAdaptor.h),
+#    so add the LLVMGenXIntrinsics INTERFACE include directories explicitly.
+# Both mirror the handling in llvm-spirv / sycl-post-link.
+if (LLVM_LINK_LLVM_DYLIB)
+  target_link_libraries(sycl-jit PRIVATE LLVMSPIRVLib)
+  target_include_directories(sycl-jit PRIVATE
+    $<TARGET_PROPERTY:LLVMGenXIntrinsics,INTERFACE_INCLUDE_DIRECTORIES>)
+endif()
+
 add_dependencies(sycl-jit sycl-headers)
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
