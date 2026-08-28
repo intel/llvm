@@ -188,8 +188,15 @@ public:
   /// Returns raw interoperability event handle.
   ur_event_handle_t getHandle() const { return MEvent.load(); }
 
-  /// Set event handle for this event object.
-  void setHandle(const ur_event_handle_t &UREvent) { MEvent.store(UREvent); }
+  /// Set event handle for this event object. Wakes any thread waiting in
+  /// waitInternal that entered before a handle was available.
+  void setHandle(const ur_event_handle_t &UREvent) {
+    MEvent.store(UREvent);
+    if (UREvent != nullptr) {
+      std::lock_guard<std::mutex> lock(MMutex);
+      cv.notify_all();
+    }
+  }
 
   /// Returns context that is associated with this event.
   context_impl &getContextImpl();

@@ -226,15 +226,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() {
-    MEvent->cleanDepEventsThroughOneLevel();
-    // Prevent event_impl from returning a dangling back-pointer to this
-    // Command after destruction. Concurrent readers of Event->getCommand()
-    // are excluded from Command destruction by the graph write lock, but
-    // consumers that already captured the pointer and access it later can
-    // trip over the dangling value.
-    MEvent->setCommand(nullptr);
-  }
+  virtual ~Command() { MEvent->cleanDepEventsThroughOneLevel(); }
 
   const char *getBlockReason() const;
 
