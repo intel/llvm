@@ -12,7 +12,9 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
 
+#include <algorithm>
 #include <cctype>
 #include <regex>
 #include <string>
@@ -87,82 +89,102 @@ filter create_filter(const std::string &Input) {
   return Result;
 }
 
-filter_selector_impl::filter_selector_impl(const std::string &Input)
-    : mFilters(), mNumDevicesSeen(0), mMatchFound(false) {
-  std::vector<std::string> Filters = detail::tokenize(Input, ",");
-  mNumTotalDevices = device::get_devices().size();
+filter_selector_impl::filter_selector_impl(const std::string &Input) {
+  std::vector<filter> Filters;
+  for (const std::string &Filter : detail::tokenize(Input, ","))
+    Filters.push_back(detail::create_filter(Filter));
 
-  for (const std::string &Filter : Filters) {
-    detail::filter F = detail::create_filter(Filter);
-    mFilters.push_back(std::move(F));
+  // Matching the filters requires state to be kept between the devices (to
+  // track the relative device number), so do it once here instead of doing it
+  // in operator().
+  for (const device &Dev : device::get_devices()) {
+    for (filter &Filter : Filters) {
+      bool BackendOK = true;
+      bool DeviceTypeOK = true;
+      bool DeviceNumOK = true;
+
+      if (Filter.Backend) {
+        // Backend is okay if the filter BE is set 'all'.
+        BackendOK = Filter.Backend.value() == backend::all ||
+                    sycl::detail::getSyclObjImpl(Dev)->getBackend() ==
+                        Filter.Backend.value();
+      }
+      if (Filter.DeviceType) {
+        // DeviceType is okay if the filter is set 'all'.
+        DeviceTypeOK =
+            Filter.DeviceType.value() == sycl::info::device_type::all ||
+            Dev.get_info<sycl::info::device::device_type>() ==
+                Filter.DeviceType.value();
+      }
+      if (Filter.DeviceNum) {
+        // Only check device number if we're good on the previous matches
+        if (BackendOK && DeviceTypeOK) {
+          // Do we match?
+          DeviceNumOK = (Filter.MatchesSeen == Filter.DeviceNum.value());
+          // Safe to increment matches even if we find it
+          Filter.MatchesSeen++;
+        }
+      }
+      if (BackendOK && DeviceTypeOK && DeviceNumOK) {
+        mMatchingDevices.push_back(Dev);
+        break;
+      }
+    }
   }
 }
 
 int filter_selector_impl::operator()(const device &Dev) const {
-  int Score = REJECT_DEVICE_SCORE;
-
-  for (auto &Filter : mFilters) {
-    bool BackendOK = true;
-    bool DeviceTypeOK = true;
-    bool DeviceNumOK = true;
-
-    if (Filter.Backend) {
-      backend BE = sycl::detail::getSyclObjImpl(Dev)->getBackend();
-      // Backend is okay if the filter BE is set 'all'.
-      if (Filter.Backend.value() == backend::all)
-        BackendOK = true;
-      else
-        BackendOK = (BE == Filter.Backend.value());
-    }
-    if (Filter.DeviceType) {
-      sycl::info::device_type DT =
-          Dev.get_info<sycl::info::device::device_type>();
-      // DeviceType is okay if the filter is set 'all'.
-      if (Filter.DeviceType == sycl::info::device_type::all)
-        DeviceTypeOK = true;
-      else
-        DeviceTypeOK = (DT == Filter.DeviceType);
-    }
-    if (Filter.DeviceNum) {
-      // Only check device number if we're good on the previous matches
-      if (BackendOK && DeviceTypeOK) {
-        // Do we match?
-        DeviceNumOK = (Filter.MatchesSeen == Filter.DeviceNum.value());
-        // Safe to increment matches even if we find it
-        Filter.MatchesSeen++;
-      }
-    }
-    if (BackendOK && DeviceTypeOK && DeviceNumOK) {
-      Score = default_selector_v(Dev);
-      mMatchFound = true;
-      break;
-    }
-  }
-
-  mNumDevicesSeen++;
-  if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
+  if (mMatchingDevices.empty())
     throw exception(
         make_error_code(errc::runtime),
         "Could not find a device that matches the specified filter(s)!");
-  }
 
-  return Score;
-}
+  if (std::find(mMatchingDevices.begin(), mMatchingDevices.end(), Dev) ==
+      mMatchingDevices.end())
+    return REJECT_DEVICE_SCORE;
 
-void filter_selector_impl::reset() const {
-  // This is a bit of an abuse of "const" method...
-  // Reset state if you want to reuse this selector.
-  for (auto &Filter : mFilters) {
-    Filter.MatchesSeen = 0;
-  }
-  mMatchFound = false;
-  mNumDevicesSeen = 0;
+  // Let the default selector rank the devices that passed the filters.
+  return default_selector_v(Dev);
 }
 
 } // namespace ext::oneapi::detail
 
+namespace ext::oneapi {
+
+filter_selector::filter_selector(sycl::detail::string_view Input)
+    : impl(std::make_shared<detail::filter_selector_impl>(
+          std::string(std::string_view(Input)))) {}
+
+int filter_selector::operator()(const device &Dev) const {
+  return impl->operator()(Dev);
+}
+
+void filter_selector::reset() const {
+  // The selector keeps no state between the invocations of operator(), so
+  // there is nothing to reset. Kept for backwards compatibility.
+}
+
+device filter_selector::select_device() const {
+  return sycl::detail::select_device(*this);
+}
+
+} // namespace ext::oneapi
+
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
+
+filter_selector::filter_selector(sycl::detail::string_view Input)
+    : ext::oneapi::filter_selector(Input) {}
+
+int filter_selector::operator()(const device &Dev) const {
+  return ext::oneapi::filter_selector::operator()(Dev);
 }
+
+void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
+
+device filter_selector::select_device() const {
+  return ext::oneapi::filter_selector::select_device();
+}
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 } // namespace _V1
 } // namespace sycl

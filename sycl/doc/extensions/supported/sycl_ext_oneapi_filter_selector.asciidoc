@@ -55,6 +55,35 @@ Multiple filters may be specified in the string passed to the selector by using 
 Backend0:DeviceType0:RelativeDeviceNumber0,Backend1:DeviceType1:RelativeDeviceNumber1,...
 --
 
+=== Class Definition
+
+`filter_selector` is a SYCL 2020 callable device selector: it may be passed to any
+API that accepts a device selector, and it may also be invoked directly with a
+device to obtain that device's score.
+
+[source,c++]
+--
+namespace sycl::ext::oneapi {
+
+class filter_selector {
+public:
+  filter_selector(const std::string &filter);
+
+  int operator()(const device &dev) const;
+};
+
+} // namespace sycl::ext::oneapi
+--
+
+The set of devices matching the filter(s) is determined when the `filter_selector`
+is constructed.  `operator()` rejects any device outside of that set by returning
+a negative score, and ranks the remaining ones with `sycl::default_selector_v`.
+Consequently a `filter_selector` may be invoked any number of times, in any order,
+and the same filter string always selects the same device.
+
+Invoking a `filter_selector` whose filter(s) no device matches throws a
+synchronous `exception` with the `errc::runtime` error code.
+
 == Examples
 
 [source,c++]

@@ -8,7 +8,6 @@
 
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/filter_selector_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
@@ -16,12 +15,9 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/filter_selector.hpp>
 // 4.6.1 Device selection class
 
 #include <algorithm>
-#include <cctype>
-#include <regex>
 
 namespace sycl {
 inline namespace _V1 {
@@ -269,54 +265,5 @@ int accelerator_selector::operator()(const device &dev) const {
   return accelerator_selector_v(dev);
 }
 
-namespace ext::oneapi {
-
-filter_selector::filter_selector(sycl::detail::string_view Input)
-    : impl(std::make_shared<detail::filter_selector_impl>(
-          std::string(std::string_view(Input)))) {}
-
-int filter_selector::operator()(const device &Dev) const {
-  return impl->operator()(Dev);
-}
-
-void filter_selector::reset() const { impl->reset(); }
-
-// filter_selectors not "Callable"
-// because of the requirement that the filter_selector "reset()" itself
-// between invocations, the filter_selector operator() is not purely callable
-// and cannot be used interchangeably as a SYCL2020 callable device selector.
-// TODO: replace the FilterSelector subclass with something that
-// doesn't pretend to be a device_selector, and instead is something that
-// just returns a device (rather than a score).
-// Then remove ! std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>
-// from device/platform/queue constructors
-device filter_selector::select_device() const {
-  std::lock_guard<std::mutex> Guard(
-      sycl::detail::GlobalHandler::instance().getFilterMutex());
-
-  device Result = device_selector::select_device();
-
-  reset();
-
-  return Result;
-}
-
-} // namespace ext::oneapi
-
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-using namespace ext::oneapi;
-filter_selector::filter_selector(sycl::detail::string_view Input)
-    : ext::oneapi::filter_selector(Input) {}
-
-int filter_selector::operator()(const device &Dev) const {
-  return ext::oneapi::filter_selector::operator()(Dev);
-}
-
-void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
-
-device filter_selector::select_device() const {
-  return ext::oneapi::filter_selector::select_device();
-}
-} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 } // namespace _V1
 } // namespace sycl
