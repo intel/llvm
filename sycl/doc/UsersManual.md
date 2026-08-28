@@ -495,9 +495,13 @@ and not recommended to use in production environment.
 
     Controls sycl-post-link's "Undefined function <name> found in <image>"
     warning. Enabled by default. Use -Wno- when the symbol is resolved by
-    the GPU driver / JIT (e.g. SPV_INTEL_ray_tracing builtins). Affects
-    Controls "Undefined function <name> found in <image>"
-    warning, produced during linking. Enabled by default. -Wno- is useful to suppress the warning when the undefined symbol is resolved by the GPU driver / JIT.
+    the GPU runtime or JIT (e.g. SPV_INTEL_ray_tracing builtins). Affects
+    the diagnostic only; does not change codegen or SYCL_IMPORTED_SYMBOLS.
+
+    Only -W[no-]sycl-undefined-func-in-image controls this warning. -w,
+    -Wno-everything and -Werror=sycl-undefined-func-in-image do not apply,
+    because the warning is emitted by sycl-post-link rather than by
+    clang's diagnostic engine.
 
 # Example: SYCL device code compilation
 

@@ -694,6 +694,12 @@ getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
   // TODO: fill AllowDeviceImageDependencies, ESIMDOptions.OptLevel and
   // ESIMDOptions.ForceDisableESIMDOpt
 
+  // -Wno-sycl-undefined-func-in-image is driver-forwarded as the native
+  // linker-wrapper flag --sycl-suppress-undefined-func-warnings; honour it
+  // on the in-process library path.
+  Settings.SuppressUndefinedFuncWarnings =
+      Args.hasArg(OPT_sycl_suppress_undefined_func_warnings);
+
   return Settings;
 }
 

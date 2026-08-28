@@ -235,6 +235,15 @@ def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-
   Flags<[WrapperOnlyOption, HelpHidden]>,
   HelpText<"Allow dependencies between device code images">;
 
+// Silences sycl-post-link's per-image "Undefined function ... found in ..."
+// warning when the in-process library path is used. Forwarded by the clang
+// driver from -Wno-sycl-undefined-func-in-image.
+def sycl_suppress_undefined_func_warnings :
+    Flag<["--", "-"], "sycl-suppress-undefined-func-warnings">,
+    Flags<[WrapperOnlyOption, HelpHidden]>,
+    HelpText<"Suppress sycl-post-link's warning about undefined functions in "
+             "a device image.">;
+
 // Options to force the output to be of the SYCLBIN format.
 def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
   Flags<[WrapperOnlyOption]>,

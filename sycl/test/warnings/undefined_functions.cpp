@@ -1,23 +1,18 @@
 // RUN: %clangxx %s -fsycl -fsycl-link 2>&1 | FileCheck %s --check-prefix=CHECK-WARNING
 // RUN: %clangxx %s -fsycl -fsycl-link -fsycl-allow-device-image-dependencies 2>&1 | FileCheck --allow-empty %s --check-prefix=CHECK-WARNING-DYNAMIC
 // RUN: %clangxx %s -fsycl -fsycl-link -Wno-sycl-undefined-func-in-image 2>&1 | FileCheck --allow-empty %s --check-prefix=CHECK-WARNING-SUPPRESSED
-// RUN: %clangxx %s -fsycl -fsycl-link -Wno-sycl-undefined-func-in-image -Wsycl-undefined-func-in-image 2>&1 | FileCheck %s --check-prefix=CHECK-WARNING-REENABLED
-// RUN: %clangxx %s -fsycl -fsycl-link -Wsycl-undefined-func-in-image -Wno-sycl-undefined-func-in-image 2>&1 | FileCheck --allow-empty %s --check-prefix=CHECK-WARNING-LAST-WNO
-// This test is intended to check that we emit a helpful warning message for
-// undefined user functions in a fully linked device image after the
-// sycl-post-link stage of compilation.
-//
-// -Wno-sycl-undefined-func-in-image suppresses the warning by forwarding
-// -suppress-undefined-func-warnings to sycl-post-link. A later
-// -Wsycl-undefined-func-in-image on the same command line re-enables it,
-// and a later -Wno- suppresses it again -- last -W... wins in either
-// direction, matching normal -W option semantics.
+// This test checks that sycl-post-link emits the "Undefined function ..."
+// warning by default, that -fsycl-allow-device-image-dependencies suppresses
+// it (existing behaviour), and that -Wno-sycl-undefined-func-in-image
+// suppresses it (end-to-end coverage that the -W flag is threaded from the
+// driver all the way through sycl-post-link and honoured in the output).
+// Last-W-wins semantics is a pure driver-argument concern and is covered by
+// clang/test/Driver/sycl-suppress-undefined-func-warnings.cpp; no need to
+// re-run a full -fsycl-link compile here.
 
 // CHECK-WARNING: warning: Undefined function _Z11external_f1ii found in
 // CHECK-WARNING-DYNAMIC-NOT: warning: Undefined function _Z11external_f1ii found in
 // CHECK-WARNING-SUPPRESSED-NOT: warning: Undefined function _Z11external_f1ii found in
-// CHECK-WARNING-REENABLED: warning: Undefined function _Z11external_f1ii found in
-// CHECK-WARNING-LAST-WNO-NOT: warning: Undefined function _Z11external_f1ii found in
 
 #include <sycl/sycl.hpp>
 

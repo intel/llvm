@@ -27,6 +27,7 @@ struct ESIMDProcessingOptions {
       llvm::module_split::IRSplitMode::SPLIT_NONE;
   bool EmitOnlyKernelsAsEntryPoints = false;
   bool AllowDeviceImageDependencies = false;
+  bool SuppressUndefinedFuncWarnings = false;
   bool LowerESIMD = false;
   bool SplitESIMD = false;
   unsigned OptLevel = 0;

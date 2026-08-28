@@ -1,58 +1,75 @@
-/// Verify that -W[no-]sycl-undefined-func-in-image is forwarded correctly to
-/// sycl-post-link under both the default clang driver and the clang-cl
-/// driver. The clang-cl coverage exists because the underlying Options.td
-/// defs need Visibility<[ClangOption, CLOption]> for the driver's
-/// getLastArg(OPT_Wsycl_..., OPT_Wno_sycl_...) to see the arg under
-/// --driver-mode=cl.
+/// Verify how -W[no-]sycl-undefined-func-in-image maps to what actually
+/// reaches sycl-post-link. The warning is emitted by sycl-post-link, and
+/// -Wno-... is expected to silence it in every driver mode.
+///
+/// * Legacy offload path (default): the driver forwards the raw flag as
+///   a `-suppress-undefined-func-warnings` occurrence to sycl-post-link.
+/// * New offload path (`--offload-new-driver`): sycl-post-link runs in
+///   process inside clang-linker-wrapper and reads its own arg list, so
+///   the driver instead pushes the linker-wrapper native flag
+///   `--sycl-suppress-undefined-func-warnings`.
+///
+/// Both %clangxx (default driver) and %clang_cl (Windows-style driver)
+/// must forward the flag; %clang is redundant here since -fsycl already
+/// implies C++ processing.
 
-// RUN: %clang -### -fsycl -fsycl-targets=spir64 %s 2>&1 \
-// RUN:   | FileCheck --check-prefix=NO-FLAG %s
+// -----------------------------------------------------------------------
+// Legacy offload path.
+// -----------------------------------------------------------------------
+
 // RUN: %clangxx -### -fsycl -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=NO-FLAG %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=NO-FLAG %s
-
-// Baseline: without -Wno-..., the sycl-post-link invocation must NOT
-// carry -suppress-undefined-func-warnings.
 // NO-FLAG: "{{.*}}sycl-post-link{{(\.exe)?}}"
 // NO-FLAG-NOT: "-suppress-undefined-func-warnings"
 
-// RUN: %clang -### -fsycl -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image %s 2>&1 \
-// RUN:   | FileCheck --check-prefix=WNO %s
 // RUN: %clangxx -### -fsycl -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WNO %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WNO %s
-
-// With -Wno-...: the sycl-post-link invocation must carry the flag.
 // WNO: "{{.*}}sycl-post-link{{(\.exe)?}}"
 // WNO-SAME: "-suppress-undefined-func-warnings"
 
-// RUN: %clang -### -fsycl -fsycl-targets=spir64 -Wsycl-undefined-func-in-image %s 2>&1 \
-// RUN:   | FileCheck --check-prefix=W %s
 // RUN: %clangxx -### -fsycl -fsycl-targets=spir64 -Wsycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=W %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 -Wsycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=W %s
-
-// Explicit -W... (the default, no "no-"): must NOT forward the flag.
 // W: "{{.*}}sycl-post-link{{(\.exe)?}}"
 // W-NOT: "-suppress-undefined-func-warnings"
 
-// RUN: %clang -### -fsycl -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image -Wsycl-undefined-func-in-image %s 2>&1 \
+// -Wno- then -W ==> warning stays enabled (last -W wins).
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image -Wsycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=LAST-W %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image -Wsycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=LAST-W %s
-
-// -Wno-... followed by -W...: last-W wins, must NOT forward the flag.
 // LAST-W: "{{.*}}sycl-post-link{{(\.exe)?}}"
 // LAST-W-NOT: "-suppress-undefined-func-warnings"
 
-// RUN: %clang -### -fsycl -fsycl-targets=spir64 -Wsycl-undefined-func-in-image -Wno-sycl-undefined-func-in-image %s 2>&1 \
+// -W then -Wno- ==> warning suppressed (last -W wins).
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64 -Wsycl-undefined-func-in-image -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=LAST-WNO %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 -Wsycl-undefined-func-in-image -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=LAST-WNO %s
-
-// -W... followed by -Wno-...: last-W wins, MUST forward the flag.
 // LAST-WNO: "{{.*}}sycl-post-link{{(\.exe)?}}"
 // LAST-WNO-SAME: "-suppress-undefined-func-warnings"
+
+// -----------------------------------------------------------------------
+// New offload path: sycl-post-link runs in process, so the driver must
+// push the linker-wrapper native flag in addition to (or in place of)
+// the sycl-post-link-options= forwarding.
+// -----------------------------------------------------------------------
+
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64 %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=NO-FLAG-NEW %s
+// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=NO-FLAG-NEW %s
+// NO-FLAG-NEW: clang-linker-wrapper
+// NO-FLAG-NEW-NOT: "--sycl-suppress-undefined-func-warnings"
+
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=WNO-NEW %s
+// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=WNO-NEW %s
+// WNO-NEW: clang-linker-wrapper
+// WNO-NEW-SAME: "--sycl-suppress-undefined-func-warnings"

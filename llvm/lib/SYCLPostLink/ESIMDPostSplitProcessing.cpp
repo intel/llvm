@@ -133,7 +133,8 @@ llvm::sycl_post_link::handleESIMD(
     bool &SplitOccurred) {
   SmallVector<std::unique_ptr<ModuleDesc>, 2> Result =
       splitByESIMD(std::move(MDesc), Options.EmitOnlyKernelsAsEntryPoints,
-                   Options.AllowDeviceImageDependencies);
+                   Options.AllowDeviceImageDependencies,
+                   Options.SuppressUndefinedFuncWarnings);
 
   assert(Result.size() <= 2 &&
          "Split modules aren't expected to be more than 2.");

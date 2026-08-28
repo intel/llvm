@@ -257,6 +257,7 @@ protected:
   std::unique_ptr<ModuleDesc> Input;
   EntryPointGroupVec Groups;
   bool AllowDeviceImageDependencies;
+  bool SuppressUndefinedFuncWarnings;
 
 protected:
   EntryPointGroup nextGroup() {
@@ -275,9 +276,11 @@ protected:
 public:
   ModuleSplitterBase(std::unique_ptr<ModuleDesc> MD,
                      EntryPointGroupVec &&GroupVec,
-                     bool AllowDeviceImageDependencies)
+                     bool AllowDeviceImageDependencies,
+                     bool SuppressUndefinedFuncWarnings = false)
       : Input(std::move(MD)), Groups(std::move(GroupVec)),
-        AllowDeviceImageDependencies(AllowDeviceImageDependencies) {
+        AllowDeviceImageDependencies(AllowDeviceImageDependencies),
+        SuppressUndefinedFuncWarnings(SuppressUndefinedFuncWarnings) {
     assert(!Groups.empty() && "Entry points groups collection is empty!");
   }
 
@@ -303,12 +306,14 @@ public:
 
 SmallVector<std::unique_ptr<ModuleDesc>, 2>
 splitByESIMD(std::unique_ptr<ModuleDesc> MD, bool EmitOnlyKernelsAsEntryPoints,
-             bool AllowDeviceImageDependencies);
+             bool AllowDeviceImageDependencies,
+             bool SuppressUndefinedFuncWarnings = false);
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(std::unique_ptr<ModuleDesc> MD, IRSplitMode Mode,
                       bool IROutputOnly, bool EmitOnlyKernelsAsEntryPoints,
-                      bool AllowDeviceImageDependencies);
+                      bool AllowDeviceImageDependencies,
+                      bool SuppressUndefinedFuncWarnings = false);
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void dumpEntryPoints(const EntryPointSet &C,
@@ -342,6 +347,7 @@ struct SplitModule {
 struct ModuleSplitterSettings {
   IRSplitMode Mode;
   bool AllowDeviceImageDependencies = false;
+  bool SuppressUndefinedFuncWarnings = false;
 };
 
 /// PreSplitProcessingPipeline maintains correctness.

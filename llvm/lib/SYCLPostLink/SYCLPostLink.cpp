@@ -143,6 +143,11 @@ Expected<std::vector<module_split::SplitModule>>
 llvm::sycl_post_link::performPostLinkProcessing(
     std::unique_ptr<Module> M,
     llvm::sycl_post_link::PostLinkSettings Settings) {
+  // Propagate the top-level SuppressUndefinedFuncWarnings knob into
+  // ESIMDOptions so both the SYCL and ESIMD split paths honour it.
+  Settings.ESIMDOptions.SuppressUndefinedFuncWarnings =
+      Settings.SuppressUndefinedFuncWarnings;
+
   std::vector<module_split::SplitModule> SplitModules;
   auto PostSplitCallback =
       [&SplitModules,
@@ -189,6 +194,8 @@ llvm::sycl_post_link::performPostLinkProcessing(
 
   module_split::ModuleSplitterSettings SplitSettings;
   SplitSettings.Mode = Settings.SplitMode;
+  SplitSettings.SuppressUndefinedFuncWarnings =
+      Settings.SuppressUndefinedFuncWarnings;
   if (Error E = module_split::splitSYCLModule(std::move(M), SplitSettings,
                                               PostSplitCallback))
     return createStringError(
