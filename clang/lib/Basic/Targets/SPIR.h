@@ -343,26 +343,6 @@ public:
   }
 };
 
-// x86-32 SPIR Windows Visual Studio target
-class LLVM_LIBRARY_VISIBILITY MicrosoftX86_32SPIRTargetInfo
-    : public WindowsX86_32SPIRTargetInfo {
-public:
-  MicrosoftX86_32SPIRTargetInfo(const llvm::Triple &Triple,
-                            const TargetOptions &Opts)
-      : WindowsX86_32SPIRTargetInfo(Triple, Opts) {
-  }
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsX86_32SPIRTargetInfo::getTargetDefines(Opts, Builder);
-    // The value of the following reflects processor type.
-    // 300=386, 400=486, 500=Pentium, 600=Blend (default)
-    // We lost the original triple, so we use the default.
-    // TBD should we keep these lines?  Copied from X86.h.
-    Builder.defineMacro("_M_IX86", "600");
-  }
-};
-
 // x86-64 SPIR64 Windows target
 class LLVM_LIBRARY_VISIBILITY WindowsX86_64_SPIR64TargetInfo
     : public WindowsTargetInfo<SPIR64TargetInfo> {
@@ -400,23 +380,6 @@ public:
                  const std::vector<std::string> &FeaturesVec) const override;
 };
 
-// x86-64 SPIR64 Windows Visual Studio target
-class LLVM_LIBRARY_VISIBILITY MicrosoftX86_64_SPIR64TargetInfo
-    : public WindowsX86_64_SPIR64TargetInfo {
-public:
-  MicrosoftX86_64_SPIR64TargetInfo(const llvm::Triple &Triple,
-                            const TargetOptions &Opts)
-      : WindowsX86_64_SPIR64TargetInfo(Triple, Opts) {
-  }
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsX86_64_SPIR64TargetInfo::getTargetDefines(Opts, Builder);
-    Builder.defineMacro("_M_X64", "100");
-    Builder.defineMacro("_M_AMD64", "100");
-  }
-};
-
 // ARM64 SPIR64 Windows target
 class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIR64TargetInfo
     : public WindowsTargetInfo<SPIR64TargetInfo> {
@@ -441,20 +404,6 @@ public:
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
     return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
                                                             : CCCR_Warning;
-  }
-};
-
-// ARM64 SPIR64 Windows Visual Studio target
-class LLVM_LIBRARY_VISIBILITY MicrosoftARM64_SPIR64TargetInfo
-    : public WindowsARM64_SPIR64TargetInfo {
-public:
-  MicrosoftARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
-                                  const TargetOptions &Opts)
-      : WindowsARM64_SPIR64TargetInfo(Triple, Opts) {}
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsARM64_SPIR64TargetInfo::getTargetDefines(Opts, Builder);
   }
 };
 
@@ -615,24 +564,6 @@ public:
   }
 };
 
-// x86-32 SPIRV32 Windows Visual Studio target
-class LLVM_LIBRARY_VISIBILITY MicrosoftX86_32SPIRV32TargetInfo
-    : public WindowsX86_32SPIRV32TargetInfo {
-public:
-  MicrosoftX86_32SPIRV32TargetInfo(const llvm::Triple &Triple,
-                                   const TargetOptions &Opts)
-      : WindowsX86_32SPIRV32TargetInfo(Triple, Opts) {}
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsX86_32SPIRV32TargetInfo::getTargetDefines(Opts, Builder);
-    // The value of the following reflects processor type.
-    // 300=386, 400=486, 500=Pentium, 600=Blend (default)
-    // We lost the original triple, so we use the default.
-    Builder.defineMacro("_M_IX86", "600");
-  }
-};
-
 // x86-64 SPIRV64 Windows target
 class LLVM_LIBRARY_VISIBILITY WindowsX86_64_SPIRV64TargetInfo
     : public WindowsTargetInfo<SPIRV64TargetInfo> {
@@ -665,22 +596,6 @@ public:
   }
 };
 
-// x86-64 SPIRV64 Windows Visual Studio target
-class LLVM_LIBRARY_VISIBILITY MicrosoftX86_64_SPIRV64TargetInfo
-    : public WindowsX86_64_SPIRV64TargetInfo {
-public:
-  MicrosoftX86_64_SPIRV64TargetInfo(const llvm::Triple &Triple,
-                                    const TargetOptions &Opts)
-      : WindowsX86_64_SPIRV64TargetInfo(Triple, Opts) {}
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsX86_64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
-    Builder.defineMacro("_M_X64", "100");
-    Builder.defineMacro("_M_AMD64", "100");
-  }
-};
-
 // ARM64 SPIRV64 Windows target
 class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIRV64TargetInfo
     : public WindowsTargetInfo<SPIRV64TargetInfo> {
@@ -705,20 +620,6 @@ public:
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
     return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
                                                             : CCCR_Warning;
-  }
-};
-
-// ARM64 SPIRV64 Windows Visual Studio target
-class LLVM_LIBRARY_VISIBILITY MicrosoftARM64_SPIRV64TargetInfo
-    : public WindowsARM64_SPIRV64TargetInfo {
-public:
-  MicrosoftARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
-                                   const TargetOptions &Opts)
-      : WindowsARM64_SPIRV64TargetInfo(Triple, Opts) {}
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsARM64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
   }
 };
 
