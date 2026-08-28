@@ -214,10 +214,11 @@ class ComputeBench(Suite):
                 continue
             if (
                 "pvc" in device_arch
-                and runtime == RUNTIMES.SYCL
+                and options.ur_adapter == "level_zero_v2"
+                and runtime in SYCL_RUNTIMES
                 and with_graphs == 1
             ):
-                # PVC does not support graph record/replay for this benchmark.
+                # PVC does not support graph record/replay for this benchmark on L0 v2.
                 continue
             benches.append(
                 GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
