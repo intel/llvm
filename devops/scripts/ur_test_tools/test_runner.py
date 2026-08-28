@@ -91,9 +91,12 @@ class TestRunner:
         lit_opts_parts = [
             *LIT_COMMON_REPORTING_OPTIONS,
             *LIT_CI_OPTIONS,
-            "--timeout", str(DEFAULT_LIT_TIMEOUT),
-            "-j", str(DEFAULT_LIT_JOBS),
-            "--xunit-xml-output", str(self.context.xml_output_path),
+            "--timeout",
+            str(DEFAULT_LIT_TIMEOUT),
+            "-j",
+            str(DEFAULT_LIT_JOBS),
+            "--xunit-xml-output",
+            str(self.context.xml_output_path),
         ]
         self.context.env["LIT_OPTS"] = " ".join(lit_opts_parts)
 

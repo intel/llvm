@@ -213,4 +213,3 @@ class SummaryReporter:
         for category, tests in test_lists.items():
             if tests:
                 ConsoleOutput.print_test_group(f"{category} Tests", tests)
-
