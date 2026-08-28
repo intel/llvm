@@ -12,7 +12,7 @@
 // #define VERBOSE_PRINT
 #include <iostream>
 
-#include "../../CommonUtils/vulkan_common.hpp"
+#include "vulkan_setup.hpp"
 #include "../helpers/common.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>

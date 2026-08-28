@@ -495,18 +495,18 @@ inline void cleanupVulkanContext(VulkanContext &ctx) {
 #endif
   vkDestroyInstance(ctx.instance, nullptr);
 }
-
 inline ImageResources createExportableImage(
     VulkanContext &ctx, VkExtent3D extent, VkFormat format, VkImageType type,
     VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL,
     VkImageUsageFlags usage = VK_IMAGE_USAGE_STORAGE_BIT |
                               VK_IMAGE_USAGE_SAMPLED_BIT |
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT) {
+                              VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+    uint32_t mipLevels = 1) {
   VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
   imageInfo.imageType = type;
   imageInfo.extent = extent;
-  imageInfo.mipLevels = 1;
+  imageInfo.mipLevels = mipLevels;
   imageInfo.arrayLayers = 1;
   imageInfo.format = format;
   imageInfo.tiling = tiling;

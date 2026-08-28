@@ -20,7 +20,7 @@
 #include <sycl/aspects.hpp>
 #include <sycl/ext/oneapi/memory_export.hpp>
 
-#include "../CommonUtils/vulkan_common.hpp"
+#include "../bindless_images/vulkan_interop/vulkan_setup.hpp"
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -80,7 +80,8 @@ void cleanupSycl(const sycl::device &SyclDevice) {
                                   SyclContext);
 }
 
-int runTest(sycl::device &SyclDevice, const size_t MemorySizeBytes) {
+int runTest(VulkanContext &VulkanCtx, sycl::device &SyclDevice,
+            const size_t MemorySizeBytes) {
 
   sycl::context SyclContext = sycl::context(SyclDevice);
   sycl::queue SyclQueue(SyclContext, SyclDevice);
@@ -89,20 +90,44 @@ int runTest(sycl::device &SyclDevice, const size_t MemorySizeBytes) {
   VkDeviceMemory VkImportedBufferMemory;
 
   {
-    VkImportedBuffer = vkutil::createBuffer(
-        MemorySizeBytes,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        true /*exportable*/);
-    auto InputBufferMemTypeIndex = vkutil::getBufferMemoryTypeIndex(
-        VkImportedBuffer, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VkExternalMemoryBufferCreateInfo ExternalInfo = {
+        VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO};
+    ExternalInfo.handleTypes = PLATFORM_MEM_HANDLE_TYPE;
+    VkBufferCreateInfo BufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    BufferInfo.pNext = &ExternalInfo;
+    BufferInfo.size = MemorySizeBytes;
+    BufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                       VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VK_CHECK(vkCreateBuffer(VulkanCtx.device, &BufferInfo, nullptr,
+                            &VkImportedBuffer));
 
-    VkImportedBufferMemory = vkutil::importDeviceMemory<exported_handle_type>(
-        MemorySizeBytes, InputBufferMemTypeIndex, ExportableMemoryHandle);
-
-    VK_CHECK_CALL(vkBindBufferMemory(vk_device, VkImportedBuffer,
-                                     VkImportedBufferMemory,
-                                     0 /*memoryOffset*/));
+    VkMemoryRequirements Requirements;
+    vkGetBufferMemoryRequirements(VulkanCtx.device, VkImportedBuffer,
+                                  &Requirements);
+    VkMemoryAllocateInfo AllocateInfo = {
+        VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    AllocateInfo.allocationSize = Requirements.size;
+    AllocateInfo.memoryTypeIndex =
+        findMemoryType(VulkanCtx.physicalDevice, Requirements.memoryTypeBits,
+                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+#ifdef _WIN32
+    VkImportMemoryWin32HandleInfoKHR ImportInfo = {
+        VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR};
+    ImportInfo.handleType = PLATFORM_MEM_HANDLE_TYPE;
+    ImportInfo.handle = ExportableMemoryHandle;
+#else
+    VkImportMemoryFdInfoKHR ImportInfo = {
+        VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR};
+    ImportInfo.handleType = PLATFORM_MEM_HANDLE_TYPE;
+    ImportInfo.fd = ExportableMemoryHandle;
+#endif
+    AllocateInfo.pNext = &ImportInfo;
+    VK_CHECK(vkAllocateMemory(VulkanCtx.device, &AllocateInfo, nullptr,
+                              &VkImportedBufferMemory));
+    VK_CHECK(vkBindBufferMemory(VulkanCtx.device, VkImportedBuffer,
+                                VkImportedBufferMemory, 0));
   }
 
   // Allocate temporary staging buffer and copy imported data to host.
@@ -111,17 +136,11 @@ int runTest(sycl::device &SyclDevice, const size_t MemorySizeBytes) {
     VkBuffer StagingBuffer;
     VkDeviceMemory StagingMemory;
 
-    StagingBuffer = vkutil::createBuffer(MemorySizeBytes,
-                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    auto InputStagingMemTypeIndex = vkutil::getBufferMemoryTypeIndex(
-        StagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    StagingMemory = vkutil::allocateDeviceMemory(
-        MemorySizeBytes, InputStagingMemTypeIndex, VK_NULL_HANDLE /*image*/,
-        false /*exportable*/);
-    VK_CHECK_CALL(vkBindBufferMemory(vk_device, StagingBuffer, StagingMemory,
-                                     0 /*memoryOffset*/));
+    auto Staging = createStagingBuffer(VulkanCtx, MemorySizeBytes,
+                                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                           VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    StagingBuffer = Staging.buffer;
+    StagingMemory = Staging.memory;
 
     // Copy imported buffer to host visible staging buffer.
     VkCommandBufferBeginInfo Cbbi = {};
@@ -131,40 +150,51 @@ int runTest(sycl::device &SyclDevice, const size_t MemorySizeBytes) {
     VkBufferCopy CopyRegion = {};
     CopyRegion.size = MemorySizeBytes;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[0], &Cbbi));
-    vkCmdCopyBuffer(vk_transferCmdBuffers[0], VkImportedBuffer, StagingBuffer,
+    VkCommandPoolCreateInfo PoolInfo = {
+        VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+    PoolInfo.queueFamilyIndex = VulkanCtx.queueFamilyIndex;
+    VkCommandPool Pool;
+    VK_CHECK(vkCreateCommandPool(VulkanCtx.device, &PoolInfo, nullptr, &Pool));
+    VkCommandBufferAllocateInfo CmdAllocInfo = {
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    CmdAllocInfo.commandPool = Pool;
+    CmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    CmdAllocInfo.commandBufferCount = 1;
+    VkCommandBuffer CommandBuffer;
+    VK_CHECK(vkAllocateCommandBuffers(VulkanCtx.device, &CmdAllocInfo,
+                                      &CommandBuffer));
+    VK_CHECK(vkBeginCommandBuffer(CommandBuffer, &Cbbi));
+    vkCmdCopyBuffer(CommandBuffer, VkImportedBuffer, StagingBuffer,
                     1 /*regionCount*/, &CopyRegion);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[0]));
+    VK_CHECK(vkEndCommandBuffer(CommandBuffer));
 
     std::vector<VkPipelineStageFlags> Stages{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
 
     VkSubmitInfo Submission = {};
     Submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     Submission.commandBufferCount = 1;
-    Submission.pCommandBuffers = &vk_transferCmdBuffers[0];
+    Submission.pCommandBuffers = &CommandBuffer;
     Submission.pWaitDstStageMask = Stages.data();
 
-    VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
-                                &Submission, VK_NULL_HANDLE /*fence*/));
-    VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+    VK_CHECK(vkQueueSubmit(VulkanCtx.queue, 1, &Submission, VK_NULL_HANDLE));
+    VK_CHECK(vkQueueWaitIdle(VulkanCtx.queue));
 
     // Copy host visible staging buffer data to host.
     DataT *StagingData = nullptr;
-    VK_CHECK_CALL(vkMapMemory(vk_device, StagingMemory, 0 /*offset*/,
-                              MemorySizeBytes, 0 /*flags*/,
-                              (void **)&StagingData));
+    VK_CHECK(vkMapMemory(VulkanCtx.device, StagingMemory, 0 /*offset*/,
+                         MemorySizeBytes, 0 /*flags*/, (void **)&StagingData));
     for (int i = 0; i < MemorySizeBytes / sizeof(DataT); ++i) {
       VulkanOutput[i] = StagingData[i];
     }
-    vkUnmapMemory(vk_device, StagingMemory);
+    vkUnmapMemory(VulkanCtx.device, StagingMemory);
 
     // Destroy temporary staging buffer and free memory.
-    vkDestroyBuffer(vk_device, StagingBuffer, nullptr);
-    vkFreeMemory(vk_device, StagingMemory, nullptr);
+    vkDestroyCommandPool(VulkanCtx.device, Pool, nullptr);
+    cleanupBuffer(VulkanCtx, Staging);
   }
 
-  vkDestroyBuffer(vk_device, VkImportedBuffer, nullptr);
-  vkFreeMemory(vk_device, VkImportedBufferMemory, nullptr);
+  vkDestroyBuffer(VulkanCtx.device, VkImportedBuffer, nullptr);
+  vkFreeMemory(VulkanCtx.device, VkImportedBufferMemory, nullptr);
 
   // Print the SYCL imported data.
   bool Validated = true;
@@ -222,27 +252,16 @@ int main(int argc, char *argv[]) {
   }
 
   // Init Vulkan.
-  if (vkutil::setupInstance() != VK_SUCCESS) {
-    std::cerr << "Instance setup failed!\n";
+  VulkanContext VulkanCtx;
+  try {
+    VulkanCtx = createVulkanContext();
+  } catch (const std::exception &e) {
+    std::cerr << "Vulkan setup failed: " << e.what() << "\n";
     return 4;
   }
 
-  if (vkutil::setupDevice(SyclDevice) != VK_SUCCESS) {
-    std::cerr << "Device setup failed!\n";
-    return 5;
-  }
-
-  if (vkutil::setupCommandBuffers() != VK_SUCCESS) {
-    std::cerr << "Command buffers setup failed!\n";
-    return 6;
-  }
-
-  auto TestPassed = runTest(SyclDevice, MemorySizeBytes);
-
-  if (vkutil::cleanup() != VK_SUCCESS) {
-    std::cerr << "Cleanup failed!\n";
-    return 7;
-  }
+  auto TestPassed = runTest(VulkanCtx, SyclDevice, MemorySizeBytes);
+  cleanupVulkanContext(VulkanCtx);
 
   // Cleanup SYCL.
   try {
