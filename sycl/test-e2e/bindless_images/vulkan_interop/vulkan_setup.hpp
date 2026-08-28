@@ -672,6 +672,49 @@ inline void cleanupBuffer(VulkanContext &ctx, BufferResources &res) {
   vkFreeMemory(ctx.device, res.memory, nullptr);
 }
 
+inline VkCommandBuffer createCommandBuffer(VulkanContext &ctx,
+                                           VkCommandPool &pool) {
+  VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+  poolInfo.queueFamilyIndex = ctx.queueFamilyIndex;
+  poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+  VK_CHECK(vkCreateCommandPool(ctx.device, &poolInfo, nullptr, &pool));
+
+  VkCommandBufferAllocateInfo allocInfo{
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+  allocInfo.commandPool = pool;
+  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandBufferCount = 1;
+  VkCommandBuffer commandBuffer;
+  VK_CHECK(vkAllocateCommandBuffers(ctx.device, &allocInfo, &commandBuffer));
+  return commandBuffer;
+}
+
+inline void submitCommandBuffer(VulkanContext &ctx,
+                                VkCommandBuffer commandBuffer,
+                                VkCommandPool pool) {
+  VK_CHECK(vkEndCommandBuffer(commandBuffer));
+  VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &commandBuffer;
+  VK_CHECK(vkQueueSubmit(ctx.queue, 1, &submitInfo, VK_NULL_HANDLE));
+  VK_CHECK(vkQueueWaitIdle(ctx.queue));
+  vkDestroyCommandPool(ctx.device, pool, nullptr);
+}
+
+inline VkImageMemoryBarrier createImageMemoryBarrier(VkImage image,
+                                                     uint32_t mipLevels) {
+  VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = image;
+  barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  barrier.subresourceRange.levelCount = mipLevels;
+  barrier.subresourceRange.layerCount = 1;
+  return barrier;
+}
+
 // ---------------------------------------------------------
 // PLATFORM SPECIFIC GETTERS
 // ---------------------------------------------------------

@@ -12,8 +12,8 @@
 // #define VERBOSE_PRINT
 #include <iostream>
 
-#include "vulkan_setup.hpp"
 #include "../helpers/common.hpp"
+#include "vulkan_setup.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/half_type.hpp>
@@ -104,8 +104,8 @@ void runSycl(const sycl::device &syclDevice, sycl::range<2> globalSize,
   }
 }
 
-bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
-             sycl::range<2> localSize) {
+bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
+             sycl::range<2> dims, sycl::range<2> localSize) {
   const uint32_t imgWidth = static_cast<uint32_t>(dims[0]);
   const uint32_t imgHeight = static_cast<uint32_t>(dims[1]);
 
@@ -118,10 +118,8 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
 
   const VkExtent3D imgExtent = {imgWidth, imgHeight, 1};
 
-  VkImage vkInputImage;
-  VkDeviceMemory vkInputImageMemory;
-  VkImage vkOutputImage;
-  VkDeviceMemory vkOutputImageMemory;
+  ImageResources inputImage;
+  ImageResources outputImage;
 
   // Real import size; set to the image memory requirement below.
   size_t importSizeBytes = imgSizeBytes;
@@ -137,45 +135,31 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
   {
     // STORAGE_BIT: SYCL reads/writes this as a storage image; without it the
     // layout is transfer-only and imported reads land at the wrong offset.
-    vkInputImage = vkutil::createImage(imgType, imgInFormat, imgExtent,
-                                       VK_IMAGE_USAGE_STORAGE_BIT |
-                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                           VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                       1 /*mipLevels*/);
+    inputImage = createExportableImage(
+        vkCtx, imgExtent, imgInFormat, imgType, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT);
     VkMemoryRequirements memRequirements;
-    auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
-        vkInputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
+    vkGetImageMemoryRequirements(vkCtx.device, inputImage.image,
+                                 &memRequirements);
     // Import must describe the whole (padded) allocation the driver requires.
     importSizeBytes = std::max<size_t>(imgSizeBytes, memRequirements.size);
-    vkInputImageMemory = vkutil::allocateDeviceMemory(
-        imgSizeBytes, inputImageMemoryTypeIndex, vkInputImage);
-    VK_CHECK_CALL(vkBindImageMemory(vk_device, vkInputImage, vkInputImageMemory,
-                                    0 /*memoryOffset*/));
 
     // STORAGE_BIT: same as input image; the kernel writes it as a storage
     // image.
-    vkOutputImage = vkutil::createImage(imgType, imgOutFormat, imgExtent,
-                                        VK_IMAGE_USAGE_STORAGE_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                        1 /*mipLevels*/);
-    VkMemoryRequirements outputMemRequirements;
-    auto outputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
-        vkOutputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        outputMemRequirements);
-    vkOutputImageMemory = vkutil::allocateDeviceMemory(
-        imgSizeBytes, outputImageMemoryTypeIndex, vkOutputImage);
-    VK_CHECK_CALL(vkBindImageMemory(vk_device, vkOutputImage,
-                                    vkOutputImageMemory, 0 /*memoryOffset*/));
+    outputImage = createExportableImage(
+        vkCtx, imgExtent, imgOutFormat, imgType, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT);
   }
 
   // Transition image layouts.
-  printString("Submitting image layout transition\n");
+  std::cout << "Submitting image layout transition\n";
   {
     VkImageMemoryBarrier imgInBarrier =
-        vkutil::createImageMemoryBarrier(vkInputImage, 1 /*mipLevels*/);
+        createImageMemoryBarrier(inputImage.image, 1);
     VkImageMemoryBarrier imgOutBarrier =
-        vkutil::createImageMemoryBarrier(vkOutputImage, 1 /*mipLevels*/);
+        createImageMemoryBarrier(outputImage.image, 1);
 
     // Update aspect mask for the images to VK_IMAGE_ASPECT_DEPTH_BIT.
     imgInBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -185,53 +169,35 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_computeCmdBuffer, &cbbi));
-    vkCmdPipelineBarrier(vk_computeCmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    VkCommandPool pool;
+    VkCommandBuffer commandBuffer = createCommandBuffer(vkCtx, pool);
+    VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cbbi));
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &imgInBarrier);
 
-    vkCmdPipelineBarrier(vk_computeCmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &imgOutBarrier);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_computeCmdBuffer));
-
-    VkSubmitInfo submission = {};
-    submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_computeCmdBuffer;
-
-    VK_CHECK_CALL(vkQueueSubmit(vk_compute_queue, 1 /*submitCount*/,
-                                &submission, VK_NULL_HANDLE /*fence*/));
-    VK_CHECK_CALL(vkQueueWaitIdle(vk_compute_queue));
+    submitCommandBuffer(vkCtx, commandBuffer, pool);
   }
 
   // Allocate temporary staging buffer and copy input data to device.
-  printString("Allocating staging memory and copying to device image\n");
+  std::cout << "Allocating staging memory and copying to device image\n";
   {
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingMemory;
-
-    stagingBuffer = vkutil::createBuffer(imgSizeBytes,
-                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    auto inputStagingMemoryTypeIndex = vkutil::getBufferMemoryTypeIndex(
-        stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    stagingMemory =
-        vkutil::allocateDeviceMemory(imgSizeBytes, inputStagingMemoryTypeIndex,
-                                     nullptr /*image*/, false /*exportable*/);
-    VK_CHECK_CALL(vkBindBufferMemory(vk_device, stagingBuffer, stagingMemory,
-                                     0 /*memoryOffset*/));
+    auto staging = createStagingBuffer(vkCtx, imgSizeBytes,
+                                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                           VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     // Copy host data to temporary staging buffer.
     float *inputStagingData = nullptr;
-    VK_CHECK_CALL(vkMapMemory(vk_device, stagingMemory, 0 /*offset*/,
-                              imgSizeBytes, 0 /*flags*/,
-                              (void **)&inputStagingData));
+    VK_CHECK(vkMapMemory(vkCtx.device, staging.memory, 0 /*offset*/,
+                         imgSizeBytes, 0 /*flags*/,
+                         (void **)&inputStagingData));
     for (int i = 0; i < (imgSizeElems); ++i) {
       inputStagingData[i] = inputVec[i];
     }
-    vkUnmapMemory(vk_device, stagingMemory);
+    vkUnmapMemory(vkCtx.device, staging.memory);
 
     // Copy temporary staging buffer to device image memory.
     VkCommandBufferBeginInfo cbbi = {};
@@ -243,62 +209,40 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
     copyRegion.imageSubresource.layerCount = 1;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[0], &cbbi));
-    vkCmdCopyBufferToImage(vk_transferCmdBuffers[0], stagingBuffer,
-                           vkInputImage, VK_IMAGE_LAYOUT_GENERAL,
-                           1 /*regionCount*/, &copyRegion);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[0]));
-
-    std::vector<VkPipelineStageFlags> stages{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
-
-    VkSubmitInfo submission = {};
-    submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_transferCmdBuffers[0];
-    submission.pWaitDstStageMask = stages.data();
-
-    VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
-                                &submission, VK_NULL_HANDLE /*fence*/));
-    VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+    VkCommandPool pool;
+    VkCommandBuffer commandBuffer = createCommandBuffer(vkCtx, pool);
+    VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cbbi));
+    vkCmdCopyBufferToImage(commandBuffer, staging.buffer, inputImage.image,
+                           VK_IMAGE_LAYOUT_GENERAL, 1 /*regionCount*/,
+                           &copyRegion);
+    submitCommandBuffer(vkCtx, commandBuffer, pool);
 
     // Destroy temporary staging buffer and free memory.
-    vkDestroyBuffer(vk_device, stagingBuffer, nullptr);
-    vkFreeMemory(vk_device, stagingMemory, nullptr);
+    cleanupBuffer(vkCtx, staging);
   }
 
-  printString("Getting memory interop handles\n");
+  std::cout << "Getting memory interop handles\n";
   // Get memory interop handles.
 #ifdef _WIN32
-  auto imgMemIn = vkutil::getMemoryWin32Handle(vkInputImageMemory);
-  auto imgMemOut = vkutil::getMemoryWin32Handle(vkOutputImageMemory);
+  auto imgMemIn = getMemHandle(vkCtx, inputImage.memory);
+  auto imgMemOut = getMemHandle(vkCtx, outputImage.memory);
 #else
-  auto imgMemIn = vkutil::getMemoryOpaqueFD(vkInputImageMemory);
-  auto imgMemOut = vkutil::getMemoryOpaqueFD(vkOutputImageMemory);
+  auto imgMemIn = getMemFd(vkCtx, inputImage.memory);
+  auto imgMemOut = getMemFd(vkCtx, outputImage.memory);
 #endif
 
   // Call into SYCL to fetch from input image, and populate the output image.
-  printString("Calling into SYCL with interop memory handles\n");
+  std::cout << "Calling into SYCL with interop memory handles\n";
   // Pass the real import size so the SYCL import matches the Vulkan allocation.
   runSycl(syclDevice, dims, localSize, imgMemIn, imgMemOut, importSizeBytes);
 
   // Copy image memory to temporary staging buffer, and back to host.
-  printString("Copying image memory to host\n");
+  std::cout << "Copying image memory to host\n";
   std::vector<float> outputVec(imgSizeElems, 0.f);
   {
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingMemory;
-
-    stagingBuffer = vkutil::createBuffer(imgSizeBytes,
-                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    auto outputStagingMemoryTypeIndex = vkutil::getBufferMemoryTypeIndex(
-        stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    stagingMemory =
-        vkutil::allocateDeviceMemory(imgSizeBytes, outputStagingMemoryTypeIndex,
-                                     nullptr /*image*/, false /*exportable*/);
-    VK_CHECK_CALL(vkBindBufferMemory(vk_device, stagingBuffer, stagingMemory,
-                                     0 /*memoryOffset*/));
+    auto staging = createStagingBuffer(vkCtx, imgSizeBytes,
+                                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                           VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     VkCommandBufferBeginInfo cbbi = {};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -309,44 +253,31 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
     copyRegion.imageSubresource.layerCount = 1;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[1], &cbbi));
-    vkCmdCopyImageToBuffer(vk_transferCmdBuffers[1], vkOutputImage,
-                           VK_IMAGE_LAYOUT_GENERAL, stagingBuffer,
+    VkCommandPool pool;
+    VkCommandBuffer commandBuffer = createCommandBuffer(vkCtx, pool);
+    VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cbbi));
+    vkCmdCopyImageToBuffer(commandBuffer, outputImage.image,
+                           VK_IMAGE_LAYOUT_GENERAL, staging.buffer,
                            1 /*regionCount*/, &copyRegion);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[1]));
-
-    std::vector<VkPipelineStageFlags> stages{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
-
-    VkSubmitInfo submission = {};
-    submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_transferCmdBuffers[1];
-    submission.pWaitDstStageMask = stages.data();
-
-    VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
-                                &submission, VK_NULL_HANDLE /*fence*/));
-    VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+    submitCommandBuffer(vkCtx, commandBuffer, pool);
 
     // Copy temporary staging buffer output data to host output vector.
     float *outputStagingData = (float *)outputVec.data();
-    VK_CHECK_CALL(vkMapMemory(vk_device, stagingMemory, 0 /*offset*/,
-                              imgSizeBytes, 0 /*flags*/,
-                              (void **)&outputStagingData));
+    VK_CHECK(vkMapMemory(vkCtx.device, staging.memory, 0 /*offset*/,
+                         imgSizeBytes, 0 /*flags*/,
+                         (void **)&outputStagingData));
     for (int i = 0; i < (imgSizeElems); ++i) {
       outputVec[i] = outputStagingData[i];
     }
-    vkUnmapMemory(vk_device, stagingMemory);
+    vkUnmapMemory(vkCtx.device, staging.memory);
 
     // Destroy temporary staging buffer and free memory.
-    vkDestroyBuffer(vk_device, stagingBuffer, nullptr);
-    vkFreeMemory(vk_device, stagingMemory, nullptr);
+    cleanupBuffer(vkCtx, staging);
   }
 
   // Destroy images and free their memory.
-  vkDestroyImage(vk_device, vkInputImage, nullptr);
-  vkDestroyImage(vk_device, vkOutputImage, nullptr);
-  vkFreeMemory(vk_device, vkInputImageMemory, nullptr);
-  vkFreeMemory(vk_device, vkOutputImageMemory, nullptr);
+  cleanupImageResources(vkCtx, inputImage);
+  cleanupImageResources(vkCtx, outputImage);
 
   // Validate that SYCL made changes to the memory.
   bool validated = true;
@@ -354,7 +285,7 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
     float expected = inputVec[i];
     // Use helper function to determine if data is accepted.
     // For floats, use default accepted error variance.
-    if (!util::is_equal(outputVec[i], expected)) {
+    if (std::abs(outputVec[i] - expected) > 0.01f) {
       std::cerr << "Result mismatch! actual[" << i << "] == " << outputVec[i]
                 << " : expected == " << expected << "\n";
       validated = false;
@@ -364,37 +295,17 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
   }
 
   if (validated) {
-    printString("Results are correct!\n");
+    std::cout << "Results are correct!\n";
   }
 
   return validated;
 }
 
 int main() {
-
-  if (vkutil::setupInstance() != VK_SUCCESS) {
-    std::cerr << "Instance setup failed!\n";
-    return EXIT_FAILURE;
-  }
-
   sycl::device syclDevice;
-
-  if (vkutil::setupDevice(syclDevice) != VK_SUCCESS) {
-    std::cerr << "Device setup failed!\n";
-    return EXIT_FAILURE;
-  }
-
-  if (vkutil::setupCommandBuffers() != VK_SUCCESS) {
-    std::cerr << "Command buffers setup failed!\n";
-    return EXIT_FAILURE;
-  }
-
-  auto testPassed = runTest(syclDevice, {128, 128}, {16, 16});
-
-  if (vkutil::cleanup() != VK_SUCCESS) {
-    std::cerr << "Cleanup failed!\n";
-    return EXIT_FAILURE;
-  }
+  VulkanContext vkCtx = createVulkanContext();
+  auto testPassed = runTest(vkCtx, syclDevice, {128, 128}, {16, 16});
+  cleanupVulkanContext(vkCtx);
 
   if (testPassed) {
     std::cout << "Test passed!\n";

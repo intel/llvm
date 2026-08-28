@@ -13,8 +13,8 @@
 #define NOMINMAX
 #include <iostream>
 
-#include "vulkan_setup.hpp"
 #include "../helpers/common.hpp"
+#include "vulkan_setup.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/half_type.hpp>
@@ -164,7 +164,7 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
     exit(-1);
   }
 
-  printString("Validating\n");
+  std::cout << "Validating\n";
   // Expected is sum of first two levels in the mipmap
   // Each subsequent level repeats in each dimension
   bool validated = true;
@@ -233,7 +233,7 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
     }
   }
   if (validated) {
-    printString("Results are correct!\n");
+    std::cout << "Results are correct!\n";
   }
 
   return validated;
@@ -242,8 +242,9 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
 template <int NDims, typename DType, int NChannels,
           sycl::image_channel_type CType, sycl::image_channel_order COrder,
           typename KernelName>
-bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
-              size_t mipLevels, unsigned int seed = 0) {
+bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
+              sycl::range<NDims> localSize, size_t mipLevels,
+              unsigned int seed = 0) {
 
   uint32_t width = static_cast<uint32_t>(dims[0]);
   uint32_t height = 1;
@@ -264,42 +265,30 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   }
 
   using VecType = sycl::vec<DType, NChannels>;
-  VkFormat format = vkutil::to_vulkan_format(COrder, CType);
+  VkFormat format = getVulkanFormat<DType>(NChannels);
 
-  printString("Creating input image\n");
+  std::cout << "Creating input image\n";
   // Create input image memory
-  auto inputImage = vkutil::createImage(imgType, format, {width, height, depth},
-                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                        mipLevels);
+  auto inputImage = createExportableImage(
+      vkCtx, {width, height, depth}, format, imgType, VK_IMAGE_TILING_OPTIMAL,
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+      mipLevels);
   VkMemoryRequirements memRequirements;
-  auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
-      inputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
-  auto inputMemory = vkutil::allocateDeviceMemory(
-      memRequirements.size, inputImageMemoryTypeIndex, inputImage);
-  VK_CHECK_CALL(vkBindImageMemory(vk_device, inputImage, inputMemory,
-                                  0 /*memoryOffset*/));
+  vkGetImageMemoryRequirements(vkCtx.device, inputImage.image,
+                               &memRequirements);
 
-  printString("Creating staging buffers\n");
+  std::cout << "Creating staging buffers\n";
   // Create input staging memory
-  auto inputStagingBuffer = vkutil::createBuffer(
-      memRequirements.size,
-      VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-  auto inputStagingMemoryTypeIndex = vkutil::getBufferMemoryTypeIndex(
-      inputStagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-  auto inputStagingMemory = vkutil::allocateDeviceMemory(
-      memRequirements.size, inputStagingMemoryTypeIndex, nullptr /*image*/,
-      false /*exportable*/);
-  VK_CHECK_CALL(vkBindBufferMemory(vk_device, inputStagingBuffer,
-                                   inputStagingMemory, 0 /*memoryOffset*/));
+  auto inputStaging = createStagingBuffer(vkCtx, memRequirements.size,
+                                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                              VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-  printString("Populating staging buffer\n");
+  std::cout << "Populating staging buffer\n";
   // Populate staging memory
   VecType *inputStagingData = nullptr;
-  VK_CHECK_CALL(vkMapMemory(vk_device, inputStagingMemory, 0 /*offset*/,
-                            memRequirements.size, 0 /*flags*/,
-                            (void **)&inputStagingData));
+  VK_CHECK(vkMapMemory(vkCtx.device, inputStaging.memory, 0 /*offset*/,
+                       memRequirements.size, 0 /*flags*/,
+                       (void **)&inputStagingData));
 
   // Set input data as each mip level -- 0 -> mip size e.g. (0,1,...,63,0,1,...)
   size_t offset = 0;
@@ -314,35 +303,28 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     }
     offset += mipElems;
   }
-  vkUnmapMemory(vk_device, inputStagingMemory);
+  vkUnmapMemory(vkCtx.device, inputStaging.memory);
 
-  printString("Submitting image layout transition\n");
+  std::cout << "Submitting image layout transition\n";
   // Transition image layouts
   {
     VkImageMemoryBarrier barrierInput =
-        vkutil::createImageMemoryBarrier(inputImage, mipLevels);
+        createImageMemoryBarrier(inputImage.image, mipLevels);
 
     VkCommandBufferBeginInfo cbbi = {};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_computeCmdBuffer, &cbbi));
-    vkCmdPipelineBarrier(vk_computeCmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    VkCommandPool pool;
+    VkCommandBuffer commandBuffer = createCommandBuffer(vkCtx, pool);
+    VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cbbi));
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &barrierInput);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_computeCmdBuffer));
-
-    VkSubmitInfo submission = {};
-    submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_computeCmdBuffer;
-
-    VK_CHECK_CALL(vkQueueSubmit(vk_compute_queue, 1 /*submitCount*/,
-                                &submission, VK_NULL_HANDLE /*fence*/));
-    VK_CHECK_CALL(vkQueueWaitIdle(vk_compute_queue));
+    submitCommandBuffer(vkCtx, commandBuffer, pool);
   }
 
-  printString("Copying staging memory to images\n");
+  std::cout << "Copying staging memory to images\n";
   // Copy staging to main image memory
   {
     VkDeviceSize currentOffset{0};
@@ -367,104 +349,75 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                        std::max(depth >> i, (uint32_t)1) * NChannels *
                        sizeof(DType);
 
-      VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[0], &cbbi));
-      vkCmdCopyBufferToImage(vk_transferCmdBuffers[0], inputStagingBuffer,
-                             inputImage, VK_IMAGE_LAYOUT_GENERAL,
+      VkCommandPool pool;
+      VkCommandBuffer commandBuffer = createCommandBuffer(vkCtx, pool);
+      VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cbbi));
+      vkCmdCopyBufferToImage(commandBuffer, inputStaging.buffer,
+                             inputImage.image, VK_IMAGE_LAYOUT_GENERAL,
                              1 /*regionCount*/, &copyRegion);
-      VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[0]));
-
-      VkSubmitInfo submission = {};
-      submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-      submission.commandBufferCount = 1;
-      submission.pCommandBuffers = &vk_transferCmdBuffers[0];
-
-      VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
-                                  &submission, VK_NULL_HANDLE /*fence*/));
-      VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+      submitCommandBuffer(vkCtx, commandBuffer, pool);
     }
   }
 
-  printString("Getting memory file descriptors and calling into SYCL\n");
+  std::cout << "Getting memory file descriptors and calling into SYCL\n";
   // Pass memory to SYCL for modification
 #ifdef _WIN32
-  auto inputMemHandle = vkutil::getMemoryWin32Handle(inputMemory);
+  auto inputMemHandle = getMemHandle(vkCtx, inputImage.memory);
 #else
-  auto inputMemHandle = vkutil::getMemoryOpaqueFD(inputMemory);
+  auto inputMemHandle = getMemFd(vkCtx, inputImage.memory);
 #endif
   bool result = run_sycl<NDims, DType, NChannels, CType,
                          decltype(inputMemHandle), KernelName>(
       dims, localSize, inputMemHandle, mipLevels, memRequirements.size);
 
   // Cleanup
-  vkDestroyBuffer(vk_device, inputStagingBuffer, nullptr);
-  vkDestroyImage(vk_device, inputImage, nullptr);
-  vkFreeMemory(vk_device, inputStagingMemory, nullptr);
-  vkFreeMemory(vk_device, inputMemory, nullptr);
+  cleanupBuffer(vkCtx, inputStaging);
+  cleanupImageResources(vkCtx, inputImage);
 
   return result;
 }
 
-bool run_tests() {
+bool run_tests(VulkanContext &vkCtx) {
   bool valid = run_test<2, float, 4, sycl::image_channel_type::fp32,
                         sycl::image_channel_order::rgba, class float_2d>(
-      {16, 16}, {2, 2}, 2, 0);
+      vkCtx, {16, 16}, {2, 2}, 2, 0);
 
   valid &= run_test<2, float, 2, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::rg, class float_2d_large>(
-      {8, 8}, {4, 2}, 2, 0);
+      vkCtx, {8, 8}, {4, 2}, 2, 0);
 
   valid &= run_test<3, char, 2, sycl::image_channel_type::signed_int8,
                     sycl::image_channel_order::rg, class float_3d>(
-      {8, 8, 8}, {2, 2, 2}, 2, 0);
+      vkCtx, {8, 8, 8}, {2, 2, 2}, 2, 0);
 
   valid &= run_test<2, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
                     sycl::image_channel_order::r, class uint32_2d>(
-      {32, 32}, {4, 2}, 2, 0);
+      vkCtx, {32, 32}, {4, 2}, 2, 0);
 
   valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
                     sycl::image_channel_order::rgba, class uint_3d_large>(
-      {8, 8, 8}, {2, 2, 4}, 2, 0);
+      vkCtx, {8, 8, 8}, {2, 2, 4}, 2, 0);
 
   valid &= run_test<2, int32_t, 1, sycl::image_channel_type::signed_int32,
-                    sycl::image_channel_order::r, class int32_2d>({64, 64},
-                                                                  {4, 2}, 2, 0);
+                    sycl::image_channel_order::r, class int32_2d>(
+      vkCtx, {64, 64}, {4, 2}, 2, 0);
 
   valid &= run_test<3, int32_t, 2, sycl::image_channel_type::signed_int32,
                     sycl::image_channel_order::rg, class int32_3d>(
-      {8, 8, 8}, {4, 2, 4}, 2, 0);
+      vkCtx, {8, 8, 8}, {4, 2, 4}, 2, 0);
 
   valid &= run_test<3, int16_t, 1, sycl::image_channel_type::signed_int16,
                     sycl::image_channel_order::r, class int16_3d>(
-      {32, 32, 32}, {4, 2, 4}, 2, 0);
+      vkCtx, {32, 32, 32}, {4, 2, 4}, 2, 0);
 
   return valid;
 }
 
 int main() {
-
-  if (vkutil::setupInstance() != VK_SUCCESS) {
-    std::cerr << "Instance setup failed!\n";
-    return EXIT_FAILURE;
-  }
-
   sycl::device dev;
-
-  if (vkutil::setupDevice(dev) != VK_SUCCESS) {
-    std::cerr << "Device setup failed!\n";
-    return EXIT_FAILURE;
-  }
-
-  if (vkutil::setupCommandBuffers() != VK_SUCCESS) {
-    std::cerr << "Compute pipeline setup failed!\n";
-    return EXIT_FAILURE;
-  }
-
-  bool result_ok = run_tests();
-
-  if (vkutil::cleanup() != VK_SUCCESS) {
-    std::cerr << "Cleanup failed!\n";
-    return EXIT_FAILURE;
-  }
+  VulkanContext vkCtx = createVulkanContext();
+  bool result_ok = run_tests(vkCtx);
+  cleanupVulkanContext(vkCtx);
 
   if (result_ok) {
     std::cout << "All tests passed!\n";
