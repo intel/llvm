@@ -178,6 +178,7 @@ jobs:
         cmake --build build --target check-clang
     - name: check-sycl
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      timeout-minutes: 10
       shell: bash
       run: |        
          cmake --build build --target check-sycl
