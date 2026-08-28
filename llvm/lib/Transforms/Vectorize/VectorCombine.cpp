@@ -2067,7 +2067,7 @@ bool VectorCombine::foldInsertElementsToStores(Instruction &I) {
       continue;
     const Value *GEPIndices[] = {ConstantInt::get(Idx->getType(), 0), Idx};
     NewCost += TTI.getGEPCost(VecTy, SI->getPointerOperand(), GEPIndices,
-                              InsertVal->getType(), CostKind);
+                              CostKind, InsertVal->getType());
   }
 
   for (auto [InsertVal, Idx] : InsertElements) {
@@ -2390,6 +2390,10 @@ bool VectorCombine::scalarizeExtExtract(Instruction &I) {
   for (User *U : Ext->users()) {
     uint64_t Idx;
     if (!match(U, m_ExtractElt(m_Value(), m_ConstantInt(Idx))))
+      return false;
+    // An out-of-bounds extractelement produces poison; bail out rather
+    // than computing a shift amount that overflows the packed type.
+    if (Idx >= SrcTy->getNumElements())
       return false;
     if (cast<Instruction>(U)->use_empty())
       continue;
