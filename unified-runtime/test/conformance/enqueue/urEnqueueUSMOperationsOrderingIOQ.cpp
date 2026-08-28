@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "urEnqueueUSMOperationsOrderingIOQ.hpp"
+#include "../../common/urEnqueueUSMOperationsOrdering.hpp"
 
 struct urEnqueueUSMOperationsOrderingIOQTest
     : urEnqueueUSMOperationsOrderingIOQTestBase {};

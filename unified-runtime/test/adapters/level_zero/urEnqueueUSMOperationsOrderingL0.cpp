@@ -16,7 +16,7 @@
 // RUN: env UR_L0_BATCH_SIZE=2 %maybe-v1 ./usm_ops_ordering_l0-test
 // RUN: env UR_L0_BATCH_SIZE=3 %maybe-v1 ./usm_ops_ordering_l0-test
 
-#include "../../conformance/enqueue/urEnqueueUSMOperationsOrderingIOQ.hpp"
+#include "../../common/urEnqueueUSMOperationsOrdering.hpp"
 
 struct urEnqueueUSMOperationsOrderingIOQL0Test
     : urEnqueueUSMOperationsOrderingIOQTestBase {};

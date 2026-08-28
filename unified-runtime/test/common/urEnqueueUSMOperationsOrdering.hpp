@@ -10,15 +10,11 @@
 // shared memory values. The test confirms that the queue maintains correct
 // ordering across different submission modes (batched/immediate), and
 // across different USM allocation types (host, device, shared).
-//
-// Shared by the backend-independent ordering test
-// (urEnqueueUSMOperationsOrderingIOQ.cpp) and the Level Zero batch-size
-// coverage (adapters/level_zero/urEnqueueUSMOperationsOrderingL0.cpp).
 
-#ifndef UR_TEST_CONFORMANCE_ENQUEUE_USM_OPERATIONS_ORDERING_IOQ_HPP
-#define UR_TEST_CONFORMANCE_ENQUEUE_USM_OPERATIONS_ORDERING_IOQ_HPP
+#ifndef UR_TEST_COMMON_ENQUEUE_USM_OPERATIONS_ORDERING_HPP
+#define UR_TEST_COMMON_ENQUEUE_USM_OPERATIONS_ORDERING_HPP
 
-#include "../device_code/discard_events_ordering_usm_consts.h"
+#include "../conformance/device_code/discard_events_ordering_usm_consts.h"
 #include <uur/fixtures.h>
 
 inline std::string PrintQueueParam(
@@ -156,9 +152,6 @@ struct urEnqueueUSMOperationsOrderingIOQTestBase
     }
   }
 
-  // Execute the in-order execution test for a specific USM allocation type.
-  // The caller must verify support before invoking this method.
-  // Returns true if the test ran successfully, false if it failed.
   bool runOrderingTestForUSMType(ur_usm_type_t usm_type) {
     auto usm_deleter = [this](void *ptr) {
       if (ptr) {
@@ -288,8 +281,6 @@ struct urEnqueueUSMOperationsOrderingIOQTestBase
 
     for (size_t i = 0; i < array_size; ++i) {
       const uint32_t base = static_cast<uint32_t>(i);
-      // Verify all ordering stages executed successfully.
-      // out1 reaches this value only if all 5 stages completed in order.
       EXPECT_EQ(out1[i], base + DISCARD_EVENTS_EXPECTED_FINAL_INCREMENT);
       EXPECT_EQ(out2[i], base);
       EXPECT_EQ(out3[i], base);
@@ -334,4 +325,4 @@ struct urEnqueueUSMOperationsOrderingIOQTestBase
   ur_queue_handle_t queue = nullptr;
 };
 
-#endif // UR_TEST_CONFORMANCE_ENQUEUE_USM_OPERATIONS_ORDERING_IOQ_HPP
+#endif // UR_TEST_COMMON_ENQUEUE_USM_OPERATIONS_ORDERING_HPP
