@@ -705,13 +705,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     llvm::Triple HT(Opts.HostTriple);
     switch (HT.getOS()) {
     case llvm::Triple::Win32:
-      switch (HT.getEnvironment()) {
-      default: // Assume MSVC for unknown environments
-      case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86 &&
-               "Unsupported host architecture");
-        return std::make_unique<WindowsX86_32SPIRTargetInfo>(Triple, Opts);
-      }
+      assert(HT.getArch() == llvm::Triple::x86 &&
+             "Unsupported host architecture");
+      return std::make_unique<WindowsX86_32SPIRTargetInfo>(Triple, Opts);
     case llvm::Triple::Linux:
       return std::make_unique<LinuxTargetInfo<SPIR32TargetInfo>>(Triple, Opts);
     default:
@@ -725,18 +721,14 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 
     switch (HT.getOS()) {
     case llvm::Triple::Win32:
-      switch (HT.getEnvironment()) {
-      default: // Assume MSVC for unknown environments
-      case llvm::Triple::MSVC:
-        switch (HT.getArch()) {
-        case llvm::Triple::aarch64:
-          return std::make_unique<WindowsARM64_SPIR64TargetInfo>(Triple, Opts);
-        case llvm::Triple::x86_64:
-          return std::make_unique<WindowsX86_64_SPIR64TargetInfo>(Triple, Opts);
-        default:
-          llvm::report_fatal_error(
-              "Unsupported host architecture (not x86_64 or aarch64)");
-        }
+      switch (HT.getArch()) {
+      case llvm::Triple::aarch64:
+        return std::make_unique<WindowsARM64_SPIR64TargetInfo>(Triple, Opts);
+      case llvm::Triple::x86_64:
+        return std::make_unique<WindowsX86_64_SPIR64TargetInfo>(Triple, Opts);
+      default:
+        llvm::report_fatal_error(
+            "Unsupported host architecture (not x86_64 or aarch64)");
       }
     case llvm::Triple::Linux:
       if (IsFPGASubArch)
@@ -759,13 +751,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     llvm::Triple HT(Opts.HostTriple);
     switch (HT.getOS()) {
     case llvm::Triple::Win32:
-      switch (HT.getEnvironment()) {
-      default: // Assume MSVC for unknown environments
-      case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86 &&
-               "Unsupported host architecture");
-        return std::make_unique<WindowsX86_32SPIRV32TargetInfo>(Triple, Opts);
-      }
+      assert(HT.getArch() == llvm::Triple::x86 &&
+             "Unsupported host architecture");
+      return std::make_unique<WindowsX86_32SPIRV32TargetInfo>(Triple, Opts);
     default:
       return std::make_unique<SPIRV32TargetInfo>(Triple, Opts);
     }
@@ -782,19 +770,14 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     llvm::Triple HT(Opts.HostTriple);
     switch (HT.getOS()) {
     case llvm::Triple::Win32:
-      switch (HT.getEnvironment()) {
-      default: // Assume MSVC for unknown environments
-      case llvm::Triple::MSVC:
-        switch (HT.getArch()) {
-        case llvm::Triple::aarch64:
-          return std::make_unique<WindowsARM64_SPIRV64TargetInfo>(Triple, Opts);
-        case llvm::Triple::x86_64:
-          return std::make_unique<WindowsX86_64_SPIRV64TargetInfo>(Triple,
-                                                                   Opts);
-        default:
-          llvm::report_fatal_error(
-              "Unsupported host architecture (not x86_64 or aarch64)");
-        }
+      switch (HT.getArch()) {
+      case llvm::Triple::aarch64:
+        return std::make_unique<WindowsARM64_SPIRV64TargetInfo>(Triple, Opts);
+      case llvm::Triple::x86_64:
+        return std::make_unique<WindowsX86_64_SPIRV64TargetInfo>(Triple, Opts);
+      default:
+        llvm::report_fatal_error(
+            "Unsupported host architecture (not x86_64 or aarch64)");
       }
     default:
       return std::make_unique<SPIRV64TargetInfo>(Triple, Opts);
