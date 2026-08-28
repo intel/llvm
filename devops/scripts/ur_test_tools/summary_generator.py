@@ -1,215 +1,125 @@
 """Generate test summary reports."""
 
-import sys
 from typing import List
 
 from .models.config import SummaryConfigFromLines
-from .models.test_data import (
-    TestLists,
-    TestCounts,
-    SkippedTestsResult,
-    ExcludedTestsResult,
-)
+from .models.test_results import TestResult, TestStatus, TestRunResult
 from .parsers.log_parser import LITLogParser
 from .parsers.xml_parser import JUnitXMLParser
-from .parsers.stats_parser import get_count_from_stats
-from .outputs.console import ConsoleOutput
-from .validation.data_validator import validate_test_counts
+from .parsers.parser_models import ParsedLogData
+from .reconciliation import reconcile_test_results
 
 
 class SummaryReporter:
-    """Generate comprehensive test summary."""
+    """Generate comprehensive test summary using normalized test results."""
 
     def __init__(self, config: SummaryConfigFromLines):
         self.config = config
 
     def generate(self) -> None:
-        parser = LITLogParser(self.config.log_lines)
-        stats = parser.extract_statistics()
-        test_lists, declared_counts = parser.extract_test_lists()
-        total_discovered = get_count_from_stats(stats, ["Total Discovered"])
+        """Generate and display test summary."""
+        # Parse inputs
+        log_parser = LITLogParser(self.config.log_lines)
+        log_data = log_parser.parse_to_observations()
 
-        xml_parser = JUnitXMLParser(self.config.xml_file)
-        parsed_xml = xml_parser.extract_tests_from_xml()
-        skipped_xml = parsed_xml.skipped
-        excluded_xml = parsed_xml.excluded
+        xml_data = None
+        if self.config.xml_file:
+            xml_parser = JUnitXMLParser(self.config.xml_file)
+            xml_data = xml_parser.parse_to_observations()
 
-        ConsoleOutput.print_statistics(stats)
+        # Reconcile into canonical result model
+        result = reconcile_test_results(log_data, xml_data)
 
-        skipped_result = self._analyze_skipped_tests(test_lists, stats, skipped_xml)
-        self._validate_skipped_counts(skipped_result, declared_counts, stats)
-        self._display_skipped_tests(skipped_result)
-        if skipped_result["count"] > 0:
-            self._cleanup_skipped_from_test_lists(test_lists)
+        # Display summary
+        self._display_statistics(result)
+        self._display_test_groups(result)
+        self._display_timing(log_data)
 
-        excluded_result = self._analyze_excluded_tests(test_lists, stats, excluded_xml)
-        self._validate_excluded_counts(excluded_result, declared_counts, stats)
-        self._display_excluded_tests(excluded_result)
-        if excluded_result["count"] > 0:
-            self._cleanup_excluded_from_test_lists(test_lists)
+    def _display_statistics(self, result: TestRunResult) -> None:
+        """Display overall test statistics."""
+        print("=" * 70)
+        print("Test Statistics")
+        print("=" * 70)
 
-        self._display_remaining_categories(test_lists)
+        if result.total_discovered is not None:
+            print(f"Total Discovered Tests: {result.total_discovered}")
 
-        validate_test_counts(
-            total_discovered,
-            test_lists,
-            skipped_result["count"],
-            excluded_result["count"],
-        )
+        # Count by status
+        for status in TestStatus:
+            count = result.count_by_status(status)
+            if count > 0:
+                print(f"{status.display_label}: {count}")
 
-        ConsoleOutput.print_timing_summary(self.config.log_lines)
+        if result.testing_time_ms is not None:
+            time_sec = result.testing_time_ms / 1000.0
+            print(f"Testing Time: {time_sec:.2f}s")
 
-    def _analyze_skipped_tests(
-        self, test_lists: TestLists, stats: List[str], skipped_xml: List[str]
-    ) -> SkippedTestsResult:
-        """Analyze skipped tests (priority: XML > Log > Stats)."""
-        skipped_from_log = test_lists.get("Skipped", test_lists.get("Unsupported", []))
-        stats_count = get_count_from_stats(stats, ["Skipped", "Unsupported"])
+        print()
 
-        if skipped_xml:
-            return SkippedTestsResult(
-                tests=skipped_xml,
-                count=len(skipped_xml),
-                source="xml",
-                note="",
-            )
+    def _display_test_groups(self, result: TestRunResult) -> None:
+        """Display test groups by status."""
+        # Group tests by status
+        grouped = result.group_by_status()
 
-        if skipped_from_log:
-            return SkippedTestsResult(
-                tests=skipped_from_log,
-                count=len(skipped_from_log),
-                source="log",
-                note="",
-            )
+        # Display groups in priority order (failures first)
+        priority_order = [
+            TestStatus.FAIL,
+            TestStatus.TIMEOUT,
+            TestStatus.UNRESOLVED,
+            TestStatus.XPASS,
+            TestStatus.SKIPPED,
+            TestStatus.UNSUPPORTED,
+            TestStatus.EXCLUDED,
+            TestStatus.XFAIL,
+            TestStatus.FLAKYPASS,
+            TestStatus.PASS,
+        ]
 
-        if stats_count:
-            return SkippedTestsResult(
-                tests=[],
-                count=stats_count,
-                source="stats",
-                note="Warning: Test names not available",
-            )
+        for status in priority_order:
+            tests = grouped.get(status, [])
+            if not tests:
+                continue
 
-        return SkippedTestsResult(tests=[], count=0, source="none", note="")
+            # Skip PASS tests by default (too many)
+            if status == TestStatus.PASS and len(tests) > 10:
+                print(f"{status.display_label} ({len(tests)} tests) - details omitted")
+                print()
+                continue
 
-    def _validate_skipped_counts(
-        self, result: SkippedTestsResult, declared_counts: TestCounts, stats: List[str]
-    ) -> None:
-        """Validate skipped counts (warns on mismatch)."""
-        actual_count = result["count"]
-        if actual_count == 0:
-            return  # Nothing to validate
+            # Display test group
+            self._print_test_group(status, tests)
 
-        declared_count = declared_counts.get(
-            "Skipped", declared_counts.get("Unsupported", 0)
-        )
-        stats_count = get_count_from_stats(stats, ["Skipped", "Unsupported"])
+    def _print_test_group(self, status: TestStatus, tests: List[TestResult]) -> None:
+        """Print a group of tests with given status."""
+        print("=" * 70)
+        print(f"{status.display_label} ({len(tests)})")
+        print("=" * 70)
 
-        # Build list of mismatches
-        mismatches = []
+        for test in tests[:100]:  # Limit to first 100
+            if test.duration_ms is not None:
+                print(f"  {test.name} ({test.duration_ms:.2f}ms)")
+            else:
+                print(f"  {test.name}")
 
-        if declared_count and declared_count != actual_count:
-            mismatches.append(f"log header: {declared_count}")
+        if len(tests) > 100:
+            print(f"  ... and {len(tests) - 100} more")
 
-        if stats_count and stats_count != actual_count:
-            mismatches.append(f"statistics: {stats_count}")
+        print()
 
-        # Display warning only if mismatches found
-        if mismatches:
-            sources_str = ", ".join(mismatches)
-            print(
-                f"Warning: Skipped test count mismatch. "
-                f"Using {actual_count} from {result['source']}, "
-                f"but found {sources_str}",
-                file=sys.stderr,
-            )
+    def _display_timing(self, log_data: ParsedLogData) -> None:
+        """Display timing information from log."""
+        if log_data.slowest_tests:
+            print("=" * 70)
+            print("Slowest Tests")
+            print("=" * 70)
+            for line in log_data.slowest_tests:
+                print(line)
+            print()
 
-    def _display_skipped_tests(self, result: SkippedTestsResult) -> None:
-        if result["count"] > 0:
-            ConsoleOutput.print_test_group(
-                "Skipped Tests",
-                result["tests"],
-                note=result["note"],
-                count=result["count"] if not result["tests"] else None,
-            )
-
-    def _cleanup_skipped_from_test_lists(self, test_lists: TestLists) -> None:
-        test_lists.pop("Skipped", None)
-        test_lists.pop("Unsupported", None)
-
-    def _analyze_excluded_tests(
-        self, test_lists: TestLists, stats: List[str], excluded_xml: List[str]
-    ) -> ExcludedTestsResult:
-        """Analyze excluded tests (priority: Log > XML > Stats)."""
-        excluded_from_log = test_lists.get("Excluded", [])
-        stats_count = get_count_from_stats(stats, ["Excluded"])
-
-        if excluded_from_log:
-            return ExcludedTestsResult(
-                tests=excluded_from_log,
-                count=len(excluded_from_log),
-                source="log",
-                note="",
-            )
-
-        if excluded_xml:
-            return ExcludedTestsResult(
-                tests=excluded_xml, count=len(excluded_xml), source="xml", note=""
-            )
-
-        if stats_count:
-            return ExcludedTestsResult(
-                tests=[],
-                count=stats_count,
-                source="stats",
-                note="Warning: Test names not available",
-            )
-
-        return ExcludedTestsResult(tests=[], count=0, source="none", note="")
-
-    def _validate_excluded_counts(
-        self, result: ExcludedTestsResult, declared_counts: TestCounts, stats: List[str]
-    ) -> None:
-        """Validate excluded counts (warns on mismatch)."""
-        actual_count = result["count"]
-        if actual_count == 0:
-            return  # Nothing to validate
-
-        declared_count = declared_counts.get("Excluded", 0)
-        stats_count = get_count_from_stats(stats, ["Excluded"])
-
-        # Build list of mismatches
-        mismatches = []
-
-        if declared_count and declared_count != actual_count:
-            mismatches.append(f"log header: {declared_count}")
-
-        if stats_count and stats_count != actual_count:
-            mismatches.append(f"statistics: {stats_count}")
-
-        # Display warning only if mismatches found
-        if mismatches:
-            sources_str = ", ".join(mismatches)
-            print(
-                f"Warning: Excluded test count mismatch. "
-                f"Using {actual_count} from {result['source']}, "
-                f"but found {sources_str}",
-                file=sys.stderr,
-            )
-
-    def _display_excluded_tests(self, result: ExcludedTestsResult) -> None:
-        if result["count"] > 0:
-            ConsoleOutput.print_test_group(
-                "Excluded Tests",
-                result["tests"],
-                note=result["note"],
-                count=result["count"] if not result["tests"] else None,
-            )
-
-    def _cleanup_excluded_from_test_lists(self, test_lists: TestLists) -> None:
-        test_lists.pop("Excluded", None)
-
-    def _display_remaining_categories(self, test_lists: TestLists) -> None:
-        for category, tests in test_lists.items():
-            if tests:
-                ConsoleOutput.print_test_group(f"{category} Tests", tests)
+        if log_data.time_histogram:
+            print("=" * 70)
+            print("Test Times")
+            print("=" * 70)
+            for line in log_data.time_histogram:
+                print(line)
+            print()

@@ -9,6 +9,13 @@ from .xml_parser import (
     ParsedXMLTests,
 )
 from .stats_parser import get_count_from_stats
+from .parser_models import (
+    ParsedTestObservation,
+    ParsedLogData,
+    ParsedXMLData,
+    LIT_OUTPUT_TO_STATUS,
+    STATUS_TO_LIT_LABEL,
+)
 
 __all__ = [
     "LITLogParser",
@@ -16,4 +23,9 @@ __all__ = [
     "JUnitXMLParser",
     "ParsedXMLTests",
     "get_count_from_stats",
+    "ParsedTestObservation",
+    "ParsedLogData",
+    "ParsedXMLData",
+    "LIT_OUTPUT_TO_STATUS",
+    "STATUS_TO_LIT_LABEL",
 ]

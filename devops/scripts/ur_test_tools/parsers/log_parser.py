@@ -13,6 +13,11 @@ from ..constants import (
     TEST_TIMES_HEADERS,
 )
 from ..models.test_data import TestLists, TestCounts, TimingSummary
+from .parser_models import (
+    ParsedLogData,
+    ParsedTestObservation,
+    LIT_OUTPUT_TO_STATUS,
+)
 
 
 def _read_with_utf8_fallback(path: str, read_func):
@@ -149,3 +154,68 @@ class LITLogParser:
             declared_counts[current_category] = current_declared_count
 
         return categories, declared_counts
+
+    def parse_to_observations(self) -> ParsedLogData:
+        """Parse LIT output into normalized observations.
+
+        Returns:
+            ParsedLogData with test observations, counts, and timing info.
+        """
+        # Extract test lists using legacy method
+        categories, declared_counts = self.extract_test_lists()
+
+        # Convert to observations with normalized status
+        observations = []
+        normalized_counts = {}
+
+        for category_label, test_names in categories.items():
+            status = LIT_OUTPUT_TO_STATUS.get(category_label)
+            if status is None:
+                print(
+                    f"Warning: Unknown test category '{category_label}', skipping",
+                    file=sys.stderr,
+                )
+                continue
+
+            # Convert test names to observations
+            for test_name in test_names:
+                observations.append(
+                    ParsedTestObservation(
+                        name=test_name,
+                        status=status,
+                        duration_ms=None,  # Log output doesn't have per-test timing
+                    )
+                )
+
+            # Store declared count for this status
+            count = declared_counts.get(category_label, 0)
+            normalized_counts[status] = count
+
+        # Extract statistics (could be used for validation)
+        stats_lines = self.extract_statistics()
+        statistics = {}
+        for line in stats_lines:
+            # Parse "Stat Name: N" format
+            parts = line.strip().split(":", 1)
+            if len(parts) == 2:
+                stat_name = parts[0].strip()
+                try:
+                    stat_value = int(parts[1].strip())
+                    statistics[stat_name] = stat_value
+                except ValueError:
+                    continue
+
+        # Extract timing info
+        timing = self.extract_time_summary()
+
+        # Extract error details
+        errors = self.extract_error_details()
+
+        return ParsedLogData(
+            tests=observations,
+            declared_counts=normalized_counts,
+            statistics=statistics,
+            error_details=errors,
+            slowest_tests=timing["slowest"],
+            time_histogram=timing["histogram"],
+        )
