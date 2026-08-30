@@ -325,10 +325,7 @@ class LLVM_LIBRARY_VISIBILITY WindowsX86_32SPIRTargetInfo
 public:
   WindowsX86_32SPIRTargetInfo(const llvm::Triple &Triple,
                               const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIR32TargetInfo>(Triple, Opts) {
-    DoubleAlign = LongLongAlign = 64;
-    WCharType = UnsignedShort;
-  }
+      : WindowsTargetInfo<SPIR32TargetInfo>(Triple, Opts) {}
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::CharPtrBuiltinVaList;
@@ -350,14 +347,9 @@ public:
   WindowsX86_64_SPIR64TargetInfo(const llvm::Triple &Triple,
                                  const TargetOptions &Opts)
       : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {
-    LongWidth = LongAlign = 32;
-    DoubleAlign = LongLongAlign = 64;
-    IntMaxType = SignedLongLong;
-    Int64Type = SignedLongLong;
     SizeType = UnsignedLongLong;
     PtrDiffType = SignedLongLong;
     IntPtrType = SignedLongLong;
-    WCharType = UnsignedShort;
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
@@ -387,14 +379,9 @@ public:
   WindowsARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
                                 const TargetOptions &Opts)
       : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {
-    LongWidth = LongAlign = 32;
-    DoubleAlign = LongLongAlign = 64;
-    IntMaxType = SignedLongLong;
-    Int64Type = SignedLongLong;
     SizeType = UnsignedLongLong;
     PtrDiffType = SignedLongLong;
     IntPtrType = SignedLongLong;
-    WCharType = UnsignedShort;
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
@@ -546,10 +533,7 @@ class LLVM_LIBRARY_VISIBILITY WindowsX86_32SPIRV32TargetInfo
 public:
   WindowsX86_32SPIRV32TargetInfo(const llvm::Triple &Triple,
                                  const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIRV32TargetInfo>(Triple, Opts) {
-    DoubleAlign = LongLongAlign = 64;
-    WCharType = UnsignedShort;
-  }
+      : WindowsTargetInfo<SPIRV32TargetInfo>(Triple, Opts) {}
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::CharPtrBuiltinVaList;
@@ -571,14 +555,9 @@ public:
   WindowsX86_64_SPIRV64TargetInfo(const llvm::Triple &Triple,
                                   const TargetOptions &Opts)
       : WindowsTargetInfo<SPIRV64TargetInfo>(Triple, Opts) {
-    LongWidth = LongAlign = 32;
-    DoubleAlign = LongLongAlign = 64;
-    IntMaxType = SignedLongLong;
-    Int64Type = SignedLongLong;
     SizeType = UnsignedLongLong;
     PtrDiffType = SignedLongLong;
     IntPtrType = SignedLongLong;
-    WCharType = UnsignedShort;
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
@@ -603,14 +582,9 @@ public:
   WindowsARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
                                  const TargetOptions &Opts)
       : WindowsTargetInfo<SPIRV64TargetInfo>(Triple, Opts) {
-    LongWidth = LongAlign = 32;
-    DoubleAlign = LongLongAlign = 64;
-    IntMaxType = SignedLongLong;
-    Int64Type = SignedLongLong;
     SizeType = UnsignedLongLong;
     PtrDiffType = SignedLongLong;
     IntPtrType = SignedLongLong;
-    WCharType = UnsignedShort;
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
