@@ -15,6 +15,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Deprecated compatibility alias for sycl::sub_group. This is removed when
+// preview breaking changes are enabled.
 namespace ext::oneapi {
 struct __SYCL_DEPRECATED("use sycl::sub_group() instead") sub_group
     : sycl::sub_group {
@@ -32,5 +35,6 @@ private:
   sub_group() = default;
 };
 } // namespace ext::oneapi
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 } // namespace _V1
 } // namespace sycl

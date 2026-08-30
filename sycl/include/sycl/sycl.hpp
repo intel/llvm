@@ -156,7 +156,10 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/owner_less.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Deprecated compatibility header for sycl::ext::oneapi::sub_group.
 #include <sycl/ext/oneapi/sub_group.hpp>
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>

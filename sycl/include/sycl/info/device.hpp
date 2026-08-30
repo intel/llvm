@@ -462,11 +462,15 @@ struct __SYCL_DEPRECATED("use device::get_info instead") opencl_c_version
 };
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // Extensions
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Deprecated compatibility descriptor. This is removed when preview
+// breaking changes are enabled.
 struct __SYCL_DEPRECATED("extension is deprecated")
     sub_group_independent_forward_progress
     : device_traits<UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS> {
   using return_type = bool;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 struct ext_oneapi_srgb : device_traits<UR_DEVICE_INFO_IMAGE_SRGB> {
   using return_type = bool;
 };
