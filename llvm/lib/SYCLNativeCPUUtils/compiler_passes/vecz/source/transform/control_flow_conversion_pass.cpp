@@ -296,7 +296,7 @@ private:
   /// @return true if no problem occurred, false otherwise.
   bool
   blendDivergentLoopExitMasks(LoopTag &LTag,
-                              const SmallVectorImpl<Loop::Edge> &exitEdges,
+                              const SmallVectorImpl<LoopInfo::Edge> &exitEdges,
                               const SmallVectorImpl<BasicBlock *> &exitBlocks);
 
   /// @brief Replace uses of loop values outside of a divergent loop.
@@ -978,9 +978,9 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
   }
 
   Type *maskTy = Type::getInt1Ty(F.getContext());
-  SmallVector<Loop::Edge, 1> exitEdges;
-  LTag.loop->getExitEdges(exitEdges);
-  for (const Loop::Edge &EE : exitEdges) {
+  SmallVector<LoopInfo::Edge, 1> exitEdges;
+  LI->getExitEdges(*LTag.loop, exitEdges);
+  for (const LoopInfo::Edge &EE : exitEdges) {
     const auto *const exitingBlock = EE.first;
     const auto *const exitBlock = EE.second;
     // Divergent loop need to keep track of which instance left at which exit.
@@ -1026,7 +1026,7 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
     return innerLoop;
   };
 
-  for (const Loop::Edge &EE : exitEdges) {
+  for (const LoopInfo::Edge &EE : exitEdges) {
     BasicBlock *exitingBlock = const_cast<BasicBlock *>(EE.first);
     BasicBlock *exitBlock = const_cast<BasicBlock *>(EE.second);
 
@@ -1103,11 +1103,11 @@ bool ControlFlowConversionState::Impl::createCombinedLoopExitMask(
     LoopTag &LTag) {
   // Gather every information on every instance that left the loop in the
   // current iteration.
-  SmallVector<Loop::Edge, 1> exitEdges;
+  SmallVector<LoopInfo::Edge, 1> exitEdges;
   auto *const Loop = LTag.loop;
-  Loop->getExitEdges(exitEdges);
+  LI->getExitEdges(*Loop, exitEdges);
   auto &LMask = LoopMasks.at(Loop);
-  for (const Loop::Edge &EE : exitEdges) {
+  for (const LoopInfo::Edge &EE : exitEdges) {
     BasicBlock *exitingBlock = const_cast<BasicBlock *>(EE.first);
     BasicBlock *exitBlock = const_cast<BasicBlock *>(EE.second);
     if (DR->isDivergent(*exitBlock)) {
@@ -1753,9 +1753,9 @@ bool ControlFlowConversionState::Impl::uniformizeDivergentLoops() {
 
       // Store the loop exit blocks and edges before doing any modification.
       SmallVector<BasicBlock *, 2> exitBlocks;
-      SmallVector<Loop::Edge, 2> exitEdges;
+      SmallVector<LoopInfo::Edge, 2> exitEdges;
       {
-        L->getExitEdges(exitEdges);
+        LI->getExitEdges(*L, exitEdges);
         // 1) Retrieve the unique loop exit blocks.
         // 2) Remove any loop exit for which 'L' is not the outermost loop left.
         // 3) Sort the loop exit blocks.
@@ -2286,7 +2286,7 @@ bool ControlFlowConversionState::Impl::blendDivergentLoopLiveValues(
 }
 
 bool ControlFlowConversionState::Impl::blendDivergentLoopExitMasks(
-    LoopTag &LTag, const SmallVectorImpl<Loop::Edge> &exitEdges,
+    LoopTag &LTag, const SmallVectorImpl<LoopInfo::Edge> &exitEdges,
     const SmallVectorImpl<BasicBlock *> &exitBlocks) {
   LLVM_DEBUG(dbgs() << "CFC: BLEND DIVERGENT LOOP EXIT MASKS FOR "
                     << LTag.loop->getName() << "\n");
@@ -2304,7 +2304,7 @@ bool ControlFlowConversionState::Impl::blendDivergentLoopExitMasks(
   }
 
   auto &LMask = LoopMasks.at(LTag.loop);
-  for (const Loop::Edge &EE : exitEdges) {
+  for (const LoopInfo::Edge &EE : exitEdges) {
     BasicBlock *exitingBlock = const_cast<BasicBlock *>(EE.first);
     BasicBlock *exitBlock = const_cast<BasicBlock *>(EE.second);
 

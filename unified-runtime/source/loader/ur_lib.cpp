@@ -26,6 +26,13 @@
 #include <regex>
 #include <stdlib.h>
 
+// With static UMF, its library destructor finalizes UMF before the loader
+// tears down. Hold a umfInit reference so UMF outlives the layers' frees in
+// urLoaderTearDown.
+#if defined(UR_STATIC_UMF)
+#include <umf.h>
+#endif
+
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
 context_t::context_t() { parseEnvEnabledLayers(); }
@@ -42,10 +49,18 @@ void context_t::parseEnvEnabledLayers() {
   }
 }
 
-void context_t::initLayers() {
+// An enabled layer that fails to come up (e.g. a missing shared library) fails
+// the whole loader; coming up silently without it would be worse.
+ur_result_t context_t::initLayers() {
   for (auto &[layer, _] : layers) {
-    layer->init(&urDdiTable, enabledLayerNames, codelocData);
+    ur_result_t result =
+        layer->init(&urDdiTable, enabledLayerNames, codelocData);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
   }
+
+  return UR_RESULT_SUCCESS;
 }
 
 void context_t::tearDownLayers() const {
@@ -81,9 +96,15 @@ __urdlllocal ur_result_t context_t::Init(
     enabledLayerNames.merge(hLoaderConfig->getEnabledLayerNames());
   }
 
-  if (!enabledLayerNames.empty()) {
-    initLayers();
+  if (UR_RESULT_SUCCESS == result && !enabledLayerNames.empty()) {
+    result = initLayers();
   }
+
+#if defined(UR_STATIC_UMF)
+  if (UR_RESULT_SUCCESS == result) {
+    umfInit();
+  }
+#endif
 
   return result;
 }
@@ -204,6 +225,13 @@ ur_result_t urLoaderTearDown() {
     ur_loader::context_t::forceDelete();
     delete context;
   });
+
+#if defined(UR_STATIC_UMF)
+  // Release the Init reference only after the layers are torn down above.
+  if (ret == 0) {
+    umfTearDown();
+  }
+#endif
 
   ur_result_t result =
       ret == 0 ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNINITIALIZED;

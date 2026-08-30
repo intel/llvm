@@ -93,7 +93,7 @@ int main() {
 
     Q.submit([&](handler &cgh) {
        auto image_acc =
-           image_2D.get_access<pixelT, sycl::access::mode::read>(cgh);
+           image_2D.get_access<pixelT, sycl::access_mode::read>(cgh);
        auto passBackAcc = passBack.get_host_access(sycl::write_only);
        cgh.host_task([=](const interop_handle &IH) {
          // There is nothing with image handles in the L0 API except
@@ -113,7 +113,7 @@ int main() {
 
     // Then use that image to read and stream out the data.
     Q.submit([&](handler &cgh) {
-       auto read_acc = NewImg.get_access<pixelT, sycl::access::mode::read>(cgh);
+       auto read_acc = NewImg.get_access<pixelT, sycl::access_mode::read>(cgh);
        sycl::stream out(2024, 400, cgh);
        cgh.single_task([=]() {
          for (unsigned y = 0; y < height; y++) {

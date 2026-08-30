@@ -44,11 +44,11 @@ int main() {
     auto buf_3 = buffer{vec_3};
     auto buf_4 = buffer{vec_4};
     q.submit([&](handler &h) {
-      auto access_0 = buf_0.template get_access<access::mode::read_write>(h);
-      auto access_1 = buf_1.template get_access<access::mode::read_write>(h);
-      auto access_2 = buf_2.template get_access<access::mode::read_write>(h);
-      auto access_3 = buf_3.template get_access<access::mode::read_write>(h);
-      auto access_4 = buf_4.template get_access<access::mode::read_write>(h);
+      auto access_0 = buf_0.template get_access<access_mode::read_write>(h);
+      auto access_1 = buf_1.template get_access<access_mode::read_write>(h);
+      auto access_2 = buf_2.template get_access<access_mode::read_write>(h);
+      auto access_3 = buf_3.template get_access<access_mode::read_write>(h);
+      auto access_4 = buf_4.template get_access<access_mode::read_write>(h);
       h.parallel_for<class SimplestKernel>(
           range<1>{size / SIMDSize}, [=](id<1> id) SYCL_ESIMD_KERNEL {
             auto offset = id[0] * SIMDSize * sizeof(int);

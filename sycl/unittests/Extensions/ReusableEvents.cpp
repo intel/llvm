@@ -391,7 +391,7 @@ TEST_F(ReusableEventsTest, ProfilingInfoQuery) {
   sycl::platform Plt = Dev.get_platform();
 
   sycl::context Ctx{Dev};
-  syclex::properties PropList{syclex::enable_profiling};
+  syclex::properties PropList{syclex::enable_profiling{true}};
   auto event = syclex::make_event(Ctx, PropList);
   sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
 

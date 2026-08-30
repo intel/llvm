@@ -63,7 +63,7 @@ int spawner(int argc, char *argv[]) {
       syclexp::reserve_virtual_mem(0, AlignedByteSize, Context);
 
   // Create physical memory with IPC enabled
-  syclexp::properties PropList{syclexp::enable_ipc};
+  syclexp::properties PropList{syclexp::enable_ipc{true}};
   syclexp::physical_mem PhysMem{Device, Context, AlignedByteSize, PropList};
 
   // Map physical memory to virtual address

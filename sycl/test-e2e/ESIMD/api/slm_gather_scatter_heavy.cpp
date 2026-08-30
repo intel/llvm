@@ -382,8 +382,8 @@ bool test_impl(queue q) {
     range<1> glob_range{size / VL};
 
     auto e = q.submit([&](handler &cgh) {
-      auto acc_in = buf_in.template get_access<access::mode::read_write>(cgh);
-      auto acc_out = buf_out.template get_access<access::mode::read_write>(cgh);
+      auto acc_in = buf_in.template get_access<access_mode::read_write>(cgh);
+      auto acc_out = buf_out.template get_access<access_mode::read_write>(cgh);
       constexpr auto WG_SIZE = STRIDE; // for simplicity of the test
       KernelType kernel(acc_in, acc_out, MaskedLane);
       cgh.parallel_for(nd_range<1>{glob_range, range<1>(WG_SIZE)}, kernel);

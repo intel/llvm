@@ -57,7 +57,7 @@ void SemaBase::SemaDiagnosticBuilder::AddFixItHint(
 
 SemaBase::SemaDiagnosticBuilder::DeferredDiagnosticsType &
 SemaBase::SemaDiagnosticBuilder::getDeviceDeferredDiags() const {
-  if (S.InConstexprVarInit)
+  if (S.InConstexprVarInit && S.getLangOpts().SYCLIsDevice)
     return S.MaybeDeviceDeferredDiags;
   return S.DeviceDeferredDiags;
 }
@@ -102,7 +102,6 @@ Sema::SemaDiagnosticBuilder SemaBase::Diag(SourceLocation Loc,
 
 SemaBase::SemaDiagnosticBuilder SemaBase::DiagCompat(SourceLocation Loc,
                                                      unsigned CompatDiagId) {
-  return Diag(Loc,
-              DiagnosticIDs::getCXXCompatDiagId(getLangOpts(), CompatDiagId));
+  return Diag(Loc, DiagnosticIDs::getCompatDiagId(getLangOpts(), CompatDiagId));
 }
 } // namespace clang

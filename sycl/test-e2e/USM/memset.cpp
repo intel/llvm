@@ -84,7 +84,7 @@ int main() {
     {
       buffer<char, 1> buf{&out[0], range<1>{N}};
       q.submit([&](handler &h) {
-        auto acc = buf.template get_access<access::mode::write>(h);
+        auto acc = buf.template get_access<access_mode::write>(h);
         h.parallel_for<class usm_device_transfer>(
             range<1>(N), [=](id<1> item) { acc[item] = array[item]; });
       });
@@ -109,7 +109,7 @@ int main() {
     {
       buffer<char, 1> buf{&out[0], range<1>{N}};
       q.submit([&](handler &h) {
-        auto acc = buf.template get_access<access::mode::write>(h);
+        auto acc = buf.template get_access<access_mode::write>(h);
         h.parallel_for<class usm_aligned_device_transfer>(
             range<1>(N), [=](id<1> item) { acc[item] = array[item]; });
       });

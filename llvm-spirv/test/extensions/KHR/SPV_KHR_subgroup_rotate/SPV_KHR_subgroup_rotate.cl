@@ -58,8 +58,8 @@
 // CHECK-LLVM: call spir_func i8 @_Z16sub_group_rotateci(i8 0, i32 2)
 // CHECK-LLVM: call spir_func i8 @_Z26sub_group_clustered_rotatecij(i8 0, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformRotateKHRici(i32 3, i8 0, i32 2)
-// CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformRotateKHRicij(i32 3, i8 0, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformRotateKHRicj(i32 3, i8 0, i32 2)
+// CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformRotateKHRicjj(i32 3, i8 0, i32 2, i32 4)
 kernel void testRotateChar(global char* dst)
 {
     char v = 0;
@@ -77,8 +77,8 @@ kernel void testRotateChar(global char* dst)
 // CHECK-LLVM: call spir_func i8 @_Z16sub_group_rotateci(i8 0, i32 2)
 // CHECK-LLVM: call spir_func i8 @_Z26sub_group_clustered_rotatecij(i8 0, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformRotateKHRici(i32 3, i8 0, i32 2)
-// CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformRotateKHRicij(i32 3, i8 0, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformRotateKHRicj(i32 3, i8 0, i32 2)
+// CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformRotateKHRicjj(i32 3, i8 0, i32 2, i32 4)
 kernel void testRotateUChar(global uchar* dst)
 {
     uchar v = 0;
@@ -96,8 +96,8 @@ kernel void testRotateUChar(global uchar* dst)
 // CHECK-LLVM: call spir_func i16 @_Z16sub_group_rotatesi(i16 0, i32 2)
 // CHECK-LLVM: call spir_func i16 @_Z26sub_group_clustered_rotatesij(i16 0, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformRotateKHRisi(i32 3, i16 0, i32 2)
-// CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformRotateKHRisij(i32 3, i16 0, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformRotateKHRisj(i32 3, i16 0, i32 2)
+// CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformRotateKHRisjj(i32 3, i16 0, i32 2, i32 4)
 kernel void testRotateShort(global short* dst)
 {
     short v = 0;
@@ -115,8 +115,8 @@ kernel void testRotateShort(global short* dst)
 // CHECK-LLVM: call spir_func i16 @_Z16sub_group_rotatesi(i16 0, i32 2)
 // CHECK-LLVM: call spir_func i16 @_Z26sub_group_clustered_rotatesij(i16 0, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformRotateKHRisi(i32 3, i16 0, i32 2)
-// CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformRotateKHRisij(i32 3, i16 0, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformRotateKHRisj(i32 3, i16 0, i32 2)
+// CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformRotateKHRisjj(i32 3, i16 0, i32 2, i32 4)
 kernel void testRotateUShort(global ushort* dst)
 {
     ushort v = 0;
@@ -134,8 +134,8 @@ kernel void testRotateUShort(global ushort* dst)
 // CHECK-LLVM: call spir_func i32 @_Z16sub_group_rotateii(i32 0, i32 2)
 // CHECK-LLVM: call spir_func i32 @_Z26sub_group_clustered_rotateiij(i32 0, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiii(i32 3, i32 0, i32 2)
-// CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiiij(i32 3, i32 0, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiij(i32 3, i32 0, i32 2)
+// CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiijj(i32 3, i32 0, i32 2, i32 4)
 kernel void testRotateInt(global int* dst)
 {
     int v = 0;
@@ -153,8 +153,8 @@ kernel void testRotateInt(global int* dst)
 // CHECK-LLVM: call spir_func i32 @_Z16sub_group_rotateii(i32 0, i32 2)
 // CHECK-LLVM: call spir_func i32 @_Z26sub_group_clustered_rotateiij(i32 0, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiii(i32 3, i32 0, i32 2)
-// CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiiij(i32 3, i32 0, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiij(i32 3, i32 0, i32 2)
+// CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiijj(i32 3, i32 0, i32 2, i32 4)
 kernel void testRotateUInt(global uint* dst)
 {
     uint v = 0;
@@ -172,8 +172,8 @@ kernel void testRotateUInt(global uint* dst)
 // CHECK-LLVM: call spir_func i64 @_Z16sub_group_rotateli(i64 0, i32 2)
 // CHECK-LLVM: call spir_func i64 @_Z26sub_group_clustered_rotatelij(i64 0, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformRotateKHRili(i32 3, i64 0, i32 2)
-// CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformRotateKHRilij(i32 3, i64 0, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformRotateKHRilj(i32 3, i64 0, i32 2)
+// CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformRotateKHRiljj(i32 3, i64 0, i32 2, i32 4)
 kernel void testRotateLong(global long* dst)
 {
     long v = 0;
@@ -191,8 +191,8 @@ kernel void testRotateLong(global long* dst)
 // CHECK-LLVM: call spir_func i64 @_Z16sub_group_rotateli(i64 0, i32 2)
 // CHECK-LLVM: call spir_func i64 @_Z26sub_group_clustered_rotatelij(i64 0, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformRotateKHRili(i32 3, i64 0, i32 2)
-// CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformRotateKHRilij(i32 3, i64 0, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformRotateKHRilj(i32 3, i64 0, i32 2)
+// CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformRotateKHRiljj(i32 3, i64 0, i32 2, i32 4)
 kernel void testRotateULong(global ulong* dst)
 {
     ulong v = 0;
@@ -210,8 +210,8 @@ kernel void testRotateULong(global ulong* dst)
 // CHECK-LLVM: call spir_func float @_Z16sub_group_rotatefi(float 0.000000e+00, i32 2)
 // CHECK-LLVM: call spir_func float @_Z26sub_group_clustered_rotatefij(float 0.000000e+00, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func float @_Z32__spirv_GroupNonUniformRotateKHRifi(i32 3, float 0.000000e+00, i32 2)
-// CHECK-SPV-IR: call spir_func float @_Z32__spirv_GroupNonUniformRotateKHRifij(i32 3, float 0.000000e+00, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func float @_Z32__spirv_GroupNonUniformRotateKHRifj(i32 3, float 0.000000e+00, i32 2)
+// CHECK-SPV-IR: call spir_func float @_Z32__spirv_GroupNonUniformRotateKHRifjj(i32 3, float 0.000000e+00, i32 2, i32 4)
 kernel void testRotateFloat(global float* dst)
 {
     float v = 0;
@@ -229,8 +229,8 @@ kernel void testRotateFloat(global float* dst)
 // CHECK-LLVM: call spir_func half @_Z16sub_group_rotateDhi(half 0.000000e+00, i32 2)
 // CHECK-LLVM: call spir_func half @_Z26sub_group_clustered_rotateDhij(half 0.000000e+00, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformRotateKHRiDhi(i32 3, half 0.000000e+00, i32 2)
-// CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformRotateKHRiDhij(i32 3, half 0.000000e+00, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformRotateKHRiDhj(i32 3, half 0.000000e+00, i32 2)
+// CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformRotateKHRiDhjj(i32 3, half 0.000000e+00, i32 2, i32 4)
 kernel void testRotateHalf(global half* dst)
 {
     half v = 0;
@@ -248,8 +248,8 @@ kernel void testRotateHalf(global half* dst)
 // CHECK-LLVM: call spir_func double @_Z16sub_group_rotatedi(double 0.000000e+00, i32 2)
 // CHECK-LLVM: call spir_func double @_Z26sub_group_clustered_rotatedij(double 0.000000e+00, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func double @_Z32__spirv_GroupNonUniformRotateKHRidi(i32 3, double 0.000000e+00, i32 2)
-// CHECK-SPV-IR: call spir_func double @_Z32__spirv_GroupNonUniformRotateKHRidij(i32 3, double 0.000000e+00, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func double @_Z32__spirv_GroupNonUniformRotateKHRidj(i32 3, double 0.000000e+00, i32 2)
+// CHECK-SPV-IR: call spir_func double @_Z32__spirv_GroupNonUniformRotateKHRidjj(i32 3, double 0.000000e+00, i32 2, i32 4)
 kernel void testRotateDouble(global double* dst)
 {
     double v = 0;

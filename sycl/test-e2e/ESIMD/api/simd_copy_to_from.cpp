@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: There is a separate version of this test for PVC.
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -84,8 +85,8 @@ bool testAcc(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
     buffer<T, 1> DstB(Dst, range<1>(Off + N));
 
     Q.submit([&](handler &CGH) {
-       auto SrcA = SrcB.template get_access<access::mode::read>(CGH);
-       auto DstA = DstB.template get_access<access::mode::write>(CGH);
+       auto SrcA = SrcB.template get_access<access_mode::read>(CGH);
+       auto DstA = DstB.template get_access<access_mode::write>(CGH);
 
        CGH.parallel_for(sycl::range<1>{1}, [=](id<1>) SYCL_ESIMD_KERNEL {
          simd<T, N> Vals;

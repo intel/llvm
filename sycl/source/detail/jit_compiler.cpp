@@ -32,6 +32,14 @@ static inline void printPerformanceWarning(const std::string &Message) {
 jit_compiler::jit_compiler()
     : LibraryHandle(nullptr, CustomDeleterForLibHandle) {
   auto checkJITLibrary = [this]() -> bool {
+// If this is a debug build of the runtime on Windows, return false since the
+// debug CRT is incompatible with that of the JIT library.
+#if defined(_MSC_VER) && defined(_DEBUG)
+    printPerformanceWarning(
+        "Debug build of the runtime is not compatible with the JIT library");
+    return false;
+#endif
+
 #ifdef _WIN32
     static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
     static const std::string JITLibraryName = dir + "\\" + "sycl-jit.dll";
