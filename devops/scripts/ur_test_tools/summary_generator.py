@@ -37,9 +37,7 @@ class SummaryReporter:
 
     def _display_statistics(self, result: TestRunResult) -> None:
         """Display overall test statistics."""
-        print("=" * 70)
-        print("Test Statistics")
-        print("=" * 70)
+        print("=== Test Statistics ===")
 
         if result.total_discovered is not None:
             print(f"Total Discovered Tests: {result.total_discovered}")
@@ -80,46 +78,42 @@ class SummaryReporter:
             if not tests:
                 continue
 
-            # Skip PASS tests by default (too many)
-            if status == TestStatus.PASS and len(tests) > 10:
-                print(f"{status.display_label} ({len(tests)} tests) - details omitted")
-                print()
-                continue
-
             # Display test group
             self._print_test_group(status, tests)
 
     def _print_test_group(self, status: TestStatus, tests: List[TestResult]) -> None:
-        """Print a group of tests with given status."""
-        print("=" * 70)
-        print(f"{status.display_label} ({len(tests)})")
-        print("=" * 70)
+        """Print a group of tests with given status using GitHub Actions collapsible groups."""
+        print(f"::group::{status.display_label} ({len(tests)})")
 
         for test in tests[:100]:  # Limit to first 100
             if test.duration_ms is not None:
-                print(f"  {test.name} ({test.duration_ms:.2f}ms)")
+                print(f"{test.name} ({test.duration_ms:.2f}ms)")
             else:
-                print(f"  {test.name}")
+                print(test.name)
 
         if len(tests) > 100:
-            print(f"  ... and {len(tests) - 100} more")
+            print(f"... and {len(tests) - 100} more")
 
-        print()
+        print("::endgroup::")
 
     def _display_timing(self, log_data: ParsedLogData) -> None:
         """Display timing information from log."""
+        if not (log_data.slowest_tests or log_data.time_histogram):
+            return
+
+        print("::group::Test Timing Summary")
+
         if log_data.slowest_tests:
-            print("=" * 70)
-            print("Slowest Tests")
-            print("=" * 70)
+            print("Slowest Tests:")
+            print("-" * 70)
             for line in log_data.slowest_tests:
                 print(line)
             print()
 
         if log_data.time_histogram:
-            print("=" * 70)
-            print("Test Times")
-            print("=" * 70)
+            print("Test Times Distribution:")
+            print("-" * 70)
             for line in log_data.time_histogram:
                 print(line)
-            print()
+
+        print("::endgroup::")
