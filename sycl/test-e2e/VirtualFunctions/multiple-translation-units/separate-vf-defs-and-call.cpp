@@ -1,3 +1,6 @@
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-TRACKER: GSD-11997
+
 // REQUIRES: aspect-usm_shared_allocations
 //
 // This test covers a scenario where virtual functions defintion and their uses
