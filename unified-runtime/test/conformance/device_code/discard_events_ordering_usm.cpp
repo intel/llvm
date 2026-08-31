@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "discard_events_ordering_usm_consts.h"
+#include "../../common/discard_events_ordering_usm_consts.h"
 #include <sycl/sycl.hpp>
 
 static constexpr uint32_t MAGIC_NUM1 = 2;

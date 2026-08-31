@@ -14,7 +14,7 @@
 #ifndef UR_TEST_COMMON_ENQUEUE_USM_OPERATIONS_ORDERING_HPP
 #define UR_TEST_COMMON_ENQUEUE_USM_OPERATIONS_ORDERING_HPP
 
-#include "../conformance/device_code/discard_events_ordering_usm_consts.h"
+#include "discard_events_ordering_usm_consts.h"
 #include <uur/fixtures.h>
 
 inline std::string PrintQueueParam(
