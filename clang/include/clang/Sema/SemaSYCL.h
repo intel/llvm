@@ -289,6 +289,8 @@ private:
   // special types inside. Relevant for free function kernels only.
   llvm::DenseSet<const RecordDecl *> StructsWithSpecialTypes;
 
+  llvm::DenseSet<const RecordDecl *> DeepTypeCheckedRecords;
+
 public:
   SemaSYCL(Sema &S);
 
@@ -319,9 +321,7 @@ public:
       DeviceDiagnosticReason Reason = DeviceDiagnosticReason::Sycl |
                                       DeviceDiagnosticReason::Esimd);
 
-  void deepTypeCheckForDevice(SourceLocation UsedAt,
-                              llvm::DenseSet<QualType> Visited,
-                              ValueDecl *DeclToCheck);
+  void deepTypeCheckForDevice(SourceLocation UsedAt, ValueDecl *DeclToCheck);
 
   const KernelFDPairs &getKernelFDPairs() { return SyclKernelsToOpenCLKernels; }
 
