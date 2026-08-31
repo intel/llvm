@@ -717,8 +717,6 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::spir64: {
     llvm::Triple HT(Opts.HostTriple);
-    bool IsFPGASubArch = Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-
     switch (HT.getOS()) {
     case llvm::Triple::Win32:
       switch (HT.getArch()) {
@@ -731,12 +729,8 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
             "Unsupported host architecture (not x86_64 or aarch64)");
       }
     case llvm::Triple::Linux:
-      if (IsFPGASubArch)
-        return std::make_unique<LinuxTargetInfo<SPIR64FPGATargetInfo>>(Triple, Opts);
       return std::make_unique<LinuxTargetInfo<SPIR64TargetInfo>>(Triple, Opts);
     default:
-      if (IsFPGASubArch)
-        return std::make_unique<SPIR64FPGATargetInfo>(Triple, Opts);
       return std::make_unique<SPIR64TargetInfo>(Triple, Opts);
     }
   }
