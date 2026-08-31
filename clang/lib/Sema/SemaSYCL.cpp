@@ -428,8 +428,7 @@ static bool isZeroSizedArray(SemaSYCL &S, QualType Ty) {
 static bool needsDeepTypeCheck(SemaSYCL &S, QualType Ty,
                                const RecordDecl *&RootRecord) {
   RootRecord = nullptr;
-  while (Ty->isAnyPointerType() || Ty->isArrayType() ||
-         Ty->isReferenceType()) {
+  while (Ty->isAnyPointerType() || Ty->isArrayType() || Ty->isReferenceType()) {
     if (isZeroSizedArray(S, Ty))
       return true;
     if (Ty->isArrayType())
@@ -6017,8 +6016,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
   // to avoid mess of notes. This flag is to track that error already happened.
   bool NeedToEmitNotes = true;
   bool FoundError = false;
-  bool CanCacheResult =
-      RootRecord && RootRecord->isCompleteDefinition();
+  bool CanCacheResult = RootRecord && RootRecord->isCompleteDefinition();
   llvm::SmallDenseSet<QualType, 8> Visited;
 
   auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
@@ -6110,8 +6108,8 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
   } while (!StackForRecursion.empty());
 
   if (CanCacheResult && !FoundError)
-  DeepTypeCheckedRecords.insert(
-    cast<RecordDecl>(RootRecord->getCanonicalDecl()));
+    DeepTypeCheckedRecords.insert(
+        cast<RecordDecl>(RootRecord->getCanonicalDecl()));
 }
 
 void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
