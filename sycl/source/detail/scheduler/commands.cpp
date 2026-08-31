@@ -2295,12 +2295,16 @@ std::string_view ExecCGCommand::getTypeString() const {
 // for users who need more control.
 static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
-  if (NDR.NumWorkGroups[0] == 0)
-    return; // Not parallel_for_work_group -- nothing to fill in.
-  // In pfwg mode NumWorkGroups is the only field the user sets; GlobalSize
-  // and LocalSize must both be zero (see NDRDescT contract in
-  // ndrange_desc.hpp).
-  assert(NDR.GlobalSize[0] == 0 && NDR.LocalSize[0] == 0);
+  if (NDR.GlobalSize[0] != 0)
+    return; // GlobalSize is set - no need to adjust
+  if (NDR.LocalSize[0] != 0)
+    return; // User set LocalSize but GlobalSize is zero (e.g. nd_range with
+            // zero global, non-zero local). Per SYCL 2020 the kernel is not
+            // executed; leave the range as-is.
+  // Zero global and zero local: either parallel_for_work_group (NumWorkGroups
+  // is set) or plain parallel_for with an empty range. Fill in WGSize so that
+  // downstream layers (in particular DeviceASAN's preLaunchKernel) always see
+  // a non-zero local work size even when the launch is a no-op.
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
