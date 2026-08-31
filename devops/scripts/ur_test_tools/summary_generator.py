@@ -31,28 +31,18 @@ class SummaryReporter:
         result = reconcile_test_results(log_data, xml_data)
 
         # Display summary
-        self._display_statistics(result)
+        self._display_statistics(log_parser)
         self._display_test_groups(result)
         self._display_timing(log_data)
 
-    def _display_statistics(self, result: TestRunResult) -> None:
-        """Display overall test statistics."""
-        print("=== Test Statistics ===")
-
-        if result.total_discovered is not None:
-            print(f"Total Discovered Tests: {result.total_discovered}")
-
-        # Count by status
-        for status in TestStatus:
-            count = result.count_by_status(status)
-            if count > 0:
-                print(f"{status.display_label}: {count}")
-
-        if result.testing_time_ms is not None:
-            time_sec = result.testing_time_ms / 1000.0
-            print(f"Testing Time: {time_sec:.2f}s")
-
-        print()
+    def _display_statistics(self, log_parser: LITLogParser) -> None:
+        """Display overall test statistics from log output."""
+        stats = log_parser.extract_statistics()
+        if stats:
+            print("=== Test Statistics ===")
+            for stat in stats:
+                print(stat.rstrip())
+            print()
 
     def _display_test_groups(self, result: TestRunResult) -> None:
         """Display test groups by status."""
