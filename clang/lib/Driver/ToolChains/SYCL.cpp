@@ -1663,30 +1663,19 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (IsGenTriple) {
-        if (!GenDevice.empty() && Device != GenDevice && !Device.empty())
+        // "aot_generic" is a new-offload-model pseudo-arch bucket for raw
+        // -Xsycl-target-backend=spir64_gen entries; inert in old model.
+        StringRef AOTGenericArch = "aot_generic";
+        if (Device != GenDevice && !Device.empty() &&
+            !(GenDevice.empty() && Device == AOTGenericArch))
           continue;
         if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
           continue;
-        if (OptTargetTriple == Triple && !Device.empty()) {
-          // Raw spir64_gen entry: if the value embeds "-device X", route
-          // only to arch X. Absent -> shared, applies to every arch.
-          StringRef Value = A->getValue(1);
-          SmallVector<const char *, 8> Tokens;
-          llvm::BumpPtrAllocator Alloc;
-          llvm::StringSaver S(Alloc);
-          llvm::cl::TokenizeGNUCommandLine(Value, S, Tokens);
-          bool EmbDeviceNoMatch = false;
-          for (size_t I = 0; I + 1 < Tokens.size(); ++I) {
-            if (StringRef(Tokens[I]) == "-device") {
-              EmbDeviceNoMatch = StringRef(Tokens[I + 1]) != Device;
-              break;
-            }
-          }
-          if (EmbDeviceNoMatch)
-            continue;
-        }
+        if (OptTargetTriple == Triple && !Device.empty() &&
+            Device != AOTGenericArch)
+          continue;
       } else if (OptTargetTriple != Triple)
         continue;
     } else if (!OptNoTriple)
