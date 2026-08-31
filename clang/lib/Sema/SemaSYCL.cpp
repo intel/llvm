@@ -425,19 +425,19 @@ static bool isZeroSizedArray(SemaSYCL &S, QualType Ty) {
   return false;
 }
 
-static bool needsDeepTypeCheck(SemaSYCL &S, QualType Ty,
-                               const RecordDecl *&RootRecord) {
-  RootRecord = nullptr;
+static std::pair<const RecordDecl *, bool> needsDeepTypeCheck(SemaSYCL &S,
+                                                              QualType Ty) {
+  const RecordDecl *RootRecord = nullptr;
   while (Ty->isAnyPointerType() || Ty->isArrayType() || Ty->isReferenceType()) {
     if (isZeroSizedArray(S, Ty))
-      return true;
+      return {nullptr, true};
     if (Ty->isArrayType())
       Ty = QualType{Ty->getArrayElementTypeNoTypeQual(), 0};
     else
       Ty = Ty->getPointeeType();
   }
   RootRecord = Ty->getAsRecordDecl();
-  return RootRecord != nullptr;
+  return {RootRecord, RootRecord != nullptr};
 }
 
 static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
@@ -6004,8 +6004,9 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
                                       ValueDecl *DeclToCheck) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
-  const RecordDecl *RootRecord = nullptr;
-  if (!needsDeepTypeCheck(*this, DeclToCheck->getType(), RootRecord))
+  const auto [RootRecord, NeedsCheck] =
+      needsDeepTypeCheck(*this, DeclToCheck->getType());
+  if (!NeedsCheck)
     return;
   if (RootRecord && RootRecord->isCompleteDefinition() &&
       DeepTypeCheckedRecords.contains(
