@@ -12,6 +12,7 @@
 #include "llvm/TargetParser/AMDGPUTargetParser.h"
 #include "llvm/TargetParser/NVPTXTargetParser.h"
 #include "llvm/TargetParser/Triple.h"
+#include <iterator>
 
 namespace clang {
 
@@ -101,6 +102,78 @@ static const IntelArchNameMap IntelArchNames[] = {
 #undef INTEL_CPU
 #undef INTEL_GPU
 
+namespace {
+// The Intel GPU architectures the GPU driver knows about, each with the IGCA
+// level it implements. Architectures that share an architecture and a release
+// are listed with the one that names the group first; a name that covers more
+// than one release has a sentinel architecture and release of zero.
+struct IntelGPUArchEntry {
+  uint32_t Architecture;
+  uint32_t Release;
+  const char *Name;
+  const char *IGCALevel;
+
+  // The entries with a sentinel GMDID name a group of architectures, so the
+  // numeric form of a name never refers to one of them.
+  bool namesAGroup() const { return Architecture == 0 && Release == 0; }
+};
+} // namespace
+
+static constexpr IntelGPUArchEntry IntelGPUArchs[] = {
+#define INTEL_GPU_ARCH(ARCHITECTURE, RELEASE, NAME, IGCA)                      \
+  {ARCHITECTURE, RELEASE, NAME, IGCA},
+#include "clang/Basic/IntelGPUArch.def"
+};
+
+static constexpr uint32_t NumIntelGPUArchs = std::size(IntelGPUArchs);
+
+// An intelXeKind holds the index of the entry it names. Its top bit indicates
+// whether the Name or IGCALevel was passed: it is set when the IGCALevel was
+// passed.
+static constexpr uint32_t IntelGPUIGCALevelFlag = 1u << 31;
+
+static const IntelGPUArchEntry *lookupIntelGPUArch(OffloadArch A) {
+  uint32_t Index = A.intelXeKind() & ~IntelGPUIGCALevelFlag;
+  return Index < NumIntelGPUArchs ? &IntelGPUArchs[Index] : nullptr;
+}
+
+// Parse one of the Intel GPU architecture names listed in IntelGPUArch.def: the
+// name of an architecture ("xe-lnl-m"), the IGCA level shared by a group of
+// architectures ("igca_40r"), or the numeric form the offload-arch tool prints
+// for an architecture that has no name in this build ("xe_20.4.5").
+static OffloadArch parseIntelGPUArch(llvm::StringRef S) {
+  for (uint32_t Index = 0; Index != NumIntelGPUArchs; ++Index) {
+    const IntelGPUArchEntry &Entry = IntelGPUArchs[Index];
+    if (S == Entry.Name)
+      return OffloadArch::getIntelXeGPU(Index);
+    if (S == Entry.IGCALevel)
+      return OffloadArch::getIntelXeGPU(Index | IntelGPUIGCALevelFlag);
+  }
+
+  // The numeric form spells out all three components of the GMDID, but only the
+  // architecture and the release are validated: the revision names a stepping
+  // of an architecture, and a table keyed by architecture and release cannot
+  // tell which steppings exist.
+  if (!S.consume_front("xe_"))
+    return OffloadArch::getUnknown();
+  llvm::StringRef ArchitectureStr, ReleaseStr, RevisionStr;
+  std::tie(ArchitectureStr, S) = S.split('.');
+  std::tie(ReleaseStr, RevisionStr) = S.split('.');
+  uint32_t Architecture, Release, Revision;
+  if (ArchitectureStr.getAsInteger(10, Architecture) ||
+      ReleaseStr.getAsInteger(10, Release) ||
+      RevisionStr.getAsInteger(10, Revision))
+    return OffloadArch::getUnknown();
+
+  for (uint32_t Index = 0; Index != NumIntelGPUArchs; ++Index) {
+    const IntelGPUArchEntry &Entry = IntelGPUArchs[Index];
+    if (!Entry.namesAGroup() && Entry.Architecture == Architecture &&
+        Entry.Release == Release)
+      return OffloadArch::getIntelXeGPU(Index);
+  }
+  return OffloadArch::getUnknown();
+}
+
 static const IntelArchNameMap *lookupIntelArch(OffloadArch::TargetArch V,
                                                OffloadArch::IntelArch Arch) {
   for (const IntelArchNameMap &Entry : IntelArchNames)
@@ -134,6 +207,13 @@ const char *OffloadArchToString(OffloadArch A) {
         lookupIntelArch(A.targetArch(), A.intelKind());
     return Entry ? Entry->Name : "unknown";
   }
+  case OffloadArch::TargetArch::IntelXeGPU: {
+    const IntelGPUArchEntry *Entry = lookupIntelGPUArch(A);
+    if (!Entry)
+      return "unknown";
+    return A.intelXeKind() & IntelGPUIGCALevelFlag ? Entry->IGCALevel
+                                                   : Entry->Name;
+  }
   case OffloadArch::TargetArch::Generic:
     return "generic";
   }
@@ -152,6 +232,7 @@ const char *OffloadArchToVirtualArchString(OffloadArch A) {
   case OffloadArch::TargetArch::Unused:
   case OffloadArch::TargetArch::IntelCPU:
   case OffloadArch::TargetArch::IntelGPU:
+  case OffloadArch::TargetArch::IntelXeGPU:
   case OffloadArch::TargetArch::Generic:
     return "";
   }
@@ -170,6 +251,8 @@ OffloadArch StringToOffloadArch(llvm::StringRef S) {
     return OffloadArch::getGeneric();
   if (const IntelArchNameMap *Entry = lookupIntelArch(S))
     return OffloadArch::getIntel(Entry->V, Entry->Arch);
+  if (OffloadArch A = parseIntelGPUArch(S); !A.isUnknown())
+    return A;
 
   // Otherwise defer to the vendor TargetParser GPU lists.
   if (llvm::NVPTX::GPUKind NV = llvm::NVPTX::parseArch(S))
