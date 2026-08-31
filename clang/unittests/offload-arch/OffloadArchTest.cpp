@@ -19,7 +19,7 @@ bool compareVersions(llvm::StringRef A, llvm::StringRef B);
 llvm::SmallVector<std::string, 8> getCandidateBinPaths(llvm::StringRef ExeDir);
 #endif
 
-// Defined in LevelZeroArch.cpp (non-static, compiled into this test).
+// Defined in LevelZeroArch.cpp.
 std::string getIntelGPUArchName(uint32_t IPVersion);
 
 using namespace llvm;
