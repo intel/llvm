@@ -93,6 +93,16 @@ size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
 size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device);
 
+inline bool hasZeroGlobalWorkSize(uint32_t WorkDim,
+                                  const size_t *GlobalWorkSize) {
+  for (uint32_t Dim = 0; Dim < WorkDim; ++Dim) {
+    if (GlobalWorkSize[Dim] == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 ur_result_t GetProgramMetadataNames(ur_program_handle_t Program,
                                     std::string_view Prefix,
                                     std::vector<std::string> &MetadataNames);

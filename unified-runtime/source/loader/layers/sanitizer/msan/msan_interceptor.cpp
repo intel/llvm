@@ -172,6 +172,10 @@ ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                               ur_queue_handle_t Queue,
                                               LaunchInfo &LaunchInfo) {
+  if (hasZeroGlobalWorkSize(LaunchInfo.WorkDim, LaunchInfo.GlobalWorkSize)) {
+    return UR_RESULT_SUCCESS;
+  }
+
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
@@ -513,6 +517,11 @@ ur_result_t MsanInterceptor::prepareLaunch(
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
   if (!KernelInfo.IsInstrumented) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (hasZeroGlobalWorkSize(LaunchInfo.WorkDim, LaunchInfo.GlobalWorkSize)) {
+    LaunchInfo.LocalWorkSize.assign(LaunchInfo.WorkDim, 1);
     return UR_RESULT_SUCCESS;
   }
 
