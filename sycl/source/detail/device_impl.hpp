@@ -2206,6 +2206,32 @@ public:
           {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
            matrix_type::fp32, matrix_type::fp32},
       };
+      // fp8 and fp4_e2m1 are supported starting with Crescent Island.
+      if (architecture::intel_gpu_cri == DeviceArch)
+        pvc_combs.insert(
+            pvc_combs.end(),
+            {
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e5m2,
+                 matrix_type::fp8_e5m2, matrix_type::bf16, matrix_type::bf16},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e5m2,
+                 matrix_type::fp8_e4m3, matrix_type::bf16, matrix_type::bf16},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
+                 matrix_type::fp8_e5m2, matrix_type::bf16, matrix_type::bf16},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
+                 matrix_type::fp8_e4m3, matrix_type::bf16, matrix_type::bf16},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e5m2,
+                 matrix_type::fp8_e5m2, matrix_type::fp32, matrix_type::fp32},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e5m2,
+                 matrix_type::fp8_e4m3, matrix_type::fp32, matrix_type::fp32},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
+                 matrix_type::fp8_e5m2, matrix_type::fp32, matrix_type::fp32},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
+                 matrix_type::fp8_e4m3, matrix_type::fp32, matrix_type::fp32},
+                {0, 0, 0, 8, 16, 32, matrix_type::fp4_e2m1,
+                 matrix_type::fp4_e2m1, matrix_type::fp32, matrix_type::fp32},
+                {0, 0, 0, 8, 16, 32, matrix_type::fp4_e2m1,
+                 matrix_type::fp4_e2m1, matrix_type::bf16, matrix_type::bf16},
+            });
       return pvc_combs;
     } else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
                (architecture::intel_gpu_dg2_g11 == DeviceArch) ||

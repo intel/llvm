@@ -31,7 +31,10 @@ enum class matrix_type {
   uint8,
   uint16,
   uint32,
-  uint64
+  uint64,
+  fp8_e5m2,
+  fp8_e4m3,
+  fp4_e2m1
 };
 
 struct combination {
@@ -64,7 +67,12 @@ struct matrix_combinations
 // Type to matrix type string conversion used in compile-time
 namespace detail {
 template <typename T> constexpr const char *convertTypeToMatrixTypeString() {
-  return "";
+  // fp4_e2m1_x<N> is a class template, so it cannot be handled by an explicit
+  // function template specialization; match on the element format instead.
+  if constexpr (is_fp4_e2m1<T>::value)
+    return "matrix_type::fp4_e2m1";
+  else
+    return "";
 }
 template <>
 constexpr const char *
@@ -79,6 +87,18 @@ constexpr const char *convertTypeToMatrixTypeString<
     sycl::ext::oneapi::experimental::matrix::precision::tf32>() {
   return "matrix_type::tf32";
 }
+template <>
+constexpr const char *
+convertTypeToMatrixTypeString<sycl::ext::oneapi::experimental::fp8_e5m2>() {
+  return "matrix_type::fp8_e5m2";
+}
+
+template <>
+constexpr const char *
+convertTypeToMatrixTypeString<sycl::ext::oneapi::experimental::fp8_e4m3>() {
+  return "matrix_type::fp8_e4m3";
+}
+
 template <> constexpr const char *convertTypeToMatrixTypeString<float>() {
   return "matrix_type::fp32";
 }

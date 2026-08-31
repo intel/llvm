@@ -177,6 +177,162 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   }
 }
 
+// 8-bit float types: they pack a single element and convert to/from half.
+template <typename T>
+constexpr bool is_fp8_type_v = std::is_same_v<T, syclex::fp8_e5m2> ||
+                               std::is_same_v<T, syclex::fp8_e8m0> ||
+                               std::is_same_v<T, syclex::fp8_e4m3>;
+
+// 4-bit types: they pack numElems elements and convert to/from
+// marray<half, numElems>.
+template <typename T, size_t numElems>
+constexpr bool is_4bit_type_v = std::is_same_v<T, syclex::fp4_e2m1_x<numElems>>;
+
+// numElems is the packing factor for the 4bits types. It can be 2 or 8
+// src is const so that Ts is deduced without a cv-qualifier when it comes from
+// a read-only accessor: the is_*_type_v checks below match unqualified types.
+template <typename Ts, typename Td, size_t numElems = 2>
+void matrix_copy(queue q, unsigned int rows, unsigned int cols, const Ts *src,
+                 Td *dst) {
+  q.single_task([=]() {
+     for (unsigned int i = 0; i < rows; i++) {
+       for (unsigned int j = 0; j < cols; j++) {
+         if constexpr (std::is_same_v<Td, sycl::half> && is_fp8_type_v<Ts>)
+           dst[i * cols + j] = (Td)src[i * cols + j];
+         else if constexpr (std::is_same_v<Ts, sycl::half> &&
+                            is_fp8_type_v<Td>)
+           dst[i * cols + j] = src[i * cols + j];
+         else if constexpr (std::is_same_v<Td, sycl::half> &&
+                            is_4bit_type_v<Ts, numElems>) {
+           // src[i][j] packs numElems consecutive values, so it expands to
+           // dst[i][j * numElems .. j * numElems + numElems - 1].
+           marray<Td, numElems> mval = (marray<Td, numElems>)src[i * cols + j];
+           for (unsigned int p = 0; p < numElems; p++)
+             dst[i * cols * numElems + j * numElems + p] = mval[p];
+         } else if constexpr (std::is_same_v<Ts, sycl::half> &&
+                              is_4bit_type_v<Td, numElems>) {
+           marray<sycl::half, numElems> mval;
+           for (unsigned int p = 0; p < numElems; p++)
+             mval[p] = src[i * cols * numElems + j * numElems + p];
+           // The open 4-bit types only provide explicit conversions from
+           // marray, so construct rather than assign.
+           dst[i * cols + j] = Td(mval);
+         } else
+           assert(false && "Unsupported type in matrix_copy.");
+       }
+     }
+   }).wait();
+}
+
+template <typename Tprecision, typename Tin>
+Tin scalar_truncate_fraction_bits(Tin number) {
+  static_assert(std::is_same_v<Tin, sycl::half> &&
+                "Unsupported input type in scalar_truncate_fraction_bits");
+
+  union {
+    Tin as_input;
+    uint16_t as_integer;
+  } caster = {number};
+
+  if constexpr (std::is_same_v<Tprecision, syclex::fp8_e5m2>) {
+    caster.as_integer &= 0xFF00;
+  } else if constexpr (std::is_same_v<Tprecision, syclex::fp8_e4m3>) {
+    caster.as_integer &= 0xFF80;
+  } else
+    static_assert(
+        false &&
+        "Unsupported precision type in scalar_truncate_fraction_bits.");
+
+  return caster.as_input;
+}
+
+template <typename Tprecision, typename Tin>
+void matrix_truncate_fraction_bits(unsigned int rows, unsigned int cols,
+                                   Tin *mat) {
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      mat[i * cols + j] =
+          scalar_truncate_fraction_bits<Tprecision, Tin>(mat[i * cols + j]);
+    }
+  }
+}
+
+template <typename T, typename F>
+void matrix_fill(queue q, unsigned int rows, unsigned int cols, T *src, F op) {
+  q.single_task([=]() {
+     for (unsigned int i = 0; i < rows; i++) {
+       for (unsigned int j = 0; j < cols; j++) {
+         if constexpr (is_fp8_type_v<T>)
+           src[i * cols + j] = op(i, j);
+         else
+           assert(false && "Unsupported type in matrix_fill on device.");
+       }
+     }
+   }).wait();
+}
+
+// Scaling block size is what is used to calculate the scales. Its values is
+// always 32
+constexpr size_t ScalingBlock = 32;
+
+template <typename Ta, typename Tb, typename Tc, unsigned int VF = 1,
+          typename F = std::nullptr_t>
+void scaled_matrix_multiply_ref(Ta *A, Tb *B, syclex::fp8_e8m0 *Ascale,
+                                syclex::fp8_e8m0 *Bscale, Tc *C, int M, int N,
+                                int K, bool transpose_c = false,
+                                bool colmajor_a = false,
+                                bool colmajor_b = false, F &&lambda = {}) {
+
+  for (unsigned int m = 0; m < M; m++) {
+    for (unsigned int n = 0; n < N; n++) {
+      int c_ind = transpose_c ? (n * M + m) : m * N + n;
+      Tc accb = *(C + c_ind);
+      // Per each block scale
+      for (unsigned int kb = 0; kb < K; kb += ScalingBlock) {
+        Tc acc = 0;
+        for (unsigned int k = 0; k < ScalingBlock; k++) {
+
+          int a_ind = colmajor_a ? (kb * ScalingBlock + k * M + m)
+                                 : m * K + kb * ScalingBlock + k;
+          int b_ind = colmajor_b ? (n * K + kb * ScalingBlock + k)
+                                 : kb * ScalingBlock + k * N + n;
+          Ta *va = (Ta *)(A + a_ind * VF);
+          Tb *vb = (Tb *)(B + b_ind * VF);
+
+          for (unsigned int i = 0; i < VF; i++) {
+            if constexpr (std::is_same_v<Ta, bfloat16> &&
+                          std::is_same_v<Tc, float>)
+              acc += make_fp32(va[i]) * make_fp32(vb[i]);
+            else if constexpr (std::is_same_v<Ta, sycl::half> &&
+                               std::is_same_v<Tc, float>)
+              acc += (float)va[i] * (float)vb[i];
+            else if constexpr (std::is_same_v<Ta, float> &&
+                                   std::is_same_v<Tc, float> ||
+                               std::is_integral_v<Ta> &&
+                                   std::is_integral_v<Tc> ||
+                               (std::is_same_v<Ta, bfloat16> ||
+                                std::is_same_v<Ta, sycl::half>) ||
+                               (std::is_same_v<Ta, double> &&
+                                std::is_same_v<Tc, double>))
+              acc += va[i] * vb[i];
+            else
+              assert(false && "Unsupported type in matrix_multiply_ref.");
+          }
+        } // end k loop
+        // The 8-bit float types convert explicitly only, so the scales have to
+        // be cast before taking part in the multiplication.
+        accb += acc * (float)Ascale[m * K / ScalingBlock + kb] *
+                (float)Bscale[kb * N / ScalingBlock + n];
+      } // end kb loop
+
+      if constexpr (!std::is_same_v<F, std::nullptr_t>) {
+        lambda(accb);
+      }
+      *(C + c_ind) = accb;
+    }
+  }
+}
+
 template <typename F, typename T>
 void matrix_apply(unsigned int rows, unsigned int cols, T *mat, F op) {
   for (unsigned int i = 0; i < rows; i++)

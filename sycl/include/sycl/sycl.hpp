@@ -150,6 +150,8 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/get_kernel_info.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
+#include <sycl/ext/oneapi/experimental/float_4bit/types.hpp>
+#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
 #include <sycl/ext/oneapi/kernel_properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>

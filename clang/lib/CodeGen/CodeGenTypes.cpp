@@ -399,6 +399,13 @@ llvm::Type *CodeGenTypes::ConvertSPVCooperativeMatrixType(RecordDecl *RD) {
       CompTy = llvm::Type::getFloatTy(getLLVMContext());
     } else if (LlvmTyName == "bfloat16") {
       CompTy = llvm::Type::getInt16Ty(getLLVMContext());
+      // The 8-bit float types are class templates parameterized by the packing
+      // width (fp8_e5m2_x<N>), so match on the class name without the width.
+    } else if (LlvmTyName == "fp8_e5m2_x" || LlvmTyName == "fp8_e4m3_x" ||
+               LlvmTyName == "fp8_e8m0_x") {
+      CompTy = llvm::Type::getInt8Ty(getLLVMContext());
+    } else if (LlvmTyName == "fp4_e2m1_x") {
+      CompTy = llvm::Type::getIntNTy(getLLVMContext(), 4);
     } else {
       llvm_unreachable("Wrong matrix base type!");
     }

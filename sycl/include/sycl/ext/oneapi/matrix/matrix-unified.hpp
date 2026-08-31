@@ -576,6 +576,77 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
+template <typename To, typename From, typename Group, std::size_t M,
+          std::size_t N, use Use, layout Layout>
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_convert(Group,
+                     const joint_matrix<Group, From, Use, M, N, Layout> &src,
+                     joint_matrix<Group, To, Use, M, N, Layout> &dst) {
+#if defined(__SYCL_DEVICE_ONLY__)
+  // FP4E2M1 Upconversion
+  if constexpr (sycl::detail::is_fp4_e2m1<From>::value) {
+    if constexpr (std::is_same<To, sycl::half>::value)
+      dst.spvm = __spirv_ConvertFP4E2M1ToHF16INTEL<To>(src.spvm);
+    else if constexpr (std::is_same<To, sycl::ext::oneapi::bfloat16>::value)
+      dst.spvm = __spirv_ConvertFP4E2M1ToBF16INTEL<To>(src.spvm);
+    else if constexpr (std::is_same<
+                           To,
+                           sycl::ext::oneapi::experimental::fp8_e4m3>::value)
+      dst.spvm = __spirv_ConvertFP4E2M1ToHF8INTEL<To>(src.spvm);
+    else if constexpr (std::is_same<
+                           To,
+                           sycl::ext::oneapi::experimental::fp8_e5m2>::value)
+      dst.spvm = __spirv_ConvertFP4E2M1ToBF8INTEL<To>(src.spvm);
+  }
+  // FP4E2M1 down conversion
+  else if constexpr (sycl::detail::is_fp4_e2m1<To>::value) {
+    if constexpr (std::is_same<From, sycl::half>::value)
+      dst.spvm = __spirv_ConvertHF16ToFP4E2M1INTEL<To>(src.spvm);
+    else if constexpr (std::is_same<From, sycl::ext::oneapi::bfloat16>::value)
+      dst.spvm = __spirv_ConvertBF16ToFP4E2M1INTEL<To>(src.spvm);
+  }
+#else
+  std::ignore = src;
+  std::ignore = dst;
+  std::ignore = Layout;
+  throw exception(make_error_code(errc::runtime),
+                  "joint_matrix_convert is not supported on host.");
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
+template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
+          std::size_t M, std::size_t K, std::size_t N, layout LayoutA,
+          layout LayoutB, layout LayoutAs, layout LayoutBs>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_bmad(
+    Group,
+    joint_matrix<Group, Td, use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
+    const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
+    const joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
+    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0,
+                       use::scale, M, K / 32, LayoutAs> &Ascale,
+    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0,
+                       use::scale, K / 32, N, LayoutBs> &Bscale,
+    const joint_matrix<Group, Tc, use::accumulator, M, N,
+                       sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+        &C) {
+#if defined(__SYCL_DEVICE_ONLY__)
+  constexpr uint32_t MatrixOperand =
+      sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc, Td>();
+  D.spvm = __spirv_CooperativeMatrixMulAddScaledINTEL(
+      A.spvm, B.spvm, C.spvm, Ascale.spvm, Bscale.spvm, MatrixOperand);
+#else
+  std::ignore = A;
+  std::ignore = B;
+  std::ignore = Ascale;
+  std::ignore = Bscale;
+  std::ignore = C;
+  std::ignore = D;
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
 } // namespace matrix
 } // namespace experimental
 } // namespace oneapi
