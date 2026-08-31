@@ -158,4 +158,3 @@ TEST(IntelGPUArchName, UnknownArchitecturesGetANumericName) {
 TEST(IntelGPUArchName, LegacyArchitecture) {
   EXPECT_EQ(getIntelGPUArchName(gmdid(9, 0, 9)), "xe_9.0.9");
 }
-
