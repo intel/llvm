@@ -3463,9 +3463,9 @@ Sema::LookupSpecialMember(CXXRecordDecl *RD, CXXSpecialMemberKind SM,
   ID.AddInteger(ConstThis);
   ID.AddInteger(VolatileThis);
 
-  void *InsertPoint;
+  llvm::FoldingSetInsertToken Token;
   SpecialMemberOverloadResultEntry *Result =
-    SpecialMemberCache.FindNodeOrInsertPos(ID, InsertPoint);
+      SpecialMemberCache.lookup(ID, Token);
 
   // This was already cached
   if (Result)
@@ -3473,7 +3473,7 @@ Sema::LookupSpecialMember(CXXRecordDecl *RD, CXXSpecialMemberKind SM,
 
   Result = BumpAlloc.Allocate<SpecialMemberOverloadResultEntry>();
   Result = new (Result) SpecialMemberOverloadResultEntry(ID);
-  SpecialMemberCache.InsertNode(Result, InsertPoint);
+  SpecialMemberCache.insert(Result, Token);
 
   if (SM == CXXSpecialMemberKind::Destructor) {
     if (RD->needsImplicitDestructor()) {

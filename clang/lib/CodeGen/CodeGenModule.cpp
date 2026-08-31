@@ -4603,7 +4603,7 @@ llvm::Constant *CodeGenModule::EmitAnnotationArgs(const AnnotateAttr *Attr) {
   for (Expr *E : Exprs) {
     ID.Add(cast<clang::ConstantExpr>(E)->getAPValueResult());
   }
-  llvm::Constant *&Lookup = AnnotationArgs[ID.ComputeHash()];
+  llvm::Constant *&Lookup = AnnotationArgs[ID.computeHash()];
   if (Lookup)
     return Lookup;
 
@@ -4686,7 +4686,7 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
 
   // If another SYCL annotation had the same arguments we can reuse the
   // annotation value it created.
-  llvm::Constant *&LookupRef = SYCLAnnotationArgs[ID.ComputeHash()];
+  llvm::Constant *&LookupRef = SYCLAnnotationArgs[ID.computeHash()];
   if (LookupRef)
     return LookupRef;
 
