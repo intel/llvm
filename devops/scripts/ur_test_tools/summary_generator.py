@@ -86,10 +86,7 @@ class SummaryReporter:
         print(f"::group::{status.display_label} ({len(tests)})")
 
         for test in tests[:100]:  # Limit to first 100
-            if test.duration_ms is not None:
-                print(f"{test.name} ({test.duration_ms:.2f}ms)")
-            else:
-                print(test.name)
+            print(test.name)
 
         if len(tests) > 100:
             print(f"... and {len(tests) - 100} more")
