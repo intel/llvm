@@ -11014,12 +11014,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
                                        *HostTC, Arch.ArchName);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
-                                        Arch.ArchName);
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs,
-                                       Arch.ArchName);
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("link-opts=");
     }
 
@@ -12333,8 +12331,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -Xdevice-post-link -> --sycl-post-link-options
     // -Xspirv-translator -> --llvm-spirv-options
     // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
-    // For spir64_gen the value is qualified with "/<arch>" and emitted per
-    // (triple, arch) to keep per-arch tokens from crossing across archs.
+    // For spir64_gen the key is qualified with "/<arch>" and emitted per
+    // (triple, arch) to keep per-arch tokens from leaking between archs.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :

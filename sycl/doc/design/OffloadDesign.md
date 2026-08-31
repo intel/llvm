@@ -256,27 +256,33 @@ model's usage pattern. This will be implemented by invoking `clang-linker-wrappe
 TU's device code independently, embedding the result directly into the host object.
 
 #### Format of the --device-compiler Option
-The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:
+The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>[/<arch>]=]<value>` where:
 - `<kind>` : specifies the offloading kind (e.g., sycl, hip, openmp) and is optional.
 - `<triple>` : specifies the target triple (e.g., `spir64_gen-unknown-unknown`, `spir64_x86_64-unknown-unknown`) and is optional.
-- `<value>` : contains the arguments to be passed to the backend compiler.
+- `<arch>` : optional architecture qualifier appended to the triple after a `/`. Used for `spir64_gen`, where a single triple may back several GPU architectures.
+- `<value>` : one option token to be passed to the backend compiler. Each `--device-compiler` occurrence carries a single token; multi-token option strings are emitted as multiple `--device-compiler` occurrences with the same key.
 
-In clang-linker-wrapper, the `<kind>` and `<triple>` are matched against the current compilation target. Only arguments that match both the offloading kind and target triple will be passed to the backend compiler. If `<kind>` is not specified, the arguments will match any offloading kind; if `<triple>` is not specified, the arguments will match any target triple; and if neither is specified, the arguments will be applied to all targets. 
+In clang-linker-wrapper, the `<kind>`, `<triple>`, and `<arch>` are matched against the current compilation target. Only arguments that match all specified filters are forwarded to the backend compiler. If `<kind>` is not specified, the arguments will match any offloading kind; if `<triple>` is not specified, the arguments will match any target triple; if `<arch>` is not specified, the arguments will match every architecture of the matching triple.
 
-To support multiple device architectures, a new `--device-compiler` option must be specified for each device. For example, to compile for Ponte Vecchio (PVC) and Skylake (SKL) architectures and put them in a fat binary, the user must add the following two `--device-compiler` options:
+To supply per-architecture backend options, emit a separate `--device-compiler` occurrence for each `(triple, arch)` pair and for each option token. For example, to build for Ponte Vecchio (PVC) and Skylake (SKL) architectures and put them in a fat binary, the driver emits one `--device-compiler` occurrence per token per arch:
 
-`--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options ...`
+```
+--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-options
+--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-cl-mad-enable
+--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-options
+--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-cl-unsafe-math-optimizations
+```
 
-`--device-compiler=sycl:spir64_gen-unknown-unknown=-device skl -options ...`
+Here is an example of a clang-linker-wrapper invocation where the user wants to create a fat binary with PVC and SKL architectures to run on an x86_64 Linux host. For SKL they want aggressive floating-point relaxation (`-cl-unsafe-math-optimizations`); for PVC they want multiply-and-add fusion (`-cl-mad-enable`). The source binaries are called `host.o` and `kernel.o` and the output should be called `out.exe`.
 
-Device specific options for each of the device architectures should be specified after `-device <name>`.
-
-Here is an example of a clang-linker-wrapper invocation where ther user wants to create a fat binary with PVC and SKL architectures to be run on a x86_64 Linux host. In addition, they would like to enable aggressive mathematical optimizations and are tolerant for slightly imprecise floating-point values just for SKL, that is, use the `-cl-unsafe-math-optimizations` flag. For PVC, they would like to enable the multiply and add instruction usage (`-cl-mad-enable`). The source binaries are called host.o and kernel.o and the output should be called out.exe.
-
-`clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu
- --device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options "-cl-mad-enable"
- --device-compiler=sycl:spir64_gen-unknown-unknown=-device skl -options "-cl-unsafe-math-optimizations" -- /usr/bin/ld
-host.o kernel.o -o out.exe`
+```
+clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu \
+  --device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-options \
+  --device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-cl-mad-enable \
+  --device-compiler=sycl:spir64_gen-unknown-unknown/skl=-options \
+  --device-compiler=sycl:spir64_gen-unknown-unknown/skl=-cl-unsafe-math-optimizations \
+  -- /usr/bin/ld host.o kernel.o -o out.exe
+```
 
 #### Other Supported Options
 To complete the support needed for the various targets using the
@@ -316,19 +322,21 @@ list to be passed along.
 
 *Example: spir64_gen enabling options*
 
-> "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options extraopt_pvc"
-"--device-compiler=sycl:spir64_gen-unknown-unknown=-options -extraopt_skl"
+> --device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-device
+--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=pvc
+--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-options
+--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-extraopt_pvc
+--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-options
+--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-extraopt_skl
 
 *Example: clang-linker-wrapper options*
 
-Each OCLOC call will be represented as a separate device binary that is
-individually wrapped and linked into the final executable.
-
-Additionally, the syntax can be expanded to enable the ability to pass specific
-options to a specific device GPU target for spir64_gen.  The syntax will
-resemble `--device-compiler=sycl:spir64_gen-unknown-unknown=<arch> <arg>`.  This corresponds to the existing
-option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
-set of targets.
+Each `(triple, arch)` pair produces its own OCLOC call and its own device
+binary that is individually wrapped and linked into the final executable. The
+`/<arch>` qualifier on the key routes each option token to the ocloc
+invocation for that arch; a `--device-compiler` occurrence with no
+`/<arch>` (or from a non-gen triple) applies to every arch of the matching
+triple.
 
 #### --offload-arch
 
