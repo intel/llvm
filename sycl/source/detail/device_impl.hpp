@@ -2207,7 +2207,8 @@ public:
            matrix_type::fp32, matrix_type::fp32},
       };
       // fp8 and fp4_e2m1 are supported starting with Crescent Island.
-      if (architecture::intel_gpu_cri == DeviceArch)
+      bool SupportsFP8AndFP4 = (architecture::intel_gpu_cri == DeviceArch);
+      if (SupportsFP8AndFP4)
         pvc_combs.insert(
             pvc_combs.end(),
             {

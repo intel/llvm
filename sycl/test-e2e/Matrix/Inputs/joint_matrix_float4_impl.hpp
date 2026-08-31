@@ -8,8 +8,6 @@
 #include <algorithm>
 #include <sycl/usm.hpp>
 
-// The only advertised fp4_e2m1 combination is {msize=8, nsize=16, ksize=32},
-// so unlike the fp8 test TM is not a free parameter here.
 constexpr size_t TM = 8;
 constexpr size_t TN = 16;
 constexpr size_t TK = 32;
@@ -183,13 +181,7 @@ template <typename TC, unsigned int numElems> void fp4_combinations(queue q) {
 
   using fp4 = syclex::fp4_e2m1_x<numElems>;
 
-  // vnniFactor 8 fills a 32-bit dword with 4-bit elements. joint_matrix_verify
-  // folds the unpacked sycl::half data by vnniFactor and only then packs pairs
-  // into bytes, so a dword ends up holding 8 consecutive k of one B column.
-  // Packing before folding would instead give a dword spanning two columns and
-  // four k, and vnniFactor would be 4; which of the two the hardware wants
-  // cannot be established until IGC implements a 4-bit DPAS. Tracked by
-  // GSD-9057.
+  // vnniFactor 8 fills a 32-bit dword with 4-bit elements
   joint_matrix_verify<fp4, fp4, TC, MATRIX_M, MATRIX_N, MATRIX_K,
                       /*vnniFactor=*/8, /*convertP=*/false, numElems>(q);
   joint_matrix_verify<fp4, fp4, TC, MATRIX_M, MATRIX_N, MATRIX_K, 1, false,

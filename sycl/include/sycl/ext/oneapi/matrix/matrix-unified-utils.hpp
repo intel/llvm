@@ -12,8 +12,8 @@
 #include <string_view>                  // std::string_view
 #include <sycl/__spirv/spirv_types.hpp> // __spv namespace
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
-#include <sycl/ext/oneapi/experimental/float_4bit/types.hpp> // fp4_e2m1_x
-#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp> // fp8_e5m2, fp8_e4m3
+#include <sycl/ext/oneapi/experimental/float_4bit/types.hpp> // for fp4_e2m1_x
+#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp> // for fp8_e5m2
 #include <utility>                                           // std::pair
 
 namespace sycl {
@@ -88,8 +88,6 @@ extern "C" constexpr __spv::MatrixLayout joint_matrix_layout_to_spv(
   }
 }
 
-// fp4_e2m1_x<N> is a packed type: any supported packing width N designates the
-// same E2M1 element format, so matrix queries match on the format, not on N.
 template <typename T> struct is_fp4_e2m1 : std::false_type {};
 template <size_t N>
 struct is_fp4_e2m1<sycl::ext::oneapi::experimental::fp4_e2m1_x<N>>

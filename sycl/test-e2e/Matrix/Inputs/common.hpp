@@ -179,9 +179,9 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
 
 // 8-bit float types: they pack a single element and convert to/from half.
 template <typename T>
-constexpr bool is_fp8_type_v = std::is_same_v<T, syclex::fp8_e5m2> ||
-                               std::is_same_v<T, syclex::fp8_e8m0> ||
-                               std::is_same_v<T, syclex::fp8_e4m3>;
+constexpr bool is_fp8_type_v =
+    std::is_same_v<T, syclex::fp8_e5m2> ||
+    std::is_same_v<T, syclex::fp8_e8m0> || std::is_same_v<T, syclex::fp8_e4m3>;
 
 // 4-bit types: they pack numElems elements and convert to/from
 // marray<half, numElems>.
@@ -189,8 +189,6 @@ template <typename T, size_t numElems>
 constexpr bool is_4bit_type_v = std::is_same_v<T, syclex::fp4_e2m1_x<numElems>>;
 
 // numElems is the packing factor for the 4bits types. It can be 2 or 8
-// src is const so that Ts is deduced without a cv-qualifier when it comes from
-// a read-only accessor: the is_*_type_v checks below match unqualified types.
 template <typename Ts, typename Td, size_t numElems = 2>
 void matrix_copy(queue q, unsigned int rows, unsigned int cols, const Ts *src,
                  Td *dst) {
@@ -199,8 +197,7 @@ void matrix_copy(queue q, unsigned int rows, unsigned int cols, const Ts *src,
        for (unsigned int j = 0; j < cols; j++) {
          if constexpr (std::is_same_v<Td, sycl::half> && is_fp8_type_v<Ts>)
            dst[i * cols + j] = (Td)src[i * cols + j];
-         else if constexpr (std::is_same_v<Ts, sycl::half> &&
-                            is_fp8_type_v<Td>)
+         else if constexpr (std::is_same_v<Ts, sycl::half> && is_fp8_type_v<Td>)
            dst[i * cols + j] = src[i * cols + j];
          else if constexpr (std::is_same_v<Td, sycl::half> &&
                             is_4bit_type_v<Ts, numElems>) {
