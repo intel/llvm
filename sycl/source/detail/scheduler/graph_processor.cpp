@@ -48,10 +48,9 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
     GraphReadLock.lock();
 }
 
-bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
-                                                  EnqueueResultT &EnqueueResult,
-                                                  Command *RootCommand,
-                                                  BlockingT Blocking) {
+bool Scheduler::GraphProcessor::handleBlockingCmd(
+    Command *Cmd, EnqueueResultT &EnqueueResult, Command *RootCommand,
+    [[maybe_unused]] BlockingT Blocking) {
   // A caller enqueueing itself does not block on itself.
   if (Cmd == RootCommand)
     return true;
