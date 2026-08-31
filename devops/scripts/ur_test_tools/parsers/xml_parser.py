@@ -19,8 +19,13 @@ class ParsedXMLTests(NamedTuple):
 
 
 def _format_test_name(classname: str, name: str) -> str:
+    """Format test name to match LIT output format.
+    
+    LIT uses ' :: ' (space-colon-colon-space) as separator in log output,
+    so we normalize XML classname.name format to match.
+    """
     if classname and name:
-        return f"{classname}.{name}"
+        return f"{classname} :: {name}"
     return name
 
 
