@@ -140,10 +140,10 @@ inline bool is_valid_uid(const xpti::uid128_t &UID) {
 struct hash_t {
   /// @brief Calculates the number of bits required to represent a given value.
   ///
-  /// This function uses the logarithm base 2 (log2) of the input value to
-  /// calculate the number of bits required to represent it. It then adds 1 to
-  /// the result to account for the fact that log2 of a value is one less than
-  /// the number of bits required to represent it.
+  /// This function computes the bit count using integer arithmetic. For zero,
+  /// it returns 1 to ensure zero fields keep their place in the hash. For
+  /// non-zero values, it counts the number of shifts needed to reduce the value
+  /// to zero, which is equivalent to the position of the highest set bit plus 1.
   ///
   /// @param value A 64-bit integer for which the bit count is to be calculated.
   /// @return The number of bits required to represent the input value.
