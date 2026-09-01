@@ -125,8 +125,6 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
-#include <sycl/ext/oneapi/experimental/float_4bit/types.hpp>
-#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>

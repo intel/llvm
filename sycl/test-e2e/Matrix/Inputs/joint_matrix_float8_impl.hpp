@@ -125,7 +125,7 @@ template <size_t TM> void bf8_hf8_combinations(queue q) {
   static constexpr size_t SCALE = 2;
   static constexpr size_t MATRIX_M = TM * SCALE;
   // satisfy 64B stride requirement in 2D block load
-  static constexpr size_t MATRIX_N = std::max(TN * SCALE, 64ul);
+  static constexpr size_t MATRIX_N = std::max<size_t>(TN * SCALE, 64);
   static constexpr size_t MATRIX_K = TK * SCALE;
 
   joint_matrix_verify<syclex::fp8_e5m2, syclex::fp8_e5m2, float, MATRIX_M,
