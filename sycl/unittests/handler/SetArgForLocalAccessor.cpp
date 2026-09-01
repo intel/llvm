@@ -44,17 +44,23 @@ TEST(HandlerSetArg, LocalAccessor) {
   constexpr size_t Size = 128;
   sycl::queue Q;
 
-  ur_native_handle_t handle = mock::createDummyHandle<ur_native_handle_t>();
+  // The mock treats the native handle as a dummy handle and retains/releases
+  // it, so it has to be passed by value and the reference owned by the test
+  // released once the kernel is gone.
+  ur_native_handle_t Handle = mock::createDummyHandle<ur_native_handle_t>();
   auto KernelCL = reinterpret_cast<typename sycl::backend_traits<
-      sycl::backend::opencl>::template input_type<sycl::kernel>>(&handle);
-  auto Kernel =
-      sycl::make_kernel<sycl::backend::opencl>(KernelCL, Q.get_context());
+      sycl::backend::opencl>::template input_type<sycl::kernel>>(Handle);
+  {
+    auto Kernel =
+        sycl::make_kernel<sycl::backend::opencl>(KernelCL, Q.get_context());
 
-  Q.submit([&](sycl::handler &CGH) {
-     sycl::local_accessor<float, 1> Acc(Size, CGH);
-     CGH.set_arg(0, Acc);
-     CGH.single_task(Kernel);
-   }).wait();
+    Q.submit([&](sycl::handler &CGH) {
+       sycl::local_accessor<float, 1> Acc(Size, CGH);
+       CGH.set_arg(0, Acc);
+       CGH.single_task(Kernel);
+     }).wait();
+  }
+  mock::releaseDummyHandle(Handle);
 
   ASSERT_EQ(LocalBufferArgSize, Size * sizeof(float));
 }
