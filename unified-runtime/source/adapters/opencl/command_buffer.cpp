@@ -27,23 +27,17 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
     clReleaseEvent(LastSubmission);
   }
 
-  cl_context CLContext = hContext->CLContext;
-  cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
-  cl_int Res =
-      cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
-          CLContext,
-          cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
-          cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
-  assert(Res == CL_SUCCESS);
-  (void)Res;
-
-  clReleaseCommandBufferKHR(CLCommandBuffer);
+  if (CLCommandBuffer) {
+    [[maybe_unused]] cl_int Res = CLReleaseCommandBufferKHR(CLCommandBuffer);
+    assert(Res == CL_SUCCESS);
+  }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
-    ur_exp_command_buffer_handle_t *phCommandBuffer) {
+ur_result_t
+urCommandBufferCreateExp(ur_context_handle_t hContext,
+                         ur_device_handle_t hDevice,
+                         const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
+                         ur_exp_command_buffer_handle_t *phCommandBuffer) {
 
   auto Context = cast(hContext);
   cl_context CLContext = Context->CLContext;
@@ -53,6 +47,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
           CLContext,
           cast(ur::cl::getAdapter())->fnCache.clCreateCommandBufferKHRCache,
           cl_ext::CreateCommandBufferName, &clCreateCommandBufferKHR));
+  cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
+          CLContext,
+          cast(ur::cl::getAdapter())->fnCache.clReleaseCommandBufferKHRCache,
+          cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR));
 
   const bool IsUpdatable = pCommandBufferDesc->isUpdatable;
 
@@ -101,6 +101,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     auto URCommandBuffer = std::make_unique<ur_exp_command_buffer_handle_t_>(
         QueuePtr, cast(hContext), cast(hDevice), CLCommandBuffer, IsUpdatable,
         IsInOrder);
+    URCommandBuffer->CLCreateCommandBufferKHR = clCreateCommandBufferKHR;
+    URCommandBuffer->CLReleaseCommandBufferKHR = clReleaseCommandBufferKHR;
     *phCommandBuffer = cast(URCommandBuffer.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -112,14 +114,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
+ur_result_t
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   auto CommandBuffer = cast(hCommandBuffer);
   CommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
+ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   auto CommandBuffer = cast(hCommandBuffer);
   if (CommandBuffer->RefCount.release()) {
@@ -129,7 +131,7 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
+ur_result_t
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   auto CommandBuffer = cast(hCommandBuffer);
   UR_ASSERT(!CommandBuffer->IsFinalized, UR_RESULT_ERROR_INVALID_OPERATION);
@@ -148,8 +150,7 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendKernelLaunchWithArgsExp(
+ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
     uint32_t workDim, const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
@@ -228,7 +229,7 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
       phCommandHandle);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
+ur_result_t urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
     uint32_t workDim, const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
@@ -299,7 +300,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
+ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
     size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, uint32_t,
@@ -329,7 +330,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+ur_result_t urCommandBufferAppendUSMFillExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, void *pMemory,
     const void *pPattern, size_t patternSize, size_t size,
     uint32_t numSyncPointsInWaitList,
@@ -361,7 +362,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
+ur_result_t urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
     ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numSyncPointsInWaitList,
@@ -398,7 +399,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
+ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hSrcMem,
     [[maybe_unused]] ur_mem_handle_t hDstMem,
@@ -445,8 +446,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
+ur_result_t urCommandBufferAppendMemBufferWriteExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
     [[maybe_unused]] size_t size, [[maybe_unused]] const void *pSrc,
@@ -461,8 +461,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
+ur_result_t urCommandBufferAppendMemBufferReadExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
     [[maybe_unused]] size_t size, [[maybe_unused]] void *pDst,
@@ -477,8 +476,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
+ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer,
     [[maybe_unused]] ur_rect_offset_t bufferOffset,
@@ -499,8 +497,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
+ur_result_t urCommandBufferAppendMemBufferReadRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer,
     [[maybe_unused]] ur_rect_offset_t bufferOffset,
@@ -521,7 +518,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+ur_result_t urCommandBufferAppendMemBufferFillExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
     const void *pPattern, size_t patternSize, size_t offset, size_t size,
     uint32_t numSyncPointsInWaitList,
@@ -555,7 +552,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+ur_result_t urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, const void *mem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
@@ -578,7 +575,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
+ur_result_t urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, const void *mem, size_t size,
     ur_usm_advice_flags_t advice, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
@@ -601,7 +598,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
+ur_result_t urEnqueueCommandBufferExp(
     ur_queue_handle_t hQueue, ur_exp_command_buffer_handle_t hCommandBuffer,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
@@ -778,7 +775,7 @@ ur_result_t validateCommandDesc(
 }
 } // end anonymous namespace
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+ur_result_t urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
@@ -876,23 +873,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
+ur_result_t urCommandBufferUpdateSignalEventExp(
     [[maybe_unused]] ur_exp_command_buffer_command_handle_t Command,
     [[maybe_unused]] ur_event_handle_t *Event) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateWaitEventsExp(
+ur_result_t urCommandBufferUpdateWaitEventsExp(
     [[maybe_unused]] ur_exp_command_buffer_command_handle_t Command,
     [[maybe_unused]] uint32_t NumEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *EventWaitList) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,
-    ur_exp_command_buffer_info_t propName, size_t propSize, void *pPropValue,
-    size_t *pPropSizeRet) {
+ur_result_t
+urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                          ur_exp_command_buffer_info_t propName,
+                          size_t propSize, void *pPropValue,
+                          size_t *pPropSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   auto CommandBuffer = cast(hCommandBuffer);
@@ -917,8 +915,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+ur_result_t urCommandBufferAppendNativeCommandExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,
     ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
     void *pData, ur_exp_command_buffer_handle_t,
@@ -957,7 +954,7 @@ ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
+ur_result_t
 urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                                   ur_native_handle_t *phNativeCommandBuffer) {
   auto CommandBuffer = cast(hCommandBuffer);

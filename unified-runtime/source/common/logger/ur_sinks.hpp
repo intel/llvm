@@ -58,6 +58,11 @@ public:
   void setFileLine(bool fileline) { add_fileline = fileline; }
   void setFlushLevel(ur_logger_level_t level) { this->flush_level = level; }
 
+  const std::string &getLoggerName() const { return logger_name; }
+  bool getSkipPrefix() const { return skip_prefix; }
+  bool getSkipLinebreak() const { return skip_linebreak; }
+  bool getFileLine() const { return add_fileline; }
+
   virtual ~Sink() = default;
 
 protected:

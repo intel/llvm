@@ -1250,14 +1250,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
   Ops[LineIdx] = Func->getLine();
   Ops[ColumnIdx] = 0; // This version of DISubprogram has no column number
   auto *Scope = Func->getScope();
-  // NonSemantic.Shader.DebugInfo requires DebugFunction Parent to be a
-  // lexical scope: DebugCompilationUnit, DebugFunction, DebugLexicalBlock or
-  // DebugTypeComposite.
-  // DebugModule (introduced in .200) is not a lexical scope, so fall back to
-  // the compile unit when the DISubprogram is scoped inside a DIModule.
-  bool ScopeIsLexical = Scope && !isa<DIFile>(Scope) &&
-                        !(isNonSemanticDebugInfo() && isa<DIModule>(Scope));
-  if (ScopeIsLexical) {
+  if (Scope && !isa<DIFile>(Scope)) {
     Ops[ParentIdx] = getScope(Scope)->getId();
   } else {
     if (auto *Unit = Func->getUnit())
@@ -1328,8 +1321,14 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
     // Functions local variable might be not refered to anywhere else, except
     // here.
     // Just translate them.
-    for (const DINode *Var : Func->getRetainedNodes())
-      transDbgEntry(Var);
+    for (const MDNode *Var : Func->getRetainedNodes()) {
+      // Function-local static variables are retained as
+      // DIGlobalVariableExpression nodes; translate the underlying variable.
+      if (const auto *GVE = dyn_cast<DIGlobalVariableExpression>(Var))
+        transDbgEntry(GVE->getVariable());
+      else
+        transDbgEntry(Var);
+    }
   }
   // If the function has template parameters the function *is* a template.
   if (DITemplateParameterArray TPA = Func->getTemplateParams()) {

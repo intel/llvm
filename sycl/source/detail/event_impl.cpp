@@ -41,6 +41,10 @@ void event_impl::initContextIfNeeded() {
 
 event_impl::~event_impl() {
   try {
+    if (MIPCHandleData) {
+      getAdapter().call<UrApiKind::urIPCPutEventHandleExp>(
+          MContext->getHandleRef(), MIPCHandleData);
+    }
     auto Handle = this->getHandle();
     if (Handle)
       getAdapter().call<UrApiKind::urEventRelease>(Handle);
@@ -182,12 +186,108 @@ event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
 
 void event_impl::setQueue(queue_impl &Queue) {
   MQueue = Queue.weak_from_this();
-  MIsProfilingEnabled = Queue.MIsProfilingEnabled;
+  // Inherit profiling from the queue only if not already enabled per-event,
+  // per-event profiling takes precedence over queue-level profiling.
+  MIsProfilingEnabled = MIsProfilingEnabled || Queue.MIsProfilingEnabled;
+}
 
-  // TODO After setting the queue, the event is no longer default
-  // constructed. Consider a design change which would allow
-  // for such a change regardless of the construction method.
+ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
+  assert(MContext && "createDeviceUrEvent requires a bound context");
+
+  ur_event_handle_t EventHandle = nullptr;
+  ur_exp_event_desc_t Desc = {};
+  Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
+  if (MIsProfilingEnabled)
+    Desc.flags |= UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
+  if (MIPCEnabled)
+    Desc.flags |= UR_EXP_EVENT_FLAG_IPC_EXP;
+
+  ur_result_t Result =
+      getAdapter().call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
+          MContext->getHandleRef(), Device.getHandleRef(), &Desc, &EventHandle);
+  if (Result != UR_RESULT_SUCCESS) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to create an event.");
+  }
+  assert(EventHandle && "urEventCreateExp returned success with null event");
+  return EventHandle;
+}
+
+void event_impl::toDeviceEvent(queue_impl &Queue) {
+  assert(MIsDefaultConstructed);
+
+  initContextIfNeeded();
+
+  // get() may have already materialized the handle for an IPC event; reuse it.
+  if (getHandle() == nullptr)
+    setHandle(createDeviceUrEvent(Queue.getDeviceImpl()));
+
+  setQueue(Queue);
   MIsDefaultConstructed = false;
+}
+
+void event_impl::materializeIPCEvent() {
+  assert(MIPCEnabled && "materializeIPCEvent is only valid for IPC events");
+
+  if (getHandle() != nullptr)
+    return;
+
+  initContextIfNeeded();
+
+  // Any device in the context works; all support the IPC aspect.
+  device_impl &Device = MContext->getDevices().front();
+  setHandle(createDeviceUrEvent(Device));
+  // Leaves MIsDefaultConstructed set so a later signal still runs through
+  // getHandleReusable.
+}
+
+std::pair<void *, size_t> event_impl::getOrCreateIPCHandle() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  if (!MIPCHandleData) {
+    void *HandlePtr = nullptr;
+    size_t HandleSize = 0;
+    getAdapter().call<UrApiKind::urIPCGetEventHandleExp>(
+        getHandle(), &HandlePtr, &HandleSize);
+    MIPCHandleData = HandlePtr;
+    MIPCHandleDataSize = HandleSize;
+  }
+  return {MIPCHandleData, MIPCHandleDataSize};
+}
+
+ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
+  initContextIfNeeded();
+
+  if (MContext->supportsReusableEvents()) {
+    if (MIsDefaultConstructed) {
+      // If the event was constructed (through make_event or a default
+      // constructor), but not enqueued for signaling yet, change the event
+      // state from default constructed to device event.
+      toDeviceEvent(Queue);
+    }
+  } else {
+    // IPC support implies reusable-event support.
+    assert(!MIPCEnabled &&
+           "IPC event on a context without reusable-events support");
+    // If the context does not support reusable events, then release the
+    // previous event and set the handle to nullptr, so UR can create a new
+    // event during command submission.
+    ur_event_handle_t CurrentHandle = getHandle();
+    if (CurrentHandle != nullptr) {
+      getAdapter().call<UrApiKind::urEventRelease>(CurrentHandle);
+      setHandle(nullptr);
+    }
+  }
+
+  return getHandle();
+}
+
+void event_impl::setHandleReusable(ur_event_handle_t Handle) {
+  // If reusable events are supported do nothing, as the UR handle is already
+  // set. If reusable events are not supported, set the handle of the new UR
+  // event.
+  if (!MContext->supportsReusableEvents()) {
+    setHandle(Handle);
+  }
 }
 
 void event_impl::initHostProfilingInfo() {
@@ -317,7 +417,8 @@ void event_impl::checkProfilingPreconditions() const {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
         "Profiling information is unavailable as the queue associated with "
-        "the event does not have the 'enable_profiling' property.");
+        "the event does not have the 'enable_profiling' property or the "
+        "event was not created with the 'enable_profiling' property.");
   }
 }
 
@@ -326,8 +427,7 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (isProfilingTagEvent()) {
-    // For profiling tag events we rely on the submission time reported as
-    // the start time has undefined behavior.
+    // Tag events report command_submit through the adapter.
     return get_event_profiling_info<info::event_profiling::command_submit>(
         this->getHandle(), this->getAdapter());
   }
@@ -524,7 +624,8 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled && !MProfilingTagEvent)
+  // Tag events obtain command_submit from the adapter.
+  if (!MIsProfilingEnabled || MProfilingTagEvent)
     return;
 
   if (std::shared_ptr<queue_impl> Queue =

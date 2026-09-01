@@ -52,7 +52,7 @@ void CheckFillZeroDimAccessor(queue &Q, T Init, T Expected) {
   {
     buffer<T, Dims> Buffer(Data.data(), Range);
     Q.submit([&](handler &CGH) {
-       accessor<T, 0, sycl::access::mode::write> Accessor(Buffer, CGH);
+       accessor<T, 0, sycl::access_mode::write> Accessor(Buffer, CGH);
        CGH.fill(Accessor, Expected);
      }).wait_and_throw();
   }

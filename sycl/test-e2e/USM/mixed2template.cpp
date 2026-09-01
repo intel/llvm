@@ -23,9 +23,9 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  if (!(dev.get_info<info::device::usm_device_allocations>() &&
-        dev.get_info<info::device::usm_shared_allocations>() &&
-        dev.get_info<info::device::usm_host_allocations>()))
+  if (!(dev.has(aspect::usm_device_allocations) &&
+        dev.has(aspect::usm_shared_allocations) &&
+        dev.has(aspect::usm_host_allocations)))
     return 0;
 
   int *darray = malloc<int>(N, dev, ctxt, usm::alloc::device);

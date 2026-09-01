@@ -82,6 +82,13 @@ StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 StringRef getGenGRFFlag(StringRef GRFMode);
 
+// Returns the full path of the ocloc tool to be used for AOT compilation and
+// for emitting the ocloc help information.  A user provided --ocloc-path= is
+// honored above all other lookup locations.  If not found, the tool (ocloc) is
+// returned with no directory.
+const char *getOclocPath(const Compilation &C, const ToolChain &TC,
+                         const llvm::opt::ArgList &Args);
+
 // Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
@@ -129,11 +136,11 @@ public:
   }
 
   llvm::opt::DerivedArgList *
-  TranslateArgs(const llvm::opt::DerivedArgList &Args, StringRef BoundArch,
+  TranslateArgs(const llvm::opt::DerivedArgList &Args, BoundArch BA,
                 Action::OffloadKind DeviceOffloadKind) const override;
   void
   addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
-                        llvm::opt::ArgStringList &CC1Args,
+                        llvm::opt::ArgStringList &CC1Args, BoundArch BA,
                         Action::OffloadKind DeviceOffloadKind) const override;
   void AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
@@ -191,11 +198,11 @@ public:
   // Provides a vector of device library names including the full path that are
   // associated with the offloading kind.
   llvm::SmallVector<BitCodeLibraryInfo, 12>
-  getDeviceLibs(const llvm::opt::ArgList &Args,
+  getDeviceLibs(const llvm::opt::ArgList &Args, BoundArch BA,
                 const Action::OffloadKind DeviceOffloadingKind) const override;
 
   SanitizerMask
-  getSupportedSanitizers(StringRef BoundArch,
+  getSupportedSanitizers(BoundArch BA,
                          Action::OffloadKind DeviceOffloadKind) const override;
 
 protected:

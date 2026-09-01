@@ -471,19 +471,20 @@
 /// ###########################################################################
 
 /// Check for default linking of -lsycl with -fsycl --no-offload-new-driver usage
-// RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
+// RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -implicit-check-not="-lsycl" -check-prefix=CHECK-LD-SYCL %s
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-SYCL: "-lsycl"
+// CHECK-LD-SYCL: "{{.*}}libsycl.so"
+// CHECK-LD-SYCL-SAME: "{{.*}}libsycl-devicelib-host.a"
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl --no-offload-new-driver -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s
 // CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
+// CHECK-LD-NOLIBSYCL-NOT: "libsycl.so"
 
 /// Check no SYCL runtime is linked with -nostdlib
 // RUN: %clang -fsycl --no-offload-new-driver -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
 // CHECK-LD-NOSTDLIB: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOSTDLIB-NOT: "-lsycl"
+// CHECK-LD-NOSTDLIB-NOT: "libsycl.so"
 
 /// Check for default linking of syclN.lib with -fsycl --no-offload-new-driver usage
 // RUN: %clang -fsycl --no-offload-new-driver -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
@@ -802,12 +803,6 @@
 // LIB-NODEVICE: 0: input, "somelib", object, (host-sycl)
 // LIB-NODEVICE: 1: linker, {0}, image, (host-sycl)
 // LIB-NODEVICE-NOT: linker, {{.*}}, spirv, (device-sycl)
-
-// Checking for an error if c-compilation is forced
-// RUN: not %clangxx -### -c -fsycl --no-offload-new-driver -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --no-offload-new-driver -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --no-offload-new-driver -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// CHECK_XC_FSYCL: '-x c{{.*}}' must not be used in conjunction with '-fsycl'
 
 // -std=c++17 check (check all 3 compilations)
 // RUN: %clangxx -### -c -fsycl --no-offload-new-driver -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s

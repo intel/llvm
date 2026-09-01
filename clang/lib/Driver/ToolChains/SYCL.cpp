@@ -31,7 +31,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     : D(D), InstallationCandidates(), HostTriple(HostTriple) {
   // When -fsycl is active, locate the SYCL runtime library and record its
   // directory in SYCLRTLibPath for use by the linker.
-  StringRef SysRoot = D.SysRoot;
+  [[maybe_unused]] StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
 
 #if 0 // !INTEL_CUSTOMIZATION
@@ -41,8 +41,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     // NOTE: Only checks for LLVMSYCL.lib existence (release variant).
     // Debug vs release library selection happens at link time based on CRT
     // flags.
-    if (DriverDir.starts_with(SysRoot) &&
-        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
       SmallString<128> LibDir(DriverDir);
       llvm::sys::path::append(LibDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
 
@@ -62,8 +61,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     SmallString<128> FlatLibPath(DriverDir);
     llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME, "libsycl.so");
 
-    if (DriverDir.starts_with(SysRoot) &&
-        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
       // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
       if (D.getVFS().exists(LibPath))
         llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME, HostTriple.str());
@@ -88,8 +86,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME,
                           "libsycl.so");
 
-  if (DriverDir.starts_with(SysRoot) &&
-      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
     // We put driver in bin/compiler, so one more ../ than llorg.
     if (D.getVFS().exists(DriverDir + "/../../lib/libsycl.so"))
       llvm::sys::path::append(DriverDir, "..", "..",
@@ -868,7 +865,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       return &II == &InputFiles[1];
     };
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
       const bool IsSYCLNativeCPU =
@@ -922,7 +918,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     if (LinkSYCLDeviceLibs) {
-      Opts.push_back("-only-needed");
+      Opts.push_back("--only-needed");
     }
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
@@ -1048,12 +1044,25 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                            SpirvInputs);
 }
 
-static const char *makeExeName(Compilation &C, StringRef Name) {
+static const char *makeExeName(const Compilation &C, StringRef Name) {
   llvm::SmallString<8> ExeName(Name);
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
   if (HostTC->getTriple().isWindowsMSVCEnvironment())
     ExeName.append(".exe");
   return C.getArgs().MakeArgString(ExeName);
+}
+
+const char *SYCL::gen::getOclocPath(const Compilation &C, const ToolChain &TC,
+                                    const llvm::opt::ArgList &Args) {
+  const char *ExeName = makeExeName(C, "ocloc");
+  // A user provided --ocloc-path= takes precedence over any ocloc that is
+  // found via the program paths or the PATH environment variable.
+  if (Arg *A = Args.getLastArg(options::OPT_ocloc_path_EQ)) {
+    SmallString<128> OclocPath(A->getValue());
+    llvm::sys::path::append(OclocPath, ExeName);
+    return C.getArgs().MakeArgString(OclocPath);
+  }
+  return C.getArgs().MakeArgString(TC.GetProgramPath(ExeName));
 }
 
 // Determine if any of the given arguments contain any PVC based values for
@@ -1107,7 +1116,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
   CmdArgs.push_back("-spirv_input");
-  StringRef Device = JA.getOffloadingArch();
+  StringRef Device = JA.getOffloadingArch().ArchName;
 
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
@@ -1119,9 +1128,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                 Device);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                Device);
-  SmallString<128> ExecPath(
-      getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
-  const char *Exec = C.getArgs().MakeArgString(ExecPath);
+  const char *Exec = SYCL::gen::getOclocPath(C, getToolChain(), Args);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
@@ -1498,16 +1505,16 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
             SanitizeVal == "thread")
           continue;
       }
-      D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
-          << A->getAsString(Args) << getTriple().str() << 1;
+      D.Diag(clang::diag::warn_drv_unsupported_option_for_target_host_only)
+          << A->getAsString(Args) << getTriple().str();
     }
   }
 }
 
 void SYCLToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
-    Action::OffloadKind DeviceOffloadingKind) const {
-  HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
+    BoundArch BA, Action::OffloadKind DeviceOffloadingKind) const {
+  HostTC.addClangTargetOptions(DriverArgs, CC1Args, BA, DeviceOffloadingKind);
 
   if (DeviceOffloadingKind == Action::OFK_SYCL &&
       !getTriple().isSPIROrSPIRV()) {
@@ -1522,7 +1529,8 @@ void SYCLToolChain::addClangTargetOptions(
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, DeviceOffloadingKind));
+  BCLibs.append(
+      SYCLToolChain::getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind));
   for (const auto &BCFile : BCLibs) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
@@ -1542,10 +1550,9 @@ void SYCLToolChain::addClangTargetOptions(
 
 llvm::opt::DerivedArgList *
 SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
-                             StringRef BoundArch,
+                             BoundArch BA,
                              Action::OffloadKind DeviceOffloadKind) const {
-  DerivedArgList *DAL =
-      HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
+  DerivedArgList *DAL = HostTC.TranslateArgs(Args, BA, DeviceOffloadKind);
 
   bool IsNewDAL = false;
   if (!DAL) {
@@ -1585,10 +1592,10 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   }
 
   const OptTable &Opts = getDriver().getOpts();
-  if (!BoundArch.empty()) {
+  if (!BA.empty()) {
     DAL->eraseArg(options::OPT_march_EQ);
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ),
-                      BoundArch);
+                      BA.ArchName);
   }
   return DAL;
 }
@@ -1794,7 +1801,7 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
     // other -device was passed, as that is a conflict.
-    StringRef DepInfo = JA.getOffloadingArch();
+    StringRef DepInfo = JA.getOffloadingArch().ArchName;
     if (!DepInfo.empty()) {
       ArgStringList TargArgs;
       Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
@@ -1991,7 +1998,7 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 SYCLToolChain::getDeviceLibs(
-    const llvm::opt::ArgList &DriverArgs,
+    const llvm::opt::ArgList &DriverArgs, BoundArch BA,
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
@@ -2026,7 +2033,7 @@ SYCLToolChain::getDeviceLibs(
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers(
-    StringRef /*BoundArch*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
+    BoundArch /*BA*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
 
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }

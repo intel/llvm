@@ -30,7 +30,7 @@ void try_1D(queue &Q) {
             image_channel_type::unsigned_int8, range{M});
 
   Q.submit([&](handler &h) {
-    accessor<int4, 1, access::mode::read, access::target::image> acs1(im1, h);
+    accessor<int4, 1, access_mode::read, access::target::image> acs1(im1, h);
     accessor ABX{BX, h};
     auto R = acs1.get_range();
     std::cout << "Host acs1.get_range()=" << R[0] << "\n";
@@ -60,7 +60,7 @@ void try_2D(queue &Q) {
             image_channel_type::unsigned_int8, range{M, N});
 
   Q.submit([&](handler &h) {
-    accessor<int4, 2, access::mode::read, access::target::image> acs2(im2, h);
+    accessor<int4, 2, access_mode::read, access::target::image> acs2(im2, h);
     accessor ABX{BX, h};
     auto R = acs2.get_range();
     std::cout << "Host acs2.get_range()=" << R[0] << "," << R[1] << "\n";
@@ -92,8 +92,8 @@ void try_3D(queue &Q) {
             image_channel_type::unsigned_int8, range{M, N, L});
 
   Q.submit([&](handler &h) {
-    accessor<int4, 2, access::mode::read, access::target::image_array> acs3(im3,
-                                                                            h);
+    accessor<int4, 2, access_mode::read, access::target::image_array> acs3(im3,
+                                                                           h);
     accessor ABX{BX, h};
     auto R = acs3.get_range();
     std::cout << "Host acs3.get_range()=" << R[0] << "," << R[1] << "," << R[2]

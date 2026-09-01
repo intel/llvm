@@ -5,8 +5,8 @@ name: SYCL Run Benchmarks
 
 on:
   schedule:
-    # 2 hours after SYCL nightly, every day after weekday (we built in the morning the next day)
-    - cron: '0 5 * * 2-6'
+    # 1:15 hour after SYCL nightly, every day after weekday (we built in the morning the next day)
+    - cron: '15 4 * * 2-6'
   # Run on pull requests only when a benchmark-related files were changed.
   pull_request:
     # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
@@ -184,7 +184,11 @@ jobs:
       build_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       build_cache_root: "/__w/"
       build_cache_suffix: "prod_noassert"
-      build_configure_extra_args: "--no-assertions --cmake-opt='-DUR_STATIC_LOADER=OFF'"
+      build_configure_extra_args: >-
+        --no-assertions
+        --cmake-opt="-DUR_STATIC_LOADER=OFF"
+        --cmake-opt="-DUR_STATIC_ADAPTER_L0=OFF"
+        --cmake-opt="-DUR_STATIC_ADAPTER_L0_V2=OFF"
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
@@ -231,7 +235,11 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: "prod_noassert"
-      build_configure_extra_args: '--no-assertions --cmake-opt="-DUR_STATIC_LOADER=OFF"'
+      build_configure_extra_args: >-
+        --no-assertions
+        --cmake-opt="-DUR_STATIC_LOADER=OFF"
+        --cmake-opt="-DUR_STATIC_ADAPTER_L0=OFF"
+        --cmake-opt="-DUR_STATIC_ADAPTER_L0_V2=OFF"
       build_image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
@@ -283,7 +291,11 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: "prod_noassert"
-      build_configure_extra_args: '--no-assertions --cmake-opt="-DUR_STATIC_LOADER=OFF"'
+      build_configure_extra_args: >-
+        --no-assertions
+        --cmake-opt="-DUR_STATIC_LOADER=OFF"
+        --cmake-opt="-DUR_STATIC_ADAPTER_L0=OFF"
+        --cmake-opt="-DUR_STATIC_ADAPTER_L0_V2=OFF"
       build_image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
@@ -301,7 +313,7 @@ jobs:
       runner: '["TEST_PERF"]'
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-      target_devices: 'level_zero:gpu'
+      target_devices: 'level_zero_v2:gpu'
       tests_selector: benchmarks
       benchmark_upload_results: false
       benchmark_preset: 'Minimal'

@@ -21,7 +21,7 @@ bool test0() {
     buffer<F, 1> Buf(&S0, range<1>(1));
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      auto B = Buf.get_access<access::mode::write>(cgh);
+      auto B = Buf.get_access<access_mode::write>(cgh);
       cgh.single_task<class NonStandard>([=] { B[0] = S; });
     });
   }

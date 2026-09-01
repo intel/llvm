@@ -111,9 +111,10 @@ ur_result_t ur_queue_handle_t_::makeWithNative(native_type NativeQueue,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_queue_properties_t *pProperties, ur_queue_handle_t *phQueue) {
+ur_result_t urQueueCreate(ur_context_handle_t hContext,
+                          ur_device_handle_t hDevice,
+                          const ur_queue_properties_t *pProperties,
+                          ur_queue_handle_t *phQueue) {
 
   auto Context = cast(hContext);
   auto Device = cast(hDevice);
@@ -171,11 +172,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
-                                                   ur_queue_info_t propName,
-                                                   size_t propSize,
-                                                   void *pPropValue,
-                                                   size_t *pPropSizeRet) {
+ur_result_t urQueueGetInfo(ur_queue_handle_t hQueue, ur_queue_info_t propName,
+                           size_t propSize, void *pPropValue,
+                           size_t *pPropSizeRet) {
   auto Queue = cast(hQueue);
   cl_command_queue_info CLCommandQueueInfo = mapURQueueInfoToCL(propName);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
@@ -273,14 +272,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
-                       ur_native_handle_t *phNativeQueue) {
+ur_result_t urQueueGetNativeHandle(ur_queue_handle_t hQueue,
+                                   ur_queue_native_desc_t *,
+                                   ur_native_handle_t *phNativeQueue) {
   auto Queue = cast(hQueue);
   return getNativeHandle(Queue->CLQueue, phNativeQueue);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
+ur_result_t urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
     ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
@@ -298,27 +297,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
+ur_result_t urQueueFinish(ur_queue_handle_t hQueue) {
   auto Queue = cast(hQueue);
   cl_int RetErr = clFinish(Queue->CLQueue);
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
+ur_result_t urQueueFlush(ur_queue_handle_t hQueue) {
   auto Queue = cast(hQueue);
   cl_int RetErr = clFlush(Queue->CLQueue);
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
+ur_result_t urQueueRetain(ur_queue_handle_t hQueue) {
   auto Queue = cast(hQueue);
   Queue->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
+ur_result_t urQueueRelease(ur_queue_handle_t hQueue) {
   auto Queue = cast(hQueue);
   if (Queue->RefCount.release()) {
     delete Queue;
@@ -326,47 +325,47 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
+ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
-    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t /* hGraph */) {
+ur_result_t
+urQueueBeginCaptureIntoGraphExp(ur_queue_handle_t /* hQueue */,
+                                ur_exp_graph_handle_t /* hGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
-    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+ur_result_t urQueueEndGraphCaptureExp(ur_queue_handle_t /* hQueue */,
+                                      ur_exp_graph_handle_t * /* phGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
-                  ur_exp_executable_graph_handle_t /* hGraph */,
-                  uint32_t /* numEventsInWaitList */,
-                  const ur_event_handle_t * /* phEventWaitList */,
-                  ur_event_handle_t * /* phEvent */) {
+ur_result_t urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
+                              ur_exp_executable_graph_handle_t /* hGraph */,
+                              uint32_t /* numEventsInWaitList */,
+                              const ur_event_handle_t * /* phEventWaitList */,
+                              ur_event_handle_t * /* phEvent */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
-    ur_queue_handle_t /* hQueue */, bool * /* hResult */) {
+ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t /* hQueue */,
+                                            bool * /* hResult */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueGetGraphExp(
-    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+ur_result_t urQueueGetGraphExp(ur_queue_handle_t /* hQueue */,
+                               ur_exp_graph_handle_t * /* phGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueHostTaskExp(
-    ur_queue_handle_t /* hQueue */,
-    ur_exp_host_task_function_t /* pfnHostTask */, void * /* data */,
-    const ur_exp_host_task_properties_t * /* pProperties */,
-    uint32_t /* numEventsInWaitList */,
-    const ur_event_handle_t * /* phEventWaitList */,
-    ur_event_handle_t * /* phEvent */) {
+ur_result_t
+urEnqueueHostTaskExp(ur_queue_handle_t /* hQueue */,
+                     ur_exp_host_task_function_t /* pfnHostTask */,
+                     void * /* data */,
+                     const ur_exp_host_task_properties_t * /* pProperties */,
+                     uint32_t /* numEventsInWaitList */,
+                     const ur_event_handle_t * /* phEventWaitList */,
+                     ur_event_handle_t * /* phEvent */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -208,22 +208,22 @@ class HostTask;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
+Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg));
+Arg member_ptr_helper(RetType (Func::*)(Arg));
 
 // Version with two arguments to handle the case when kernel_handler is passed
 // to a lambda
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
+Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
+Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
@@ -257,7 +257,7 @@ using sycl::detail::queue_impl;
 // Returns true if x*y will overflow in T;
 // otherwise, returns false and stores x*y in dst.
 template <typename T>
-static std::enable_if_t<std::is_unsigned_v<T>, bool>
+std::enable_if_t<std::is_unsigned_v<T>, bool>
 multiply_with_overflow_check(T &dst, T x, T y) {
   dst = x * y;
   return (y != 0) && (x > (std::numeric_limits<T>::max)() / y);
@@ -364,10 +364,25 @@ private:
     setType(detail::CGType::Kernel);
   }
 
+  // Sets up this handler to launch the free function kernel `Func` directly,
+  // resolving its DeviceKernelInfo by name (cached in a function-local static
+  // by getDeviceKernelInfo<Func>, so no per-launch kernel bundle is built).
+  // The arguments must have been provided beforehand via set_arg(s) and the
+  // range/nd-range set by the caller.
+  template <auto *Func> void setFreeFunctionKernelInfo() {
+    MKernelName = detail::FreeFunctionInfoData<Func>::getFunctionName();
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<Func>());
+    setType(detail::CGType::Kernel);
+  }
+
   void setDeviceKernelInfo(kernel &&Kernel);
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
+
+  /// Extracts and prepares kernel arguments set via set_arg(s) for a free
+  /// function kernel launched by name (no interop kernel object involved).
+  void extractFreeFunctionArgsAndReqs();
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
@@ -799,8 +814,7 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
-    detail::KernelRegistrar<NameT,
-                            detail::KernelInfo<NameT>>::registerKernelName();
+
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     throwOnKernelParameterMisuse(Info);
@@ -962,8 +976,6 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
-    detail::KernelRegistrar<NameT,
-                            detail::KernelInfo<NameT>>::registerKernelName();
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
 
@@ -1070,6 +1082,8 @@ private:
   kernel_bundle<bundle_state::input> getKernelBundle() const;
 
 public:
+  handler() = delete;
+
   handler(const handler &) = delete;
   handler(handler &&) = delete;
   handler &operator=(const handler &) = delete;
@@ -1415,6 +1429,27 @@ public:
     convertToRangeViewAndSetDescriptor(range<1>{1});
     setDeviceKernelInfo(std::move(Kernel));
     extractArgsAndReqs();
+  }
+
+  // Launches the free function kernel `Func` directly, without materializing a
+  // kernel object or building a kernel bundle in the enqueue functions header.
+  // The kernel is resolved by name through the cached getDeviceKernelInfo<Func>
+  // and enqueued via the fast (scheduler-bypass-capable) path in finalize().
+  // Kernel arguments must have been set beforehand via set_arg(s).
+  template <auto *Func> void single_task_free_function() {
+    throwIfActionIsCreated();
+    convertToRangeViewAndSetDescriptor(range<1>{1});
+    setFreeFunctionKernelInfo<Func>();
+    extractFreeFunctionArgsAndReqs();
+  }
+
+  template <auto *Func, int Dims, typename PropertiesT>
+  void nd_launch_free_function(nd_range<Dims> NDRange, PropertiesT Props) {
+    throwIfActionIsCreated();
+    convertToRangeViewAndSetDescriptor(std::move(NDRange));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
+    setFreeFunctionKernelInfo<Func>();
+    extractFreeFunctionArgsAndReqs();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {

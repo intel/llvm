@@ -110,6 +110,12 @@ struct ext_codeplay_num_regs : kernel_info_traits<UR_KERNEL_INFO_NUM_REGS> {
 
 } // namespace info
 
+namespace ext::oneapi::experimental::info::kernel {
+struct max_num_work_groups_sync {
+  using return_type = size_t;
+};
+} // namespace ext::oneapi::experimental::info::kernel
+
 namespace detail {
 // SFINAE predicates confining `kernel::get_info<T>()` to kernel traits and
 // `kernel::get_info<T>(device)` to kernel-device-specific traits. The

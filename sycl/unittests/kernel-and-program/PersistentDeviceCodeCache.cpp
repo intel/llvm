@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 #include <helpers/UrMock.hpp>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/IOSandbox.h>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
 
@@ -112,6 +113,14 @@ public:
   bool SYCLCachePersistentChanged = false;
 
   std::string RootSYCLCacheDir;
+
+  // This test makes many calls to llvm::sys::fs calls, which as of RFC
+  // https://discourse.llvm.org/t/rfc-file-system-sandboxing-in-clang-llvm/88791
+  // now errors upon using llvm::sys::fs calls without disabling the sandbox.
+  //
+  // Disable the sandbox for the duration of this test.
+  llvm::sys::sandbox::ScopedSetting BypassSandbox =
+      llvm::sys::sandbox::scopedDisable();
 
   // Caches the initial value of the SYCL_CACHE_PERSISTENT environment variable
   // before overwriting it with the new value.

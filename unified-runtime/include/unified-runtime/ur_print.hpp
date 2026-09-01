@@ -609,6 +609,9 @@ inline std::ostream &operator<<(
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_image_copy_region_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_image_user_pitch_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_program_flag_t value);
 inline std::ostream &
@@ -1597,6 +1600,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_EXP_WIN32_NAME:
     os << "UR_STRUCTURE_TYPE_EXP_WIN32_NAME";
     break;
+  case UR_STRUCTURE_TYPE_EXP_IMAGE_USER_PITCH_DESC:
+    os << "UR_STRUCTURE_TYPE_EXP_IMAGE_USER_PITCH_DESC";
+    break;
   case UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES";
     break;
@@ -1940,6 +1946,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
     printPtr(os, pstruct);
   } break;
 
+  case UR_STRUCTURE_TYPE_EXP_IMAGE_USER_PITCH_DESC: {
+    const ur_exp_image_user_pitch_desc_t *pstruct =
+        (const ur_exp_image_user_pitch_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
   case UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES: {
     const ur_exp_async_usm_alloc_properties_t *pstruct =
         (const ur_exp_async_usm_alloc_properties_t *)ptr;
@@ -2205,6 +2217,24 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     break;
   case UR_RESULT_ERROR_INVALID_GRAPH:
     os << "UR_RESULT_ERROR_INVALID_GRAPH";
+    break;
+  case UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED:
+    os << "UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED";
+    break;
+  case UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED:
+    os << "UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED";
+    break;
+  case UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT:
+    os << "UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT";
+    break;
+  case UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING:
+    os << "UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING";
+    break;
+  case UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS:
+    os << "UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS";
+    break;
+  case UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT:
+    os << "UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT";
     break;
   case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
     os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
@@ -12493,6 +12523,37 @@ operator<<(std::ostream &os, const struct ur_exp_image_copy_region_t params) {
   os << ".copyExtent = ";
 
   os << (params.copyExtent);
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_image_user_pitch_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_image_user_pitch_desc_t params) {
+  os << "(struct ur_exp_image_user_pitch_desc_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".rowPitch = ";
+
+  os << (params.rowPitch);
+
+  os << ", ";
+  os << ".slicePitch = ";
+
+  os << (params.slicePitch);
 
   os << "}";
   return os;

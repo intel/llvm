@@ -278,12 +278,19 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
 
   uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
   bool Is256GRF = GRFSizePropVal == 256;
+  bool Is512GRF = GRFSizePropVal == 512;
   bool IsAutoGRF = GRFSizePropVal == 0;
   if (Is256GRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
     CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
+  }
+  if (Is512GRF) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    // This option works for both LO AND OCL backends.
+    CompileOpts += "-ze-opt-register-file-size=512";
   }
   if (IsAutoGRF) {
     if (!CompileOpts.empty())
@@ -869,6 +876,25 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+
+  if (SYCLConfig<SYCL_DUMP_IMAGES>::dumpUsedOnly() && !m_UseSpvFile) {
+    std::lock_guard<std::mutex> Lock(m_DumpedImagesMutex);
+    for (const RTDeviceBinaryImage *BinImg : ImgWithDeps) {
+      auto It = m_DumpedImages.find(BinImg);
+      if (It != m_DumpedImages.end()) {
+        std::cerr << "SYCL_DUMP_IMAGES: device image already dumped to \""
+                  << It->second << "\"\n";
+        continue;
+      }
+      CheckAndDecompressImage(BinImg);
+      It = m_DumpedImages
+               .emplace(BinImg, dumpImage(*BinImg, ++m_DumpedImagesSeqID))
+               .first;
+      std::cerr << "SYCL_DUMP_IMAGES: dumped device image to \"" << It->second
+                << "\"\n";
+    }
+  }
+
   auto BuildF = [this, &ImgWithDeps, &DevImgWithDeps, &ContextImpl, &Devs,
                  &CompileOpts, &LinkOpts, &SpecConsts, AllowUnresolvedSymbols] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
@@ -1666,7 +1692,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
                               bool RegisterImgExports,
                               RTDeviceBinaryImage **OutImage,
                               std::vector<kernel_id> *OutKernelIDs) {
-  const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
   const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
   // Treat the image as empty one
@@ -1770,7 +1795,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       m_VFSet2BinImage[SetName].insert(Img.get());
   }
 
-  if (DumpImages) {
+  if (SYCLConfig<SYCL_DUMP_IMAGES>::dumpAll() && !m_UseSpvFile) {
     const bool NeedsSequenceID =
         std::any_of(m_BinImg2KernelIDs.begin(), m_BinImg2KernelIDs.end(),
                     [&](auto &CurrentImg) {
@@ -1779,7 +1804,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
     // Check if image is compressed, and decompress it before dumping.
     CheckAndDecompressImage(Img.get());
-
     dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
   }
 
@@ -1959,6 +1983,13 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Drop reverse mapping
     m_BinImg2KernelIDs.erase(Img);
 
+    // Drop the record of this image having been dumped, the pointer used as
+    // its key is about to become dangling.
+    {
+      std::lock_guard<std::mutex> DumpedImagesGuard(m_DumpedImagesMutex);
+      m_DumpedImages.erase(Img);
+    }
+
     // Unregister exported symbol -> Img pair (needs to happen after the ID
     // unmap loop)
     for (const sycl_device_binary_property &ESProp :
@@ -1977,8 +2008,8 @@ void ProgramManager::debugPrintBinaryImages() const {
   }
 }
 
-void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
-                               uint32_t SequenceID) const {
+std::string ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
+                                      uint32_t SequenceID) const {
   const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
   std::string Fname(Prefix ? Prefix : "sycl_");
   const sycl_device_binary_struct &RawImg = Img.getRawData();
@@ -2003,6 +2034,7 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   }
   Img.dump(F);
   F.close();
+  return Fname;
 }
 
 const KernelArgMask *
@@ -3033,9 +3065,6 @@ static std::string getAspectNameStr(sycl::aspect AspectNum) {
   case aspect::ASPECT:                                                         \
     return #ASPECT;
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
-// We don't need "case aspect::usm_allocator" here because it will duplicate
-// "case aspect::usm_system_allocations", therefore leave this macro empty
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
   switch (AspectNum) {
 #include <sycl/info/aspects.def>
 #include <sycl/info/aspects_deprecated.def>
@@ -3043,7 +3072,6 @@ static std::string getAspectNameStr(sycl::aspect AspectNum) {
   throw sycl::exception(errc::kernel_not_supported,
                         "Unknown aspect " +
                             std::to_string(static_cast<unsigned>(AspectNum)));
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
 }

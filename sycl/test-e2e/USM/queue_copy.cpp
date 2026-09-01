@@ -22,7 +22,7 @@ int main() {
   queue Queue{};
   device Dev = Queue.get_device();
 
-  if (!(Dev.get_info<info::device::usm_device_allocations>()))
+  if (!(Dev.has(aspect::usm_device_allocations)))
     return 0;
 
   using T = int;

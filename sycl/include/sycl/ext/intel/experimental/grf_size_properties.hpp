@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/ext/intel/experimental/maximum_registers_properties.hpp>
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
@@ -40,7 +42,8 @@ namespace ext::oneapi::experimental::detail {
 template <unsigned int Size>
 struct PropertyMetaInfo<
     sycl::ext::intel::experimental::grf_size_key::value_t<Size>> {
-  static_assert(Size == 128 || Size == 256, "Unsupported GRF size");
+  static_assert(Size == 128 || Size == 256 || Size == 512,
+                "Unsupported GRF size");
   static constexpr const char *name = "sycl-grf-size";
   static constexpr unsigned int value = Size;
 };
@@ -51,17 +54,54 @@ struct PropertyMetaInfo<
   static constexpr unsigned int value = 0;
 };
 
+// grf_size, grf_size_automatic, maximum_registers, and
+// maximum_registers_automatic are all mutually exclusive.
 template <typename Properties>
 struct ConflictingProperties<sycl::ext::intel::experimental::grf_size_key,
                              Properties>
-    : std::bool_constant<Properties::template has_property<
-          sycl::ext::intel::experimental::grf_size_automatic_key>()> {};
+    : std::bool_constant<
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_automatic_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::maximum_registers_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::
+                  maximum_registers_automatic_key>()> {};
 
 template <typename Properties>
 struct ConflictingProperties<
     sycl::ext::intel::experimental::grf_size_automatic_key, Properties>
-    : std::bool_constant<Properties::template has_property<
-          sycl::ext::intel::experimental::grf_size_key>()> {};
+    : std::bool_constant<
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::maximum_registers_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::
+                  maximum_registers_automatic_key>()> {};
+
+template <typename Properties>
+struct ConflictingProperties<
+    sycl::ext::intel::experimental::maximum_registers_key, Properties>
+    : std::bool_constant<
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_automatic_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::
+                  maximum_registers_automatic_key>()> {};
+
+template <typename Properties>
+struct ConflictingProperties<
+    sycl::ext::intel::experimental::maximum_registers_automatic_key, Properties>
+    : std::bool_constant<
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_automatic_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::maximum_registers_key>()> {};
 
 } // namespace ext::oneapi::experimental::detail
 } // namespace _V1
