@@ -944,6 +944,9 @@ void queue_impl::submit_kernel_obj_direct_impl(
     // group outlives the call and they have to be copied into its storage.
     for (size_t I = 0; I < Args.size(); ++I) {
       const sycl::detail::KernelArgView View = makeKernelArgView(Args[I]);
+      // `ArgDesc` holds a `void *` because the kinds that carry an object
+      // rather than bytes hand it out as a mutable pointer. These arguments are
+      // bytes and this path only ever reads them, hence the cast.
       void *Value = const_cast<void *>(View.MPtr);
       if (!SchedulerBypass) {
         const char *Bytes = static_cast<const char *>(View.MPtr);
@@ -961,15 +964,20 @@ void queue_impl::submit_kernel_obj_direct_impl(
                   IsTopCodeLoc),
               /*SchedulerBypass*/ true};
 
+    // Extract data to move KData
+    ur_kernel_cache_config_t KernelCacheConfig = KData.getKernelCacheConfig();
+    bool IsCooperative = KData.isCooperative();
+    bool UsesClusterLaunch = KData.usesClusterLaunch();
+    size_t KernelWorkGroupMemorySize = KData.getKernelWorkGroupMemorySize();
+
     auto CommandGroup = std::make_unique<detail::CGExecKernel>(
         KData.getNDRDesc(), /*HostKernel*/ nullptr, KernelImpl,
         KernelBundleImpl, std::move(CGData), std::move(KData).getArgs(),
         *KData.getDeviceKernelInfoPtr(),
         std::vector<std::shared_ptr<detail::stream_impl>>{},
         std::vector<std::shared_ptr<const void>>{}, detail::CGType::Kernel,
-        KData.getKernelCacheConfig(), KData.isCooperative(),
-        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
-        CodeLoc);
+        KernelCacheConfig, IsCooperative, UsesClusterLaunch,
+        KernelWorkGroupMemorySize, CodeLoc);
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl)
