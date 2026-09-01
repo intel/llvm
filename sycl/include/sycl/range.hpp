@@ -82,11 +82,13 @@ public:
     return result;                                                             \
   }
 
+#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+  // Enable operators with integral types only
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
   friend IntegralType<T, range<Dimensions>> operator op(                       \
-      const range<Dimensions> &lhs, const T & rhs) noexcept {                  \
+      const range<Dimensions> &lhs, const T &rhs) noexcept {                   \
     range<Dimensions> result(lhs);                                             \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
@@ -95,13 +97,33 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   friend IntegralType<T, range<Dimensions>> operator op(                       \
-      const T & lhs, const range<Dimensions> &rhs) noexcept {                  \
+      const T &lhs, const range<Dimensions> &rhs) noexcept {                   \
     range<Dimensions> result(rhs);                                             \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs op rhs.common_array[i];                     \
     }                                                                          \
     return result;                                                             \
   }
+#else
+#define __SYCL_GEN_OPT(op)                                                     \
+  __SYCL_GEN_OPT_BASE(op)                                                      \
+  friend range<Dimensions> operator op(const range<Dimensions> &lhs,           \
+                                       const size_t &rhs) noexcept {           \
+    range<Dimensions> result(lhs);                                             \
+    for (int i = 0; i < Dimensions; ++i) {                                     \
+      result.common_array[i] = lhs.common_array[i] op rhs;                     \
+    }                                                                          \
+    return result;                                                             \
+  }                                                                            \
+  friend range<Dimensions> operator op(                                        \
+      const size_t &lhs, const range<Dimensions> &rhs) noexcept {              \
+    range<Dimensions> result(rhs);                                             \
+    for (int i = 0; i < Dimensions; ++i) {                                     \
+      result.common_array[i] = lhs op rhs.common_array[i];                     \
+    }                                                                          \
+    return result;                                                             \
+  }
+#endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
   __SYCL_GEN_OPT(+)
   __SYCL_GEN_OPT(-)
@@ -134,7 +156,7 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   friend IntegralType<T, range<Dimensions>> operator op(                       \
-      range<Dimensions> &lhs, const T & rhs) noexcept {                        \
+      range<Dimensions> &lhs, const T &rhs) noexcept {                         \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs;                                              \
     }                                                                          \
@@ -208,9 +230,9 @@ private:
 };
 
 #ifdef __cpp_deduction_guides
-range(size_t) -> range<1>;
-range(size_t, size_t) -> range<2>;
-range(size_t, size_t, size_t) -> range<3>;
+range(size_t)->range<1>;
+range(size_t, size_t)->range<2>;
+range(size_t, size_t, size_t)->range<3>;
 #endif
 
 } // namespace _V1
