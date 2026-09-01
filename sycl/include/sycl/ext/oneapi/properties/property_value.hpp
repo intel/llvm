@@ -73,14 +73,18 @@ template <typename V, typename O> struct is_property_value_of {
   }();
 };
 
+} // namespace ext::oneapi::experimental
+
+// PropertyID's primary lives in the shared engine (`sycl::detail`), so this
+// specialization for property_value must be declared there.
 namespace detail {
 
 // Specialization of PropertyID for propagating IDs through property_value.
 template <typename PropertyT, typename... PropertyValueTs>
-struct PropertyID<property_value<PropertyT, PropertyValueTs...>>
+struct PropertyID<
+    ext::oneapi::experimental::property_value<PropertyT, PropertyValueTs...>>
     : PropertyID<PropertyT> {};
 
 } // namespace detail
-} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
