@@ -25,6 +25,12 @@ inline namespace _V1 {
 class device;
 class context;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+namespace ext::oneapi {
+class filter_selector;
+} // namespace ext::oneapi
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 /// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.
 ///
@@ -118,10 +124,15 @@ void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
 
 // Enable if DeviceSelector callable has matching signature, but exclude if it
 // is descended from the SYCL 1.2.1 device_selector, which has its own
-// (deprecated) overloads.
+// (deprecated) overloads. ext::oneapi::filter_selector is only a plain callable
+// selector in the preview mode, elsewhere it still derives from
+// device_selector, so keep excluding it explicitly.
 template <typename DeviceSelector>
 using EnableIfSYCL2020DeviceSelectorInvocable = std::enable_if_t<
     std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector> &&
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     !std::is_base_of_v<device_selector, DeviceSelector>>;
 
 __SYCL_EXPORT device
