@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Optional
+from typing import Optional
 
 import defusedxml.ElementTree as ET
 
@@ -11,22 +11,31 @@ from ..models.test_results import TestStatus
 from .parser_models import ParsedXMLData, ParsedTestObservation
 
 
-class ParsedXMLTests(NamedTuple):
-    """Skipped and excluded tests from XML parsing."""
-
-    skipped: List[str]
-    excluded: List[str]
-
-
 def _format_test_name(classname: str, name: str) -> str:
-    """Format test name to match LIT output format.
-    
-    LIT uses ' :: ' (space-colon-colon-space) as separator in log output,
-    so we normalize XML classname.name format to match.
-    """
-    if classname and name:
-        return f"{classname} :: {name}"
-    return name
+    """Convert a JUnit name to LIT's display format."""
+    if not classname:
+        return name
+    if not name:
+        return classname
+
+    suite_name, separator, path = classname.partition(".")
+    if not separator or path == suite_name:
+        return f"{suite_name} :: {name}"
+    return f"{suite_name} :: {path}/{name}"
+
+
+def _status_from_skipped_message(message: str) -> TestStatus:
+    """Recover the LIT status encoded as a JUnit ``skipped`` element."""
+    if message.startswith(TEST_NOT_SELECTED_MSG):
+        return TestStatus.EXCLUDED
+    if message == "User interrupt":
+        return TestStatus.SKIPPED
+    if message.startswith("Missing required feature(s):"):
+        return TestStatus.UNSUPPORTED
+    if message == "Unsupported configuration":
+        return TestStatus.UNSUPPORTED
+
+    return TestStatus.SKIPPED
 
 
 class JUnitXMLParser:
@@ -60,48 +69,8 @@ class JUnitXMLParser:
             )
             return False
 
-    def extract_tests_from_xml(self) -> ParsedXMLTests:
-        if not self.parse():
-            return ParsedXMLTests([], [])
-
-        skipped = []
-        excluded = []
-
-        for testcase in self._root.findall(".//testcase"):
-            skipped_elem = testcase.find("skipped")
-            if skipped_elem is None:
-                continue
-
-            message = skipped_elem.get("message", "")
-            test_name = _format_test_name(
-                testcase.get("classname", ""), testcase.get("name", "")
-            )
-
-            if not test_name:
-                continue
-
-            # Separate by message type
-            if TEST_NOT_SELECTED_MSG in message:
-                excluded.append(test_name)
-            else:
-                skipped.append(test_name)
-
-        return ParsedXMLTests(skipped=skipped, excluded=excluded)
-
-    def extract_skipped_tests(self) -> List[str]:
-        skipped, _ = self.extract_tests_from_xml()
-        return skipped
-
-    def extract_excluded_tests(self) -> List[str]:
-        _, excluded = self.extract_tests_from_xml()
-        return excluded
-
     def parse_to_observations(self) -> ParsedXMLData:
-        """Parse XML into normalized observations.
-
-        Returns:
-            ParsedXMLData with test observations and metadata.
-        """
+        """Parse XML test results."""
         if not self.parse():
             return ParsedXMLData(tests=[])
 
@@ -118,7 +87,6 @@ class JUnitXMLParser:
 
             total_tests += 1
 
-            # Extract duration (in seconds from XML, convert to ms)
             duration_ms = None
             time_str = testcase.get("time")
             if time_str:
@@ -129,7 +97,6 @@ class JUnitXMLParser:
                 except ValueError:
                     pass
 
-            # Determine status from child elements
             status = self._determine_status_from_xml(testcase)
 
             observations.append(
@@ -147,19 +114,9 @@ class JUnitXMLParser:
         )
 
     def _determine_status_from_xml(self, testcase) -> TestStatus:
-        """Determine test status from XML testcase element.
-
-        JUnit XML structure:
-        - <failure> = FAIL
-        - <error> = UNRESOLVED or TIMEOUT (depends on message)
-        - <skipped message="..."> = SKIPPED or EXCLUDED (depends on message)
-        - No child elements = PASS
-        """
-        # Check for failure
         if testcase.find("failure") is not None:
             return TestStatus.FAIL
 
-        # Check for error (could be unresolved or timeout)
         error_elem = testcase.find("error")
         if error_elem is not None:
             message = error_elem.get("message", "").lower()
@@ -167,15 +124,9 @@ class JUnitXMLParser:
                 return TestStatus.TIMEOUT
             return TestStatus.UNRESOLVED
 
-        # Check for skipped (could be skipped or excluded)
         skipped_elem = testcase.find("skipped")
         if skipped_elem is not None:
-            message = skipped_elem.get("message", "")
-            if TEST_NOT_SELECTED_MSG in message:
-                return TestStatus.EXCLUDED
-            return TestStatus.SKIPPED
+            return _status_from_skipped_message(skipped_elem.get("message", ""))
 
-        # No special markers = passed
-        # Note: We can't distinguish PASS/FLAKYPASS/XFAIL/XPASS from XML alone
-        # That requires log output. XML parser reports PASS for anything that succeeded.
+        # JUnit does not distinguish successful LIT statuses.
         return TestStatus.PASS

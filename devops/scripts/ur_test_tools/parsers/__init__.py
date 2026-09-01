@@ -6,7 +6,6 @@ from .log_parser import (
 )
 from .xml_parser import (
     JUnitXMLParser,
-    ParsedXMLTests,
 )
 from .stats_parser import get_count_from_stats
 from .parser_models import (
@@ -21,7 +20,6 @@ __all__ = [
     "LITLogParser",
     "read_log_file",
     "JUnitXMLParser",
-    "ParsedXMLTests",
     "get_count_from_stats",
     "ParsedTestObservation",
     "ParsedLogData",
