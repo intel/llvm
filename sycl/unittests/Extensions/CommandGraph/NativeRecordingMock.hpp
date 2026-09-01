@@ -30,8 +30,8 @@ struct TraceEntry {
 struct GraphState {
   uint64_t Id = 0;
   bool IsEmpty = true;
-  std::vector<ur_exp_graph_destruction_callback_t> DestructionCallbacks;
-  std::vector<void *> DestructionCallbacksData;
+  std::vector<ur_exp_graph_destruction_callback_t> DestructionCallbacks = {};
+  std::vector<void *> DestructionCallbacksData = {};
 };
 
 inline constexpr uint64_t FirstGraphId = 1;
