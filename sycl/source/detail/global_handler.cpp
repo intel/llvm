@@ -326,9 +326,9 @@ void shutdown_early(bool CanJoinThreads = true) {
   // Do not cleanup thread pool on windows during application shutdown.
   // Let OS do the cleanup.
   bool doThreadPoolCleanup =
-    GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.get() !=
-    nullptr;
-#ifndef _WIN32
+      GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.get() !=
+      nullptr;
+#ifdef _WIN32
   doThreadPoolCleanup &= !CanJoinThreads;
 #endif
 
