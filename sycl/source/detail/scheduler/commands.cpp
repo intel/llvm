@@ -241,12 +241,6 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
   return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
 }
 
-bool Command::isHostTask() const {
-  return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
-         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
-          CGType::CodeplayHostTask);
-}
-
 namespace {
 
 struct EnqueueNativeCommandData {

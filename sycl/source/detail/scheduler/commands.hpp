@@ -251,7 +251,10 @@ public:
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand);
 
-  bool isHostTask() const;
+  /// Returns true iff this command represents a host task. Only ExecCGCommand
+  /// can, so the base implementation always returns false: the command type
+  /// alone does not imply the dynamic type of the command.
+  virtual bool isHostTask() const { return false; }
 
 protected:
   std::shared_ptr<queue_impl> MQueue;
@@ -648,6 +651,10 @@ public:
   std::string_view getTypeString() const;
 
   detail::CG &getCG() const { return *MCommandGroup; }
+
+  bool isHostTask() const final {
+    return getCG().getType() == CGType::CodeplayHostTask;
+  }
 
   // MEmptyCmd is only employed if this command refers to host-task.
   // The mechanism of lookup for single EmptyCommand amongst users of
