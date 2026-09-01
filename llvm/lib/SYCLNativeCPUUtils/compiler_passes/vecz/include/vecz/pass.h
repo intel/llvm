@@ -120,7 +120,7 @@ public:
 /// @brief A helper pass which can be used to inspect and test the
 /// vectorization options set on a per-function basis.
 class VeczPassOptionsPrinterPass
-    : public llvm::PassInfoMixin<VeczPassOptionsPrinterPass> {
+    : public llvm::OptionalPassInfoMixin<VeczPassOptionsPrinterPass> {
   llvm::raw_ostream &OS;
 
 public:
@@ -138,7 +138,7 @@ public:
 /// if you do not wish all kernels to be vectorized, you must ensure your pass
 /// manager's ModuleAnalysisManager is configured with a custom @ref
 /// `VeczShouldRunOnFunctionAnalysis`
-class RunVeczPass : public llvm::PassInfoMixin<RunVeczPass> {
+class RunVeczPass : public llvm::OptionalPassInfoMixin<RunVeczPass> {
 public:
   /// @brief llvm's entry point for the PassManager
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
