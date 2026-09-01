@@ -1,0 +1,24 @@
+//==------- reduction_properties.hpp --- SYCL reduction properties ---------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, DataLes...
+
+namespace sycl {
+inline namespace _V1 {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  namespace NS_QUALIFIER {                                                     \
+  class PROP_NAME                                                              \
+      : public sycl::detail::DataLessProperty<sycl::detail::ENUM_VAL> {};      \
+  }
+#include <sycl/properties/reduction_properties.def>
+
+// Reduction property trait specializations
+} // namespace _V1
+} // namespace sycl
