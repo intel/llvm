@@ -4301,6 +4301,16 @@ bool SPIRVToLLVM::transAddressingModel() {
               "Actual addressing mode is " +
                   std::to_string(BM->getAddressingModel()));
   }
+
+  // Optional override replaces the triple.
+  StringRef Override = BM->getTargetTripleOverride();
+  if (!Override.empty()) {
+    Triple TT(Triple::normalize(Override));
+    SPIRVCKRT(TT.getArch() != Triple::UnknownArch, InvalidTargetTripleOverride,
+              Override.str());
+    M->setTargetTriple(TT);
+  }
+
   return true;
 }
 

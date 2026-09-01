@@ -298,6 +298,13 @@ static cl::opt<bool> SPIRVUseLLVMSPIRVBackendTarget(
              "don't use the LLVM SPIR-V Backend target."),
     cl::init(false));
 
+static cl::opt<std::string> SPIRVTargetTriple(
+    "spirv-target-triple",
+    cl::desc("Override the target triple of the module produced by reverse "
+             "translation (-r). The data layout follows the triple. Default: "
+             "derived from the SPIR-V addressing model."),
+    cl::init(""));
+
 static cl::opt<uint32_t> FnVarCategory(
     "fnvar-category",
     cl::desc("Specify architecture category of the target device (omitting "
@@ -908,6 +915,15 @@ int main(int Ac, char **Av) {
                 "affects translation from SPIR-V to LLVM IR";
     } else {
       Opts.setDesiredBIsRepresentation(BIsRepresentation);
+    }
+  }
+
+  if (SPIRVTargetTriple.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-target-triple option ignored as it only "
+                "affects translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setSPIRVTargetTriple(SPIRVTargetTriple);
     }
   }
 
