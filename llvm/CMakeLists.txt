@@ -497,8 +497,14 @@ if(WIN32 AND NOT UNIX)
   endif()
   if(CPACK_GENERATOR STREQUAL "WIX")
     set(CPACK_WIX_PRODUCT_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_icon.ico")
-    # The WIX installer needs admin privileges unless we use this flag.
-    set(CPACK_WIX_LIGHT_EXTRA_FLAGS "-sval")
+    # -sval: the WIX installer needs admin privileges unless we use this flag.
+    # -dcl:high: light defaults the cabinet to MSZIP (deflate, 32 KiB window),
+    # which captures almost no redundancy between the payload's binaries.  high
+    # selects LZX with a 21-bit (2 MiB) window instead.  That is the strongest
+    # compression available here: Windows Installer has to be able to read the
+    # cabinet itself, and CAB supports only MSZIP/LZX/Quantum, so an MSI cannot
+    # use LZMA the way the NSIS generator does.
+    set(CPACK_WIX_LIGHT_EXTRA_FLAGS "-sval" "-dcl:high")
   endif()
 endif()
 include(CPack)
@@ -577,6 +583,7 @@ set(LLVM_ALL_TARGETS
   ARM
   AVR
   BPF
+  DirectX
   Hexagon
   Lanai
   LoongArch
@@ -597,7 +604,6 @@ set(LLVM_ALL_TARGETS
 set(LLVM_ALL_EXPERIMENTAL_TARGETS
   ARC
   CSKY
-  DirectX
   M68k
   Xtensa
 )
