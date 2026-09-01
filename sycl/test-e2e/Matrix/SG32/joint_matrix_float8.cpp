@@ -10,6 +10,10 @@
 // RUN: %{build} -Xspirv-translator=spir64 --spirv-ext=+SPV_EXT_float8,+SPV_INTEL_fp_conversions,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: target-nvidia, target-amd, spirv-backend
+// UNSUPPORTED-INTENDED: only supported by backends with CRI driver, and the
+// SPIR-V backend does not support the required SPIR-V extensions
+
 #include "common.hpp"
 #define SG_SZ 32
 #include "joint_matrix_float8_impl.hpp"

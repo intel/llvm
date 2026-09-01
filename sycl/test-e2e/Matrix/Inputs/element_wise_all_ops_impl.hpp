@@ -375,6 +375,9 @@ int main() {
       break;
     }
   }
+#if 0
+  // Disabled by lack of 4-bit DPAS support in IGC; the packed VNNI layout for
+  // the 4-bit types is unverified as a result. Tracked by Jira GSD-9057.
   // fp4_e2m1_x packs 1 or 2 elements per byte, so the 4-bit tests run at a
   // packing factor of 2.
   constexpr unsigned int numElems = 2;
@@ -384,6 +387,7 @@ int main() {
     test_ewops_ab<syclex::fp4_e2m1_x<numElems>, 32, 16, use::b,
                   layout::ext_intel_packed, 8, sycl::half>();
   }
+#endif
 
   if (is_type_supported_by_device(q, matrix_type::fp8_e5m2)) {
     test_ewops_ab<syclex::fp8_e5m2, 8, 32, use::a, layout::row_major, 1,

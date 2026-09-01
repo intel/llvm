@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: arch-intel_gpu_cri, aspect-ext_intel_matrix
 
+// XFAIL: arch-intel_gpu_cri
+// XFAIL-TRACKER: GSD-9057
+
 // RUN: %{build} -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_INTEL_float4,+SPV_INTEL_int4,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} %t.out
 

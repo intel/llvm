@@ -199,8 +199,7 @@ int main() {
     return 0;
   }
   // A matrix element must pack two 4-bit values into each byte, so
-  // fp4_e2m1_x<2> is the only usable packing factor; fp4_e2m1_x<1> would leave
-  // the high nibble of every byte unused.
+  // fp4_e2m1_x<2> is the only usable packing factor
   constexpr unsigned int numElems = 2;
   fp4_combinations<float, numElems>(q);
 #if 0
