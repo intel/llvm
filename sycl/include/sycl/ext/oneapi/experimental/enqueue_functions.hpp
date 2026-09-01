@@ -105,22 +105,45 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 template <typename T>
 using plain_arg_t = std::remove_cv_t<std::remove_reference_t<T>>;
 
+// An argument that is bound as its own bytes with no further interpretation.
+template <typename T>
+inline constexpr bool is_scalar_kernel_arg_v =
+    std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_pointer_v<T>;
+
 // An argument that can be bound as plain bytes, i.e. one that carries no
 // requirement for the scheduler to track. Accessors, local accessors, streams
 // and work group memory are deliberately excluded and keep using the command
-// group path; `HasSpecialCaptures` in the runtime draws the same line.
+// group path; `HasSpecialCaptures` in the runtime draws the same line. So is
+// every other class type, which may be a struct with special types inside and
+// then needs `kind_struct_with_special_type` instead.
+//
+// An array of scalars is bound as the bytes it is, which is what
+// `handler::setArgHelper` does with it, so it belongs on this path.
 template <typename T>
 inline constexpr bool is_plain_kernel_arg_v =
-    std::is_arithmetic_v<plain_arg_t<T>> || std::is_enum_v<plain_arg_t<T>> ||
-    std::is_pointer_v<plain_arg_t<T>> ||
+    is_scalar_kernel_arg_v<plain_arg_t<T>> ||
+    (std::is_array_v<plain_arg_t<T>> &&
+     is_scalar_kernel_arg_v<std::remove_all_extents_t<plain_arg_t<T>>>) ||
     std::is_same_v<plain_arg_t<T>, raw_kernel_arg>;
 
-// A pointer has to keep its kind. The runtime binds a pointer argument as
-// UR_EXP_KERNEL_ARG_TYPE_POINTER, which the OpenCL adapter passes to
-// clSetKernelArgMemPointerINTEL rather than to clSetKernelArg, so plain bytes
-// are not a substitute. The Native CPU adapter draws the same distinction: it
-// puts a pointer argument straight into the argument slot, whereas a value
-// argument lands there as the address of the adapter's own copy.
+// The kind a plain argument has to carry. A pointer has to keep its kind: the
+// runtime binds a pointer argument as UR_EXP_KERNEL_ARG_TYPE_POINTER, which the
+// OpenCL adapter passes to clSetKernelArgMemPointerINTEL rather than to
+// clSetKernelArg, so plain bytes are not a substitute. The Native CPU adapter
+// draws the same distinction: it puts a pointer argument straight into the
+// argument slot, whereas a value argument lands there as the address of the
+// adapter's own copy.
+//
+// `cl_mem` is the one pointer that is not an address: it names a memory object
+// and has to be bound as the bytes of the handle, which is the exception
+// `handler::setArgHelper` makes for `OpenCLMemT`.
+template <typename T>
+inline constexpr sycl::detail::kernel_param_kind_t plain_arg_kind_v =
+    (std::is_pointer_v<plain_arg_t<T>> &&
+     !std::is_same_v<plain_arg_t<T>, sycl::OpenCLMemT>)
+        ? sycl::detail::kernel_param_kind_t::kind_pointer
+        : sycl::detail::kernel_param_kind_t::kind_std_layout;
+
 template <typename T>
 sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
   using sycl::detail::kernel_param_kind_t;
@@ -128,10 +151,7 @@ sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
     return {RawKernelArgAccess::getData(Arg), RawKernelArgAccess::getSize(Arg),
             kernel_param_kind_t::kind_std_layout};
   else
-    return {&Arg, sizeof(plain_arg_t<T>),
-            std::is_pointer_v<plain_arg_t<T>>
-                ? kernel_param_kind_t::kind_pointer
-                : kernel_param_kind_t::kind_std_layout};
+    return {&Arg, sizeof(plain_arg_t<T>), plain_arg_kind_v<T>};
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
