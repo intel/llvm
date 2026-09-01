@@ -323,7 +323,16 @@ void shutdown_early(bool CanJoinThreads = true) {
   // upon its release
   GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(true);
 
-  if (GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst) {
+  // Do not cleanup thread pool on windows during application shutdown.
+  // Let OS do the cleanup.
+  bool doThreadPoolCleanup =
+    GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.get() !=
+    nullptr;
+#ifndef _WIN32
+  doThreadPoolCleanup &= !CanJoinThreads;
+#endif
+
+  if (doThreadPoolCleanup) {
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst->finishAndWait(
         CanJoinThreads);
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
@@ -373,8 +382,13 @@ void shutdown_late() {
 
   GlobalHandler::RTGlobalObjHandler->MXPTIRegistry.Inst.reset(nullptr);
 
-  // Release the rest of global resources.
+#ifndef _WIN32
+  // Release the rest of global resources. Do not release GlobalHandler
+  // on Windows and let OS reclaim leaked memory. Releasing GlobalHandler
+  // on Windows can seg fault if application uses host tasks, as there
+  // can be a race between host tasks and shutdown.
   delete GlobalHandler::RTGlobalObjHandler;
+#endif
   GlobalHandler::RTGlobalObjHandler = nullptr;
 }
 
