@@ -8,19 +8,30 @@
 
 #pragma once
 
+#include <cstddef>                      // size_t
 #include <optional>                     // std::optional
 #include <string_view>                  // std::string_view
 #include <sycl/__spirv/spirv_types.hpp> // __spv namespace
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
-#include <sycl/ext/oneapi/experimental/float_4bit/types.hpp> // for fp4_e2m1_x
-#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp> // for fp8_e5m2
-#include <utility>                                           // std::pair
+#include <utility>                      // std::pair
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+
+// The matrix interfaces only ever name the 4-bit and 8-bit floating point types
+// as template arguments, so forward declarations are enough here. Including
+// <sycl/ext/oneapi/experimental/float_4bit/types.hpp> and its 8-bit counterpart
+// instead would pull both extensions into the transitive closure of
+// <sycl/sycl.hpp>, which they are deliberately not part of: code that uses
+// fp4/fp8 includes those headers explicitly.
+template <size_t N> class fp4_e2m1_x;
+template <size_t N> class fp8_e4m3_x;
+template <size_t N> class fp8_e5m2_x;
+template <size_t N> class fp8_e8m0_x;
+
 namespace matrix {
 
 enum class use { a, b, accumulator, scale };
@@ -112,38 +123,34 @@ constexpr uint32_t CalculateMatrixOperand() {
   if constexpr (std::is_signed<Tb>::value)
     returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixBSignedComponentsKHR);
-  if constexpr (std::is_same<
-                    Ta, sycl::ext::oneapi::experimental::fp8_e5m2>::value &&
-                std::is_same<
-                    Tb, sycl::ext::oneapi::experimental::fp8_e5m2>::value &&
-                std::is_same<Tc, float>::value)
+  if constexpr (
+      std::is_same<Ta, sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>::value &&
+      std::is_same<Tb, sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>::value &&
+      std::is_same<Tc, float>::value)
     returnValue += static_cast<uint32_t>(
                        __spv::MatrixOperands::MatrixABFloat8ComponentsINTEL) +
                    static_cast<uint32_t>(
                        __spv::MatrixOperands::MatrixBBFloat8ComponentsINTEL);
-  if constexpr (std::is_same<
-                    Ta, sycl::ext::oneapi::experimental::fp8_e5m2>::value &&
-                std::is_same<
-                    Tb, sycl::ext::oneapi::experimental::fp8_e4m3>::value &&
-                std::is_same<Tc, float>::value)
+  if constexpr (
+      std::is_same<Ta, sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>::value &&
+      std::is_same<Tb, sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>::value &&
+      std::is_same<Tc, float>::value)
     returnValue += static_cast<uint32_t>(
                        __spv::MatrixOperands::MatrixABFloat8ComponentsINTEL) +
                    static_cast<uint32_t>(
                        __spv::MatrixOperands::MatrixBHFloat8ComponentsINTEL);
-  if constexpr (std::is_same<
-                    Ta, sycl::ext::oneapi::experimental::fp8_e4m3>::value &&
-                std::is_same<
-                    Tb, sycl::ext::oneapi::experimental::fp8_e5m2>::value &&
-                std::is_same<Tc, float>::value)
+  if constexpr (
+      std::is_same<Ta, sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>::value &&
+      std::is_same<Tb, sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>::value &&
+      std::is_same<Tc, float>::value)
     returnValue += static_cast<uint32_t>(
                        __spv::MatrixOperands::MatrixAHFloat8ComponentsINTEL) +
                    static_cast<uint32_t>(
                        __spv::MatrixOperands::MatrixBBFloat8ComponentsINTEL);
-  if constexpr (std::is_same<
-                    Ta, sycl::ext::oneapi::experimental::fp8_e4m3>::value &&
-                std::is_same<
-                    Tb, sycl::ext::oneapi::experimental::fp8_e4m3>::value &&
-                std::is_same<Tc, float>::value)
+  if constexpr (
+      std::is_same<Ta, sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>::value &&
+      std::is_same<Tb, sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>::value &&
+      std::is_same<Tc, float>::value)
     returnValue += static_cast<uint32_t>(
                        __spv::MatrixOperands::MatrixAHFloat8ComponentsINTEL) +
                    static_cast<uint32_t>(

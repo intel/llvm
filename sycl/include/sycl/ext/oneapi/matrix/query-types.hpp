@@ -88,14 +88,14 @@ constexpr const char *convertTypeToMatrixTypeString<
   return "matrix_type::tf32";
 }
 template <>
-constexpr const char *
-convertTypeToMatrixTypeString<sycl::ext::oneapi::experimental::fp8_e5m2>() {
+constexpr const char *convertTypeToMatrixTypeString<
+    sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>() {
   return "matrix_type::fp8_e5m2";
 }
 
 template <>
-constexpr const char *
-convertTypeToMatrixTypeString<sycl::ext::oneapi::experimental::fp8_e4m3>() {
+constexpr const char *convertTypeToMatrixTypeString<
+    sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>() {
   return "matrix_type::fp8_e4m3";
 }
 

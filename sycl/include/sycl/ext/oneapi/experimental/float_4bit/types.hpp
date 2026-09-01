@@ -30,14 +30,12 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-inline namespace _V1 {
 namespace detail {
 using fp4_float16_vec2 = _Float16 __attribute__((ext_vector_type(2)));
 using fp4_bfloat16_vec2 = __bf16 __attribute__((ext_vector_type(2)));
 using fp4_uint8_vec2 = uint8_t __attribute__((ext_vector_type(2)));
 using fp4_uint8_vec1 = uint8_t __attribute__((ext_vector_type(1)));
 } // namespace detail
-} // namespace _V1
 } // namespace sycl
 
 // FP4 builtins. The SPIR-V translator maps these to SPV_INTEL_float4 /
@@ -394,10 +392,10 @@ ConvertFromFP4ToBinaryFloat_CPU(uint8_t code,
 
     if (BitWidth(magnitude) > Traits::ValueBits) {
       if constexpr (Traits::IsSigned)
-        return negative ? (std::numeric_limits<ToT>::min)()
-                        : (std::numeric_limits<ToT>::max)();
+        return negative ? std::numeric_limits<ToT>::min()
+                        : std::numeric_limits<ToT>::max();
       else
-        return negative ? ToT{0} : (std::numeric_limits<ToT>::max)();
+        return negative ? ToT{0} : std::numeric_limits<ToT>::max();
     }
 
     const UnsignedT narrowed = static_cast<UnsignedT>(magnitude);

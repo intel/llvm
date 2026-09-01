@@ -589,13 +589,11 @@ joint_matrix_convert(Group,
       dst.spvm = __spirv_ConvertFP4E2M1ToHF16INTEL<To>(src.spvm);
     else if constexpr (std::is_same<To, sycl::ext::oneapi::bfloat16>::value)
       dst.spvm = __spirv_ConvertFP4E2M1ToBF16INTEL<To>(src.spvm);
-    else if constexpr (std::is_same<
-                           To,
-                           sycl::ext::oneapi::experimental::fp8_e4m3>::value)
+    else if constexpr (std::is_same<To, sycl::ext::oneapi::experimental::
+                                            fp8_e4m3_x<1>>::value)
       dst.spvm = __spirv_ConvertFP4E2M1ToHF8INTEL<To>(src.spvm);
-    else if constexpr (std::is_same<
-                           To,
-                           sycl::ext::oneapi::experimental::fp8_e5m2>::value)
+    else if constexpr (std::is_same<To, sycl::ext::oneapi::experimental::
+                                            fp8_e5m2_x<1>>::value)
       dst.spvm = __spirv_ConvertFP4E2M1ToBF8INTEL<To>(src.spvm);
   }
   // FP4E2M1 down conversion
@@ -623,9 +621,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_bmad(
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
     const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
     const joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
-    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0,
+    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
                        use::scale, M, K / 32, LayoutAs> &Ascale,
-    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0,
+    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
                        use::scale, K / 32, N, LayoutBs> &Bscale,
     const joint_matrix<Group, Tc, use::accumulator, M, N,
                        sycl::ext::oneapi::experimental::matrix::layout::dynamic>

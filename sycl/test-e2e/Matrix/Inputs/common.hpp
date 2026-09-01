@@ -11,6 +11,10 @@
 #include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>
+// The matrix headers only forward declare the fp4/fp8 types, so the tests that
+// name them have to include the corresponding extension headers themselves.
+#include <sycl/ext/oneapi/experimental/float_4bit/types.hpp>
+#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/kernel_bundle.hpp>
 
