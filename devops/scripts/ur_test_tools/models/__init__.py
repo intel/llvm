@@ -1,12 +1,5 @@
 """Models package - Data structures for UR test tools."""
 
-from .test_data import (
-    TestLists,
-    TestCounts,
-    TimingSummary,
-    SkippedTestsResult,
-    ExcludedTestsResult,
-)
 from .config import (
     TestConfig,
     TestExecutionContext,
@@ -19,17 +12,9 @@ from .test_results import (
 )
 
 __all__ = [
-    # Legacy models (to be deprecated)
-    "TestLists",
-    "TestCounts",
-    "TimingSummary",
-    "SkippedTestsResult",
-    "ExcludedTestsResult",
-    # Configuration
     "TestConfig",
     "TestExecutionContext",
     "SummaryConfigFromLines",
-    # Normalized result model
     "TestStatus",
     "TestResult",
     "TestRunResult",

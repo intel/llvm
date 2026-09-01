@@ -1,6 +1,6 @@
 """Test result models."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -10,6 +10,7 @@ class TestStatus(str, Enum):
 
     PASS = "PASS"
     FLAKYPASS = "FLAKYPASS"
+    FIXED = "FIXED"
     XFAIL = "XFAIL"
     XPASS = "XPASS"
     FAIL = "FAIL"
@@ -33,6 +34,7 @@ class TestStatus(str, Enum):
         return {
             TestStatus.PASS: "Passed",
             TestStatus.FLAKYPASS: "Passed With Retry",
+            TestStatus.FIXED: "Passed After Update",
             TestStatus.XFAIL: "Expectedly Failed",
             TestStatus.XPASS: "Unexpectedly Passed",
             TestStatus.FAIL: "Failed",
@@ -60,6 +62,9 @@ class TestRunResult:
     tests: List[TestResult]
     total_discovered: Optional[int] = None
     testing_time_ms: Optional[float] = None
+    statistics_lines: List[str] = field(default_factory=list)
+    slowest_tests: List[str] = field(default_factory=list)
+    time_histogram: List[str] = field(default_factory=list)
 
     def count_by_status(self, status: TestStatus) -> int:
         return sum(1 for test in self.tests if test.status == status)

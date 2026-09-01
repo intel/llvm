@@ -20,10 +20,12 @@ SEPARATOR_WIDTH = 70
 LIT_COMMON_REPORTING_OPTIONS = [
     "--show-unsupported",
     "--show-pass",
+    "--show-fixed",
     "--show-xfail",
     "--time-tests",
     "--show-flakypass",
     "--show-skipped",
+    "--show-excluded",
 ]
 
 # CI-specific options: verbose output for log parsing and reporting tools
@@ -53,13 +55,6 @@ TEST_TIMES_HEADERS = ("Tests Times:", "Test Times:")
 
 # LIT Output Patterns
 FAIL_TIMEOUT_PATTERN = re.compile(r"^(FAIL|TIMEOUT):")
-TEST_LIST_HEADER_PATTERN = re.compile(
-    r"^(Passed|Unsupported|Failed|Expectedly Failed|"
-    r"Timed Out|Unexpectedly Passed|Unresolved) Tests \("
-)
-STATS_PATTERN = re.compile(
-    r"^\s*(Total Discovered|Expected Passes|Expectedly Failed|"
-    r"Excluded|Unsupported|Skipped|Passed|Passed With Retry|"
-    r"Failed|Timed Out|Unexpectedly Passed|Unresolved)(\s+Tests)?\s*:"
-)
 TEST_CATEGORY_PATTERN = re.compile(r"^([A-Za-z]+(?: [A-Za-z]+)*) Tests \((\d+)\):")
+TESTING_TIME_PATTERN = re.compile(r"^\s*Testing Time:\s*([0-9.]+)s")
+STAT_LINE_PATTERN = re.compile(r"^\s*(.+?)\s*:\s*(\d+)(?:\s|$)")

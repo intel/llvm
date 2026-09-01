@@ -11,6 +11,7 @@ from .parsers.log_parser import (
     read_log_file,
 )
 from .outputs.console import ConsoleOutput
+from .reconciliation import build_test_run_result
 from .summary_generator import SummaryReporter
 from .test_runner import (
     TestRunner,
@@ -65,7 +66,7 @@ def main_test_summary(command: str) -> int:
                 sys.argv[3] if len(sys.argv) > 3 else "", "XML", allow_absolute=True
             )
             config = SummaryConfigFromLines(log_lines=lines, xml_file=xml_file or None)
-            SummaryReporter(config).generate()
+            SummaryReporter(build_test_run_result(config)).generate()
 
         else:
             print(f"Error: Unknown command '{command}'", file=sys.stderr)

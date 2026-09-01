@@ -2,22 +2,22 @@
 
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List
 
 from ..constants import (
     FAIL_TIMEOUT_PATTERN,
-    TEST_LIST_HEADER_PATTERN,
-    STATS_PATTERN,
+    STAT_LINE_PATTERN,
     TEST_CATEGORY_PATTERN,
+    TESTING_TIME_PATTERN,
     SLOWEST_TESTS_HEADER,
     TEST_TIMES_HEADERS,
 )
-from ..models.test_data import TestLists, TestCounts, TimingSummary
 from .parser_models import (
     ParsedLogData,
     ParsedTestObservation,
-    LIT_OUTPUT_TO_STATUS,
+    LIT_CATEGORY_TO_STATUS,
 )
+from .stats_parser import parse_statistics
 
 
 def _read_with_utf8_fallback(path: str, read_func):
@@ -66,7 +66,7 @@ class LITLogParser:
 
             # Stop at test list headers or timing summaries
             if in_error and (
-                TEST_LIST_HEADER_PATTERN.match(line)
+                TEST_CATEGORY_PATTERN.match(line)
                 or line.strip() == SLOWEST_TESTS_HEADER
                 or line.strip() in TEST_TIMES_HEADERS
             ):
@@ -78,10 +78,22 @@ class LITLogParser:
         return result
 
     def extract_statistics(self) -> List[str]:
-        return [line for line in self.lines if STATS_PATTERN.match(line)]
+        result = []
+        in_summary = False
+        for line in self.lines:
+            match = STAT_LINE_PATTERN.match(line)
+            if not in_summary:
+                if match and match.group(1) == "Total Discovered Tests":
+                    in_summary = True
+                    result.append(line)
+            elif match:
+                result.append(line)
+            elif line.strip():
+                break
+        return result
 
-    def extract_time_summary(self) -> TimingSummary:
-        result: TimingSummary = {"slowest": [], "histogram": []}
+    def extract_time_summary(self) -> Dict[str, List[str]]:
+        result = {"slowest": [], "histogram": []}
         current_section = None
         skip_next_hr = False
 
@@ -118,104 +130,54 @@ class LITLogParser:
 
         return result
 
-    def extract_test_lists(self) -> Tuple[TestLists, TestCounts]:
-        categories: TestLists = {}
-        declared_counts: TestCounts = {}
-        current_category = None
-        current_tests = []
-        current_declared_count = 0
+    def parse_to_observations(self) -> ParsedLogData:
+        observations = []
+        declared_counts = {}
+        current_status = None
 
         for line in self.lines:
             match = TEST_CATEGORY_PATTERN.match(line)
             if match:
-                if current_category:
-                    categories[current_category] = current_tests
-                    declared_counts[current_category] = current_declared_count
-
-                current_category = match.group(1)
-                current_declared_count = int(match.group(2))
-                current_tests = []
-                continue
-
-            if current_category:
-                if not line.strip():
-                    categories[current_category] = current_tests
-                    declared_counts[current_category] = current_declared_count
-                    current_category = None
-                    current_tests = []
-                    current_declared_count = 0
-                else:
-                    test_name = line.strip()
-                    if test_name:
-                        current_tests.append(test_name)
-
-        if current_category:
-            categories[current_category] = current_tests
-            declared_counts[current_category] = current_declared_count
-
-        return categories, declared_counts
-
-    def parse_to_observations(self) -> ParsedLogData:
-        """Parse LIT output into normalized observations.
-
-        Returns:
-            ParsedLogData with test observations, counts, and timing info.
-        """
-        # Extract test lists using legacy method
-        categories, declared_counts = self.extract_test_lists()
-
-        # Convert to observations with normalized status
-        observations = []
-        normalized_counts = {}
-
-        for category_label, test_names in categories.items():
-            status = LIT_OUTPUT_TO_STATUS.get(category_label)
-            if status is None:
-                print(
-                    f"Warning: Unknown test category '{category_label}', skipping",
-                    file=sys.stderr,
-                )
-                continue
-
-            # Convert test names to observations
-            for test_name in test_names:
-                observations.append(
-                    ParsedTestObservation(
-                        name=test_name,
-                        status=status,
-                        duration_ms=None,  # Log output doesn't have per-test timing
+                category = match.group(1)
+                current_status = LIT_CATEGORY_TO_STATUS.get(category)
+                if current_status is None:
+                    print(
+                        f"Warning: Unknown test category '{category}'", file=sys.stderr
                     )
-                )
-
-            # Store declared count for this status
-            count = declared_counts.get(category_label, 0)
-            normalized_counts[status] = count
-
-        # Extract statistics (could be used for validation)
-        stats_lines = self.extract_statistics()
-        statistics = {}
-        for line in stats_lines:
-            # Parse "Stat Name: N" format
-            parts = line.strip().split(":", 1)
-            if len(parts) == 2:
-                stat_name = parts[0].strip()
-                try:
-                    stat_value = int(parts[1].strip())
-                    statistics[stat_name] = stat_value
-                except ValueError:
                     continue
 
-        # Extract timing info
-        timing = self.extract_time_summary()
+                declared_counts[current_status] = declared_counts.get(
+                    current_status, 0
+                ) + int(match.group(2))
+                continue
 
-        # Extract error details
+            if current_status and not line.strip():
+                current_status = None
+            elif current_status:
+                observations.append(
+                    ParsedTestObservation(name=line.strip(), status=current_status)
+                )
+
+        stats_lines = self.extract_statistics()
+        statistics = parse_statistics(stats_lines)
+
+        testing_time_ms = None
+        for line in self.lines:
+            match = TESTING_TIME_PATTERN.match(line)
+            if match:
+                testing_time_ms = float(match.group(1)) * 1000.0
+                break
+
+        timing = self.extract_time_summary()
         errors = self.extract_error_details()
 
         return ParsedLogData(
             tests=observations,
-            declared_counts=normalized_counts,
+            declared_counts=declared_counts,
             statistics=statistics,
+            statistics_lines=[line.rstrip() for line in stats_lines],
             error_details=errors,
             slowest_tests=timing["slowest"],
             time_histogram=timing["histogram"],
+            testing_time_ms=testing_time_ms,
         )

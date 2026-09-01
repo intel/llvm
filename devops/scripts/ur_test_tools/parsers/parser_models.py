@@ -17,9 +17,11 @@ class ParsedLogData:
     tests: List[ParsedTestObservation] = field(default_factory=list)
     declared_counts: Dict[TestStatus, int] = field(default_factory=dict)
     statistics: Dict[str, int] = field(default_factory=dict)
+    statistics_lines: List[str] = field(default_factory=list)
     error_details: List[str] = field(default_factory=list)
     slowest_tests: List[str] = field(default_factory=list)
     time_histogram: List[str] = field(default_factory=list)
+    testing_time_ms: Optional[float] = None
 
 
 @dataclass
@@ -29,9 +31,10 @@ class ParsedXMLData:
     total_time_seconds: Optional[float] = None
 
 
-LIT_OUTPUT_TO_STATUS = {
+LIT_CATEGORY_TO_STATUS = {
     "Passed": TestStatus.PASS,
     "Passed With Retry": TestStatus.FLAKYPASS,
+    "Passed After Update": TestStatus.FIXED,
     "Expectedly Failed": TestStatus.XFAIL,
     "Unexpectedly Passed": TestStatus.XPASS,
     "Failed": TestStatus.FAIL,
@@ -40,19 +43,10 @@ LIT_OUTPUT_TO_STATUS = {
     "Timed Out": TestStatus.TIMEOUT,
     "Skipped": TestStatus.SKIPPED,
     "Excluded": TestStatus.EXCLUDED,
-    "Expected Passes": TestStatus.PASS,
 }
 
 
-STATUS_TO_LIT_LABEL = {
-    TestStatus.PASS: "Passed",
-    TestStatus.FLAKYPASS: "Passed With Retry",
-    TestStatus.XFAIL: "Expectedly Failed",
-    TestStatus.XPASS: "Unexpectedly Passed",
-    TestStatus.FAIL: "Failed",
-    TestStatus.UNRESOLVED: "Unresolved",
-    TestStatus.UNSUPPORTED: "Unsupported",
-    TestStatus.TIMEOUT: "Timed Out",
-    TestStatus.SKIPPED: "Skipped",
-    TestStatus.EXCLUDED: "Excluded",
+LIT_STAT_TO_STATUS = {
+    **LIT_CATEGORY_TO_STATUS,
+    "Expected Passes": TestStatus.PASS,
 }

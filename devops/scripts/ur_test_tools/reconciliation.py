@@ -3,8 +3,25 @@
 import sys
 from typing import List, Optional
 
+from .models.config import SummaryConfigFromLines
 from .models.test_results import TestResult, TestRunResult, TestStatus
-from .parsers.parser_models import ParsedLogData, ParsedXMLData
+from .parsers.log_parser import LITLogParser
+from .parsers.parser_models import LIT_STAT_TO_STATUS, ParsedLogData, ParsedXMLData
+from .parsers.xml_parser import JUnitXMLParser
+
+XML_FALLBACK_STATUSES = {
+    TestStatus.EXCLUDED,
+    TestStatus.SKIPPED,
+    TestStatus.UNSUPPORTED,
+}
+
+
+def build_test_run_result(config: SummaryConfigFromLines) -> TestRunResult:
+    log_data = LITLogParser(config.log_lines).parse_to_observations()
+    xml_data = None
+    if config.xml_file:
+        xml_data = JUnitXMLParser(config.xml_file).parse_to_observations()
+    return reconcile_test_results(log_data, xml_data)
 
 
 def reconcile_test_results(
@@ -43,7 +60,8 @@ def reconcile_test_results(
     if xml_data:
         for xml_obs in xml_data.tests:
             if (
-                xml_obs.status in complete_log_statuses
+                xml_obs.status not in XML_FALLBACK_STATUSES
+                or xml_obs.status in complete_log_statuses
                 or xml_obs.name in result_names
             ):
                 continue
@@ -58,8 +76,8 @@ def reconcile_test_results(
             result_names.add(xml_obs.name)
 
     total_discovered = log_data.statistics.get("Total Discovered")
-    testing_time_ms = None
-    if xml_data and xml_data.total_time_seconds:
+    testing_time_ms = log_data.testing_time_ms
+    if testing_time_ms is None and xml_data and xml_data.total_time_seconds:
         testing_time_ms = xml_data.total_time_seconds * 1000.0
 
     _validate_counts(log_data, results)
@@ -68,6 +86,9 @@ def reconcile_test_results(
         tests=results,
         total_discovered=total_discovered,
         testing_time_ms=testing_time_ms,
+        statistics_lines=log_data.statistics_lines,
+        slowest_tests=log_data.slowest_tests,
+        time_histogram=log_data.time_histogram,
     )
 
 
@@ -82,6 +103,20 @@ def _validate_counts(log_data: ParsedLogData, results: List[TestResult]) -> None
             print(
                 f"Warning: Count mismatch for {status.value}: "
                 f"declared {declared_count}, found {actual_count}",
+                file=sys.stderr,
+            )
+
+    for label, expected_count in log_data.statistics.items():
+        status = LIT_STAT_TO_STATUS.get(label)
+        if status is None:
+            if label != "Total Discovered":
+                print(f"Warning: Unknown test statistic '{label}'", file=sys.stderr)
+            continue
+        actual_count = actual_counts.get(status, 0)
+        if actual_count != expected_count:
+            print(
+                f"Warning: Count mismatch for {status.value}: "
+                f"statistics {expected_count}, found {actual_count}",
                 file=sys.stderr,
             )
 
