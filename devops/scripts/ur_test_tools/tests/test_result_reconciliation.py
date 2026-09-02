@@ -18,10 +18,8 @@ from devops.scripts.ur_test_tools.parsers.parser_models import (
 from devops.scripts.ur_test_tools.parsers.log_parser import LITLogParser
 from devops.scripts.ur_test_tools.parsers.stats_parser import parse_statistics
 from devops.scripts.ur_test_tools.parsers.xml_parser import JUnitXMLParser
-from devops.scripts.ur_test_tools.reconciliation import (
-    build_test_run_result,
-    reconcile_test_results,
-)
+from devops.scripts.ur_test_tools.reconciliation import reconcile_test_results
+from devops.scripts.ur_test_tools.result_builder import build_test_run_result
 from devops.scripts.ur_test_tools.summary_generator import SummaryReporter
 from devops.scripts.ur_test_tools.validation.path_validator import PathValidator
 

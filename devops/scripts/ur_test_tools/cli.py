@@ -11,7 +11,7 @@ from .parsers.log_parser import (
     read_log_file,
 )
 from .outputs.console import ConsoleOutput
-from .reconciliation import build_test_run_result
+from .result_builder import build_test_run_result
 from .summary_generator import SummaryReporter
 from .test_runner import (
     TestRunner,

@@ -3,30 +3,19 @@
 import sys
 from typing import List, Optional
 
-from .models.config import SummaryConfigFromLines
 from .models.test_results import TestResult, TestRunResult, TestStatus
-from .parsers.log_parser import LITLogParser
 from .parsers.parser_models import (
     LIT_STAT_TO_STATUS,
     ParsedLogData,
     ParsedTestObservation,
     ParsedXMLData,
 )
-from .parsers.xml_parser import JUnitXMLParser
 
 XML_FALLBACK_STATUSES = {
     TestStatus.EXCLUDED,
     TestStatus.SKIPPED,
     TestStatus.UNSUPPORTED,
 }
-
-
-def build_test_run_result(config: SummaryConfigFromLines) -> TestRunResult:
-    log_data = LITLogParser(config.log_lines).parse_to_observations()
-    xml_data = None
-    if config.xml_file:
-        xml_data = JUnitXMLParser(config.xml_file).parse_to_observations()
-    return reconcile_test_results(log_data, xml_data)
 
 
 def _index_by_name(observations: List[ParsedTestObservation], source: str):
