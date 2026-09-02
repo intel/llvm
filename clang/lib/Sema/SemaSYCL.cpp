@@ -6016,6 +6016,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
   bool FoundError = false;
   bool CanCacheResult = RootRecord && RootRecord->isCompleteDefinition();
   llvm::SmallDenseSet<QualType, 8> Visited;
+  llvm::SmallDenseSet<CanonicalDeclPtr<const TagDecl>, 8> VisitedRecords;
 
   auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
     bool ErrorFound = false;
@@ -6096,6 +6097,10 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
     if (const auto *RecDecl = NextTy->getAsRecordDecl()) {
       if (!RecDecl->isCompleteDefinition())
         CanCacheResult = false;
+      else if (DeepTypeCheckedRecords.contains(RecDecl))
+        continue;
+      else
+        VisitedRecords.insert(RecDecl);
       if (auto *NextFD = dyn_cast<FieldDecl>(Next))
         History.push_back(NextFD);
       // When nullptr is discovered, this means we've gone back up a level, so
@@ -6106,7 +6111,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
   } while (!StackForRecursion.empty());
 
   if (CanCacheResult && !FoundError)
-    DeepTypeCheckedRecords.insert(RootRecord);
+    DeepTypeCheckedRecords.insert_range(VisitedRecords);
 }
 
 void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
