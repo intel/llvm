@@ -4,7 +4,9 @@ import io
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager
 from pathlib import Path
+import os
 
 from devops.scripts.ur_test_tools.models.config import SummaryConfigFromLines
 from devops.scripts.ur_test_tools.models.test_results import TestStatus
@@ -21,6 +23,17 @@ from devops.scripts.ur_test_tools.reconciliation import (
     reconcile_test_results,
 )
 from devops.scripts.ur_test_tools.summary_generator import SummaryReporter
+from devops.scripts.ur_test_tools.validation.path_validator import PathValidator
+
+
+@contextmanager
+def temporary_cwd(path):
+    previous_cwd = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous_cwd)
 
 
 class JUnitXMLParserTest(unittest.TestCase):
@@ -78,6 +91,28 @@ class JUnitXMLParserTest(unittest.TestCase):
 
         self.assertEqual(result.tests[0].name, "Suite :: root.cpp")
 
+        def test_formats_unified_runtime_names(self):
+            xml = """\
+<testsuites>
+    <testsuite name="Unified Runtime" tests="2">
+        <testcase classname="Unified Runtime.conformance/urContext" name="test.cpp"/>
+        <testcase classname="Unified Runtime.adapters/level_zero" name="event.cpp"/>
+    </testsuite>
+</testsuites>
+"""
+            with tempfile.TemporaryDirectory() as directory:
+                xml_path = Path(directory) / "results.xml"
+                xml_path.write_text(xml, encoding="utf-8")
+                result = JUnitXMLParser(str(xml_path)).parse_to_observations()
+
+            self.assertEqual(
+                [test.name for test in result.tests],
+                [
+                    "Unified Runtime :: conformance/urContext/test.cpp",
+                    "Unified Runtime :: adapters/level_zero/event.cpp",
+                ],
+            )
+
 
 class LITLogParserTest(unittest.TestCase):
     def test_parses_all_builtin_statuses(self):
@@ -131,6 +166,11 @@ class LITLogParserTest(unittest.TestCase):
         self.assertEqual(result["Total Discovered"], 5)
         self.assertEqual(result["Passed"], 2)
         self.assertEqual(result["Unexpectedly Passed"], 3)
+
+    def test_sums_repeated_statistics_labels(self):
+        result = parse_statistics(["  Passed: 2\n", "  Passed: 3\n"])
+
+        self.assertEqual(result["Passed"], 5)
 
     def test_sums_repeated_category_counts(self):
         lines = [
@@ -227,6 +267,46 @@ class ReconcileTestResultsTest(unittest.TestCase):
         self.assertEqual([test.status for test in result.tests], statuses)
         self.assertEqual(result.tests[0].duration_ms, 123.4)
 
+    def test_unified_runtime_xml_name_matches_log_for_duration(self):
+        log_data = ParsedLogData(
+            tests=[
+                ParsedTestObservation(
+                    "Unified Runtime :: adapters/level_zero/event.cpp",
+                    TestStatus.PASS,
+                )
+            ],
+            declared_counts={TestStatus.PASS: 1},
+        )
+        xml_data = ParsedXMLData(
+            tests=[
+                ParsedTestObservation(
+                    "Unified Runtime :: adapters/level_zero/event.cpp",
+                    TestStatus.PASS,
+                    250.0,
+                )
+            ]
+        )
+
+        result = reconcile_test_results(log_data, xml_data)
+
+        self.assertEqual(result.tests[0].duration_ms, 250.0)
+
+    def test_warns_about_duplicate_test_names(self):
+        log_data = ParsedLogData(
+            tests=[
+                ParsedTestObservation("Suite :: duplicate", TestStatus.PASS),
+                ParsedTestObservation("Suite :: duplicate", TestStatus.PASS),
+            ],
+            declared_counts={TestStatus.PASS: 2},
+        )
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            result = reconcile_test_results(log_data)
+
+        self.assertEqual(len(result.tests), 2)
+        self.assertIn("Duplicate test name in log", stderr.getvalue())
+
     def test_warns_about_statistics_count_mismatch(self):
         log_data = ParsedLogData(
             tests=[ParsedTestObservation("Suite :: pass", TestStatus.PASS)],
@@ -280,6 +360,30 @@ class SummaryReporterTest(unittest.TestCase):
         self.assertIn("  Skipped: 2", output)
         self.assertIn("  Unsupported: 3", output)
         self.assertIn("Testing Time: 1.25s", output)
+
+
+class PathValidatorTest(unittest.TestCase):
+    def test_validates_build_dir_relative_to_workspace_not_cwd(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            (Path(workspace) / "build").mkdir()
+            with tempfile.TemporaryDirectory() as other_directory:
+                with temporary_cwd(other_directory):
+                    self.assertTrue(
+                        PathValidator.validate_build_dir("build", workspace)
+                    )
+
+    def test_rejects_build_dir_escaping_workspace(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            self.assertFalse(PathValidator.validate_build_dir("../outside", workspace))
+
+    def test_rejects_absolute_build_dir(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            self.assertFalse(PathValidator.validate_build_dir("/etc/passwd", workspace))
+
+    def test_does_not_reject_dotted_name_without_traversal(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            (Path(workspace) / "my..build").mkdir()
+            self.assertTrue(PathValidator.validate_build_dir("my..build", workspace))
 
 
 if __name__ == "__main__":

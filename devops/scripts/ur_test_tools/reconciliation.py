@@ -6,7 +6,12 @@ from typing import List, Optional
 from .models.config import SummaryConfigFromLines
 from .models.test_results import TestResult, TestRunResult, TestStatus
 from .parsers.log_parser import LITLogParser
-from .parsers.parser_models import LIT_STAT_TO_STATUS, ParsedLogData, ParsedXMLData
+from .parsers.parser_models import (
+    LIT_STAT_TO_STATUS,
+    ParsedLogData,
+    ParsedTestObservation,
+    ParsedXMLData,
+)
 from .parsers.xml_parser import JUnitXMLParser
 
 XML_FALLBACK_STATUSES = {
@@ -24,11 +29,24 @@ def build_test_run_result(config: SummaryConfigFromLines) -> TestRunResult:
     return reconcile_test_results(log_data, xml_data)
 
 
+def _index_by_name(observations: List[ParsedTestObservation], source: str):
+    result = {}
+    for observation in observations:
+        if observation.name in result:
+            print(
+                f"Warning: Duplicate test name in {source}: {observation.name}",
+                file=sys.stderr,
+            )
+            continue
+        result[observation.name] = observation
+    return result
+
+
 def reconcile_test_results(
     log_data: ParsedLogData, xml_data: Optional[ParsedXMLData] = None
 ) -> TestRunResult:
     """Prefer complete log lists and fill missing results from XML."""
-    log_by_name = {obs.name: obs for obs in log_data.tests}
+    log_by_name = _index_by_name(log_data.tests, "log")
     log_counts = {}
     for observation in log_data.tests:
         log_counts[observation.status] = log_counts.get(observation.status, 0) + 1
@@ -41,7 +59,7 @@ def reconcile_test_results(
 
     xml_by_name = {}
     if xml_data:
-        xml_by_name = {obs.name: obs for obs in xml_data.tests}
+        xml_by_name = _index_by_name(xml_data.tests, "XML")
 
     results = []
     for log_obs in log_data.tests:

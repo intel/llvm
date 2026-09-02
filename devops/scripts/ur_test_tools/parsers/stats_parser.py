@@ -13,5 +13,5 @@ def parse_statistics(stats: List[str]) -> Dict[str, int]:
             label = match.group(1)
             if label.endswith(" Tests"):
                 label = label[: -len(" Tests")]
-            result[label] = int(match.group(2))
+            result[label] = result.get(label, 0) + int(match.group(2))
     return result
