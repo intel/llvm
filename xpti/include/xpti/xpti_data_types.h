@@ -142,8 +142,8 @@ struct hash_t {
   ///
   /// This function computes the bit count using integer arithmetic. For zero,
   /// it returns 1 to ensure zero fields keep their place in the hash. For
-  /// non-zero values, it counts the number of shifts needed to reduce the value
-  /// to zero, which is equivalent to the position of the highest set bit plus 1.
+  /// non-zero values, it counts the number of shifts needed to reduce the
+  /// value to zero, i.e. the position of the highest set bit plus 1.
   ///
   /// @param value A 64-bit integer for which the bit count is to be calculated.
   /// @return The number of bits required to represent the input value.
