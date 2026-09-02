@@ -510,11 +510,12 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
 #if !__cpp_lib_span
   // Reached for a container both directly and through the queue overload, which
   // falls back to a command group for anything that is not a plain argument.
-  static_assert(!detail::is_arg_list_sequence_v<ArgsT...>,
-                "Passing the arguments of a sycl::kernel as a sequence requires "
-                "C++20, where the nd_launch overload taking a std::span of "
-                "raw_kernel_arg is available. Compile with C++20 or pass the "
-                "arguments as a parameter pack.");
+  static_assert(
+      !detail::is_arg_list_sequence_v<ArgsT...>,
+      "Passing the arguments of a sycl::kernel as a sequence requires "
+      "C++20, where the nd_launch overload taking a std::span of "
+      "raw_kernel_arg is available. Compile with C++20 or pass the "
+      "arguments as a parameter pack.");
 #endif
   if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
 #if __cpp_lib_span

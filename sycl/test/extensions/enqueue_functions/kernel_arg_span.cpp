@@ -5,9 +5,10 @@
 // nd_launch sequence overloads take, but a parameter pack is an exact match and
 // wins overload resolution. Without the forwarding the pack overloads do, the
 // container object itself would be bound as a single kernel argument, which
-// compiles for any trivially copyable container and produces wrong results at
-// run time. Check that every spelling of an argument list is accepted, and that
-// a single raw_kernel_arg is still one argument.
+// compiles for any trivially copyable container and only fails once the kernel
+// is launched, with a fault or an adapter error that says nothing about the
+// argument list. Check that every spelling of an argument list is accepted, and
+// that a single raw_kernel_arg is still one argument.
 //
 // The sequence overloads take a std::span, so they exist only in C++20 and
 // later; the first RUN line checks that the parameter pack overloads are
