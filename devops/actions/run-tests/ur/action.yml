@@ -23,24 +23,7 @@ runs:
       BUILD_DIR: ${{ inputs.build_dir }}
       TEST_TYPE: ${{ inputs.test_type }}
     run: |
-      # Run tests via unified CLI (handles validation, config, cmake execution)
-      # Use temp file instead of command substitution to preserve outputs even on error
-      OUTPUTS_FILE=$(mktemp)
-      set +e  # Don't exit on error
-      devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE" > "$OUTPUTS_FILE" 2>&1
-      EXIT_CODE=$?
-      set -e  # Re-enable exit on error
-
-      # Parse Python output and set GitHub Actions outputs
-      while IFS='=' read -r key value; do
-        if [ -n "$key" ] && [ -n "$value" ]; then
-          echo "$key=$value" >> $GITHUB_OUTPUT
-          echo "  Set output: $key=$value"
-        fi
-      done < <(grep -E "^(log-file|xml-file|skip-artifacts)=" "$OUTPUTS_FILE")
-
-      rm -f "$OUTPUTS_FILE"
-      exit $EXIT_CODE
+      devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE"
 
   - name: Filter test log
     if: ${{ always() && steps.run_tests.outputs['skip-artifacts'] != '1' }}

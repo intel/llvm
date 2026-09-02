@@ -1,5 +1,6 @@
 """GitHub Actions-specific output formatting."""
 
+import os
 import sys
 
 
@@ -16,5 +17,6 @@ class GitHubActionsOutput:
 
     @staticmethod
     def set_output(name: str, value: str) -> None:
-        print(f"{name}={value}", flush=True)
-        sys.stdout.flush()
+        """Write name=value to the GITHUB_OUTPUT file for later steps."""
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+            print(f"{name}={value}", file=f)
