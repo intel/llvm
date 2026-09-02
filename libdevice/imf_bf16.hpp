@@ -39,7 +39,8 @@ __float2bfloat16(float f, __iml_rounding_mode rounding_mode) {
       return bf16_sign ? 0xFF80 : 0x7F80;
     else {
       // input fp32 val is Nan.
-      bf16_mant = (f_mant & 0x400000) ? 0x40 : 0x3F;
+      // returns a quiet NaN
+      bf16_mant = 0x40;
       return (bf16_sign << 15) | (bf16_exp << 7) | bf16_mant;
     }
   }
@@ -90,8 +91,8 @@ static _iml_bf16_internal __double2bfloat16(double d) {
     if (!fp64_mant) {
       return bf16_sign ? 0xFF80 : 0x7F80;
     } else {
-      // returns a signaling or quiet Nan
-      return (fp64_mant & 0x8'0000'0000'0000) ? 0x7FC0 : 0x7F81;
+      // returns a quiet Nan
+      return 0x7FC0;
     }
   }
 
