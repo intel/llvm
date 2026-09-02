@@ -321,19 +321,21 @@ void submit_kernel_direct_without_event_impl(
 
 void submit_kernel_obj_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
-    const kernel &Kernel, sycl::span<const detail::KernelArgView> Args,
+    const kernel &Kernel, const detail::KernelArgView *Args, size_t NumArgs,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   detail::getSyclObjImpl(Queue)->submit_kernel_obj_direct_without_event(
-      RangeView, detail::getSyclObjImpl(Kernel), Args, CodeLoc, IsTopCodeLoc);
+      RangeView, detail::getSyclObjImpl(Kernel), {Args, NumArgs}, CodeLoc,
+      IsTopCodeLoc);
 }
 
 void submit_kernel_obj_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
     const kernel &Kernel,
-    sycl::span<const ext::oneapi::experimental::raw_kernel_arg> Args,
+    const ext::oneapi::experimental::raw_kernel_arg *Args, size_t NumArgs,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   detail::getSyclObjImpl(Queue)->submit_kernel_obj_direct_without_event(
-      RangeView, detail::getSyclObjImpl(Kernel), Args, CodeLoc, IsTopCodeLoc);
+      RangeView, detail::getSyclObjImpl(Kernel), {Args, NumArgs}, CodeLoc,
+      IsTopCodeLoc);
 }
 
 event submit_graph_direct_with_event_impl(

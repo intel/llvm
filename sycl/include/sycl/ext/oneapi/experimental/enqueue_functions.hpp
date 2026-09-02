@@ -10,6 +10,10 @@
 
 #include <utility>
 
+#if __has_include(<span>)
+#include <span>
+#endif
+
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
@@ -160,11 +164,39 @@ sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
 // True when a parameter pack overload was handed the argument list itself, as a
 // container that converts to the span the sibling overload takes. A pack is an
 // exact match and wins overload resolution, so such a call has to be forwarded
-// rather than bound as one argument.
+// rather than bound as one argument. Without `std::span` there is no overload
+// taking a sequence, so no call can be one.
+#if __cpp_lib_span
 template <typename... ArgsT>
 inline constexpr bool is_arg_list_container_v =
     sizeof...(ArgsT) == 1 &&
-    (std::is_convertible_v<ArgsT, sycl::span<const raw_kernel_arg>> && ...);
+    (std::is_convertible_v<ArgsT, std::span<const raw_kernel_arg>> && ...);
+#else
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_container_v = false;
+#endif
+
+#if !__cpp_lib_span
+// A contiguous sequence of `raw_kernel_arg`, recognized without `std::span` so
+// that a caller passing its argument list as a container before C++20 is told
+// so, rather than having the container bound as a single kernel argument, which
+// compiles for any trivially copyable one.
+template <typename T, typename = void>
+inline constexpr bool is_raw_kernel_arg_sequence_v =
+    std::is_array_v<T> &&
+    std::is_same_v<std::remove_all_extents_t<T>, raw_kernel_arg>;
+template <typename T>
+inline constexpr bool is_raw_kernel_arg_sequence_v<
+    T, std::void_t<decltype(std::declval<const T &>().size()),
+                   decltype(std::declval<const T &>().data())>> =
+    std::is_convertible_v<decltype(std::declval<const T &>().data()),
+                          const raw_kernel_arg *>;
+
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_sequence_v =
+    sizeof...(ArgsT) == 1 &&
+    (is_raw_kernel_arg_sequence_v<plain_arg_t<ArgsT>> && ...);
+#endif
 
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
@@ -466,27 +498,42 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   }
 }
 
+#if __cpp_lib_span
 template <int Dimensions>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
-               const kernel &KernelObj, sycl::span<const raw_kernel_arg> Args);
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args);
+#endif
 
 template <int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                const kernel &KernelObj, ArgsT &&...Args) {
+#if !__cpp_lib_span
+  // Reached for a container both directly and through the queue overload, which
+  // falls back to a command group for anything that is not a plain argument.
+  static_assert(!detail::is_arg_list_sequence_v<ArgsT...>,
+                "Passing the arguments of a sycl::kernel as a sequence requires "
+                "C++20, where the nd_launch overload taking a std::span of "
+                "raw_kernel_arg is available. Compile with C++20 or pass the "
+                "arguments as a parameter pack.");
+#endif
   if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
     nd_launch(CGH, Range, KernelObj,
-              sycl::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+              std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
   } else {
     CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
     CGH.parallel_for(Range, KernelObj);
   }
 }
 
+#if __cpp_lib_span
 template <int Dimensions>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
-               sycl::span<const raw_kernel_arg> Args,
+               std::span<const raw_kernel_arg> Args,
                const sycl::detail::code_location &CodeLoc =
                    sycl::detail::code_location::current());
+#endif
 
 template <int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
@@ -495,8 +542,10 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
   // the pack is what overload resolution picks for it, so hand it over to the
   // overload that takes a span.
   if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
     nd_launch(std::move(Q), Range, KernelObj,
-              sycl::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+              std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
   } else if constexpr ((detail::is_plain_kernel_arg_v<ArgsT> && ...)) {
     // Bind the arguments straight from this call, so that neither a handler nor
     // a command group object has to be created. The array is one element longer
@@ -511,8 +560,8 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
     sycl::detail::tls_code_loc_t TlsCodeLocCapture{
         sycl::detail::code_location::current()};
     sycl::submit_kernel_obj_direct_without_event_impl(
-        Q, sycl::detail::nd_range_view(Range), KernelObj,
-        {ArgViews, sizeof...(ArgsT)}, TlsCodeLocCapture.query(),
+        Q, sycl::detail::nd_range_view(Range), KernelObj, ArgViews,
+        sizeof...(ArgsT), TlsCodeLocCapture.query(),
         TlsCodeLocCapture.isToplevel());
   } else {
     submit(std::move(Q), [&](handler &CGH) {
@@ -521,9 +570,10 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
   }
 }
 
+#if __cpp_lib_span
 template <int Dimensions>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
-               const kernel &KernelObj, sycl::span<const raw_kernel_arg> Args) {
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args) {
   // set_arg only takes an rvalue raw_kernel_arg; an lvalue would select the
   // generic overload and bind the object itself as the argument.
   for (size_t I = 0; I < Args.size(); ++I)
@@ -536,13 +586,14 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
 // otherwise need one instantiation of the pack overload per argument count.
 template <int Dimensions>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
-               sycl::span<const raw_kernel_arg> Args,
+               std::span<const raw_kernel_arg> Args,
                const sycl::detail::code_location &CodeLoc) {
   sycl::detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   sycl::submit_kernel_obj_direct_without_event_impl(
-      Q, sycl::detail::nd_range_view(Range), KernelObj, Args,
-      TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+      Q, sycl::detail::nd_range_view(Range), KernelObj, Args.data(),
+      Args.size(), TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
 }
+#endif // __cpp_lib_span
 
 template <int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
