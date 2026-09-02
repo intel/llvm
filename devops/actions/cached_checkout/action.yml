@@ -33,7 +33,7 @@ runs:
       if [ -d ./.git ]; then
         git pull --prune --rebase
       else
-        git clone https://github.com/${{ inputs.repository }}.git .
+        git clone git@github.com:${{ inputs.repository }}.git .
         git gc
       fi
   - name: Checkout
