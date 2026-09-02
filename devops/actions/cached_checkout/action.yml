@@ -31,7 +31,8 @@ runs:
       mkdir -p ${{ inputs.cache_path }}/${{ inputs.repository }}
       cd ${{ inputs.cache_path }}/${{ inputs.repository }}
       if [ -d ./.git ]; then
-        git config --global url.https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/.insteadOf https://github.com/
+        git config --local user.email "actions@github.com"
+        git config --local user.name "GitHub Actions"
         git pull --prune --rebase
       else
         git clone https://github.com/${{ inputs.repository }}.git .
