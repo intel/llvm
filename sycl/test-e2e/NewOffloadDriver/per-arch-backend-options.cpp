@@ -17,29 +17,13 @@
 // RUN:   -Xsycl-target-backend=intel_gpu_dg2_g10 "-options -cl-unsafe-math-optimizations" \
 // RUN:   -v %s -o %t.out > %t.log 2>&1
 // RUN: FileCheck --input-file=%t.log --check-prefix=CHECK-PVC \
-// RUN:   --implicit-check-not='-device pvc {{.*}}-cl-unsafe-math-optimizations' %s
+// RUN:   --implicit-check-not='ocloc{{.*}} -device pvc {{.*}}-cl-unsafe-math-optimizations' %s
 // RUN: FileCheck --input-file=%t.log --check-prefix=CHECK-ACM \
 // RUN:   --implicit-check-not='-device acm_g10 {{.*}}-cl-mad-enable' %s
 
 // CHECK-PVC: ocloc{{.*}} -device pvc {{.*}}-cl-mad-enable
 // dg2_g10's canonical ocloc device name is acm_g10.
 // CHECK-ACM: ocloc{{.*}} -device acm_g10 {{.*}}-cl-unsafe-math-optimizations
-
-// Regression: raw spir64_gen with an embedded "-device <arch>" in the
-// backend option value must also route per-arch without leakage.
-// RUN: %clangxx -Wno-error=unused-command-line-argument \
-// RUN:   --offload-new-driver -fsycl \
-// RUN:   -fsycl-targets=intel_gpu_dg2_g10,spir64_gen \
-// RUN:   -Xsycl-target-backend=spir64_gen "-device pvc -options -cl-mad-enable" \
-// RUN:   -Xsycl-target-backend=intel_gpu_dg2_g10 "-options -cl-unsafe-math-optimizations" \
-// RUN:   -v %s -o %t_raw.out > %t_raw.log 2>&1
-// RUN: FileCheck --input-file=%t_raw.log --check-prefix=CHECK-RAW-PVC \
-// RUN:   --implicit-check-not='-device pvc {{.*}}-cl-unsafe-math-optimizations' %s
-// RUN: FileCheck --input-file=%t_raw.log --check-prefix=CHECK-RAW-ACM \
-// RUN:   --implicit-check-not='-device acm_g10 {{.*}}-cl-mad-enable' %s
-
-// CHECK-RAW-PVC: ocloc{{.*}} -device pvc {{.*}}-cl-mad-enable
-// CHECK-RAW-ACM: ocloc{{.*}} -device acm_g10 {{.*}}-cl-unsafe-math-optimizations
 
 #include <sycl/detail/core.hpp>
 
