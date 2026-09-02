@@ -9,7 +9,7 @@
 // std::span, so they do not exist before C++20. A caller that passes its
 // argument list as a container there would otherwise have the container bound
 // as a single kernel argument, which compiles for any trivially copyable one
-// and produces wrong results at run time, so it is diagnosed instead.
+// and only fails once the kernel is launched, so it is diagnosed instead.
 
 // CHECK: Passing the arguments of a sycl::kernel as a sequence requires C++20
 

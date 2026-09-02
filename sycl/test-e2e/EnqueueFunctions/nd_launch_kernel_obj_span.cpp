@@ -141,9 +141,9 @@ int main() {
   std::vector<oneapiext::raw_kernel_arg> OneArg{
       {&Memory, oneapiext::pointer_arg}};
   Q.memset(Memory, 0, N * sizeof(int));
-  oneapiext::nd_launch(Q, Ndr, getKernel<increment>(Q),
-                       std::span<const oneapiext::raw_kernel_arg>{
-                           OneArg.data(), OneArg.size()});
+  oneapiext::nd_launch(
+      Q, Ndr, getKernel<increment>(Q),
+      std::span<const oneapiext::raw_kernel_arg>{OneArg.data(), OneArg.size()});
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 1, I, "one element span");

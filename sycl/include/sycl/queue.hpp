@@ -86,9 +86,8 @@ void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
 // no conversion step.
 void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
-    const kernel &Kernel,
-    const ext::oneapi::experimental::raw_kernel_arg *Args, size_t NumArgs,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+    const kernel &Kernel, const ext::oneapi::experimental::raw_kernel_arg *Args,
+    size_t NumArgs, const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
