@@ -10,6 +10,14 @@
 //   * UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT
 //   * UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING
 //   * UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS
+//
+// UR_RESULT_ERROR_INVALID_GRAPH and UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT are
+// intentionally not covered here: every public entry point that could
+// surface them only does so for a graph/event handle that has already become
+// invalid (e.g. a captured graph whose session failed, or a graph-internal
+// counter-based event used after its graph went out of scope), and there is
+// no way to reach that state through the public API without relying on
+// undefined behaviour (use of a handle after its object was destroyed).
 
 #include "fixtures.h"
 #include "uur/raii.h"
