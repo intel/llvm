@@ -412,7 +412,7 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
   auto p2pAccessible = std::find(p2pDevices.begin(), p2pDevices.end(),
                                  activeAllocationDevice) != p2pDevices.end();
 
-  if (!p2pAccessible) {
+  if (!p2pAccessible || restrictUsmResidencyToP2P()) {
     UR_LOG(DEBUG,
            "p2p is not accessible: migrating buffer through host: "
            "from src device: {} to dst device: {}",
