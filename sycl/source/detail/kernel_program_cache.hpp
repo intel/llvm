@@ -484,9 +484,19 @@ public:
     // if no insertion took place, then some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", KernelName, true);
-    MFastKernelCache.try_emplace(
-        std::string(KernelName),
-        FastKernelSubcacheWrapper(KernelSubcache, getURContext()));
+    // Only construct the wrapper when it is going to be stored. A temporary
+    // wrapper that try_emplace does not insert (the kernel name is already
+    // registered, which is the case for every cache miss after the first one)
+    // is destroyed intact, and its destructor erases every entry of this
+    // context from the subcache. With more than one device in the context the
+    // next launch of the kernel on another device then misses again, and every
+    // launch alternating between devices re-enters saveKernel and appends to
+    // MProgramToFastKernelCacheKeyMap without bound.
+    if (MFastKernelCache.find(std::string(KernelName)) ==
+        MFastKernelCache.end())
+      MFastKernelCache.emplace(
+          std::string(KernelName),
+          FastKernelSubcacheWrapper(KernelSubcache, getURContext()));
 
     FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcache.Mutex};
     ur_context_handle_t Context = getURContext();
