@@ -53,9 +53,10 @@ entry:
 ; CHECK-BACKEND-SAME: !kernel_arg_type_qual ![[BEKernelArgTypeQual:[0-9]+]]
 ; CHECK-BACKEND-SAME: !spirv.ParameterDecorations ![[BEParamDecoListId:[0-9]+]]
 ; CHECK-BACKEND-DAG: ![[BEParamDecoListId]] = !{![[BEParamDecoId:[0-9]+]]}
-; CHECK-BACKEND-DAG: ![[BEParamDecoId]] = !{![[BENoAliasDecoId:[0-9]+]]}
+; CHECK-BACKEND-DAG: ![[BEParamDecoId]] = !{![[BEVolatileDecoId:[0-9]+]], ![[BENoAliasDecoId:[0-9]+]]}
+; CHECK-BACKEND-DAG: ![[BEVolatileDecoId]] = !{i32 21}
 ; CHECK-BACKEND-DAG: ![[BENoAliasDecoId]] = !{i32 38, i32 4}
-; CHECK-BACKEND-DAG: ![[BEKernelArgTypeQual]] = !{!"restrict"}
+; CHECK-BACKEND-DAG: ![[BEKernelArgTypeQual]] = !{!"volatile restrict"}
 
 ; CHECK-LLVM-NOT: !spirv.ParameterDecorations
 ; CHECK-LLVM: define spir_kernel void @k(ptr addrspace(1) noalias %a) {{.*}} !kernel_arg_type_qual ![[KernelArgTypeQual:[0-9]+]] {{.*}} {
