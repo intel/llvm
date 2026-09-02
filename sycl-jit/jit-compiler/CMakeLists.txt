@@ -246,7 +246,7 @@ target_link_libraries(sycl-jit
 #    above resolves to the dylib (which lacks its symbols); link it explicitly.
 #  - rtc/ESIMD.cpp includes a vc-intrinsics header (GenXSPIRVWriterAdaptor.h),
 #    so add the LLVMGenXIntrinsics INTERFACE include directories explicitly.
-# Both mirror the handling in llvm-spirv / sycl-post-link.
+# The first mirrors llvm-spirv; the second mirrors sycl-post-link.
 if (LLVM_LINK_LLVM_DYLIB)
   target_link_libraries(sycl-jit PRIVATE LLVMSPIRVLib)
   target_include_directories(sycl-jit PRIVATE
