@@ -1,8 +1,6 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: V1-only
 
 // UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21766

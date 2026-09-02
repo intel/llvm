@@ -1,9 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: V1-only behavior for
-// UR_L0_USE_IMMEDIATE_COMMANDLISTS=0/1
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out
