@@ -102,7 +102,7 @@ public:
 
 protected:
   size_t common_array[dimensions];
-  __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
+  __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const noexcept {
     __SYCL_ASSERT(dimension >= 0 && dimension < dimensions &&
                   "Index out of range");
     (void)dimension;
