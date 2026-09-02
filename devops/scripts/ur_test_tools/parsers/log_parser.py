@@ -169,14 +169,12 @@ class LITLogParser:
                 break
 
         timing = self.extract_time_summary()
-        errors = self.extract_error_details()
 
         return ParsedLogData(
             tests=observations,
             declared_counts=declared_counts,
             statistics=statistics,
             statistics_lines=[line.rstrip() for line in stats_lines],
-            error_details=errors,
             slowest_tests=timing["slowest"],
             time_histogram=timing["histogram"],
             testing_time_ms=testing_time_ms,

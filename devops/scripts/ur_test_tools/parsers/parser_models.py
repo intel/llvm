@@ -18,7 +18,6 @@ class ParsedLogData:
     declared_counts: Dict[TestStatus, int] = field(default_factory=dict)
     statistics: Dict[str, int] = field(default_factory=dict)
     statistics_lines: List[str] = field(default_factory=list)
-    error_details: List[str] = field(default_factory=list)
     slowest_tests: List[str] = field(default_factory=list)
     time_histogram: List[str] = field(default_factory=list)
     testing_time_ms: Optional[float] = None
