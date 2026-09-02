@@ -1,11 +1,17 @@
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} -o %t.out
+
+// DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
+
+// RUN: %{build} %{cpp20} -o %t.out
 // RUN: %{run} %t.out
 
 // Tests the nd_launch overloads that take the arguments of a sycl::kernel as a
-// span of raw_kernel_arg, i.e. an argument list whose length is only known at
-// run time. They have to bind the same arguments in the same order as the
-// parameter pack overloads, on the queue and on the handler alike.
+// std::span of raw_kernel_arg, i.e. an argument list whose length is only known
+// at run time. Those overloads take a std::span, hence C++20. They have to bind
+// the same arguments in the same order as the parameter pack overloads, on the
+// queue and on the handler alike.
+
+#include <span>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
@@ -71,7 +77,7 @@ int main() {
   Args.emplace_back(&B, sizeof(B));
   Args.emplace_back(&C, sizeof(C));
   Args.emplace_back(&D, sizeof(D));
-  sycl::span<const oneapiext::raw_kernel_arg> ArgSpan{Args.data(), Args.size()};
+  std::span<const oneapiext::raw_kernel_arg> ArgSpan{Args.data(), Args.size()};
 
   int Failed = 0;
 
@@ -125,7 +131,7 @@ int main() {
   Q.memset(Memory, 0, N * sizeof(int));
   oneapiext::nd_launch(
       Q, Ndr, Kernel,
-      sycl::span<oneapiext::raw_kernel_arg>{Args.data(), Args.size()});
+      std::span<oneapiext::raw_kernel_arg>{Args.data(), Args.size()});
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, Sum, I, "argument list as a mutable span");
@@ -136,7 +142,7 @@ int main() {
       {&Memory, oneapiext::pointer_arg}};
   Q.memset(Memory, 0, N * sizeof(int));
   oneapiext::nd_launch(Q, Ndr, getKernel<increment>(Q),
-                       sycl::span<const oneapiext::raw_kernel_arg>{
+                       std::span<const oneapiext::raw_kernel_arg>{
                            OneArg.data(), OneArg.size()});
   Q.wait();
   for (size_t I = 0; I < N; ++I)
