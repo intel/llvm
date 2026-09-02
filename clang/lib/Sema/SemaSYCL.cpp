@@ -6009,8 +6009,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
   if (!NeedsCheck)
     return;
   if (RootRecord && RootRecord->isCompleteDefinition() &&
-      DeepTypeCheckedRecords.contains(
-          cast<RecordDecl>(RootRecord->getCanonicalDecl())))
+      DeepTypeCheckedRecords.contains(RootRecord))
     return;
 
   // Emit notes only for the first discovered declaration of unsupported type
@@ -6109,8 +6108,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
   } while (!StackForRecursion.empty());
 
   if (CanCacheResult && !FoundError)
-    DeepTypeCheckedRecords.insert(
-        cast<RecordDecl>(RootRecord->getCanonicalDecl()));
+    DeepTypeCheckedRecords.insert(RootRecord);
 }
 
 void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,

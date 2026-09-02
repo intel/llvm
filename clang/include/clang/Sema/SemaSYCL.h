@@ -289,7 +289,7 @@ private:
   // special types inside. Relevant for free function kernels only.
   llvm::DenseSet<const RecordDecl *> StructsWithSpecialTypes;
 
-  llvm::DenseSet<const RecordDecl *> DeepTypeCheckedRecords;
+  llvm::DenseSet<CanonicalDeclPtr<const TagDecl>> DeepTypeCheckedRecords;
 
 public:
   SemaSYCL(Sema &S);
