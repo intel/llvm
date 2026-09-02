@@ -93,6 +93,11 @@ existing queue shortcuts. A future version of this extension may adjust this
 overload set to include functions compatible with future C++ concepts (e.g,
 by accepting a scheduler and returning a sender).
 
+The arguments of a `sycl::kernel` can be passed either as a parameter pack or as
+a sequence, for an application that only learns its argument list at run time and
+would otherwise have to instantiate a parameter pack overload for each number of
+arguments it may encounter.
+
 
 === Usage example
 
@@ -558,15 +563,6 @@ whose type is convertible to `sycl::span<const raw_kernel_arg>`, that argument
 is the kernel argument list and the effects are those of the overload taking a
 `sycl::span`.
 
-[_Note:_ These overloads exist for an application whose kernel argument list is
-only known at run time, which would otherwise have to instantiate a parameter
-pack overload for each number of arguments it may encounter. An application
-holding its arguments in a `std::vector<raw_kernel_arg>`, in a `std::array` of
-them or in a `std::span` of them can therefore pass the container itself, since
-all of those convert to a `sycl::span`. A single `raw_kernel_arg` still selects
-the parameter pack overload, as it is one argument rather than a sequence of
-them. _end note_]
-
 [_Note:_ An element that represents a pointer argument has to be constructed
 with the `pointer_arg` overload of `raw_kernel_arg`, as described in
 link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg],
@@ -826,6 +822,26 @@ to device and context provided at command graph creation.
 _Effects_: Submits an executable command graph to the `sycl::queue` or `sycl::handler`.
 
 |====
+
+== Examples
+
+An argument list that is only known at run time is held in a container and passed
+as the sequence of arguments: a `std::vector<raw_kernel_arg>`, a `std::array` of
+them and a `std::span` of them all convert to `sycl::span<const raw_kernel_arg>`.
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+int count = 1024;
+float *data = sycl::malloc_device<float>(count, q);
+
+std::vector<syclex::raw_kernel_arg> args;
+args.emplace_back(&data, syclex::pointer_arg);
+args.emplace_back(&count, sizeof(count));
+
+syclex::nd_launch(q, sycl::nd_range<1>{count, 256}, k, args);
+----
 
 == Issues
 
