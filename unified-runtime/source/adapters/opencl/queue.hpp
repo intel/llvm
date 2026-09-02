@@ -27,10 +27,7 @@ struct ur_queue_handle_t_ : handle_base {
   bool IsNativeHandleOwned = true;
   // Used to implement UR_QUEUE_INFO_EMPTY query
   bool IsInOrder;
-  // Native event of the last command enqueued on an in-order queue. This is a
-  // cl_event and not a ur_event_handle_t_ because a UR event retains its queue,
-  // so holding the UR event here would make queue and event keep each other
-  // alive forever.
+  // Native event of the last command enqueued on an in-order queue.
   cl_event LastEvent = nullptr;
   ur::RefCount RefCount;
 
