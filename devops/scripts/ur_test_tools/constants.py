@@ -20,7 +20,6 @@ SEPARATOR_WIDTH = 70
 LIT_COMMON_REPORTING_OPTIONS = [
     "--show-unsupported",
     "--show-pass",
-    "--show-fixed",
     "--show-xfail",
     "--time-tests",
     "--show-flakypass",

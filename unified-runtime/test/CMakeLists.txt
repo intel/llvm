@@ -98,7 +98,6 @@ function(add_ur_lit_testsuite suite)
         # Reporting options (keep aligned with LIT_COMMON_REPORTING_OPTIONS)
         --show-unsupported
         --show-pass
-        --show-fixed
         --show-xfail
         --time-tests
         --show-flakypass
