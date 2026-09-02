@@ -63,7 +63,7 @@ public:
            Args &&...args) {
     // During process/library teardown this logger's owned sinks may already
     // have been destroyed. Use a temporary stack sink instead.
-    if (isTearDowned) {
+    if (isTearDowned.load(std::memory_order_acquire)) {
       if (!isLegacySink && level < this->standardSinkLevel) {
         return;
       }

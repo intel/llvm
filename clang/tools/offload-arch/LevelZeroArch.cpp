@@ -11,10 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
 #include <cstdio>
+#include <string>
 
 #define ZE_MAX_DEVICE_NAME 256
 #define ZE_MAX_DEVICE_UUID_SIZE 16
@@ -30,6 +32,7 @@ enum ze_result_t {
 enum ze_structure_type_t {
   ZE_STRUCTURE_TYPE_INIT_DRIVER_TYPE_DESC = 0x00020021,
   ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES = 0x3,
+  ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT = 0x1000f,
   ZE_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
 };
 
@@ -70,6 +73,13 @@ struct ze_device_properties_t {
   uint32_t kernelTimestampValidBits;
   ze_device_uuid_t uuid;
   char name[ZE_MAX_DEVICE_NAME];
+};
+
+// Chained onto ze_device_properties_t::pNext to request the device IP version.
+struct ze_device_ip_version_ext_t {
+  ze_structure_type_t stype;
+  const void *pNext;
+  uint32_t ipVersion;
 };
 
 ze_result_t zeInitDrivers(uint32_t *pCount, ze_driver_handle_t *phDrivers,
@@ -148,6 +158,48 @@ static bool loadLevelZero() {
     }                                                                          \
   } while (0)
 
+// A GMDID packs the architecture, release and revision of the GPU IP.
+static constexpr uint32_t GMDIDArchitectureShift = 22;
+static constexpr uint32_t GMDIDReleaseShift = 14;
+static constexpr uint32_t GMDIDReleaseMask = 0xff;
+static constexpr uint32_t GMDIDRevisionMask = 0x3f;
+
+// Human-friendly names of the known Intel GPU architectures, keyed by the
+// architecture and release components of the GMDID.  Several devices can share
+// an architecture and a release, in which case the first of them names the
+// whole group.
+static constexpr struct {
+  uint32_t Architecture;
+  uint32_t Release;
+  const char *Name;
+} IntelGPUArchNames[] = {
+#define INTEL_GPU_ARCH(ARCHITECTURE, RELEASE, NAME)                            \
+  {ARCHITECTURE, RELEASE, NAME},
+#include "IntelGPUArch.def"
+};
+
+// Translate a GMDID into an architecture name that is a legal --offload-arch
+// parameter.  Known architectures get a human-friendly name, which covers
+// almost every device a user is likely to have; anything else gets a numeric
+// name built from all three components of the GMDID.
+std::string getIntelGPUArchName(uint32_t IPVersion) {
+  uint32_t Architecture = IPVersion >> GMDIDArchitectureShift;
+  uint32_t Release = (IPVersion >> GMDIDReleaseShift) & GMDIDReleaseMask;
+  uint32_t Revision = IPVersion & GMDIDRevisionMask;
+
+  for (const auto &Entry : IntelGPUArchNames)
+    if (Entry.Architecture == Architecture && Entry.Release == Release)
+      return Entry.Name;
+
+  // A device this build has never heard of still has to be named, so that it
+  // can be used with a compiler that predates it.  The numeric name spells out
+  // the revision as well, because it is the only thing left to distinguish two
+  // steppings of an architecture that has no entry above.
+  return ("xe_" + Twine(Architecture) + "." + Twine(Release) + "." +
+          Twine(Revision))
+      .str();
+}
+
 int printGPUsByLevelZero() {
   if (!loadLevelZero())
     return 1;
@@ -173,11 +225,28 @@ int printGPUsByLevelZero() {
     CALL_ZE_AND_CHECK(zeDeviceGet, Driver, &DeviceCount, Devices.data());
 
     for (auto Device : Devices) {
+      ze_device_ip_version_ext_t IPVersion = {};
+      IPVersion.stype = ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
+      IPVersion.pNext = nullptr;
+
       ze_device_properties_t DeviceProperties = {};
       DeviceProperties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-      DeviceProperties.pNext = nullptr;
+      DeviceProperties.pNext = &IPVersion;
       CALL_ZE_AND_CHECK(zeDeviceGetProperties, Device, &DeviceProperties);
-      llvm::outs() << DeviceProperties.name << '\n';
+
+      // A driver that does not support the extension leaves the chained
+      // structure untouched, in which case there is no architecture to name.
+      if (IPVersion.ipVersion == 0) {
+        if (Verbose)
+          llvm::errs() << "Unable to query the IP version of device '"
+                       << DeviceProperties.name << "'\n";
+        continue;
+      }
+
+      if (Verbose)
+        llvm::errs() << "Found device '" << DeviceProperties.name << "'\n";
+
+      llvm::outs() << getIntelGPUArchName(IPVersion.ipVersion) << '\n';
     }
   }
 
