@@ -749,21 +749,40 @@ static llvm::Triple computeTargetTriple(const Driver &D, StringRef TargetTriple,
       StringRef ObjectMode = *ObjectModeValue;
       llvm::Triple::ArchType AT = llvm::Triple::UnknownArch;
 
-      // Silently accept '32_64' and 'any'
-      const bool OtherAllowedMode =
-          ObjectMode == "32_64" || ObjectMode == "any";
-      if (ObjectMode == "64") {
-        AT = Target.get64BitArchVariant().getArch();
-      } else if (ObjectMode == "32") {
-        AT = Target.get32BitArchVariant().getArch();
-      } else if (!OtherAllowedMode) {
-        D.Diag(diag::err_drv_invalid_object_mode) << ObjectMode;
+      if (D.IsFlangMode()) {
+        if (ObjectMode == "64") {
+          AT = Target.get64BitArchVariant().getArch();
+        } else if (ObjectMode == "32" || ObjectMode == "32_64" ||
+                   ObjectMode == "any") {
+          // OBJECT_MODE setting can be overridden by -maix64/-m64
+          if (Args.hasArg(options::OPT_maix64, options::OPT_m64))
+            AT = Target.get64BitArchVariant().getArch();
+          else
+            D.Diag(diag::err_drv_compile_mode_unsupported_aix);
+        } else {
+          D.Diag(diag::err_drv_invalid_object_mode) << ObjectMode;
+        }
+      } else {
+        // Silently accept '32_64' and 'any'
+        const bool OtherAllowedMode =
+            ObjectMode == "32_64" || ObjectMode == "any";
+        if (ObjectMode == "64")
+          AT = Target.get64BitArchVariant().getArch();
+        else if (ObjectMode == "32")
+          AT = Target.get32BitArchVariant().getArch();
+        else if (!OtherAllowedMode)
+          D.Diag(diag::err_drv_invalid_object_mode) << ObjectMode;
       }
 
       if (AT != llvm::Triple::UnknownArch && AT != Target.getArch()) {
         Target.setArch(AT);
         Target = llvm::Triple(Target.normalize());
       }
+    } else if (D.IsFlangMode() &&
+               !Args.hasArg(options::OPT_maix64, options::OPT_m64)) {
+      // For flang on AIX, if OBJECT_MODE is unset and neither
+      // -maix64 nor -m64 is specified, issue an error.
+      D.Diag(diag::err_drv_compile_mode_unsupported_aix);
     }
   }
 #endif
@@ -802,9 +821,13 @@ static llvm::Triple computeTargetTriple(const Driver &D, StringRef TargetTriple,
         Target.setEnvironment(llvm::Triple::GNUX32);
     } else if (A->getOption().matches(options::OPT_m32) ||
                A->getOption().matches(options::OPT_maix32)) {
-      if (D.IsFlangMode() && !Target.isOSAIX()) {
-        D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << A->getAsString(Args) << Target.str();
+      if (D.IsFlangMode()) {
+        if (Target.isOSAIX()) {
+          D.Diag(diag::err_drv_compile_mode_unsupported_aix);
+        } else {
+          D.Diag(diag::err_drv_unsupported_opt_for_target)
+              << A->getAsString(Args) << Target.str();
+        }
       } else {
         AT = Target.get32BitArchVariant().getArch();
         if (Target.getEnvironment() == llvm::Triple::GNUX32)
@@ -959,10 +982,15 @@ getSystemOffloadArchs(Compilation &C, Action::OffloadKind Kind) {
   if (llvm::ErrorOr<std::string> Executable =
           llvm::sys::findProgramByName(Program, {C.getDriver().Dir})) {
     llvm::SmallVector<StringRef> Args{*Executable};
-    if (Kind == Action::OFK_HIP)
-      Args.push_back("--only=amdgpu");
-    else if (Kind == Action::OFK_Cuda)
-      Args.push_back("--only=nvptx");
+    bool UsesLLVMOffloading =
+        C.getArgs().hasFlag(options::OPT_foffload_via_llvm,
+                            options::OPT_fno_offload_via_llvm, false);
+    if (!UsesLLVMOffloading) {
+      if (Kind == Action::OFK_HIP)
+        Args.push_back("--only=amdgpu");
+      else if (Kind == Action::OFK_Cuda)
+        Args.push_back("--only=nvptx");
+    }
     auto StdoutOrErr = C.getDriver().executeProgram(Args);
 
     if (!StdoutOrErr) {
@@ -1030,15 +1058,20 @@ static TripleSet inferOffloadToolchains(Compilation &C,
       ID = StringToOffloadArch(
           getProcessorFromTargetID(llvm::Triple("amdgcn-amd-amdhsa"), Arch));
 
-    if (Kind == Action::OFK_HIP && !ID.isAMDGPU() && !ID.isSPIRV()) {
-      C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
-          << "HIP" << Arch;
-      return {};
-    }
-    if (Kind == Action::OFK_Cuda && !ID.isNVPTX()) {
-      C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
-          << "CUDA" << Arch;
-      return {};
+    bool UsesLLVMOffloading =
+        C.getArgs().hasFlag(options::OPT_foffload_via_llvm,
+                            options::OPT_fno_offload_via_llvm, false);
+    if (!UsesLLVMOffloading) {
+      if (Kind == Action::OFK_HIP && !ID.isAMDGPU() && !ID.isSPIRV()) {
+        C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
+            << "HIP" << Arch;
+        return {};
+      }
+      if (Kind == Action::OFK_Cuda && !ID.isNVPTX()) {
+        C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
+            << "CUDA" << Arch;
+        return {};
+      }
     }
     if (Kind == Action::OFK_OpenMP && (ID.isUnknown() || ID.isUnused())) {
       C.getDriver().Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch)
@@ -1053,6 +1086,8 @@ static TripleSet inferOffloadToolchains(Compilation &C,
 
     llvm::Triple Triple =
         OffloadArchToTriple(C.getDefaultToolChain().getTriple(), ID);
+    if (UsesLLVMOffloading)
+      Triple.setEnvironment(llvm::Triple::LLVM);
 
     // Make a new argument that dispatches this argument to the appropriate
     // toolchain. This is required when we infer it and create potentially
@@ -1304,29 +1339,22 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
 
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
-  bool UseLLVMOffload = C.getInputArgs().hasArg(
-      options::OPT_foffload_via_llvm, options::OPT_fno_offload_via_llvm, false);
   bool IsCuda =
-      llvm::any_of(Inputs,
-                   [](std::pair<types::ID, const llvm::opt::Arg *> &I) {
-                     return types::isCuda(I.first);
-                   }) &&
-      !UseLLVMOffload;
+      llvm::any_of(Inputs, [](std::pair<types::ID, const llvm::opt::Arg *> &I) {
+        return types::isCuda(I.first);
+      });
   bool IsHIP =
       (llvm::any_of(Inputs,
                     [](std::pair<types::ID, const llvm::opt::Arg *> &I) {
                       return types::isHIP(I.first);
                     }) ||
        C.getInputArgs().hasArg(options::OPT_hip_link) ||
-       C.getInputArgs().hasArg(options::OPT_hipstdpar)) &&
-      !UseLLVMOffload;
-
+       C.getInputArgs().hasArg(options::OPT_hipstdpar));
   bool IsSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                          options::OPT_fno_sycl, false) ||
                 C.getInputArgs().hasArgNoClaim(options::OPT_fsycl_device_only,
                                                options::OPT_fsyclbin_EQ);
   bool IsOpenMPOffloading =
-      UseLLVMOffload ||
       (C.getInputArgs().hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
                                 options::OPT_fno_openmp, false) &&
        (C.getInputArgs().hasArg(options::OPT_offload_targets_EQ) ||
@@ -1454,7 +1482,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                      C.getDefaultToolChain().getTriple());
 
       // Emit a warning if the detected CUDA version is too new.
-      if (Kind == Action::OFK_Cuda) {
+      if (Kind == Action::OFK_Cuda && Target.getOS() == llvm::Triple::CUDA) {
         auto &CudaInstallation =
             static_cast<const toolchains::CudaToolChain &>(TC).CudaInstallation;
         if (CudaInstallation.isValid())
@@ -8050,6 +8078,9 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
         getFinalPhase(Args) == phases::Preprocess))
     return HostAction;
 
+  bool UsesLLVMOffloading = Args.hasArg(
+      options::OPT_foffload_via_llvm, options::OPT_fno_offload_via_llvm, false);
+
   ActionList OffloadActions;
   OffloadAction::DeviceDependences DDeps;
 
@@ -8227,9 +8258,12 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
       OffloadAction::DeviceDependences DDep;
       DDep.add(*A, *TCAndArch->first, TCAndArch->second, Kind);
 
-      // Compiling CUDA in non-RDC mode uses the PTX output if available.
+      // The legacy CUDA fatbinary path can include PTX alongside the cubin.
+      // The LLVM offload wrapper path feeds these images through a device
+      // linker first, and clang-nvlink-wrapper does not accept PTX as input.
       for (Action *Input : A->getInputs())
-        if (Kind == Action::OFK_Cuda && A->getType() == types::TY_Object &&
+        if (!UsesLLVMOffloading && Kind == Action::OFK_Cuda &&
+            A->getType() == types::TY_Object &&
             !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                           false))
           DDep.add(*Input, *TCAndArch->first, TCAndArch->second, Kind);
@@ -8276,7 +8310,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     return HostAction;
 
   OffloadAction::DeviceDependences DDep;
-  if (C.isOffloadingHostKind(Action::OFK_Cuda) &&
+  if (!UsesLLVMOffloading && C.isOffloadingHostKind(Action::OFK_Cuda) &&
       (!Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false) ||
        Args.hasArg(options::OPT_cuda_emit_nvcc_abi))) {
     // If we are not in RDC-mode or are targeting the NVCC ABI we just emit the
@@ -8285,7 +8319,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
         C.MakeAction<LinkJobAction>(OffloadActions, types::TY_CUDA_FATBIN);
     DDep.add(*FatbinAction, *C.getSingleOffloadToolChain<Action::OFK_Cuda>(),
              /*BA=*/{}, Action::OFK_Cuda);
-  } else if (HIPNoRDC && offloadDeviceOnly()) {
+  } else if (!UsesLLVMOffloading && HIPNoRDC && offloadDeviceOnly()) {
     // If we are in device-only non-RDC-mode we just emit the final HIP
     // fatbinary for each translation unit, linking each input individually.
     Action *FatbinAction =
@@ -8384,7 +8418,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     // -fsycl-host-compiler will create a bundled object instead of an
     // embedded packaged object.  Effectively avoid doing the packaging.
     return HostAction;
-  } else if (HIPNoRDC) {
+  } else if (!UsesLLVMOffloading && HIPNoRDC) {
     // Host + device assembly: defer to clang-offload-bundler (see
     // BuildActions).
     if (HIPAsmBundleDeviceOut &&
@@ -8723,18 +8757,13 @@ static void claimAndDiagnoseOffloadJobs(const Driver &D, const ArgList &Args) {
 }
 
 static void markOffloadDeviceCC1JobsForParallelExecution(Compilation &C) {
-  bool FoundCandidate = false;
   for (auto &Job : C.getJobs()) {
     if (!isOffloadDeviceCC1JobCandidate(Job))
       continue;
 
     Job.setOffloadDeviceParallelJobGroup(
         getOffloadDeviceCC1ParallelJobGroup(Job));
-    FoundCandidate = true;
   }
-
-  if (FoundCandidate)
-    claimAndDiagnoseOffloadJobs(C.getDriver(), C.getArgs());
 }
 
 void Driver::BuildJobs(Compilation &C) const {
@@ -8838,6 +8867,8 @@ void Driver::BuildJobs(Compilation &C) const {
       J.InProcess = false;
 
   markOffloadDeviceCC1JobsForParallelExecution(C);
+  if (C.getActiveOffloadKinds() != Action::OFK_None)
+    claimAndDiagnoseOffloadJobs(*this, C.getArgs());
 
   if (CCPrintProcessStats) {
     C.setPostCallback([=](const Command &Cmd, int Res) {
@@ -10747,7 +10778,7 @@ const ToolChain &Driver::getOffloadToolChain(
       // spirv64-amd-amdhsa.
       // FIXME: This should not key off language or OS.
       if (Kind == Action::OFK_HIP || Kind == Action::OFK_OpenMP ||
-          Kind == Action::OFK_SYCL)
+          Kind == Action::OFK_SYCL || Kind == Action::OFK_Cuda)
         TC = std::make_unique<toolchains::AMDGPUToolChain>(*this, Target, Args,
                                                            HostTC.get(), Kind);
       break;
