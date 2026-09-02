@@ -57,7 +57,7 @@ void trace(std::string EntryPoint, const void *Handle = nullptr) {
   state().Trace.push_back({std::move(EntryPoint), Handle});
 }
 
-// Adds native recording support
+// This is called after urDeviceGetInfo() to inject native recording support
 ur_result_t mock_urDeviceGetInfoAfter(void *pParams) {
   auto Params = *static_cast<ur_device_get_info_params_t *>(pParams);
   if (*Params.ppropName == UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP) {
@@ -177,7 +177,7 @@ ur_result_t mock_urQueueGetGraphExp(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-// A before-callback so the generated mock still produces the output event.
+// Use the default urEnqueueGraphExp() mock but trace before
 ur_result_t mock_urEnqueueGraphExpBefore(void *pParams) {
   auto Params = *static_cast<ur_enqueue_graph_exp_params_t *>(pParams);
   trace("urEnqueueGraphExp", *Params.phGraph);
