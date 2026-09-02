@@ -4,6 +4,7 @@
 
 add_conformance_devices_test(exp_graph
   urEnqueueGraphExp.cpp
+  urGraphCaptureErrorsExp.cpp
   urGraphCreateExp.cpp
   urGraphDestroyExp.cpp
   urGraphDumpContentsExp.cpp
