@@ -25,26 +25,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-  # Anonymous git-over-HTTPS to github.com is answered with HTTP 401 on some of
-  # our runners ("could not read Username for 'https://github.com'"), which
-  # breaks both the cache update below and the clones CMake's FetchContent does
-  # later in the job (vc-intrinsics, level-zero, ...). Authenticate every
-  # github.com fetch of this job with the workflow token, the same way
-  # actions/checkout does. Exported via GITHUB_ENV rather than
-  # `git config --global` so that no credential is left behind on these
-  # persistent runners. Note that an `insteadOf` URL rewrite cannot be used
-  # here: `git remote get-url` applies it, and llvm/cmake/modules/
-  # VersionFromVCS.cmake rejects a remote URL carrying a credential.
-  - name: Authenticate git for github.com
-    shell: bash
-    env:
-      GH_TOKEN: ${{ github.token }}
-    run: |
-      CREDENTIAL=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
-      echo "::add-mask::$CREDENTIAL"
-      echo "GIT_CONFIG_COUNT=1" >> $GITHUB_ENV
-      echo "GIT_CONFIG_KEY_0=http.https://github.com/.extraheader" >> $GITHUB_ENV
-      echo "GIT_CONFIG_VALUE_0=Authorization: Basic $CREDENTIAL" >> $GITHUB_ENV
   - name: Fetch cache
     shell: bash
     run: |
@@ -59,9 +39,6 @@ runs:
   - name: Checkout
     env:
       GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
-      # actions/checkout brings its own credentials, don't stack a second
-      # Authorization header on top of them.
-      GIT_CONFIG_COUNT: 0
     uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     with:
       persist-credentials: false

@@ -17,6 +17,27 @@ concurrency:
 
 permissions: read-all
 
+# Anonymous git-over-HTTPS to github.com is answered with HTTP 401 on some of our
+# runners ("could not read Username for 'https://github.com'"), which breaks the
+# repo cache update in devops/actions/cached_checkout as well as the clones
+# CMake's FetchContent performs (vc-intrinsics, level-zero, ...). Hand git the
+# workflow token for github.com, for every step of every job of this workflow.
+#
+# A credential helper is used on purpose, rather than the two more obvious
+# alternatives:
+#  * git only consults a helper once it has been answered with a 401, so steps
+#    that authenticate themselves (actions/checkout sets an
+#    `http.<url>.extraheader`) keep sending exactly one `Authorization` header.
+#    Configuring an extraheader here instead makes those steps send two, which
+#    github.com rejects with `Duplicate header: "Authorization"` / HTTP 400.
+#  * a `url.<base>.insteadOf` rewrite would be applied by `git remote get-url`,
+#    and llvm/cmake/modules/VersionFromVCS.cmake rejects a remote URL that
+#    carries a credential.
+env:
+  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_KEY_0: credential.https://github.com.helper
+  GIT_CONFIG_VALUE_0: '!f() { echo username=x-access-token; echo "password=${{ github.token }}"; }; f'
+
 jobs:
   run-clang-tidy:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
