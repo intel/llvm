@@ -32,7 +32,7 @@ jobs:
       options: ${{ contains(inputs.runner, 'Linux') && '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' || '' }}
     name: Build and Test Blender on ${{ contains(inputs.runner, 'Windows') && 'Windows' || 'Linux' }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: |
             devops/
