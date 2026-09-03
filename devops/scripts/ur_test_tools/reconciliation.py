@@ -34,7 +34,7 @@ def _index_by_name(observations: List[ParsedTestObservation], source: str):
 def reconcile_test_results(
     log_data: ParsedLogData, xml_data: Optional[ParsedXMLData] = None
 ) -> TestRunResult:
-    """Prefer complete log lists and fill missing results from XML."""
+    """Merge LIT log results with supplementary JUnit XML data."""
     log_by_name = _index_by_name(log_data.tests, "log")
     log_counts = {}
     for observation in log_data.tests:

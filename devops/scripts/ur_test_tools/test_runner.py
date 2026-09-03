@@ -66,14 +66,12 @@ def check_log_has_tests(log_file: str) -> bool:
 
 
 class TestRunner:
-    """Execute UR tests."""
 
     def __init__(self, context: TestExecutionContext):
         self.context = context
         self.jobs = calculate_jobs()
 
     def run(self) -> int:
-        """Run tests and return exit code."""
         self._setup_environment()
 
         result = self._execute_tests()

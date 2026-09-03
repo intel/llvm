@@ -6,7 +6,6 @@ from .models.test_results import TestResult, TestStatus, TestRunResult
 
 
 class SummaryReporter:
-    """Generate a test summary."""
 
     def __init__(self, result: TestRunResult):
         self.result = result

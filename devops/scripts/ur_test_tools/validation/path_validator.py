@@ -4,7 +4,6 @@ from pathlib import Path
 
 
 class PathValidator:
-    """Validate paths for security and correctness."""
 
     @staticmethod
     def validate_build_dir(build_dir: str, workspace: str) -> bool:

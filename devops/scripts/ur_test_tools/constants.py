@@ -8,10 +8,7 @@ MAX_LINES_TO_SCAN = 1000
 
 SEPARATOR_WIDTH = 70
 
-# LIT_COMMON_REPORTING_OPTIONS: what to show, kept aligned with standalone
-# builds (unified-runtime/test/CMakeLists.txt).
-# LIT_CI_OPTIONS: how to format output for CI tooling; standalone uses
-# --succinct instead.
+# Keep reporting options aligned with unified-runtime/test/CMakeLists.txt.
 LIT_COMMON_REPORTING_OPTIONS = [
     "--show-unsupported",
     "--show-pass",

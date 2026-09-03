@@ -6,7 +6,6 @@ from typing import Dict, List, Optional
 
 
 class TestStatus(str, Enum):
-    """LIT test status."""
 
     PASS = "PASS"
     FLAKYPASS = "FLAKYPASS"
@@ -48,7 +47,6 @@ class TestStatus(str, Enum):
 
 @dataclass
 class TestResult:
-    """Result for a single test."""
 
     name: str
     status: TestStatus
@@ -57,7 +55,6 @@ class TestResult:
 
 @dataclass
 class TestRunResult:
-    """Results for a test run."""
 
     tests: List[TestResult]
     total_discovered: Optional[int] = None

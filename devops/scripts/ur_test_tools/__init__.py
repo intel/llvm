@@ -18,8 +18,6 @@ from .outputs import (
 )
 
 __all__ = [
-    "__version__",
-    "__author__",
     "TestConfig",
     "SummaryConfigFromLines",
     "TestStatus",
