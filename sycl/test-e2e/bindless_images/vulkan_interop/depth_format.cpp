@@ -285,7 +285,7 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
     float expected = inputVec[i];
     // Use helper function to determine if data is accepted.
     // For floats, use default accepted error variance.
-    if (std::abs(outputVec[i] - expected) > 0.01f) {
+    if (!util::is_equal(outputVec[i], expected)) {
       std::cerr << "Result mismatch! actual[" << i << "] == " << outputVec[i]
                 << " : expected == " << expected << "\n";
       validated = false;
@@ -302,16 +302,25 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
 }
 
 int main() {
-  sycl::device syclDevice;
-  VulkanContext vkCtx = createVulkanContext();
-  auto testPassed = runTest(vkCtx, syclDevice, {128, 128}, {16, 16});
-  cleanupVulkanContext(vkCtx);
+  try {
+    sycl::device syclDevice;
+    VulkanContext vkCtx = createVulkanContext();
+    struct VulkanContextGuard {
+      VulkanContext &context;
+      ~VulkanContextGuard() { cleanupVulkanContext(context); }
+    } guard{vkCtx};
 
-  if (testPassed) {
-    std::cout << "Test passed!\n";
-    return EXIT_SUCCESS;
+    auto testPassed = runTest(vkCtx, syclDevice, {128, 128}, {16, 16});
+
+    if (testPassed) {
+      std::cout << "Test passed!\n";
+      return EXIT_SUCCESS;
+    }
+
+    std::cerr << "Test failed\n";
+    return EXIT_FAILURE;
+  } catch (const std::exception &e) {
+    std::cerr << "Vulkan interop test failed: " << e.what() << "\n";
+    return EXIT_FAILURE;
   }
-
-  std::cerr << "Test failed\n";
-  return EXIT_FAILURE;
 }

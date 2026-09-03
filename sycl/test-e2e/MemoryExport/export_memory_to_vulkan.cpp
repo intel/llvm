@@ -133,14 +133,9 @@ int runTest(VulkanContext &VulkanCtx, sycl::device &SyclDevice,
   // Allocate temporary staging buffer and copy imported data to host.
   VulkanOutput.resize(MemorySizeBytes / sizeof(DataT), 0);
   {
-    VkBuffer StagingBuffer;
-    VkDeviceMemory StagingMemory;
-
     auto Staging = createStagingBuffer(VulkanCtx, MemorySizeBytes,
                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                                            VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    StagingBuffer = Staging.buffer;
-    StagingMemory = Staging.memory;
 
     // Copy imported buffer to host visible staging buffer.
     VkCommandBufferBeginInfo Cbbi = {};
@@ -150,46 +145,23 @@ int runTest(VulkanContext &VulkanCtx, sycl::device &SyclDevice,
     VkBufferCopy CopyRegion = {};
     CopyRegion.size = MemorySizeBytes;
 
-    VkCommandPoolCreateInfo PoolInfo = {
-        VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-    PoolInfo.queueFamilyIndex = VulkanCtx.queueFamilyIndex;
     VkCommandPool Pool;
-    VK_CHECK(vkCreateCommandPool(VulkanCtx.device, &PoolInfo, nullptr, &Pool));
-    VkCommandBufferAllocateInfo CmdAllocInfo = {
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-    CmdAllocInfo.commandPool = Pool;
-    CmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    CmdAllocInfo.commandBufferCount = 1;
-    VkCommandBuffer CommandBuffer;
-    VK_CHECK(vkAllocateCommandBuffers(VulkanCtx.device, &CmdAllocInfo,
-                                      &CommandBuffer));
+    VkCommandBuffer CommandBuffer = createCommandBuffer(VulkanCtx, Pool);
     VK_CHECK(vkBeginCommandBuffer(CommandBuffer, &Cbbi));
-    vkCmdCopyBuffer(CommandBuffer, VkImportedBuffer, StagingBuffer,
+    vkCmdCopyBuffer(CommandBuffer, VkImportedBuffer, Staging.buffer,
                     1 /*regionCount*/, &CopyRegion);
-    VK_CHECK(vkEndCommandBuffer(CommandBuffer));
-
-    std::vector<VkPipelineStageFlags> Stages{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
-
-    VkSubmitInfo Submission = {};
-    Submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    Submission.commandBufferCount = 1;
-    Submission.pCommandBuffers = &CommandBuffer;
-    Submission.pWaitDstStageMask = Stages.data();
-
-    VK_CHECK(vkQueueSubmit(VulkanCtx.queue, 1, &Submission, VK_NULL_HANDLE));
-    VK_CHECK(vkQueueWaitIdle(VulkanCtx.queue));
+    submitCommandBuffer(VulkanCtx, CommandBuffer, Pool);
 
     // Copy host visible staging buffer data to host.
     DataT *StagingData = nullptr;
-    VK_CHECK(vkMapMemory(VulkanCtx.device, StagingMemory, 0 /*offset*/,
+    VK_CHECK(vkMapMemory(VulkanCtx.device, Staging.memory, 0 /*offset*/,
                          MemorySizeBytes, 0 /*flags*/, (void **)&StagingData));
     for (int i = 0; i < MemorySizeBytes / sizeof(DataT); ++i) {
       VulkanOutput[i] = StagingData[i];
     }
-    vkUnmapMemory(VulkanCtx.device, StagingMemory);
+    vkUnmapMemory(VulkanCtx.device, Staging.memory);
 
     // Destroy temporary staging buffer and free memory.
-    vkDestroyCommandPool(VulkanCtx.device, Pool, nullptr);
     cleanupBuffer(VulkanCtx, Staging);
   }
 

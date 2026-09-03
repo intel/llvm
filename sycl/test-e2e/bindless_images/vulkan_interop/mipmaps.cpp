@@ -414,16 +414,24 @@ bool run_tests(VulkanContext &vkCtx) {
 }
 
 int main() {
-  sycl::device dev;
-  VulkanContext vkCtx = createVulkanContext();
-  bool result_ok = run_tests(vkCtx);
-  cleanupVulkanContext(vkCtx);
+  try {
+    VulkanContext vkCtx = createVulkanContext();
+    struct VulkanContextGuard {
+      VulkanContext &context;
+      ~VulkanContextGuard() { cleanupVulkanContext(context); }
+    } guard{vkCtx};
 
-  if (result_ok) {
-    std::cout << "All tests passed!\n";
-    return EXIT_SUCCESS;
+    bool result_ok = run_tests(vkCtx);
+
+    if (result_ok) {
+      std::cout << "All tests passed!\n";
+      return EXIT_SUCCESS;
+    }
+
+    std::cerr << "Test failed\n";
+    return EXIT_FAILURE;
+  } catch (const std::exception &e) {
+    std::cerr << "Vulkan interop test failed: " << e.what() << "\n";
+    return EXIT_FAILURE;
   }
-
-  std::cerr << "Test failed\n";
-  return EXIT_FAILURE;
 }

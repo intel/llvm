@@ -302,6 +302,19 @@ template <typename T> inline bool checkValue(T actual, T expected) {
   }
 }
 
+namespace util {
+
+template <typename DType>
+bool is_equal(DType lhs, DType rhs, float epsilon = 0.0001f) {
+  if constexpr (std::is_floating_point_v<DType>) {
+    return std::abs(lhs - rhs) < epsilon;
+  } else {
+    return lhs == rhs;
+  }
+}
+
+} // namespace util
+
 // ---------------------------------------------------------
 // Boilerplate
 // ---------------------------------------------------------
@@ -704,6 +717,8 @@ inline void submitCommandBuffer(VulkanContext &ctx,
 inline VkImageMemoryBarrier createImageMemoryBarrier(VkImage image,
                                                      uint32_t mipLevels) {
   VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
