@@ -27,7 +27,8 @@ struct ur_queue_handle_t_ : handle_base {
   bool IsNativeHandleOwned = true;
   // Used to implement UR_QUEUE_INFO_EMPTY query
   bool IsInOrder;
-  ur_event_handle_t_ *LastEvent = nullptr;
+  // Native event of the last command enqueued on an in-order queue.
+  cl_event LastEvent = nullptr;
   ur::RefCount RefCount;
 
   ur_queue_handle_t_(const ur_queue_handle_t_ &) = delete;
@@ -47,6 +48,9 @@ struct ur_queue_handle_t_ : handle_base {
                                     ur_queue_handle_t &Queue);
 
   ~ur_queue_handle_t_() {
+    if (LastEvent) {
+      clReleaseEvent(LastEvent);
+    }
     ur::opencl::urDeviceRelease(cast(Device));
     ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
@@ -59,16 +63,16 @@ struct ur_queue_handle_t_ : handle_base {
 
   // Stores last event for in-order queues. Has no effect if queue is Out Of
   // Order. The last event is used to implement UR_QUEUE_INFO_EMPTY query.
-  ur_result_t storeLastEvent(ur_event_handle_t Event) {
+  ur_result_t storeLastEvent(cl_event Event) {
     if (!IsInOrder) {
       return UR_RESULT_SUCCESS;
     }
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(ur::opencl::urEventRelease(cast(LastEvent)));
+      CL_RETURN_ON_FAILURE(clReleaseEvent(LastEvent));
     }
-    LastEvent = cast(Event);
+    LastEvent = Event;
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(ur::opencl::urEventRetain(cast(LastEvent)));
+      CL_RETURN_ON_FAILURE(clRetainEvent(LastEvent));
     }
     return UR_RESULT_SUCCESS;
   }
