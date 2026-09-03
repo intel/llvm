@@ -17,7 +17,7 @@ from .test_runner import (
     TestRunner,
     get_test_config,
 )
-from .outputs.github_actions import GitHubActionsOutput
+from .outputs import github_actions
 
 
 def main() -> int:
@@ -101,13 +101,13 @@ def _run_tests_command() -> int:
     workspace = sys.argv[4]
 
     if not PathValidator.validate_build_dir(build_dir, workspace):
-        GitHubActionsOutput.print_error("Invalid build_dir")
+        github_actions.print_error("Invalid build_dir")
         return 1
 
     try:
         config = get_test_config(test_type)
     except ValueError as e:
-        GitHubActionsOutput.print_error(str(e))
+        github_actions.print_error(str(e))
         return 1
 
     workspace_path = Path(workspace).resolve()
@@ -134,7 +134,7 @@ def _run_tests_command() -> int:
     try:
         context.validate()
     except ValueError as e:
-        GitHubActionsOutput.print_error(str(e))
+        github_actions.print_error(str(e))
         return 1
 
     runner = TestRunner(context)

@@ -17,7 +17,7 @@ from .constants import (
     MAX_LINES_TO_SCAN,
 )
 from .models.config import TestConfig, TestExecutionContext
-from .outputs.github_actions import GitHubActionsOutput
+from .outputs import github_actions
 from .parsers.log_parser import _read_with_utf8_fallback
 
 
@@ -128,36 +128,34 @@ class TestRunner:
                     cwd=self.context.workspace,
                 )
         except OSError as e:
-            GitHubActionsOutput.print_error(f"Test execution failed: {e}")
+            github_actions.print_error(f"Test execution failed: {e}")
             return None
 
     def _validate_output(self) -> bool:
         log_path = self.context.log_file_path
 
         if not log_path.exists() or log_path.stat().st_size == 0:
-            GitHubActionsOutput.print_error("No log generated")
+            github_actions.print_error("No log generated")
             return False
 
         return True
 
     def _publish_outputs(self) -> None:
-        GitHubActionsOutput.set_output("log-file", str(self.context.log_file_path))
+        github_actions.set_output("log-file", str(self.context.log_file_path))
 
         if (
             self.context.test_type == TEST_TYPE_ADAPTER_SPECIFIC
             and not check_log_has_tests(str(self.context.log_file_path))
         ):
             print("No adapter-specific tests found", file=sys.stderr)
-            GitHubActionsOutput.set_output("skip-artifacts", "1")
+            github_actions.set_output("skip-artifacts", "1")
             return
 
-        GitHubActionsOutput.set_output("skip-artifacts", "0")
+        github_actions.set_output("skip-artifacts", "0")
 
         if self.context.xml_output_path.exists():
-            GitHubActionsOutput.set_output(
-                "xml-file", str(self.context.xml_output_path)
-            )
+            github_actions.set_output("xml-file", str(self.context.xml_output_path))
         else:
-            GitHubActionsOutput.print_warning(
+            github_actions.print_warning(
                 f"Expected XML file not found at {self.context.xml_output_path}"
             )
