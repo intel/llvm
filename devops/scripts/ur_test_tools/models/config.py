@@ -1,5 +1,3 @@
-"""Configuration dataclasses for UR test tools."""
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Dict
@@ -7,21 +5,18 @@ from typing import Optional, Dict
 
 @dataclass
 class TestConfig:
-    """Test execution configuration."""
 
     target: str
     log_file: str
     lit_filter_out: Optional[str] = None
 
     def __post_init__(self):
-        """Validate configuration on creation."""
         if not all([self.target, self.log_file]):
             raise ValueError("target and log_file are required")
 
 
 @dataclass
 class TestExecutionContext:
-    """Context for test execution."""
 
     test_type: str
     build_dir: Path
