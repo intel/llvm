@@ -1,0 +1,93 @@
+#
+#
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for host-signalled events"
+ordinal: "100"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support host-signalled events."
+name: $x_device_info_t
+etors:
+    - name: HOST_SIGNAL_EVENT_SUPPORT_EXP
+      value: "0x9001"
+      desc: >
+            [$x_bool_t] returns true if the device supports events created in
+            the unsignalled state with $xEventCreateHostSignalExp and signalled
+            from the host with $xEventHostSignalExp.
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create an event in the unsignalled state that can only be signalled from the host."
+class: $xEvent
+name: CreateHostSignalExp
+details:
+    - >
+      The returned event is not associated with any queue and is not signalled
+      by any enqueued command. It becomes complete only when
+      $xEventHostSignalExp is called on it.
+    - >
+      The event may be passed in the wait list of any command enqueued to a
+      queue belonging to `hContext`. Such a command does not start executing
+      until the event has been signalled from the host.
+    - >
+      Because the event orders device work against a host action, an adapter is
+      permitted to occupy a device submission channel for as long as the event
+      remains unsignalled. Callers must therefore guarantee that every event
+      they create is eventually signalled, including on error and teardown
+      paths.
+    - >
+      The event carries no data-visibility guarantee between devices. Any
+      cross-device data transfer must be expressed as a separate command, and
+      the event must be signalled only after that command has completed.
+    - "The application may call this function from simultaneous threads."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][alloc] pointer to the handle of the event object created"
+returns:
+  - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+    - "`NULL == hContext`"
+  - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+    - "`NULL == phEvent`"
+  - $X_RESULT_ERROR_INVALID_CONTEXT
+  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+    - "If the device does not report $X_DEVICE_INFO_HOST_SIGNAL_EVENT_SUPPORT_EXP as true."
+  - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+  - $X_RESULT_ERROR_OUT_OF_RESOURCES
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Signal an event created with $xEventCreateHostSignalExp."
+class: $xEvent
+name: HostSignalExp
+details:
+    - >
+      Commands waiting on `hEvent` are released. Signalling an event that has
+      already been signalled has no effect.
+    - >
+      Passing an event that was not created by $xEventCreateHostSignalExp
+      results in $X_RESULT_ERROR_INVALID_EVENT.
+    - "The application may call this function from simultaneous threads."
+params:
+    - type: $x_event_handle_t
+      name: hEvent
+      desc: "[in] handle of the event object to signal"
+returns:
+  - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+    - "`NULL == hEvent`"
+  - $X_RESULT_ERROR_INVALID_EVENT:
+    - "If `hEvent` was not created by $xEventCreateHostSignalExp."
+  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE

@@ -10680,6 +10680,77 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventCreateHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urEventCreateHostSignalExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  auto pfnCreateHostSignalExp =
+      getContext()->urDdiTable.EventExp.pfnCreateHostSignalExp;
+
+  if (nullptr == pfnCreateHostSignalExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_event_create_host_signal_exp_params_t params = {&hContext, &phEvent};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_EVENT_CREATE_HOST_SIGNAL_EXP,
+                                 "urEventCreateHostSignalExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEventCreateHostSignalExp\n");
+
+  ur_result_t result = pfnCreateHostSignalExp(hContext, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_EVENT_CREATE_HOST_SIGNAL_EXP,
+                           "urEventCreateHostSignalExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_EVENT_CREATE_HOST_SIGNAL_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urEventCreateHostSignalExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urEventHostSignalExp(
+    /// [in] handle of the event object to signal
+    ur_event_handle_t hEvent) {
+  auto pfnHostSignalExp = getContext()->urDdiTable.EventExp.pfnHostSignalExp;
+
+  if (nullptr == pfnHostSignalExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_event_host_signal_exp_params_t params = {&hEvent};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_EVENT_HOST_SIGNAL_EXP, "urEventHostSignalExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEventHostSignalExp\n");
+
+  ur_result_t result = pfnHostSignalExp(hEvent);
+
+  getContext()->notify_end(UR_FUNCTION_EVENT_HOST_SIGNAL_EXP,
+                           "urEventHostSignalExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_HOST_SIGNAL_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urEventHostSignalExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueHostTaskExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
@@ -12120,6 +12191,13 @@ __urdlllocal ur_result_t UR_APICALL urGetEventExpProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateHostSignalExp = pDdiTable->pfnCreateHostSignalExp;
+  pDdiTable->pfnCreateHostSignalExp =
+      ur_tracing_layer::urEventCreateHostSignalExp;
+
+  dditable.pfnHostSignalExp = pDdiTable->pfnHostSignalExp;
+  pDdiTable->pfnHostSignalExp = ur_tracing_layer::urEventHostSignalExp;
 
   dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
   pDdiTable->pfnCreateExp = ur_tracing_layer::urEventCreateExp;

@@ -617,6 +617,12 @@ bool context_impl::supportsIPCEvents() {
                            MIPCEventSupport, MIPCEventSupportMutex);
 }
 
+bool context_impl::supportsHostSignalEvents() {
+  return allDevicesSupport(UR_DEVICE_INFO_HOST_SIGNAL_EVENT_SUPPORT_EXP,
+                           MHostSignalEventSupport,
+                           MHostSignalEventSupportMutex);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

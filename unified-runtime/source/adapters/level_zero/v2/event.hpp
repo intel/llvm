@@ -113,6 +113,13 @@ public:
   // True for events opened via urIPCOpenEventHandleExp.
   bool isIpcImported() const;
 
+  // True for events created by urEventCreateHostSignalExp. Such an event is not
+  // associated with any queue and is only ever signalled from the host.
+  bool isHostSignal() const;
+
+  // Mark this event as host-signalled, see urEventCreateHostSignalExp.
+  void markHostSignal();
+
   // Queue associated with this event. Can be nullptr (for native events)
   ur_queue_t_ *getQueue() const;
 
@@ -159,6 +166,8 @@ protected:
   std::optional<ur_event_generation_t> batchGeneration;
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
   ur_device_handle_t hDevice = nullptr;
+
+  bool hostSignal = false;
 
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
