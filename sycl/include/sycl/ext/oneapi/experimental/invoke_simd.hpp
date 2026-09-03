@@ -15,6 +15,7 @@
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
 
 #include <sycl/detail/loop.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/sub_group.hpp>
 
 #include <functional>
