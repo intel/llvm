@@ -89,8 +89,8 @@ class JUnitXMLParserTest(unittest.TestCase):
 
         self.assertEqual(result.tests[0].name, "Suite :: root.cpp")
 
-        def test_formats_unified_runtime_names(self):
-            xml = """\
+    def test_formats_unified_runtime_names(self):
+        xml = """\
 <testsuites>
     <testsuite name="Unified Runtime" tests="2">
         <testcase classname="Unified Runtime.conformance/urContext" name="test.cpp"/>
@@ -98,18 +98,18 @@ class JUnitXMLParserTest(unittest.TestCase):
     </testsuite>
 </testsuites>
 """
-            with tempfile.TemporaryDirectory() as directory:
-                xml_path = Path(directory) / "results.xml"
-                xml_path.write_text(xml, encoding="utf-8")
-                result = JUnitXMLParser(str(xml_path)).parse_to_observations()
+        with tempfile.TemporaryDirectory() as directory:
+            xml_path = Path(directory) / "results.xml"
+            xml_path.write_text(xml, encoding="utf-8")
+            result = JUnitXMLParser(str(xml_path)).parse_to_observations()
 
-            self.assertEqual(
-                [test.name for test in result.tests],
-                [
-                    "Unified Runtime :: conformance/urContext/test.cpp",
-                    "Unified Runtime :: adapters/level_zero/event.cpp",
-                ],
-            )
+        self.assertEqual(
+            [test.name for test in result.tests],
+            [
+                "Unified Runtime :: conformance/urContext/test.cpp",
+                "Unified Runtime :: adapters/level_zero/event.cpp",
+            ],
+        )
 
 
 class LITLogParserTest(unittest.TestCase):
