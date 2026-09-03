@@ -542,13 +542,11 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-// Requires C++20
-template <int Dimensions>
+template <int Dimensions> // Requires C++20
 void nd_launch(sycl::queue q, sycl::nd_range<Dimensions> r,
                const sycl::kernel& k, std::span<const raw_kernel_arg> args);
 
-// Requires C++20
-template <int Dimensions>
+template <int Dimensions> // Requires C++20
 void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
                const sycl::kernel& k, std::span<const raw_kernel_arg> args);
 
