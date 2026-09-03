@@ -132,15 +132,22 @@ static constexpr uint32_t NumIntelGPUArchs = std::size(IntelGPUArchs);
 // passed.
 static constexpr uint32_t IntelGPUIGCALevelFlag = 1u << 31;
 
-static const IntelGPUArchEntry *lookupIntelGPUArch(OffloadArch A) {
-  uint32_t Index = A.intelXeKind() & ~IntelGPUIGCALevelFlag;
-  return Index < NumIntelGPUArchs ? &IntelGPUArchs[Index] : nullptr;
+OffloadArch OffloadArch::getIntelXeGPU(uint32_t Kind) {
+  assert((Kind & ~IntelGPUIGCALevelFlag) < NumIntelGPUArchs &&
+         "Kind does not name an entry of IntelGPUArch.def");
+  return {TargetArch::IntelXeGPU, Kind};
+}
+
+static const IntelGPUArchEntry &lookupIntelGPUArch(OffloadArch A) {
+  return IntelGPUArchs[A.intelXeKind() & ~IntelGPUIGCALevelFlag];
 }
 
 // Parse one of the Intel GPU architecture names listed in IntelGPUArch.def: the
 // name of an architecture ("xe-lnl-m"), the IGCA level shared by a group of
 // architectures ("igca_40r"), or the numeric form the offload-arch tool prints
-// for an architecture that has no name in this build ("xe_20.4.5").
+// for an architecture that has no name in this build ("xe_20.4.5"). A name that
+// is none of these yields an unknown architecture, which the driver reports as
+// 'unsupported offload gpu architecture: <name>'.
 static OffloadArch parseIntelGPUArch(llvm::StringRef S) {
   for (uint32_t Index = 0; Index != NumIntelGPUArchs; ++Index) {
     const IntelGPUArchEntry &Entry = IntelGPUArchs[Index];
@@ -208,11 +215,9 @@ const char *OffloadArchToString(OffloadArch A) {
     return Entry ? Entry->Name : "unknown";
   }
   case OffloadArch::TargetArch::IntelXeGPU: {
-    const IntelGPUArchEntry *Entry = lookupIntelGPUArch(A);
-    if (!Entry)
-      return "unknown";
-    return A.intelXeKind() & IntelGPUIGCALevelFlag ? Entry->IGCALevel
-                                                   : Entry->Name;
+    const IntelGPUArchEntry &Entry = lookupIntelGPUArch(A);
+    return A.intelXeKind() & IntelGPUIGCALevelFlag ? Entry.IGCALevel
+                                                   : Entry.Name;
   }
   case OffloadArch::TargetArch::Generic:
     return "generic";

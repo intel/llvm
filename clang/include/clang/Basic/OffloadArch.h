@@ -10,6 +10,7 @@
 #define LLVM_CLANG_BASIC_OFFLOADARCH_H
 
 #include "llvm/ADT/StringRef.h"
+#include <cassert>
 #include <cstdint>
 #include <tuple>
 
@@ -131,9 +132,9 @@ public:
   static constexpr OffloadArch getIntel(TargetArch V, IntelArch A) {
     return {V, static_cast<uint32_t>(A)};
   }
-  static constexpr OffloadArch getIntelXeGPU(uint32_t Kind) {
-    return {TargetArch::IntelXeGPU, Kind};
-  }
+  // Defined out of line, so that Kind can be checked against the table of
+  // IntelGPUArch.def entries that gives it its meaning.
+  static OffloadArch getIntelXeGPU(uint32_t Kind);
   static constexpr OffloadArch getUnused() { return {TargetArch::Unused, 0}; }
   static constexpr OffloadArch getUnknown() { return {TargetArch::Unknown, 0}; }
   static constexpr OffloadArch getSPIRV() { return {TargetArch::SPIRV, 0}; }
@@ -166,9 +167,16 @@ public:
     return static_cast<llvm::AMDGPU::GPUKind>(Kind);
   }
   // Only valid when isIntelCPU(), or when isIntelGPU() and !isIntelXeGPU().
-  IntelArch intelKind() const { return static_cast<IntelArch>(Kind); }
+  IntelArch intelKind() const {
+    assert((isIntelCPU() || (isIntelGPU() && !isIntelXeGPU())) &&
+           "not an Intel CPU or a non-Xe Intel GPU");
+    return static_cast<IntelArch>(Kind);
+  }
   // Only valid when isIntelXeGPU(); opaque outside of OffloadArch.cpp.
-  uint32_t intelXeKind() const { return Kind; }
+  uint32_t intelXeKind() const {
+    assert(isIntelXeGPU() && "not an Intel Xe GPU");
+    return Kind;
+  }
 
   bool operator==(const OffloadArch &Other) const {
     return V == Other.V && Kind == Other.Kind;
