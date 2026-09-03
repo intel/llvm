@@ -4,7 +4,7 @@ import sys
 import os
 from pathlib import Path
 
-from .models.config import SummaryConfigFromLines, TestConfig, TestExecutionContext
+from .models.config import TestConfig, TestExecutionContext
 from .validation.path_validator import PathValidator
 from .parsers.log_parser import (
     LITLogParser,
@@ -65,8 +65,8 @@ def main_test_summary(command: str) -> int:
             xml_file = PathValidator.validate_optional_path(
                 sys.argv[3] if len(sys.argv) > 3 else "", "XML", allow_absolute=True
             )
-            config = SummaryConfigFromLines(log_lines=lines, xml_file=xml_file or None)
-            SummaryReporter(build_test_run_result(config)).generate()
+            result = build_test_run_result(lines, xml_file or None)
+            SummaryReporter(result).generate()
 
         else:
             print(f"Error: Unknown command '{command}'", file=sys.stderr)

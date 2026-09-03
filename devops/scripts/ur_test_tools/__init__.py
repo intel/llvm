@@ -2,7 +2,6 @@
 
 from .models import (
     TestConfig,
-    SummaryConfigFromLines,
     TestStatus,
     TestResult,
     TestRunResult,
@@ -19,7 +18,6 @@ from .outputs import (
 
 __all__ = [
     "TestConfig",
-    "SummaryConfigFromLines",
     "TestStatus",
     "TestResult",
     "TestRunResult",

@@ -3,7 +3,6 @@
 from .config import (
     TestConfig,
     TestExecutionContext,
-    SummaryConfigFromLines,
 )
 from .test_results import (
     TestStatus,
@@ -14,7 +13,6 @@ from .test_results import (
 __all__ = [
     "TestConfig",
     "TestExecutionContext",
-    "SummaryConfigFromLines",
     "TestStatus",
     "TestResult",
     "TestRunResult",

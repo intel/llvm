@@ -8,7 +8,6 @@ from contextlib import contextmanager
 from pathlib import Path
 import os
 
-from devops.scripts.ur_test_tools.models.config import SummaryConfigFromLines
 from devops.scripts.ur_test_tools.models.test_results import TestStatus
 from devops.scripts.ur_test_tools.parsers.parser_models import (
     ParsedLogData,
@@ -367,7 +366,7 @@ class SummaryReporterTest(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            result = build_test_run_result(SummaryConfigFromLines(log_lines=lines))
+            result = build_test_run_result(lines)
             SummaryReporter(result).generate()
 
         output = stdout.getvalue()

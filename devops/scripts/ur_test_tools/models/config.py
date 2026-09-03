@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 
 
 @dataclass
@@ -38,11 +38,3 @@ class TestExecutionContext:
                 path.resolve().relative_to(workspace_resolved)
         except ValueError as e:
             raise ValueError(f"Path outside workspace: {e}") from e
-
-
-@dataclass
-class SummaryConfigFromLines:
-    """Configuration for summary generation from parsed log lines."""
-
-    log_lines: List[str]
-    xml_file: Optional[str] = None
