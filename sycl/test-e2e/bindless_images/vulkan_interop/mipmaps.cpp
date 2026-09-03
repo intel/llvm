@@ -63,10 +63,10 @@ handles_t create_handles(sycl::context &ctxt, sycl::device &dev,
 template <int NDims, typename DType, int NChannels,
           sycl::image_channel_type CType, typename InteropMemHandleT,
           typename KernelName>
-bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
+bool run_sycl(const sycl::device &dev, sycl::range<NDims> globalSize,
+              sycl::range<NDims> localSize,
               InteropMemHandleT inputImgInteropHandle, size_t mipLevels,
               size_t reqSize) {
-  sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
@@ -243,8 +243,8 @@ template <int NDims, typename DType, int NChannels,
           sycl::image_channel_type CType, sycl::image_channel_order COrder,
           typename KernelName>
 bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
-              sycl::range<NDims> localSize, size_t mipLevels,
-              unsigned int seed = 0) {
+              const sycl::device &dev, sycl::range<NDims> localSize,
+              size_t mipLevels, unsigned int seed = 0) {
 
   uint32_t width = static_cast<uint32_t>(dims[0]);
   uint32_t height = 1;
@@ -368,7 +368,7 @@ bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
 #endif
   bool result = run_sycl<NDims, DType, NChannels, CType,
                          decltype(inputMemHandle), KernelName>(
-      dims, localSize, inputMemHandle, mipLevels, memRequirements.size);
+      dev, dims, localSize, inputMemHandle, mipLevels, memRequirements.size);
 
   // Cleanup
   cleanupBuffer(vkCtx, inputStaging);
@@ -377,51 +377,52 @@ bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
   return result;
 }
 
-bool run_tests(VulkanContext &vkCtx) {
+bool run_tests(VulkanContext &vkCtx, const sycl::device &dev) {
   bool valid = run_test<2, float, 4, sycl::image_channel_type::fp32,
                         sycl::image_channel_order::rgba, class float_2d>(
-      vkCtx, {16, 16}, {2, 2}, 2, 0);
+      vkCtx, dev, {16, 16}, {2, 2}, 2, 0);
 
   valid &= run_test<2, float, 2, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::rg, class float_2d_large>(
-      vkCtx, {8, 8}, {4, 2}, 2, 0);
+      vkCtx, dev, {8, 8}, {4, 2}, 2, 0);
 
   valid &= run_test<3, int8_t, 2, sycl::image_channel_type::signed_int8,
                     sycl::image_channel_order::rg, class float_3d>(
-      vkCtx, {8, 8, 8}, {2, 2, 2}, 2, 0);
+      vkCtx, dev, {8, 8, 8}, {2, 2, 2}, 2, 0);
 
   valid &= run_test<2, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
                     sycl::image_channel_order::r, class uint32_2d>(
-      vkCtx, {32, 32}, {4, 2}, 2, 0);
+      vkCtx, dev, {32, 32}, {4, 2}, 2, 0);
 
   valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
                     sycl::image_channel_order::rgba, class uint_3d_large>(
-      vkCtx, {8, 8, 8}, {2, 2, 4}, 2, 0);
+      vkCtx, dev, {8, 8, 8}, {2, 2, 4}, 2, 0);
 
   valid &= run_test<2, int32_t, 1, sycl::image_channel_type::signed_int32,
                     sycl::image_channel_order::r, class int32_2d>(
-      vkCtx, {64, 64}, {4, 2}, 2, 0);
+      vkCtx, dev, {64, 64}, {4, 2}, 2, 0);
 
   valid &= run_test<3, int32_t, 2, sycl::image_channel_type::signed_int32,
                     sycl::image_channel_order::rg, class int32_3d>(
-      vkCtx, {8, 8, 8}, {4, 2, 4}, 2, 0);
+      vkCtx, dev, {8, 8, 8}, {4, 2, 4}, 2, 0);
 
   valid &= run_test<3, int16_t, 1, sycl::image_channel_type::signed_int16,
                     sycl::image_channel_order::r, class int16_3d>(
-      vkCtx, {32, 32, 32}, {4, 2, 4}, 2, 0);
+      vkCtx, dev, {32, 32, 32}, {4, 2, 4}, 2, 0);
 
   return valid;
 }
 
 int main() {
   try {
-    VulkanContext vkCtx = createVulkanContext();
+    sycl::device dev;
+    VulkanContext vkCtx = createVulkanContext(dev);
     struct VulkanContextGuard {
       VulkanContext &context;
       ~VulkanContextGuard() { cleanupVulkanContext(context); }
     } guard{vkCtx};
 
-    bool result_ok = run_tests(vkCtx);
+    bool result_ok = run_tests(vkCtx, dev);
 
     if (result_ok) {
       std::cout << "All tests passed!\n";

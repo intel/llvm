@@ -304,7 +304,7 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
 int main() {
   try {
     sycl::device syclDevice;
-    VulkanContext vkCtx = createVulkanContext();
+    VulkanContext vkCtx = createVulkanContext(syclDevice);
     struct VulkanContextGuard {
       VulkanContext &context;
       ~VulkanContextGuard() { cleanupVulkanContext(context); }
