@@ -106,6 +106,10 @@ def err_drv_no_sycl_device_lib
     : Error<"cannot find expected SYCL device library '%0'. Pass "
             "'--no-offloadlib' to "
             "build without the SYCL device libraries">;
+def err_drv_sycl_no_rdc_multiple_targets : Error<
+  "'%0' is not supported with multiple SYCL offloading targets">;
+
+
 // SYCL Windows-specific diagnostics
 def err_drv_sycl_requires_dynamic_crt : Error<
   "SYCL requires dynamic C++ runtime (/MD or /MDd); "

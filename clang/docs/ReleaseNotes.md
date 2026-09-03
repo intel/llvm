@@ -177,6 +177,10 @@ features cannot lower the translation-unit ABI level;
 - Clang now falls back to alignment-aware allocation functions for
   non-overaligned types, implementing [CWG2282](https://wg21.link/cwg2282).
 
+- Clang now converts floating-point values to boolean first when converting
+  them to an enumeration type with a fixed `bool` underlying type. This
+  resolves [CWG1094](https://wg21.link/cwg1094).
+
 ### C Language Changes
 
 #### C2y Feature Support
@@ -273,6 +277,11 @@ features cannot lower the translation-unit ABI level;
   considered during allocation function lookup or promise object
   initialization, while not diagnosing parameters passed to the selected
   allocation function or promise constructor. (#GH217501)
+
+- The `wb` and `uwb` `_BitInt` literal suffixes are no longer diagnosed by default
+  before C23. They stay in `-Wc23-extensions` and are still reported under
+  `-pedantic` or when that group is enabled explicitly, matching how the `_BitInt`
+  type itself is already handled.
 
 - Fixed bug in `-Wdocumentation` so that it correctly handles explicit
   function template instantiations (#64087).
@@ -632,6 +641,8 @@ features cannot lower the translation-unit ABI level;
   threshold to the target's `size_t` width instead of using a fixed
   threshold of `1 << 60` regardless of the target.
 - Fixed a crash when generating fake uses for parameters of bodyless destructors with `-fextend-variable-liveness`.
+- Fixed an assertion failure when instantiating a block that captures
+  `this` via a member access through a dependent base class.
 
 ### OpenACC Specific Changes
 
@@ -786,6 +797,21 @@ The `alpha.cplusplus.UseAfterLifetimeEnd` checker was renamed to `alpha.core.Use
 
 ### OpenMP Support
 
+- Canonicalize intra-tiles in loop tiling. `#pragma omp tile` still emits a
+  min-bounded inner loop, which vectorizes well. When a parent directive such as
+  `for collapse(n)` needs a constant per-tile trip count, Clang rereads a
+  droppable hint and treats that inner loop as rectangular, with an overshoot
+  guard only if the last tile can be partial.
+
+  Not yet supported (diagnosed, left as follow-up):
+
+  - `collapse` through stacked `#pragma omp tile` (the inner floor is not a
+    collapsed counter).
+  - A loop transformation (`tile`, `unroll`, `interchange`, ...) that consumes
+    another tile's intra-tile loop.
+
+- Added parsing and semantic support for `dims` modifier in `num_teams` and
+  `thread_limit` clauses for OpenMP 6.1 or later.
 - Added parsing and semantic support for `dims` modifier in `num_teams`,
   `thread_limit` and `num_threads` clauses for OpenMP 6.1 or later.
 - Map-type-modifying modifiers applied to a list item with a user-defined mapper

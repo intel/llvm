@@ -1324,7 +1324,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             *OS, ThinLinkOS ? &ThinLinkOS->os() : nullptr));
       } else if (Action == Backend_EmitLL) {
         MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
-                                    /*EmitLTOSummary=*/true));
+                                    /*EmitLTOSummary=*/true,
+                                    /*ShouldRenumberMetadata=*/true));
       }
     } else {
       // Emit a module summary by default for Regular LTO except for ld64
@@ -1342,7 +1343,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
                                       EmitLTOSummary));
       } else if (Action == Backend_EmitLL) {
         MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
-                                    EmitLTOSummary));
+                                    EmitLTOSummary,
+                                    /*ShouldRenumberMetadata=*/true));
       }
     }
 
@@ -1614,6 +1616,7 @@ runThinLTOBackend(CompilerInstance &CI, ModuleSummaryIndex *CombinedIndex,
     break;
   case Backend_EmitLL:
     Conf.PreCodeGenModuleHook = [&](size_t Task, const llvm::Module &Mod) {
+      M->renumberMetadataForAssembly();
       M->print(*OS, nullptr, CGOpts.EmitLLVMUseLists);
       return false;
     };
