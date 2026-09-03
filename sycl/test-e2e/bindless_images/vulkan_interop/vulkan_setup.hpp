@@ -452,10 +452,10 @@ createVulkanContext(const std::array<uint8_t, VK_UUID_SIZE> &SyclDeviceUUID) {
 
   ctx.physicalDevice = VK_NULL_HANDLE;
   for (VkPhysicalDevice device : devices) {
-    VkPhysicalDeviceIDProperties idProperties{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
-    VkPhysicalDeviceProperties2 properties{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+    VkPhysicalDeviceIDProperties idProperties{};
+    idProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+    VkPhysicalDeviceProperties2 properties{};
+    properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     properties.pNext = &idProperties;
     vkGetPhysicalDeviceProperties2(device, &properties);
     if (std::memcmp(idProperties.deviceUUID, SyclDeviceUUID.data(),
@@ -704,15 +704,16 @@ inline void cleanupBuffer(VulkanContext &ctx, BufferResources &res) {
   vkFreeMemory(ctx.device, res.memory, nullptr);
 }
 
-inline VkCommandBuffer createCommandBuffer(VulkanContext &ctx,
+inline VkCommandBuffer createCommandBuffer(const VulkanContext &ctx,
                                            VkCommandPool &pool) {
-  VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+  VkCommandPoolCreateInfo poolInfo{};
+  poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   poolInfo.queueFamilyIndex = ctx.queueFamilyIndex;
   poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   VK_CHECK(vkCreateCommandPool(ctx.device, &poolInfo, nullptr, &pool));
 
-  VkCommandBufferAllocateInfo allocInfo{
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+  VkCommandBufferAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   allocInfo.commandPool = pool;
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   allocInfo.commandBufferCount = 1;
@@ -733,13 +734,18 @@ inline void submitCommandBuffer(VulkanContext &ctx,
   vkDestroyCommandPool(ctx.device, pool, nullptr);
 }
 
-inline VkImageMemoryBarrier createImageMemoryBarrier(VkImage image,
-                                                     uint32_t mipLevels) {
-  VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-  barrier.srcAccessMask = 0;
-  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+inline VkImageMemoryBarrier createImageMemoryBarrier(
+    VkImage image, uint32_t mipLevels,
+    VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    VkImageLayout newLayout = VK_IMAGE_LAYOUT_GENERAL,
+    VkAccessFlags srcAccessMask = 0,
+    VkAccessFlags dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT) {
+  VkImageMemoryBarrier barrier{};
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.srcAccessMask = srcAccessMask;
+  barrier.dstAccessMask = dstAccessMask;
+  barrier.oldLayout = oldLayout;
+  barrier.newLayout = newLayout;
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.image = image;

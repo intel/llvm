@@ -156,7 +156,7 @@ bool run_sycl(const sycl::device &dev, sycl::range<NDims> globalSize,
     syclexp::unmap_external_image_memory(
         handles.imgMem, syclexp::image_type::mipmap, dev, ctxt);
     syclexp::release_external_memory(handles.inputExternalMem, dev, ctxt);
-  } catch (sycl::exception e) {
+  } catch (const sycl::exception &e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
     exit(-1);
   } catch (...) {
