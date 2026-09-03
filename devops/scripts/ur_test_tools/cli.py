@@ -10,7 +10,7 @@ from .parsers.log_parser import (
     LITLogParser,
     read_log_file,
 )
-from .outputs.console import ConsoleOutput
+from .outputs.console import filter_log_for_display
 from .result_builder import build_test_run_result
 from .summary_generator import SummaryReporter
 from .test_runner import (
@@ -58,7 +58,7 @@ def main_test_summary(command: str) -> int:
                 print(line, end="")
 
         elif command == "filter-log":
-            for line in ConsoleOutput.filter_log_for_display(lines):
+            for line in filter_log_for_display(lines):
                 print(line, end="")
 
         elif command == "show-summary":
