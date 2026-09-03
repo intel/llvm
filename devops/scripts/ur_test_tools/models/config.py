@@ -5,7 +5,6 @@ from typing import Optional, Dict
 
 @dataclass
 class TestConfig:
-
     target: str
     log_file: str
     lit_filter_out: Optional[str] = None
@@ -17,7 +16,6 @@ class TestConfig:
 
 @dataclass
 class TestExecutionContext:
-
     test_type: str
     build_dir: Path
     workspace: Path

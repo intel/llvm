@@ -4,7 +4,6 @@ from pathlib import Path
 
 
 class PathValidator:
-
     @staticmethod
     def validate_build_dir(build_dir: str, workspace: str) -> bool:
         """Check build_dir is relative and resolves within workspace."""

@@ -47,7 +47,6 @@ def calculate_jobs() -> int:
 
 
 def check_log_has_tests(log_file: str) -> bool:
-
     def _scan_for_testing(f):
         for _ in range(MAX_LINES_TO_SCAN):
             line = f.readline()
@@ -64,7 +63,6 @@ def check_log_has_tests(log_file: str) -> bool:
 
 
 class TestRunner:
-
     def __init__(self, context: TestExecutionContext):
         self.context = context
         self.jobs = calculate_jobs()
