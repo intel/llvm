@@ -111,6 +111,11 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
   //       addressed.
   ASSERT_EQ(size_t{2}, counter_urEnqueueEventsWaitWithBarrierExt);
 
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+  E.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  ASSERT_TRUE(LatestProfilingQuery.has_value());
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_SUBMIT);
+
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
   ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
@@ -259,6 +264,7 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueTimestamp) {
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
   ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
   ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrierExt);
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
 }
 
 // If the backend reports that it cannot record a device timestamp, the
@@ -272,6 +278,8 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueBarrier) {
   mock::getCallbacks().set_after_callback(
       "urEnqueueEventsWaitWithBarrier",
       &after_urEnqueueEventsWaitWithBarrierExt);
+  mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
+                                          &after_urEventGetProfilingInfo);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
@@ -287,6 +295,12 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueBarrier) {
   // barrier is used as the fallback on this in-order queue.
   ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
   ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
+
+  // A profiling-enabled queue has a runtime-recorded submission timestamp and
+  // must not require the fallback barrier event to provide one.
+  ASSERT_FALSE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+  E.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  ASSERT_FALSE(LatestProfilingQuery.has_value());
 }
 
 TEST_F(ProfilingTagTest,

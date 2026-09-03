@@ -3746,6 +3746,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
 
     if (TimestampResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      // On a profiling-enabled queue, the barrier fallback is a regular
+      // profiling event. Use its runtime-recorded submission timestamp instead
+      // of requiring the backend event to provide one.
+      if (MQueue->MIsProfilingEnabled)
+        MEvent->clearProfilingTagEvent();
+
       if (!IsInOrderQueue) {
         // The pre-timestamp barrier already provides the required ordering and
         // profiling information, so reuse its event instead of submitting a
