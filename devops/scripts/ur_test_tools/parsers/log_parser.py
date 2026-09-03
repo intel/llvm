@@ -64,7 +64,6 @@ class LITLogParser:
             if FAIL_TIMEOUT_PATTERN.match(line):
                 in_error = True
 
-            # Stop at test list headers or timing summaries
             if in_error and (
                 TEST_CATEGORY_PATTERN.match(line)
                 or line.strip() == SLOWEST_TESTS_HEADER

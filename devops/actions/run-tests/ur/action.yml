@@ -85,7 +85,6 @@ runs:
 
       devops/scripts/ur-test summary "$LOG_FILE" "${XML_FILE:-}"
 
-      # Add link to artifacts if they will be uploaded
       if [ -n "$ARTIFACT_NAME" ]; then
         echo ""
         echo "---"
@@ -103,7 +102,6 @@ runs:
     run: |
       set -f  # Disable glob expansion
 
-      # Clean artifacts directory to avoid mixing files from different test runs
       rm -rf test_artifacts
       mkdir -p test_artifacts
 

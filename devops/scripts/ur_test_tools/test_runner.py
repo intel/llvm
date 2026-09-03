@@ -87,7 +87,6 @@ class TestRunner:
         return result.returncode
 
     def _setup_environment(self) -> None:
-        # Build LIT options: common reporting + CI-specific + dynamic config
         lit_opts_parts = [
             *LIT_COMMON_REPORTING_OPTIONS,
             *LIT_CI_OPTIONS,

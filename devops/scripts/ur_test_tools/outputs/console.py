@@ -24,16 +24,13 @@ class ConsoleOutput:
         for line in lines:
             stripped = line.strip()
 
-            # Skip statistics lines
             if line in statistics:
                 continue
 
-            # Skip test category sections
             if TEST_CATEGORY_PATTERN.match(line):
                 skip_until_empty = True
                 continue
 
-            # Skip timing sections
             if stripped == SLOWEST_TESTS_HEADER or stripped in TEST_TIMES_HEADERS:
                 in_timing = True
                 continue

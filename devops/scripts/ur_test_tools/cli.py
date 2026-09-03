@@ -100,7 +100,6 @@ def _run_tests_command() -> int:
     build_dir = sys.argv[3]
     workspace = sys.argv[4]
 
-    # Validate inputs
     if not PathValidator.validate_build_dir(build_dir, workspace):
         GitHubActionsOutput.print_error("Invalid build_dir")
         return 1
@@ -111,7 +110,6 @@ def _run_tests_command() -> int:
         GitHubActionsOutput.print_error(str(e))
         return 1
 
-    # Convert to paths and create context
     workspace_path = Path(workspace).resolve()
     build_dir_path = workspace_path / build_dir
 
@@ -133,13 +131,11 @@ def _run_tests_command() -> int:
         env=env,
     )
 
-    # Validate context
     try:
         context.validate()
     except ValueError as e:
         GitHubActionsOutput.print_error(str(e))
         return 1
 
-    # Run tests
     runner = TestRunner(context)
     return runner.run()
