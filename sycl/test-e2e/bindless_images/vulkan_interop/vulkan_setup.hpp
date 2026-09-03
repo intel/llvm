@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -13,7 +14,6 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
 
-#include <sycl/ext/intel/info/device.hpp>
 #include <vulkan/vulkan.h>
 
 #ifdef _WIN32
@@ -351,7 +351,7 @@ inline uint32_t findMemoryType(VkPhysicalDevice physicalDevice,
 }
 
 inline VulkanContext
-createVulkanContext(const sycl::device &SyclDevice = sycl::device{}) {
+createVulkanContext(const std::array<uint8_t, VK_UUID_SIZE> &SyclDeviceUUID) {
   VulkanContext ctx;
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -450,11 +450,7 @@ createVulkanContext(const sycl::device &SyclDevice = sycl::device{}) {
   std::vector<VkPhysicalDevice> devices(deviceCount);
   vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, devices.data());
 
-  if (!SyclDevice.has(sycl::aspect::ext_intel_device_info_uuid))
-    throw std::runtime_error("SYCL device UUID is unavailable!");
-
-  auto SyclDeviceUUID =
-      SyclDevice.get_info<sycl::ext::intel::info::device::uuid>();
+  ctx.physicalDevice = VK_NULL_HANDLE;
   for (VkPhysicalDevice device : devices) {
     VkPhysicalDeviceIDProperties idProperties{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};

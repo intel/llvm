@@ -13,7 +13,7 @@
 #include <iostream>
 
 #include "../helpers/common.hpp"
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/half_type.hpp>
@@ -304,7 +304,7 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
 int main() {
   try {
     sycl::device syclDevice;
-    VulkanContext vkCtx = createVulkanContext(syclDevice);
+    VulkanContext vkCtx = createSyclVulkanContext(syclDevice);
     struct VulkanContextGuard {
       VulkanContext &context;
       ~VulkanContextGuard() { cleanupVulkanContext(context); }

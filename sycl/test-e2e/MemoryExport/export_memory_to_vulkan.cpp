@@ -20,7 +20,7 @@
 #include <sycl/aspects.hpp>
 #include <sycl/ext/oneapi/memory_export.hpp>
 
-#include "../bindless_images/vulkan_interop/vulkan_setup.hpp"
+#include "../bindless_images/vulkan_interop/sycl_vulkan_setup.hpp"
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -223,46 +223,63 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
-  struct SyclCleanupGuard {
-    const sycl::device &device;
-    ~SyclCleanupGuard() {
-      try {
-        cleanupSycl(device);
-      } catch (const sycl::exception &e) {
-        std::cerr << "SYCL cleanup failed: " << e.what() << "\n";
-      } catch (...) {
-        std::cerr << "Unknown exception during SYCL cleanup.\n";
+  // CleanupFailed is set by the guard's destructor, which only logs on
+  // failure; capturing the whole test body in a lambda lets us observe
+  // that flag (after the guard has already run) before main returns.
+  bool CleanupFailed = false;
+
+  int TestExitCode = [&SyclDevice, &CleanupFailed, MemorySizeBytes]() -> int {
+    struct SyclCleanupGuard {
+      const sycl::device &device;
+      bool &Failed;
+      ~SyclCleanupGuard() {
+        try {
+          cleanupSycl(device);
+        } catch (const sycl::exception &e) {
+          std::cerr << "SYCL cleanup failed: " << e.what() << "\n";
+          Failed = true;
+        } catch (...) {
+          std::cerr << "Unknown exception during SYCL cleanup.\n";
+          Failed = true;
+        }
       }
-    }
-  } syclCleanupGuard{SyclDevice};
+    } syclCleanupGuard{SyclDevice, CleanupFailed};
 
-  // Init Vulkan.
-  VulkanContext VulkanCtx;
-  try {
-    VulkanCtx = createVulkanContext(SyclDevice);
-    struct VulkanContextGuard {
-      VulkanContext &context;
-      ~VulkanContextGuard() { cleanupVulkanContext(context); }
-    } vulkanContextGuard{VulkanCtx};
-
+    // Init Vulkan.
+    VulkanContext VulkanCtx;
     try {
-      auto TestPassed = runTest(VulkanCtx, SyclDevice, MemorySizeBytes);
-      if (TestPassed) {
-        std::cout << "Test passed!\n";
-        return 0;
+      VulkanCtx = createSyclVulkanContext(SyclDevice);
+      struct VulkanContextGuard {
+        VulkanContext &context;
+        ~VulkanContextGuard() { cleanupVulkanContext(context); }
+      } vulkanContextGuard{VulkanCtx};
+
+      try {
+        auto TestPassed = runTest(VulkanCtx, SyclDevice, MemorySizeBytes);
+        if (TestPassed) {
+          std::cout << "Test passed!\n";
+          return 0;
+        }
+      } catch (const std::exception &e) {
+        std::cerr << "Vulkan test failed: " << e.what() << "\n";
+        return 11;
+      } catch (...) {
+        std::cerr << "Unknown exception during Vulkan test.\n";
+        return 12;
       }
     } catch (const std::exception &e) {
-      std::cerr << "Vulkan test failed: " << e.what() << "\n";
-      return 11;
-    } catch (...) {
-      std::cerr << "Unknown exception during Vulkan test.\n";
-      return 12;
+      std::cerr << "Vulkan setup failed: " << e.what() << "\n";
+      return 4;
     }
-  } catch (const std::exception &e) {
-    std::cerr << "Vulkan setup failed: " << e.what() << "\n";
-    return 4;
+
+    std::cerr << "Test failed\n";
+    return 10;
+  }();
+
+  if (CleanupFailed && TestExitCode == 0) {
+    std::cerr << "Test failed due to SYCL cleanup error\n";
+    return 13;
   }
 
-  std::cerr << "Test failed\n";
-  return 10;
+  return TestExitCode;
 }
