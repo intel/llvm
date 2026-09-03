@@ -17,6 +17,7 @@
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include <queue>
@@ -391,11 +392,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
   }
 
   {
-    if (isModuleUsingAsan(M))
+    if (utils::isModuleUsingAsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
-    else if (isModuleUsingMsan(M))
+    else if (utils::isModuleUsingMsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
-    else if (isModuleUsingTsan(M))
+    else if (utils::isModuleUsingTsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "tsan");
   }
 

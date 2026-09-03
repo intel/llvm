@@ -191,23 +191,29 @@ struct image_descriptor {
   image_type type{image_type::standard};
   unsigned int num_levels{1};
   unsigned int array_size{1};
+  unsigned int num_samples{0};
+  size_t row_pitch{0};
+  size_t slice_pitch{0};
 
   image_descriptor() = default;
 
-  image_descriptor(sycl::range<1> dims, unsigned int num_channels,
-                   image_channel_type channel_type, 
-                   image_type type = image_type::standard, 
-                   unsigned int num_levels = 1, unsigned int array_size = 1);
+  image_descriptor(range<1> dims, unsigned int num_channels,
+                   image_channel_type channel_type,
+                   image_type type = image_type::standard,
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0);
 
-  image_descriptor(sycl::range<2> dims, unsigned int num_channels,
-                   image_channel_type channel_type, 
-                   image_type type = image_type::standard, 
-                   unsigned int num_levels = 1, unsigned int array_size = 1);
+  image_descriptor(range<2> dims, unsigned int num_channels,
+                   image_channel_type channel_type,
+                   image_type type = image_type::standard,
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0, size_t row_pitch = 0, size_t slice_pitch = 0);
 
-  image_descriptor(sycl::range<3> dims, unsigned int num_channels,
-                   image_channel_type channel_type, 
-                   image_type type = image_type::standard, 
-                   unsigned int num_levels = 1, unsigned int array_size = 1);
+  image_descriptor(range<3> dims, unsigned int num_channels,
+                   image_channel_type channel_type,
+                   image_type type = image_type::standard,
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0, size_t row_pitch = 0, size_t slice_pitch = 0);
 
   image_descriptor get_mip_level_desc(unsigned int level) const;
 
@@ -278,6 +284,36 @@ a given level of a mipmap, with valid dimension values for that level, and the
 type of the returned `image_descriptor` will be `image_type::standard`.
 
 Only array image types support more than one array layer.
+
+The `num_samples` member specifies the number of samples per pixel for
+multisampled images, and defaults to `0` (single-sample). It is only meaningful
+on backends that support multisampled images.
+
+The `row_pitch` and `slice_pitch` members specify, in bytes, the stride between
+successive rows and slices of pixel data respectively. They default to `0`,
+which is interpreted as a tightly-packed layout (rows are
+`width * num_channels * sizeof(channel)` bytes, slices are `row_pitch * height`
+bytes). Non-zero values allow callers to describe images whose backing memory
+has additional padding to meet device alignment requirements. `row_pitch` is
+meaningful only for 2D and 3D images. `slice_pitch` is meaningful only for 3D
+images and for 2D image arrays (where each array layer is a "slice"). Both
+members are accepted on the `range<2>` constructor to cover the 2D-array case
+uniformly.
+
+The `verify` member function will reject descriptors that set these members on
+image shapes where they have no meaning (a non-zero `row_pitch` on a 1D image,
+or a non-zero `slice_pitch` on anything other than a 3D image or a 2D image
+array), and will also reject a non-zero `slice_pitch` that is smaller than
+`row_pitch * height`.
+
+[NOTE]
+====
+When an API also accepts an explicit pitch parameter (for example,
+`ext_oneapi_copy` overloads that take `SrcPitch`/`DestPitch` arguments), the
+explicit parameter takes precedence when it is non-zero. The `row_pitch` value
+carried in the `image_descriptor` is used only when no non-zero explicit pitch
+is supplied.
+====
 
 ==== Querying image support
 

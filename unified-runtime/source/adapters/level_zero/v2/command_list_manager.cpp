@@ -1341,11 +1341,14 @@ ur_result_t ur_command_list_manager::beginGraphCapture() {
   if (!checkGraphExtensionSupport(hContextInternal)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  if (!hContextInternal->getPlatform()
+           ->ZeGraphExt.zeCommandListBeginGraphCaptureExp) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   ZE2UR_CALL(hContextInternal->getPlatform()
                  ->ZeGraphExt.zeCommandListBeginGraphCaptureExp,
              (getZeCommandList(), nullptr));
-  graphCapture.enableCapture();
 
   return UR_RESULT_SUCCESS;
 }
@@ -1356,11 +1359,14 @@ ur_command_list_manager::beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph) {
   if (!checkGraphExtensionSupport(hContextInternal)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  if (!hContextInternal->getPlatform()
+           ->ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   ZE2UR_CALL(hContextInternal->getPlatform()
                  ->ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp,
              (getZeCommandList(), hGraph->getZeHandle(), nullptr));
-  graphCapture.enableCapture(hGraph);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1371,22 +1377,25 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   if (!checkGraphExtensionSupport(hContextInternal)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  if (!hContextInternal->getPlatform()
+           ->ZeGraphExt.zeCommandListEndGraphCaptureExp) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   ze_graph_handle_t zeGraph = nullptr;
   ZE2UR_CALL(hContext.get()->getPlatform()->ZeGraphExt.endGraphCapture,
              (getZeCommandList(), nullptr, &zeGraph));
-  auto graph = graphCapture.getGraph();
-  graphCapture.disableCapture();
 
-  if (!graph) {
+  {
     std::scoped_lock<ur_shared_mutex> lock(hContextInternal->GraphMapMutex);
-    graph = hContextInternal->getGraphFromZeHandle(zeGraph);
-    if (!graph) {
-      graph = new ur_exp_graph_handle_t_(hContextInternal, zeGraph);
-      hContextInternal->registerGraph(zeGraph, graph);
+    auto hUrGraph = hContextInternal->getGraphFromZeHandle(zeGraph);
+    if (!hUrGraph) {
+      hUrGraph = new ur_exp_graph_handle_t_(hContextInternal, zeGraph);
+      hContextInternal->registerGraph(zeGraph, hUrGraph);
     }
+
+    *phGraph = hUrGraph;
   }
-  *phGraph = graph;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1397,6 +1406,10 @@ ur_command_list_manager::appendGraph(ur_exp_executable_graph_handle_t hGraph,
                                      ur_event_handle_t hEvent) {
   auto hContextInternal = hContext.get();
   if (!checkGraphExtensionSupport(hContextInternal)) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+  if (!hContextInternal->getPlatform()
+           ->ZeGraphExt.zeCommandListAppendGraphExp) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -1416,6 +1429,9 @@ ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
   }
 
   auto &ZeGraphExt = hContext.get()->getPlatform()->ZeGraphExt;
+  if (!ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
   ze_result_t ZeResult = ZeGraphExt.normalizeGraphQueryResult(ZE_CALL_NOCHECK(
       ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp, (getZeCommandList())));
 
@@ -1432,35 +1448,24 @@ ur_result_t ur_command_list_manager::getGraph(ur_exp_graph_handle_t *phGraph) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  auto hCachedGraph = graphCapture.getGraph();
-  if (hCachedGraph) {
-    *phGraph = hCachedGraph;
-    return UR_RESULT_SUCCESS;
-  }
-
-  // Fork-join and implicit capture scenarios
   ze_graph_handle_t hZeGraph = nullptr;
   ze_result_t ZeResult =
       ZE_CALL_NOCHECK(zeGetGraph, (getZeCommandList(), &hZeGraph));
-
   if (ZeResult != ZE_RESULT_SUCCESS || !hZeGraph) {
     *phGraph = nullptr;
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  ur_exp_graph_handle_t hUrGraph = nullptr;
   {
     std::scoped_lock<ur_shared_mutex> lock(hContextInternal->GraphMapMutex);
-    hUrGraph = hContextInternal->getGraphFromZeHandle(hZeGraph);
+    auto hUrGraph = hContextInternal->getGraphFromZeHandle(hZeGraph);
     if (!hUrGraph) {
       hUrGraph = new ur_exp_graph_handle_t_(hContextInternal, hZeGraph);
       hContextInternal->registerGraph(hZeGraph, hUrGraph);
-      if (graphCapture.isActive()) {
-        graphCapture.enableCapture(hUrGraph);
-      }
     }
+
+    *phGraph = hUrGraph;
   }
-  *phGraph = hUrGraph;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1477,7 +1482,8 @@ ur_result_t ur_command_list_manager::appendHostTaskExp(
   }
 
   ZE2UR_CALL(hPlatform->ZeHostTaskExt.zeCommandListAppendHostFunction,
-             (getZeCommandList(), (void *)pfnHostTask, data,
+             (getZeCommandList(),
+              reinterpret_cast<ze_host_function_callback_t>(pfnHostTask), data,
               const_cast<void *>(reinterpret_cast<const void *>(pProperties)),
               getSignalEvent(phEvent, UR_COMMAND_HOST_TASK_EXP),
               waitListView.num, waitListView.handles));

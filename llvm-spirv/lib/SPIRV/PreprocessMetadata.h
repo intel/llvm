@@ -78,13 +78,11 @@ public:
 };
 
 class PreprocessMetadataPass
-    : public llvm::PassInfoMixin<PreprocessMetadataPass>,
+    : public llvm::RequiredPassInfoMixin<PreprocessMetadataPass>,
       public PreprocessMetadataBase {
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
-
-  static bool isRequired() { return true; }
 };
 
 } // namespace SPIRV

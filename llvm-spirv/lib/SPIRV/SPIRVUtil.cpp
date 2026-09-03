@@ -2003,6 +2003,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       return true;
     if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
         (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
+         !BM->hasCapability(CapabilityLongVectorEXT) &&
          ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
       BM->SPIRVCK(false, InvalidFunctionCall,
                   II->getCalledOperand()->getName().str());
@@ -2022,6 +2023,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       return true;
     if ((!Ty->isIntegerTy()) ||
         (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
+         !BM->hasCapability(CapabilityLongVectorEXT) &&
          ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
       BM->SPIRVCK(false, InvalidFunctionCall,
                   II->getCalledOperand()->getName().str());
@@ -2528,6 +2530,7 @@ public:
       addUnsignedArg(2);
       break;
     case OpGroupNonUniformRotateKHR:
+      addUnsignedArg(2);
       if (ArgTys.size() == 4)
         addUnsignedArg(3);
       break;

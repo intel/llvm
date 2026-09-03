@@ -44,19 +44,26 @@ ur_result_t context_t::init() {
   // a specific adapter library. Don't load any static adapters.
   if (!adapter_registry.adaptersForceLoaded()) {
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
-    auto &level_zero = platforms.emplace_back(nullptr);
-    ur::level_zero::v1::urAdapterGetDdiTables(&level_zero.dditable);
-    adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_level_zero");
+    if (adapter_registry.includesAdapter("ur_adapter_level_zero")) {
+      auto &level_zero = platforms.emplace_back(nullptr);
+      ur::level_zero::v1::urAdapterGetDdiTables(&level_zero.dditable);
+      adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_level_zero");
+    }
 #endif
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO_V2
-    auto &level_zero_v2 = platforms.emplace_back(nullptr);
-    ur::level_zero::v2::urAdapterGetDdiTables(&level_zero_v2.dditable);
-    adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_level_zero_v2");
+    if (adapter_registry.includesAdapter("ur_adapter_level_zero_v2")) {
+      auto &level_zero_v2 = platforms.emplace_back(nullptr);
+      ur::level_zero::v2::urAdapterGetDdiTables(&level_zero_v2.dditable);
+      adapter_registry.markAdapterAsStaticallyLoaded(
+          "ur_adapter_level_zero_v2");
+    }
 #endif
 #ifdef UR_STATIC_ADAPTER_OPENCL
-    auto &opencl = platforms.emplace_back(nullptr);
-    ur::opencl::urAdapterGetDdiTables(&opencl.dditable);
-    adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_opencl");
+    if (adapter_registry.includesAdapter("ur_adapter_opencl")) {
+      auto &opencl = platforms.emplace_back(nullptr);
+      ur::opencl::urAdapterGetDdiTables(&opencl.dditable);
+      adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_opencl");
+    }
 #endif
   }
 #endif

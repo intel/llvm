@@ -1060,11 +1060,15 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
                                                 : Type::getInt32Ty(*Ctx);
   if (Dim > 1)
     NewRet = FixedVectorType::get(NewRet, Dim);
-  auto Mutator = mutateCallInst(CI, getSPIRVFuncName(Desc.Dim == DimBuffer
-                                                         ? OpImageQuerySize
-                                                         : OpImageQuerySizeLod,
-                                                     CI->getType()));
-  if (Desc.Dim != DimBuffer)
+  // OpImageQuerySizeLod requires the image to have MS = 0, so multisampled
+  // images (like buffer images) must use OpImageQuerySize without a LOD
+  // operand.
+  bool UseQuerySizeLod = Desc.Dim != DimBuffer && !Desc.MS;
+  auto Mutator =
+      mutateCallInst(CI, getSPIRVFuncName(UseQuerySizeLod ? OpImageQuerySizeLod
+                                                          : OpImageQuerySize,
+                                          CI->getType()));
+  if (UseQuerySizeLod)
     Mutator.appendArg(getInt32(M, 0));
   Mutator.changeReturnType(
       NewRet, [&](IRBuilder<> &, CallInst *NCI) -> Value * {

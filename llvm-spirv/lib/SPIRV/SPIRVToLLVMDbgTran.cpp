@@ -1645,7 +1645,7 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
   }
 }
 
-DbgInstPtr
+DbgRecord *
 SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
                                         BasicBlock *BB) {
   auto GetLocalVar = [&](SPIRVId Id) -> std::pair<DILocalVariable *, DebugLoc> {
@@ -1677,7 +1677,7 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[VariableIdx])) {
       auto *Null =
           ConstantPointerNull::get(PointerType::get(M->getContext(), 0));
-      DbgInstPtr DbgDeclare = DIB.insertDeclare(
+      DbgRecord *DbgDeclare = DIB.insertDeclare(
           Null, LocalVar.first, GetExpression(Ops[ExpressionIdx]), Loc, BB);
       return DbgDeclare;
     }
@@ -1691,7 +1691,7 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     Value *Val = GetValue(Ops[ValueIdx]);
     DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
     DebugLoc Loc = transDebugScope(DebugInst);
-    DbgInstPtr DbgValIntr = getDIBuilder(DebugInst).insertDbgValueIntrinsic(
+    DbgRecord *DbgRec = getDIBuilder(DebugInst).insertDbgValue(
         Val, LocalVar.first, Expr, Loc, BB);
 
     std::vector<ValueAsMetadata *> MDs;
@@ -1700,10 +1700,9 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     }
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
-      cast<DbgVariableRecord>(cast<DbgRecord *>(DbgValIntr))
-          ->setRawLocation(AL);
+      cast<DbgVariableRecord>(DbgRec)->setRawLocation(AL);
     }
-    return DbgValIntr;
+    return DbgRec;
   }
   default:
     if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()))

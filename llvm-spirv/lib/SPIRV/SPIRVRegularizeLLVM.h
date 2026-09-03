@@ -122,7 +122,7 @@ private:
 };
 
 class SPIRVRegularizeLLVMPass
-    : public llvm::PassInfoMixin<SPIRVRegularizeLLVMPass>,
+    : public llvm::RequiredPassInfoMixin<SPIRVRegularizeLLVMPass>,
       public SPIRVRegularizeLLVMBase {
 public:
   explicit SPIRVRegularizeLLVMPass(const SPIRV::TranslatorOpts &Opts = {})
@@ -133,8 +133,6 @@ public:
     return runRegularizeLLVM(M) ? llvm::PreservedAnalyses::none()
                                 : llvm::PreservedAnalyses::all();
   }
-
-  static bool isRequired() { return true; }
 };
 
 class SPIRVRegularizeLLVMLegacy : public llvm::ModulePass,

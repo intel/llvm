@@ -1120,6 +1120,15 @@ urPrintExpImageCopyRegion(const struct ur_exp_image_copy_region_t params,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintExpImageUserPitchDesc(const struct ur_exp_image_user_pitch_desc_t params,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpProgramFlags(enum ur_exp_program_flag_t value,
                                    char *buffer, const size_t buff_size,
                                    size_t *out_size) {

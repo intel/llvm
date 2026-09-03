@@ -45,6 +45,7 @@
 #include <llvm/SYCLLowerIR/SYCLDeviceLibBF16.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
 #include <llvm/SYCLLowerIR/SYCLUtils.h>
+#include <llvm/SYCLLowerIR/SanitizerUtils.h>
 #include <llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h>
 #include <llvm/SYCLPostLink/ModuleSplitter.h>
 #include <llvm/Support/BLAKE3.h>
@@ -1040,8 +1041,9 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   // Otherwise: Port over the `removeSYCLKernelsConstRefArray` and
   // `removeDeviceGlobalFromCompilerUsed` methods.
 
-  assert(!(isModuleUsingAsan(*Module) || isModuleUsingMsan(*Module) ||
-           isModuleUsingTsan(*Module)));
+  assert(!(utils::isModuleUsingAsan(*Module) ||
+           utils::isModuleUsingMsan(*Module) ||
+           utils::isModuleUsingTsan(*Module)));
   // Otherwise: Run `SanitizerKernelMetadataPass`.
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly

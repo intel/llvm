@@ -3,12 +3,11 @@
 // New offload model uses AOT flags at compile time, the old offload model at
 // link time.
 // DEFINE: %{gpu_compile_flags} = %if !new-offload-model %{-Wno-unused-command-line-argument%}
-// DEFINE: %{link_flags} = %if new-offload-model %{-Wno-unused-command-line-argument%}
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -I %S/Inputs/ %S/uneven_kernel_split.cpp -c -o %t.o
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -I %S/Inputs/ %S/Inputs/gpu_kernel1.cpp %{gpu_compile_flags} -c -o %t1.o
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -I %S/Inputs/ %S/Inputs/gpu_kernel2.cpp %{gpu_compile_flags} -c -o %t2.o
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %{link_flags} %t.o %t1.o %t2.o -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -Wno-unused-command-line-argument %t.o %t1.o %t2.o -o %t.out
 // RUN: %{run} %t.out
 
 // Test require the following device image structure: cpu target device image

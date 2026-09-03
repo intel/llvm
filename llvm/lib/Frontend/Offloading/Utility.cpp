@@ -162,16 +162,17 @@ offloading::getOffloadEntryArray(Module &M) {
         ZeroInitilaizer, "__dummy." + SectionName);
     DummyEntry->setSection(SectionName);
     DummyEntry->setAlignment(Align(object::OffloadBinary::getAlignment()));
-    appendToCompilerUsed(M, DummyEntry);
+    appendToUsed(M, DummyEntry);
   } else if (Triple.isOSBinFormatMachO()) {
     // Mach-O needs a dummy variable in the section (like ELF) to ensure the
-    // linker provides the section boundary symbols.
+    // linker provides the section boundary symbols. Mark it used so the
+    // section survives dead-stripping.
     auto *DummyEntry = new GlobalVariable(
         M, ZeroInitilaizer->getType(), true, GlobalVariable::InternalLinkage,
         ZeroInitilaizer, "__dummy." + SectionName);
     DummyEntry->setSection(SectionName);
     DummyEntry->setAlignment(Align(object::OffloadBinary::getAlignment()));
-    appendToCompilerUsed(M, DummyEntry);
+    appendToUsed(M, DummyEntry);
   } else {
     // The COFF linker will merge sections containing a '$' together into a
     // single section. The order of entries in this section will be sorted
@@ -515,9 +516,12 @@ offloading::compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
                                     size_t Threshold, bool Verbose) {
   if (!compression::zstd::isAvailable())
     return createStringError(
-        "Device image compression was requested, but LLVM was built without "
-        "zstd support. Rebuild with LLVM_ENABLE_ZSTD enabled to use this "
-        "feature.");
+        "'--offload-compress' is specified but the compiler is built without "
+        "zstd support.\n"
+        "If you are using a custom DPC++ build, please refer to "
+        "https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md"
+        "#build-dpc-toolchain-with-device-image-compression-support for more "
+        "information on how to build with zstd support.");
 
   if (Input.size() < Threshold)
     return false;

@@ -33,8 +33,11 @@ _SPIRV_OP_INTERNAL(ConvertHandleToSamplerINTEL,
 _SPIRV_OP_INTERNAL(ConvertHandleToSampledImageINTEL,
                    internal::ConvertHandleToSampledImageINTEL)
 _SPIRV_OP_INTERNAL(FSigmoidINTEL, internal::FSigmoidINTEL)
+_SPIRV_OP_INTERNAL(ClampConvertFToFINTEL, internal::OpClampConvertFToFINTEL)
 _SPIRV_OP_INTERNAL(StochasticRoundFToFINTEL,
                    internal::OpStochasticRoundFToFINTEL)
+_SPIRV_OP_INTERNAL(ClampStochasticRoundFToFINTEL,
+                   internal::OpClampStochasticRoundFToFINTEL)
 _SPIRV_OP_INTERNAL(ClampConvertFToSINTEL,
                    internal::OpClampConvertFToSINTEL)
 _SPIRV_OP_INTERNAL(ClampStochasticRoundFToSINTEL,

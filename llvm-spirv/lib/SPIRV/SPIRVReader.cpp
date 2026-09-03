@@ -1044,7 +1044,9 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
 
   auto IsFP4OrFP8Encoding = [](FPEncodingWrap Encoding) -> bool {
     return Encoding == FPEncodingWrap::E4M3 ||
-           Encoding == FPEncodingWrap::E5M2 || Encoding == FPEncodingWrap::E2M1;
+           Encoding == FPEncodingWrap::E5M2 ||
+           Encoding == FPEncodingWrap::E2M1 ||
+           Encoding == FPEncodingWrap::E2M1INTEL;
   };
 
   switch (static_cast<unsigned>(BC->getOpCode())) {
@@ -1068,8 +1070,10 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   case OpUConvert:
     CO = IsExt ? Instruction::ZExt : Instruction::Trunc;
     break;
+  case internal::OpClampConvertFToFINTEL:
   case internal::OpClampConvertFToSINTEL:
   case internal::OpStochasticRoundFToFINTEL:
+  case internal::OpClampStochasticRoundFToFINTEL:
   case internal::OpClampStochasticRoundFToSINTEL:
   case OpConvertSToF:
   case OpConvertFToS:
@@ -1077,6 +1081,12 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   case OpConvertFToU:
   case OpFConvert: {
     const auto OC = BC->getOpCode();
+    // These 2 old opcodes should follow exactly the same translation
+    // path as OpFConvert/OpStochasticRoundFToFINTEL with
+    // SaturatedToLargestFloat8NormalConversionEXT
+    const bool IsOldConvertFToFOp =
+        OC == internal::OpClampConvertFToFINTEL ||
+        OC == internal::OpClampStochasticRoundFToFINTEL;
     {
       auto SPVOps = BC->getOperands();
       auto *SPVSrcTy = SPVOps[0]->getType();
@@ -1095,9 +1105,17 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
 
       FPEncodingWrap SrcEnc = GetEncodingAndUpdateType(SPVSrcTy);
       FPEncodingWrap DstEnc = GetEncodingAndUpdateType(SPVDstTy);
-      bool IsSaturatedFP8 = BC->hasDecorate(
+      const bool HasSaturatedFP8Decor = BC->hasDecorate(
           DecorationSaturatedToLargestFloat8NormalConversionEXT);
-      if (IsSaturatedFP8) {
+      bool IsSaturatedFP8 = false;
+      if (IsOldConvertFToFOp) {
+        BM->getErrorLog().checkError(
+            !HasSaturatedFP8Decor, SPIRVEC_InvalidInstruction,
+            "SaturatedToLargestFloat8NormalConversionEXT is not valid on "
+            "OpClampConvertFToFINTEL or OpClampStochasticRoundFToFINTEL.\n");
+        IsSaturatedFP8 =
+            DstEnc == FPEncodingWrap::E4M3 || DstEnc == FPEncodingWrap::E5M2;
+      } else if (HasSaturatedFP8Decor) {
         BM->getErrorLog().checkError(
             (OC == OpFConvert || OC == OpConvertSToF || OC == OpConvertUToF ||
              OC == internal::OpStochasticRoundFToFINTEL) &&
@@ -1108,10 +1126,23 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
             "valid on OpFConvert/OpConvertSToF/OpConvertUToF/"
             "OpStochasticRoundFToFINTEL whose Result Type uses Float8E4M3EXT "
             "or Float8E5M2EXT encoding.\n");
+        IsSaturatedFP8 = true;
       }
       if (IsFP4OrFP8Encoding(SrcEnc) || IsFP4OrFP8Encoding(DstEnc) ||
           SPVSrcTy->isTypeInt(4) || SPVDstTy->isTypeInt(4)) {
-        FPConversionDesc FPDesc = {SrcEnc, DstEnc, OC,
+        // The old opcodes share the encoding map with their surviving
+        // equivalents: OpClampConvertFToFINTEL with OpFConvert and
+        // OpClampStochasticRoundFToFINTEL with OpStochasticRoundFToFINTEL.
+        SPIRVWord LookupOC = OC;
+        if (OC == internal::OpClampConvertFToFINTEL)
+          LookupOC = OpFConvert;
+        else if (OC == internal::OpClampStochasticRoundFToFINTEL)
+          LookupOC = internal::OpStochasticRoundFToFINTEL;
+        FPEncodingWrap LookupDstEnc = DstEnc;
+        if (LookupOC == internal::OpStochasticRoundFToFINTEL &&
+            DstEnc == FPEncodingWrap::E2M1INTEL)
+          LookupDstEnc = FPEncodingWrap::E2M1;
+        FPConversionDesc FPDesc = {SrcEnc, LookupDstEnc, LookupOC,
                                    /*Saturate=*/IsSaturatedFP8};
         auto Conv = SPIRV::FPConvertToEncodingMap::rmap(FPDesc);
         std::vector<Value *> Ops = {Src};
@@ -1123,6 +1154,7 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         std::string MangledName;
         // Translate additional Ops for stochastic conversions.
         if (OC == internal::OpStochasticRoundFToFINTEL ||
+            OC == internal::OpClampStochasticRoundFToFINTEL ||
             OC == internal::OpClampStochasticRoundFToSINTEL) {
           // Seed.
           Ops.emplace_back(transValue(SPVOps[1], F, BB, true));
@@ -1156,11 +1188,12 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         return CI;
       }
     }
-    // OpStochasticRoundFToFINTEL has no native LLVM cast equivalent.
-    // For fp4/fp8/int4 types, it is handled via the __builtin_spirv path above.
-    // For the remaining types it is emitted as an
-    // __spirv_StochasticRoundFToFINTEL_R<type> builtin call.
-    if (OC == internal::OpStochasticRoundFToFINTEL)
+    // OpStochasticRoundFToFINTEL and the old OpClampConvertFToFINTEL /
+    // OpClampStochasticRoundFToFINTEL opcodes have no native LLVM cast
+    // equivalent. For fp4/fp8/int4 types, they are handled via the
+    // __builtin_spirv path above. For the remaining types they are emitted as
+    // an __spirv_<OpName>_R<type> builtin call.
+    if (OC == internal::OpStochasticRoundFToFINTEL || IsOldConvertFToFOp)
       return mapValue(BV, transSPIRVBuiltinFromInst(
                               static_cast<SPIRVInstruction *>(BV), BB));
 
@@ -2450,7 +2483,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return mapValue(BV, transSPIRVBuiltinFromInst(AC, BB));
     }
     Type *BaseTy = nullptr;
-    if (BaseSPVTy->isTypeVector()) {
+    if (isUntypedAccessChainOpCode(OC)) {
+      // For untyped access chains the Base Type operand already is the type
+      // being indexed, so it has to be used as is.
+      BaseTy = transType(BaseSPVTy);
+    } else if (BaseSPVTy->isTypeVector()) {
       auto *VecCompTy = BaseSPVTy->getVectorComponentType();
       if (VecCompTy->isTypePointer())
         BaseTy = transType(VecCompTy->getPointerElementType());
@@ -2729,6 +2766,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         Args, BC->getName(), BB);
     setCallingConv(Call);
     setAttrByCalledFunc(Call);
+    applyFPFastMathModeDecorations(BV, Call);
     return mapValue(BV, Call);
   }
 
@@ -3148,6 +3186,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
             OutMatrixElementTy->isTypeFloat(8, FPEncodingFloat8E5M2EXT) ||
             InMatrixElementTy->isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
             InMatrixElementTy->isTypeFloat(8, FPEncodingFloat8E5M2EXT) ||
+            OutMatrixElementTy->isTypeFloat(4, FPEncodingFloat4E2M1EXT) ||
+            InMatrixElementTy->isTypeFloat(4, FPEncodingFloat4E2M1EXT) ||
             OutMatrixElementTy->isTypeFloat(
                 4, internal::FPEncodingFloat4E2M1INTEL) ||
             InMatrixElementTy->isTypeFloat(4,
@@ -4093,6 +4133,9 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case internal::OpClampConvertFToSINTEL:
   case internal::OpStochasticRoundFToFINTEL:
   case internal::OpClampStochasticRoundFToSINTEL:
+  // Old opcodes, for backward compatibility.
+  case internal::OpClampConvertFToFINTEL:
+  case internal::OpClampStochasticRoundFToFINTEL:
     AddRetTypePostfix = true;
     break;
   default: {
@@ -4435,6 +4478,14 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     auto *AL = dyn_cast<AllocaInst>(Inst);
     Type *AllocatedTy = AL ? AL->getAllocatedType() : Inst->getType();
 
+    // A value with no decorations of its own can contribute Intel FPGA
+    // annotations only through struct-member decorations on an alloca of
+    // struct type. Skip the boilerplate work for all other undecorated values.
+    const bool MaybeStructMemberAnnot =
+        AL && BV->getType()->getPointerElementType()->isTypeStruct();
+    if (BV->getNumDecorations() == 0 && !MaybeStructMemberAnnot)
+      return;
+
     IRBuilder<> Builder(Inst->getParent());
 
     Type *Int8PtrTyPrivate =
@@ -4447,7 +4498,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     Value *UndefInt32 = PoisonValue::get(Int32Ty);
     Constant *NullPtrConst = Constant::getNullValue(PtrTyConstant);
 
-    if (AL && BV->getType()->getPointerElementType()->isTypeStruct()) {
+    if (MaybeStructMemberAnnot) {
       auto *ST = BV->getType()->getPointerElementType();
       SPIRVTypeStruct *STS = static_cast<SPIRVTypeStruct *>(ST);
 

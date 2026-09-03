@@ -188,10 +188,22 @@ int runTest(
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
 
+    // When the Vulkan image was created with LINEAR tiling, its row/slice
+    // strides are not guaranteed to match SYCL's tightly-packed default. Query
+    // Vulkan for the actual pitches and forward them to the image_descriptor
+    // so adapters that can honor a user-supplied pitch (e.g. L0) use the right
+    // strides. vkGetImageSubresourceLayout is only defined for LINEAR tiling;
+    // leave the pitches at 0 (tightly-packed) for OPTIMAL tiling.
+    size_t rowPitch = useLinear ? getRowPitch(vkCtx, imgRes.image) : 0;
+    size_t slicePitch = useLinear ? getSlicePitch(vkCtx, imgRes.image) : 0;
+
     // bindless image use (x,y,z) order,
     // differening from SYCL 2020 "fastest incrementing" convention.
-    syclexp::image_descriptor imgDesc(sycl::range<3>(width, height, depth),
-                                      channels, syclType);
+    syclexp::image_descriptor imgDesc(
+        sycl::range<3>(width, height, depth), channels, syclType,
+        syclexp::image_type::standard, /*num_levels=*/1, /*array_size=*/1,
+        /*num_samples=*/0, /*row_pitch=*/rowPitch,
+        /*slice_pitch=*/slicePitch);
 
     // Map external memory
     syclexp::image_mem_handle devHandle = syclexp::map_external_image_memory(

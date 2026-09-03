@@ -134,7 +134,7 @@ static Value *emitX86RoundImmediate(CodeGenFunction &CGF, Value *X,
 static Value *EmitX86MaskedStore(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
                                  Align Alignment) {
   Value *Ptr = CGF.Builder.CreateAddrSpaceCast(
-      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
+      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getContext()));
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2],
@@ -147,7 +147,7 @@ static Value *EmitX86MaskedLoad(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
                                 Align Alignment) {
   llvm::Type *Ty = Ops[1]->getType();
   Value *Ptr = CGF.Builder.CreateAddrSpaceCast(
-      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
+      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getContext()));
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2], cast<llvm::FixedVectorType>(Ty)->getNumElements());

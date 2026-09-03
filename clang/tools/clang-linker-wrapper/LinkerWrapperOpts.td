@@ -16,6 +16,10 @@ def linker_path_EQ : Joined<["--"], "linker-path=">,
 def cuda_path_EQ : Joined<["--"], "cuda-path=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<dir>">,
   HelpText<"Set the system CUDA path">;
+def ocloc_path_EQ : Joined<["--"], "ocloc-path=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<dir>">,
+  HelpText<"Path to the ocloc tool, which is used for ahead of time "
+           "compilation targeting Intel GPUs">;
 def host_triple_EQ : Joined<["--"], "host-triple=">,
                      Flags<[WrapperOnlyOption]>,
                      MetaVarName<"<triple>">,

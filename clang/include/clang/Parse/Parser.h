@@ -277,6 +277,12 @@ class Parser : public CodeCompletionHandler {
   /// Implementations are in Parser.cpp
   ///@{
 
+private:
+  /// Prepare the parser and its components.
+  ///
+  /// The lack of initialization can lead to missing functionality.
+  void Initialize();
+
 public:
   friend class ColonProtectionRAIIObject;
   friend class PoisonSEHIdentifiersRAIIObject;
@@ -303,10 +309,6 @@ public:
   // different actual classes based on the actions in place.
   typedef OpaquePtr<DeclGroupRef> DeclGroupPtrTy;
   typedef OpaquePtr<TemplateName> TemplateTy;
-
-  /// Initialize - Warm up the parser.
-  ///
-  void Initialize();
 
   /// Parse the first top-level declaration in a translation unit.
   ///
@@ -4999,7 +5001,7 @@ private:
   //===--------------------------------------------------------------------===//
   // C++ if/switch/while/for condition expression.
 
-  /// ParseCXXCondition - if/switch/while condition expression.
+  /// ParseCondition - if/switch/while condition expression.
   ///
   /// \verbatim
   ///       condition:
@@ -5030,11 +5032,9 @@ private:
   /// returned.
   ///
   /// \returns The parsed condition.
-  Sema::ConditionResult ParseCXXCondition(StmtResult *InitStmt,
-                                          SourceLocation Loc,
-                                          Sema::ConditionKind CK,
-                                          bool MissingOK,
-                                          ForRangeInfo *FRI = nullptr);
+  Sema::ConditionResult ParseCondition(StmtResult *InitStmt, SourceLocation Loc,
+                                       Sema::ConditionKind CK, bool MissingOK,
+                                       ForRangeInfo *FRI = nullptr);
   DeclGroupPtrTy ParseAliasDeclarationInInitStatement(DeclaratorContext Context,
                                                       ParsedAttributes &Attrs);
 

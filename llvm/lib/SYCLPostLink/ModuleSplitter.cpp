@@ -30,6 +30,7 @@
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/Support/CommandLine.h"
@@ -1215,8 +1216,8 @@ bool runPreSplitProcessingPipeline(Module &M) {
     MPM.addPass(RemoveDeviceGlobalFromLLVMCompilerUsed());
 
   // Sanitizer specific passes.
-  if (sycl::isModuleUsingAsan(M) || sycl::isModuleUsingMsan(M) ||
-      sycl::isModuleUsingTsan(M))
+  if (sycl::utils::isModuleUsingAsan(M) || sycl::utils::isModuleUsingMsan(M) ||
+      sycl::utils::isModuleUsingTsan(M))
     MPM.addPass(SanitizerPostOptimizerPass());
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly

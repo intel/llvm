@@ -46,7 +46,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 23
+  LLVM_VERSION: 24
   SPIRV_TOOLS_INSTALL: ${{ github.workspace }}/spirv-tools-install
 
 jobs:

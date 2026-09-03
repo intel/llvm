@@ -101,14 +101,12 @@ void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
     Intrinsic->setCalledFunction(F);
     return;
   }
-  // TODO copy arguments attributes: captures(none) writeonly.
   FunctionCallee FC =
       M->getOrInsertFunction(FuncName, Intrinsic->getFunctionType());
   auto IntrinsicID = Intrinsic->getIntrinsicID();
   Intrinsic->setCalledFunction(FC);
-
-  F = dyn_cast<Function>(FC.getCallee());
-  assert(F && "must be a function!");
+  F = cast<Function>(FC.getCallee());
+  F->setAttributes(Intrinsic->getAttributes());
 
   switch (IntrinsicID) {
   case Intrinsic::memset: {

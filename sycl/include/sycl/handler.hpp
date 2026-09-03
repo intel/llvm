@@ -1082,6 +1082,8 @@ private:
   kernel_bundle<bundle_state::input> getKernelBundle() const;
 
 public:
+  handler() = delete;
+
   handler(const handler &) = delete;
   handler(handler &&) = delete;
   handler &operator=(const handler &) = delete;
