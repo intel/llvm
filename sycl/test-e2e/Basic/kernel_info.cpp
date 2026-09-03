@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 //
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
@@ -53,8 +53,10 @@ int main() {
     cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::string krnName = krn.get_info<info::kernel::function_name>();
   assert(!krnName.empty());
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   auto refErrMsg =
       "info::kernel::num_args descriptor may only be used to query a kernel "
@@ -70,6 +72,7 @@ int main() {
   };
   checkExceptionIsThrown(getInfoNumArgsFuncExt, refErrMsg, refErrc);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const context krnCtx = krn.get_info<info::kernel::context>();
   assert(krnCtx == q.get_context());
 
@@ -77,6 +80,7 @@ int main() {
   const context krnCtxExt =
       syclex::get_kernel_info<SingleTask, info::kernel::context>(ctx);
   assert(krnCtxExt == krnCtx);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   device dev = q.get_device();
   const size_t wgSize =

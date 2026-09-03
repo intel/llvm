@@ -2863,8 +2863,7 @@ void enqueueImpKernel(
   FastKernelCacheValPtr KernelCacheVal;
 
   if (nullptr != MSyclKernel) {
-    assert(MSyclKernel->get_info<info::kernel::context>() ==
-           Queue.get_context());
+    assert(&MSyclKernel->getContextImpl() == &ContextImpl);
     Kernel = MSyclKernel->getHandleRef();
     Program = MSyclKernel->getProgramRef();
 
