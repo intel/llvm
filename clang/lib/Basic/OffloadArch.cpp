@@ -138,8 +138,9 @@ OffloadArch OffloadArch::getIntelXeGPU(uint32_t Kind) {
   return {TargetArch::IntelXeGPU, Kind};
 }
 
-static const IntelGPUArchEntry &lookupIntelGPUArch(OffloadArch A) {
-  return IntelGPUArchs[A.intelXeKind() & ~IntelGPUIGCALevelFlag];
+static const IntelGPUArchEntry *lookupIntelGPUArch(OffloadArch A) {
+  uint32_t Index = A.intelXeKind() & ~IntelGPUIGCALevelFlag;
+  return Index < NumIntelGPUArchs ? &IntelGPUArchs[Index] : nullptr;
 }
 
 // Parse one of the Intel GPU architecture names listed in IntelGPUArch.def: the
@@ -215,9 +216,11 @@ const char *OffloadArchToString(OffloadArch A) {
     return Entry ? Entry->Name : "unknown";
   }
   case OffloadArch::TargetArch::IntelXeGPU: {
-    const IntelGPUArchEntry &Entry = lookupIntelGPUArch(A);
-    return A.intelXeKind() & IntelGPUIGCALevelFlag ? Entry.IGCALevel
-                                                   : Entry.Name;
+    const IntelGPUArchEntry *Entry = lookupIntelGPUArch(A);
+    if (!Entry)
+      return "unknown";
+    return A.intelXeKind() & IntelGPUIGCALevelFlag ? Entry->IGCALevel
+                                                   : Entry->Name;
   }
   case OffloadArch::TargetArch::Generic:
     return "generic";
