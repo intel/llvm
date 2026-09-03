@@ -127,8 +127,8 @@ def _validate_counts(log_data: ParsedLogData, results: List[TestResult]) -> None
                 file=sys.stderr,
             )
 
-    if log_data.statistics.get("Total Discovered"):
-        total_discovered = log_data.statistics["Total Discovered"]
+    total_discovered = log_data.statistics.get("Total Discovered")
+    if total_discovered is not None:
         total_results = len(results)
         if total_results != total_discovered:
             print(

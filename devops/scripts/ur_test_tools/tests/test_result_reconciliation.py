@@ -328,6 +328,18 @@ class ReconcileTestResultsTest(unittest.TestCase):
 
         self.assertIn("Unknown test statistic 'New Fancy'", stderr.getvalue())
 
+    def test_validates_total_discovered_of_zero(self):
+        log_data = ParsedLogData(
+            tests=[ParsedTestObservation("Suite :: pass", TestStatus.PASS)],
+            statistics={"Total Discovered": 0},
+        )
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            reconcile_test_results(log_data)
+
+        self.assertIn("Total test mismatch: declared 0, found 1", stderr.getvalue())
+
 
 class SummaryReporterTest(unittest.TestCase):
     def test_displays_skipped_and_unsupported_separately(self):
