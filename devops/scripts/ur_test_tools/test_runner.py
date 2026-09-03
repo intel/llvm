@@ -22,7 +22,6 @@ from .parsers.log_parser import _read_with_utf8_fallback
 
 
 def get_test_config(test_type: str) -> TestConfig:
-    """Get test configuration for test type."""
     if test_type == TEST_TYPE_ADAPTER_SPECIFIC:
         return TestConfig(
             target="check-unified-runtime-adapter",
@@ -48,7 +47,6 @@ def calculate_jobs() -> int:
 
 
 def check_log_has_tests(log_file: str) -> bool:
-    """Check if log contains test results."""
 
     def _scan_for_testing(f):
         for _ in range(MAX_LINES_TO_SCAN):
