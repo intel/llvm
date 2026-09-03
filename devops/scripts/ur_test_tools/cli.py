@@ -30,8 +30,11 @@ def main() -> int:
     if command == "run":
         return main_ci_utils("run-tests")
 
-    elif command in ("summary", "extract-errors", "filter-log"):
-        internal_cmd = "show-summary" if command == "summary" else command
+    elif command in ("summary", "step-summary", "extract-errors", "filter-log"):
+        internal_cmd = {
+            "summary": "show-summary",
+            "step-summary": "show-step-summary",
+        }.get(command, command)
         return main_test_summary(internal_cmd)
 
     else:
@@ -67,6 +70,13 @@ def main_test_summary(command: str) -> int:
             )
             result = build_test_run_result(lines, xml_file or None)
             SummaryReporter(result).generate()
+
+        elif command == "show-step-summary":
+            xml_file = PathValidator.validate_optional_path(
+                sys.argv[3] if len(sys.argv) > 3 else "", "XML", allow_absolute=True
+            )
+            result = build_test_run_result(lines, xml_file or None)
+            SummaryReporter(result).generate_github_step_summary()
 
         else:
             print(f"Error: Unknown command '{command}'", file=sys.stderr)

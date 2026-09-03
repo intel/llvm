@@ -380,6 +380,56 @@ class SummaryReporterTest(unittest.TestCase):
         self.assertIn("  Unsupported: 3", output)
         self.assertIn("Testing Time: 1.25s", output)
 
+    def test_step_summary_lists_only_statuses_needing_attention(self):
+        lines = [
+            "Failed Tests (1):\n",
+            "suite :: fail.cpp\n",
+            "\n",
+            "Passed Tests (2):\n",
+            "suite :: pass-1.cpp\n",
+            "suite :: pass-2.cpp\n",
+            "\n",
+            "Unsupported Tests (1):\n",
+            "suite :: unsupported.cpp\n",
+            "\n",
+            "Total Discovered Tests: 4\n",
+            "  Failed: 1\n",
+            "  Passed: 2\n",
+            "  Unsupported: 1\n",
+            "Testing Time: 1.50s\n",
+        ]
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            result = build_test_run_result(lines)
+            SummaryReporter(result).generate_github_step_summary()
+
+        output = stdout.getvalue()
+        self.assertIn("Failed Tests (1):", output)
+        self.assertIn("suite :: fail.cpp", output)
+        self.assertNotIn("suite :: pass-1.cpp", output)
+        self.assertNotIn("suite :: unsupported.cpp", output)
+        self.assertIn("Testing Time: 1.50s", output)
+        self.assertIn("Total Discovered Tests: 4", output)
+        self.assertIn("(25.00%)", output)
+        self.assertIn("(50.00%)", output)
+
+    def test_step_summary_caps_listed_tests(self):
+        lines = ["Failed Tests (60):\n"]
+        lines.extend(f"suite :: fail-{i}.cpp\n" for i in range(60))
+        lines.append("\n")
+        lines.append("Total Discovered Tests: 60\n")
+
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            result = build_test_run_result(lines)
+            SummaryReporter(result).generate_github_step_summary()
+
+        output = stdout.getvalue()
+        self.assertIn("suite :: fail-49.cpp", output)
+        self.assertNotIn("suite :: fail-50.cpp", output)
+        self.assertIn("... and 10 more", output)
+
 
 class PathValidatorTest(unittest.TestCase):
     def test_validates_build_dir_relative_to_workspace_not_cwd(self):

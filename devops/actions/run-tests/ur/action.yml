@@ -66,6 +66,7 @@ runs:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
       XML_FILE: ${{ steps.run_tests.outputs['xml-file'] }}
       ARTIFACT_NAME: ${{ inputs.artifact_name }}
+      TEST_TYPE: ${{ inputs.test_type }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     run: |
       if [ -z "$LOG_FILE" ]; then
@@ -91,6 +92,11 @@ runs:
         echo ""
         echo "Full logs and XML are uploaded as workflow artifacts:"
         echo "$WORKFLOW_URL"
+      fi
+
+      if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+        echo "### ${TEST_TYPE} tests" >> "$GITHUB_STEP_SUMMARY"
+        devops/scripts/ur-test step-summary "$LOG_FILE" "${XML_FILE:-}" >> "$GITHUB_STEP_SUMMARY"
       fi
 
   - name: Copy artifacts
