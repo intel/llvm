@@ -963,6 +963,10 @@ getSystemOffloadArchs(Compilation &C, Action::OffloadKind Kind) {
       Args.push_back("--only=amdgpu");
     else if (Kind == Action::OFK_Cuda)
       Args.push_back("--only=nvptx");
+    else if (Kind == Action::OFK_SYCL)
+      // SYCL offloading is currently supported for Intel GPU devices only, so
+      // the devices of the other vendors present in the system are ignored.
+      Args.push_back("--only=intel");
     auto StdoutOrErr = C.getDriver().executeProgram(Args);
 
     if (!StdoutOrErr) {

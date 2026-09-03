@@ -1,0 +1,15 @@
+#!/bin/sh
+# Mimics the 'offload-arch' utility of a system which has GPUs of several
+# vendors installed: the Intel GPU is printed only when the utility is
+# restricted to the Intel devices.
+case "$*" in
+*--only=intel*)
+  echo "bmg_g21"
+  ;;
+*)
+  echo "sm_70"
+  echo "gfx906"
+  echo "bmg_g21"
+  ;;
+esac
+exit 0
