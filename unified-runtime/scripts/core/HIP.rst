@@ -95,6 +95,12 @@ Other Notes
 ===========
 
 - In kernel ``printf`` may not work for certain ROCm versions.
+- The environment variable ``UR_HIP_STACK_SIZE`` can be set to a positive
+  integer to configure the per-thread stack size limit (in bytes) applied to
+  each device at initialization via ``hipDeviceSetLimit(hipLimitStackSize, ...)``,
+  the equivalent of ``cudaDeviceSetLimit(cudaLimitStackSize, ...)``. This is
+  useful for kernels with deep recursion or large per-thread private data that
+  would otherwise overflow the small default stack.
 
 Contributors
 ------------
