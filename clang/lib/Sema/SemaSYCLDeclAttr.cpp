@@ -837,10 +837,7 @@ bool SemaSYCL::hasSYCLAddIRAttributesFunctionAttr(const Decl *D,
   if (!A)
     return false;
 
-  // SYCL headers use template magic to pass key=value pairs to the attribute,
-  // so we can't inspect its arguments until all template instantiations are
-  // done.
-  if (hasDependentExpr(A->args_begin(), A->args_size()))
+  if (D->isTemplated())
     return false;
 
   SmallVector<std::pair<std::string, std::string>, 4> Pairs =

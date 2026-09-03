@@ -7515,7 +7515,11 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
   // function is normally only emitted in the translation unit defining that key
   // function, which may be a different one from the one containing the kernel,
   // so force its emission here for every translation unit that completes such a
-  // class.
+  // class. Note that this may end up emitting the vtable global in translation
+  // units where it is not needed since this semantic action is triggered by the
+  // mere inclusion of the class in a translation unit rather than a use of one
+  // of its virtual functions. In such cases however, the vtable will typically
+  // be discarded by optimizers if not referenced within the unit.
   if (getLangOpts().SYCLIsDevice &&
       SemaSYCL::hasSYCLIndirectlyCallableVirtualMethod(Record))
     MarkVTableUsed(Record->getInnerLocStart(), Record,
