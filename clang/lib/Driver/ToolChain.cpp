@@ -1136,10 +1136,8 @@ void ToolChain::addFlangRTLibPath(const ArgList &Args,
                    options::OPT_shared_libflangrt, getTriple().isOSAIX()))
     CmdArgs.push_back(
         getCompilerRTArgString(Args, "runtime", ToolChain::FT_Static, true));
-  else {
+  else
     CmdArgs.push_back("-lflang_rt.runtime");
-    addArchSpecificRPath(*this, Args, CmdArgs);
-  }
 }
 
 // Android target triples contain a target version. If we don't have libraries
