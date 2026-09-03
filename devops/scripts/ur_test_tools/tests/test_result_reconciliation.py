@@ -33,6 +33,10 @@ def temporary_cwd(path):
         os.chdir(previous_cwd)
 
 
+def _count_by_status(result, status):
+    return sum(1 for test in result.tests if test.status == status)
+
+
 class JUnitXMLParserTest(unittest.TestCase):
     def test_recovers_lit_statuses_from_skipped_messages(self):
         xml = """\
@@ -213,10 +217,10 @@ class ReconcileTestResultsTest(unittest.TestCase):
 
         result = reconcile_test_results(log_data, xml_data)
 
-        self.assertEqual(result.count_by_status(TestStatus.PASS), 1)
-        self.assertEqual(result.count_by_status(TestStatus.UNSUPPORTED), 1)
-        self.assertEqual(result.count_by_status(TestStatus.SKIPPED), 1)
-        self.assertEqual(result.count_by_status(TestStatus.EXCLUDED), 1)
+        self.assertEqual(_count_by_status(result, TestStatus.PASS), 1)
+        self.assertEqual(_count_by_status(result, TestStatus.UNSUPPORTED), 1)
+        self.assertEqual(_count_by_status(result, TestStatus.SKIPPED), 1)
+        self.assertEqual(_count_by_status(result, TestStatus.EXCLUDED), 1)
 
     def test_xml_does_not_guess_ambiguous_status(self):
         log_data = ParsedLogData(tests=[], declared_counts={TestStatus.PASS: 1})
@@ -240,7 +244,7 @@ class ReconcileTestResultsTest(unittest.TestCase):
 
         result = reconcile_test_results(ParsedLogData(), xml_data)
 
-        self.assertEqual(result.count_by_status(TestStatus.UNSUPPORTED), 1)
+        self.assertEqual(_count_by_status(result, TestStatus.UNSUPPORTED), 1)
 
     def test_log_status_takes_precedence_and_xml_provides_duration(self):
         statuses = [
