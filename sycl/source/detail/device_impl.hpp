@@ -1221,7 +1221,7 @@ public:
       return get_info_impl<UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD>();
     }
 
-    // khr device traits (defined under sycl/ext/oneapi/...).
+    // khr device traits (defined under sycl/khr/...).
 
     CASE(khr::info::device::max_work_group_range_size) {
       return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();

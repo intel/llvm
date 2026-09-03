@@ -1,5 +1,4 @@
-//==-- max_work_group_queries.hpp - oneapi max work groups info traits
-//------------==//
+//==-- max_work_group_queries.hpp --- KHR max work group query extension ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
