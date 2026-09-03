@@ -11,19 +11,19 @@ class SummaryReporter:
         self.result = result
 
     def generate(self) -> None:
-        self._display_statistics(self.result)
-        self._display_test_groups(self.result)
-        self._display_timing(self.result)
+        self._display_statistics()
+        self._display_test_groups()
+        self._display_timing()
 
-    def _display_statistics(self, result: TestRunResult) -> None:
-        if result.statistics_lines:
+    def _display_statistics(self) -> None:
+        if self.result.statistics_lines:
             print("=== Test Statistics ===")
-            for line in result.statistics_lines:
+            for line in self.result.statistics_lines:
                 print(line)
             print()
 
-    def _display_test_groups(self, result: TestRunResult) -> None:
-        grouped = result.group_by_status()
+    def _display_test_groups(self) -> None:
+        grouped = self.result.group_by_status()
 
         priority_order = [
             TestStatus.FAIL,
@@ -57,7 +57,8 @@ class SummaryReporter:
 
         print("::endgroup::")
 
-    def _display_timing(self, result: TestRunResult) -> None:
+    def _display_timing(self) -> None:
+        result = self.result
         if not (
             result.testing_time_ms or result.slowest_tests or result.time_histogram
         ):
