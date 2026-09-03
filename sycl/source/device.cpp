@@ -394,6 +394,15 @@ __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
 __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::info::device, num_compute_units, size_t)
 #undef __SYCL_ONEAPI_DEVICE_INST
 
+#define __SYCL_KHR_DEVICE_INST(NS, NAME, RETURN_T)                             \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  device::get_info_impl<NS::NAME>() const;
+__SYCL_KHR_DEVICE_INST(khr::info::device, max_work_group_range_size, size_t)
+__SYCL_KHR_DEVICE_INST(khr::info::device, max_work_group_range<1>, range<1>)
+__SYCL_KHR_DEVICE_INST(khr::info::device, max_work_group_range<2>, range<2>)
+__SYCL_KHR_DEVICE_INST(khr::info::device, max_work_group_range<3>, range<3>)
+#undef __SYCL_KHR_DEVICE_INST
+
 #define __SYCL_ONEAPI_PROGRESS_INST(NAME, SCOPE)                               \
   template __SYCL_EXPORT detail::ABINeutralT_t<                                \
       std::vector<ext::oneapi::experimental::forward_progress_guarantee>>      \
