@@ -63,7 +63,7 @@ int run_test_on_queue(sycl::queue &Queue) {
   CHECK(Failures, StartTagEnd != 0)
   CHECK(Failures, EndTagSubmit != 0)
   CHECK(Failures, EndTagStart != 0)
-  CHECK(Failures, StartTagSubmit != 0)
+  CHECK(Failures, EndTagEnd != 0)
 
   CHECK(Failures, StartTagSubmit <= StartTagEnd)
   CHECK(Failures, StartTagSubmit <= StartTagStart)

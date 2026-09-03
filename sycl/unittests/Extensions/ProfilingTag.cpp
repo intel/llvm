@@ -52,6 +52,20 @@ inline ur_result_t after_urEventGetProfilingInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+inline constexpr uint64_t FallbackSubmitTime = 42;
+inline thread_local size_t counter_urDeviceGetGlobalTimestamps = 0;
+inline ur_result_t replace_urDeviceGetGlobalTimestamps(void *pParams) {
+  auto &Params =
+      *static_cast<ur_device_get_global_timestamps_params_t *>(pParams);
+  const uint64_t Timestamp =
+      counter_urDeviceGetGlobalTimestamps++ == 0 ? 0 : FallbackSubmitTime;
+  if (*Params.ppDeviceTimestamp)
+    **Params.ppDeviceTimestamp = Timestamp;
+  if (*Params.ppHostTimestamp)
+    **Params.ppHostTimestamp = Timestamp;
+  return UR_RESULT_SUCCESS;
+}
+
 inline thread_local size_t counter_urEnqueueEventsWaitWithBarrierExt = 0;
 inline thread_local ur_event_handle_t LatestBarrierEvent = nullptr;
 inline thread_local bool LatestBarrierEventReleased = false;
@@ -78,6 +92,7 @@ public:
 protected:
   void SetUp() override {
     counter_urEnqueueTimestampRecordingExp = 0;
+    counter_urDeviceGetGlobalTimestamps = 0;
     counter_urEnqueueEventsWaitWithBarrierExt = 0;
     LatestBarrierEvent = nullptr;
     LatestBarrierEventReleased = false;
@@ -110,6 +125,11 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
   // TODO: We expect two barriers for now, while marker events leak. Adjust when
   //       addressed.
   ASSERT_EQ(size_t{2}, counter_urEnqueueEventsWaitWithBarrierExt);
+
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+  E.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  ASSERT_TRUE(LatestProfilingQuery.has_value());
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_SUBMIT);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -259,6 +279,7 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueTimestamp) {
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
   ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
   ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrierExt);
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
 }
 
 // If the backend reports that it cannot record a device timestamp, the
@@ -272,6 +293,8 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueBarrier) {
   mock::getCallbacks().set_after_callback(
       "urEnqueueEventsWaitWithBarrier",
       &after_urEnqueueEventsWaitWithBarrierExt);
+  mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
+                                          &after_urEventGetProfilingInfo);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
@@ -282,11 +305,26 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueBarrier) {
 
   ASSERT_FALSE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
 
+  // Reproduce a missing scheduler-recorded submission timestamp, as observed
+  // in the Native CPU E2E configuration. The profiling-tag enqueue must retry
+  // timestamp initialization before falling back to a barrier.
+  mock::getCallbacks().set_replace_callback(
+      "urDeviceGetGlobalTimestamps", &replace_urDeviceGetGlobalTimestamps);
+
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
   // The timestamp recording is attempted and reports unsupported, so a single
   // barrier is used as the fallback on this in-order queue.
   ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
   ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
+
+  // A profiling-enabled queue has a runtime-recorded submission timestamp and
+  // must not require the fallback barrier event to provide one.
+  ASSERT_FALSE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+  ASSERT_EQ(size_t{2}, counter_urDeviceGetGlobalTimestamps);
+  ASSERT_EQ(
+      FallbackSubmitTime,
+      E.get_profiling_info<sycl::info::event_profiling::command_submit>());
+  ASSERT_FALSE(LatestProfilingQuery.has_value());
 }
 
 TEST_F(ProfilingTagTest,

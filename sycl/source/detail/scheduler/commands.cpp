@@ -3713,6 +3713,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Profiling tag requires a valid queue");
     adapter_impl &Adapter = MQueue->getAdapter();
 
+    // A fallback tag on a profiling-enabled queue is exposed as a regular
+    // profiling event, whose command_submit value comes from MSubmitTime.
+    // Ensure it is initialized before any marker or timestamp command is
+    // enqueued so it remains ordered before the fallback event on both in-order
+    // and out-of-order queues.
+    if (MQueue->MIsProfilingEnabled && MEvent->getSubmissionTime() == 0)
+      MEvent->setSubmissionTime();
+
     const bool IsInOrderQueue = MQueue->isInOrder();
 
     // If the queue is not in-order, the implementation will need to first
@@ -3746,6 +3754,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
 
     if (TimestampResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      // On a profiling-enabled queue, the barrier fallback is a regular
+      // profiling event. Use its runtime-recorded submission timestamp instead
+      // of requiring the backend event to provide one.
+      if (MQueue->MIsProfilingEnabled)
+        MEvent->clearProfilingTagEvent();
+
       if (!IsInOrderQueue) {
         // The pre-timestamp barrier already provides the required ordering and
         // profiling information, so reuse its event instead of submitting a
