@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import List, Tuple
 
 from ..constants import (
     FAIL_TIMEOUT_PATTERN,
@@ -92,8 +92,9 @@ class LITLogParser:
                 break
         return result
 
-    def extract_time_summary(self) -> Dict[str, List[str]]:
-        result = {"slowest": [], "histogram": []}
+    def extract_time_summary(self) -> Tuple[List[str], List[str]]:
+        slowest = []
+        histogram = []
         current_section = None
         skip_next_hr = False
 
@@ -117,18 +118,18 @@ class LITLogParser:
                 if not stripped:
                     current_section = None
                 elif not stripped.startswith("---"):
-                    result["slowest"].append(line.rstrip())
+                    slowest.append(line.rstrip())
             elif current_section == "histogram":
                 if not stripped:
                     current_section = None
                 elif stripped.replace("*", "") == "":
                     current_section = None
                 elif stripped.startswith("[") or stripped.replace("-", "") == "":
-                    result["histogram"].append(line.rstrip())
+                    histogram.append(line.rstrip())
                 else:
                     current_section = None
 
-        return result
+        return slowest, histogram
 
     def parse_to_observations(self) -> ParsedLogData:
         observations = []
@@ -168,14 +169,14 @@ class LITLogParser:
                 testing_time_ms = float(match.group(1)) * 1000.0
                 break
 
-        timing = self.extract_time_summary()
+        slowest_tests, time_histogram = self.extract_time_summary()
 
         return ParsedLogData(
             tests=observations,
             declared_counts=declared_counts,
             statistics=statistics,
             statistics_lines=[line.rstrip() for line in stats_lines],
-            slowest_tests=timing["slowest"],
-            time_histogram=timing["histogram"],
+            slowest_tests=slowest_tests,
+            time_histogram=time_histogram,
             testing_time_ms=testing_time_ms,
         )
