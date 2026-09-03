@@ -1,28 +1,21 @@
-"""Configuration dataclasses for UR test tools."""
-
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 
 
 @dataclass
 class TestConfig:
-    """Test execution configuration."""
-
     target: str
     log_file: str
     lit_filter_out: Optional[str] = None
 
     def __post_init__(self):
-        """Validate configuration on creation."""
         if not all([self.target, self.log_file]):
             raise ValueError("target and log_file are required")
 
 
 @dataclass
 class TestExecutionContext:
-    """Context for test execution."""
-
     test_type: str
     build_dir: Path
     workspace: Path
@@ -38,11 +31,3 @@ class TestExecutionContext:
                 path.resolve().relative_to(workspace_resolved)
         except ValueError as e:
             raise ValueError(f"Path outside workspace: {e}") from e
-
-
-@dataclass
-class SummaryConfigFromLines:
-    """Configuration for summary generation from parsed log lines."""
-
-    log_lines: List[str]
-    xml_file: Optional[str] = None

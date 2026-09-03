@@ -86,26 +86,18 @@ function(add_ur_lit_testsuite suite)
 
   if(UR_STANDALONE_BUILD)
     add_custom_target(${TARGET}
-      # LIT invocation for standalone builds
-      #
-      # Keep reporting-related options aligned with LIT_COMMON_REPORTING_OPTIONS
-      # in devops/scripts/ur_test_tools/constants.py.
-      #
-      # The invocation is intentionally not identical to CI:
-      # - Standalone tests use --succinct for developer-friendly interactive output
-      # - CI uses -v because detailed output is consumed by reporting tools
+      # Reporting options kept aligned with LIT_COMMON_REPORTING_OPTIONS in
+      # devops/scripts/ur_test_tools/constants.py; --succinct differs from CI's -v.
       COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}"
-        # Reporting options (keep aligned with LIT_COMMON_REPORTING_OPTIONS)
         --show-unsupported
         --show-pass
         --show-xfail
         --time-tests
         --show-flakypass
         --show-skipped
-        # Standalone-specific: interactive developer feedback
+        --show-excluded
         --no-progress-bar
         --succinct
-        # Execution policy
         --timeout 120
         -j 50
       USES_TERMINAL

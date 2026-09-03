@@ -4,19 +4,20 @@ import sys
 import os
 from pathlib import Path
 
-from .models.config import SummaryConfigFromLines, TestConfig, TestExecutionContext
+from .models.config import TestConfig, TestExecutionContext
 from .validation.path_validator import PathValidator
 from .parsers.log_parser import (
     LITLogParser,
     read_log_file,
 )
-from .outputs.console import ConsoleOutput
+from .outputs.console import filter_log_for_display
+from .result_builder import build_test_run_result
 from .summary_generator import SummaryReporter
 from .test_runner import (
     TestRunner,
     get_test_config,
 )
-from .outputs.github_actions import GitHubActionsOutput
+from .outputs import github_actions
 
 
 def main() -> int:
@@ -57,15 +58,15 @@ def main_test_summary(command: str) -> int:
                 print(line, end="")
 
         elif command == "filter-log":
-            for line in ConsoleOutput.filter_log_for_display(lines):
+            for line in filter_log_for_display(lines):
                 print(line, end="")
 
         elif command == "show-summary":
             xml_file = PathValidator.validate_optional_path(
                 sys.argv[3] if len(sys.argv) > 3 else "", "XML", allow_absolute=True
             )
-            config = SummaryConfigFromLines(log_lines=lines, xml_file=xml_file or None)
-            SummaryReporter(config).generate()
+            result = build_test_run_result(lines, xml_file or None)
+            SummaryReporter(result).generate()
 
         else:
             print(f"Error: Unknown command '{command}'", file=sys.stderr)
@@ -99,18 +100,16 @@ def _run_tests_command() -> int:
     build_dir = sys.argv[3]
     workspace = sys.argv[4]
 
-    # Validate inputs
     if not PathValidator.validate_build_dir(build_dir, workspace):
-        GitHubActionsOutput.print_error("Invalid build_dir")
+        github_actions.print_error("Invalid build_dir")
         return 1
 
     try:
         config = get_test_config(test_type)
     except ValueError as e:
-        GitHubActionsOutput.print_error(str(e))
+        github_actions.print_error(str(e))
         return 1
 
-    # Convert to paths and create context
     workspace_path = Path(workspace).resolve()
     build_dir_path = workspace_path / build_dir
 
@@ -132,13 +131,11 @@ def _run_tests_command() -> int:
         env=env,
     )
 
-    # Validate context
     try:
         context.validate()
     except ValueError as e:
-        GitHubActionsOutput.print_error(str(e))
+        github_actions.print_error(str(e))
         return 1
 
-    # Run tests
     runner = TestRunner(context)
     return runner.run()

@@ -17,12 +17,11 @@ from .constants import (
     MAX_LINES_TO_SCAN,
 )
 from .models.config import TestConfig, TestExecutionContext
-from .outputs.github_actions import GitHubActionsOutput
+from .outputs import github_actions
 from .parsers.log_parser import _read_with_utf8_fallback
 
 
 def get_test_config(test_type: str) -> TestConfig:
-    """Get test configuration for test type."""
     if test_type == TEST_TYPE_ADAPTER_SPECIFIC:
         return TestConfig(
             target="check-unified-runtime-adapter",
@@ -48,8 +47,6 @@ def calculate_jobs() -> int:
 
 
 def check_log_has_tests(log_file: str) -> bool:
-    """Check if log contains test results."""
-
     def _scan_for_testing(f):
         for _ in range(MAX_LINES_TO_SCAN):
             line = f.readline()
@@ -66,14 +63,11 @@ def check_log_has_tests(log_file: str) -> bool:
 
 
 class TestRunner:
-    """Execute UR tests."""
-
     def __init__(self, context: TestExecutionContext):
         self.context = context
         self.jobs = calculate_jobs()
 
     def run(self) -> int:
-        """Run tests and return exit code."""
         self._setup_environment()
 
         result = self._execute_tests()
@@ -87,7 +81,6 @@ class TestRunner:
         return result.returncode
 
     def _setup_environment(self) -> None:
-        # Build LIT options: common reporting + CI-specific + dynamic config
         lit_opts_parts = [
             *LIT_COMMON_REPORTING_OPTIONS,
             *LIT_CI_OPTIONS,
@@ -131,36 +124,34 @@ class TestRunner:
                     cwd=self.context.workspace,
                 )
         except OSError as e:
-            GitHubActionsOutput.print_error(f"Test execution failed: {e}")
+            github_actions.print_error(f"Test execution failed: {e}")
             return None
 
     def _validate_output(self) -> bool:
         log_path = self.context.log_file_path
 
         if not log_path.exists() or log_path.stat().st_size == 0:
-            GitHubActionsOutput.print_error("No log generated")
+            github_actions.print_error("No log generated")
             return False
 
         return True
 
     def _publish_outputs(self) -> None:
-        GitHubActionsOutput.set_output("log-file", str(self.context.log_file_path))
+        github_actions.set_output("log-file", str(self.context.log_file_path))
 
         if (
             self.context.test_type == TEST_TYPE_ADAPTER_SPECIFIC
             and not check_log_has_tests(str(self.context.log_file_path))
         ):
             print("No adapter-specific tests found", file=sys.stderr)
-            GitHubActionsOutput.set_output("skip-artifacts", "1")
+            github_actions.set_output("skip-artifacts", "1")
             return
 
-        GitHubActionsOutput.set_output("skip-artifacts", "0")
+        github_actions.set_output("skip-artifacts", "0")
 
         if self.context.xml_output_path.exists():
-            GitHubActionsOutput.set_output(
-                "xml-file", str(self.context.xml_output_path)
-            )
+            github_actions.set_output("xml-file", str(self.context.xml_output_path))
         else:
-            GitHubActionsOutput.print_warning(
+            github_actions.print_warning(
                 f"Expected XML file not found at {self.context.xml_output_path}"
             )

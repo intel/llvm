@@ -1,42 +1,57 @@
-"""Reconciliation layer - combines parser observations into canonical results."""
+"""Combine parsed test results."""
 
 import sys
 from typing import List, Optional
 
 from .models.test_results import TestResult, TestRunResult, TestStatus
-from .parsers.parser_models import ParsedLogData, ParsedXMLData
+from .parsers.parser_models import (
+    LIT_STAT_TO_STATUS,
+    ParsedLogData,
+    ParsedTestObservation,
+    ParsedXMLData,
+)
+
+XML_FALLBACK_STATUSES = {
+    TestStatus.EXCLUDED,
+    TestStatus.SKIPPED,
+    TestStatus.UNSUPPORTED,
+}
+
+
+def _index_by_name(observations: List[ParsedTestObservation], source: str):
+    result = {}
+    for observation in observations:
+        if observation.name in result:
+            print(
+                f"Warning: Duplicate test name in {source}: {observation.name}",
+                file=sys.stderr,
+            )
+            continue
+        result[observation.name] = observation
+    return result
 
 
 def reconcile_test_results(
     log_data: ParsedLogData, xml_data: Optional[ParsedXMLData] = None
 ) -> TestRunResult:
-    """Reconcile observations from log and XML into canonical test results.
+    """Merge LIT log results with supplementary JUnit XML data."""
+    log_by_name = _index_by_name(log_data.tests, "log")
+    log_counts = {}
+    for observation in log_data.tests:
+        log_counts[observation.status] = log_counts.get(observation.status, 0) + 1
 
-    Reconciliation policy:
-    1. Test status comes from log output (authoritative for XFAIL/XPASS/FLAKYPASS)
-    2. Test duration comes from XML (more precise than log timing sections)
-    3. If test appears in XML but not log, include with XML status
-    4. Validate counts and warn on mismatches
+    complete_log_statuses = {
+        status
+        for status, declared_count in log_data.declared_counts.items()
+        if log_counts.get(status, 0) == declared_count
+    }
 
-    Args:
-        log_data: Parsed observations from LIT text output
-        xml_data: Optional parsed observations from JUnit XML
-
-    Returns:
-        TestRunResult with reconciled test results
-    """
-    # Build index of log results (status is authoritative)
-    log_by_name = {obs.name: obs for obs in log_data.tests}
-
-    # Build index of XML results (timing is authoritative)
     xml_by_name = {}
     if xml_data:
-        xml_by_name = {obs.name: obs for obs in xml_data.tests}
+        xml_by_name = _index_by_name(xml_data.tests, "XML")
 
-    # Reconcile: start with all tests from log
     results = []
     for log_obs in log_data.tests:
-        # Use log status, but prefer XML timing if available
         xml_obs = xml_by_name.get(log_obs.name)
         duration_ms = xml_obs.duration_ms if xml_obs else log_obs.duration_ms
 
@@ -48,16 +63,16 @@ def reconcile_test_results(
             )
         )
 
-    # Add any tests that appear in XML but not in log
-    # This shouldn't happen normally, but handle it gracefully
-    xml_only_tests = set(xml_by_name.keys()) - set(log_by_name.keys())
-    if xml_only_tests:
-        print(
-            f"Warning: {len(xml_only_tests)} test(s) found in XML but not in log",
-            file=sys.stderr,
-        )
-        for test_name in sorted(xml_only_tests):
-            xml_obs = xml_by_name[test_name]
+    result_names = set(log_by_name)
+    if xml_data:
+        for xml_obs in xml_data.tests:
+            if (
+                xml_obs.status not in XML_FALLBACK_STATUSES
+                or xml_obs.status in complete_log_statuses
+                or xml_obs.name in result_names
+            ):
+                continue
+
             results.append(
                 TestResult(
                     name=xml_obs.name,
@@ -65,34 +80,30 @@ def reconcile_test_results(
                     duration_ms=xml_obs.duration_ms,
                 )
             )
+            result_names.add(xml_obs.name)
 
-    # Extract total discovered and testing time
     total_discovered = log_data.statistics.get("Total Discovered")
-    testing_time_ms = None
-    if xml_data and xml_data.total_time_seconds:
+    testing_time_ms = log_data.testing_time_ms
+    if testing_time_ms is None and xml_data and xml_data.total_time_seconds:
         testing_time_ms = xml_data.total_time_seconds * 1000.0
 
-    # Validate counts
     _validate_counts(log_data, results)
 
     return TestRunResult(
         tests=results,
         total_discovered=total_discovered,
         testing_time_ms=testing_time_ms,
+        statistics_lines=log_data.statistics_lines,
+        slowest_tests=log_data.slowest_tests,
+        time_histogram=log_data.time_histogram,
     )
 
 
 def _validate_counts(log_data: ParsedLogData, results: List[TestResult]) -> None:
-    """Validate that reconciled results match declared counts from log.
-
-    Warns if counts don't match but doesn't fail - this helps catch parser bugs.
-    """
-    # Count results by status
     actual_counts = {}
     for result in results:
         actual_counts[result.status] = actual_counts.get(result.status, 0) + 1
 
-    # Compare with declared counts from log
     for status, declared_count in log_data.declared_counts.items():
         actual_count = actual_counts.get(status, 0)
         if actual_count != declared_count:
@@ -102,9 +113,22 @@ def _validate_counts(log_data: ParsedLogData, results: List[TestResult]) -> None
                 file=sys.stderr,
             )
 
-    # Check total discovered if available
-    if log_data.statistics.get("Total Discovered"):
-        total_discovered = log_data.statistics["Total Discovered"]
+    for label, expected_count in log_data.statistics.items():
+        status = LIT_STAT_TO_STATUS.get(label)
+        if status is None:
+            if label != "Total Discovered":
+                print(f"Warning: Unknown test statistic '{label}'", file=sys.stderr)
+            continue
+        actual_count = actual_counts.get(status, 0)
+        if actual_count != expected_count:
+            print(
+                f"Warning: Count mismatch for {status.value}: "
+                f"statistics {expected_count}, found {actual_count}",
+                file=sys.stderr,
+            )
+
+    total_discovered = log_data.statistics.get("Total Discovered")
+    if total_discovered is not None:
         total_results = len(results)
         if total_results != total_discovered:
             print(
