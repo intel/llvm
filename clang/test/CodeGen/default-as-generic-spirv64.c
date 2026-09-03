@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -triple spirv64 -fdefault-addr-space-is-generic -emit-llvm -o - %s | FileCheck %s --check-prefix=GENERIC
+// RUN: %clang_cc1 -triple spirv64 -fspirv-default-addr-space-is-generic -emit-llvm -o - %s | FileCheck %s --check-prefix=GENERIC
 
-// Test that -fdefault-addr-space-is-generic causes unqualified pointers to be
+// Test that -fspirv-default-addr-space-is-generic causes unqualified pointers to be
 // in the generic address space (addrspace(4)) for spirv64 targets.
 
 void test_memcpy(void *dst, const void *src, unsigned long n) {
