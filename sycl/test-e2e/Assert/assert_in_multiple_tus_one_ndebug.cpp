@@ -1,8 +1,5 @@
 // REQUIRES: linux
 
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/7634
-//
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/8832
 //
