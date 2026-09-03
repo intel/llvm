@@ -1,5 +1,6 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19214
+
 // REQUIRES-INTEL-DRIVER: lin: 39395
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -Wno-error=deprecated-declarations -o %t.out
