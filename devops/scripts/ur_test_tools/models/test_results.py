@@ -66,9 +66,6 @@ class TestRunResult:
     def count_by_status(self, status: TestStatus) -> int:
         return sum(1 for test in self.tests if test.status == status)
 
-    def tests_by_status(self, status: TestStatus) -> List[TestResult]:
-        return [test for test in self.tests if test.status == status]
-
     def group_by_status(self) -> Dict[TestStatus, List[TestResult]]:
         groups: Dict[TestStatus, List[TestResult]] = {}
         for test in self.tests:
