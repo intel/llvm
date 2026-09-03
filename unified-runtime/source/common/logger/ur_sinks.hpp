@@ -6,6 +6,7 @@
 #ifndef UR_SINKS_HPP
 #define UR_SINKS_HPP 1
 
+#include <atomic>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -19,7 +20,7 @@
 
 namespace logger {
 
-inline bool isTearDowned = false;
+inline std::atomic<bool> isTearDowned = false;
 
 class Sink {
 public:
@@ -48,7 +49,7 @@ public:
     // the UR adapter.
     // TODO: Change adapters to use a common sink class in the loader instead of
     // using thier own sink class that inherit from logger::Sink.
-    if (isTearDowned) {
+    if (isTearDowned.load(std::memory_order_acquire)) {
       std::cerr << message;
     } else {
       print(level, message);
@@ -191,7 +192,7 @@ public:
     this->flush_level = flush_lvl;
   }
 
-  ~StderrSink() { logger::isTearDowned = true; }
+  ~StderrSink() { logger::isTearDowned.store(true, std::memory_order_release); }
 };
 
 class FileSink : public Sink {

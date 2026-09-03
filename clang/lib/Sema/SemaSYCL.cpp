@@ -37,6 +37,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -7824,6 +7825,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
     return false;
+  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
   int IntHeaderFD = 0;
   std::error_code EC =
       llvm::sys::fs::openFileForWrite(IntHeaderName, IntHeaderFD);
@@ -7927,6 +7929,7 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
 bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
     return false;
+  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
   int IntHeaderFD = 0;
   std::error_code EC =
       llvm::sys::fs::openFileForWrite(IntHeaderName, IntHeaderFD);

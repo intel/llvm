@@ -275,15 +275,23 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   struct ZeHostTaskExtension {
     bool Supported = false;
     ze_result_t (*zeCommandListAppendHostFunction)(
-        ze_command_list_handle_t hCommandList, void *pHostFunction,
-        void *pUserData, void *pNext, ze_event_handle_t hSignalEvent,
-        uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
+        ze_command_list_handle_t hCommandList,
+        ze_host_function_callback_t pHostFunction, void *pUserData,
+        const void *pNext, ze_event_handle_t hSignalEvent,
+        uint32_t numWaitEvents, _ze_event_handle_t **phWaitEvents);
   } ZeHostTaskExt;
 
   // Flag to indicate whether zeDeviceSynchronize is supported.
   // Some platforms may not support this API due to frozen driver, eg. gen12 on
   // Windows. For details, see https://github.com/intel/llvm/issues/20927.
   bool ZeDeviceSynchronizeSupported{false};
+
+  struct ZeDeviceVectorWidthExtension {
+    bool Supported = false;
+    ze_result_t (*zeDeviceGetVectorWidthPropertiesExt)(
+        ze_device_handle_t, uint32_t *,
+        ze_device_vector_width_properties_ext_t *) = nullptr;
+  } ZeDeviceVectorWidthExt;
 };
 
 } // namespace ur::level_zero

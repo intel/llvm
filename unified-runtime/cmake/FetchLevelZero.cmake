@@ -16,6 +16,12 @@ if(NOT UR_FORCE_FETCH_LEVEL_ZERO)
     pkg_check_modules(level-zero level-zero>=1.32.0)
     if(level-zero_FOUND)
       set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
+      # Level Zero publishes two include dirs: level-zero.pc gives
+      # -I${includedir}/level_zero and, via `Requires: libze_loader`,
+      # libze_loader.pc gives -I${includedir}. Keep them separate from
+      # LEVEL_ZERO_INCLUDE_DIR, which must stay a single directory that
+      # directly contains ze_api.h (consumers append /ze_api.h to it).
+      set(LEVEL_ZERO_EXTRA_INCLUDE_DIRS "${level-zero_INCLUDE_DIRS}")
       set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
       set(LEVEL_ZERO_LIB_NAME "${level-zero_LIBRARIES}")
       message(STATUS "Level Zero Adapter: Using preinstalled level zero loader at ${level-zero_LINK_LIBRARIES}")
@@ -126,6 +132,7 @@ target_link_libraries(LevelZeroLoader
 add_library(LevelZeroLoader-Headers INTERFACE)
 target_include_directories(LevelZeroLoader-Headers
     INTERFACE "$<BUILD_INTERFACE:${LEVEL_ZERO_INCLUDE_DIR}>"
+              "$<BUILD_INTERFACE:${LEVEL_ZERO_EXTRA_INCLUDE_DIRS}>"
               "$<INSTALL_INTERFACE:${LEVEL_ZERO_TARGET_INCLUDE_DIR}>"
 )
 find_path(L0_COMPUTE_RUNTIME_HEADERS
