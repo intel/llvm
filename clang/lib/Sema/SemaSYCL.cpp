@@ -428,6 +428,8 @@ static bool isZeroSizedArray(SemaSYCL &S, QualType Ty) {
 static std::pair<const RecordDecl *, bool> needsDeepTypeCheck(SemaSYCL &S,
                                                               QualType Ty) {
   while (Ty->isAnyPointerType() || Ty->isArrayType() || Ty->isReferenceType()) {
+    // A zero-length array has no record to traverse, but the DFS below must
+    // still visit it to emit the required diagnostic.
     if (isZeroSizedArray(S, Ty))
       return {nullptr, true};
     if (Ty->isArrayType())
@@ -6016,6 +6018,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
   bool FoundError = false;
   bool CanCacheResult = RootRecord && RootRecord->isCompleteDefinition();
   llvm::SmallDenseSet<QualType, 8> Visited;
+  // Cache complete nested records after this whole traversal succeeds.
   llvm::SmallDenseSet<CanonicalDeclPtr<const TagDecl>, 8> VisitedRecords;
 
   auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
@@ -6059,6 +6062,8 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
 
     if (!Visited.insert(NextTy).second)
       continue;
+    // A dependent type can resolve differently when instantiated, so an
+    // error-free traversal cannot be reused for later instantiations.
     if (NextTy->isDependentType())
       CanCacheResult = false;
 
@@ -6095,6 +6100,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
     }
 
     if (const auto *RecDecl = NextTy->getAsRecordDecl()) {
+      // An incomplete record can acquire unsupported fields when completed.
       if (!RecDecl->isCompleteDefinition())
         CanCacheResult = false;
       else if (DeepTypeCheckedRecords.contains(RecDecl))
