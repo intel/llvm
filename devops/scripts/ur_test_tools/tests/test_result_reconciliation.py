@@ -15,7 +15,7 @@ from devops.scripts.ur_test_tools.parsers.parser_models import (
     ParsedTestObservation,
     ParsedXMLData,
 )
-from devops.scripts.ur_test_tools.parsers.log_parser import LITLogParser
+from devops.scripts.ur_test_tools.parsers.log_parser import LITLogParser, read_log_file
 from devops.scripts.ur_test_tools.parsers.stats_parser import parse_statistics
 from devops.scripts.ur_test_tools.parsers.xml_parser import JUnitXMLParser
 from devops.scripts.ur_test_tools.reconciliation import reconcile_test_results
@@ -113,6 +113,12 @@ class JUnitXMLParserTest(unittest.TestCase):
 
 
 class LITLogParserTest(unittest.TestCase):
+    def test_read_log_file_wraps_stat_oserror(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing_path = Path(directory) / "missing.log"
+            with self.assertRaisesRegex(OSError, "Cannot read log file"):
+                read_log_file(str(missing_path))
+
     def test_parses_all_builtin_statuses(self):
         categories = [
             ("Passed", TestStatus.PASS),

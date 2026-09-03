@@ -35,16 +35,17 @@ def _read_with_utf8_fallback(path: str, read_func):
 
 def read_log_file(log_path: str) -> List[str]:
     path = Path(log_path)
-    file_size = path.stat().st_size
-
-    if file_size > 10 * 1024 * 1024:  # 10 MB
-        print(
-            f"Large log file: {file_size / (1024 * 1024):.1f} MB. "
-            f"This may indicate a test problem.",
-            file=sys.stderr,
-        )
 
     try:
+        file_size = path.stat().st_size
+
+        if file_size > 10 * 1024 * 1024:  # 10 MB
+            print(
+                f"Large log file: {file_size / (1024 * 1024):.1f} MB. "
+                f"This may indicate a test problem.",
+                file=sys.stderr,
+            )
+
         return _read_with_utf8_fallback(log_path, lambda f: f.readlines())
     except OSError as e:
         raise OSError(f"Cannot read log file: {e}") from e
