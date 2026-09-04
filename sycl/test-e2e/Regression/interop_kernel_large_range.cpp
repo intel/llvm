@@ -1,4 +1,4 @@
-// REQUIRES: opencl, opencl_icd, gpu
+// REQUIRES: opencl, opencl_icd, gpu, aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out %opencl_lib
 // RUN: %{run} %t.out
