@@ -1,4 +1,6 @@
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
+#include <sycl/kernel_handler.hpp>
+#include <sycl/specialization_id.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
