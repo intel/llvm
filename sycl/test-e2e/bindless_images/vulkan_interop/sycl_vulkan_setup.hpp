@@ -3,8 +3,8 @@
 #include <stdexcept>
 
 #include <sycl/aspects.hpp>
+#include <sycl/device.hpp>
 #include <sycl/ext/intel/info/device.hpp>
-#include <sycl/sycl.hpp>
 
 #include "vulkan_setup.hpp"
 
