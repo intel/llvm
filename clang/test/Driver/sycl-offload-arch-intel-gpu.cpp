@@ -117,7 +117,55 @@
 // RUN: %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=lnl_m %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=lnl_m -DMAC_STR=LNL_M
 
+// The architecture names, the IGCA levels and the numeric names listed in
+// clang/include/clang/Basic/IntelGPUArch.def are accepted as well.
+
+// RUN: %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe-lnl-m %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU-ONLY,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=xe-lnl-m
+
+// RUN: %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe-cri %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU-ONLY,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=xe-cri
+
+// A name that covers more than one release is accepted too.
+// RUN: %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe-dg2 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU-ONLY,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=xe-dg2
+
+// RUN: %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=igca_40r %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU-ONLY,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=igca_40r
+
+// The revision component of a numeric name is not validated, as every stepping
+// of an architecture shares one name.
+// RUN: %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe_20.4.0 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU-ONLY,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=xe_20.4.0
+
+// RUN: %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe_20.4.63 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU-ONLY,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=xe_20.4.63
+
 // TARGET-TRIPLE-GPU: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // TARGET-TRIPLE-GPU: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // CLANG-OFFLOAD-PACKAGER-GPU: llvm-offload-binary{{.*}} "--image={{.*}}triple=spir64_gen-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
+// TARGET-TRIPLE-GPU-ONLY: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CLANG-OFFLOAD-PACKAGER-GPU-OPTS: llvm-offload-binary{{.*}} "--image={{.*}}triple=spir64_gen-unknown-unknown,arch=[[DEV_STR]],kind=sycl{{.*}}"
+
+// Tests for handling an incorrect architecture.
+//
+// RUN: not %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe-lnl %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD-ARCH -DBAD_STR=xe-lnl
+
+// RUN: not %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=igca_99 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD-ARCH -DBAD_STR=igca_99
+
+// The architecture and the release of a numeric name are validated.
+// RUN: not %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe_20.99.0 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD-ARCH -DBAD_STR=xe_20.99.0
+
+// A numeric name spells out all three components of the GMDID.
+// RUN: not %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe_20.4 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD-ARCH -DBAD_STR=xe_20.4
+
+// The sentinel GMDID of a name that covers more than one release is not a GMDID
+// that a device reports.
+// RUN: not %clangxx -### --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=xe_0.0.0 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD-ARCH -DBAD_STR=xe_0.0.0
+
+// BAD-ARCH: error: unsupported offload gpu architecture: [[BAD_STR]]

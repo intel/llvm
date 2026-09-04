@@ -163,15 +163,16 @@ static constexpr uint32_t GMDIDRevisionMask = 0x3f;
 // Human-friendly names of the known Intel GPU architectures, keyed by the
 // architecture and release components of the GMDID.  Several devices can share
 // an architecture and a release, in which case the first of them names the
-// whole group.
+// whole group.  Names that cover more than one release have a sentinel GMDID of
+// zero, as no single device reports them.
 static constexpr struct {
   uint32_t Architecture;
   uint32_t Release;
   const char *Name;
 } IntelGPUArchNames[] = {
-#define INTEL_GPU_ARCH(ARCHITECTURE, RELEASE, NAME)                            \
+#define INTEL_GPU_ARCH(ARCHITECTURE, RELEASE, NAME, IGCA)                      \
   {ARCHITECTURE, RELEASE, NAME},
-#include "IntelGPUArch.def"
+#include "clang/Basic/IntelGPUArch.def"
 };
 
 // Translate a GMDID into an architecture name that is a legal --offload-arch
@@ -183,9 +184,13 @@ std::string getIntelGPUArchName(uint32_t IPVersion) {
   uint32_t Release = (IPVersion >> GMDIDReleaseShift) & GMDIDReleaseMask;
   uint32_t Revision = IPVersion & GMDIDRevisionMask;
 
-  for (const auto &Entry : IntelGPUArchNames)
+  for (const auto &Entry : IntelGPUArchNames) {
+    // The entries that name a group of releases have no GMDID to match against.
+    if (Entry.Architecture == 0 && Entry.Release == 0)
+      continue;
     if (Entry.Architecture == Architecture && Entry.Release == Release)
       return Entry.Name;
+  }
 
   // A device this build has never heard of still has to be named, so that it
   // can be used with a compiler that predates it.  The numeric name spells out

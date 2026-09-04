@@ -10,6 +10,7 @@
 #define LLVM_CLANG_BASIC_OFFLOADARCH_H
 
 #include "llvm/ADT/StringRef.h"
+#include <cassert>
 #include <cstdint>
 #include <tuple>
 
@@ -40,7 +41,11 @@ public:
     SPIRV,    // The 'amdgcnspirv' pseudo target.
     IntelCPU, // Kind is an IntelArch.
     IntelGPU, // Kind is an IntelArch.
-    Generic,  // The 'generic' processor model.
+    // An Intel GPU named the way the GPU driver names it: by the architecture
+    // name or by the IGCA level of an entry of IntelGPUArch.def. Kind is
+    // opaque; use StringToOffloadArch to build one.
+    IntelXeGPU,
+    Generic, // The 'generic' processor model.
   };
 
   // Intel architectures, which have no TargetParser list yet.
@@ -127,6 +132,9 @@ public:
   static constexpr OffloadArch getIntel(TargetArch V, IntelArch A) {
     return {V, static_cast<uint32_t>(A)};
   }
+  // Defined out of line, so that Kind can be checked against the table of
+  // IntelGPUArch.def entries that gives it its meaning.
+  static OffloadArch getIntelXeGPU(uint32_t Kind);
   static constexpr OffloadArch getUnused() { return {TargetArch::Unused, 0}; }
   static constexpr OffloadArch getUnknown() { return {TargetArch::Unknown, 0}; }
   static constexpr OffloadArch getSPIRV() { return {TargetArch::SPIRV, 0}; }
@@ -142,7 +150,10 @@ public:
   bool isAMDGPU() const { return V == TargetArch::AMDGPU; }
   bool isSPIRV() const { return V == TargetArch::SPIRV; }
   bool isIntelCPU() const { return V == TargetArch::IntelCPU; }
-  bool isIntelGPU() const { return V == TargetArch::IntelGPU; }
+  bool isIntelXeGPU() const { return V == TargetArch::IntelXeGPU; }
+  bool isIntelGPU() const {
+    return V == TargetArch::IntelGPU || isIntelXeGPU();
+  }
   bool isIntel() const { return isIntelCPU() || isIntelGPU(); }
   bool isGeneric() const { return V == TargetArch::Generic; }
   bool isUnused() const { return V == TargetArch::Unused; }
@@ -155,8 +166,17 @@ public:
   llvm::AMDGPU::GPUKind amdgpuKind() const {
     return static_cast<llvm::AMDGPU::GPUKind>(Kind);
   }
-  // Only valid when isIntelCPU() / isIntelGPU().
-  IntelArch intelKind() const { return static_cast<IntelArch>(Kind); }
+  // Only valid when isIntelCPU(), or when isIntelGPU() and !isIntelXeGPU().
+  IntelArch intelKind() const {
+    assert((isIntelCPU() || (isIntelGPU() && !isIntelXeGPU())) &&
+           "not an Intel CPU or a non-Xe Intel GPU");
+    return static_cast<IntelArch>(Kind);
+  }
+  // Only valid when isIntelXeGPU(); opaque outside of OffloadArch.cpp.
+  uint32_t intelXeKind() const {
+    assert(isIntelXeGPU() && "not an Intel Xe GPU");
+    return Kind;
+  }
 
   bool operator==(const OffloadArch &Other) const {
     return V == Other.V && Kind == Other.Kind;

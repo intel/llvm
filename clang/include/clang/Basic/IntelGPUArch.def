@@ -1,0 +1,82 @@
+//===--- IntelGPUArch.def - Intel GPU architecture names --------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file lists the human-friendly names of the Intel GPU architectures,
+// keyed by the architecture and release components of the GMDID that the
+// device reports. The revision component is deliberately not part of the key:
+// every stepping of an architecture shares one name.
+//
+// Several devices can share an architecture and release. The entries are
+// ordered so that the name to print for such a group comes first, which lets
+// this file be generated from a device list without having to pick a
+// representative device. A name that covers more than one release, such as
+// xe-dg2 or xe-mtl, has no GMDID of its own and is listed with a sentinel
+// architecture and release of zero; consumers that name a device must skip
+// those entries.
+//
+// Every entry also records the IGCA level of the device, the level of the
+// Intel Graphics Compiler architecture that the device implements. Devices
+// that share an IGCA level are binary compatible with each other.
+//
+// Together, the names and the IGCA levels listed here are the Intel GPU
+// architectures that '--offload-arch' accepts.
+//
+// The intent is for this table to be generated from the data published by the
+// GPU driver, so keep it free of anything a generator cannot produce.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef INTEL_GPU_ARCH
+#error "Define INTEL_GPU_ARCH prior to including this file!"
+#endif
+
+// INTEL_GPU_ARCH(ARCHITECTURE, RELEASE, NAME, IGCA)
+INTEL_GPU_ARCH(35, 11, "xe-cri", "igca_60c")
+INTEL_GPU_ARCH(35, 10, "xe-nvl-p", "igca_60r")
+INTEL_GPU_ARCH(30, 5, "xe-nvl-u", "igca_60r")
+INTEL_GPU_ARCH(30, 5, "xe-nvl-h", "igca_60r")
+INTEL_GPU_ARCH(30, 4, "xe-nvl-s", "igca_60r")
+INTEL_GPU_ARCH(30, 4, "xe-nvl-hx", "igca_60r")
+INTEL_GPU_ARCH(30, 4, "xe-nvl-ul", "igca_60r")
+INTEL_GPU_ARCH(30, 3, "xe-wcl", "igca_50r")
+INTEL_GPU_ARCH(30, 1, "xe-ptl-u", "igca_50r")
+INTEL_GPU_ARCH(30, 0, "xe-ptl-h", "igca_50r")
+INTEL_GPU_ARCH(0, 0, "xe-ptl", "igca_50r")
+INTEL_GPU_ARCH(20, 4, "xe-lnl-m", "igca_40r")
+INTEL_GPU_ARCH(20, 2, "xe-bmg-g31", "igca_40r")
+INTEL_GPU_ARCH(20, 1, "xe-bmg-g21", "igca_40r")
+INTEL_GPU_ARCH(0, 0, "xe-bmg", "igca_40r")
+INTEL_GPU_ARCH(12, 74, "xe-arl-h", "igca_35r")
+INTEL_GPU_ARCH(12, 71, "xe-mtl-h", "igca_30r")
+INTEL_GPU_ARCH(12, 70, "xe-mtl-u", "igca_30r")
+INTEL_GPU_ARCH(12, 70, "xe-arl-u", "igca_30r")
+INTEL_GPU_ARCH(12, 70, "xe-arl-s", "igca_30r")
+INTEL_GPU_ARCH(0, 0, "xe-mtl", "igca_30r")
+INTEL_GPU_ARCH(12, 61, "xe-pvc-vg", "igca_20ca")
+INTEL_GPU_ARCH(12, 60, "xe-pvc", "igca_20ca")
+INTEL_GPU_ARCH(12, 60, "xe-pvc-sdv", "igca_20ca")
+INTEL_GPU_ARCH(12, 57, "xe-acm-g12", "igca_15ra")
+INTEL_GPU_ARCH(12, 57, "xe-dg2-g12", "igca_15ra")
+INTEL_GPU_ARCH(12, 56, "xe-acm-g11", "igca_15ra")
+INTEL_GPU_ARCH(12, 56, "xe-dg2-g11", "igca_15ra")
+INTEL_GPU_ARCH(12, 56, "xe-ats-m75", "igca_15ra")
+INTEL_GPU_ARCH(12, 55, "xe-acm-g10", "igca_15ra")
+INTEL_GPU_ARCH(12, 55, "xe-dg2-g10", "igca_15ra")
+INTEL_GPU_ARCH(12, 55, "xe-ats-m150", "igca_15ra")
+INTEL_GPU_ARCH(0, 0, "xe-dg2", "igca_15ra")
+INTEL_GPU_ARCH(12, 10, "xe-dg1", "igca_10r")
+INTEL_GPU_ARCH(12, 4, "xe-adl-n", "igca_10r")
+INTEL_GPU_ARCH(12, 3, "xe-adl-p", "igca_10r")
+INTEL_GPU_ARCH(12, 3, "xe-rpl-p", "igca_10r")
+INTEL_GPU_ARCH(12, 2, "xe-adl-s", "igca_10r")
+INTEL_GPU_ARCH(12, 2, "xe-rpl-s", "igca_10r")
+INTEL_GPU_ARCH(12, 1, "xe-rkl", "igca_10r")
+INTEL_GPU_ARCH(12, 0, "xe-tgllp", "igca_10r")
+INTEL_GPU_ARCH(12, 0, "xe-tgl", "igca_10r")
+
+#undef INTEL_GPU_ARCH

@@ -158,3 +158,9 @@ TEST(IntelGPUArchName, UnknownArchitecturesGetANumericName) {
 TEST(IntelGPUArchName, LegacyArchitecture) {
   EXPECT_EQ(getIntelGPUArchName(gmdid(9, 0, 9)), "xe_9.0.9");
 }
+
+// The entries that name a group of releases carry a sentinel GMDID that no
+// device reports, so they never name a device.
+TEST(IntelGPUArchName, GroupNamesDoNotNameADevice) {
+  EXPECT_EQ(getIntelGPUArchName(gmdid(0, 0, 0)), "xe_0.0.0");
+}
