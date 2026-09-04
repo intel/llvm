@@ -129,13 +129,15 @@ std::string llvm::sycl_post_link::convertSettingsToString(
       "EmitOnlyKernelsAsEntryPoints: {4}, EmitParamInfo: {5}, "
       "EmitProgramMetadata: {6}, EmitKernelNames: {7}, "
       "EmitExportedSymbols: {8}, EmitImportedSymbols: {9}, "
-      "{10}",
+      "SuppressUndefinedFuncWarnings: {10}, "
+      "{11}",
       Settings.OutputAssembly,
       module_split::convertSplitModeToString(Settings.SplitMode), SpecConstMode,
       Settings.GenerateModuleDescWithDefaultSpecConsts,
       Settings.EmitOnlyKernelsAsEntryPoints, Settings.EmitParamInfo,
       Settings.EmitProgramMetadata, Settings.EmitKernelNames,
       Settings.EmitExportedSymbols, Settings.EmitImportedSymbols,
+      Settings.SuppressUndefinedFuncWarnings,
       sycl_post_link::convertESIMDOptionsToString(Settings.ESIMDOptions));
 }
 
@@ -143,11 +145,6 @@ Expected<std::vector<module_split::SplitModule>>
 llvm::sycl_post_link::performPostLinkProcessing(
     std::unique_ptr<Module> M,
     llvm::sycl_post_link::PostLinkSettings Settings) {
-  // Propagate the top-level SuppressUndefinedFuncWarnings knob into
-  // ESIMDOptions so both the SYCL and ESIMD split paths honour it.
-  Settings.ESIMDOptions.SuppressUndefinedFuncWarnings =
-      Settings.SuppressUndefinedFuncWarnings;
-
   std::vector<module_split::SplitModule> SplitModules;
   auto PostSplitCallback =
       [&SplitModules,

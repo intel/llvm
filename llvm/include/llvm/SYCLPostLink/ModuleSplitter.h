@@ -277,7 +277,7 @@ public:
   ModuleSplitterBase(std::unique_ptr<ModuleDesc> MD,
                      EntryPointGroupVec &&GroupVec,
                      bool AllowDeviceImageDependencies,
-                     bool SuppressUndefinedFuncWarnings = false)
+                     bool SuppressUndefinedFuncWarnings)
       : Input(std::move(MD)), Groups(std::move(GroupVec)),
         AllowDeviceImageDependencies(AllowDeviceImageDependencies),
         SuppressUndefinedFuncWarnings(SuppressUndefinedFuncWarnings) {
@@ -307,13 +307,13 @@ public:
 SmallVector<std::unique_ptr<ModuleDesc>, 2>
 splitByESIMD(std::unique_ptr<ModuleDesc> MD, bool EmitOnlyKernelsAsEntryPoints,
              bool AllowDeviceImageDependencies,
-             bool SuppressUndefinedFuncWarnings = false);
+             bool SuppressUndefinedFuncWarnings);
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(std::unique_ptr<ModuleDesc> MD, IRSplitMode Mode,
                       bool IROutputOnly, bool EmitOnlyKernelsAsEntryPoints,
                       bool AllowDeviceImageDependencies,
-                      bool SuppressUndefinedFuncWarnings = false);
+                      bool SuppressUndefinedFuncWarnings);
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void dumpEntryPoints(const EntryPointSet &C,
