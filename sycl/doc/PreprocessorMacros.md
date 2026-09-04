@@ -31,19 +31,13 @@ This file describes macros that have effect on SYCL compiler and run-time.
 
 - **SYCL_DISABLE_DEVICE_COPYABLE_CHECKS**
 
-  Makes `sycl::is_device_copyable_v<T>` report `true` for every type, which
+  Makes `sycl::is_device_copyable_v<T>` report `true` for every type, and
   disables all diagnostics that the SYCL headers issue when a type does not
-  satisfy the device copyability requirements of the SYCL specification. This
-  covers the checks on the captures and base classes of a kernel functor, on the
-  element type of a `buffer`, and on the pattern type of `handler::fill` and
-  `handler::ext_oneapi_fill2d`.
-
-  This macro exists to ease the migration of large existing code bases whose
-  types are known to be safe to copy to a device but cannot practically be
-  declared device copyable. Defining it makes the program's behavior undefined
-  for every type that is not actually device copyable, and the user takes on the
-  responsibility of ensuring that the types they pass to a device may be copied
-  by the implementation.
+  satisfy the device copyability requirements of the SYCL specification. 
+  Defining it makes the program's behavior undefined for every type that is
+  not actually device copyable, and the user takes on the responsibility of
+  ensuring that the types they pass to a device may be copied by the
+  implementation.
 
 - **SYCL_DISABLE_IMAGE_ASPECT_WARNING**
 
