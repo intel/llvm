@@ -383,8 +383,8 @@ __invoke__ImageReadCubemap(SmpImageT SmpImg, DirVecT DirVec) {
 }
 
 template <typename RetType, typename SmpImageT, typename CoordT>
-static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
-                                      float Level) {
+__attribute__((always_inline)) inline RetType
+__invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords, float Level) {
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
