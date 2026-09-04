@@ -9,6 +9,7 @@
 #include "clang/CodeGen/ModuleLinker.h"
 
 #include "clang/Basic/CodeGenOptions.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Module.h"
@@ -45,5 +46,39 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
     LinkModules.push_back({std::move(ModuleOrErr.get()), F.PropagateAttrs,
                            F.Internalize, F.LinkFlags});
   }
+
+  // For SYCL no-RDC, link the per-TU device wrapper bitcode produced by
+  // clang-linker-wrapper --sycl-device-link into the host module so the SYCL
+  // runtime finds the device image at program startup.
+  if (CI.getLangOpts().SYCLIsHost && !CI.getLangOpts().CUDA &&
+      !CI.getCodeGenOpts().OffloadBinaryToEmbedFile.empty()) {
+    auto BCBuf = CI.getFileManager().getBufferForFile(
+        CI.getCodeGenOpts().OffloadBinaryToEmbedFile);
+    if (!BCBuf) {
+      CI.getDiagnostics().Report(diag::err_cannot_open_file)
+          << CI.getCodeGenOpts().OffloadBinaryToEmbedFile
+          << BCBuf.getError().message();
+      LinkModules.clear();
+      return true;
+    }
+    llvm::Expected<std::unique_ptr<llvm::Module>> MOrErr =
+        llvm::parseBitcodeFile((*BCBuf)->getMemBufferRef(), Ctx);
+    if (!MOrErr) {
+      llvm::handleAllErrors(MOrErr.takeError(), [&](llvm::ErrorInfoBase &EIB) {
+        CI.getDiagnostics().Report(diag::err_fe_linking_module)
+            << CI.getCodeGenOpts().OffloadBinaryToEmbedFile << EIB.message();
+      });
+      LinkModules.clear();
+      return true;
+    }
+    // The wrapper .bc from clang-linker-wrapper has no data layout set.
+    // Stamp the host layout so linkModules doesn't warn about a mismatch.
+    (*MOrErr)->setDataLayout(CI.getTarget().getDataLayoutString());
+    LinkModules.push_back({std::move(*MOrErr),
+                           /*PropagateAttrs=*/false,
+                           /*Internalize=*/false,
+                           /*LinkFlags=*/0});
+  }
+
   return false;
 }

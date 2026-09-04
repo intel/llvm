@@ -9156,15 +9156,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // them in the host compilation depending on the target. If the host inputs
   // are not empty we use the new-driver scheme, otherwise use the old scheme.
   if ((IsCuda || IsHIP) && CudaDeviceInput) {
-    CmdArgs.push_back("-fcuda-include-gpubinary");
+    CmdArgs.push_back("-foffload-include-binary");
     CmdArgs.push_back(CudaDeviceInput->getFilename());
   } else if (!HostOffloadingInputs.empty()) {
-    if ((IsCuda || IsHIP) &&
-        (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi))) {
+    if (((IsCuda || IsHIP) &&
+         (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi))) ||
+        (IsSYCL && !IsRDCMode)) {
+      // No-RDC: device image finalized per-TU, embed at compile time.
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
-      CmdArgs.push_back("-fcuda-include-gpubinary");
+      CmdArgs.push_back("-foffload-include-binary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
     } else {
+      // RDC: embed raw device bitcode for cross-TU device link at link time.
       for (const InputInfo Input : HostOffloadingInputs)
         CmdArgs.push_back(Args.MakeArgString("-fembed-offload-object=" +
                                              TC.getInputFilename(Input)));
@@ -12154,13 +12157,21 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fsycl_link_EQ))
       CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
 
-    // Propagate [no-]rdc mode to the linker wrapper for the SYCL case.
-    // The default behaviour is rdc mode ON, which requires no special flags.
-    // In order to enable non-rdc mode, we pass --no-sycl-rdc to the linker
-    // wrapper. Note: -f[no-]sycl-rdc is an alias of -f[no-]gpu-rdc.
-    if (!Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
-                      /*default=*/true))
-      CmdArgs.push_back("--no-sycl-rdc");
+    bool IsSYCLNoRDC =
+        !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                      /*default=*/true);
+    if (IsSYCLNoRDC) {
+      // isDeviceOffloading(OFK_SYCL) distinguishes the per-TU finalizer
+      // (OFK_SYCL, from BuildOffloadingActions) from the final link-time
+      // invocation (OFK_Host) -- both produce TY_Image so output type alone
+      // is not a reliable discriminator.
+      // At the link step, -fno-sycl-rdc is silently ignored (same as upstream).
+      if (C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+          JA.isDeviceOffloading(Action::OFK_SYCL)) {
+        CmdArgs.push_back("--no-sycl-rdc");
+        CmdArgs.push_back("--sycl-device-link");
+      }
+    }
 
     // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.

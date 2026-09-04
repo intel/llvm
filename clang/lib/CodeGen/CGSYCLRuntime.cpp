@@ -16,6 +16,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include "llvm/IR/Instructions.h"
 #include <assert.h>
 

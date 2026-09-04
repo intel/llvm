@@ -8407,9 +8407,22 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     DDep.add(*PackagerAction,
              *C.getOffloadToolChains<Action::OFK_HIP>().first->second,
              /*BA=*/{}, Action::OFK_HIP);
+  } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
+             tools::SYCL::shouldDoPerObjectFileLinking(C) &&
+             !isa<LinkJobAction>(HostAction)) {
+    // SYCL -fno-sycl-rdc at compile time: finalize each TU's device code
+    // immediately via clang-linker-wrapper --sycl-device-link, embedding the
+    // result into the host object via -foffload-include-binary.
+    Action *PackagerAction =
+        C.MakeAction<OffloadPackagerJobAction>(OffloadActions, types::TY_Image);
+    ActionList AL{PackagerAction};
+    Action *FinalizeAction =
+        C.MakeAction<LinkerWrapperJobAction>(AL, types::TY_Image);
+    DDep.add(*FinalizeAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+             /*BA=*/{}, Action::OFK_SYCL);
   } else {
-    // Package all the offloading actions into a single output that can be
-    // embedded in the host and linked.
+    // RDC (default): package raw device bitcode to be embedded in the host
+    // object and device-linked across all TUs at final link time.
     Action *PackagerAction =
         C.MakeAction<OffloadPackagerJobAction>(OffloadActions, types::TY_Image);
     DDep.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
