@@ -14,5 +14,10 @@ struct NotDeviceCopyable {
 int main() {
   NotDeviceCopyable Val;
   // checks-on-error@*:* {{The specified type is not device copyable}}
+#ifdef SYCL_DISABLE_DEVICE_COPYABLE_CHECKS
+  static_assert(sycl::is_device_copyable_v<NotDeviceCopyable>);
+#else
+  static_assert(!sycl::is_device_copyable_v<NotDeviceCopyable>);
+#endif
   sycl::queue{}.single_task([=] { (void)Val; });
 }

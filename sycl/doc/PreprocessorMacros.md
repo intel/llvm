@@ -34,10 +34,9 @@ This file describes macros that have effect on SYCL compiler and run-time.
   Makes `sycl::is_device_copyable_v<T>` report `true` for every type, and
   disables all diagnostics that the SYCL headers issue when a type does not
   satisfy the device copyability requirements of the SYCL specification. 
-  Defining it makes the program's behavior undefined for every type that is
-  not actually device copyable, and the user takes on the responsibility of
-  ensuring that the types they pass to a device may be copied by the
-  implementation.
+  Passing an object whose type is not actually device copyable to a device
+  results in undefined behavior. The user takes responsibility for ensuring
+  that every type passed to a device can be copied by the implementation.
 
 - **SYCL_DISABLE_IMAGE_ASPECT_WARNING**
 
