@@ -2921,9 +2921,12 @@ void enqueueImpKernel(
     uint32_t IdQueryRangeProp = 0;
     // Get device image of kernel and retrieve the id queries range property.
     if (MSyclKernel != nullptr) {
-      // Interop and source-based kernels do not have device images and they
-      // are compiled with assumption that id/range will fit in size_t.
-      if (MSyclKernel->isInteropOrSourceBased()) {
+      // Interop kernels and kernels built from a non-SYCL source language
+      // (OpenCL C, SPIR-V) carry no SYCL metadata, so there is no id queries
+      // range property to read; their id queries are size_t by definition.
+      // Kernels built from SYCL source do have a device image with the
+      // property, so they must still be checked.
+      if (!MSyclKernel->hasSYCLMetadata()) {
         IdQueryRangeProp = 2; // size_t range
       } else {
         DeviceImageImpl = &MSyclKernel->getDeviceImage();
