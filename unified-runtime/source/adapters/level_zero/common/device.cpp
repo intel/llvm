@@ -1104,9 +1104,14 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_IMAGE_SRGB:
     return ReturnValue(ur_bool_t{false});
 
-  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
-  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     ur_queue_flags_t queue_flags = 0;
+    return ReturnValue(queue_flags);
+  }
+  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+    ur_queue_flags_t queue_flags = UR_QUEUE_FLAG_DISCARD_EVENTS |
+                                   UR_QUEUE_FLAG_SUBMISSION_BATCHED |
+                                   UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     return ReturnValue(queue_flags);
   }
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
