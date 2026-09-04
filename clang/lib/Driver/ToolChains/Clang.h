@@ -159,11 +159,6 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
-  void ConstructJobMultipleOutputs(Compilation &C, const JobAction &JA,
-                                   const InputInfoList &Outputs,
-                                   const InputInfoList &Inputs,
-                                   const llvm::opt::ArgList &TCArgs,
-                                   const char *LinkingOutput) const override;
 };
 
 /// Offload wrapper tool.

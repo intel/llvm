@@ -38,12 +38,10 @@
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Options/Options.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -2708,6 +2706,7 @@ void tools::addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
   }
 }
 
+<<<<<<< HEAD
 /// SDLSearch: Search for Static Device Library
 /// The search for SDL bitcode files is consistent with how static host
 /// libraries are discovered. That is, the -l option triggers a search for
@@ -3032,6 +3031,8 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
   }
 }
 
+=======
+>>>>>>> 128cdb86fc6bd947ae8a85602a9b0429b412ac77
 static llvm::opt::Arg *
 getAMDGPUCodeObjectArgument(const Driver &D, const llvm::opt::ArgList &Args) {
   return Args.getLastArg(options::OPT_mcode_object_version_EQ);

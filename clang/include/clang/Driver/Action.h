@@ -74,8 +74,11 @@ public:
     VerifyDebugInfoJobClass,
     VerifyPCHJobClass,
     OffloadBundlingJobClass,
+<<<<<<< HEAD
     OffloadUnbundlingJobClass,
     OffloadWrapperJobClass,
+=======
+>>>>>>> 128cdb86fc6bd947ae8a85602a9b0429b412ac77
     OffloadPackagerJobClass,
     OffloadPackagerExtractJobClass,
     OffloadDepsJobClass,
@@ -599,6 +602,7 @@ public:
   }
 };
 
+<<<<<<< HEAD
 class OffloadUnbundlingJobAction final : public JobAction {
   void anchor() override;
 
@@ -713,6 +717,8 @@ private:
   OffloadKind Kind = OFK_None;
 };
 
+=======
+>>>>>>> 128cdb86fc6bd947ae8a85602a9b0429b412ac77
 class OffloadPackagerJobAction : public JobAction {
   void anchor() override;
 

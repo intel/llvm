@@ -40,10 +40,13 @@ const char *Action::getClassName(ActionClass AC) {
   case VerifyPCHJobClass: return "verify-pch";
   case OffloadBundlingJobClass:
     return "clang-offload-bundler";
+<<<<<<< HEAD
   case OffloadUnbundlingJobClass:
     return "clang-offload-unbundler";
   case OffloadWrapperJobClass:
     return "clang-offload-wrapper";
+=======
+>>>>>>> 128cdb86fc6bd947ae8a85602a9b0429b412ac77
   case OffloadPackagerJobClass:
     return "llvm-offload-binary";
   case OffloadPackagerExtractJobClass:
@@ -84,6 +87,7 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, BoundArch OArch,
   // Offload action set its own kinds on their dependences.
   if (Kind == OffloadClass)
     return;
+<<<<<<< HEAD
   // Unbundling actions use the host kinds.
   if (Kind == OffloadUnbundlingJobClass)
     return;
@@ -101,6 +105,8 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, BoundArch OArch,
       });
   if (Kind == OffloadPackagerJobClass && hasPreprocessOrPCHJob)
     return;
+=======
+>>>>>>> 128cdb86fc6bd947ae8a85602a9b0429b412ac77
 
   assert((OffloadingDeviceKind == OKind || OffloadingDeviceKind == OFK_None) &&
          "Setting device kind to a different device??");
@@ -469,6 +475,7 @@ void OffloadBundlingJobAction::anchor() {}
 OffloadBundlingJobAction::OffloadBundlingJobAction(ActionList &Inputs)
     : JobAction(OffloadBundlingJobClass, Inputs, Inputs.back()->getType()) {}
 
+<<<<<<< HEAD
 void OffloadUnbundlingJobAction::anchor() {}
 
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input)
@@ -492,6 +499,8 @@ OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input, types::ID Type,
                                                  bool IsEmbeddedIR)
     : JobAction(OffloadWrapperJobClass, Input, Type), EmbedIR(IsEmbeddedIR) {}
 
+=======
+>>>>>>> 128cdb86fc6bd947ae8a85602a9b0429b412ac77
 void OffloadPackagerJobAction::anchor() {}
 
 OffloadPackagerJobAction::OffloadPackagerJobAction(ActionList &Inputs,

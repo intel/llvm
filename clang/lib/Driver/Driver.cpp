@@ -7239,8 +7239,8 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
 }
 
 /// HIP non-RDC \c -S for AMDGCN: emit host and device assembly separately and
-/// bundle with \c clang-offload-bundler (new offload driver), instead of
-/// \c llvm-offload-binary / \c clang-linker-wrapper fatbin embedding.
+/// bundle with \c clang-offload-bundler, instead of \c llvm-offload-binary /
+/// \c clang-linker-wrapper fatbin embedding.
 static bool shouldBundleHIPAsm(const Compilation &C,
                                const llvm::opt::DerivedArgList &Args,
                                const Driver &D) {
@@ -7535,8 +7535,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
     }
 
-    // HIP non-RDC -S (AMDGCN): bundle host and device assembly like the
-    // classic driver instead of embedding a fat binary in host asm.
+    // HIP non-RDC -S (AMDGCN): bundle host and device assembly instead of
+    // embedding a fat binary in host asm.
     if (Current && !HIPAsmDeviceActions.empty()) {
       ActionList BundleInputs;
       BundleInputs.append(HIPAsmDeviceActions);
@@ -8299,7 +8299,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
       OffloadAction::DeviceDependences DDep;
       DDep.add(*A, *TCAndArch->first, TCAndArch->second, Kind);
 
-      // The legacy CUDA fatbinary path can include PTX alongside the cubin.
+      // The CUDA fatbinary path can include PTX alongside the cubin.
       // The LLVM offload wrapper path feeds these images through a device
       // linker first, and clang-nvlink-wrapper does not accept PTX as input.
       for (Action *Input : A->getInputs())
@@ -9858,6 +9858,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
 
   // Determine the place to write output to, if any.
   InputInfo Result;
+<<<<<<< HEAD
   InputInfoList UnbundlingResults;
   if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(JA)) {
     // If we have an unbundling job, we need to create results for all the
@@ -9976,6 +9977,9 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     assert(It != CachedResults.end() && "Result does not exist??");
     Result = It->second.front();
   } else if (JA->getType() == types::TY_Nothing)
+=======
+  if (JA->getType() == types::TY_Nothing)
+>>>>>>> 128cdb86fc6bd947ae8a85602a9b0429b412ac77
     Result = {InputInfo(A, BaseInput)};
   else {
     std::string OffloadingPrefix;
@@ -10033,23 +10037,9 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       if (i + 1 != e)
         llvm::errs() << ", ";
     }
-    if (UnbundlingResults.empty())
-      llvm::errs() << "], output: " << Result.getAsString() << "\n";
-    else {
-      llvm::errs() << "], outputs: [";
-      for (unsigned i = 0, e = UnbundlingResults.size(); i != e; ++i) {
-        llvm::errs() << UnbundlingResults[i].getAsString();
-        if (i + 1 != e)
-          llvm::errs() << ", ";
-      }
-      llvm::errs() << "] \n";
-    }
+    llvm::errs() << "], output: " << Result.getAsString() << "\n";
   } else {
-    if (UnbundlingResults.empty())
-      T->ConstructJob(C, *JA, Result, InputInfos, Args, LinkingOutput);
-    else
-      T->ConstructJobMultipleOutputs(C, *JA, UnbundlingResults, InputInfos,
-                                     Args, LinkingOutput);
+    T->ConstructJob(C, *JA, Result, InputInfos, Args, LinkingOutput);
   }
   return {Result};
 }

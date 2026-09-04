@@ -5692,7 +5692,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   InputInfoList ExtractAPIInputs;
   InputInfoList HostOffloadingInputs;
-  const InputInfo *CudaDeviceInput = nullptr;
   const InputInfo *OpenMPDeviceInput = nullptr;
   const InputInfo *SYCLDeviceInput = nullptr;
   for (const InputInfo &I : Inputs) {
@@ -5708,8 +5707,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       ExtractAPIInputs.push_back(I);
     } else if (IsHostOffloadingAction) {
       HostOffloadingInputs.push_back(I);
-    } else if ((IsCuda || IsHIP) && !CudaDeviceInput) {
-      CudaDeviceInput = &I;
     } else if (IsOpenMPDevice && !OpenMPDeviceInput) {
       OpenMPDeviceInput = &I;
     } else if (IsSYCL && !SYCLDeviceInput) {
@@ -9180,12 +9177,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Host-side offloading compilation receives all device-side outputs. Include
-  // them in the host compilation depending on the target. If the host inputs
-  // are not empty we use the new-driver scheme, otherwise use the old scheme.
-  if ((IsCuda || IsHIP) && !UsesLLVMOffloading && CudaDeviceInput) {
-    CmdArgs.push_back("-foffload-include-binary");
-    CmdArgs.push_back(CudaDeviceInput->getFilename());
-  } else if (!HostOffloadingInputs.empty()) {
+  // them in the host compilation depending on the target.
+  if (!HostOffloadingInputs.empty()) {
     bool UseOffloadIncludeBinary =
         (IsCuda || IsHIP) &&
         (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi)) &&
@@ -10529,6 +10522,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs, ArrayRef<InputInfo>(), Output));
 }
 
+<<<<<<< HEAD
 void OffloadBundler::ConstructJobMultipleOutputs(
     Compilation &C, const JobAction &JA, const InputInfoList &Outputs,
     const InputInfoList &Inputs, const llvm::opt::ArgList &TCArgs,
@@ -10934,6 +10928,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs, Inputs));
 }
 
+=======
+>>>>>>> 128cdb86fc6bd947ae8a85602a9b0429b412ac77
 void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
                                    const InputInfo &Output,
                                    const InputInfoList &Inputs,
