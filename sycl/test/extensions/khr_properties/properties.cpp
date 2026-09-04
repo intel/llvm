@@ -57,6 +57,17 @@ template <int X> struct hybrid : kd::hybrid_property<hybrid_key> {
 template <>
 struct sycl::khr::is_property_key_for<hybrid_key, MyClass> : std::true_type {};
 
+// Runtime property applicable only to OtherClass, used to exercise property
+// lists that mix properties applicable to different classes.
+struct other_only_key : kd::runtime_property_key {};
+struct other_only : kd::runtime_property<other_only_key> {
+  int value;
+  constexpr other_only(int v = 0) : value(v) {}
+};
+template <>
+struct sycl::khr::is_property_key_for<other_only_key, OtherClass>
+    : std::true_type {};
+
 // is_property / is_property_key / is_property_key_compile_time.
 static_assert(is_property_v<enable_profiling> && is_property_v<hybrid<1>>);
 static_assert(
@@ -64,6 +75,7 @@ static_assert(
 static_assert(!is_property_v<int> && !is_property_v<enable_profiling_key>);
 static_assert(is_property_key_v<enable_profiling_key> &&
               is_property_key_v<alignment_key> &&
+              is_property_key_v<alignment_type_key> &&
               is_property_key_v<hybrid_key>);
 static_assert(!is_property_key_v<enable_profiling>);
 static_assert(is_property_key_compile_time_v<alignment_key> &&
@@ -72,12 +84,26 @@ static_assert(is_property_key_compile_time_v<alignment_key> &&
 static_assert(!is_property_key_compile_time_v<enable_profiling_key> &&
               !is_property_key_compile_time_v<hybrid_key>);
 
-// is_property_key_for / is_property_for / is_property_list_for.
-static_assert(is_property_key_for_v<enable_profiling_key, MyClass>);
-static_assert(!is_property_key_for_v<enable_profiling_key, OtherClass>);
-static_assert(is_property_for_v<enable_profiling, MyClass> &&
-              is_property_for_v<hybrid<1>, MyClass>);
-static_assert(!is_property_for_v<enable_profiling, OtherClass>);
+// is_property_key_for / is_property_for, checked for every property kind
+// (runtime, compile-time value, compile-time type, hybrid).
+static_assert(is_property_key_for_v<enable_profiling_key, MyClass> &&
+              is_property_key_for_v<alignment_key, MyClass> &&
+              is_property_key_for_v<alignment_type_key, MyClass> &&
+              is_property_key_for_v<hybrid_key, MyClass>);
+static_assert(!is_property_key_for_v<enable_profiling_key, OtherClass> &&
+              !is_property_key_for_v<alignment_key, OtherClass> &&
+              !is_property_key_for_v<alignment_type_key, OtherClass> &&
+              !is_property_key_for_v<hybrid_key, OtherClass>);
+static_assert(
+    is_property_for_v<enable_profiling, MyClass> &&
+    is_property_for_v<alignment_key::__detail_property_t<alignment_key, int, 4>,
+                      MyClass> &&
+    is_property_for_v<
+        alignment_type_key::__detail_property_t<alignment_type_key, int>,
+        MyClass> &&
+    is_property_for_v<hybrid<1>, MyClass>);
+static_assert(!is_property_for_v<enable_profiling, OtherClass> &&
+              !is_property_for_v<hybrid<1>, OtherClass>);
 
 // Container: CTAD, has_property, get_property (runtime, compile-time, hybrid).
 void container() {
@@ -93,4 +119,12 @@ void container() {
   static_assert(is_property_list_for_v<decltype(p), MyClass>);
   static_assert(!is_property_list_for_v<decltype(p), OtherClass>);
   static_assert(is_property_list_for_v<empty_properties_t, OtherClass>);
+
+  // A list that mixes properties applicable to different classes is a property
+  // list for neither class (every property must be usable with the class).
+  properties mixed{enable_profiling{true}, other_only{7}};
+  static_assert(is_property_for_v<enable_profiling, MyClass> &&
+                is_property_for_v<other_only, OtherClass>);
+  static_assert(!is_property_list_for_v<decltype(mixed), MyClass>);
+  static_assert(!is_property_list_for_v<decltype(mixed), OtherClass>);
 }
