@@ -30,7 +30,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-struct sub_group;
+class sub_group;
 namespace detail {
 class Builder;
 }

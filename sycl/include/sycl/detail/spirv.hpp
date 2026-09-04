@@ -32,7 +32,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-struct sub_group;
+class sub_group;
 namespace ext {
 namespace oneapi {
 struct sub_group;

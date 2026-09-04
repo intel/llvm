@@ -20,7 +20,7 @@ namespace sycl {
 inline namespace _V1 {
 
 template <int Dimensions> class group;
-struct sub_group;
+class sub_group;
 namespace ext::oneapi {
 struct sub_group;
 

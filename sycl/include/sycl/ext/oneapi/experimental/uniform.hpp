@@ -21,7 +21,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-struct sub_group;
+class sub_group;
 template <int, bool> class item;
 template <int> class id;
 template <int> class nd_item;
