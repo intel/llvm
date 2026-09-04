@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sycl/usm.hpp>
 //==----------- element_wise_all_ops_impl.hpp  - DPC++ joint_matrix---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -22,6 +23,21 @@ void assert_ops_ref(host_accessor<T, 2, access_mode::read> mat,
     }
 }
 
+// Overload for results held in a USM allocation instead of a buffer.
+template <typename T, size_t NUM_ROWS, size_t NUM_COLS>
+void assert_ops_ref(const T *mat, const float ref) {
+  for (size_t i = 0; i < NUM_ROWS; i++)
+    for (size_t j = 0; j < NUM_COLS; j++) {
+      float diff;
+      if constexpr (std::is_same_v<T, bfloat16>)
+        diff = make_fp32(mat[i * NUM_COLS + j]) - ref;
+      else
+        diff = mat[i * NUM_COLS + j] - ref;
+      assert(std::fabs(static_cast<float>(diff)) <
+             std::numeric_limits<float>::epsilon());
+    }
+}
+
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS,
           size_t SUB_COLS, use Use, layout Layout, size_t VF, class kernel_name,
           typename OP>
@@ -31,7 +47,6 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
 
   buffer<T, 2> bufMat(big_mat.get_data(),
                       range<2>(NUM_ROWS / VF, NUM_COLS * VF));
-
   queue q;
   size_t sg_size = get_sg_size<kernel_name>(q);
   q.submit([&](handler &cgh) {
@@ -63,6 +78,115 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
    }).wait();
   assert_ops_ref<T, NUM_ROWS / VF, NUM_COLS * VF>(
       bufMat.get_host_access(read_only), ref);
+}
+
+template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS,
+          size_t SUB_COLS, use Use, layout Layout, size_t VF, class kernel_name,
+          typename OP, std::enable_if_t<is_fp8_type_v<T>, bool> = true>
+void verify_op_ab(const sycl::half l, const sycl::half r, const float ref,
+                  OP op) {
+  queue q;
+  T *mat = malloc_shared<T>(NUM_ROWS / VF * NUM_COLS * VF, q);
+  sycl::half *matH =
+      malloc_shared<sycl::half>(NUM_ROWS / VF * NUM_COLS * VF, q);
+  size_t sg_size = get_sg_size<kernel_name>(q);
+  q.submit([&](handler &cgh) {
+     cgh.parallel_for<kernel_name>(
+         nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * sg_size},
+                     {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
+           const auto global_idx = spmd_item.get_global_id(0);
+           const auto global_idy = spmd_item.get_global_id(1);
+           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+
+           auto pMat =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  access::decorated::no>(mat);
+
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, Use, SUB_ROWS, SUB_COLS, Layout> sub_mat;
+           joint_matrix_fill(sg, sub_mat, T(l));
+           joint_matrix_apply(sg, sub_mat, [=](T &x) { x = op((half)x, r); });
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_mat,
+               pMat + (sg_startx * SUB_ROWS / VF) * NUM_COLS * VF +
+                   sg_starty / sg_size * SUB_COLS * VF,
+               NUM_COLS * VF);
+         }); // parallel for
+   }).wait();
+
+  matrix_copy<T, sycl::half>(q, NUM_ROWS, NUM_COLS, mat, matH);
+
+  assert_ops_ref<sycl::half, NUM_ROWS / VF, NUM_COLS * VF>(matH, ref);
+
+  free(mat, q);
+  free(matH, q);
+}
+
+template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS,
+          size_t SUB_COLS, use Use, layout Layout, size_t VF, class kernel_name,
+          size_t numElems = 2, typename OP,
+          std::enable_if_t<is_4bit_type_v<T, numElems>, bool> = true>
+void verify_op_ab(const sycl::half l, const sycl::half r, const float ref,
+                  OP op) {
+  // Cols is the row stride in packed fp4_e2m1_x<numElems> storage elements.
+  // NOTE: the packed VNNI layout for 4-bit types is unverified GSD-9057
+  constexpr size_t Cols = NUM_COLS / numElems * VF;
+
+  queue q;
+  T *mat = malloc_shared<T>(NUM_ROWS / VF * Cols, q);
+  sycl::half *matH =
+      malloc_shared<sycl::half>(NUM_ROWS / VF * NUM_COLS * VF, q);
+  size_t sg_size = get_sg_size<kernel_name>(q);
+  q.submit([&](handler &cgh) {
+     cgh.parallel_for<kernel_name>(
+         nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * sg_size},
+                     {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
+           const auto global_idx = spmd_item.get_global_id(0);
+           const auto global_idy = spmd_item.get_global_id(1);
+           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+
+           auto pMat =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  access::decorated::no>(mat);
+
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, Use, SUB_ROWS, SUB_COLS, Layout> sub_mat;
+           marray<sycl::half, numElems> fillVal(l);
+           joint_matrix_fill(sg, sub_mat, T(fillVal));
+           joint_matrix_apply(sg, sub_mat, [=](T &x) {
+             marray<sycl::half, numElems> mval =
+                 (marray<sycl::half, numElems>)x;
+             for (unsigned int p = 0; p < numElems; p++)
+               mval[p] = op(mval[p], r);
+             // The 4-bit types construct from an marray explicitly only.
+             x = T(mval);
+           });
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_mat,
+               pMat + (sg_startx * SUB_ROWS / VF) * Cols +
+                   sg_starty / sg_size * SUB_COLS / numElems * VF,
+               Cols);
+         }); // parallel for
+   }).wait();
+
+  matrix_copy<T, sycl::half, numElems>(q, NUM_ROWS / VF, Cols, mat, matH);
+
+  assert_ops_ref<sycl::half, NUM_ROWS / VF, NUM_COLS * VF>(matH, ref);
+
+  free(mat, q);
+  free(matH, q);
 }
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS,
@@ -120,7 +244,6 @@ void test_ewops_ab() {
 
   static constexpr size_t NROWS = SROWS * 2;
   static constexpr size_t NCOLS = SCOLS * 2;
-
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_add>>(
       Tv(5.0), Tv(2.0), 7.0, [](auto l, auto r) { return l + r; });
@@ -251,6 +374,30 @@ int main() {
       test_ewops_c<float, 32, 32>();
       break;
     }
+  }
+#if 0
+  // Disabled by lack of 4-bit DPAS support in IGC; the packed VNNI layout for
+  // the 4-bit types is unverified as a result. Tracked by Jira GSD-9057.
+  // fp4_e2m1_x packs 1 or 2 elements per byte, so the 4-bit tests run at a
+  // packing factor of 2.
+  constexpr unsigned int numElems = 2;
+  if (is_type_supported_by_device(q, matrix_type::fp4_e2m1)) {
+    test_ewops_ab<syclex::fp4_e2m1_x<numElems>, 8, 32, use::a,
+                  layout::row_major, 1, sycl::half>();
+    test_ewops_ab<syclex::fp4_e2m1_x<numElems>, 32, 16, use::b,
+                  layout::ext_intel_packed, 8, sycl::half>();
+  }
+#endif
+
+  if (is_type_supported_by_device(q, matrix_type::fp8_e5m2)) {
+    test_ewops_ab<syclex::fp8_e5m2, 8, 32, use::a, layout::row_major, 1,
+                  sycl::half>();
+    test_ewops_ab<syclex::fp8_e4m3, 8, 32, use::a, layout::row_major, 1,
+                  sycl::half>();
+    test_ewops_ab<syclex::fp8_e5m2, 32, 16, use::b, layout::ext_intel_packed, 4,
+                  sycl::half>();
+    test_ewops_ab<syclex::fp8_e4m3, 32, 16, use::b, layout::ext_intel_packed, 4,
+                  sycl::half>();
   }
 
   return 0;
