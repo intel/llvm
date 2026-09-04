@@ -23,6 +23,9 @@
 
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: bfloat16 device library is not used on AMD and Nvidia.
+
+// XFAIL: linux && level_zero && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23094
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
