@@ -1,0 +1,10 @@
+// Copyright (C) 2025 Intel Corporation
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+// XFAIL: *
+// RUN: python3 %S/test_helper.py fail | FileCheck --check-prefix=CHECK-FAIL %s
+// CHECK-FAIL: Test failed: expected 42, got 41
+
+// This test is expected to fail (XFAIL).
+// It should appear in "Expected Failures" category in CI logs.
