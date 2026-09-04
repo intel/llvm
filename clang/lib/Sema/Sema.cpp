@@ -2438,10 +2438,8 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   // declarations can be replaced with an array of bytes of the same size during
   // codegen, such replacement doesn't seem to be possible for types without
   // constant byte size like zero length arrays. So, do a deep check for SYCL.
-  if (D && LangOpts.SYCLIsDevice) {
-    llvm::DenseSet<QualType> Visited;
-    SYCL().deepTypeCheckForDevice(Loc, Visited, D);
-  }
+  if (D && LangOpts.SYCLIsDevice)
+    SYCL().deepTypeCheckForDevice(Loc, D);
 
   Decl *C = cast<Decl>(getCurLexicalContext());
 
