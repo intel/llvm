@@ -39,8 +39,15 @@ struct is_device_copyable_impl<
     : is_device_copyable<std::remove_cv_t<T>> {};
 } // namespace detail
 
+#ifdef SYCL_DISABLE_DEVICE_COPYABLE_CHECKS
+// The user has opted out of the device copyability checks, and takes
+// responsibility for the copyability of the types they pass to a device. See
+// sycl/doc/PreprocessorMacros.md.
+template <typename T> struct is_device_copyable : std::true_type {};
+#else
 template <typename T>
 struct is_device_copyable : detail::is_device_copyable_impl<T> {};
+#endif
 
 // std::array<T, 0> is implicitly device copyable type.
 template <typename T>
