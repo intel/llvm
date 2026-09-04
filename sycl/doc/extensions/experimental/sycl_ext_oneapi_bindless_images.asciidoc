@@ -329,6 +329,10 @@ stored in sRGB or linear color space, and defaults to `linear`.
 When set to `srgb`, hardware applies the IEC 61966-2-1 sRGB decode on fetch
 or sample, returning linear values to the kernel.
 
+The `srgb` color space is only valid for images that will be read via `fetch_image`, `fetch_image_array`,
+`sample_image`, or `sample_image_array`. Writing to an image with `color_space` set to `srgb` (via `write_image` or
+`write_image_array`) is not supported.
+
 The `verify` member function will reject a `color_space` of `srgb` unless
 `num_channels` is `4` and `channel_type` is `unorm_int8`.
 
