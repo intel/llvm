@@ -410,7 +410,12 @@ int runTest(
                                           q.get_context());
       vkDestroySemaphore(vkCtx.device, vkSem, nullptr);
     }
+    
+    // DEBUG: Print message before cleanup to track where segfault occurs
+    std::cerr << "DEBUG: About to call cleanupVulkan()..." << std::endl;
     cleanupVulkan(vkCtx, imgRes);
+    std::cerr << "DEBUG: cleanupVulkan() completed successfully" << std::endl;
+    
     return passed ? 0 : 1;
 
   } catch (std::exception &e) {
