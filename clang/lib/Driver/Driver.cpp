@@ -7919,18 +7919,11 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       ArgStringList TargetArgs;
       DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
                                            C.getInputArgs(), TargetArgs);
-      // Look for -device <string> and use that as the known
-      // arch to be associated with the current spir64_gen entry. Grab
-      // the right most entry.
-      for (int i = TargetArgs.size() - 2; i >= 0; --i) {
-        if (StringRef(TargetArgs[i]) == "-device") {
-          StringRef Arch;
-          Arch = TargetArgs[i + 1];
-          if (!Arch.empty())
-            Archs.insert(Arch);
-          break;
-        }
-      }
+      // Use the rightmost embedded "-device <arch>" as the arch bound to
+      // the raw spir64_gen entry.
+      if (StringRef Arch = tools::SYCL::gen::getEmbeddedDeviceArch(TargetArgs);
+          !Arch.empty())
+        Archs.insert(Arch);
     }
   }
 

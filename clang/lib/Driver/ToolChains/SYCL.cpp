@@ -1097,6 +1097,13 @@ StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
   return GRFModeFlagMap[GRFMode];
 }
 
+StringRef SYCL::gen::getEmbeddedDeviceArch(ArrayRef<const char *> Tokens) {
+  for (int I = static_cast<int>(Tokens.size()) - 2; I >= 0; --I)
+    if (StringRef(Tokens[I]) == "-device")
+      return Tokens[I + 1];
+  return {};
+}
+
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                               const JobAction &JA,
                                               const InputInfo &Output,
