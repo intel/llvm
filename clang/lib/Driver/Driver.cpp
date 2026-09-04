@@ -7241,10 +7241,9 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
 /// HIP non-RDC \c -S for AMDGCN: emit host and device assembly separately and
 /// bundle with \c clang-offload-bundler (new offload driver), instead of
 /// \c llvm-offload-binary / \c clang-linker-wrapper fatbin embedding.
-static bool
-shouldBundleHIPAsmWithNewDriver(const Compilation &C,
-                                const llvm::opt::DerivedArgList &Args,
-                                const Driver &D) {
+static bool shouldBundleHIPAsm(const Compilation &C,
+                               const llvm::opt::DerivedArgList &Args,
+                               const Driver &D) {
   if (!C.isOffloadingHostKind(Action::OFK_HIP) ||
       !Args.hasArg(options::OPT_S) || Args.hasArg(options::OPT_emit_llvm) ||
       D.offloadDeviceOnly() ||
@@ -7539,7 +7538,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // HIP non-RDC -S (AMDGCN): bundle host and device assembly like the
     // classic driver instead of embedding a fat binary in host asm.
     if (Current && !HIPAsmDeviceActions.empty()) {
-      assert(UseNewOffloadingDriver && "unexpected HIP asm bundle list");
       ActionList BundleInputs;
       BundleInputs.append(HIPAsmDeviceActions);
       BundleInputs.push_back(Current);
@@ -7547,15 +7545,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
 
     // If we ended with something, add to the output list.
-    if (Current)
+    if (Current) {
       Actions.push_back(Current);
-
-    // Add any top level actions generated for offloading.
-    if (!UseNewOffloadingDriver)
-      OffloadBuilder->appendTopLevelActions(Actions, Current, InputArg);
-    else if (Current)
       Current->propagateHostOffloadInfo(C.getActiveOffloadKinds(),
                                         /*BA=*/{});
+    }
   }
 
   if (!UseNewOffloadingDriver) {
@@ -7592,7 +7586,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // Check if this Linker Job should emit a static library.
     if (ShouldEmitStaticLibrary(Args)) {
       LA = C.MakeAction<StaticLibJobAction>(LinkerInputs, types::TY_Image);
-    } else if (UseNewOffloadingDriver ||
+    } else if (C.getActiveOffloadKinds() != Action::OFK_None ||
                Args.hasArg(options::OPT_offload_link)) {
       LA = C.MakeAction<LinkerWrapperJobAction>(
           LinkerInputs,
@@ -7609,8 +7603,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                                                             : types::TY_Image;
       LA = C.MakeAction<LinkJobAction>(LinkerInputs, LT);
     }
-    if (!UseNewOffloadingDriver)
-      LA = OffloadBuilder->processHostLinkAction(LA);
     Actions.push_back(LA);
   }
 
@@ -8351,9 +8343,13 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
          return A->getType() != types::TY_Image;
        }));
 
-  // All kinds exit now in device-only mode except for non-RDC mode HIP.
+  // All kinds exit now in device-only mode except for non-RDC mode HIP. If no
+  // device dependences were produced (e.g. an invalid offload architecture was
+  // diagnosed) fall back to the host action instead of an empty offload action.
   if (offloadDeviceOnly() && !ShouldBundleHIP)
-    return C.MakeAction<OffloadAction>(DDeps, types::TY_Nothing);
+    return DDeps.getActions().empty()
+               ? HostAction
+               : C.MakeAction<OffloadAction>(DDeps, types::TY_Nothing);
 
   if (OffloadActions.empty())
     return HostAction;
@@ -8471,7 +8467,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     // Host + device assembly: defer to clang-offload-bundler (see
     // BuildActions).
     if (HIPNoRDC && HIPAsmBundleDeviceOut &&
-        shouldBundleHIPAsmWithNewDriver(C, Args, C.getDriver())) {
+        shouldBundleHIPAsm(C, Args, C.getDriver())) {
       for (Action *OA : OffloadActions)
         HIPAsmBundleDeviceOut->push_back(OA);
       return HostAction;
@@ -10485,11 +10481,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       // (generated in the compile phase.)
       const ToolChain *TC = JA.getOffloadingToolChain();
       return isa<CompileJobAction>(JA) &&
-             ((JA.getOffloadingDeviceKind() == Action::OFK_HIP &&
-               (Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
-                             false) ||
-                Args.hasFlag(options::OPT_offload_new_driver,
-                             options::OPT_no_offload_new_driver, true))) ||
+             (JA.getOffloadingDeviceKind() == Action::OFK_HIP ||
               (JA.getOffloadingDeviceKind() == Action::OFK_OpenMP && TC &&
                TC->getTriple().isAMDGPU()));
     };

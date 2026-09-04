@@ -5664,18 +5664,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                  JA.isDeviceOffloading(Action::OFK_Host));
   bool IsHostOffloadingAction =
       JA.isHostOffloading(Action::OFK_OpenMP) ||
-      (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
-       Args.hasFlag(options::OPT_offload_new_driver,
-                    options::OPT_no_offload_new_driver,
-                    (C.getActiveOffloadKinds() != Action::OFK_None &&
-                     C.getActiveOffloadKinds() != Action::OFK_SYCL)));
+      JA.isHostOffloading(Action::OFK_SYCL) ||
+      (JA.isHostOffloading(C.getActiveOffloadKinds()));
 
-  // Do not claim the RDC arg at this point as it is not indicative of proper
-  // support. Not claiming here allows for the 'unused argument' diagnostic to
-  // be emitted depending on actual support when comparing the old and new
-  // offload model paths.
-  bool IsRDCMode = Args.hasFlagNoClaim(options::OPT_fgpu_rdc,
-                                       options::OPT_fno_gpu_rdc, IsSYCL);
+  // SYCL defaults to RDC; CUDA/HIP default to non-RDC.
+  bool IsRDCMode = Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                                /*Default=*/IsSYCL);
   auto LTOMode = TC.getLTOMode(Args, JA.getOffloadingDeviceKind());
   bool IsUsingLTO = LTOMode != LTOK_None;
   const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
@@ -6364,28 +6358,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-llvm-uselists");
 
     if (IsUsingLTO) {
-      bool IsUsingOffloadNewDriver = Args.hasFlag(
-          options::OPT_offload_new_driver, options::OPT_no_offload_new_driver,
-          (C.isOffloadingHostKind(Action::OFK_Cuda) ||
-           C.isOffloadingHostKind(Action::OFK_HIP)));
       Arg *SYCLSplitMode =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
       const Arg *LTOArg = Args.getLastArg(options::OPT_foffload_lto,
                                           options::OPT_foffload_lto_EQ);
       bool IsDeviceCodeSplitDisabled =
           SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
-      bool IsSYCLLTOSupported =
-          JA.isDeviceOffloading(Action::OFK_SYCL) && IsUsingOffloadNewDriver;
-      if ((IsDeviceOffloadAction &&
-           !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
-           !Triple.isSPIRV() && !IsUsingOffloadNewDriver) ||
-          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported &&
-           LTOArg)) {
-        D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << LTOArg->getAsString(Args)
-            << Triple.getTriple();
-      } else if (Triple.isNVPTX() && !IsRDCMode &&
-                 JA.isDeviceOffloading(Action::OFK_Cuda)) {
+      if (Triple.isNVPTX() && !IsRDCMode &&
+          JA.isDeviceOffloading(Action::OFK_Cuda)) {
         D.Diag(diag::err_drv_unsupported_opt_for_language_mode)
             << (LTOArg ? LTOArg->getAsString(Args) : "-foffload-lto")
             << "-fno-gpu-rdc";
@@ -8070,18 +8050,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.addOptOutFlag(CmdArgs, options::OPT_fopenmp_extensions,
                        options::OPT_fno_openmp_extensions);
   }
-  // Forward the offload runtime change to code generation, liboffload implies
-  // new driver. Otherwise, check if we should forward the new driver to change
-  // offloading code generation.
+  // Forward '-foffload-via-llvm' to code generation to target the LLVM/Offload
+  // runtime.
   if (Args.hasFlag(options::OPT_foffload_via_llvm,
-                   options::OPT_fno_offload_via_llvm, false)) {
-    CmdArgs.append({"--offload-new-driver", "-foffload-via-llvm"});
-  } else if (Args.hasFlag(options::OPT_offload_new_driver,
-                          options::OPT_no_offload_new_driver,
-                          (C.getActiveOffloadKinds() != Action::OFK_None &&
-                           C.getActiveOffloadKinds() != Action::OFK_SYCL))) {
-    CmdArgs.push_back("--offload-new-driver");
-  }
+                   options::OPT_fno_offload_via_llvm, false))
+    CmdArgs.push_back("-foffload-via-llvm");
 
   const XRayArgs &XRay = TC.getXRayArgs(Args);
   XRay.addArgs(TC, Args, CmdArgs, InputType);
