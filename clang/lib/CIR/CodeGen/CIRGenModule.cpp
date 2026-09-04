@@ -332,6 +332,8 @@ const TargetCIRGenInfo &CIRGenModule::getTargetCIRGenInfo() {
     theTargetCIRGenInfo = createAMDGPUTargetCIRGenInfo(genTypes);
     return *theTargetCIRGenInfo;
   }
+  case llvm::Triple::spir:
+  case llvm::Triple::spir64:
   case llvm::Triple::spirv:
   case llvm::Triple::spirv32:
   case llvm::Triple::spirv64:
@@ -3231,11 +3233,7 @@ void CIRGenModule::setCIRFunctionAttributes(GlobalDecl globalDecl,
 
   // TODO(cir): Check X86_VectorCall incompatibility wiht WinARM64EC
 
-  // TODO(cir): Set the calling convention computed by constructAttributeList
-  // on the function. FuncOp supports calling_conv, but target-specific
-  // CodeGen is needed to set it correctly (e.g., AMDGPU kernel functions
-  // should be marked with AMDGPUKernel).
-  assert(!cir::MissingFeatures::opFuncCallingConv());
+  func.setCallingConv(callingConv);
 }
 
 void CIRGenModule::setFunctionAttributes(GlobalDecl globalDecl,
@@ -3862,32 +3860,6 @@ CIRGenModule::getMLIRVisibilityFromCIRLinkage(cir::GlobalLinkageKind glk) {
   }
   }
   llvm_unreachable("linkage should be handled above!");
-}
-
-cir::VisibilityKind CIRGenModule::getGlobalVisibilityKindFromClangVisibility(
-    clang::VisibilityAttr::VisibilityType visibility) {
-  switch (visibility) {
-  case clang::VisibilityAttr::VisibilityType::Default:
-    return cir::VisibilityKind::Default;
-  case clang::VisibilityAttr::VisibilityType::Hidden:
-    return cir::VisibilityKind::Hidden;
-  case clang::VisibilityAttr::VisibilityType::Protected:
-    return cir::VisibilityKind::Protected;
-  }
-  llvm_unreachable("unexpected visibility value");
-}
-
-cir::VisibilityAttr
-CIRGenModule::getGlobalVisibilityAttrFromDecl(const Decl *decl) {
-  const clang::VisibilityAttr *va = decl->getAttr<clang::VisibilityAttr>();
-  cir::VisibilityAttr cirVisibility =
-      cir::VisibilityAttr::get(&getMLIRContext());
-  if (va) {
-    cirVisibility = cir::VisibilityAttr::get(
-        &getMLIRContext(),
-        getGlobalVisibilityKindFromClangVisibility(va->getVisibility()));
-  }
-  return cirVisibility;
 }
 
 void CIRGenModule::release() {
