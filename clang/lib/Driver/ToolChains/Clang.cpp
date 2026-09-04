@@ -11506,6 +11506,17 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 
+  // Silence sycl-post-link's "Undefined function ... found in ..." warning
+  // when the user opts out with -Wno-sycl-undefined-func-in-image. Intended
+  // for device-code symbols resolved by the GPU runtime or JIT (for example,
+  // SPV_INTEL_ray_tracing builtins such as intel_ray_query_init). Last
+  // -W...sycl-undefined-func-in-image on the command line wins, matching
+  // normal -W option semantics.
+  if (!TCArgs.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                      options::OPT_Wno_sycl_undefined_func_in_image,
+                      /*Default=*/true))
+    addArgs(PostLinkArgs, TCArgs, {"-suppress-undefined-func-warnings"});
+
   // Forward -fsycl-id-queries-range= to sycl-post-link.
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_id_queries_range_EQ)) {
     PostLinkArgs.push_back(
@@ -12322,6 +12333,18 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                      SYCLBINImpliesAllowDeps))
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
+
+    // The --sycl-post-link-options= forwarding above only reaches the
+    // external sycl-post-link tool. When clang-linker-wrapper runs the
+    // post-link pipeline in-process, it builds settings from its own
+    // arg list and ignores --sycl-post-link-options=. Push a native
+    // linker-wrapper flag so the library path honours the warning
+    // suppression too.
+    if (!Args.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                      options::OPT_Wno_sycl_undefined_func_in_image,
+                      /*Default=*/true))
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-suppress-undefined-func-warnings"));
 
     // Pass backend compiler, linker, sycl-post-link,
     // llvm-spirv, and spirv-to-ir-wrapper options specified at link

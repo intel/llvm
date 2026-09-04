@@ -129,13 +129,15 @@ std::string llvm::sycl_post_link::convertSettingsToString(
       "EmitOnlyKernelsAsEntryPoints: {4}, EmitParamInfo: {5}, "
       "EmitProgramMetadata: {6}, EmitKernelNames: {7}, "
       "EmitExportedSymbols: {8}, EmitImportedSymbols: {9}, "
-      "{10}",
+      "SuppressUndefinedFuncWarnings: {10}, "
+      "{11}",
       Settings.OutputAssembly,
       module_split::convertSplitModeToString(Settings.SplitMode), SpecConstMode,
       Settings.GenerateModuleDescWithDefaultSpecConsts,
       Settings.EmitOnlyKernelsAsEntryPoints, Settings.EmitParamInfo,
       Settings.EmitProgramMetadata, Settings.EmitKernelNames,
       Settings.EmitExportedSymbols, Settings.EmitImportedSymbols,
+      Settings.SuppressUndefinedFuncWarnings,
       sycl_post_link::convertESIMDOptionsToString(Settings.ESIMDOptions));
 }
 
@@ -189,6 +191,8 @@ llvm::sycl_post_link::performPostLinkProcessing(
 
   module_split::ModuleSplitterSettings SplitSettings;
   SplitSettings.Mode = Settings.SplitMode;
+  SplitSettings.SuppressUndefinedFuncWarnings =
+      Settings.SuppressUndefinedFuncWarnings;
   if (Error E = module_split::splitSYCLModule(std::move(M), SplitSettings,
                                               PostSplitCallback))
     return createStringError(

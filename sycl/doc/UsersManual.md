@@ -496,6 +496,16 @@ and not recommended to use in production environment.
     When this option is used in conjunction with -fsycl, the driver will link
     against an alternate form of libsycl, libsycl-preview.
 
+**`-W[no-]sycl-undefined-func-in-image`**
+
+    Controls SYCL link-time "Undefined function <name> found in <image>"
+    warning. Enabled by default. Use -Wno- when the symbol is resolved by
+    the GPU runtime or JIT (e.g. SPV_INTEL_ray_tracing builtins). Affects
+    the diagnostic only.
+
+    Only -W[no-]sycl-undefined-func-in-image controls this warning. -w,
+    -Wno-everything and -Werror=sycl-undefined-func-in-image do not apply.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.

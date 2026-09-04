@@ -1788,6 +1788,12 @@ def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
 def SyclPrivateAllocaPositiveSize : DiagGroup<"sycl-private-alloca-positive-size">;
+// Backs -W[no-]sycl-undefined-func-in-image, which controls a warning
+// emitted by sycl-post-link rather than by clang. No clang diagnostic
+// belongs to this group, but it must exist: the driver renders -W
+// arguments into the -cc1 command line, and cc1's diagnostic engine
+// rejects unknown group names with -Wunknown-warning-option.
+def SyclUndefinedFuncInImage : DiagGroup<"sycl-undefined-func-in-image">;
 
 // Common warnings for SYCL and OpenMP offloading
 def OffloadTarget : DiagGroup<"offload-target">;

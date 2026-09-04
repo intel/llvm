@@ -716,6 +716,10 @@ getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
   // TODO: fill AllowDeviceImageDependencies, ESIMDOptions.OptLevel and
   // ESIMDOptions.ForceDisableESIMDOpt
 
+  Settings.SuppressUndefinedFuncWarnings =
+      Settings.ESIMDOptions.SuppressUndefinedFuncWarnings =
+          Args.hasArg(OPT_sycl_suppress_undefined_func_warnings);
+
   return Settings;
 }
 
