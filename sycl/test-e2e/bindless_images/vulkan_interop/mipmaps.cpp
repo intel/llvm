@@ -28,7 +28,7 @@ struct handles_t {
 };
 
 template <typename InteropMemHandleT>
-handles_t create_handles(sycl::context &ctxt, sycl::device &dev,
+handles_t create_handles(sycl::context &ctxt, const sycl::device &dev,
                          const syclexp::bindless_image_sampler &samp,
                          InteropMemHandleT inputImgInteropHandle,
                          syclexp::image_descriptor desc, size_t imgSize) {
@@ -380,35 +380,35 @@ bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
 bool run_tests(VulkanContext &vkCtx, const sycl::device &dev) {
   bool valid = run_test<2, float, 4, sycl::image_channel_type::fp32,
                         sycl::image_channel_order::rgba, class float_2d>(
-      vkCtx, dev, {16, 16}, {2, 2}, 2, 0);
+      vkCtx, {16, 16}, dev, {2, 2}, 2, 0);
 
   valid &= run_test<2, float, 2, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::rg, class float_2d_large>(
-      vkCtx, dev, {8, 8}, {4, 2}, 2, 0);
+      vkCtx, {8, 8}, dev, {4, 2}, 2, 0);
 
   valid &= run_test<3, int8_t, 2, sycl::image_channel_type::signed_int8,
                     sycl::image_channel_order::rg, class float_3d>(
-      vkCtx, dev, {8, 8, 8}, {2, 2, 2}, 2, 0);
+      vkCtx, {8, 8, 8}, dev, {2, 2, 2}, 2, 0);
 
   valid &= run_test<2, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
                     sycl::image_channel_order::r, class uint32_2d>(
-      vkCtx, dev, {32, 32}, {4, 2}, 2, 0);
+      vkCtx, {32, 32}, dev, {4, 2}, 2, 0);
 
   valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
                     sycl::image_channel_order::rgba, class uint_3d_large>(
-      vkCtx, dev, {8, 8, 8}, {2, 2, 4}, 2, 0);
+      vkCtx, {8, 8, 8}, dev, {2, 2, 4}, 2, 0);
 
   valid &= run_test<2, int32_t, 1, sycl::image_channel_type::signed_int32,
                     sycl::image_channel_order::r, class int32_2d>(
-      vkCtx, dev, {64, 64}, {4, 2}, 2, 0);
+      vkCtx, {64, 64}, dev, {4, 2}, 2, 0);
 
   valid &= run_test<3, int32_t, 2, sycl::image_channel_type::signed_int32,
                     sycl::image_channel_order::rg, class int32_3d>(
-      vkCtx, dev, {8, 8, 8}, {4, 2, 4}, 2, 0);
+      vkCtx, {8, 8, 8}, dev, {4, 2, 4}, 2, 0);
 
   valid &= run_test<3, int16_t, 1, sycl::image_channel_type::signed_int16,
                     sycl::image_channel_order::r, class int16_3d>(
-      vkCtx, dev, {32, 32, 32}, {4, 2, 4}, 2, 0);
+      vkCtx, {32, 32, 32}, dev, {4, 2, 4}, 2, 0);
 
   return valid;
 }
