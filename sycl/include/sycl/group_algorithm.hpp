@@ -36,7 +36,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-struct sub_group;
+class sub_group;
 namespace detail {
 
 // ---- linear_id_to_id

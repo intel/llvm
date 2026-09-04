@@ -29,13 +29,13 @@
 namespace sycl {
 inline namespace _V1 {
 
-struct sub_group;
+class sub_group;
 namespace ext::oneapi::this_work_item {
 inline sycl::sub_group get_sub_group();
 } // namespace ext::oneapi::this_work_item
 
-struct sub_group {
-
+class sub_group {
+public:
   using id_type = id<1>;
   using range_type = range<1>;
   using linear_id_type = uint32_t;
