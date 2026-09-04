@@ -1,0 +1,129 @@
+name: 'Run UR Tests'
+
+inputs:
+  test_type:
+    description: 'Type of tests to run (adapter-specific or conformance)'
+    required: true
+  build_dir:
+    required: false
+    default: 'build'
+  artifact_name:
+    description: 'Name for uploaded test artifacts (logs, XML)'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+  - name: Run ${{ inputs.test_type }} tests
+    id: run_tests
+    continue-on-error: true
+    shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
+      TEST_TYPE: ${{ inputs.test_type }}
+    run: |
+      devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE"
+
+  - name: Filter test log
+    if: ${{ always() && steps.run_tests.outputs['skip-artifacts'] != '1' }}
+    shell: bash
+    env:
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
+    run: |
+      if [ -z "$LOG_FILE" ]; then
+        echo "::warning::Test log path not provided by runner; skipping log filtering."
+        exit 0
+      fi
+
+      if [ ! -f "$LOG_FILE" ]; then
+        echo "::warning::Test log '$LOG_FILE' does not exist; skipping log filtering."
+        exit 0
+      fi
+
+      echo "::group::Test Log"
+      devops/scripts/ur-test filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
+      echo "::endgroup::"
+
+  - name: Report test failures
+    if: steps.run_tests.outcome != 'success'
+    shell: bash
+    env:
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
+    run: |
+      if [ -z "$LOG_FILE" ] || [ ! -f "$LOG_FILE" ]; then
+        echo "::warning::Test execution failed, but no test log is available."
+        exit 1
+      fi
+
+      devops/scripts/ur-test extract-errors "$LOG_FILE"
+      exit 1
+
+  - name: Test summary
+    if: ${{ always() && steps.run_tests.outputs['skip-artifacts'] != '1' }}
+    shell: bash
+    env:
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
+      XML_FILE: ${{ steps.run_tests.outputs['xml-file'] }}
+      ARTIFACT_NAME: ${{ inputs.artifact_name }}
+      TEST_TYPE: ${{ inputs.test_type }}
+      WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    run: |
+      if [ -z "$LOG_FILE" ]; then
+        echo "::warning::Test log path not provided by runner; skipping summary."
+        exit 0
+      fi
+
+      if [ ! -f "$LOG_FILE" ]; then
+        echo "::warning::Test log '$LOG_FILE' does not exist; skipping summary."
+        exit 0
+      fi
+
+      if [ ! -s "$LOG_FILE" ]; then
+        echo "::warning::Test log is empty; skipping summary."
+        exit 0
+      fi
+
+      devops/scripts/ur-test summary "$LOG_FILE" "${XML_FILE:-}"
+
+      if [ -n "$ARTIFACT_NAME" ]; then
+        echo ""
+        echo "---"
+        echo ""
+        echo "Full logs and XML are uploaded as workflow artifacts:"
+        echo "$WORKFLOW_URL"
+      fi
+
+      if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+        echo "### ${TEST_TYPE} tests" >> "$GITHUB_STEP_SUMMARY"
+        devops/scripts/ur-test step-summary "$LOG_FILE" "${XML_FILE:-}" >> "$GITHUB_STEP_SUMMARY"
+      fi
+
+  - name: Copy artifacts
+    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
+    shell: bash
+    env:
+      LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
+      XML_FILE: ${{ steps.run_tests.outputs['xml-file'] }}
+    run: |
+      set -f  # Disable glob expansion
+
+      rm -rf test_artifacts
+      mkdir -p test_artifacts
+
+      if [ -f "$LOG_FILE" ]; then
+        cp "$LOG_FILE" test_artifacts/
+      fi
+
+      if [ -n "$XML_FILE" ] && [ -f "$XML_FILE" ]; then
+        cp "$XML_FILE" test_artifacts/
+      fi
+
+  - name: Upload test artifacts
+    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
+    uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+    with:
+      name: ${{ inputs.artifact_name }}
+      path: test_artifacts/
+      retention-days: 7
+      if-no-files-found: warn
