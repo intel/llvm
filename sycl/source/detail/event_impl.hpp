@@ -391,6 +391,8 @@ public:
 
   void markAsProfilingTagEvent() { MProfilingTagEvent = true; }
 
+  void clearProfilingTagEvent() { MProfilingTagEvent = false; }
+
   bool isProfilingTagEvent() const noexcept { return MProfilingTagEvent; }
 
   // Check if this event is an interoperability event.

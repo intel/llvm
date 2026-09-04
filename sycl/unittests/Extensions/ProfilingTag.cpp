@@ -8,6 +8,7 @@
 
 #include <sycl/sycl.hpp>
 
+#include <detail/event_impl.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -30,6 +31,19 @@ inline ur_result_t after_urEnqueueTimestampRecordingExp(void *) {
   return UR_RESULT_SUCCESS;
 }
 
+// Simulates a backend that cannot record a device timestamp (e.g. the OpenCL
+// backend on a queue without profiling enabled), so that the scheduler falls
+// back to a barrier.
+inline ur_result_t replace_urEnqueueTimestampRecordingExpUnsupported(void *) {
+  ++counter_urEnqueueTimestampRecordingExp;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+inline ur_result_t replace_urEnqueueTimestampRecordingExpFailure(void *) {
+  ++counter_urEnqueueTimestampRecordingExp;
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+
 thread_local std::optional<ur_profiling_info_t> LatestProfilingQuery;
 inline ur_result_t after_urEventGetProfilingInfo(void *pParams) {
   auto &Params =
@@ -39,8 +53,21 @@ inline ur_result_t after_urEventGetProfilingInfo(void *pParams) {
 }
 
 inline thread_local size_t counter_urEnqueueEventsWaitWithBarrierExt = 0;
-inline ur_result_t after_urEnqueueEventsWaitWithBarrierExt(void *) {
+inline thread_local ur_event_handle_t LatestBarrierEvent = nullptr;
+inline thread_local bool LatestBarrierEventReleased = false;
+inline ur_result_t after_urEnqueueEventsWaitWithBarrierExt(void *pParams) {
   ++counter_urEnqueueEventsWaitWithBarrierExt;
+  auto &Params =
+      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+  if (*Params.pphEvent)
+    LatestBarrierEvent = **Params.pphEvent;
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t before_urEventRelease(void *pParams) {
+  auto &Params = *static_cast<ur_event_release_params_t *>(pParams);
+  if (LatestBarrierEvent && *Params.phEvent == LatestBarrierEvent)
+    LatestBarrierEventReleased = true;
   return UR_RESULT_SUCCESS;
 }
 
@@ -52,6 +79,8 @@ protected:
   void SetUp() override {
     counter_urEnqueueTimestampRecordingExp = 0;
     counter_urEnqueueEventsWaitWithBarrierExt = 0;
+    LatestBarrierEvent = nullptr;
+    LatestBarrierEventReleased = false;
     LatestProfilingQuery = std::nullopt;
   }
 
@@ -81,6 +110,11 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
   // TODO: We expect two barriers for now, while marker events leak. Adjust when
   //       addressed.
   ASSERT_EQ(size_t{2}, counter_urEnqueueEventsWaitWithBarrierExt);
+
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+  E.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  ASSERT_TRUE(LatestProfilingQuery.has_value());
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_SUBMIT);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -205,13 +239,79 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackDefaultQueue) {
   }
 }
 
-TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueue) {
+// Without the aspect but with profiling enabled, the tag is still serviced via
+// the profiling-tag command group. If the backend can record a device
+// timestamp (as the OpenCL backend now does on a profiling-enabled queue), the
+// native recording path is used rather than a bare barrier.
+TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueTimestamp) {
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                           &after_urDeviceGetInfo<false>);
   mock::getCallbacks().set_after_callback(
       "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
+      "urEnqueueEventsWaitWithBarrier",
+      &after_urEnqueueEventsWaitWithBarrierExt);
+
+  sycl::context Ctx{sycl::platform()};
+  sycl::queue Queue{Ctx,
+                    sycl::default_selector_v,
+                    {sycl::property::queue::enable_profiling(),
+                     sycl::property::queue::in_order()}};
+  sycl::device Dev = Queue.get_device();
+
+  ASSERT_FALSE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
+
+  sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrierExt);
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+}
+
+// If the backend reports that it cannot record a device timestamp, the
+// scheduler must gracefully fall back to a barrier.
+TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueBarrier) {
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<false>);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueTimestampRecordingExp",
+      &replace_urEnqueueTimestampRecordingExpUnsupported);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier",
+      &after_urEnqueueEventsWaitWithBarrierExt);
+  mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
+                                          &after_urEventGetProfilingInfo);
+
+  sycl::context Ctx{sycl::platform()};
+  sycl::queue Queue{Ctx,
+                    sycl::default_selector_v,
+                    {sycl::property::queue::enable_profiling(),
+                     sycl::property::queue::in_order()}};
+  sycl::device Dev = Queue.get_device();
+
+  ASSERT_FALSE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
+
+  sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
+  // The timestamp recording is attempted and reports unsupported, so a single
+  // barrier is used as the fallback on this in-order queue.
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
+
+  // A profiling-enabled queue has a runtime-recorded submission timestamp and
+  // must not require the fallback barrier event to provide one.
+  ASSERT_FALSE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+  E.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  ASSERT_FALSE(LatestProfilingQuery.has_value());
+}
+
+TEST_F(ProfilingTagTest,
+       ProfilingTagFallbackProfilingOutOfOrderQueueReusesBarrier) {
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<false>);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueTimestampRecordingExp",
+      &replace_urEnqueueTimestampRecordingExpUnsupported);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier",
       &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
@@ -223,6 +323,31 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueue) {
   ASSERT_FALSE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
-  ASSERT_EQ(size_t{0}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
   ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
+  ASSERT_NE(nullptr, LatestBarrierEvent);
+  ASSERT_EQ(LatestBarrierEvent, sycl::detail::getSyclObjImpl(E)->getHandle());
+}
+
+TEST_F(ProfilingTagTest, ProfilingTagTimestampFailureReleasesMarker) {
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<true>);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueTimestampRecordingExp",
+      &replace_urEnqueueTimestampRecordingExpFailure);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier",
+      &after_urEnqueueEventsWaitWithBarrierExt);
+  mock::getCallbacks().set_before_callback("urEventRelease",
+                                           &before_urEventRelease);
+
+  sycl::context Ctx{sycl::platform()};
+  sycl::queue Queue{Ctx, sycl::default_selector_v};
+
+  EXPECT_THROW(sycl::ext::oneapi::experimental::submit_profiling_tag(Queue),
+               sycl::exception);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
+  ASSERT_NE(nullptr, LatestBarrierEvent);
+  ASSERT_TRUE(LatestBarrierEventReleased);
 }
