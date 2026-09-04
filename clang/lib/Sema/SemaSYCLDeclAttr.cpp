@@ -125,13 +125,13 @@ bool SemaSYCL::hasDependentExpr(Expr **Exprs, const size_t ExprsSize) {
 
 void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
                                                     StringRef NewName) {
-  // The Intel named sub-group size spelling is deprecated in favor of the
+  // The [[intel::named_sub_group_size]] attribute is deprecated in favor of the
   // corresponding SYCL properties extension. Keep accepting it for now so
   // existing code remains source-compatible.
   if (A.getKind() == ParsedAttr::AT_IntelNamedSubGroupSize &&
       A.getScopeName() && A.getScopeName()->isStr("intel")) {
-    Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
-        << "'" + A.getNormalizedFullName() + "'";
+    Diag(A.getLoc(), diag::warn_intel_named_sub_group_size_deprecated)
+        << A.getNormalizedFullName();
     return;
   }
 
