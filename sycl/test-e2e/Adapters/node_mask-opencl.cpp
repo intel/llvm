@@ -6,11 +6,13 @@
 
 // Test that the node mask is read correctly from OpenCL.
 
+#include <CL/cl_ext.h>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 
 int main() {
   sycl::device dev;

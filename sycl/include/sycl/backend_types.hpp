@@ -9,8 +9,10 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
-#include <ostream> // for operator<<, ostream
+#include <iosfwd>      // for ostream
+#include <string_view> // for string_view
 
 namespace sycl {
 inline namespace _V1 {
@@ -37,34 +39,7 @@ template <backend Backend, typename SYCLObjectT>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
 
-inline std::ostream &operator<<(std::ostream &Out, backend be) {
-  switch (be) {
-  case backend::host:
-    Out << "host";
-    break;
-  case backend::opencl:
-    Out << "opencl";
-    break;
-  case backend::ext_oneapi_level_zero:
-    Out << "ext_oneapi_level_zero";
-    break;
-  case backend::ext_oneapi_cuda:
-    Out << "ext_oneapi_cuda";
-    break;
-  case backend::ext_oneapi_hip:
-    Out << "ext_oneapi_hip";
-    break;
-  case backend::ext_oneapi_native_cpu:
-    Out << "ext_oneapi_native_cpu";
-    break;
-  case backend::ext_oneapi_offload:
-    Out << "ext_oneapi_offload";
-    break;
-  case backend::all:
-    Out << "all";
-  }
-  return Out;
-}
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be);
 
 namespace detail {
 inline std::string_view get_backend_name_no_vendor(backend Backend) {

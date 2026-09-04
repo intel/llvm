@@ -30,6 +30,7 @@
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/Support/CommandLine.h"
@@ -93,7 +94,8 @@ bool isSpirvSyclBuiltin(StringRef FName) {
   // now skip the digits
   FName = FName.drop_while([](char C) { return std::isdigit(C); });
 
-  return FName.starts_with("__spirv_") || FName.starts_with("__sycl_");
+  return FName.starts_with("__spirv_") || FName.starts_with("__sycl_") ||
+         FName.starts_with("__builtin_spirv_");
 }
 
 // Return true if the function is a ESIMD builtin
@@ -1214,8 +1216,8 @@ bool runPreSplitProcessingPipeline(Module &M) {
     MPM.addPass(RemoveDeviceGlobalFromLLVMCompilerUsed());
 
   // Sanitizer specific passes.
-  if (sycl::isModuleUsingAsan(M) || sycl::isModuleUsingMsan(M) ||
-      sycl::isModuleUsingTsan(M))
+  if (sycl::utils::isModuleUsingAsan(M) || sycl::utils::isModuleUsingMsan(M) ||
+      sycl::utils::isModuleUsingTsan(M))
     MPM.addPass(SanitizerPostOptimizerPass());
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly

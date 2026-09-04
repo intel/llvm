@@ -5,6 +5,7 @@
 // RUN: %{run} %t.out
 
 #include "image_read.h"
+#include <sycl/half_type.hpp>
 
 int main() {
   s::queue myQueue;

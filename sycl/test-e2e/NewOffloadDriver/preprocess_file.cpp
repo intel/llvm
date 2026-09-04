@@ -9,6 +9,7 @@
 // RUN: %clangxx -Wno-error -fsycl %{sycl_target_opts} --offload-new-driver %t.ii -o %t.out
 
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

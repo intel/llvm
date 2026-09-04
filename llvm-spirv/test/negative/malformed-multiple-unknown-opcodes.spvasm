@@ -1,0 +1,27 @@
+; Test that llvm-spirv gracefully rejects a SPIR-V module with multiple
+; unknown opcodes (7777, 7778, 7779) in a row at module scope. Verifies
+; that the module is correctly marked invalid after the first error and
+; does not produce cascading null dereferences.
+;
+; Raw words: !73313 = (1<<16)|7777, !73314 = (1<<16)|7778, !73315 = (1<<16)|7779
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o /dev/null 2>&1 | FileCheck %s
+
+; CHECK: input SPIR-V module has an invalid or unknown opcode 7777
+
+; SPIR-V
+; Version: 1.0
+               OpCapability Kernel
+               OpCapability Addresses
+               OpMemoryModel Physical32 OpenCL
+       %void = OpTypeVoid
+               !73313
+               !73314
+               !73315
+    %fn_type = OpTypeFunction %void
+       %func = OpFunction %void None %fn_type
+      %label = OpLabel
+               OpReturn
+               OpFunctionEnd

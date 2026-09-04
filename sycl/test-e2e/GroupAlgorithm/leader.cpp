@@ -17,7 +17,7 @@ void test(queue q) {
     buffer<int> out_buf(&out, 1);
 
     q.submit([&](handler &cgh) {
-      auto out = out_buf.template get_access<access::mode::read_write>(cgh);
+      auto out = out_buf.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for(nd_range<2>(R, R), [=](nd_item<2> it) {
         group<2> g = it.get_group();
         if (g.leader()) {

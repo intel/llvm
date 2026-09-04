@@ -14,8 +14,7 @@ void foo() {
 // The order of field declarations and their types are important.
 // CHECK:        0 | class sycl::handler
 // CHECK-NEXT:   0 |   class std::unique_ptr<class sycl::detail::handler_impl> implOwner
-// CHECK-NEXT:   0 |     struct std::__uniq_ptr_data<class sycl::detail::handler_impl, struct std::default_delete<class sycl::detail::handler_impl> >
-// CHECK-NEXT:   0 |       class std::__uniq_ptr_impl<class sycl::detail::handler_impl, struct std::default_delete<class sycl::detail::handler_impl> > (base)
+// CHECK:        0 |       class std::__uniq_ptr_impl<class sycl::detail::handler_impl, struct std::default_delete<class sycl::detail::handler_impl> >
 // CHECK-NEXT:   0 |         class std::tuple<class sycl::detail::handler_impl *, struct std::default_delete<class sycl::detail::handler_impl> >
 // CHECK-NEXT:   0 |           struct std::_Tuple_impl<0, class sycl::detail::handler_impl *, struct std::default_delete<class sycl::detail::handler_impl> > (base)
 // CHECK-NEXT:   0 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::handler_impl> > (base) (empty)
@@ -44,7 +43,7 @@ void foo() {
 // CHECK-NEXT:   80 |       class std::__shared_ptr_access<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic> (base) (empty)
 // CHECK-NEXT:   80 |       element_type * _M_ptr
 // CHECK-NEXT:   88 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT:   88 |         _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:   88 |         _Sp_counted_base<__gnu_cxx::_S_atomic> * _M_pi
 // CHECK-NEXT:   96 |   void * MSrcPtr
 // CHECK-NEXT:   104 |   void * MDstPtr
 // CHECK-NEXT:   112 |   size_t MLength
@@ -56,8 +55,7 @@ void foo() {
 // CHECK-NEXT:   128 |           pointer _M_finish
 // CHECK-NEXT:   136 |           pointer _M_end_of_storage
 // CHECK-NEXT:   144 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
-// CHECK-NEXT:   144 |     struct std::__uniq_ptr_data<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
-// CHECK:        144 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
+// CHECK:        144 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
 // CHECK-NEXT:   144 |         class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> >
 // CHECK-NEXT:   144 |           struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
 // CHECK-NEXT:   144 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)

@@ -28,7 +28,7 @@ void test1(queue &Q) {
   buffer<int, 1> Buffer{BUFFER_SIZE};
 
   Q.submit([&](handler &CGH) {
-    auto Acc = Buffer.get_access<mode::write>(CGH);
+    auto Acc = Buffer.get_access<access_mode::write>(CGH);
     CGH.host_task([=] { /* A no-op */ });
   });
 
@@ -41,15 +41,15 @@ void test2(queue &Q) {
   buffer<int, 1> Buffer2{BUFFER_SIZE};
 
   Q.submit([&](handler &CGH) {
-    auto Acc = Buffer1.template get_access<mode::write>(CGH);
+    auto Acc = Buffer1.template get_access<access_mode::write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
     CGH.parallel_for<NameGen<class Test6Init, true>>(Acc.size(), Kernel);
   });
 
   Q.submit([&](handler &CGH) {
-    auto AccSrc = Buffer1.template get_access<mode::read>(CGH);
-    auto AccDst = Buffer2.template get_access<mode::write>(CGH);
+    auto AccSrc = Buffer1.template get_access<access_mode::read>(CGH);
+    auto AccDst = Buffer2.template get_access<access_mode::write>(CGH);
 
     auto Func = [=] {
       for (size_t Idx = 0; Idx < AccDst.size(); ++Idx)

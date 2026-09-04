@@ -21,6 +21,24 @@
 #define ZE_RESULT_QUERY_FALSE ((ze_result_t)0x7fff0001)
 #endif
 
+#if defined(_WIN32)
+#if !defined(ZE_CALLBACK)
+#define ZE_CALLBACK __stdcall
+#endif
+#else
+#if !defined(ZE_CALLBACK)
+#define ZE_CALLBACK
+#endif
+#endif
+
+// ZE_CALLBACK may evaluate to a calling convention unsupported by the device
+// which throws an error with -Werror even though it is not used in device code.
+#ifdef __SYCL_DEVICE_ONLY__
+#define HOST_ONLY_ZE_CALLBACK // ignore ZE_CALLBACK
+#else
+#define HOST_ONLY_ZE_CALLBACK ZE_CALLBACK
+#endif
+
 inline ze_result_t getDriver(ze_driver_handle_t &ZeDriver) {
   uint32_t DriverCount = 0;
   ze_result_t status = zeDriverGet(&DriverCount, nullptr);
@@ -62,12 +80,25 @@ inline bool getCommandListFromQueue(sycl::queue &Queue,
   return true;
 }
 
+// Forward declare ze graph type to remove reliance on experimental header
+struct _ze_graph_handle_t;
+typedef _ze_graph_handle_t *ze_graph_handle_t;
+
 typedef ze_result_t(ZE_APICALL *zeCommandListAppendHostFunction_fn)(
     ze_command_list_handle_t, void *, void *, void *, ze_event_handle_t,
     uint32_t, ze_event_handle_t *);
 
 typedef ze_result_t(ZE_APICALL *zeCommandListIsGraphCaptureEnabledExp_fn)(
     ze_command_list_handle_t);
+
+typedef ze_result_t(ZE_APICALL *zeCommandListGetGraphExp_fn)(
+    ze_command_list_handle_t, ze_graph_handle_t *);
+
+typedef void (*zex_mem_graph_free_callback_fn_t)(void *pUserData);
+
+typedef ze_result_t(ZE_APICALL *zeGraphSetDestructionCallbackExp_fn)(
+    ze_graph_handle_t hGraph, zex_mem_graph_free_callback_fn_t pfnCallback,
+    void *pUserData, void *pNext);
 
 template <typename FunctionPtr>
 inline ze_result_t loadZeExtensionFunction(ze_driver_handle_t ZeDriver,

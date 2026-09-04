@@ -24,7 +24,7 @@ int main() {
   auto ctx = q.get_context();
   constexpr int N = 8;
 
-  if (!dev.get_info<sycl::info::device::usm_shared_allocations>()) {
+  if (!dev.has(sycl::aspect::usm_shared_allocations)) {
     return 0;
   }
 

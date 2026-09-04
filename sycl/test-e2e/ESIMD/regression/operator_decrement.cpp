@@ -9,6 +9,7 @@
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -39,7 +40,7 @@ int main(void) {
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read_write>(cgh);
+      auto PA = bufa.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class Test>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::esimd;

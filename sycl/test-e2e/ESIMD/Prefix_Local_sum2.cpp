@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 20
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

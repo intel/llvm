@@ -14,6 +14,7 @@
 
 // Failing on HIP AMD
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 #include <sycl/detail/core.hpp>
 
@@ -23,7 +24,7 @@ int main() {
                                           sycl::range<1>(256)};
   sycl::queue q;
   q.submit([&](sycl::handler &cgh) {
-    auto acc = bufs[0].get_access<sycl::access::mode::write>(cgh);
+    auto acc = bufs[0].get_access<sycl::access_mode::write>(cgh);
     cgh.single_task([=]() {
       for (int i = 0; i < 256; i++) {
         acc[i] = 24;
@@ -32,7 +33,7 @@ int main() {
   });
 
   q.submit([&](sycl::handler &cgh) {
-    auto acc = bufs[1].get_access<sycl::access::mode::write>(cgh);
+    auto acc = bufs[1].get_access<sycl::access_mode::write>(cgh);
     cgh.single_task([=]() {
       for (int i = 0; i < 256; i++) {
         acc[i] = 25;

@@ -178,10 +178,10 @@ int main() {
     buffer<float16> c_buf(&c, 1);
     buffer<int> err_buf(&err, 1);
     q.submit([&](handler &cgh) {
-      auto A = a_buf.get_access<access::mode::read>(cgh);
-      auto B = b_buf.get_access<access::mode::read>(cgh);
-      auto C = c_buf.get_access<access::mode::read>(cgh);
-      auto err = err_buf.get_access<access::mode::write>(cgh);
+      auto A = a_buf.get_access<access_mode::read>(cgh);
+      auto B = b_buf.get_access<access_mode::read>(cgh);
+      auto C = c_buf.get_access<access_mode::read>(cgh);
+      auto err = err_buf.get_access<access_mode::write>(cgh);
       cgh.parallel_for(SZ_max, [=](item<1> index) {
         size_t i = index.get_id(0);
         TEST_BUILTIN_1(sycl::fabs);

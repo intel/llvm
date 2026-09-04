@@ -19,7 +19,6 @@
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/half_type.hpp>
 
-#include <algorithm>
 #include <cstdint>
 
 namespace sycl {

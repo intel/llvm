@@ -13,6 +13,7 @@
 // "error: unsupported type for load/store" message.
 // Use -fsycl-device-code-split=per_kernel so that each kernel's compilation
 // does not affect others.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

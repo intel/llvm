@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: There is a separate version of this test for PVC.
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
 // The test checks main functionality of the esimd::replicate_vs_w_hs function.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -97,8 +99,8 @@ bool test_impl(queue q, int offset, T (&&gold)[N]) {
     sycl::buffer<T, 1> dst_buf(dm.dst, VL);
 
     q.submit([&](handler &cgh) {
-       auto src_acc = src_buf.template get_access<access::mode::read>(cgh);
-       auto dst_acc = dst_buf.template get_access<access::mode::write>(cgh);
+       auto src_acc = src_buf.template get_access<access_mode::read>(cgh);
+       auto dst_acc = dst_buf.template get_access<access_mode::write>(cgh);
 
        cgh.single_task([=]() SYCL_ESIMD_KERNEL {
          simd<T, VL> src(src_acc, 0);

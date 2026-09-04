@@ -20,7 +20,7 @@ int main() {
   sycl::queue q;
 
   q.submit([&](sycl::handler &cgh) {
-     auto accessor = buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto accessor = buf.get_access<sycl::access_mode::read_write>(cgh);
      cgh.parallel_for<class Test>(
          sycl::nd_range<2>({size_x, size_y + 1}, {1, 1}),
          [=](sycl::nd_item<2> item) {

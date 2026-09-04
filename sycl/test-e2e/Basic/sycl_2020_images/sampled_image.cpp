@@ -3,6 +3,7 @@
 // RUN: %{run-unfiltered-devices} %t.out
 
 // Tests the members of the sampled_image class.
+#include <iostream>
 
 #include "common.hpp"
 

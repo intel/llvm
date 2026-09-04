@@ -11,6 +11,7 @@
 #include <sycl/platform.hpp>
 
 #include <algorithm>
+#include <iterator>
 #include <unordered_set>
 
 namespace sycl {

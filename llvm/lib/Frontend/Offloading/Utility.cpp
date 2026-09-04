@@ -18,11 +18,14 @@
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/ObjectYAML/ELFYAML.h"
 #include "llvm/ObjectYAML/yaml2obj.h"
+#include "llvm/Support/Compression.h"
 #include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 using namespace llvm;
 using namespace llvm::offloading;
+using namespace llvm::offloading::sycl;
 
 StructType *offloading::getEntryTy(Module &M) {
   LLVMContext &C = M.getContext();
@@ -83,12 +86,29 @@ offloading::getOffloadingEntryInitializer(Module &M, object::OffloadKind Kind,
   return {EntryInitializer, Str};
 }
 
-GlobalVariable *
-offloading::emitOffloadingEntry(Module &M, object::OffloadKind Kind,
-                                Constant *Addr, StringRef Name, uint64_t Size,
-                                uint32_t Flags, uint64_t Data,
-                                Constant *AuxAddr, StringRef SectionName) {
+StringRef offloading::getOffloadEntrySection(Module &M) {
+  return M.getTargetTriple().isOSBinFormatMachO() ? "__LLVM,offload_entries"
+                                                  : "llvm_offload_entries";
+}
+
+/// Returns the start/end symbol names for iterating offloading entries in a
+/// given section. Mach-O uses \1section$start$/\1section$end$ convention;
+/// ELF/COFF use __start_/__stop_ prefixes.
+static std::pair<std::string, std::string>
+getOffloadEntryBoundarySymbols(const Triple &T, StringRef SectionName) {
+  if (T.isOSBinFormatMachO()) {
+    std::string SymSection = SectionName.str();
+    std::replace(SymSection.begin(), SymSection.end(), ',', '$');
+    return {"\1section$start$" + SymSection, "\1section$end$" + SymSection};
+  }
+  return {("__start_" + SectionName).str(), ("__stop_" + SectionName).str()};
+}
+
+GlobalVariable *offloading::emitOffloadingEntry(
+    Module &M, object::OffloadKind Kind, Constant *Addr, StringRef Name,
+    uint64_t Size, uint32_t Flags, uint64_t Data, Constant *AuxAddr) {
   const llvm::Triple &Triple = M.getTargetTriple();
+  StringRef SectionName = getOffloadEntrySection(M);
 
   auto [EntryInitializer, NameGV] = getOffloadingEntryInitializer(
       M, Kind, Addr, Name, Size, Flags, Data, AuxAddr);
@@ -111,8 +131,9 @@ offloading::emitOffloadingEntry(Module &M, object::OffloadKind Kind,
 }
 
 std::pair<GlobalVariable *, GlobalVariable *>
-offloading::getOffloadEntryArray(Module &M, StringRef SectionName) {
+offloading::getOffloadEntryArray(Module &M) {
   const llvm::Triple &Triple = M.getTargetTriple();
+  StringRef SectionName = getOffloadEntrySection(M);
 
   auto *ZeroInitilaizer =
       ConstantAggregateZero::get(ArrayType::get(getEntryTy(M), 0u));
@@ -121,13 +142,14 @@ offloading::getOffloadEntryArray(Module &M, StringRef SectionName) {
   auto Linkage = Triple.isOSBinFormatCOFF() ? GlobalValue::WeakODRLinkage
                                             : GlobalValue::ExternalLinkage;
 
-  auto *EntriesB =
-      new GlobalVariable(M, EntryType, /*isConstant=*/true, Linkage, EntryInit,
-                         "__start_" + SectionName);
+  auto [StartName, StopName] =
+      getOffloadEntryBoundarySymbols(Triple, SectionName);
+
+  auto *EntriesB = new GlobalVariable(M, EntryType, /*isConstant=*/true,
+                                      Linkage, EntryInit, StartName);
   EntriesB->setVisibility(GlobalValue::HiddenVisibility);
-  auto *EntriesE =
-      new GlobalVariable(M, EntryType, /*isConstant=*/true, Linkage, EntryInit,
-                         "__stop_" + SectionName);
+  auto *EntriesE = new GlobalVariable(M, EntryType, /*isConstant=*/true,
+                                      Linkage, EntryInit, StopName);
   EntriesE->setVisibility(GlobalValue::HiddenVisibility);
 
   if (Triple.isOSBinFormatELF()) {
@@ -140,7 +162,17 @@ offloading::getOffloadEntryArray(Module &M, StringRef SectionName) {
         ZeroInitilaizer, "__dummy." + SectionName);
     DummyEntry->setSection(SectionName);
     DummyEntry->setAlignment(Align(object::OffloadBinary::getAlignment()));
-    appendToCompilerUsed(M, DummyEntry);
+    appendToUsed(M, DummyEntry);
+  } else if (Triple.isOSBinFormatMachO()) {
+    // Mach-O needs a dummy variable in the section (like ELF) to ensure the
+    // linker provides the section boundary symbols. Mark it used so the
+    // section survives dead-stripping.
+    auto *DummyEntry = new GlobalVariable(
+        M, ZeroInitilaizer->getType(), true, GlobalVariable::InternalLinkage,
+        ZeroInitilaizer, "__dummy." + SectionName);
+    DummyEntry->setSection(SectionName);
+    DummyEntry->setAlignment(Align(object::OffloadBinary::getAlignment()));
+    appendToUsed(M, DummyEntry);
   } else {
     // The COFF linker will merge sections containing a '$' together into a
     // single section. The order of entries in this section will be sorted
@@ -286,6 +318,27 @@ private:
       KernelData.WavefrontSize = V.second.getUInt();
     } else if (IsKey(V.first, ".max_flat_workgroup_size")) {
       KernelData.MaxFlatWorkgroupSize = V.second.getUInt();
+    } else if (IsKey(V.first, ".args")) {
+      auto ArgsArray = V.second.getArray();
+      for (auto ArgIt = ArgsArray.begin(), ArgEnd = ArgsArray.end();
+           ArgIt != ArgEnd; ++ArgIt) {
+        auto ArgMap = ArgIt->getMap();
+
+        auto OffsetIt = ArgMap.find(".offset");
+        if (OffsetIt == ArgMap.end())
+          return createStringError(
+              inconvertibleErrorCode(),
+              "Missing required .offset key in kernel argument metadata map");
+
+        auto SizeIt = ArgMap.find(".size");
+        if (SizeIt == ArgMap.end())
+          return createStringError(
+              inconvertibleErrorCode(),
+              "Missing required .size key in kernel argument metadata map");
+
+        KernelData.ArgMDs.emplace_back(OffsetIt->second.getUInt(),
+                                       SizeIt->second.getUInt());
+      }
     }
 
     return Error::success();
@@ -423,4 +476,70 @@ Error offloading::intel::containerizeOpenMPSPIRVImage(
   return containerizeImage(Binary, Triple, object::ImageKind::IMG_SPIRV,
                            object::OffloadKind::OFK_OpenMP, /*ImageFlags=*/0,
                            MetaData);
+}
+
+void sycl::writeSymbolTable(ArrayRef<StringRef> Names, SmallString<0> &Out) {
+  uint32_t Count = Names.size();
+
+  // Compute the byte offset where string data begins: right after the header
+  // and the entry array.
+  uint32_t StringDataOffset =
+      sizeof(SymbolTableHeader) + Count * sizeof(SymbolTableEntry);
+
+  // Compute total size and reserve to prevent reallocation while writing
+  // entries via pointer (append() could otherwise invalidate the pointer).
+  uint32_t TotalSize = StringDataOffset;
+  for (StringRef N : Names)
+    TotalSize += N.size() + 1;
+  Out.reserve(TotalSize);
+  Out.resize(StringDataOffset);
+
+  // Write the header.
+  auto *Header = reinterpret_cast<SymbolTableHeader *>(Out.data());
+  Header->Count = Count;
+
+  // Write each entry and append the corresponding null-terminated name.
+  auto *Entries = reinterpret_cast<SymbolTableEntry *>(Header + 1);
+  uint32_t CurrentOffset = StringDataOffset;
+  for (uint32_t I = 0; I < Count; ++I) {
+    Entries[I].OffsetToSymbol = CurrentOffset;
+    Entries[I].SymbolSize = Names[I].size();
+    Out.append(Names[I]);
+    Out.push_back('\0');
+    CurrentOffset += Names[I].size() + 1;
+  }
+}
+
+Expected<bool>
+offloading::compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
+                                    SmallVectorImpl<uint8_t> &Output, int Level,
+                                    size_t Threshold, bool Verbose) {
+  if (!compression::zstd::isAvailable())
+    return createStringError(
+        "'--offload-compress' is specified but the compiler is built without "
+        "zstd support.\n"
+        "If you are using a custom DPC++ build, please refer to "
+        "https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md"
+        "#build-dpc-toolchain-with-device-image-compression-support for more "
+        "information on how to build with zstd support.");
+
+  if (Input.size() < Threshold)
+    return false;
+
+#if LLVM_ENABLE_EXCEPTIONS
+  try {
+#endif
+    compression::zstd::compress(Input, Output, Level);
+#if LLVM_ENABLE_EXCEPTIONS
+  } catch (const std::exception &ex) {
+    return createStringError(std::string("Failed to compress the device "
+                                         "image: \n") +
+                             std::string(ex.what()));
+  }
+#endif
+  if (Verbose)
+    errs() << "[Compression] Original image size: " << Input.size() << "\n"
+           << "[Compression] Compressed image size: " << Output.size() << "\n"
+           << "[Compression] Compression level used: " << Level << "\n";
+  return true;
 }

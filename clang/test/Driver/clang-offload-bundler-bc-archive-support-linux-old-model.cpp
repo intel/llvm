@@ -63,21 +63,21 @@
 // RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64-unknown-unknown
 // RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64_gen
 // RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64_x86_64
-// RUN: not clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown-a
-// RUN: not clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-x86_64-unknown-linux-gnu-b
-// RUN: not clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64-unknown-unknown-c
-// RUN: not clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64_gen-d
-// RUN: not clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64_x86_64-e
+// RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown-a
+// RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-x86_64-unknown-linux-gnu-b
+// RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64-unknown-unknown-c
+// RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64_gen-d
+// RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-spir64_x86_64-e
 // RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown
 // RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-x86_64-unknown-linux-gnu
 // RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64-unknown-unknown
 // RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64_gen
 // RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64_x86_64
-// RUN: not clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown-a
-// RUN: not clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-x86_64-unknown-linux-gnu-b
-// RUN: not clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64-unknown-unknown-c
-// RUN: not clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64_gen-d
-// RUN: not clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64_x86_64-e
+// RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown-a
+// RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-x86_64-unknown-linux-gnu-b
+// RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64-unknown-unknown-c
+// RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64_gen-d
+// RUN:     clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64_x86_64-e
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Unbundle object file to use as a reference result

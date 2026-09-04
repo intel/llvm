@@ -17,6 +17,7 @@
 // -----
 // We therefore only check that the complete state of the event
 // in this test.
+#include <iostream>
 
 #include "../graph_common.hpp"
 

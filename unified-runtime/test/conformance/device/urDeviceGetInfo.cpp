@@ -3,7 +3,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <algorithm>
 #include <array>
+#include <cstring>
 #include <unordered_map>
 
 #include <uur/fixtures.h>
@@ -592,9 +594,10 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxWriteImageArgs) {
                              property_value);
 }
 
+// Optional query: CUDA has separate texture (read-only) and surface
+// (write-only) objects but no combined read-write image type.
+// NativeCPU has no image support.
 TEST_P(urDeviceGetInfoTest, SuccessMaxReadWriteImageArgs) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::NativeCPU{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS;
@@ -2610,11 +2613,8 @@ TEST_P(urDeviceGetInfoTest, SuccessBfloat16ConversionsNative) {
                              property_value);
 }
 
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
-  // TODO: enable when driver/library version mismatch is fixed in CI.
-  // See https://github.com/intel/llvm/issues/17614
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS;
@@ -2631,11 +2631,8 @@ TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
   ASSERT_EQ(property_value & UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK, 0);
 }
 
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
-  // TODO: enable when driver/library version mismatch is fixed in CI.
-  // See https://github.com/intel/llvm/issues/17614
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_FAN_SPEED;
 
@@ -2652,11 +2649,8 @@ TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
                              property_value);
 }
 
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
-  // TODO: enable when driver/library version mismatch is fixed in CI.
-  // See https://github.com/intel/llvm/issues/17614
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_POWER_LIMIT;
 
@@ -2673,11 +2667,8 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
                              property_value);
 }
 
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
-  // TODO: enable when driver/library version mismatch is fixed in CI.
-  // See https://github.com/intel/llvm/issues/17614
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MIN_POWER_LIMIT;
 
@@ -2692,6 +2683,48 @@ TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
                                              property_size, &property_value,
                                              nullptr),
                              property_value);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessLuid) {
+  size_t property_size = 0;
+  constexpr size_t luid_size = 8;
+  std::array<unsigned char, luid_size> property_value{};
+  const ur_device_info_t property_name = UR_DEVICE_INFO_LUID;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+
+  ASSERT_EQ(property_size, sizeof(std::array<unsigned char, luid_size>));
+
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 property_value.data(), nullptr));
+  const bool is_all_zeros =
+      std::all_of(property_value.begin(), property_value.end(),
+                  [](unsigned char value) { return value == 0; });
+  ASSERT_FALSE(is_all_zeros);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessNodeMask) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_NODE_MASK;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+  ASSERT_NE(property_value, 0);
+
+  const bool is_power_of_two =
+      property_value != 0 && (property_value & (property_value - 1)) == 0;
+  if (!is_power_of_two) {
+    GTEST_LOG_(WARNING) << "UR_DEVICE_INFO_NODE_MASK is not a power of two: "
+                        << property_value;
+  }
 }
 
 TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
@@ -2781,6 +2814,7 @@ TEST_P(urDeviceGetInfoComponentDevicesTest, SuccessComponentDevices) {
       ASSERT_EQ(property_size, 0);
 
       std::vector<ur_device_handle_t> componentDevices(property_size);
+
       ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
                                      componentDevices.data(), nullptr));
 

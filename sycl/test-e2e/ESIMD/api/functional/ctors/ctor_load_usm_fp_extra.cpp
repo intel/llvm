@@ -14,6 +14,7 @@
 // flag using USM pointer as input.
 // It is expected for destination simd instance to store a bitwise same data as
 // the reference one.
+#include <iostream>
 
 #include "ctor_load_usm.hpp"
 

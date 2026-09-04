@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: windows && gpu-intel-gen12
+// XFAIL: !arch-intel_gpu_mtl_u && windows && gpu-intel-gen12
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21533
 
 //==--------------- scan.cpp - SYCL sub_group scan test --------*- C++ -*---==//

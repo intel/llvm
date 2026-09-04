@@ -12,6 +12,7 @@
 // The test verifies esimd::slm_scatter() functions accepting
 // optional compile-time esimd::properties.
 // The slm_scatter() calls in this test use DG2 or PVC features.
+#include <iostream>
 
 #include "Inputs/scatter.hpp"
 

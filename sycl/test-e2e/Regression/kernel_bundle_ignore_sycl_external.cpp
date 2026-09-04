@@ -4,6 +4,7 @@
 // XFAIL: target-nvidia
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16417
 // UNSUPPORTED: target-amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -34,7 +35,7 @@ int main() {
 
   sycl::buffer<int, 1> Buf(sycl::range<1>{1});
   Q.submit([&](sycl::handler &CGH) {
-    auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
+    auto Acc = Buf.get_access<sycl::access_mode::write>(CGH);
     CGH.use_kernel_bundle(KernelBundle);
     CGH.single_task<KernelName>([=]() { Acc[0] = 42; });
   });

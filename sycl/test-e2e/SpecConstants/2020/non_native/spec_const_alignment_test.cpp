@@ -95,10 +95,10 @@ int main() {
           }
         }
 
-        auto acc0 = b0.template get_access<sycl::access::mode::write>(cgh);
-        auto acc1 = b1.template get_access<sycl::access::mode::write>(cgh);
-        auto acc2 = b2.template get_access<sycl::access::mode::write>(cgh);
-        auto accc = bc.template get_access<sycl::access::mode::write>(cgh);
+        auto acc0 = b0.template get_access<sycl::access_mode::write>(cgh);
+        auto acc1 = b1.template get_access<sycl::access_mode::write>(cgh);
+        auto acc2 = b2.template get_access<sycl::access_mode::write>(cgh);
+        auto accc = bc.template get_access<sycl::access_mode::write>(cgh);
 
         cgh.single_task<TestAlignment>([=](sycl::kernel_handler kh) {
           acc0[0] = kh.get_specialization_constant<char_spec0>();

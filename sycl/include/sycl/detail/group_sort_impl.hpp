@@ -30,9 +30,8 @@ namespace detail {
 // Helpers for sorting algorithms
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T, typename Group>
-static __SYCL_ALWAYS_INLINE T *align_scratch(sycl::span<std::byte> scratch,
-                                             Group g,
-                                             size_t number_of_elements) {
+__SYCL_ALWAYS_INLINE T *align_scratch(sycl::span<std::byte> scratch, Group g,
+                                      size_t number_of_elements) {
   // Adjust the scratch pointer based on alignment of the type T.
   // Per extension specification if scratch size is less than the value
   // returned by memory_required then behavior is undefined, so we don't check
@@ -56,7 +55,7 @@ static __SYCL_ALWAYS_INLINE T *align_scratch(sycl::span<std::byte> scratch,
 }
 
 template <typename KeyTy, typename ValueTy, typename Group>
-static __SYCL_ALWAYS_INLINE std::pair<KeyTy *, ValueTy *>
+__SYCL_ALWAYS_INLINE std::pair<KeyTy *, ValueTy *>
 align_key_value_scratch(sycl::span<std::byte> scratch, Group g,
                         size_t number_of_elements) {
   size_t KeysSize = number_of_elements * sizeof(KeyTy);

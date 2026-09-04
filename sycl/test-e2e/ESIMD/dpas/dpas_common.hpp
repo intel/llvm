@@ -8,8 +8,11 @@
 
 // This file contains the common utility/helper functions for the tests
 // verifying DPAS functionality.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
+
+#include <sycl/ext/intel/info/device.hpp>
 
 #include <type_traits>
 

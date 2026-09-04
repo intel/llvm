@@ -22,9 +22,7 @@
 ; RUN: llvm-spirv -spirv-ext=+SPV_INTEL_arbitrary_precision_integers %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
-; TODO: There is no validation for SPV_INTEL_arbitrary_precision_integers implemented in
-; SPIRV-Tools. Enable after SPIR-V Tools are ready.
-; RUNx: spirv-val %t.spv
+; RUN: spirv-val %t.spv
 
 ; CHECK-SPIRV: Name [[BR_2:[0-9]+]] "llvm_bitreverse_i2"
 ; CHECK-SPIRV: Name [[BR_4:[0-9]+]] "llvm_bitreverse_i4"

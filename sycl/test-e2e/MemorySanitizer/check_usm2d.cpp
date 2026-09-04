@@ -9,6 +9,7 @@
 
 // XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: CMPLRLLVM-64705
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>

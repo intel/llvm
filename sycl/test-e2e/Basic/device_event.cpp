@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/group_barrier.hpp>
 
 using namespace sycl;
 
@@ -66,7 +67,7 @@ int test_strideN(size_t stride) {
     buffer<int, 1> out_buf(out_data, range<1>(nElems));
 
     myQueue.submit([&](handler &cgh) {
-      auto out_ptr = out_buf.get_access<access::mode::write>(cgh);
+      auto out_ptr = out_buf.get_access<access_mode::write>(cgh);
       local_accessor<int, 1> local_acc(range<1>(16), cgh);
 
       // Create work-groups with 16 work items in each group.
@@ -93,7 +94,7 @@ int test_strideN(size_t stride) {
         out_ptr[item.get_global_id()[0]] = item.get_global_id()[0] + 700;
         // Just a check of get_range() API.
         local_acc.get_range();
-        item.barrier();
+        group_barrier(item.get_group());
 
         // Copy from local memory to global memory.
         device_event dev_event =

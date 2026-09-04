@@ -5,6 +5,7 @@
 // RUN: %{run} %t.out
 
 // Tests raw_kernel_arg in different combinations.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

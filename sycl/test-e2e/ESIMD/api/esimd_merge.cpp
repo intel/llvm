@@ -10,6 +10,7 @@
 
 // This is a functional test for esimd::merge free functions, as well as
 // two-input version of the simd_obj_impl::merge.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

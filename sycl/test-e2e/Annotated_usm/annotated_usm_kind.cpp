@@ -3,6 +3,7 @@
 
 // This e2e test checks the usm kind of the pointer returned by annotated USM
 // allocation
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

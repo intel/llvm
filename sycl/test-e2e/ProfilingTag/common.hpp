@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>

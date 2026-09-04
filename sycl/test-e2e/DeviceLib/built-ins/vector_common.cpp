@@ -17,7 +17,7 @@ int main() {
       s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class maxF2F2>([=]() {
           AccR[0] = s::max(s::float2{0.5f, 3.4f}, s::float2{2.3f, 0.4f});
         });
@@ -36,7 +36,7 @@ int main() {
       s::buffer<s::float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class maxF2F1>([=]() {
           AccR[0] = s::max(s::float2{0.5f, 3.4f}, float{3.0f});
         });

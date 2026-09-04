@@ -43,7 +43,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
 
   // Compute.
   Q.submit([&](handler &CGH) {
-     auto In = InBuf.template get_access<access::mode::read>(CGH);
+     auto In = InBuf.template get_access<access_mode::read>(CGH);
 
      auto Redu = reduction(ReduVarPtr, Identity, BOp,
                            {property::reduction::initialize_to_identity{}});
@@ -58,7 +58,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
   if (AllocType == usm::alloc::device) {
     buffer<T, 1> Buf(&ComputedOut, range<1>(1));
     Q.submit([&](handler &CGH) {
-       auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
+       auto OutAcc = Buf.get_access(CGH, sycl::write_only, sycl::no_init);
        CGH.single_task<USMKName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();
@@ -98,10 +98,10 @@ int main() {
   testUSM<class Atomic2, int, std::bit_or<>>(Q, 0, 0x7f007f00, 4, 32);
 
   // fast reduce
-  testUSM<class Reduce1, float, ext::oneapi::minimum<>>(
-      Q, getMaximumFPValue<float>(), -100.0, 17, 17);
-  testUSM<class Reduce2, float, ext::oneapi::maximum<>>(
-      Q, getMinimumFPValue<float>(), 100.0, 4, 32);
+  testUSM<class Reduce1, float, minimum<>>(Q, getMaximumFPValue<float>(),
+                                           -100.0, 17, 17);
+  testUSM<class Reduce2, float, maximum<>>(Q, getMinimumFPValue<float>(), 100.0,
+                                           4, 32);
 
   // generic algorithm
   testUSM<class Generic1, int, std::multiplies<>>(Q, 1, 5, 7, 7);

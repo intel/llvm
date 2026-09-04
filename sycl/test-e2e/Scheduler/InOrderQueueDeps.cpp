@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
-// The tested functionality is disabled with Level Zero until it is supported by
-// the adapter.
-// UNSUPPORTED: level_zero
 //==----------------------- InOrderQueueDeps.cpp ---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -19,7 +16,7 @@ class KernelA;
 
 void submitKernel(sycl::queue &Queue, sycl::buffer<int, 1> &Buf) {
   Queue.submit([&](sycl::handler &Cgh) {
-    auto BufAcc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
+    auto BufAcc = Buf.get_access<sycl::access_mode::read_write>(Cgh);
     Cgh.single_task<KernelA>([=]() { (void)BufAcc[0]; });
   });
 }

@@ -483,6 +483,27 @@ extra operands ``i32 1`` and ``i32 2``.
 decorates the argument ``b`` of ``k`` with ``Restrict`` in SPIR-V while not
 adding any decoration to argument ``a``.
 
+Instruction metadata
+--------------------
+
+Some translated instructions use instruction metadata to preserve SPIR-V
+information that does not have a direct LLVM IR encoding.
+
+``spirv.nontemporal`` is attached to translated image builtin calls that use the
+SPIR-V ``Nontemporal`` image operand. Its operand follows LLVM's
+``!nontemporal`` metadata, but it applies to translated builtin calls rather
+than LLVM memory operations.
+
+``spirv.nontemporal`` example:
+
+.. code-block:: llvm
+
+  %v = call spir_func <4 x float> @_Z25__spirv_ImageRead_Rfloat4PU3AS133__spirv_Image__void_0_0_0_0_0_0_0i(
+      target("spirv.Image", void, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0) %img,
+      i32 %coord) !spirv.nontemporal !1
+  ...
+  !1 = !{i32 1}
+
 Loop controls and loop metadata
 -------------------------------
 

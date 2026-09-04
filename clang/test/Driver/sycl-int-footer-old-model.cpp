@@ -33,6 +33,12 @@
 // NO-FOOTER-NOT: append-file
 // NO-FOOTER: clang{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[INTHEADER]]"
 
+/// Check that integration header can be disabled
+// RUN:  %clangxx -fsycl --no-offload-new-driver -fno-sycl-use-header %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix NO-HEADER --implicit-check-not "-fsycl-int-header" %s
+// NO-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-footer=[[INTFOOTER:.+\.h]]" "-sycl-std={{.*}}"
+// NO-HEADER: clang{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-footer" "[[INTFOOTER]]"
+
 /// Check phases without integration footer
 // RUN: %clangxx -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES -check-prefix COMMON-PHASES %s

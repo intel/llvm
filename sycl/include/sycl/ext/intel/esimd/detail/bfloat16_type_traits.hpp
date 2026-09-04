@@ -88,11 +88,8 @@ template <> struct scalar_conversion_traits<bfloat16> {
 // bfloat16 uses default inefficient implementations of std C++ operations,
 // hence no specializations of other traits.
 
-// Misc
-inline std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
-}
+// Stream operator for bfloat16 (sycl::ext::oneapi::bfloat16 alias) is
+// declared in <sycl/ext/oneapi/bfloat16.hpp> and defined in the SYCL runtime.
 
 template <> struct is_esimd_arithmetic_type<bfloat16, void> : std::true_type {};
 

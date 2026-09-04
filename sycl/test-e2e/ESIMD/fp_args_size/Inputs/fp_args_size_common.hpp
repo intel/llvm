@@ -15,6 +15,7 @@
 //   Return value size < %retval register size (12 GRFs)
 //   Return value size == %retval register size
 //   Return value size > %retval register size
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

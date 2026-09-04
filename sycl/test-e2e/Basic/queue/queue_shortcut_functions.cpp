@@ -28,7 +28,7 @@ int main() {
     {
       sycl::buffer<int> DataBuffer(Data.data(), sycl::range<1>(Size));
 
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
+      sycl::accessor<int, 1, sycl::access_mode::read_write,
                      sycl::access::target::device,
                      sycl::access::placeholder::true_t,
                      sycl::ext::oneapi::accessor_property_list<>>
@@ -57,7 +57,7 @@ int main() {
     {
       sycl::buffer<int> Buf(Data.data(), sycl::range<1>(Size));
 
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
+      sycl::accessor<int, 1, sycl::access_mode::read_write,
                      sycl::access::target::device,
                      sycl::access::placeholder::true_t,
                      sycl::ext::oneapi::accessor_property_list<>>
@@ -96,7 +96,7 @@ int main() {
     {
       sycl::buffer<int> Buf(DataPtr, sycl::range<1>(Size));
 
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
+      sycl::accessor<int, 1, sycl::access_mode::read_write,
                      sycl::access::target::device,
                      sycl::access::placeholder::true_t,
                      sycl::ext::oneapi::accessor_property_list<>>
@@ -135,12 +135,12 @@ int main() {
       sycl::buffer<int> RefBuf(ReferenceData.data(), sycl::range<1>(Size));
       sycl::buffer<int> DataBuf(Data.data(), sycl::range<1>(Size));
 
-      sycl::accessor<int, 1, sycl::access::mode::read,
+      sycl::accessor<int, 1, sycl::access_mode::read,
                      sycl::access::target::device,
                      sycl::access::placeholder::true_t,
                      sycl::ext::oneapi::accessor_property_list<>>
           RefAcc(RefBuf);
-      sycl::accessor<int, 1, sycl::access::mode::write,
+      sycl::accessor<int, 1, sycl::access_mode::write,
                      sycl::access::target::device,
                      sycl::access::placeholder::true_t,
                      sycl::ext::oneapi::accessor_property_list<>>

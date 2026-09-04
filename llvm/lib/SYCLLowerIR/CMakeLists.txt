@@ -6,9 +6,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: April 01, 2026
-    # Fix build.
-    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
+    set(LLVMGenXIntrinsics_GIT_TAG 546cf38639d042a860e44f22508d58788188f8c8)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
@@ -64,6 +62,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   TargetHelpers.cpp
 
   SanitizerPostOptimizer.cpp
+  SanitizerUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

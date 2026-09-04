@@ -38,7 +38,7 @@
 ; RUN: FileCheck %s -input-file=%t.files_0.ll
 ; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
-; CHECK: %[[#A:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#ID:]], float 0x40091EB860000000)
+; CHECK: %[[#A:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#ID:]], float 3.140000e+00)
 ; CHECK: %[[#B:]] = call spir_func i32 @_Z20__spirv_SpecConstantii(i32 [[#ID+1]], i32 42)
 ; CHECK: %[[#C:]] = call spir_func i8 @_Z20__spirv_SpecConstantia(i32 2, i8 8)
 ; CHECK: call spir_func %struct.user_defined_type @_Z29__spirv_SpecConstantCompositefiaA3_a_Rstruct.user_defined_type(float %[[#A]], i32 %[[#B]], i8 %[[#C]], [3 x i8] undef)
@@ -73,7 +73,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_14kernel_handlerEE_ = comdat
 @_ZL7spec_id = internal addrspace(1) constant { { float, i32, i8 } } { { float, i32, i8 } { float 0x40091EB860000000, i32 42, i8 8 } }, align 4
 
 ; Function Attrs: convergent norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_14kernel_handlerEE_(%struct.user_defined_type addrspace(1)* noundef align 4 %_arg_acc, %"class.sycl::_V1::id"* noundef byval(%"class.sycl::_V1::id") align 8 %_arg_acc3) local_unnamed_addr #0 comdat !srcloc !48 !kernel_arg_buffer_location !49 !kernel_arg_runtime_aligned !50 !kernel_arg_exclusive_ptr !50 !sycl_fixed_targets !51 !sycl_kernel_omit_args !52 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_14kernel_handlerEE_(%struct.user_defined_type addrspace(1)* noundef align 4 %_arg_acc, %"class.sycl::_V1::id"* noundef byval(%"class.sycl::_V1::id") align 8 %_arg_acc3) local_unnamed_addr #0 comdat !srcloc !48 !kernel_arg_runtime_aligned !50 !kernel_arg_exclusive_ptr !50 !sycl_fixed_targets !51 !sycl_kernel_omit_args !52 {
 entry:
   %ref.tmp.i = alloca %struct.user_defined_type, align 4
   %0 = bitcast %"class.sycl::_V1::id"* %_arg_acc3 to i64*
@@ -166,7 +166,6 @@ attributes #5 = { convergent nounwind }
 !46 = !{!"host", i32 0}
 !47 = !{!"clang version 17.0.0 (https://github.com/intel/llvm.git)"}
 !48 = !{i32 443}
-!49 = !{i32 -1, i32 -1, i32 -1, i32 -1, i32 -1}
 !50 = !{i1 true, i1 false, i1 false, i1 false, i1 false}
 !51 = !{}
 !52 = !{i1 false, i1 true, i1 true, i1 false, i1 true}

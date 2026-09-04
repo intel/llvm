@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14613
+
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
@@ -15,8 +18,8 @@ template <typename T> class Init;
 template <typename DataT>
 void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
   Q.submit([&](handler &CGH) {
-    auto SrcA = Src.template get_access<mode::read>(CGH);
-    auto DstA = Dst.template get_access<mode::write>(CGH);
+    auto SrcA = Src.template get_access<access_mode::read>(CGH);
+    auto DstA = Dst.template get_access<access_mode::write>(CGH);
 
     CGH.host_task([=]() {
       for (size_t Idx = 0; Idx < SrcA.size(); ++Idx)
@@ -28,8 +31,8 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
 template <typename DataT>
 void init(buffer<DataT, 1> &B1, buffer<DataT, 1> &B2, queue &Q) {
   Q.submit([&](handler &CGH) {
-    auto Acc1 = B1.template get_access<mode::write>(CGH);
-    auto Acc2 = B2.template get_access<mode::write>(CGH);
+    auto Acc1 = B1.template get_access<access_mode::write>(CGH);
+    auto Acc2 = B2.template get_access<access_mode::write>(CGH);
 
     CGH.parallel_for<Init<DataT>>(BUFFER_SIZE, [=](item<1> Id) {
       Acc1[Id] = -1;

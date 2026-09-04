@@ -20,7 +20,10 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
+#include "clang/Sema/SemaSYCL.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <algorithm>
 #include <cstdio>
@@ -381,10 +384,12 @@ void CodeGenFunction::EmitCallAndReturnForThunk(llvm::FunctionCallee Callee,
 
 #ifndef NDEBUG
   const CGFunctionInfo &CallFnInfo = CGM.getTypes().arrangeCXXMethodCall(
-      CallArgs, FPT, RequiredArgs::forPrototypePlus(FPT, 1), PrefixArgs);
+      CallArgs, FPT, RequiredArgs::forPrototypePlus(FPT, 1), PrefixArgs, MD);
   assert(CallFnInfo.getRegParm() == CurFnInfo->getRegParm() &&
          CallFnInfo.isNoReturn() == CurFnInfo->isNoReturn() &&
-         CallFnInfo.getCallingConvention() == CurFnInfo->getCallingConvention());
+         CallFnInfo.getCallingConvention() ==
+             CurFnInfo->getCallingConvention() &&
+         CallFnInfo.getX86ABIAVXLevel() == CurFnInfo->getX86ABIAVXLevel());
   assert(isa<CXXDestructorDecl>(MD) || // ignore dtor return types
          similar(CallFnInfo.getReturnInfo(), CallFnInfo.getReturnType(),
                  CurFnInfo->getReturnInfo(), CurFnInfo->getReturnType()));
@@ -1004,8 +1009,13 @@ llvm::GlobalVariable *CodeGenVTables::GenerateConstructionVTable(
   llvm::GlobalVariable *VTable =
       CGM.CreateOrReplaceCXXRuntimeVariable(Name, VTType, Linkage, Align);
 
-  // V-tables are always unnamed_addr.
-  VTable->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+  // dynamic_cast assumes the vtable address is unique; see
+  // https://github.com/llvm/llvm-project/pull/200108. The address is
+  // insignificant either when no RTTI is emitted or for a weak vtable on a
+  // target that may duplicate vtables. In those cases the vtable can be marked
+  // unnamed_addr.
+  if (!CGM.shouldEmitRTTI() || CGM.mayVTableBeDuplicated(VTable->getLinkage()))
+    VTable->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
 
   llvm::Constant *RTTI = CGM.GetAddrOfRTTIDescriptor(
       CGM.getContext().getCanonicalTagType(Base.getBase()));
@@ -1146,14 +1156,38 @@ CodeGenModule::getVTableLinkage(const CXXRecordDecl *RD) {
         IsInNamedModule ? RD->getTemplateSpecializationKind()
                         : keyFunction->getTemplateSpecializationKind();
 
+    // For SYCL device compilation we force-emit vtables of polymorphic classes
+    // with 'indirectly_callable' virtual functions in every translation unit
+    // which references them, so that middle-end analyses can see the vtable
+    // initializer regardless of where the key function is defined. That means
+    // the vtable can no longer have external linkage - it has to be mergeable
+    // instead, otherwise we would end up with multiple definitions once all
+    // device code is linked together.
+    bool IsSYCLIndirectlyCallableVTable =
+        getLangOpts().SYCLIsDevice &&
+        SemaSYCL::hasSYCLIndirectlyCallableVirtualMethod(RD);
+
     switch (Kind) {
     case TSK_Undeclared:
     case TSK_ExplicitSpecialization:
+      // Under OpenMP offloading we force-emit vtable definitions for classes
+      // mapped into target regions even when the key function is defined in
+      // another TU, so the linkage may legitimately be queried here. The same
+      // applies to SYCL device compilation.
       assert(
           (IsInNamedModule || def || CodeGenOpts.OptimizationLevel > 0 ||
-           CodeGenOpts.getDebugInfo() != llvm::codegenoptions::NoDebugInfo) &&
+           CodeGenOpts.getDebugInfo() != llvm::codegenoptions::NoDebugInfo ||
+           getLangOpts().OpenMP || IsSYCLIndirectlyCallableVTable) &&
           "Shouldn't query vtable linkage without the class in module units, "
           "key function, optimizations, or debug info");
+
+      // Note that this has to be checked before the AvailableExternally case
+      // below: available_externally definitions may be dropped by the
+      // optimizer, which would leave us with an unresolved reference to the
+      // vtable in the device image.
+      if (IsSYCLIndirectlyCallableVTable)
+        return llvm::GlobalVariable::LinkOnceODRLinkage;
+
       if (IsExternalDefinition && CodeGenOpts.OptimizationLevel > 0)
         return llvm::GlobalVariable::AvailableExternallyLinkage;
 
@@ -1221,6 +1255,13 @@ CodeGenModule::getVTableLinkage(const CXXRecordDecl *RD) {
   llvm_unreachable("Invalid TemplateSpecializationKind!");
 }
 
+bool CodeGenModule::mayVTableBeDuplicated(
+    llvm::GlobalValue::LinkageTypes Linkage) const {
+  return getTarget().getVTableUniqueness() ==
+             VTableUniquenessKind::UniqueIfStrongLinkage &&
+         llvm::GlobalValue::isWeakForLinker(Linkage);
+}
+
 /// This is a callback from Sema to tell us that a particular vtable is
 /// required to be emitted in this translation unit.
 ///
@@ -1229,6 +1270,7 @@ CodeGenModule::getVTableLinkage(const CXXRecordDecl *RD) {
 /// emits them as-needed.
 void CodeGenModule::EmitVTable(CXXRecordDecl *theClass) {
   VTables.GenerateClassData(theClass);
+  EmittedVTables.insert(theClass);
 }
 
 void
@@ -1311,11 +1353,18 @@ void CodeGenModule::EmitDeferredVTables() {
   size_t savedSize = DeferredVTables.size();
 #endif
 
-  for (const CXXRecordDecl *RD : DeferredVTables)
+  for (const CXXRecordDecl *RD : DeferredVTables) {
+    // if a table has been emitted in an earlier PTU, but was also marked
+    // deferred, we should skip if the linkage is external
+    if (EmittedVTables.count(RD) &&
+        getVTableLinkage(RD) == llvm::GlobalValue::ExternalLinkage)
+      continue;
+
     if (shouldEmitVTableAtEndOfTranslationUnit(*this, RD))
       VTables.GenerateClassData(RD);
     else if (shouldOpportunisticallyEmitVTables())
       OpportunisticVTables.push_back(RD);
+  }
 
   assert(savedSize == DeferredVTables.size() &&
          "deferred extra vtables during vtable emission?");

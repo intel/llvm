@@ -10,6 +10,7 @@
 // REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -324,7 +325,7 @@ bool test(queue q, const Config &cfg) {
   try {
     buffer<T, 1> buf(arr, range<1>(size));
     auto e = q.submit([&](handler &cgh) {
-      auto accessor = buf.template get_access<access::mode::read_write>(cgh);
+      auto accessor = buf.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<TestID<T, N, ImplF>>(
           rng, [=](nd_item<1> gid) SYCL_ESIMD_KERNEL {
             int i = gid.get_global_id(0);

@@ -18,6 +18,7 @@
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/UrMock.hpp>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/IOSandbox.h>
 
 #include <gtest/gtest.h>
 
@@ -219,6 +220,13 @@ protected:
 protected:
   unittest::UrMock<> Mock;
   platform Plt;
+  // This test makes many calls to llvm::sys::fs calls, which as of RFC
+  // https://discourse.llvm.org/t/rfc-file-system-sandboxing-in-clang-llvm/88791
+  // now errors upon using llvm::sys::fs calls without disabling the sandbox.
+  //
+  // Disable the sandbox for the duration of this test.
+  llvm::sys::sandbox::ScopedSetting BypassSandbox =
+      llvm::sys::sandbox::scopedDisable();
 };
 
 // Test to check that we can create input kernel bundle and call build twice for

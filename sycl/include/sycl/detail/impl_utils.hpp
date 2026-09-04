@@ -41,11 +41,21 @@ struct ImplUtils {
   }
 };
 
-template <class Obj>
-auto getSyclObjImpl(const Obj &SyclObj)
-    -> decltype(ImplUtils::getSyclObjImpl(SyclObj)) {
-  return ImplUtils::getSyclObjImpl(SyclObj);
-}
+// Implemented as a function object (rather than a free function) so that it is
+// not exposed via argument-dependent lookup. SYCL interface classes inherit
+// from helper bases (e.g. OwnerLessBase) living in this namespace, which would
+// otherwise make `sycl::detail` an associated namespace and leak this internal
+// API into unqualified calls on user-facing objects. ADL never considers
+// variables, only functions, so a callable object stays invisible to ADL while
+// remaining usable via ordinary/qualified lookup.
+// Regression test for https://github.com/intel/llvm/issues/20820.
+inline constexpr struct GetSyclObjImpl {
+  template <class Obj>
+  auto operator()(const Obj &SyclObj) const
+      -> decltype(ImplUtils::getSyclObjImpl(SyclObj)) {
+    return ImplUtils::getSyclObjImpl(SyclObj);
+  }
+} getSyclObjImpl;
 
 template <typename SyclObject, typename From>
 SyclObject createSyclObjFromImpl(From &&from) {

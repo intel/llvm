@@ -64,13 +64,13 @@ entry:
   %4 = call i64 @_Z20__spirv_SpecConstantix(i32 4, i64 3)
   store i64 %4, ptr addrspace(1) %l, align 8
 
-  ; CHECK-LLVM: store half 0xH3800, ptr addrspace(1) %h, align 2
-  ; CHECK-LLVM-SPEC: store half 0xH4580, ptr addrspace(1) %h, align 2
+  ; CHECK-LLVM: store half 5.000000e-01, ptr addrspace(1) %h, align 2
+  ; CHECK-LLVM-SPEC: store half 5.500000e+00, ptr addrspace(1) %h, align 2
   %5 = call half @_Z20__spirv_SpecConstantih(i32 5, half 0xH3800)
   store half %5, ptr addrspace(1) %h, align 2
 
   ; CHECK-LLVM: store float 1.250000e+00, ptr addrspace(1) %f, align 4
-  ; CHECK-LLVM-SPEC: store float 0x401A666660000000, ptr addrspace(1) %f, align 4
+  ; CHECK-LLVM-SPEC: store float 6.600000e+00, ptr addrspace(1) %f, align 4
   %6 = call float @_Z20__spirv_SpecConstantif(i32 6, float 1.250000e+00)
   store float %6, ptr addrspace(1) %f, align 4
 

@@ -12,9 +12,6 @@
 
 #include <gtest/gtest.h>
 
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)                    \
-  __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)
-
 TEST(DeviceAspectTraits, AnyDeviceHasAspect) {
 #define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                      \
   constexpr bool CheckAnyDeviceHas##ASPECT =                                   \
@@ -53,5 +50,3 @@ TEST(DeviceAspectTraits, AllDevicesHaveAspect) {
 
 #undef __SYCL_ASPECT_DEPRECATED
 }
-
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS

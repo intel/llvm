@@ -1,5 +1,5 @@
-; RUN: opt -passes=loop-vectorize,dce,instcombine -mtriple aarch64-linux-gnu -mattr=+sve \
-; RUN:   -prefer-predicate-over-epilogue=scalar-epilogue < %s -S | FileCheck %s
+; RUN: opt -passes=loop-vectorize -mtriple aarch64-linux-gnu -mattr=+sve \
+; RUN:   -tail-folding-policy=dont-fold-tail < %s -S | FileCheck %s
 
 
 target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
@@ -95,4 +95,4 @@ for.end:
 !2 = !{!"llvm.loop.vectorize.width", i32 4}
 !3 = !{!"llvm.loop.vectorize.scalable.enable", i1 true}
 !4 = !{!"llvm.loop.interleave.count", i32 1}
-!5 = !{!"llvm.loop.vectorize.enable", i1 true}
+!5 = !{!"llvm.loop.vectorize.enable"}

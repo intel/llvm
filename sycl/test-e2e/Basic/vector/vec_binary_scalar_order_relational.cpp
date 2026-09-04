@@ -4,6 +4,7 @@
 // Checks scalar/vec relational operator ordering.
 
 #include "vec_binary_scalar_order.hpp"
+#include <sycl/half_type.hpp>
 
 // NOTE: For the sake of compile-time we pick only a few operators per category.
 #define CHECK_SIZES_AND_OPS(Q, C, T)                                           \

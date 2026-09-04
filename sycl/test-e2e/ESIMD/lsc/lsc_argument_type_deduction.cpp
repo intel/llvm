@@ -11,6 +11,7 @@
 
 // The test checks that compiler is able to corrctly deduce the template
 // parameter types for lsc functions.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -30,7 +31,7 @@ template <unsigned SIMDSize> int testAccessor(queue q) {
   try {
     auto buf_0 = buffer{vec_0};
     q.submit([&](handler &h) {
-      auto access_0 = buf_0.template get_access<access::mode::read_write>(h);
+      auto access_0 = buf_0.template get_access<access_mode::read_write>(h);
 
       h.parallel_for(
           range<1>{size / SIMDSize}, [=](id<1> id) SYCL_ESIMD_KERNEL {

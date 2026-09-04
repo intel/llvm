@@ -8,5 +8,5 @@
 // RUN: %clangxx -fsycl --offload-new-driver -### %tfoo.o 2>&1 | \
 // RUN:  FileCheck -check-prefix CHECK-WITHOUT %s
 
-// CHECK-WITH: clang-linker-wrapper{{.*}} "--llvm-spirv-options={{.*}} --spirv-preserve-auxdata
+// CHECK-WITH: clang-linker-wrapper{{.*}} "--llvm-spirv-options=--spirv-preserve-auxdata
 // CHECK-WITHOUT-NOT: --spirv-preserve-auxdata

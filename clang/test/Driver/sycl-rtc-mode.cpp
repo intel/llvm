@@ -8,7 +8,7 @@
 // RUN: %clangxx -fsycl -fsycl-rtc-mode --no-offload-new-driver %s -### 2>&1 \
 // RUN:   | FileCheck %s
 
-// RUN: %clangxx -fsycl -fsycl-rtc-mode --offload-new-driver %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-rtc-mode --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s
 
 // CHECK: clang{{.*}} "-fsycl-is-device"
@@ -23,7 +23,7 @@
 // RUN: %clangxx -fsycl -fno-sycl-rtc-mode --no-offload-new-driver %s -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NEGATIVE
 
-// RUN: %clangxx -fsycl -fno-sycl-rtc-mode --offload-new-driver %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fno-sycl-rtc-mode --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NEGATIVE
 
 // NEGATIVE: clang{{.*}} "-fsycl-is-device"

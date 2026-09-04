@@ -1,5 +1,6 @@
 //  Test that launching a kernel using level-zero interop in a graph's host_task
 //  works as expected.
+#include <iostream>
 
 #include "../graph_common.hpp"
 #include <level_zero/ze_api.h>

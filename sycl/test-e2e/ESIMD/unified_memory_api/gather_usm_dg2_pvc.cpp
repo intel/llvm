@@ -13,6 +13,7 @@
 // and optional compile-time esimd::properties.
 // The gather() calls in this test use either cache-hint properties
 // or VS > 1 (number of loads per offset) and require DG2 or PVC to run.
+#include <iostream>
 
 #include "Inputs/gather.hpp"
 

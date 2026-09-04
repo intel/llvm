@@ -24,6 +24,7 @@
 
 // XFAIL: cpu
 // XFAIL-TRACKER: CMPLRLLVM-52693
+#include <iostream>
 
 #include "common.hpp"
 #include <sycl/usm.hpp>

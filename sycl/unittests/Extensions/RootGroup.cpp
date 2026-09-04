@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <gtest/gtest.h>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 
 // Include helpers for device image, kernel info, and Unified Runtime (UR) mocks

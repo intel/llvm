@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 
 // Basic test for new lsc_load_2d/lsc_store_2d API.
+#include <iostream>
 
 #include <algorithm>
 #include <cmath>

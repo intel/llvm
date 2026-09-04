@@ -12,21 +12,21 @@ struct S {
 // CHECK-NEXT:    [[COND_ADDR_ASCAST:%.*]] = addrspacecast ptr [[COND_ADDR]] to ptr addrspace(4)
 // CHECK-NEXT:    [[LHS_ADDR_ASCAST:%.*]] = addrspacecast ptr [[LHS_ADDR]] to ptr addrspace(4)
 // CHECK-NEXT:    [[AGG_RESULT_ASCAST:%.*]] = addrspacecast ptr [[AGG_RESULT:%.*]] to ptr addrspace(4)
-// CHECK-NEXT:    [[FROMBOOL:%.*]] = zext i1 [[COND:%.*]] to i8
-// CHECK-NEXT:    store i8 [[FROMBOOL]], ptr addrspace(4) [[COND_ADDR_ASCAST]], align 1
+// CHECK-NEXT:    [[STOREDV:%.*]] = zext i1 [[COND:%.*]] to i8
+// CHECK-NEXT:    store i8 [[STOREDV]], ptr addrspace(4) [[COND_ADDR_ASCAST]], align 1
 // CHECK-NEXT:    store ptr addrspace(4) [[LHS:%.*]], ptr addrspace(4) [[LHS_ADDR_ASCAST]], align 8
 // CHECK-NEXT:    [[RHS_ASCAST:%.*]] = addrspacecast ptr [[RHS:%.*]] to ptr addrspace(4)
 // CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr addrspace(4) [[COND_ADDR_ASCAST]], align 1
-// CHECK-NEXT:    [[TOBOOL:%.*]] = trunc i8 [[TMP0]] to i1
-// CHECK-NEXT:    br i1 [[TOBOOL]], label [[COND_TRUE:%.*]], label [[COND_FALSE:%.*]]
+// CHECK-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP0]], 0
+// CHECK-NEXT:    br i1 [[LOADEDV]], label [[COND_TRUE:%.*]], label [[COND_FALSE:%.*]]
 // CHECK:       cond.true:
-// CHECK-NEXT:    [[TMP1:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[LHS_ADDR_ASCAST]], align 8
+// CHECK-NEXT:    [[TMP1:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[LHS_ADDR_ASCAST]], align 8, !align [[META7:![0-9]+]]
 // CHECK-NEXT:    br label [[COND_END:%.*]]
 // CHECK:       cond.false:
 // CHECK-NEXT:    br label [[COND_END]]
 // CHECK:       cond.end:
-// CHECK-NEXT:    [[COND_LVALUE:%.*]] = phi ptr addrspace(4) [ [[TMP1]], [[COND_TRUE]] ], [ [[RHS_ASCAST]], [[COND_FALSE]] ]
-// CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 2 [[AGG_RESULT_ASCAST]], ptr addrspace(4) align 2 [[COND_LVALUE]], i64 2, i1 false)
+// CHECK-NEXT:    [[COND1:%.*]] = phi ptr addrspace(4) [ [[TMP1]], [[COND_TRUE]] ], [ [[RHS_ASCAST]], [[COND_FALSE]] ]
+// CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 2 [[AGG_RESULT_ASCAST]], ptr addrspace(4) align 2 [[COND1]], i64 2, i1 false)
 // CHECK-NEXT:    ret void
 //
 S foo(bool cond, S &lhs, S rhs) {

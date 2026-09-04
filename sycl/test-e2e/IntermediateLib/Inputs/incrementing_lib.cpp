@@ -31,7 +31,7 @@ extern "C" API_EXPORT void performIncrementation(sycl::queue &q,
                                                  sycl::buffer<int, 1> &buf) {
   sycl::range<1> r = buf.get_range();
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class CLASSNAME>(
         r, [=](sycl::id<1> idx) { acc[idx] += INC; });
   });

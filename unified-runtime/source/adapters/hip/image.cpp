@@ -420,7 +420,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
   ScopedDevice Active(hDevice);
 
   // Allocate a hipArray
-  if (pImageDesc->numMipLevel == 1) {
+  if (pImageDesc->numMipLevel <= 1) {
     hipArray_t ImageArray{nullptr};
 
     try {
@@ -567,7 +567,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
               UR_RESULT_ERROR_INVALID_VALUE);
     if (memType == hipMemoryTypeArray) {
       // We have a hipArray_t
-      if (pImageDesc->numMipLevel == 1) {
+      if (pImageDesc->numMipLevel <= 1) {
         image_res_desc.resType = HIP_RESOURCE_TYPE_ARRAY;
         image_res_desc.res.array.hArray =
             reinterpret_cast<hipArray_t>(hImageMem);
@@ -1559,6 +1559,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
           break;
         case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
           extSemDesc.type = hipExternalSemaphoreHandleTypeD3D12Fence;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE:
+          extSemDesc.type = hipExternalSemaphoreHandleTypeD3D11Fence;
           break;
         case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
           [[fallthrough]];

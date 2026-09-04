@@ -1,2 +1,5 @@
+// __INTEL_PREVIEW_BREAKING_CHANGES: Remove this specification when the feature
+// is removed at the next breaking changes window.
+
 This extension has been deprecated, but the specification is still available
 link:../deprecated/sycl_ext_oneapi_default_context.asciidoc[here].

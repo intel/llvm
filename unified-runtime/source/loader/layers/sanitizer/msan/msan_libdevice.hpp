@@ -80,8 +80,9 @@ constexpr std::size_t MSAN_PRIVATE_SIZE = 0xffffffULL + 1;
 constexpr uint8_t kMemInitializedMagic = 0;
 constexpr uint8_t kMemUninitializedMagic = 0xff;
 
-constexpr auto kSPIR_MsanDeviceGlobalMetadata = "__MsanDeviceGlobalMetadata";
-constexpr auto kSPIR_MsanSpirKernelMetadata = "__MsanKernelMetadata";
+constexpr auto kSPIR_MsanDeviceGlobalMetadataPrefix =
+    "__MsanDeviceGlobalMetadata_";
+constexpr auto kSPIR_MsanSpirKernelMetadataPrefix = "__MsanKernelMetadata_";
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer

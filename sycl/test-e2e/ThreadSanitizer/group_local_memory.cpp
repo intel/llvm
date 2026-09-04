@@ -9,6 +9,7 @@
 #include "sycl/ext/oneapi/group_local_memory.hpp"
 #include "sycl/detail/core.hpp"
 #include "sycl/usm.hpp"
+#include <sycl/group_barrier.hpp>
 
 __attribute__((noinline)) void check(int *ptr, size_t val) { *ptr += val; }
 
@@ -25,7 +26,7 @@ int main() {
 
            check(ptr, item.get_local_linear_id());
 
-           item.barrier();
+           sycl::group_barrier(item.get_group());
 
            if (item.get_global_linear_id() == 0)
              *sum = *ptr;
@@ -45,7 +46,7 @@ int main() {
 
            check(ptr, item.get_local_linear_id());
 
-           item.barrier();
+           sycl::group_barrier(item.get_group());
 
            if (item.get_global_linear_id() == 0)
              *sum = *ptr;

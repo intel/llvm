@@ -23,7 +23,7 @@ $_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_ = comdat any
 @.str.1 = private unnamed_addr addrspace(1) constant [15 x i8] c"String No. %i\0A\00", align 1
 
 ; Function Attrs: convergent mustprogress norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_() local_unnamed_addr #2 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_() local_unnamed_addr #2 comdat {
 entry:
   ; In particular, make sure that no argument promotion has been done for float
   ; upon variadic redeclaration:
@@ -60,4 +60,3 @@ attributes #3 = { convergent }
 !3 = !{i32 4, i32 100000}
 !4 = !{!"clang version 14.0.0"}
 !5 = !{i32 -1, i32 -1, i32 -1, i32 -1}
-!6 = !{}

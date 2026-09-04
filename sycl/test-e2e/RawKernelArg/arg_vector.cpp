@@ -6,6 +6,7 @@
 
 // Tests raw_kernel_arg which is used to pass OpenCL vector types as a special
 // case of struct data types.
+#include <iostream>
 
 #include <CL/cl.h>
 #include <sycl/detail/core.hpp>

@@ -282,7 +282,6 @@ void GlobalHandler::unloadAdapters() {
   auto loaderTearDown =
       loaderTearDownInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
   loaderTearDown();
-  // urLoaderTearDown();
 
   // Clear after unload to avoid uses after unload.
   getAdapters().clear();

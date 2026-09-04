@@ -8,6 +8,7 @@
 // TODO: delete this test and test the functionality
 // over in llvm-test-suite along with the other changes
 // needed to support the SYCL 2020 target updates.
+#include <iostream>
 
 #include <sycl/sycl.hpp>
 

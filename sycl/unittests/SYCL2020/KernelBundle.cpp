@@ -16,11 +16,11 @@
 
 #include <gtest/gtest.h>
 
-class TestKernel;
+class KernelBundleTestKernel;
 class TestKernelExeOnly;
 class TestKernelWithAspects;
 
-MOCK_INTEGRATION_HEADER(TestKernel)
+MOCK_INTEGRATION_HEADER(KernelBundleTestKernel)
 MOCK_INTEGRATION_HEADER(TestKernelExeOnly)
 MOCK_INTEGRATION_HEADER(TestKernelWithAspects)
 
@@ -51,7 +51,8 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 }
 
 static sycl::unittest::MockDeviceImage Imgs[] = {
-    generateDefaultImage({"TestKernel"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+    generateDefaultImage({"KernelBundleTestKernel"},
+                         SYCL_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"TestKernelExeOnly"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
@@ -83,7 +84,7 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
 
   sycl::kernel Kernel =
-      KernelBundle.get_kernel(sycl::get_kernel_id<TestKernel>());
+      KernelBundle.get_kernel(sycl::get_kernel_id<KernelBundleTestKernel>());
 
   sycl::kernel_bundle<sycl::bundle_state::executable> RetKernelBundle =
       Kernel.get_kernel_bundle();
@@ -101,8 +102,8 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
   const sycl::context Ctx = Queue.get_context();
 
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<TestKernel, sycl::bundle_state::input>(Ctx,
-                                                                     {Dev});
+      sycl::get_kernel_bundle<KernelBundleTestKernel,
+                              sycl::bundle_state::input>(Ctx, {Dev});
 
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
   EXPECT_FALSE(ObjBundle.empty()) << "Expect non-empty obj kernel bundle";
@@ -153,7 +154,7 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
       CGH.use_kernel_bundle(EmptyKernelBundle);
 
       try {
-        CGH.single_task<TestKernel>([]() {});
+        CGH.single_task<KernelBundleTestKernel>([]() {});
         FAIL() << "No exception was thrown.";
       } catch (const sycl::exception &e) {
         ASSERT_EQ(e.code().value(),
@@ -197,16 +198,16 @@ TEST(KernelBundle, HasKernelBundle) {
   EXPECT_TRUE(HasKernelBundle);
 
   HasKernelBundle =
-      sycl::has_kernel_bundle<TestKernel, sycl::bundle_state::input>(Ctx,
-                                                                     {Dev});
+      sycl::has_kernel_bundle<KernelBundleTestKernel,
+                              sycl::bundle_state::input>(Ctx, {Dev});
   EXPECT_TRUE(HasKernelBundle);
   HasKernelBundle =
-      sycl::has_kernel_bundle<TestKernel, sycl::bundle_state::object>(Ctx,
-                                                                      {Dev});
+      sycl::has_kernel_bundle<KernelBundleTestKernel,
+                              sycl::bundle_state::object>(Ctx, {Dev});
   EXPECT_TRUE(HasKernelBundle);
   HasKernelBundle =
-      sycl::has_kernel_bundle<TestKernel, sycl::bundle_state::executable>(
-          Ctx, {Dev});
+      sycl::has_kernel_bundle<KernelBundleTestKernel,
+                              sycl::bundle_state::executable>(Ctx, {Dev});
   EXPECT_TRUE(HasKernelBundle);
 
   HasKernelBundle =
@@ -243,7 +244,7 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
       try {
         CGH.use_kernel_bundle(KernelBundle);
         FAIL() << "No exception was thrown.";
-        CGH.single_task<TestKernel>([]() {});
+        CGH.single_task<KernelBundleTestKernel>([]() {});
       } catch (const sycl::exception &e) {
         ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
             << "sycl::exception code was not the expected sycl::errc::invalid.";
@@ -288,7 +289,7 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
         [&](sycl::handler &CGH) {
           CGH.use_kernel_bundle(KernelBundle);
           ++EnqueueCounter;
-          CGH.single_task<TestKernel>([]() {});
+          CGH.single_task<KernelBundleTestKernel>([]() {});
         },
         SecondaryQueue);
     FAIL() << "Submit should always throw.";
@@ -329,8 +330,8 @@ TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
   }
 
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<TestKernel, sycl::bundle_state::input>(Ctx,
-                                                                     {Dev});
+      sycl::get_kernel_bundle<KernelBundleTestKernel,
+                              sycl::bundle_state::input>(Ctx, {Dev});
 
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
   EXPECT_FALSE(ObjBundle.empty()) << "Expect non-empty obj kernel bundle";
@@ -414,7 +415,7 @@ TEST(KernelBundle, DescendentDevice) {
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Subdev});
 
   sycl::kernel Kernel =
-      KernelBundle.get_kernel(sycl::get_kernel_id<TestKernel>());
+      KernelBundle.get_kernel(sycl::get_kernel_id<KernelBundleTestKernel>());
 
   sycl::kernel_bundle<sycl::bundle_state::executable> RetKernelBundle =
       Kernel.get_kernel_bundle();
@@ -435,7 +436,7 @@ TEST(KernelBundle, CheckIfBundleHasIncompatibleKernel) {
   auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       sycl::context(Dev), {Dev});
   auto KernelId1 = sycl::get_kernel_id<TestKernelWithAspects>();
-  auto KernelId2 = sycl::get_kernel_id<TestKernel>();
+  auto KernelId2 = sycl::get_kernel_id<KernelBundleTestKernel>();
 
   EXPECT_FALSE(Bundle.has_kernel(KernelId1));
   EXPECT_TRUE(Bundle.has_kernel(KernelId2));
@@ -451,7 +452,7 @@ TEST(KernelBundle, CheckIfBundleHasCompatibleKernel) {
   auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       sycl::context(Dev), {Dev});
   auto KernelId1 = sycl::get_kernel_id<TestKernelWithAspects>();
-  auto KernelId2 = sycl::get_kernel_id<TestKernel>();
+  auto KernelId2 = sycl::get_kernel_id<KernelBundleTestKernel>();
 
   EXPECT_TRUE(Bundle.has_kernel(KernelId1));
   EXPECT_TRUE(Bundle.has_kernel(KernelId2));
@@ -468,7 +469,7 @@ TEST(KernelBundle, CheckIfIncompatibleBundleExists) {
   EXPECT_TRUE(Dev.is_cpu());
 
   auto KernelId1 = sycl::get_kernel_id<TestKernelWithAspects>();
-  auto KernelId2 = sycl::get_kernel_id<TestKernel>();
+  auto KernelId2 = sycl::get_kernel_id<KernelBundleTestKernel>();
 
   EXPECT_FALSE(sycl::has_kernel_bundle<sycl::bundle_state::executable>(
       sycl::context(Dev), {KernelId1, KernelId2}));
@@ -486,7 +487,7 @@ TEST(KernelBundle, CheckIfCompatibleBundleExists2) {
   EXPECT_TRUE(Dev.is_gpu());
 
   auto KernelId1 = sycl::get_kernel_id<TestKernelWithAspects>();
-  auto KernelId2 = sycl::get_kernel_id<TestKernel>();
+  auto KernelId2 = sycl::get_kernel_id<KernelBundleTestKernel>();
 
   EXPECT_TRUE(sycl::has_kernel_bundle<sycl::bundle_state::executable>(
       sycl::context(Dev), {KernelId1, KernelId2}));
@@ -530,7 +531,7 @@ TEST(KernelBundle, HasKernelForSubDevice) {
   sycl::kernel_bundle<sycl::bundle_state::executable> Bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(
           sycl::context(Dev), {Dev});
-  sycl::kernel_id KernelId = sycl::get_kernel_id<TestKernel>();
+  sycl::kernel_id KernelId = sycl::get_kernel_id<KernelBundleTestKernel>();
 
   EXPECT_TRUE(Bundle.has_kernel(KernelId));
 

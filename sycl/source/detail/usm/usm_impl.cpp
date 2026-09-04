@@ -14,13 +14,22 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
+#include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 #include <sycl/usm.hpp>
 
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <memory>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
@@ -608,6 +617,105 @@ void release_from_device_copy(const void *Ptr, const context &Ctxt) {
 void release_from_device_copy(const void *Ptr, const queue &Queue) {
   release_from_usm_device_copy(Ptr, Queue.get_context());
 }
+
+// Host memory registration APIs, see sycl_ext_oneapi_register_host_memory.
+
+namespace detail {
+
+// Throws errc::feature_not_supported unless every device in the context
+// reports aspect::ext_oneapi_register_host_memory.
+static void checkRegisterHostMemorySupport(const context &Ctxt) {
+  detail::context_impl &CtxtImpl = *detail::getSyclObjImpl(Ctxt);
+  for (detail::device_impl &Dev : CtxtImpl.getDevices()) {
+    if (!Dev.has(aspect::ext_oneapi_register_host_memory))
+      throw sycl::exception(
+          make_error_code(errc::feature_not_supported),
+          "At least one device in the context does not support registering "
+          "host memory (aspect::ext_oneapi_register_host_memory).");
+  }
+}
+
+// Maps a failed UR result from the host memory registration APIs to a
+// sycl::exception with the error code mandated by the extension specification.
+// Invalid argument conditions map to errc::invalid; anything else is a backend
+// error.
+static void throwRegisterHostMemoryError(ur_result_t Err, const char *What) {
+  errc Code;
+  switch (Err) {
+  case UR_RESULT_ERROR_INVALID_NULL_POINTER:
+  case UR_RESULT_ERROR_INVALID_VALUE:
+  case UR_RESULT_ERROR_INVALID_ARGUMENT:
+    Code = errc::invalid;
+    break;
+  default:
+    Code = errc::runtime;
+    break;
+  }
+  throw detail::set_ur_error(sycl::exception(make_error_code(Code), What), Err);
+}
+
+void register_host_memory(void *Ptr, size_t NumBytes, const context &Ctxt,
+                          uint32_t Flags) {
+  if (Ptr == nullptr)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "register_host_memory: pointer must not be null.");
+  if (NumBytes == 0)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "register_host_memory: size must not be zero.");
+  static const size_t PageSize = []() {
+#ifdef _WIN32
+    SYSTEM_INFO Info;
+    GetSystemInfo(&Info);
+    return static_cast<size_t>(Info.dwPageSize);
+#else
+    return static_cast<size_t>(sysconf(_SC_PAGESIZE));
+#endif
+  }();
+  if (reinterpret_cast<uintptr_t>(Ptr) % PageSize != 0)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "register_host_memory: pointer must be aligned to the host page size.");
+  if (NumBytes % PageSize != 0)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "register_host_memory: size must be a multiple of the host page size.");
+  if (NumBytes >
+      std::numeric_limits<uintptr_t>::max() - reinterpret_cast<uintptr_t>(Ptr))
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "register_host_memory: range is not representable in "
+                          "the host address space.");
+  checkRegisterHostMemorySupport(Ctxt);
+
+  ur_exp_usm_host_alloc_register_properties_t Props = {
+      UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES,
+      /*pNext=*/nullptr,
+      /*flags=*/0};
+  if (Flags & register_host_memory_flag_read_only)
+    Props.flags |= UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY;
+
+  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
+  ur_result_t Err =
+      Adapter->call_nocheck<detail::UrApiKind::urUSMHostAllocRegisterExp>(
+          urCtx, Ptr, NumBytes, &Props);
+  if (Err != UR_RESULT_SUCCESS)
+    throwRegisterHostMemoryError(Err, "register_host_memory failed.");
+}
+
+void unregister_host_memory(void *Ptr, const context &Ctxt) {
+  if (Ptr == nullptr)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "unregister_host_memory: pointer must not be null.");
+  checkRegisterHostMemorySupport(Ctxt);
+
+  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
+  ur_result_t Err =
+      Adapter->call_nocheck<detail::UrApiKind::urUSMHostAllocUnregisterExp>(
+          urCtx, Ptr);
+  if (Err != UR_RESULT_SUCCESS)
+    throwRegisterHostMemoryError(Err, "unregister_host_memory failed.");
+}
+
+} // namespace detail
 
 void *malloc_device(size_t numBytes, const device &syclDevice,
                     const property_list &propList) {

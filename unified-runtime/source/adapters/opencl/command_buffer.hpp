@@ -11,22 +11,24 @@
 #include "common/ur_ref_count.hpp"
 #include <ur/ur.hpp>
 
+namespace ur::opencl {
+
 /// Handle to a kernel command.
-struct ur_exp_command_buffer_command_handle_t_ : ur::opencl::handle_base {
+struct ur_exp_command_buffer_command_handle_t_ : handle_base {
   /// Command-buffer this command belongs to.
-  ur_exp_command_buffer_handle_t hCommandBuffer;
+  ur_exp_command_buffer_handle_t_ *hCommandBuffer;
   /// OpenCL command-handle.
   cl_mutable_command_khr CLMutableCommand;
   /// Kernel associated with this command handle
-  ur_kernel_handle_t Kernel;
+  ur_kernel_handle_t_ *Kernel;
   /// Work-dimension the command was originally created with.
   cl_uint WorkDim;
   /// Set to true if the user set the local work size on command creation.
   bool UserDefinedLocalSize;
 
   ur_exp_command_buffer_command_handle_t_(
-      ur_exp_command_buffer_handle_t hCommandBuffer,
-      cl_mutable_command_khr CLMutableCommand, ur_kernel_handle_t Kernel,
+      ur_exp_command_buffer_handle_t_ *hCommandBuffer,
+      cl_mutable_command_khr CLMutableCommand, ur_kernel_handle_t_ *Kernel,
       cl_uint WorkDim, bool UserDefinedLocalSize)
       : handle_base(), hCommandBuffer(hCommandBuffer),
         CLMutableCommand(CLMutableCommand), Kernel(Kernel), WorkDim(WorkDim),
@@ -34,15 +36,19 @@ struct ur_exp_command_buffer_command_handle_t_ : ur::opencl::handle_base {
 };
 
 /// Handle to a command-buffer object.
-struct ur_exp_command_buffer_handle_t_ : ur::opencl::handle_base {
+struct ur_exp_command_buffer_handle_t_ : handle_base {
   /// UR queue belonging to the command-buffer, required for OpenCL creation.
-  ur_queue_handle_t hInternalQueue;
+  ur_queue_handle_t_ *hInternalQueue;
   /// Context the command-buffer is created for.
-  ur_context_handle_t hContext;
+  ur_context_handle_t_ *hContext;
   /// Device the command-buffer is created for.
-  ur_device_handle_t hDevice;
+  ur_device_handle_t_ *hDevice;
   /// OpenCL command-buffer object.
   cl_command_buffer_khr CLCommandBuffer;
+  /// OpenCL function used to create the command-buffer object.
+  cl_ext::clCreateCommandBufferKHR_fn CLCreateCommandBufferKHR;
+  /// OpenCL function used to release the command-buffer object.
+  cl_ext::clReleaseCommandBufferKHR_fn CLReleaseCommandBufferKHR;
   /// Set to true if the kernel commands in the command-buffer can be updated,
   /// false otherwise
   bool IsUpdatable;
@@ -58,15 +64,18 @@ struct ur_exp_command_buffer_handle_t_ : ur::opencl::handle_base {
 
   ur::RefCount RefCount;
 
-  ur_exp_command_buffer_handle_t_(ur_queue_handle_t hQueue,
-                                  ur_context_handle_t hContext,
-                                  ur_device_handle_t hDevice,
+  ur_exp_command_buffer_handle_t_(ur_queue_handle_t_ *hQueue,
+                                  ur_context_handle_t_ *hContext,
+                                  ur_device_handle_t_ *hDevice,
                                   cl_command_buffer_khr CLCommandBuffer,
                                   bool IsUpdatable, bool IsInOrder)
       : handle_base(), hInternalQueue(hQueue), hContext(hContext),
         hDevice(hDevice), CLCommandBuffer(CLCommandBuffer),
+        CLCreateCommandBufferKHR(nullptr), CLReleaseCommandBufferKHR(nullptr),
         IsUpdatable(IsUpdatable), IsInOrder(IsInOrder), IsFinalized(false),
         LastSubmission(nullptr) {}
 
   ~ur_exp_command_buffer_handle_t_();
 };
+
+} // namespace ur::opencl

@@ -14,7 +14,7 @@ int main() {
       buffer A(out_data);
       queue Q;
       Q.submit([&](handler &h) {
-        auto out = A.get_access<access::mode::write>(h);
+        auto out = A.get_access<access_mode::write>(h);
         h.parallel_for<class containerBuffer>(A.get_range(),
                                               [out](id<1> i) { out[i] = 1; });
       });

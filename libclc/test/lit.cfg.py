@@ -1,4 +1,3 @@
-# -*- Python -*-
 """
 Lit configuration file for libclc tests.
 """
@@ -6,48 +5,57 @@ Lit configuration file for libclc tests.
 import os
 
 import lit.formats
-import lit.util
 
 from lit.llvm import llvm_config
-from lit.llvm.subst import ToolSubst
-from lit.llvm.subst import FindTool
-
-
-def quote(s):
-    return f"'{s}'"
-
 
 # Configuration file for the 'lit' test runner.
 
 # name: The name of this test suite.
-config.name = f"LIBCLC-{config.libclc_target.upper()}"
-
+config.name = "libclc"
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
+config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".cl", ".cpp"]
+config.suffixes = [".cl", ".test"]
 
-# excludes: A list of directories  and fles to exclude from the testsuite.
-config.excludes = ["CMakeLists.txt"]
+# Exclude certain directories and files from test discovery
+config.excludes = [
+    "CMakeLists.txt",
+    "update_libclc_tests.py",
+]
 
 # test_source_root: The root path where tests are located.
-config.test_source_root = os.path.join(os.path.dirname(__file__), "binding")
+# For per-target tests, this is the target's test directory.
+config.test_source_root = os.path.dirname(__file__)
 
-libclc_inc = os.path.join(config.libclc_root, "libspirv", "include")
-
-# test_exec_root: The root path where tests should be run. We create a unique
-# test directory per libclc target to test to avoid data races when multiple
-# targets try and access the the same libclc test files.
-config.test_exec_root = os.path.join(
-    config.libclc_pertarget_test_dir, config.libclc_target
-)
+# test_exec_root: The root path where tests should be run.
+config.test_exec_root = config.libclc_obj_root
 
 config.target_triple = config.libclc_target
 
+supported_test_architectures = ["amdgcn", "amdgpu"]
+
+config.targets = set()
+
+
+def calculate_arch_features(arch_string):
+    features = []
+    for arch in arch_string.split():
+        if (
+            arch.lower() in supported_test_architectures
+            and config.libclc_target_arch.lower() in supported_test_architectures
+        ):
+            features.append(arch.lower() + "-registered-target")
+            config.targets.add(arch.upper())
+    return features
+
+
+llvm_config.feature_config([("--targets-built", calculate_arch_features)])
+
 llvm_config.use_default_substitutions()
 
+libclc_inc = os.path.join(config.libclc_root, "libspirv", "include")
 clang_flags = [
     "-fno-builtin",
     "-I",
@@ -59,22 +67,50 @@ clang_flags = [
     "-Xclang",
     "-mlink-builtin-bitcode",
     "-Xclang",
-    os.path.join(config.libclc_output_dir, config.libclc_target, f"libspirv.bc"),
+    os.path.join(config.libclc_library_dir, config.libclc_target, f"libspirv.bc"),
     "-nogpulib",
 ]
 
-if config.libclc_target == "amdgcn-amd-amdhsa-llvm":
-    # libclc for amdgcn is currently built for tahiti which doesn't support
-    # fp16 so disable the extension for the tests
-    clang_flags += ["-Xclang", "-cl-ext=-cl_khr_fp16"]
-
 llvm_config.use_clang(additional_flags=clang_flags)
 
-tool_dirs = [config.llvm_tools_dir]
+llvm_config.add_tool_substitutions(["llvm-nm"], config.llvm_tools_dir)
 
-tools = ["llvm-dis", "not"]
+target_arch = config.libclc_target_arch.lower()
+check_prefix = "AMDGCN" if target_arch == "amdgpu" else target_arch.upper()
 
-llvm_config.add_tool_substitutions(tools, tool_dirs)
+is_standalone = config.libclc_standalone_build.lower() == "true"
+path = os.path.join(config.libclc_library_dir, config.libclc_target, "libclc.bc")
+libclc_lib = f"--libclc-lib=:{path}" if is_standalone else ""
+
+config.substitutions.extend(
+    [
+        ("%library_dir", config.libclc_library_dir),
+        ("%target", config.libclc_target),
+        ("%cpu", config.libclc_target_cpu),
+        ("%libclc_lib", libclc_lib),
+        ("%check_prefix", check_prefix),
+    ]
+)
+
+test_arch = getattr(config, "libclc_test_arch", "")
+offload_libdir = getattr(config, "libclc_offload_libdir", "")
+
+if test_arch and offload_libdir and os.path.isfile(path):
+    compile_cmd = (
+        f"{os.path.join(config.llvm_tools_dir, 'clang')} --target={config.libclc_target} "
+        f"-march={test_arch} -cl-std=CL3.0 -nogpulib "
+        f"--libclc-lib=:{path} %s -o %t"
+    )
+    run_cmd = f"{os.path.join(config.llvm_tools_dir, 'llvm-gpu-loader')} --kernel test"
+    config.environment["LD_LIBRARY_PATH"] = os.pathsep.join(
+        [offload_libdir, config.environment.get("LD_LIBRARY_PATH", "")]
+    )
+    config.substitutions.append(
+        ("%libclc-compile-and-run", f"{compile_cmd} && {run_cmd}")
+    )
+    config.substitutions.append(("%libclc-compile", compile_cmd))
+    config.substitutions.append(("%libclc-run", run_cmd))
+    config.available_features.add("libclc-native-run")
 
 # Propagate PATH from environment
 if "PATH" in os.environ:

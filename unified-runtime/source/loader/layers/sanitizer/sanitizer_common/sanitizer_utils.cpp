@@ -302,6 +302,32 @@ size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
   return Size;
 }
 
+ur_result_t GetProgramMetadataNames(ur_program_handle_t Program,
+                                    std::string_view Prefix,
+                                    std::vector<std::string> &MetadataNames) {
+  size_t KernelNamesSize = 0;
+  UR_CALL(getContext()->urDdiTable.Program.pfnGetInfo(
+      Program, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize));
+  std::vector<char> KernelNames(KernelNamesSize);
+  UR_CALL(getContext()->urDdiTable.Program.pfnGetInfo(
+      Program, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesSize,
+      KernelNames.data(), nullptr));
+
+  constexpr std::string_view ModuleIDPrefix = "__sanitizerModule_";
+  std::istringstream Stream(KernelNames.data());
+  std::string KernelName;
+  while (std::getline(Stream, KernelName, ';')) {
+    if (KernelName.compare(0, ModuleIDPrefix.size(), ModuleIDPrefix) == 0) {
+      // Extract everything after "__sanitizerModule_" (e.g. "<hash>") and
+      // prepend Prefix to form the metadata global name.
+      std::string_view Suffix(KernelName);
+      Suffix.remove_prefix(ModuleIDPrefix.size());
+      MetadataNames.push_back(std::string(Prefix) + std::string(Suffix));
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device) {
   size_t Size;

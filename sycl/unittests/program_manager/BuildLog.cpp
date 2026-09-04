@@ -28,11 +28,18 @@ static bool LogRequested = false;
 
 static ur_result_t redefinedProgramGetBuildInfo(void *pParams) {
   auto params = *static_cast<ur_program_get_build_info_params_t *>(pParams);
+  // Mimic the UR/OpenCL contract for string build-info queries: the reported
+  // size includes the null terminator and the written buffer is null
+  // terminated. The runtime (ProgramManager::getProgramBuildLog) relies on this
+  // when constructing a std::string from the raw pointer; reporting a size of 1
+  // and writing a single non-null byte makes it strlen past the allocation
+  // (heap-buffer-overflow). sizeof("1") == 2 covers the '1' and the '\0'.
+  static constexpr char Log[] = "1";
   if (*params.ppPropSizeRet) {
-    **params.ppPropSizeRet = 1;
+    **params.ppPropSizeRet = sizeof(Log);
   }
   if (*params.ppPropValue) {
-    *static_cast<char *>(*params.ppPropValue) = '1';
+    std::memcpy(*params.ppPropValue, Log, sizeof(Log));
   }
 
   if (*params.ppropName == UR_PROGRAM_BUILD_INFO_LOG) {

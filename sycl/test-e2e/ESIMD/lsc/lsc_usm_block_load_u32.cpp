@@ -8,6 +8,7 @@
 // REQUIRES: gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "Inputs/lsc_usm_block_load_prefetch.hpp"
 

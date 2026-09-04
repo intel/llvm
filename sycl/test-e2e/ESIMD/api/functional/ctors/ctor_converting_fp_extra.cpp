@@ -15,6 +15,7 @@
 //  - construct simd with source data type, then construct simd with destination
 //    type from the earlier constructed simd
 //  - compare retrieved and expected values
+#include <iostream>
 
 #include "ctor_converting.hpp"
 

@@ -38,7 +38,7 @@ int main() {
     });
 
     auto Last = add_node(Graph, Queue, [&](handler &CGH) {
-      auto AccA = BufferC.get_access<access::mode::read>(CGH);
+      auto AccA = BufferC.get_access<access_mode::read>(CGH);
       CGH.copy(AccA, DataD.data());
     });
 

@@ -1,3 +1,4 @@
+#include <iostream>
 //===---element_wise_all_ops_tf32_impl.hpp - DPC++ joint_matrix------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,8 +11,7 @@
 #define TK 8
 
 template <typename T, size_t M, size_t N>
-void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
-                    const float ref) {
+void assert_ops_ref(host_accessor<T, 2, access_mode::read> C, const float ref) {
   for (size_t i = 0; i < M; i++)
     for (size_t j = 0; j < N; j++) {
       auto diff = C[i][j] - ref;

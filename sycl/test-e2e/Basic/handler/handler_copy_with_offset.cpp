@@ -19,8 +19,8 @@
 #include <vector>
 
 using namespace sycl;
-constexpr access::mode read = access::mode::read;
-constexpr access::mode write = access::mode::write;
+constexpr access_mode read = access_mode::read;
+constexpr access_mode write = access_mode::write;
 constexpr access::target ondevice = access::target::device;
 
 int main() {

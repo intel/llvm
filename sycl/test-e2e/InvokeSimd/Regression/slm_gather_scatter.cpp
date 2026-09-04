@@ -18,6 +18,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
 #include <functional>
@@ -115,7 +116,7 @@ int main(void) {
          auto LocalAccCopy = LocalAcc;
          LocalAccCopy[LocalId] = GlobalId * 100;
          LocalAccCopy[LocalId + LocalRange] = GlobalId * 10000;
-         Item.barrier();
+         sycl::group_barrier(Item.get_group());
 
          uint32_t LAByteOffset = (LocalId / VL) * VL * sizeof(dtype);
          uint32_t GlobalByteOffset = GlobalId * sizeof(dtype);

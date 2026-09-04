@@ -13,6 +13,7 @@
 // CHECK: == between host accesses
 // CHECK: <--- urEnqueueMemBufferMap
 // CHECK-SAME: .mapFlags = UR_MAP_FLAG_READ
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

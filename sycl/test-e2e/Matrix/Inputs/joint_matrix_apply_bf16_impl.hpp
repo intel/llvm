@@ -1,3 +1,4 @@
+#include <iostream>
 //===---joint_matrix_apply_bf16_impl.hpp - DPC++ joint_matrix--------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -5,6 +6,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+#include <algorithm>
 
 template <typename T, size_t TM, size_t TK> class add;
 template <typename T, size_t TM, size_t TK> class add_func;

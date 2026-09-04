@@ -1,7 +1,9 @@
 // REQUIRES: cuda || hip || level_zero
 // RUN:  %{build} -o %t.out
 // RUN:  %{run} %t.out
+#include <iostream>
 
+#include <algorithm>
 #include <cassert>
 #include <numeric>
 #include <sycl/detail/core.hpp>
@@ -37,8 +39,9 @@ int main() {
     return 0;
   }
 
-  // Enables Devs[0] to access Devs[1] memory.
-  Devs[0].ext_oneapi_enable_peer_access(Devs[1]);
+  // Enables Devs[1] to access Devs[0] memory (Devs[1]'s queue will read
+  // from arr0 which lives on Devs[0]).
+  Devs[1].ext_oneapi_enable_peer_access(Devs[0]);
 
   std::vector<int> input(N);
   std::iota(input.begin(), input.end(), 0);
@@ -53,6 +56,8 @@ int main() {
   int out[N];
   Queues[1].copy(arr1, out, N).wait();
 
+  // Disable P2P before releasing the allocation it was guarding.
+  Devs[1].ext_oneapi_disable_peer_access(Devs[0]);
   sycl::free(arr0, Queues[0]);
   sycl::free(arr1, Queues[1]);
 

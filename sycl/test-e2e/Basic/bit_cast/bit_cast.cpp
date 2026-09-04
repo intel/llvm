@@ -4,12 +4,13 @@
 // RUN: %if windows %{  %{run} %t2.out  %}
 
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 
 #include <iostream>
 #include <math.h>
 #include <type_traits>
 
-constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
+constexpr sycl::access_mode sycl_write = sycl::access_mode::write;
 
 template <typename To, typename From> class BitCastKernel;
 

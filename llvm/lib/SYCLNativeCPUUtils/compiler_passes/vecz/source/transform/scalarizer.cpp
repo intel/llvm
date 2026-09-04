@@ -717,8 +717,8 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
             DIExpression::createFragmentExpression(DIB.createExpression(),
                                                    lane * bitSize, bitSize);
         if (DIExpr) {
-          DIB.insertDbgValueIntrinsic(LaneVal, DILocal, *DIExpr, DILoc,
-                                      Original->getIterator());
+          DIB.insertDbgValue(LaneVal, DILocal, *DIExpr, DILoc,
+                             Original->getIterator());
           VectorElements.insert(LaneVal);
         }
       }

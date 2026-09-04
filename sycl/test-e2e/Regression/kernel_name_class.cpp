@@ -68,7 +68,7 @@ struct Wrapper {
       // PD--
       // bool as kernel name
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<bool>([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -76,7 +76,7 @@ struct Wrapper {
       // PI--
       // traditional in-place incomplete type
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<class KernelName>([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -85,7 +85,7 @@ struct Wrapper {
       // a class completely defined within a namespace at
       // translation unit scope
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::nm2::KernelName0>([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -96,7 +96,7 @@ struct Wrapper {
       // local scope
       class KernelName2;
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<KernelName2>([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -107,7 +107,7 @@ struct Wrapper {
       // kernel name is a class defined in local scope
       class KernelName2a {};
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<KernelName2a>([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -117,7 +117,7 @@ struct Wrapper {
       // an incomplete class forward-declared in a namespace at
       // translation unit scope
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName1>([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -126,7 +126,7 @@ struct Wrapper {
       // an incomplete template specialization class with defined class as
       // argument declared in a namespace at translation unit scope
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName3<nm1::nm2::KernelName0>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -136,7 +136,7 @@ struct Wrapper {
       // an incomplete template specialization class with incomplete class as
       // argument forward-declared in a namespace at translation unit scope
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName3<nm1::KernelName1>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -146,7 +146,7 @@ struct Wrapper {
       // a defined template specialization class with defined class as argument
       // declared in a namespace at translation unit scope
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName4<nm1::nm2::KernelName0>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -156,7 +156,7 @@ struct Wrapper {
       // a defined template specialization class with incomplete class as
       // argument forward-declared in a namespace at translation unit scope
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName4<nm1::KernelName1>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -166,7 +166,7 @@ struct Wrapper {
       // an incomplete template specialization class with incomplete class as
       // argument forward-declared "in-place"
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName3<class KernelName5>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -179,7 +179,7 @@ struct Wrapper {
       // argument forward-declared locally
       class KernelName6;
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName3<KernelName6>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -190,7 +190,7 @@ struct Wrapper {
       // a defined template specialization class with incomplete class as
       // argument forward-declared "in-place"
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName4<class KernelName7>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -202,7 +202,7 @@ struct Wrapper {
       // incomplete class as argument forward-declared locally
       class KernelName6a;
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName4<KernelName6a>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -216,7 +216,7 @@ struct Wrapper {
       // defined locally
       class KernelName9 {};
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName4<KernelName9>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -229,7 +229,7 @@ struct Wrapper {
       // an incomplete template specialization class with a defined class as
       // argument declared in the containing class
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName3<KN100>>([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -241,7 +241,7 @@ struct Wrapper {
       // an incomplete template specialization class with an incomplete class as
       // argument declared in the containing class
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName3<KN101>>([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -251,7 +251,7 @@ struct Wrapper {
       // translation unit scope with a defined class as argument declared in
       // a namespace at translation unit scope
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<nm1::KernelName10<nm1::nm2::KernelName11<10>>>(
             [=]() { acc[0] += GOLD; });
       });
@@ -262,7 +262,7 @@ struct Wrapper {
       // namespace at translation unit scope with a defined class as argument
       // declared in a namespace at translation unit scope
       deviceQueue.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.single_task<KernelName12<nm1::nm2::KernelName11<10>>>(
             [=]() { acc[0] += GOLD; });
       });

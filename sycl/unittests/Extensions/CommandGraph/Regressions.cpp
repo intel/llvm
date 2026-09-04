@@ -178,3 +178,97 @@ TEST_F(CommandGraphTest, AsyncAllocInfiniteLoop) {
 
   Graph.end_recording(Queue);
 }
+
+// Regression test for a node being silently dropped from the command-buffer
+// schedule. When a host task partitions the graph, the topological sort per
+// partition only traverses edges internal to that partition, but it used to
+// wait for all predecessors (including cross-partition ones) to be visited
+// before scheduling a node. A node with a cross-partition predecessor could
+// therefore never reach its completion threshold and, along with everything
+// downstream of it, was omitted from the schedule and never enqueued.
+//
+// The topology below reproduces the issue with two in-order queues recording
+// into one graph and barriers creating the cross-queue edges:
+//
+//   Q2 chain:  BQ2a ---------> BQ2b --> BQ2c
+//              |               ^        |
+//              |[A]            |[B]     |[C]  (cross-queue barrier edges)
+//              v               |        v
+//   Q1 chain:  BQ1a --> HT --> BQ1b --> BQ1c --> K
+//
+// The host task HT splits the graph. BQ2a is pulled into HT's predecessor
+// partition, but its in-order successor BQ2b stays in the successor partition,
+// creating the cross-partition edge BQ2a -> BQ2b that lands on an interior
+// (non-root) node. Prior to the fix, BQ2b (and hence BQ2c, BQ1c and the kernel
+// K) were dropped from the schedule.
+TEST_F(CommandGraphTest, HostTaskPartitionCrossQueueBarrier) {
+  sycl::property_list InOrder{sycl::property::queue::in_order()};
+  sycl::queue Q1{Queue.get_context(), Dev, InOrder};
+  sycl::queue Q2{Queue.get_context(), Dev, InOrder};
+
+  experimental::command_graph<experimental::graph_state::modifiable> G{
+      Q1.get_context(), Q1.get_device()};
+
+  G.begin_recording({Q1, Q2});
+
+  // [A] pre-HT: Q2 -> Q1
+  {
+    sycl::event E = Q2.ext_oneapi_submit_barrier();
+    Q1.ext_oneapi_submit_barrier({E});
+  }
+
+  // Host task on Q1, which forces graph partitioning.
+  Q1.submit([&](sycl::handler &CGH) { CGH.host_task([]() {}); });
+
+  // [B] post-HT: Q1 -> Q2
+  {
+    sycl::event E = Q1.ext_oneapi_submit_barrier();
+    Q2.ext_oneapi_submit_barrier({E});
+  }
+
+  // [C] pre-K: Q2 -> Q1
+  {
+    sycl::event E = Q2.ext_oneapi_submit_barrier();
+    Q1.ext_oneapi_submit_barrier({E});
+  }
+
+  G.end_recording(Q2);
+
+  // Kernel K on Q1, downstream of the barrier chain. This is the node that was
+  // silently dropped prior to the fix.
+  auto KernelEvent = Q1.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+
+  G.end_recording();
+
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(G);
+  experimental::detail::node_impl &KernelNode =
+      GraphImpl.getNodeForEvent(getSyclObjImpl(KernelEvent));
+
+  auto GraphExec = G.finalize();
+  experimental::detail::exec_graph_impl &ExecGraphImpl =
+      *getSyclObjImpl(GraphExec);
+
+  // Every node that requires enqueue must appear in the schedule. The kernel is
+  // the node that was dropped; assert on it explicitly, and also check that no
+  // enqueue-requiring node is missing overall.
+  const auto &Schedule = ExecGraphImpl.getSchedule();
+
+  size_t NumEnqueuedNodesInGraph = 0;
+  for (experimental::detail::node_impl &Node : GraphImpl.nodes()) {
+    if (Node.requiresEnqueue())
+      ++NumEnqueuedNodesInGraph;
+  }
+
+  size_t NumEnqueuedNodesInSchedule = 0;
+  bool KernelFoundInSchedule = false;
+  for (experimental::detail::node_impl *Node : Schedule) {
+    if (Node->requiresEnqueue())
+      ++NumEnqueuedNodesInSchedule;
+    if (Node->isSimilar(KernelNode))
+      KernelFoundInSchedule = true;
+  }
+
+  ASSERT_TRUE(KernelFoundInSchedule);
+  ASSERT_EQ(NumEnqueuedNodesInSchedule, NumEnqueuedNodesInGraph);
+}

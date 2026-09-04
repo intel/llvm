@@ -15,7 +15,7 @@ entry:
 
 ; CHECK: _ZTSZ4mainEUlT_E0_
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlT_E0_() local_unnamed_addr #0  !kernel_arg_buffer_location !6 !spir_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlT_E0_() local_unnamed_addr #0 !spir_kernel_omit_args !6 {
 entry:
   ret void
 }

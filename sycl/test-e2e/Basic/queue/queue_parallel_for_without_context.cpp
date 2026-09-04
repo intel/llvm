@@ -9,8 +9,7 @@ int main() {
   //  Create a default queue to enqueue work to the default device
   queue myQueue;
 
-  if (!(myQueue.get_device())
-           .get_info<sycl::info::device::usm_shared_allocations>()) {
+  if (!(myQueue.get_device()).has(sycl::aspect::usm_shared_allocations)) {
     return 0;
   }
 

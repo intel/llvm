@@ -21,7 +21,7 @@ $_ZTSZ4fooEUlvE_ = comdat any
 ;CHECK: @[[NewAnnotStr2:.*]] = private unnamed_addr constant [25 x i8] c"{6172:\221\22}{6173:\220,1,5\22}\00"
 
 ; Function Attrs: mustprogress norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZ4fooEUlvE_(ptr %0) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !5 !sycl_kernel_omit_args !5 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4fooEUlvE_(ptr %0) local_unnamed_addr #0 comdat !sycl_kernel_omit_args !5 {
 entry:
   %1 = alloca ptr , align 8
   store ptr %0, ptr %1, align 8

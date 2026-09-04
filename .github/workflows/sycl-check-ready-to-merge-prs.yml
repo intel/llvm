@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Check
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GATEKEEPER_NOTIFICATION_TOKEN }}
         run: |
           # Number of days before repeating the gatekeepers ping
           days=3
@@ -42,15 +42,6 @@ jobs:
             pr_base=$(gh pr view $pr --repo intel/llvm --json baseRefName -q .baseRefName)
             if [ "$pr_base" != "sycl" ]; then
               continue
-            fi
-
-            # Looks like GH doesn't issue a notification/email if the team was mentioned by the github-actions bot.
-            # Therefore, ensure the gatekeepers are added as reviewers.
-            has_gatekeepers=$(gh pr view "$pr" --repo intel/llvm --json reviewRequests \
-              --jq '([.reviewRequests[]?.login, .reviewRequests[]?.slug, .reviewRequests[]?.name, (.reviewRequests[]?.users[]?.login), (.reviewRequests[]?.teams[]?.slug), (.reviewRequests[]?.teams[]? | (.organization.login + "/" + .slug))] | map(select(. != null)) | any(. == "intel/llvm-gatekeepers" or . == "llvm-gatekeepers"))')
-            if [[ "$has_gatekeepers" != "true" ]]; then
-              gh pr edit "$pr" --repo intel/llvm --add-reviewer intel/llvm-gatekeepers
-              echo "Added intel/llvm-gatekeepers to reviewers for https://github.com/intel/llvm/pull/$pr"
             fi
 
             # Get the timestamp of the latest comment mentioning @intel/llvm-gatekeepers

@@ -1,8 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
-// XFAIL: linux && arch-intel_gpu_mtl_u
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21829
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

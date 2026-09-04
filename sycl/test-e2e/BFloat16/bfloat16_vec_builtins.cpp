@@ -6,6 +6,9 @@
 // RUN:  %{build}  -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -o %t-pfrev.out
 // RUN: %{run} %t-pfrev.out
 
+// XFAIL: linux && level_zero && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23094
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 
@@ -81,8 +84,7 @@ bool check(bool a, bool b) { return (a != b); }
   { /* On Device */                                                            \
     buffer<int> err_buf(&err, 1);                                              \
     q.submit([&](handler &cgh) {                                               \
-       accessor<int, 1, access::mode::write, target::device> ERR(err_buf,      \
-                                                                 cgh);         \
+       accessor<int, 1, access_mode::write, target::device> ERR(err_buf, cgh); \
        cgh.single_task([=]() { OPTEST(NAME, SZ, RETTY, INPVAL) });             \
      }).wait();                                                                \
   }                                                                            \
@@ -131,7 +133,7 @@ void test() {
   {
     buffer<int> err_buf(&err, 1);
     q.submit([&](handler &cgh) {
-       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh);
+       accessor<int, 1, access_mode::write, target::device> ERR(err_buf, cgh);
        cgh.single_task([=]() {
          vec<bfloat16, 3> arg{1.0f, nan, 2.0f};
          vec<int16_t, 3> res = sycl::ext::oneapi::experimental::isnan(arg);
@@ -220,7 +222,7 @@ void test() {
   {
     buffer<int> err_buf(&err, 1);
     q.submit([&](handler &cgh) {
-       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh);
+       accessor<int, 1, access_mode::write, target::device> ERR(err_buf, cgh);
        cgh.single_task([=]() {
          vec<bfloat16, 3> arg1, arg2, arg3;
          bfloat16 inpVal1 = 1.0f;

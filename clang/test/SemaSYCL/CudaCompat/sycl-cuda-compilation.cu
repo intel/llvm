@@ -8,7 +8,7 @@
 // RUN:   -emit-llvm -o - -verify -verify-ignore-unexpected=note
 // RUN: %clang_cc1 %s -fsycl-is-device -D__sycl_device \
 // RUN:   -internal-isystem %S/../../SemaCUDA/Inputs \
-// RUN:   -fsycl-targets=nvptx64-nvidia-cuda -triple x86_64-unknown-linux\
+// RUN:   -fsycl-targets=nvptx64-nvidia-cuda -triple nvptx64-nvidia-cuda\
 // RUN:   -emit-llvm -o - -verify -verify-ignore-unexpected=note
 
 // This tests the errors emitted by SEMA in case of SYCL-CUDA compilation.

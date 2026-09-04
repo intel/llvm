@@ -160,3 +160,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
                                                            void *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    ur_context_handle_t, ur_physical_mem_handle_t, void **, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCPutPhysMemHandleExp(ur_context_handle_t, const void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCOpenPhysMemHandleExp(ur_context_handle_t, ur_device_handle_t, const void *,
+                          size_t, ur_physical_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCClosePhysMemHandleExp(ur_context_handle_t, ur_physical_mem_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

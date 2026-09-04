@@ -108,8 +108,8 @@ template <typename T> int test(size_t Stride) {
   initOutputBuffer(OutBuf);
 
   Q.submit([&](handler &CGH) {
-     auto In = InBuf.template get_access<access::mode::read>(CGH);
-     auto Out = OutBuf.template get_access<access::mode::write>(CGH);
+     auto In = InBuf.template get_access<access_mode::read>(CGH);
+     auto Out = OutBuf.template get_access<access_mode::write>(CGH);
      local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
 
      nd_range<1> NDR{range<1>(NElems), range<1>(WorkGroupSize)};

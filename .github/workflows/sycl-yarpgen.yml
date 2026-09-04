@@ -58,9 +58,9 @@ jobs:
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
 
-    - run: which clang++
+    - run: which dpclang++
 
-    - run: sycl-ls
+    - run: dpsycl-ls
 
     - name: Set up yarpgen
       run: |

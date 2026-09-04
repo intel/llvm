@@ -5,6 +5,7 @@
 // This test checks whether the free function command mem_advise operation is
 // valid.
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/khr/free_function_commands.hpp>

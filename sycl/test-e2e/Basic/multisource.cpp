@@ -30,7 +30,7 @@ void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i);
 #elif INIT_KERNEL
 void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i) {
   q.submit([&](handler &cgh) {
-    auto B = b.get_access<access::mode::write>(cgh);
+    auto B = b.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class init>(r, [=](id<1> index) { B[index] = i; });
   });
 }
@@ -43,9 +43,9 @@ void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b, buffer<int, 1> &c,
 void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b, buffer<int, 1> &c,
               range<1> &r) {
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc>(
         r, [=](id<1> index) { C[index] = A[index] - B[index]; });
   });

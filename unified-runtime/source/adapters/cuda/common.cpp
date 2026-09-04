@@ -172,14 +172,6 @@ void setPluginSpecificMessage(CUresult cu_res) {
 }
 
 namespace umf {
-ur_result_t getProviderNativeError(const char *providerName, int32_t error) {
-  if (strcmp(providerName, "CUDA") == 0) {
-    return mapErrorUR(static_cast<CUresult>(error));
-  }
-
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-
 ur_result_t CreateProviderPool(int cuDevice, void *cuContext,
                                umf_usm_memory_type_t type,
                                umf_memory_provider_handle_t *provider,

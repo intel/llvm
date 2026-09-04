@@ -100,7 +100,7 @@ jobs:
           ref: ${{ github.ref || github.sha }}
           testing_mode: full
           target_devices: native_cpu:cpu
-          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+          sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
           extra_lit_opts: --param sycl_build_targets="native_cpu"
           extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
 
@@ -174,6 +174,7 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
+            skip_run: ${{ startsWith(github.base_ref, 'sycl-rel-') }}
           - name: Intel / ARL with L0 v2
             runner: '["Linux", "arl"]'
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u

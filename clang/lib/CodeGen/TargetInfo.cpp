@@ -125,6 +125,7 @@ unsigned TargetCodeGenInfo::getDeviceKernelCallingConv() const {
   // Outside of OpenCL, kernels currently do not exist for CPU targets.
   assert(getABIInfo().getContext().getLangOpts().OpenCL &&
         "Kernel calling convention only defined for OpenCL");
+
   return llvm::CallingConv::C;
 }
 
@@ -197,6 +198,9 @@ llvm::Value *TargetCodeGenInfo::createEnqueuedBlockKernel(
   // FIXME: This is missing setTargetAttributes
   CGF.CGM.addDefaultFunctionDefinitionAttributes(KernelAttrs);
   F->addFnAttrs(KernelAttrs);
+
+  if (CGF.Builder.getIsFPConstrained())
+    F->addFnAttr(llvm::Attribute::StrictFP);
 
   auto IP = CGF.Builder.saveIP();
   auto *BB = llvm::BasicBlock::Create(C, "entry", F);

@@ -22,7 +22,7 @@ $_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlNS0_14kernel_handlerEE_ = comdat 
 @_ZL10BoolSpecId = internal addrspace(1) constant %"class.cl::sycl::specialization_id.7" { i8 1 }, align 1
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlNS0_14kernel_handlerEE_(%struct.TestStruct addrspace(1)* %_arg_, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_1, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_2, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_3, i8 addrspace(1)* %_arg_4, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_6, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_7, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_8, i8 addrspace(1)* %_arg__specialization_constants_buffer) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !5 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlNS0_14kernel_handlerEE_(%struct.TestStruct addrspace(1)* %_arg_, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_1, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_2, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_3, i8 addrspace(1)* %_arg_4, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_6, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_7, %"class.cl::sycl::range"* byval(%"class.cl::sycl::range") align 8 %_arg_8, i8 addrspace(1)* %_arg__specialization_constants_buffer) local_unnamed_addr #0 comdat {
 entry:
   %ref.tmp.i = alloca %struct.TestStruct, align 4
   %0 = getelementptr inbounds %"class.cl::sycl::range", %"class.cl::sycl::range"* %_arg_3, i64 0, i32 0, i32 0, i64 0
@@ -82,7 +82,6 @@ attributes #5 = { nounwind }
 !2 = !{!"clang version 14.0.0 (https://github.com/intel/llvm)"}
 !3 = !{i32 1, !"wchar_size", i32 4}
 !4 = !{i32 7, !"frame-pointer", i32 2}
-!5 = !{i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1}
 !6 = !{i64 0, i64 4, !7, i64 4, i64 1, !11}
 !7 = !{!8, !8, i64 0}
 !8 = !{!"int", !9, i64 0}

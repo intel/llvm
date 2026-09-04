@@ -119,8 +119,7 @@ InlinePostVectorizationPass::run(Function &F, FunctionAnalysisManager &AM) {
   if (needToRunInliner) {
     llvm::legacy::PassManager PM;
     PM.add(llvm::createAlwaysInlinerLegacyPass());
-    PM.run(*F.getParent());
-    modified = true;
+    modified = PM.run(*F.getParent());
   }
 
   // Recursively run the pass to inline any newly introduced functions.

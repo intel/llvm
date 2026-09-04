@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-pc-windows-msvc -fsycl-is-device -verify -fsyntax-only -Wno-unused
-// RUN: %clang_cc1 %s -std=c++17 -triple x86_64-linux-gnu -fsycl-is-device -verify -fsyntax-only -Wno-unused
+// RUN: %clang_cc1 %s -std=c++17 -triple spirv64-unknown-unknown -fsycl-is-device -verify -fsyntax-only -Wno-unused
 // Various Semantic analysis tests for the __builtin_unique_stable_id feature.
 
 #include "Inputs/sycl.hpp"

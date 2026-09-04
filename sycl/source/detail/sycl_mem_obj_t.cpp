@@ -57,7 +57,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(MemObject));
+    retainOpenCLMemObject(MemObject);
   }
 }
 
@@ -113,7 +113,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(MemObject));
+    retainOpenCLMemObject(MemObject);
   }
 }
 
@@ -143,8 +143,15 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 void SYCLMemObjT::updateHostMemory() {
   // Don't try updating host memory when shutting down.
   if ((MUploadDataFunctor != nullptr) && MNeedWriteBack &&
-      GlobalHandler::instance().isOkToDefer())
-    MUploadDataFunctor();
+      GlobalHandler::instance().isOkToDefer()) {
+    // A failing write-back is reported as an asynchronous exception by
+    // Scheduler::addCopyBack and must not skip the removal of the memory
+    // record below, otherwise the record and the commands it owns are leaked.
+    try {
+      MUploadDataFunctor();
+    } catch (...) {
+    }
+  }
 
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.

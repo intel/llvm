@@ -1,13 +1,14 @@
 // REQUIRES: aspect-fp64
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
+#include <iostream>
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
 
 namespace s = sycl;
-constexpr s::access::mode sycl_read = s::access::mode::read;
-constexpr s::access::mode sycl_write = s::access::mode::write;
+constexpr s::access_mode sycl_read = s::access_mode::read;
+constexpr s::access_mode sycl_write = s::access_mode::write;
 
 int main(int, char **) {
   s::queue device_queue(s::default_selector_v);

@@ -2,6 +2,7 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 // Test for Level Zero interop API
 
@@ -95,7 +96,7 @@ int main() {
   {
     sycl::buffer<int, 1> Buf(Arr, 1);
     QueueInterop.submit([&](sycl::handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel>([=]() { Acc[0] *= 3; });
     });
   }

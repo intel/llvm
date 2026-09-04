@@ -3,8 +3,10 @@
 // RUN: %{run} %t.out
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
+#include <iostream>
 
 #include "common.hpp"
+#include <sycl/half_type.hpp>
 
 queue q;
 context ctx = q.get_context();

@@ -21,7 +21,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class acosF1>([=]() { AccR[0] = s::acos(float{0.5}); });
       });
     }
@@ -35,7 +35,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class acoshF1>(
             [=]() { AccR[0] = s::acosh(float{2.4}); });
       });
@@ -50,7 +50,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class asinF1>([=]() { AccR[0] = s::asin(float{0.5}); });
       });
     }
@@ -64,7 +64,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class asinhF1>(
             [=]() { AccR[0] = s::asinh(float{0.5}); });
       });
@@ -79,7 +79,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class atanF1>([=]() { AccR[0] = s::atan(float{0.5}); });
       });
     }
@@ -93,7 +93,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class atanhF1>(
             [=]() { AccR[0] = s::atanh(float{0.5}); });
       });
@@ -108,7 +108,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class cbrtF1>(
             [=]() { AccR[0] = s::cbrt(float{27.0}); });
       });
@@ -123,7 +123,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class ceilF1>([=]() { AccR[0] = s::ceil(float{0.5}); });
       });
     }
@@ -137,7 +137,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class cosF1>([=]() { AccR[0] = s::cos(float{0.5}); });
       });
     }
@@ -151,7 +151,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class coshF1>([=]() { AccR[0] = s::cosh(float{0.5}); });
       });
     }
@@ -165,7 +165,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class cospiF1>(
             [=]() { AccR[0] = s::cospi(float{0.1}); });
       });
@@ -180,7 +180,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class erfcF1>([=]() { AccR[0] = s::erfc(float{0.5}); });
       });
     }
@@ -194,7 +194,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class erfF1>([=]() { AccR[0] = s::erf(float{0.5}); });
       });
     }
@@ -208,7 +208,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class expF1>([=]() { AccR[0] = s::exp(float{0.5}); });
       });
     }
@@ -222,7 +222,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class exp2F1>([=]() { AccR[0] = s::exp2(float{8.0}); });
       });
     }
@@ -236,7 +236,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class exp10F1>([=]() { AccR[0] = s::exp10(float{2}); });
       });
     }
@@ -250,7 +250,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class expm1F1>(
             [=]() { AccR[0] = s::expm1(float{0.5}); });
       });
@@ -265,7 +265,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class fabsF1>(
             [=]() { AccR[0] = s::fabs(float{-0.5}); });
       });
@@ -280,7 +280,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class floorF1>(
             [=]() { AccR[0] = s::floor(float{0.5}); });
       });
@@ -295,7 +295,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class fmaxF1F1>(
             [=]() { AccR[0] = s::fmax(float{0.5}, float{0.8}); });
       });
@@ -310,7 +310,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class fminF1F1>(
             [=]() { AccR[0] = s::fmin(float{0.5}, float{0.8}); });
       });
@@ -325,7 +325,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::write>(cgh);
         cgh.single_task<class fmodF1F1>(
             [=]() { AccR[0] = s::fmod(float{5.1}, float{3.0}); });
       });
@@ -340,7 +340,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
         cgh.single_task<class lgammaF1>(
             [=]() { AccR[0] = s::lgamma(float{10.f}); });
       });
@@ -355,7 +355,7 @@ int main() {
       s::buffer<float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
+        auto AccR = BufR.get_access<s::access_mode::read_write>(cgh);
         cgh.single_task<class lgammaF1_neg>(
             [=]() { AccR[0] = s::lgamma(float{-2.4f}); });
       });

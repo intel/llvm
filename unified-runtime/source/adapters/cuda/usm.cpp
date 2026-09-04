@@ -573,12 +573,65 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
-                                                          void *pDst,
-                                                          const void *pSrc,
-                                                          size_t Size) {
-  UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
-  return UR_RESULT_SUCCESS;
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    ur_context_handle_t hContext, void *pDst, const void *pSrc, size_t Size) {
+  // Detect memory types to determine if this is a device-to-device copy
+  CUmemorytype memTypeDst, memTypeSrc;
+  CUresult dstResult = cuPointerGetAttribute(
+      &memTypeDst, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)pDst);
+  CUresult srcResult = cuPointerGetAttribute(
+      &memTypeSrc, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)pSrc);
+
+  bool isDstDevice =
+      (dstResult == CUDA_SUCCESS && memTypeDst == CU_MEMORYTYPE_DEVICE);
+  bool isSrcDevice =
+      (srcResult == CUDA_SUCCESS && memTypeSrc == CU_MEMORYTYPE_DEVICE);
+
+  // For host-to-device or device-to-host, use simple synchronous copy
+  if (!isDstDevice || !isSrcDevice) {
+    UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Get the device ordinal for the destination pointer
+  unsigned int devIdx = 0;
+  UR_CHECK_ERROR(cuPointerGetAttribute(
+      &devIdx, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)pDst));
+
+  if (devIdx >= hContext->getDevices().size()) {
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  }
+
+  ur_device_handle_t owningDev = hContext->getDevices()[devIdx];
+  ScopedContext Active(owningDev);
+
+  // Create a dedicated stream for this copy operation
+  CUstream copyStream = nullptr;
+  UR_CHECK_ERROR(cuStreamCreate(&copyStream, CU_STREAM_NON_BLOCKING));
+
+  auto streamCleanup = [&copyStream]() {
+    if (copyStream) {
+      cuStreamDestroy(copyStream);
+      copyStream = nullptr;
+    }
+  };
+
+  try {
+    UR_CHECK_ERROR(
+        cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, copyStream));
+
+    UR_CHECK_ERROR(cuStreamSynchronize(copyStream));
+
+    streamCleanup();
+    return UR_RESULT_SUCCESS;
+
+  } catch (ur_result_t Err) {
+    streamCleanup();
+    return Err;
+  } catch (...) {
+    streamCleanup();
+    throw;
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocRegisterExp(

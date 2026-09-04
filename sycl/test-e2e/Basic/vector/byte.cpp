@@ -72,7 +72,7 @@ int main() {
     sycl::queue Queue;
     Queue
         .submit([&](sycl::handler &cgh) {
-          auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
+          auto Acc = Buf.get_access<sycl::access_mode::read_write>(cgh);
           cgh.single_task<class st>([=]() {
             // load
             sycl::multi_ptr<std::byte,

@@ -155,8 +155,8 @@ Instruction *emitCall(Module &M, Type *RetTy, StringRef FunctionName,
   assert(FC.getCallee() && "Instruction creation failed");
   Function *F = cast<Function>(FC.getCallee());
   F->setCallingConv(CallingConv::SPIR_FUNC);
-  CallInst *NewCall =
-      CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  CallInst *NewCall = CallInst::Create(FT, FC.getCallee(), Args, "",
+                                       InsertBefore->getIterator());
   NewCall->setCallingConv(F->getCallingConv());
   return NewCall;
 }
@@ -228,9 +228,9 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
     Order = 3;
   else
     Order = 0;
-  PointerType *Int8PtrAS4Ty = PointerType::get(IntegerType::get(Ctx, 8), 4);
+  PointerType *Int8PtrAS4Ty = PointerType::get(Ctx, 4);
   Ptr = CastInst::CreatePointerBitCastOrAddrSpaceCast(Ptr, Int8PtrAS4Ty, "",
-                                                      Position);
+                                                      Position->getIterator());
   Value *MemOrder = ConstantInt::get(Int32Ty, Order);
   Value *Args[] = {Ptr, AtomicOp, MemOrder};
   Instruction *InstrumentationCall = emitCall(M, VoidTy, Name, Args, Position);

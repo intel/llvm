@@ -60,7 +60,7 @@ struct UrFuncPtrMapT {
 
 template <UrApiKind UrApiOffset> struct UrFuncInfo {};
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(SYCL_UR_STATIC_LOADER)
 void *GetWinProcAddress(void *module, const char *funcName);
 inline void PopulateUrFuncPtrTable(UrFuncPtrMapT *funcs, void *module) {
 #define _UR_API(api)                                                           \

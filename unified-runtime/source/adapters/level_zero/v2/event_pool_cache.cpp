@@ -7,10 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 #include "event_pool_cache.hpp"
-#include "../device.hpp"
-#include "../platform.hpp"
+#include "../common/device.hpp"
+#include "../common/platform.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 event_pool_cache::event_pool_cache(ur_context_handle_t hContext,
                                    size_t max_devices,
@@ -45,4 +45,4 @@ raii::cache_borrowed_event_pool event_pool_cache::borrow(DeviceId id,
       });
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

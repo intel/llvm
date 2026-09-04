@@ -41,9 +41,9 @@ int main(void) {
     sycl::buffer<int, 1> bufC(C, range);
 
     sycl::queue().submit([&](sycl::handler &cgh) {
-      auto accA = bufA.get_access<sycl::access::mode::read>(cgh);
-      auto accB = bufB.get_access<sycl::access::mode::read>(cgh);
-      auto accC = bufC.get_access<sycl::access::mode::write>(cgh);
+      auto accA = bufA.get_access<sycl::access_mode::read>(cgh);
+      auto accB = bufB.get_access<sycl::access_mode::read>(cgh);
+      auto accC = bufC.get_access<sycl::access_mode::write>(cgh);
 
       cgh.parallel_for<class Test>(
           range, [=](sycl::id<1> ID) { accC[ID] = foo(accA[ID], accB[ID]); });

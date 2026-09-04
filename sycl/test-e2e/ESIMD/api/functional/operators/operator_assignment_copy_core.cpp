@@ -14,6 +14,7 @@
 // copy assignment operator from source to destination simd instance. It is
 // expected for destination simd instance to store a bitwise same data as the
 // reference one.
+#include <iostream>
 
 #include "operator_assignment.hpp"
 

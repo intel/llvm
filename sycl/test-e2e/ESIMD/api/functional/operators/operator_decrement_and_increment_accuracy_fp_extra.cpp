@@ -17,6 +17,7 @@
 // operator opera with reference data. The test verifies that in the output data
 // contained correctness data according to chosen operator and has no precision
 // differences with interaction with floating point data types.
+#include <iostream>
 
 #include "operator_decrement_and_increment.hpp"
 

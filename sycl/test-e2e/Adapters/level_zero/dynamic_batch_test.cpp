@@ -3,7 +3,7 @@
 // UNSUPPORTED-INTENDED: regular-command-list autotuning trace
 // ("Raising/Lowering QueueBatchSize") is V1-only
 
-// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
 // RUN: %{build} -o %t.ooo.out

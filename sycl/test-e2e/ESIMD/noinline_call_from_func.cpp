@@ -10,6 +10,7 @@
 //
 // The test checks that ESIMD kernels support call of noinline function from
 // within other functions.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -39,7 +40,7 @@ int main(int argc, char **argv) {
     buffer<int, 1> buf(output, range<1>(1));
 
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::write>(cgh);
+      auto acc = buf.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<KernelID>(
           sycl::range<1>{1},

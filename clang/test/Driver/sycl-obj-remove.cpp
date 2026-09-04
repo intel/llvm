@@ -8,7 +8,7 @@
 // RUN: not ls %t.o
 
 // RUN: touch %t.o
-// RUN: not %clangxx --offload-new-driver -fsycl -Xsycl-target-frontend -DCOMPILE_FAIL=1 -c -o %t.o %s
+// RUN: not %clangxx --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl -Xsycl-target-frontend -DCOMPILE_FAIL=1 -c -o %t.o %s
 // RUN: not ls %t.o
 
 /// Force failure during compilation
@@ -17,7 +17,7 @@
 // RUN: not ls %t.o
 
 // RUN: touch %t.o
-// RUN: not %clangxx --offload-new-driver -fsycl -DCOMPILE_FAIL=1 -c -o %t.o %s
+// RUN: not %clangxx --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl -DCOMPILE_FAIL=1 -c -o %t.o %s
 // RUN: not ls %t.o
 
 void func(){};

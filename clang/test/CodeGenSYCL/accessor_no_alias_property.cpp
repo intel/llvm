@@ -15,8 +15,7 @@ int main() {
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                      sycl::access::target::global_buffer,
                      sycl::access::placeholder::false_t,
-                     sycl::ext::oneapi::accessor_property_list<
-                         sycl::ext::intel::property::buffer_location::instance<1>>>
+                     sycl::ext::oneapi::accessor_property_list<>>
       accessorB;
 
   // Check that noalias parameter attribute is emitted when no_alias accessor property is used

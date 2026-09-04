@@ -13,7 +13,7 @@ int main() {
   {
     sycl::buffer<int32_t, 1> buffer(&kernelResult[0], ndRng);
     testQueue.submit([&](sycl::handler &h) {
-      auto resultPtr = buffer.template get_access<sycl::access::mode::write>(h);
+      auto resultPtr = buffer.template get_access<sycl::access_mode::write>(h);
       h.single_task<class kernel>([=]() {
         float inputData_0F(0.1);
         float inputData_1F(0.5);

@@ -48,7 +48,7 @@ int main() {
   auto dev = q.get_device();
   auto ctx = q.get_context();
 
-  if (!dev.get_info<info::device::usm_host_allocations>())
+  if (!dev.has(aspect::usm_host_allocations))
     return 0;
 
   // There was a bug that we didn't re-adjust allocator's alignment when we

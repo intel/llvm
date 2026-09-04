@@ -8,7 +8,7 @@
 ; CHECK-DAG: Capability BFloat16TypeKHR
 ; CHECK: TypeInt [[Int:[0-9]+]] 32 0
 ; CHECK-DAG: Constant [[Int]] [[Scope_CrossDevice:[0-9]+]] 0 {{$}}
-; CHECK-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
+; CHECK-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 528
 ; CHECK: TypeFloat [[BFloat:[0-9]+]] 16 0
 ; CHECK: Variable {{[0-9]+}} [[BFloatPointer:[0-9]+]]
 ; CHECK: Constant [[BFloat]] [[BFloatValue:[0-9]+]] 16936

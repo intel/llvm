@@ -6,6 +6,7 @@
 
 #include <cassert>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
 
 int main() {
 

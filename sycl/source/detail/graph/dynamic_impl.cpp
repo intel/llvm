@@ -299,7 +299,8 @@ void dynamic_command_group_impl::finalizeCGFList(
     CGF(Handler);
 
     if (Handler.getType() != sycl::detail::CGType::Kernel &&
-        Handler.getType() != sycl::detail::CGType::CodeplayHostTask) {
+        Handler.getType() != sycl::detail::CGType::CodeplayHostTask &&
+        Handler.getType() != sycl::detail::CGType::NativeHostTask) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "The only types of command-groups that can be used in "
@@ -327,7 +328,8 @@ void dynamic_command_group_impl::finalizeCGFList(
     auto &DynamicParams = Handler.impl->MKernelData.getDynamicParameters();
 
     if (DynamicParams.size() > 0 &&
-        Handler.getType() == sycl::detail::CGType::CodeplayHostTask) {
+        (Handler.getType() == sycl::detail::CGType::CodeplayHostTask ||
+         Handler.getType() == sycl::detail::CGType::NativeHostTask)) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Cannot use dynamic parameters in a host_task");
     }
@@ -337,7 +339,8 @@ void dynamic_command_group_impl::finalizeCGFList(
   }
 
   // Host tasks don't need to store alternative kernels
-  if (MCGType == sycl::detail::CGType::CodeplayHostTask) {
+  if (MCGType == sycl::detail::CGType::CodeplayHostTask ||
+      MCGType == sycl::detail::CGType::NativeHostTask) {
     return;
   }
 

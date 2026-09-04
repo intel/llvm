@@ -24,10 +24,10 @@ check_os() {
 install_packages() {
     if [ "$USE_SUDO" = true ]; then
         sudo apt-get update
-        sudo apt-get install -y build-essential wget
+        sudo apt-get install -y build-essential
     else
         apt-get update
-        apt-get install -y build-essential wget
+        apt-get install -y build-essential
     fi
 }
 
@@ -67,12 +67,16 @@ EOF
 }
 
 # Check the OS
-if ! check_os "Ubuntu" "24.04" && ! check_os "Rocky Linux" "8.10"; then
-    echo "Warning: This script has only been tested with Ubuntu 24.04 and Rocky Linux 8.10."
+if ! check_os "Ubuntu" "24.04" && ! check_os "Rocky Linux" "8.10" && ! check_os "SLES" "15.4" ; then
+    echo "Warning: This script has only been tested with Ubuntu 24.04, Rocky Linux 8.10 and SLES 15.4."
 fi
 
 # Set USE_SUDO to true or false based on your preference
 USE_SUDO=true
+# No need for sudo
+if check_os "SLES" "15.4"; then
+  USE_SUDO=false
+fi
 
 # Install necessary build tools & uninstall libzstd-dev package if installed
 if check_os "Ubuntu" "24.04"; then
@@ -89,7 +93,7 @@ mkdir -p zstd_build
 cd zstd_build
 
 # Download and extract zstd source code
-wget $ZSTD_URL
+curl -L $ZSTD_URL -o "zstd-${ZSTD_VERSION}.tar.gz"
 tar -xzf zstd-$ZSTD_VERSION.tar.gz
 cd zstd-$ZSTD_VERSION
 

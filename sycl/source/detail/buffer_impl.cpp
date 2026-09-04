@@ -12,6 +12,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/properties/buffer_properties.hpp>
 
@@ -90,7 +91,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
     Handles.push_back(Handle);
 
     if (Platform.getBackend() == backend::opencl) {
-      __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(Handle));
+      retainOpenCLMemObject(Handle);
     }
   }
 

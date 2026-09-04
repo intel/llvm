@@ -44,17 +44,17 @@ Features parity between this project and downstream projects is not guaranteed.
 Project documentation is available at:
 [DPC++ Documentation](https://intel.github.io/llvm/).
 
+### Releases
+
+For release plans, cadence, and version-specific notes, see the
+[Releases documentation](./sycl/doc/Releases.md).
+
 ### How to use DPC++
 
 #### Dockerfiles
 
 See available Dockerfiles to create containers with pre-built/pre-installed DPC++ compiler at:
 [Containers](./sycl/doc/developer/DockerBKMs.md#sycl-dockerfiles-overview)
-
-#### Releases
-
-See [dedicated documentation](./sycl/doc/Releases.md) about various releases
-that we provide.
 
 #### Build from sources
 

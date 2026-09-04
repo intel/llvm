@@ -62,6 +62,7 @@ getUrEvents(const std::vector<sycl::event> &DepEvents) {
   return RetUrEvents;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -69,6 +70,7 @@ uint32_t queue_impl::get_info<info::queue::reference_count>() const {
       MQueue, UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result, nullptr);
   return result;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <> context queue_impl::get_info<info::queue::context>() const {
   return get_context();
@@ -462,6 +464,8 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     EnqueueKernel();
   } else {
     ResultEvent->setWorkerQueue(weak_from_this());
+    ResultEvent->setPotentiallyNativeRecorded(
+        getContextImpl().isNativeRecordingActive());
     ResultEvent->setStateIncomplete();
     ResultEvent->setSubmissionTime();
 
@@ -469,8 +473,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     ResultEvent->setEnqueued();
     // connect returned event with dependent events
     if (!isInOrder()) {
-      // DepEvents is not used anymore, so can move.
-      ResultEvent->getPreparedDepsEvents() = std::move(DepEvents);
+      ResultEvent->getPreparedDepsEvents() = DepEvents;
       // ResultEvent is local for current thread, no need to lock.
       ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
     }
@@ -481,9 +484,15 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
 
 EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     std::vector<detail::EventImplPtr> &BarrierDepEvents,
-    std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType) {
+    std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
+    bool EventNeeded, const EventImplPtr &EventForReuse) {
 
-  ur_event_handle_t UREvent = nullptr;
+  // EventForReuse can only be set for BarrierType equal to CGType::Barrier
+  // (enqueue_signal_event function)
+  assert(!EventForReuse || (EventForReuse && BarrierType == CGType::Barrier));
+
+  ur_event_handle_t UREvent =
+      EventForReuse ? EventForReuse->getHandleReusable(*this) : nullptr;
   std::vector<ur_event_handle_t> RawBarrierDepEvents;
   std::vector<ur_event_handle_t> RawDepEvents;
 
@@ -496,11 +505,25 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     RawDepEvents = detail::Command::getUrEvents(DepEvents, this, false);
   }
 
-  auto ResEvent = detail::event_impl::create_device_event(*this);
-  ResEvent->setWorkerQueue(weak_from_this());
-  ResEvent->setSubmissionTime();
-  ResEvent->setEnqueued();
-  ResEvent->setStateIncomplete();
+  bool DiscardEvent = !EventNeeded && isInOrder();
+
+  EventImplPtr ResEvent = nullptr;
+
+  if (!DiscardEvent || EventForReuse) {
+    ResEvent = EventForReuse ? EventForReuse
+                             : detail::event_impl::create_device_event(*this);
+    if (EventForReuse) {
+      ResEvent->setQueue(*this);
+    }
+    ResEvent->setWorkerQueue(weak_from_this());
+    ResEvent->setPotentiallyNativeRecorded(
+        getContextImpl().isNativeRecordingActive());
+    if (EventForReuse)
+      ResEvent->markAsProfilingTagEvent();
+    ResEvent->setSubmissionTime();
+    ResEvent->setEnqueued();
+    ResEvent->setStateIncomplete();
+  }
 
   // We can skip the barrier UR call only if both the barrier wait list
   // and the list of barrier command dependencies are empty (after filtering
@@ -509,7 +532,9 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   // list.
   if (BarrierType == CGType::BarrierWaitlist && RawBarrierDepEvents.empty() &&
       RawDepEvents.empty()) {
-    ResEvent->setComplete();
+    if (!DiscardEvent) {
+      ResEvent->setComplete();
+    }
     return ResEvent;
   }
 
@@ -520,7 +545,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     }
 
     getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
-        getHandleRef(), nullptr, 0, nullptr, &UREvent);
+        getHandleRef(), nullptr, 0, nullptr,
+        (DiscardEvent && !EventForReuse) ? nullptr : &UREvent);
   } else {
 
     RawDepEvents.insert(RawDepEvents.end(), RawBarrierDepEvents.begin(),
@@ -528,13 +554,19 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
 
     getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
         getHandleRef(), nullptr, RawDepEvents.size(), RawDepEvents.data(),
-        &UREvent);
+        DiscardEvent ? nullptr : &UREvent);
   }
 
-  ResEvent->setHandle(UREvent);
+  if (EventForReuse) {
+    ResEvent->setHandleReusable(UREvent);
+  } else {
+    if (!DiscardEvent) {
+      ResEvent->setHandle(UREvent);
+    }
+  }
 
   // connect returned event with dependent events
-  if (!isInOrder()) {
+  if (!DiscardEvent && !isInOrder()) {
 
     if (BarrierType == CGType::BarrierWaitlist) {
       DepEvents.insert(DepEvents.end(), BarrierDepEvents.begin(),
@@ -547,13 +579,13 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     ResEvent->cleanDepEventsThroughOneLevelUnlocked();
   }
 
-  return ResEvent;
+  return (DiscardEvent || EventForReuse) ? nullptr : ResEvent;
 }
 
-EventImplPtr
-queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
-                                       detail::CGType BarrierType,
-                                       const detail::code_location &CodeLoc) {
+EventImplPtr queue_impl::submit_barrier_direct_impl(
+    sycl::span<const event> DepEvents, detail::CGType BarrierType,
+    const detail::code_location &CodeLoc, bool CallerNeedsEvent,
+    const EventImplPtr &EventForReuse) {
   auto SubmitBarrierFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     std::vector<detail::EventImplPtr> DepEventImpls;
@@ -584,8 +616,26 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
 
     if (SchedulerBypass) {
       return {submit_barrier_scheduler_bypass(DepEventImpls, CGData.MEvents,
-                                              BarrierType),
+                                              BarrierType, CallerNeedsEvent,
+                                              EventForReuse),
               /*SchedulerBypass*/ true};
+    }
+
+    if (EventForReuse || !CallerNeedsEvent) {
+      // Current limitation: reusable events require scheduler bypass so that
+      // the barrier can be submitted directly to the backend with the reusable
+      // event's handle as the output event. Scheduler bypass is not possible
+      // when dependencies include host tasks or cross-context dependencies.
+      //
+      // This limitation applies to both: enqueue_signal_event and
+      // enqueue_wait_event(s).
+      //
+      // The !CallerNeedsEvent condition is used to detect the
+      // enqueue_wait_event(s) function calls.
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "An event cannot be enqueued for signaling or waiting "
+          "behind a command which is not enqueued in the backend.");
     }
 
     std::unique_ptr<detail::CG> CommandGroup;
@@ -611,7 +661,7 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
             /*SchedulerBypass*/ false};
   };
 
-  return submit_direct(true, {}, SubmitBarrierFunc, BarrierType,
+  return submit_direct(CallerNeedsEvent, {}, SubmitBarrierFunc, BarrierType,
                        /*InsertBarrierForInOrderCommand*/ false);
 }
 
@@ -621,6 +671,36 @@ bool queue_impl::isNativeRecording() const {
       getAdapter().call_nocheck<UrApiKind::urQueueIsGraphCaptureEnabledExp>(
           MQueue, &IsGraphCaptureEnabled);
   return Result == UR_RESULT_SUCCESS && IsGraphCaptureEnabled;
+}
+
+queue_impl::NativeRecordingResult
+queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph, bool LockQueue) {
+  std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
+  if (LockQueue)
+    Lock.lock();
+  NativeRecordingResult BeginResult;
+  BeginResult.Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueBeginCaptureIntoGraphExp>(
+          MQueue, Graph);
+  BeginResult.RecordingActive = BeginResult.Result == UR_RESULT_SUCCESS;
+  if (BeginResult.RecordingActive) {
+    getContextImpl().nativeRecordingBegan();
+  }
+  return BeginResult;
+}
+
+queue_impl::NativeRecordingResult queue_impl::endNativeRecording() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  NativeRecordingResult EndResult;
+  EndResult.Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueEndGraphCaptureExp>(
+          MQueue, &EndResult.CapturedGraph);
+  EndResult.RecordingActive =
+      EndResult.Result != UR_RESULT_SUCCESS && isNativeRecording();
+  if (!EndResult.RecordingActive) {
+    getContextImpl().nativeRecordingEnded();
+  }
+  return EndResult;
 }
 
 ext::oneapi::experimental::queue_state
@@ -645,8 +725,11 @@ queue_impl::ext_oneapi_get_graph_impl() const {
     if (Result == UR_RESULT_SUCCESS) {
       Graph = getContextImpl().getNativeGraph(UrGraphHandle);
     } else if (Result != UR_RESULT_ERROR_INVALID_OPERATION) {
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "Failed to query native UR graph from queue.");
+      throw sycl::detail::set_ur_error(
+          sycl::exception(make_error_code(errc::runtime),
+                          "Failed to query native UR graph from queue: " +
+                              sycl::detail::codeToString(Result)),
+          Result);
     }
   }
   if (!Graph) {
@@ -767,6 +850,12 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
     KData.extractArgsAndReqsFromLambda();
 
+    // Extract data to move KData
+    ur_kernel_cache_config_t KernelCacheConfig = KData.getKernelCacheConfig();
+    bool IsCooperative = KData.isCooperative();
+    bool UsesClusterLaunch = KData.usesClusterLaunch();
+    size_t KernelWorkGroupMemorySize = KData.getKernelWorkGroupMemorySize();
+
     CommandGroup.reset(new detail::CGExecKernel(
         KData.getNDRDesc(), std::move(HostKernelPtr),
         nullptr, // Kernel
@@ -774,9 +863,8 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
         std::move(CGData), std::move(KData).getArgs(),
         *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
         std::move(AuxiliaryResources), detail::CGType::Kernel,
-        KData.getKernelCacheConfig(), KData.isCooperative(),
-        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
-        CodeLoc));
+        KernelCacheConfig, IsCooperative, UsesClusterLaunch,
+        KernelWorkGroupMemorySize, CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
@@ -1225,7 +1313,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
                                                        &Handle);
   if (getContextImpl().getBackend() == backend::opencl)
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
+    detail::retainOpenCLCommandQueue(Handle);
 
   return Handle;
 }
@@ -1262,6 +1350,15 @@ bool queue_impl::queue_empty() const {
   getAdapter().call<UrApiKind::urQueueGetInfo>(
       MQueue, UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
   return IsReady;
+}
+
+void queue_impl::queue_flush() const {
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "flush cannot be called for a queue which is "
+                          "recording to a command graph.");
+  }
+  getAdapter().call<UrApiKind::urQueueFlush>(MQueue);
 }
 
 void queue_impl::revisitUnenqueuedCommandsState(

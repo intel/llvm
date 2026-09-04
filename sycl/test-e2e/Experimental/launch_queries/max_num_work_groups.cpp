@@ -1,7 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 #include <cassert>
@@ -17,7 +20,7 @@ namespace kernels {
 
 template <class T, size_t Dim>
 using sycl_global_accessor =
-    sycl::accessor<T, Dim, sycl::access::mode::read_write,
+    sycl::accessor<T, Dim, sycl::access_mode::read_write,
                    sycl::access::target::global_buffer>;
 
 class TestKernel {
@@ -48,7 +51,7 @@ public:
     const auto gtid = item.get_global_linear_id();
     if (ltid < loc_acc_.size()) {
       loc_acc_[ltid] = ltid + 42;
-      item.barrier(sycl::access::fence_space::local_space);
+      sycl::group_barrier(item.get_group());
       acc_[gtid] = loc_acc_[ltid];
     } else {
       acc_[gtid] = 0;
@@ -107,7 +110,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   auto launch_range = sycl::nd_range<1>{sycl::range<1>{NumWorkItems},
                                         sycl::range<1>{workGroupSize}};
   q.submit([&](sycl::handler &cgh) {
-     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
      if constexpr (KernelName::HasLocalMemory) {
        sycl::local_accessor<value_type, 1> loc_acc{
            sycl::range<1>{workGroupSize}, cgh};
@@ -139,7 +142,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
                                    sycl::range<1>{workGroupSize}};
 
   q.submit([&](sycl::handler &cgh) {
-     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
      if constexpr (KernelName::HasLocalMemory) {
        sycl::local_accessor<value_type, 1> loc_acc{sycl::range<1>{localSize},
                                                    cgh};
@@ -176,7 +179,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
                                      sycl::range<1>{workGroupSize}};
 
     q.submit([&](sycl::handler &cgh) {
-       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+       auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
        if constexpr (KernelName::HasLocalMemory) {
          sycl::local_accessor<value_type, 1> loc_acc{sycl::range<1>{localSize},
                                                      cgh};

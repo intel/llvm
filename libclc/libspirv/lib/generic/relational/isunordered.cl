@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/relational.h>
-#include <libspirv/spirv.h>
+#include "clc/clc_convert.h"
+#include "clc/relational/clc_isunordered.h"
 
-#define _CLC_SPIRV_BUILTIN __spirv_Unordered
-#define _CLC_BUILTIN_IMPL __builtin_isunordered
-#include "genbinrelational.inc"
+#define __CLC_FUNCTION __spirv_Unordered
+#define __CLC_IMPL_FUNCTION(x) __clc_isunordered
+#define __CLC_BODY "relational_binary_def.inc"
+#include "clc/math/gentype.inc"

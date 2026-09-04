@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "SemaAPINotesInternal.h"
 #include "UsedDeclVisitor.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
@@ -69,7 +70,6 @@
 #include "clang/Sema/SemaWasm.h"
 #include "clang/Sema/SemaX86.h"
 #include "clang/Sema/TemplateDeduction.h"
-#include "clang/Sema/TemplateInstCallback.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
@@ -226,6 +226,10 @@ public:
   }
   void PragmaDiagnostic(SourceLocation Loc, StringRef Namespace,
                         diag::Severity Mapping, StringRef Str) override {
+    // The pragma changed diagnostic severities; drop any cached analysis
+    // warning policies derived from the previous state.
+    S->AnalysisWarnings.clearPolicyCache();
+
     // If one of the analysis-based diagnostics was enabled while processing
     // a function, we want to note it in the analysis-based warnings so they
     // can be run at the end of the function body even if the analysis warnings
@@ -374,6 +378,8 @@ void Sema::Initialize() {
   // name mangling. And the name mangling uses BuiltinVaListDecl.
   if (Context.getTargetInfo().hasBuiltinMSVaList())
     (void)Context.getBuiltinMSVaListDecl();
+  if (Context.getTargetInfo().hasBuiltinZOSVaList())
+    (void)Context.getBuiltinZOSVaListDecl();
   (void)Context.getBuiltinVaListDecl();
 
   if (SemaConsumer *SC = dyn_cast<SemaConsumer>(&Consumer))
@@ -593,14 +599,9 @@ void Sema::Initialize() {
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
   }
 
-  if (Context.getTargetInfo().getTriple().isAMDGPU() ||
-      (Context.getTargetInfo().getTriple().isSPIRV() &&
-       Context.getTargetInfo().getTriple().getVendor() == llvm::Triple::AMD) ||
+  if (Context.getTargetInfo().hasAMDGPUTypes() ||
       (Context.getAuxTargetInfo() &&
-       (Context.getAuxTargetInfo()->getTriple().isAMDGPU() ||
-        (Context.getAuxTargetInfo()->getTriple().isSPIRV() &&
-         Context.getAuxTargetInfo()->getTriple().getVendor() ==
-             llvm::Triple::AMD)))) {
+       (Context.getAuxTargetInfo()->hasAMDGPUTypes()))) {
 #define AMDGPU_TYPE(Name, Id, SingletonId, Width, Align)                       \
   addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/AMDGPUTypes.def"
@@ -610,6 +611,12 @@ void Sema::Initialize() {
     DeclarationName MSVaList = &Context.Idents.get("__builtin_ms_va_list");
     if (IdResolver.begin(MSVaList) == IdResolver.end())
       PushOnScopeChains(Context.getBuiltinMSVaListDecl(), TUScope);
+  }
+
+  if (Context.getTargetInfo().hasBuiltinZOSVaList()) {
+    DeclarationName ZOSVaList = &Context.Idents.get("__builtin_zos_va_list");
+    if (IdResolver.begin(ZOSVaList) == IdResolver.end())
+      PushOnScopeChains(Context.getBuiltinZOSVaListDecl(), TUScope);
   }
 
   DeclarationName BuiltinVaList = &Context.Idents.get("__builtin_va_list");
@@ -635,6 +642,10 @@ Sema::~Sema() {
   if (ExternalSemaSource *ExternalSema
         = dyn_cast_or_null<ExternalSemaSource>(Context.getExternalSource()))
     ExternalSema->ForgetSema();
+  // FIXME: keep just a single ExternalSemaSource instead of 2 with a slightly
+  // different behavior.
+  if (ExternalSource)
+    ExternalSource->ForgetSema();
 
   // Delete cached satisfactions.
   std::vector<ConstraintSatisfaction *> Satisfactions;
@@ -1210,11 +1221,26 @@ static bool IsRecordFullyDefined(const CXXRecordDecl *RD,
   return Complete;
 }
 
+void Sema::getSortedUnusedLocalTypedefNameCandidates(
+    SmallVectorImpl<const TypedefNameDecl *> &Sorted) const {
+  // The candidates are collected while iterating a Scope's SmallPtrSet, so sort
+  // by source location for a deterministic order.
+  Sorted.assign(UnusedLocalTypedefNameCandidates.begin(),
+                UnusedLocalTypedefNameCandidates.end());
+  llvm::sort(Sorted,
+             [](const TypedefNameDecl *LHS, const TypedefNameDecl *RHS) {
+               return LHS->getLocation().getRawEncoding() <
+                      RHS->getLocation().getRawEncoding();
+             });
+}
+
 void Sema::emitAndClearUnusedLocalTypedefWarnings() {
   if (ExternalSource)
     ExternalSource->ReadUnusedLocalTypedefNameCandidates(
         UnusedLocalTypedefNameCandidates);
-  for (const TypedefNameDecl *TD : UnusedLocalTypedefNameCandidates) {
+  SmallVector<const TypedefNameDecl *, 4> Sorted;
+  getSortedUnusedLocalTypedefNameCandidates(Sorted);
+  for (const TypedefNameDecl *TD : Sorted) {
     if (TD->isReferenced())
       continue;
     Diag(TD->getLocation(), diag::warn_unused_local_typedef)
@@ -1347,6 +1373,7 @@ void Sema::ActOnEndOfTranslationUnit() {
   DiagnoseUnterminatedPragmaAttribute();
   OpenMP().DiagnoseUnterminatedOpenMPDeclareTarget();
   DiagnosePrecisionLossInComplexDivision();
+  DiagnoseUnusedAPINotesSelectors();
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.
@@ -1748,14 +1775,15 @@ DeclContext *Sema::getFunctionLevelDeclContext(bool AllowLambda) const {
   DeclContext *DC = CurContext;
 
   while (true) {
-    if (isa<BlockDecl>(DC) || isa<EnumDecl>(DC) || isa<CapturedDecl>(DC) ||
-        isa<RequiresExprBodyDecl>(DC)) {
+    if (isa<BlockDecl, EnumDecl, CapturedDecl, RequiresExprBodyDecl,
+            CXXExpansionStmtDecl>(DC)) {
       DC = DC->getParent();
     } else if (!AllowLambda && isa<CXXMethodDecl>(DC) &&
                cast<CXXMethodDecl>(DC)->getOverloadedOperator() == OO_Call &&
                cast<CXXRecordDecl>(DC->getParent())->isLambda()) {
       DC = DC->getParent()->getParent();
-    } else break;
+    } else
+      break;
   }
 
   return DC;
@@ -2133,8 +2161,24 @@ public:
     // Always emit deferred diagnostics for the direct users. This does not
     // lead to explosion of diagnostics since each user is visited at most
     // twice.
+#if 1 // INTEL_CUSTOMIZATION
+    // xmain emits deferred diagnostics inline during this traversal (unlike
+    // the upstream collect-then-emit model that uses emitCollectedDiags). For
+    // an implicit __host__ __device__ member that is a device-emission
+    // candidate only because of an explicit template instantiation, emitting
+    // inline here would (a) surface the error against the bare instantiation
+    // root with no call stack and (b) duplicate it when reached via an organic
+    // device caller. Skip the inline emission and let the end-of-TU
+    // classification in Sema::emitDeferredDiags decide whether to surface the
+    // diagnostics (organic caller) or drop them and emit a trap body (no
+    // caller). See #197214.
+    if ((ShouldEmitRootNode || InOMPDeviceContext) &&
+        !SemaCUDA::isImplicitHDExplicitInstantiation(FD))
+      emitDeferredDiags(FD, Caller);
+#else  // INTEL_CUSTOMIZATION
     if (ShouldEmitRootNode || InOMPDeviceContext)
       emitDeferredDiags(FD, Caller);
+#endif // INTEL_CUSTOMIZATION
     // Do not revisit a function if the function body has been completely
     // visited before.
     if (!Done.insert(FD).second)
@@ -2213,14 +2257,74 @@ void Sema::emitDeferredDiags() {
     ExternalSource->ReadDeclsToCheckForDeferredDiags(
         DeclsToCheckForDeferredDiags);
 
+  // For each implicit-H+D-explicit-inst function with deferred errors but no
+  // organic device caller, drop the diagnostics and mark for a trap body.
+  auto ClassifyImplicitHDExplicitInst = [&]() {
+    if (!LangOpts.CUDAIsDevice)
+      return;
+    for (auto &Pair : DeviceDeferredDiags) {
+      const FunctionDecl *FD = Pair.first;
+      if (!SemaCUDA::isImplicitHDExplicitInstantiation(FD))
+        continue;
+#if 1 // INTEL_CUSTOMIZATION
+      // xmain emits deferred diagnostics inline during the
+      // DeferredDiagnosticsEmitter traversal rather than collecting them for a
+      // final emitCollectedDiags pass. The inline emission is intentionally
+      // skipped for these functions (see
+      // DeferredDiagnosticsEmitter::checkFunc), so when an organic device
+      // caller exists the diagnostics are surfaced here with the usual
+      // call-stack notes. See #197214.
+      if (CUDA().DeviceKnownEmittedFns.count(FD)) {
+        bool HasWarningOrError = false;
+        bool FirstDiag = true;
+        for (DeviceDeferredDiagnostic &D : Pair.second) {
+          if (Diags.hasFatalErrorOccurred())
+            break;
+          const SourceLocation &Loc = D.getDiag().first;
+          const PartialDiagnostic &PD = D.getDiag().second;
+          HasWarningOrError |=
+              getDiagnostics().getDiagnosticLevel(PD.getDiagID(), Loc) >=
+              DiagnosticsEngine::Warning;
+          {
+            DiagnosticBuilder Builder(Diags.Report(Loc, PD.getDiagID()));
+            PD.Emit(Builder);
+          }
+          if (FirstDiag && HasWarningOrError) {
+            emitCallStackNotes(*this, FD);
+            FirstDiag = false;
+          }
+        }
+        Pair.second.clear();
+        continue;
+      }
+#else  // INTEL_CUSTOMIZATION
+      if (CUDA().DeviceKnownEmittedFns.count(FD))
+        continue;
+#endif // INTEL_CUSTOMIZATION
+      bool HasError =
+          llvm::any_of(Pair.second, [&](const DeviceDeferredDiagnostic &DDiag) {
+            return getDiagnostics().getDiagnosticLevel(
+                       DDiag.getDiag().second.getDiagID(),
+                       DDiag.getDiag().first) >= DiagnosticsEngine::Error;
+          });
+      if (!HasError)
+        continue;
+      Pair.second.clear();
+      Context.CUDADeviceInvalidFuncs.insert(FD->getCanonicalDecl());
+    }
+  };
+
   if ((DeviceDeferredDiags.empty() && !LangOpts.OpenMP &&
        !LangOpts.SYCLIsDevice) ||
-      DeclsToCheckForDeferredDiags.empty())
+      DeclsToCheckForDeferredDiags.empty()) {
+    ClassifyImplicitHDExplicitInst();
     return;
+  }
 
   DeferredDiagnosticsEmitter DDE(*this);
   for (auto *D : DeclsToCheckForDeferredDiags)
     DDE.checkRecordedDecl(D);
+  ClassifyImplicitHDExplicitInst();
 }
 
 // In CUDA, there are some constructs which may appear in semantically-valid
@@ -2472,6 +2576,9 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
       Context.getFunctionFeatureMap(CallerFeatureMap, FD);
       ARM().checkSVETypeSupport(Ty, Loc, FD, CallerFeatureMap);
     }
+
+    if (TI.hasAMDGPUTypes())
+      AMDGPU().checkAMDGPUTypeSupport(Ty, Loc);
 
     if (auto *VT = Ty->getAs<VectorType>();
         VT && FD &&

@@ -3,6 +3,7 @@
 // RUN: %{run} %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -O2 -g -o %t2.out
 // RUN: %{run} %t2.out 2>&1 | FileCheck %s
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 
@@ -16,12 +17,12 @@ void check_memset(sycl::queue &q) {
   const int Pattern = 0;
 
   q.submit([&](sycl::handler &h) {
-     auto array = buf.get_access<sycl::access::mode::read_write>(h);
+     auto array = buf.get_access<sycl::access_mode::read_write>(h);
      h.fill(array, Pattern);
    }).wait();
 
   q.submit([&](sycl::handler &h) {
-     auto array = buf.get_access<sycl::access::mode::read_write>(h);
+     auto array = buf.get_access<sycl::access_mode::read_write>(h);
      h.single_task<class MyKernel1>(
          [=]() { array[0] = foo(array[0], array[1]); });
    }).wait();
@@ -38,13 +39,13 @@ void check_memcpy(sycl::queue &q) {
   sycl::buffer<int, 1> buf2(host, sycl::range<1>(2));
 
   q.submit([&](sycl::handler &h) {
-     auto array1 = buf1.get_access<sycl::access::mode::read_write>(h);
-     auto array2 = buf2.get_access<sycl::access::mode::read_write>(h);
+     auto array1 = buf1.get_access<sycl::access_mode::read_write>(h);
+     auto array2 = buf2.get_access<sycl::access_mode::read_write>(h);
      h.copy(array2, array1);
    }).wait();
 
   q.submit([&](sycl::handler &h) {
-     auto array = buf1.get_access<sycl::access::mode::read_write>(h);
+     auto array = buf1.get_access<sycl::access_mode::read_write>(h);
      h.single_task<class MyKernel2>(
          [=]() { array[0] = foo(array[0], array[1]); });
    }).wait();

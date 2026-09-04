@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <CL/cl.h>
 #include <iostream>
 #include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>

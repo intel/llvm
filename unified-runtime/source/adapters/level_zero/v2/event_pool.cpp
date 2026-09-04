@@ -12,7 +12,7 @@
 #include "queue_api.hpp"
 #include "unified-runtime/ur_api.h"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 static constexpr size_t EVENTS_BURST = 64;
 
@@ -42,6 +42,14 @@ ur_event_handle_t event_pool::allocate() {
   return event;
 }
 
+ur_event_handle_t event_pool::allocateDetached() {
+  TRACK_SCOPE_LATENCY("event_pool::allocateDetached");
+  raii::ze_event_handle_t ownedEvent(provider->allocate().release(),
+                                     /*ownZeHandle=*/true);
+  return new ur_event_handle_t_(hContext, std::move(ownedEvent),
+                                provider->eventFlags());
+}
+
 void event_pool::free(ur_event_handle_t event) {
   TRACK_SCOPE_LATENCY("event_pool::free");
 
@@ -61,4 +69,4 @@ event_flags_t event_pool::getFlags() const {
   return getProvider()->eventFlags();
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

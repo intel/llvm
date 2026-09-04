@@ -13,6 +13,7 @@
 // and optional compile-time esimd::properties.
 // The scatter() calls in this test uses cache-hint
 // properties and requires DG2 or PVC.
+#include <iostream>
 
 #include "Inputs/scatter.hpp"
 

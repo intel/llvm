@@ -52,7 +52,7 @@ int test(queue &Q, T Identity) {
 
   // Compute.
   Q.submit([&](handler &CGH) {
-    auto In = InBuf.template get_access<access::mode::read>(CGH);
+    auto In = InBuf.template get_access<access_mode::read>(CGH);
     CGH.parallel_for<Name>(NDRange, sycl::reduction(OutBuf, CGH, Identity, BOp),
                            [=](nd_item<1> NDIt, auto &Sum) {
                              if (NDIt.get_global_linear_id() < NWorkItems)
@@ -83,8 +83,8 @@ template <class T> struct BigCustomVecPlus {
 int main() {
   queue Q;
   printDeviceInfo(Q);
-  int NumErrors = test<class A1, float, 0, ext::oneapi::maximum<>>(
-      Q, getMinimumFPValue<float>());
+  int NumErrors =
+      test<class A1, float, 0, maximum<>>(Q, getMinimumFPValue<float>());
 
   using BCV = BigCustomVec<long long>;
   NumErrors += test<class A2, BCV, 1, BigCustomVecPlus<long long>>(Q, BCV(0));

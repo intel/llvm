@@ -2,6 +2,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <cstdio>
 #include <sycl/detail/core.hpp>
@@ -24,7 +25,7 @@ int main(int argc, char **argv) {
   {
     sycl::buffer<float, 1> buf(&myfloat, 1);
     queue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task<class test>([=]() { acc[0] = x.myfloat; });
     });
   }

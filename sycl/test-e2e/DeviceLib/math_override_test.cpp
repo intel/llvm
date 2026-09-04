@@ -5,8 +5,8 @@
 
 #include "math_utils.hpp"
 namespace s = sycl;
-constexpr s::access::mode sycl_read = s::access::mode::read;
-constexpr s::access::mode sycl_write = s::access::mode::write;
+constexpr s::access_mode sycl_read = s::access_mode::read;
+constexpr s::access_mode sycl_write = s::access_mode::write;
 
 // Dummy function provided by user to override device library
 // version.

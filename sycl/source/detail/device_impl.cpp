@@ -54,10 +54,10 @@ bool device_impl::is_affinity_supported(
                    AffinityDomain) != SupportedDomains.end();
 }
 
-cl_device_id device_impl::get() const {
+OpenCLDeviceIdT device_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(getNative()));
-  return ur::cast<cl_device_id>(getNative());
+  retainOpenCLDevice(getNative());
+  return ur::cast<OpenCLDeviceIdT>(getNative());
 }
 
 platform device_impl::get_platform() const {
@@ -304,7 +304,7 @@ ur_native_handle_t device_impl::getNative() const {
   ur_native_handle_t Handle;
   Adapter.call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
+    retainOpenCLDevice(Handle);
   }
   return Handle;
 }
@@ -432,10 +432,7 @@ void device_impl::wait() {
   // not-yet-enqueued commands and host_task.
   {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
-      std::shared_ptr<queue_impl> Queue = WQueue.lock();
-      assert(Queue && "Queue should never be dangling in the list of queues "
-                      "associated with the device!");
+    for (queue_impl *Queue : MQueues) {
       Queue->waitForRuntimeLevelCmdsAndClear();
     }
   }

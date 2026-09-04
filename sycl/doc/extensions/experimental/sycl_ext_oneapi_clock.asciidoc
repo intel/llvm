@@ -60,6 +60,9 @@ API in this extension.  If the application fails to do this, the implementation
 throws a synchronous exception with the `errc::kernel_not_supported` error code
 when the kernel is submitted to the queue.
 
+[_Note:_ Current Intel GPU devices support only the `ext_oneapi_clock_sub_group`
+aspect. _{endnote}_]
+
 == Overview
 
 This extension introduces a new free function `clock<clock_scope>()`. This

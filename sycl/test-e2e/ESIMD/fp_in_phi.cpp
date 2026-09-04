@@ -8,9 +8,11 @@
 // RUN: %{build} -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: %{run} %t.out
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 //
 // The test checks that ESIMD kernels correctly handle function pointers as
 // arguments of LLVM's PHI function.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -36,8 +38,8 @@ bool test(queue q, bool flag) {
     buffer<int, 1> y_buf(Y.data(), Y.size());
 
     q.submit([&](handler &cgh) {
-      auto o_acc = o_buf.get_access<access::mode::write>(cgh);
-      auto y_acc = y_buf.get_access<access::mode::write>(cgh);
+      auto o_acc = o_buf.get_access<access_mode::write>(cgh);
+      auto y_acc = y_buf.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<KernelID>(sycl::range<1>{1},
                                  [=](id<1> i) SYCL_ESIMD_KERNEL {

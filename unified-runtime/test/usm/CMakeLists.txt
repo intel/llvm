@@ -18,4 +18,8 @@ function(add_usm_test name)
     target_compile_definitions(${TEST_TARGET_NAME} PRIVATE DEVICES_ENVIRONMENT)
 endfunction()
 
-add_usm_test(usmPoolManager usmPoolManager.cpp)
+# ${PROJECT_NAME}::umf only exists when UR_UMF_REQUIRED (i.e. some enabled
+# adapter actually links UMF, see source/common/CMakeLists.txt).
+if(TARGET ${PROJECT_NAME}::umf)
+    add_usm_test(usmPoolManager usmPoolManager.cpp)
+endif()

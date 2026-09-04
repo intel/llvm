@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
       sycl::range<1> NumOfWorkItems{buf.size()};
 
       q.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+        auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         cgh.parallel_for<class Inc>(
             NumOfWorkItems, [=](sycl::id<1> WIid) { TARGET_IMAGE(acc[0]) });
       });

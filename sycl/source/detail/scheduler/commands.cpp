@@ -7,6 +7,7 @@
 
 #include "unified-runtime/ur_api.h"
 #include <detail/error_handling/error_handling.hpp>
+#include <detail/host_task.hpp>
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -27,6 +28,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/sampler.hpp>
 
 #include <cassert>
@@ -207,6 +209,10 @@ static std::string commandToName(Command::CommandType Type) {
 std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand) {
+  const bool CanRemoveRedundantEvent =
+      CommandQueue && CommandQueue->isInOrder() && !IsHostTaskCommand &&
+      !CommandQueue->getContextImpl().isNativeRecordingActive();
+
   std::vector<ur_event_handle_t> RetUrEvents;
   for (event_impl &Event : Events) {
     auto Handle = Event.getHandle();
@@ -217,8 +223,12 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (CommandQueue && Event.getWorkerQueue().get() == CommandQueue &&
-        CommandQueue->isInOrder() && !IsHostTaskCommand)
+    // When native recording is in-progress, then we must skip this optimization
+    // to let the driver runtime handle event dependencies crossing the graph
+    // capture boundary.
+    if (CanRemoveRedundantEvent &&
+        Event.getWorkerQueue().get() == CommandQueue &&
+        !Event.isPotentiallyNativeRecorded())
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -229,12 +239,6 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
 
 std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
   return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
-}
-
-bool Command::isHostTask() const {
-  return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
-         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
-          CGType::CodeplayHostTask);
 }
 
 namespace {
@@ -249,20 +253,6 @@ void InteropFreeFunc(ur_queue_handle_t, void *InteropData) {
   return Data->func(Data->ih);
 }
 
-struct EnqueueHostTaskData {
-  explicit EnqueueHostTaskData(std::function<void()> HostTask)
-      : Func(std::move(HostTask)) {}
-
-  std::function<void()> Func;
-};
-
-void NativeHostTask(void *Data) {
-  // Callback data is heap-allocated at enqueue time and released here once
-  // the backend invokes the host task callback.
-  auto HostTaskData = std::unique_ptr<EnqueueHostTaskData>(
-      static_cast<EnqueueHostTaskData *>(Data));
-  HostTaskData->Func();
-}
 } // namespace
 
 class DispatchHostTask {
@@ -353,7 +343,6 @@ public:
     }
 
     try {
-      auto &Queue = HostTask.MQueue;
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
         assert(HostTask.MQueue &&
@@ -361,6 +350,7 @@ public:
         interop_handle IH{MReqToMem, HostTask.MQueue};
         // TODO: should all the backends that support this entry point use this
         // for host task?
+        auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
         Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
             detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
@@ -385,47 +375,7 @@ public:
                                    IH);
         }
       } else {
-        if (HostTask.MHostTask->isCreatedFromEnqueueFunction()) {
-          bool NativeHostTaskSupport = false;
-          Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
-              detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
-              UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
-              sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
-          if (NativeHostTaskSupport) {
-            auto NativeHostTaskData = std::make_unique<EnqueueHostTaskData>(
-                std::move(HostTask.MHostTask->MHostTask));
-            ur_event_handle_t HostTaskEvent{};
-            Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
-                Queue->getHandleRef(), NativeHostTask, NativeHostTaskData.get(),
-                nullptr, 0, nullptr, &HostTaskEvent);
-            // Ownership is transferred to NativeHostTask callback on success.
-            (void)NativeHostTaskData.release();
-
-            // Wait for the host task to complete asynchronously. Since
-            // urEnqueueHostTaskExp executes the callback asynchronously when
-            // UR host task support is available, we must wait for the returned
-            // event before notifying completion. This ensures proper dependency
-            // ordering and allows profiling/async-exception handlers to see the
-            // actual task completion rather than the enqueue time.
-            if (HostTaskEvent) {
-              try {
-                Queue->getAdapter().call<UrApiKind::urEventWait>(
-                    1, &HostTaskEvent);
-              } catch (...) {
-                auto CurrentException = std::current_exception();
-                Queue->getAdapter().call<UrApiKind::urEventRelease>(
-                    HostTaskEvent);
-                throw;
-              }
-              Queue->getAdapter().call<UrApiKind::urEventRelease>(
-                  HostTaskEvent);
-            }
-          } else {
-            HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
-          }
-        } else {
-          HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
-        }
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
       }
     } catch (...) {
       auto CurrentException = std::current_exception();
@@ -543,10 +493,36 @@ Command::Command(
   if (Queue)
     MEvent->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
-  if (MQueue)
-    MEvent->setContextImpl(MQueue->getContextImpl());
+  if (MQueue) {
+    context_impl &Context = MQueue->getContextImpl();
+    MEvent->setContextImpl(Context);
+    MEvent->setPotentiallyNativeRecorded(Context.isNativeRecordingActive());
+  }
   MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Obtain the stream ID so all commands can emit traces to that stream;
+  // copying it to the member variable to avoid ABI breakage
+  MStreamID = getActiveXPTIStreamID();
+#endif
+}
+
+Command::Command(
+    CommandType Type, queue_impl *Queue, EventImplPtr Event,
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
+    : MQueue(Queue ? Queue->shared_from_this() : nullptr),
+      MEvent(std::move(Event)),
+      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
+  MWorkerQueue = MQueue;
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  MEvent->setCommand(this);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
@@ -1320,7 +1296,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
     UnmapEventImpl->setHandle(UREvent);
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
-    EventImpls.push_back(UnmapEventImpl);
+    EventImpls.push_back(std::move(UnmapEventImpl));
   }
   ur_event_handle_t UREvent = nullptr;
   if (SkipRelease)
@@ -1523,6 +1499,11 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  // When MQueue is non-null the base Command constructor already set this from
+  // MQueue's context.
+  if (!MQueue && MWorkerQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
 }
@@ -1700,6 +1681,11 @@ MemCpyCommandHost::MemCpyCommandHost(const Requirement &SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  // When MQueue is non-null the base Command constructor already set this from
+  // MQueue's context.
+  if (!MQueue && MWorkerQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
 }
@@ -1745,11 +1731,14 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
-  // Omit copying if mode is discard one.
+  // Omit copying if mode is discard one and the accessor covers the full
+  // memory object; a ranged discard accessor must still preserve elements
+  // outside its range (SYCL 2020 §4.7.6.4).
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
-      MDstReq.MAccessMode == access::mode::discard_write) {
+  if ((MDstReq.MAccessMode == access::mode::discard_read_write ||
+       MDstReq.MAccessMode == access::mode::discard_write) &&
+      MDstReq.isFullMemoryAccess()) {
     Command::waitForEvents(Queue, EventImpls, UREvent);
 
     return UR_RESULT_SUCCESS;
@@ -1950,6 +1939,8 @@ static std::string_view cgTypeToString(detail::CGType Type) {
     return "semaphore wait";
   case detail::CGType::SemaphoreSignal:
     return "semaphore signal";
+  case detail::CGType::NativeHostTask:
+    return "native host task";
   default:
     return "unknown";
     break;
@@ -1960,23 +1951,48 @@ ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
-    : Command(CommandType::RUN_CG, Queue, CommandBuffer, Dependencies),
+    : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
+              CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
-    queue_impl *SubmitQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue.get();
+  emitInstrumentationDataProxy();
+}
+
+EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
+  EventImplPtr ResEvent;
+
+  if (CG.getType() == CGType::NativeHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_device_event(*HT.MQueue);
+    ResEvent->setWorkerQueue(HT.MQueue);
+    ResEvent->setSubmittedQueue(HT.MQueue.get());
+    ResEvent->setContextImpl(HT.MQueue->getContextImpl());
+  } else if (CG.getType() == CGType::CodeplayHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_incomplete_host_event();
+    queue_impl *SubmitQueue = HT.MQueue.get();
     assert(SubmitQueue &&
            "Host task command group must have a valid submit queue");
-
-    MEvent->setSubmittedQueue(SubmitQueue);
+    ResEvent->setSubmittedQueue(SubmitQueue);
     // Initialize host profiling info if the queue has profiling enabled.
     if (SubmitQueue->MIsProfilingEnabled)
-      MEvent->initHostProfilingInfo();
-  }
-  if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
-    MEvent->markAsProfilingTagEvent();
+      ResEvent->initHostProfilingInfo();
+  } else {
+    ResEvent = Queue ? event_impl::create_device_event(*Queue)
+                     : event_impl::create_incomplete_host_event();
+    if (Queue) {
+      ResEvent->setWorkerQueue(Queue->shared_from_this());
+      ResEvent->setSubmittedQueue(Queue);
+      ResEvent->setContextImpl(Queue->getContextImpl());
 
-  emitInstrumentationDataProxy();
+      if (CG.getType() == CGType::ProfilingTag) {
+        ResEvent->markAsProfilingTagEvent();
+      }
+    }
+  }
+
+  ResEvent->setStateIncomplete();
+
+  return ResEvent;
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -2273,10 +2289,12 @@ std::string_view ExecCGCommand::getTypeString() const {
 // for users who need more control.
 static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
-  if (NDR.GlobalSize[0] != 0)
-    return; // GlobalSize is set - no need to adjust
-  // check the prerequisites:
-  assert(NDR.LocalSize[0] == 0);
+  if (NDR.NumWorkGroups[0] == 0)
+    return; // Not parallel_for_work_group -- nothing to fill in.
+  // In pfwg mode NumWorkGroups is the only field the user sets; GlobalSize
+  // and LocalSize must both be zero (see NDRDescT contract in
+  // ndrange_desc.hpp).
+  assert(NDR.GlobalSize[0] == 0 && NDR.LocalSize[0] == 0);
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
@@ -2539,8 +2557,16 @@ static ur_result_t SetKernelParamsAndLaunch(
   if (IsCooperative) {
     property_list.flags |= UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
   }
-  // If there is no implicit arg, let the driver handle it via a property
-  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+  // If there is no implicit arg, let the driver handle it via a property.
+  // Only do so when the kernel actually consumes dynamic work group (scratch)
+  // memory. A launch may request a work_group_scratch_size for a kernel that
+  // never calls get_work_group_scratch_memory() (e.g. a scratch size attached
+  // to a shared launch_config reused across kernels); such a kernel has no
+  // implicit local arg and no way to use the memory, so requesting it is a
+  // no-op. Sending the launch property in that case would be rejected by
+  // backends (e.g. Level Zero) that do not support the driver-property path.
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value() &&
+      DeviceKernelInfo.getWorkGroupDynamicLocalMem()) {
     workgroup_property.stype =
         UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY;
     workgroup_property.pNext = nullptr;
@@ -2596,6 +2622,79 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
     KernelCacheValsToRelease.push_back(std::move(FastKernelCacheVal));
   }
   return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
+}
+
+// Check if the provided global size and offset values are within the maximum
+// range supported by the kernel's id queries type, per dimension.
+// MaxRange is an inclusive upper bound for both offset and size.
+// Also checks if the total global size (product of global sizes across all
+// dimensions) is within the maximum range, to ensure that functions like
+// get_global_linear_id can safely return a value within the maximum range.
+// If NDRDesc.GlobalSize[I] is zero, it is treated as valid and does not exceed
+// the range.
+static bool isNDRangeExceedsMaxRange(const NDRDescT &NDRDesc,
+                                     uint64_t MaxRange) {
+  uint64_t TotalGlobalSize = 1;
+  for (size_t I = 0; I < NDRDesc.Dims; ++I) {
+    uint64_t GlobalOffset = NDRDesc.GlobalOffset[I];
+    if (GlobalOffset > MaxRange)
+      return true;
+    uint64_t GlobalSize = NDRDesc.GlobalSize[I];
+    if (GlobalSize > MaxRange - GlobalOffset)
+      return true;
+    TotalGlobalSize *= GlobalSize;
+    if (TotalGlobalSize > MaxRange)
+      return true;
+  }
+  return false;
+}
+
+void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
+                                const uint32_t IdQueriesRange) {
+  // Skipping the range check if the kernel supports size_t range for id
+  // queries. Because, range exceeding size_t is not practically possible, and
+  // for a 64-bit size_t, it'll take hundreds of years for such a kernel to
+  // complete.
+  if (IdQueriesRange == 2) {
+    return;
+  }
+
+  if (IdQueriesRange == 1) {
+    uint64_t MaxRange = std::numeric_limits<uint32_t>::max();
+
+    // Early exit if kernel is compiled with -fsycl-id-queries-range=uint,
+    // and launched with a range lesser than or equal to UINT_MAX.
+    if (!isNDRangeExceedsMaxRange(NDRDesc, MaxRange))
+      return;
+  }
+
+  // No need to check when IdQueriesRange is 0 (INT_MAX) because this
+  // function is only called when the kernel is executed with a range exceeding
+  // INT_MAX. In this case, the default range type is int, and the check is not
+  // required since the function is not called for ranges within INT_MAX.
+
+  // Throw an exception.
+  std::string ErrMsg;
+  switch (IdQueriesRange) {
+  case 1:
+    ErrMsg = "The kernel was compiled with -fsycl-id-queries-range=uint, but "
+             "the provided range/offset exceeds the maximum value storable in "
+             "an uint32_t. Either reduce the range/offset or "
+             "recompile the kernel with -fsycl-id-queries-range=size_t.";
+    break;
+  case 0:
+  default:
+    ErrMsg =
+        "The kernel was compiled with -fsycl-id-queries-range=int, but the "
+        "provided range/offset exceeds the maximum value storable in an "
+        "int. Either reduce the range/offset or "
+        "recompile the kernel with -fsycl-id-queries-range=[uint|size_t].";
+  }
+
+  throw detail::set_ur_error(
+      sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                      ErrMsg.c_str()),
+      UR_RESULT_ERROR_INVALID_VALUE);
 }
 
 ur_result_t enqueueImpCommandBufferKernel(
@@ -2700,10 +2799,15 @@ ur_result_t enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
-  // If there is no implicit arg, let the driver handle it via a property
-  // which is not yet supported!
+  // If there is no implicit arg, the driver-property path would be needed,
+  // which is not yet supported here. Only diagnose when the kernel actually
+  // consumes dynamic work group (scratch) memory; a launch that merely
+  // requests a scratch size for a kernel that never uses it (e.g. a scratch
+  // size attached to a shared launch_config reused across kernels) is a no-op
+  // and must not be rejected.
   if (CommandGroup.MKernelWorkGroupMemorySize &&
-      !ImplicitLocalArg.has_value()) {
+      !ImplicitLocalArg.has_value() &&
+      CommandGroup.MDeviceKernelInfo.getWorkGroupDynamicLocalMem()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "Setting work group scratch memory size is not yet supported "
@@ -2759,8 +2863,7 @@ void enqueueImpKernel(
   FastKernelCacheValPtr KernelCacheVal;
 
   if (nullptr != MSyclKernel) {
-    assert(MSyclKernel->get_info<info::kernel::context>() ==
-           Queue.get_context());
+    assert(&MSyclKernel->getContextImpl() == &ContextImpl);
     Kernel = MSyclKernel->getHandleRef();
     Program = MSyclKernel->getProgramRef();
 
@@ -2778,7 +2881,6 @@ void enqueueImpKernel(
                       : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
-
     Program = DeviceImageImpl->get_ur_program();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
@@ -2808,6 +2910,34 @@ void enqueueImpKernel(
                                        DeviceGlobalInitEvents.begin(),
                                        DeviceGlobalInitEvents.end());
     EventsWaitList = std::move(EventsWithDeviceGlobalInits);
+  }
+
+  // If the kernel was invoked with global range/offset exceeding INT_MAX, we
+  // need to check if the kernel was compiled with
+  // -fsycl-id-queries-range=[uint32_t|size_t] flag.
+  const bool isRangeGreaterThanIntMax = isNDRangeExceedsMaxRange(
+      NDRDesc, static_cast<uint64_t>(std::numeric_limits<int>::max()));
+  if (isRangeGreaterThanIntMax) {
+    uint32_t IdQueryRangeProp = 0;
+
+    // Get device image of kernel and retrieve the id queries range property.
+    if (MSyclKernel != nullptr && !MSyclKernel->isInteropOrSourceBased()) {
+      DeviceImageImpl = &MSyclKernel->getDeviceImage();
+      IdQueryRangeProp =
+          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    } else if (DeviceImageImpl != nullptr) {
+      IdQueryRangeProp =
+          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    } else {
+      const RTDeviceBinaryImage &DeviceImage =
+          detail::ProgramManager::getInstance().getDeviceImage(
+              DeviceKernelInfo.Name, ContextImpl, DeviceImpl);
+      IdQueryRangeProp = DeviceImage.getIdQueriesRangeProperties();
+    }
+    // If IdQueryRangeProp property is not present in the device image,
+    // it means that the kernel was compiled without -fsycl-id-queries-range
+    // option, so use the default range type of `int`.
+    checkNDRangeBoundsAndThrow(NDRDesc, IdQueryRangeProp);
   }
 
   ur_result_t Error = UR_RESULT_SUCCESS;
@@ -3403,6 +3533,37 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     MShouldCompleteEventIfPossible = false;
 
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::NativeHostTask: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+
+    for (ArgDesc &Arg : HostTask->MArgs) {
+      switch (Arg.MType) {
+      case kernel_param_kind_t::kind_accessor: {
+        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+        if (AllocaCmd)
+          Req->MData = AllocaCmd->getMemAllocation();
+        break;
+      }
+      default:
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Unsupported arg type " +
+                                  codeToString(UR_RESULT_ERROR_INVALID_VALUE));
+      }
+    }
+
+    auto &Queue = HostTask->MQueue;
+    auto NativeHostTaskData = std::make_unique<detail::EnqueueHostTaskData>(
+        HostTask->MHostTask->MHostTask);
+    Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), detail::NativeHostTask<true>,
+        NativeHostTaskData.get(), nullptr, RawEvents.size(), RawEvents.data(),
+        Event);
+    (void)NativeHostTaskData.release();
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::EnqueueNativeCommand: {

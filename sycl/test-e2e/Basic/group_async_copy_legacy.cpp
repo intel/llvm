@@ -114,8 +114,8 @@ template <typename T> int test(size_t Stride) {
      // In must be read_write for legacy multi_ptr as it would otherwise produce
      // a const multi_ptr which was not a valid source argument to
      // async_work_group_copy in SYCL 1.2.1.
-     auto In = InBuf.template get_access<access::mode::read_write>(CGH);
-     auto Out = OutBuf.template get_access<access::mode::write>(CGH);
+     auto In = InBuf.template get_access<access_mode::read_write>(CGH);
+     auto Out = OutBuf.template get_access<access_mode::write>(CGH);
      local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
 
      nd_range<1> NDR{range<1>(NElems), range<1>(WorkGroupSize)};

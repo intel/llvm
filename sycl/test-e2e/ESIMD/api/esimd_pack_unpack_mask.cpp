@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 //
 // Smoke test for the esimd pack_mask/unpack_mask APIs.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

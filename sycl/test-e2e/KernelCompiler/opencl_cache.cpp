@@ -24,6 +24,8 @@
 // CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
 // CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
 // CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
+#include <CL/cl.h>
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -51,8 +53,8 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel, int multiplier,
   sycl::buffer OutputBuf(OutputArray, sycl::range<1>(N));
 
   Q.submit([&](sycl::handler &CGH) {
-    CGH.set_arg(0, InputBuf.get_access<sycl::access::mode::read>(CGH));
-    CGH.set_arg(1, OutputBuf.get_access<sycl::access::mode::write>(CGH));
+    CGH.set_arg(0, InputBuf.get_access<sycl::access_mode::read>(CGH));
+    CGH.set_arg(1, OutputBuf.get_access<sycl::access_mode::write>(CGH));
     CGH.parallel_for(sycl::range<1>{N}, Kernel);
   });
 

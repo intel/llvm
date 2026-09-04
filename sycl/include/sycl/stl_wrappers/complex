@@ -15,6 +15,12 @@
 
 #pragma once
 
+// Note: VS2026 MSVC STL's <complex> transitively includes
+// <__msvc_bit_utils.hpp>, which declares `__isa_available`. We provide a
+// device-side definition for that symbol via our wrapper at
+// stl_wrappers/__msvc_bit_utils.hpp, so no per-header workaround is needed
+// here.
+
 // Include real STL <complex> header - the next one from the include search
 // directories.
 #if defined(__has_include_next)

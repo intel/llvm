@@ -24,6 +24,7 @@ enum class external_semaphore_handle_type {
   win32_nt_dx12_fence = 2,
   timeline_fd = 3,
   timeline_win32_nt_handle = 4,
+  win32_nt_dx11_fence = 5,
 };
 
 /// Opaque external memory handle type

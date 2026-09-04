@@ -40,7 +40,7 @@ bool group__get_group_range() {
     queue Q(AsyncHandler{});
 
     Q.submit([&](handler &cgh) {
-      auto Ptr = Buf.get_access<access::mode::write>(cgh);
+      auto Ptr = Buf.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<class group__get_group_range>(
           nd_range<3>{GlobalRange, LocalRange}, [=](nd_item<DIMS> I) {
@@ -106,7 +106,7 @@ bool group__get_linear_id() {
     queue Q(AsyncHandler{});
 
     Q.submit([&](handler &cgh) {
-      auto Ptr = Buf.get_access<access::mode::write>(cgh);
+      auto Ptr = Buf.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<class group__get_linear_id>(
           nd_range<3>{GlobalRange, LocalRange}, [=](nd_item<DIMS> I) {
@@ -184,7 +184,7 @@ bool group__async_work_group_copy() {
       queue Q(AsyncHandler{});
 
       Q.submit([&](handler &cgh) {
-        auto AccGlobal = Buf.get_access<access::mode::read_write>(cgh);
+        auto AccGlobal = Buf.get_access<access_mode::read_write>(cgh);
         local_accessor<DataType, DIMS> AccLocal(LocalRange, cgh);
 
         cgh.parallel_for<class group__async_work_group_copy>(

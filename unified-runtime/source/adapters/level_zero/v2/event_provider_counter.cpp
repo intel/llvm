@@ -15,10 +15,10 @@
 #include "event_provider_normal.hpp"
 #include "loader/ze_loader.h"
 
-#include "../device.hpp"
-#include "../platform.hpp"
+#include "../common/device.hpp"
+#include "../common/platform.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 provider_counter::provider_counter(ur_platform_handle_t platform,
                                    ur_context_handle_t context,
@@ -47,6 +47,10 @@ static zex_counter_based_event_exp_flags_t createZeFlags(queue_type queueType,
       ZEX_COUNTER_BASED_EVENT_FLAG_HOST_VISIBLE;
   if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
     zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_KERNEL_TIMESTAMP;
+  }
+
+  if (flags & EVENT_FLAGS_IPC) {
+    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IPC;
   }
 
   if (queueType == QUEUE_IMMEDIATE) {
@@ -113,4 +117,4 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
   return std::make_unique<provider_normal>(context, queueType, flags);
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

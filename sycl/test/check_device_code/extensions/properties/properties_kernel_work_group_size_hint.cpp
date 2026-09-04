@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
-// expected-no-diagnostics
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify-ignore-unexpected=note %s
 
 #include <sycl/sycl.hpp>
 
@@ -106,6 +105,7 @@ struct TestKernel_nd_item3_2 {
 
 struct TestKernel_work_group1 {
   void operator()(group<1> G) const {
+    // expected-warning@+1{{'h_item<1>' is deprecated: Deprecated in SYCL 2020}}
     G.parallel_for_work_item([&](h_item<1>) {});
   }
   auto get(properties_tag) const { return Props1; }
@@ -113,6 +113,7 @@ struct TestKernel_work_group1 {
 
 struct TestKernel_work_group2 {
   void operator()(group<2> G) const {
+    // expected-warning@+1{{'h_item<2>' is deprecated: Deprecated in SYCL 2020}}
     G.parallel_for_work_item([&](h_item<2>) {});
   }
   auto get(properties_tag) const { return Props2; }
@@ -120,6 +121,7 @@ struct TestKernel_work_group2 {
 
 struct TestKernel_work_group3 {
   void operator()(group<3> G) const {
+    // expected-warning@+1{{'h_item<3>' is deprecated: Deprecated in SYCL 2020}}
     G.parallel_for_work_item([&](h_item<3>) {});
   }
   auto get(properties_tag) const { return Props3; }

@@ -2,6 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 
 #include <iostream>
 
@@ -23,7 +24,7 @@ int main() {
   sycl::buffer<sycl::half> Buf(1);
 
   Q.submit([&](sycl::handler &CGH) {
-    auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
+    auto Acc = Buf.get_access<sycl::access_mode::write>(CGH);
     CGH.single_task([=]() { Acc[0] = 1; });
   });
 

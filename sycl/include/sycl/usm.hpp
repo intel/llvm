@@ -7,7 +7,6 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
@@ -16,7 +15,6 @@
 #include <sycl/queue.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
-#include <algorithm> // for max
 #include <cstddef>   // for size_t
 
 namespace sycl {
@@ -192,9 +190,9 @@ T *aligned_alloc_device(
   if (is_not_power_of_two(Alignment)) {
     return nullptr;
   }
-  return static_cast<T *>(aligned_alloc_device(max(Alignment, alignof(T)),
-                                               Count * sizeof(T), Dev, Ctxt,
-                                               PropList, CodeLoc));
+  size_t Align = Alignment < alignof(T) ? alignof(T) : Alignment;
+  return static_cast<T *>(aligned_alloc_device(Align, Count * sizeof(T), Dev,
+                                               Ctxt, PropList, CodeLoc));
 }
 
 template <typename T>
@@ -249,9 +247,9 @@ T *aligned_alloc_host(
   if (is_not_power_of_two(Alignment)) {
     return nullptr;
   }
-  return static_cast<T *>(aligned_alloc_host(std ::max(Alignment, alignof(T)),
-                                             Count * sizeof(T), Ctxt, PropList,
-                                             CodeLoc));
+  size_t Align = Alignment < alignof(T) ? alignof(T) : Alignment;
+  return static_cast<T *>(
+      aligned_alloc_host(Align, Count * sizeof(T), Ctxt, PropList, CodeLoc));
 }
 
 template <typename T>
@@ -274,9 +272,9 @@ T *aligned_alloc_shared(
   if (is_not_power_of_two(Alignment)) {
     return nullptr;
   }
-  return static_cast<T *>(aligned_alloc_shared(max(Alignment, alignof(T)),
-                                               Count * sizeof(T), Dev, Ctxt,
-                                               PropList, CodeLoc));
+  size_t Align = Alignment < alignof(T) ? alignof(T) : Alignment;
+  return static_cast<T *>(aligned_alloc_shared(Align, Count * sizeof(T), Dev,
+                                               Ctxt, PropList, CodeLoc));
 }
 
 template <typename T>
@@ -317,9 +315,9 @@ T *aligned_alloc(
   if (is_not_power_of_two(Alignment)) {
     return nullptr;
   }
-  return static_cast<T *>(aligned_alloc(max(Alignment, alignof(T)),
-                                        Count * sizeof(T), Dev, Ctxt, Kind,
-                                        PropList, CodeLoc));
+  size_t Align = Alignment < alignof(T) ? alignof(T) : Alignment;
+  return static_cast<T *>(aligned_alloc(Align, Count * sizeof(T), Dev, Ctxt,
+                                        Kind, PropList, CodeLoc));
 }
 
 template <typename T>

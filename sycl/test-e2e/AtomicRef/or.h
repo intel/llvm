@@ -13,6 +13,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -31,23 +32,22 @@ void or_local_test(queue q) {
     buffer<T> cum_buf(&cum, 1);
     buffer<T> output_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-       auto cum = cum_buf.template get_access<access::mode::read_write>(cgh);
-       auto out =
-           output_buf.template get_access<access::mode::discard_write>(cgh);
+       auto cum = cum_buf.template get_access<access_mode::read_write>(cgh);
+       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
        local_accessor<T, 1> loc(1, cgh);
 
        cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> it) {
          int gid = it.get_global_id(0);
          if (gid == 0)
            loc[0] = 0;
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          auto atm = AtomicRef < T,
               (order == memory_order::acquire || order == memory_order::release)
                   ? memory_order::relaxed
                   : order,
               scope, space > (loc[0]);
          out[gid] = atm.fetch_or(T(1ll << gid), order);
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          if (gid == 0)
            cum[0] = loc[0];
        });
@@ -78,9 +78,8 @@ void or_global_test(queue q) {
     buffer<T> output_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto cum = cum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out =
-          output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto cum = cum_buf.template get_access<access_mode::read_write>(cgh);
+      auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
         auto atm = AtomicRef < T,

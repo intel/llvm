@@ -11,7 +11,7 @@
 ; CHECK-SPIRV-DAG: Capability AtomicFloat16AddEXT
 ; CHECK-SPIRV: TypeInt [[Int:[0-9]+]] 32 0
 ; CHECK-SPIRV-DAG: Constant [[Int]] [[ScopeCrossDevice:[0-9]+]] 0 {{$}}
-; CHECK-SPIRV-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
+; CHECK-SPIRV-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 528
 ; CHECK-SPIRV: TypeFloat [[Half:[0-9]+]] 16
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[HalfPointer:[0-9]+]]
 ; CHECK-SPIRV: Constant [[Half]] [[HalfValue:[0-9]+]] 15360
@@ -27,7 +27,7 @@ entry:
  %0 = atomicrmw fsub ptr addrspace(1) @f, half 1.0e+00 seq_cst
 ; CHECK-SPIRV: FNegate [[Half]] [[NegateValue:[0-9]+]] [[HalfValue]]
 ; CHECK-SPIRV: AtomicFAddEXT [[Half]] {{[0-9]+}} [[HalfPointer]] [[ScopeCrossDevice]] [[MemSem_SequentiallyConsistent]] [[NegateValue]]
-; CHECK-LLVM: [[FNegateLLVM:%[0-9]+]] = fneg half 0xH3C00
+; CHECK-LLVM: [[FNegateLLVM:%[0-9]+]] = fneg half 1.000000e+00
 ; CHECK-LLVM: call spir_func half {{.*}}atomic_add{{.*}}(ptr addrspace(1) @f, half [[FNegateLLVM]])
   ret void
 }

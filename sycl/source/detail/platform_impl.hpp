@@ -12,11 +12,12 @@
 #include <detail/split_string.hpp>
 #include <detail/ur.hpp>
 #include <detail/ur_info_code.hpp>
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/platform.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -24,7 +25,6 @@ inline namespace _V1 {
 // Forward declaration
 class device_selector;
 class device;
-enum class aspect;
 
 namespace detail {
 class device_impl;
@@ -103,11 +103,11 @@ public:
   }
 
   /// \return an instance of OpenCL cl_platform_id.
-  cl_platform_id get() const {
+  OpenCLPlatformT get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
                                                             &nativeHandle);
-    return ur::cast<cl_platform_id>(nativeHandle);
+    return ur::cast<OpenCLPlatformT>(nativeHandle);
   }
 
   /// Returns raw underlying UR platform handle.

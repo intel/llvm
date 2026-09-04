@@ -12,6 +12,7 @@
 // The test verifies esimd::slm_gather() functions accepting  optional
 // compile-time esimd::properties. The slm_gather() calls in this test use
 // VS > 1 (number of loads per offset) and require DG2 or PVC to run.
+#include <iostream>
 
 #include "Inputs/gather.hpp"
 

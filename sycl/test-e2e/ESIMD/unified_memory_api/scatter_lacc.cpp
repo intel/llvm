@@ -14,6 +14,7 @@
 // and optional compile-time esimd::properties.
 // The scatter() calls in this test do not use VS > 1 (number of loads per
 // offset) to not impose using PVC features.
+#include <iostream>
 
 #include "Inputs/scatter.hpp"
 

@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <random>
 
+#include <algorithm>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/reduction_properties.hpp>
 

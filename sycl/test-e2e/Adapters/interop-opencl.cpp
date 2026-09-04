@@ -29,7 +29,7 @@ int main() {
   sycl::buffer<int, 1> Buffer(&Data[0], sycl::range<1>(1));
   {
     Queue.submit([&](sycl::handler &cgh) {
-      auto Acc = Buffer.get_access<sycl::access::mode::read_write>(cgh);
+      auto Acc = Buffer.get_access<sycl::access_mode::read_write>(cgh);
       cgh.host_task([=](const sycl::interop_handle &ih) {
         (void)Acc;
         auto BufNative = ih.get_native_mem<sycl::backend::opencl>(Acc);

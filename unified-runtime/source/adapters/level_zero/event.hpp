@@ -28,7 +28,8 @@
 #include "queue.hpp"
 #include "unified-runtime/ur_api.h"
 
-extern "C" {
+namespace ur::level_zero::v1 {
+
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
                                    bool *isEventDeleted = nullptr);
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
@@ -38,7 +39,6 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool ForceDisableProfiling,
                         bool InterruptBasedEventEnabled,
                         std::optional<bool> IsInternal = std::nullopt);
-} // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
 // the context.
@@ -126,7 +126,7 @@ struct ur_ze_event_list_t {
 
 void printZeEventList(const ur_ze_event_list_t &PiZeEventList);
 
-struct ur_event_handle_t_ : ur_object {
+struct ur_event_handle_t_ : ur_object_t {
   ur_event_handle_t_(ze_event_handle_t ZeEvent,
                      ze_event_pool_handle_t ZeEventPool,
                      ur_context_handle_t Context, ur_command_t CommandType,
@@ -216,12 +216,9 @@ struct ur_event_handle_t_ : ur_object {
   // Indicates within creation of proxy event.
   bool IsCreatingHostProxyEvent = {false};
 
-  // Indicates the recorded start and end timestamps for the event. These are
-  // only set for events returned by timestamp recording enqueue functions.
-  // A non-zero value for RecordEventStartTimestamp indicates the event was the
-  // result of a timestamp recording. If RecordEventEndTimestamp is non-zero, it
-  // means the event has fetched the end-timestamp from the queue.
-  uint64_t RecordEventStartTimestamp = 0;
+  // The GPU-written global timestamp for a timestamp-recording event. Set to a
+  // non-zero adjusted value once the end-timestamp has been fetched from the
+  // queue; IsTimestamped tells whether the event is timestamp-recording.
   uint64_t RecordEventEndTimestamp = 0;
 
   // Besides each PI object keeping a total reference count in
@@ -265,7 +262,6 @@ struct ur_event_handle_t_ : ur_object {
 
   ur::RefCount RefCount;
 };
-
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
 // This allows for a much more responsive debugging of hangs.
@@ -313,3 +309,5 @@ static const EventsScope DeviceEventsSetting = [] {
   // with the modern GPU drivers.
   return AllHostVisible;
 }();
+
+} // namespace ur::level_zero::v1

@@ -34,9 +34,9 @@ bool check_queue(sycl::queue &Q) {
   sycl::buffer<double, 1> C_buff(C_Data, sycl::range<1>(vec_size));
 
   Q.submit([&](sycl::handler &cgh) {
-     auto A_acc = A_buff.get_access<sycl::access::mode::read>(cgh);
-     auto B_acc = B_buff.get_access<sycl::access::mode::read>(cgh);
-     auto C_acc = C_buff.get_access<sycl::access::mode::write>(cgh);
+     auto A_acc = A_buff.get_access<sycl::access_mode::read>(cgh);
+     auto B_acc = B_buff.get_access<sycl::access_mode::read>(cgh);
+     auto C_acc = C_buff.get_access<sycl::access_mode::write>(cgh);
      cgh.parallel_for(sycl::range<1>{vec_size}, [=](sycl::id<1> idx) {
        C_acc[idx] = A_acc[idx] + B_acc[idx];
      });

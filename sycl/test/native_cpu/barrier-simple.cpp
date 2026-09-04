@@ -4,6 +4,7 @@
 
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O0 -g %s -o %t_debug
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t_debug
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

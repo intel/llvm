@@ -13,11 +13,11 @@
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -170,6 +170,34 @@ private:
       Level = Parser();
 
     return Level;
+  }
+};
+
+// SYCL_DUMP_IMAGES controls dumping of device image binaries to files:
+// unset or 0 - dumping is disabled.
+// 2 - dump only the device images actually used at runtime.
+// Any other value - dump all device images loaded into the runtime.
+template <> class SYCLConfig<SYCL_DUMP_IMAGES> {
+  using BaseT = SYCLConfigBase<SYCL_DUMP_IMAGES>;
+  enum Level { Off = 0, All = 1, UsedOnly = 2 };
+
+public:
+  static bool dumpUsedOnly() { return getLevel() == UsedOnly; }
+  static bool dumpAll() { return getLevel() == All; }
+
+private:
+  static unsigned int getLevel() {
+    static unsigned int Value = []() -> unsigned int {
+      const char *ValStr = BaseT::getRawValue();
+      if (!ValStr)
+        return Off;
+      // An explicit 0 disables dumping. Any value other than 2, including a
+      // non-numeric one, keeps the historical "dump all images" behavior.
+      if (std::string(ValStr) == "0")
+        return Off;
+      return std::atoi(ValStr) == UsedOnly ? UsedOnly : All;
+    }();
+    return Value;
   }
 };
 
@@ -611,6 +639,30 @@ private:
 
 template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS> {
   using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_KERNELS>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue = false;
+    const char *ValStr = getCachedValue();
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_GRAPH_FORCE_NATIVE_RECORDING> {
+  using BaseT = SYCLConfigBase<SYCL_GRAPH_FORCE_NATIVE_RECORDING>;
 
 public:
   static bool get() {

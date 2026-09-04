@@ -36,7 +36,7 @@ int main() {
   auto ctxt = q.get_context();
   int *array;
 
-  if (dev.get_info<sycl::info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     array = (int *)ext::oneapi::experimental::malloc(N * sizeof(int), dev,
                                                      usm::alloc::host);
     check_and_free(array, dev, ctxt, usm::alloc::host);
@@ -72,7 +72,7 @@ int main() {
     check_and_free(array, dev, ctxt, usm::alloc::host);
   }
 
-  if (dev.get_info<sycl::info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     array =
         (int *)ext::oneapi::experimental::malloc_shared(N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::shared);
@@ -105,7 +105,7 @@ int main() {
     check_and_free(array, dev, ctxt, usm::alloc::shared);
   }
 
-  if (dev.get_info<sycl::info::device::usm_device_allocations>()) {
+  if (dev.has(aspect::usm_device_allocations)) {
     array =
         (int *)ext::oneapi::experimental::malloc_device(N * sizeof(int), dev);
     check_and_free(array, dev, ctxt, usm::alloc::device);

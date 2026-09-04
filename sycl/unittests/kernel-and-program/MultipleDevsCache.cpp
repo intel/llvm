@@ -107,7 +107,12 @@ protected:
 
 // Test that program is retained for each subset of the list of devices and that
 // number of urKernelRelease calls is correct.
+#ifdef _WIN32
+// https://github.com/intel/llvm/issues/21553
+TEST_P(MultipleDeviceCacheTest, DISABLED_ProgramRetain) {
+#else
 TEST_P(MultipleDeviceCacheTest, ProgramRetain) {
+#endif
   {
     // Reset counters
     RetainCounter = 0;
@@ -152,7 +157,7 @@ TEST_P(MultipleDeviceCacheTest, ProgramRetain) {
     // on number of device images. This test has one image, but other tests can
     // create other images. Additional variable is added to control count of
     // urProgramRetain calls.
-    detail::kernel_bundle_impl &BundleImpl = *getSyclObjImpl(Bundle);
+    detail::kernel_bundle_impl &BundleImpl = *detail::getSyclObjImpl(Bundle);
 
     // Bundle should only contain a single image, specifically the one with
     // MultipleDevsCacheTestKernel.

@@ -53,7 +53,7 @@
 ; LAXX-NEXT:       Lower Garbage Collection Instructions
 ; LAXX-NEXT:       Shadow Stack GC Lowering
 ; LAXX-NEXT:       Remove unreachable blocks from the CFG
-; LAXX-NEXT:       Natural Loop Information
+; LAXX-NEXT:       Cycle Info Analysis
 ; LAXX-NEXT:       Post-Dominator Tree Construction
 ; LAXX-NEXT:       Branch Probability Analysis
 ; LAXX-NEXT:       Block Frequency Analysis
@@ -69,6 +69,7 @@
 ; LAXX-NEXT:       FPBuiltin Function Selection
 ; LAXX-NEXT:       Natural Loop Information
 ; LAXX-NEXT:       Type Promotion
+; LAXX-NEXT:       Cycle Info Analysis
 ; LAXX-NEXT:       Post-Dominator Tree Construction
 ; LAXX-NEXT:       Branch Probability Analysis
 ; LAXX-NEXT:       Block Frequency Analysis
@@ -81,7 +82,7 @@
 ; LAXX-NEXT:       Module Verifier
 ; LAXX-NEXT:       Basic Alias Analysis (stateless AA impl)
 ; LAXX-NEXT:       Function Alias Analysis Results
-; LAXX-NEXT:       Natural Loop Information
+; LAXX-NEXT:       Cycle Info Analysis
 ; LAXX-NEXT:       Post-Dominator Tree Construction
 ; LAXX-NEXT:       Branch Probability Analysis
 ; LAXX-NEXT:       Assignment Tracking Analysis
@@ -98,13 +99,15 @@
 ; LAXX-NEXT:       Remove dead machine instructions
 ; LAXX-NEXT:       MachineDominator Tree Construction
 ; LAXX-NEXT:       Machine Natural Loop Construction
+; LAXX-NEXT:       Machine Cycle Info Analysis
 ; LAXX-NEXT:       Machine Block Frequency Analysis
+; LAXX-NEXT:       Machine Register Class Info Analysis
 ; LAXX-NEXT:       Early Machine Loop Invariant Code Motion
 ; LAXX-NEXT:       MachineDominator Tree Construction
+; LAXX-NEXT:       Machine Cycle Info Analysis
 ; LAXX-NEXT:       Machine Block Frequency Analysis
 ; LAXX-NEXT:       Machine Common Subexpression Elimination
 ; LAXX-NEXT:       MachinePostDominator Tree Construction
-; LAXX-NEXT:       Machine Cycle Info Analysis
 ; LAXX-NEXT:       Machine code sinking
 ; LAXX-NEXT:       Peephole Optimizations
 ; LAXX-NEXT:       Remove dead machine instructions
@@ -142,6 +145,7 @@
 ; LAXX-NEXT:       Remove Redundant DEBUG_VALUE analysis
 ; LAXX-NEXT:       Fixup Statepoint Caller Saved
 ; LAXX-NEXT:       PostRA Machine Sink
+; LAXX-NEXT:       Machine Cycle Info Analysis
 ; LAXX-NEXT:       Machine Block Frequency Analysis
 ; LAXX-NEXT:       MachineDominator Tree Construction
 ; LAXX-NEXT:       MachinePostDominator Tree Construction
@@ -159,6 +163,7 @@
 ; LAXX-NEXT:       Machine Natural Loop Construction
 ; LAXX-NEXT:       Post RA top-down list latency scheduler
 ; LAXX-NEXT:       Analyze Machine Code For Garbage Collection
+; LAXX-NEXT:       Machine Cycle Info Analysis
 ; LAXX-NEXT:       Machine Block Frequency Analysis
 ; LAXX-NEXT:       MachinePostDominator Tree Construction
 ; LAXX-NEXT:       Branch Probability Basic Block Placement

@@ -20,25 +20,12 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.init.o %t.calc.o %t.main.o -o %t2.fat
 // RUN: %{run} %t2.fat
 
-// Multiple sources with kernel code with old-style objects
+// Multiple sources with kernel code in a static archive. Archive is built
+// via the objects above.
 // Test with `--offload-new-driver`
-// RUN: %{build} --no-offload-new-driver -c -o %t.init.o -DINIT_KERNEL
-// RUN: %{build} --no-offload-new-driver -c -o %t.calc.o -DCALC_KERNEL
-// RUN: %{build} --no-offload-new-driver -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.init.o %t.calc.o %t.main.o -o %t3.fat
-// RUN: %{run} %t3.fat
-
-// Multiple sources with kernel code with old-style objects in a static archive
-// Test with `--offload-new-driver`
-// RUN: %{build} --no-offload-new-driver -c -o %t.init.o -DINIT_KERNEL
-// RUN: %{build} --no-offload-new-driver -c -o %t.calc.o -DCALC_KERNEL
-// RUN: %{build} --no-offload-new-driver -c -o %t.main.o -DMAIN_APP
 // RUN: llvm-ar r %t.a %t.init.o %t.calc.o
-// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.main.o %t.a -o %t4.fat
-// RUN: %{run} %t4.fat
-
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.main.o %t.a -o %t3.fat
+// RUN: %{run} %t3.fat
 
 #include <sycl/detail/core.hpp>
 
@@ -51,7 +38,7 @@ void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i);
 #elif INIT_KERNEL
 void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i) {
   q.submit([&](handler &cgh) {
-    auto B = b.get_access<access::mode::write>(cgh);
+    auto B = b.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class init>(r, [=](id<1> index) { B[index] = i; });
   });
 }
@@ -64,9 +51,9 @@ void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b, buffer<int, 1> &c,
 void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b, buffer<int, 1> &c,
               range<1> &r) {
   q.submit([&](handler &cgh) {
-    auto A = a.get_access<access::mode::read>(cgh);
-    auto B = b.get_access<access::mode::read>(cgh);
-    auto C = c.get_access<access::mode::write>(cgh);
+    auto A = a.get_access<access_mode::read>(cgh);
+    auto B = b.get_access<access_mode::read>(cgh);
+    auto C = c.get_access<access_mode::write>(cgh);
     cgh.parallel_for<class calc>(
         r, [=](id<1> index) { C[index] = A[index] - B[index]; });
   });

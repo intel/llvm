@@ -9,6 +9,7 @@
 // REQUIRES: linux && arch-intel_gpu_dg1
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

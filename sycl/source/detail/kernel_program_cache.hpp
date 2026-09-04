@@ -15,6 +15,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/spinlock.hpp>
@@ -131,9 +132,12 @@ public:
   /* Drop LinkOptions and CompileOptions from CacheKey since they are only used
    * when debugging environment variables are set and we can just ignore them
    * since all kernels will have their build options overridden with the same
-   * string*/
-  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
-                                     std::set<ur_device_handle_t>>;
+   * string. The trailing bool encodes whether the cached program was built
+   * with ALLOW_UNRESOLVED_SYMBOLS, so AOT-with-imports cross-image link
+   * entries do not collide with ordinary builds of the same image. */
+  using ProgramCacheKeyT =
+      std::pair<std::pair<SerializedObj, std::uintptr_t>,
+                std::pair<std::set<ur_device_handle_t>, bool>>;
   using CommonProgramKeyT =
       std::pair<std::uintptr_t, std::set<ur_device_handle_t>>;
 
@@ -150,8 +154,11 @@ public:
       Hash ^= std::hash<std::uintptr_t>{}(Key.first.second);
 
       // Hash the devices.
-      for (const auto &Elem : Key.second)
+      for (const auto &Elem : Key.second.first)
         Hash ^= std::hash<void *>{}(static_cast<void *>(Elem));
+
+      // Hash the AllowUnresolvedSymbols flag.
+      Hash ^= std::hash<bool>{}(Key.second.second);
       return Hash;
     }
   };
@@ -165,8 +172,10 @@ public:
              // Check equality of imageId
              LHS.first.second == RHS.first.second &&
              // Check equality of devices
-             std::equal(LHS.second.begin(), LHS.second.end(),
-                        RHS.second.begin(), RHS.second.end());
+             std::equal(LHS.second.first.begin(), LHS.second.first.end(),
+                        RHS.second.first.begin(), RHS.second.first.end()) &&
+             // Check equality of AllowUnresolvedSymbols flag
+             LHS.second.second == RHS.second.second;
     }
   };
 
@@ -253,8 +262,10 @@ public:
     ur_context_handle_t MUrContext = nullptr;
   };
 
+  // Key is std::string (not string_view) because the backing storage for kernel
+  // names lives in DSO offload tables that may be unmapped on dlclose.
   using FastKernelCacheT =
-      emhash8::HashMap<std::string_view, FastKernelSubcacheWrapper>;
+      emhash8::HashMap<std::string, FastKernelSubcacheWrapper>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -342,7 +353,7 @@ public:
     for (unsigned char c : SerializedObjVec)
       SerializedObjString += std::to_string((int)c) + ",";
 
-    for (const auto &Device : CacheKey.second)
+    for (const auto &Device : CacheKey.second.first)
       DeviceList << "0x" << std::setbase(16)
                  << reinterpret_cast<uintptr_t>(Device) << ",";
 
@@ -388,7 +399,7 @@ public:
       It->second = std::make_shared<ProgramBuildResult>();
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
-          std::make_pair(CacheKey.first.second, CacheKey.second);
+          std::make_pair(CacheKey.first.second, CacheKey.second.first);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
       traceProgram("Program inserted.", CacheKey);
     } else
@@ -411,7 +422,7 @@ public:
                                                         Program.retain());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
-          std::make_pair(CacheKey.first.second, CacheKey.second);
+          std::make_pair(CacheKey.first.second, CacheKey.second.first);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
       traceProgram("Program inserted.", CacheKey);
     }
@@ -474,7 +485,8 @@ public:
     // smth in the cache
     traceKernel("Kernel inserted.", KernelName, true);
     MFastKernelCache.try_emplace(
-        KernelName, FastKernelSubcacheWrapper(KernelSubcache, getURContext()));
+        std::string(KernelName),
+        FastKernelSubcacheWrapper(KernelSubcache, getURContext()));
 
     FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcache.Mutex};
     ur_context_handle_t Context = getURContext();
@@ -551,7 +563,7 @@ public:
 
       // Remove entry from ProgramCache KeyMap.
       CommonProgramKeyT CommonKey =
-          std::make_pair(CacheKey.first.second, CacheKey.second);
+          std::make_pair(CacheKey.first.second, CacheKey.second.first);
       // Since KeyMap is a multi-map, we need to iterate over all entries
       // with this CommonKey and remove those that match the CacheKey.
       auto KeyMapItrRange = ProgCache.KeyMap.equal_range(CommonKey);
@@ -754,7 +766,7 @@ public:
                 exception(make_error_code(Errc), BuildResult->Error.Msg),
                 BuildResult->Error.Code);
           else
-            throw exception();
+            throw exception(make_error_code(Errc));
         }
 
         // NewState == BuildState::BS_Initial
@@ -833,9 +845,8 @@ private:
 
   // Map between fast kernel cache keys and program handle.
   // MFastKernelCacheMutex will be used for synchronization.
-  std::unordered_map<
-      ur_program_handle_t,
-      std::vector<std::pair<std::string_view, ur_device_handle_t>>>
+  std::unordered_map<ur_program_handle_t,
+                     std::vector<std::pair<std::string, ur_device_handle_t>>>
       MProgramToFastKernelCacheKeyMap;
 
   EvictionList MEvictionList;

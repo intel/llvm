@@ -56,8 +56,8 @@ bool testND(queue &Q, size_t XSize, size_t YSize, size_t ZSize = 1) {
                            image_channel_type::unsigned_int32, ImgRange);
 
     Q.submit([&](handler &CGH) {
-       auto AAcc = ImgA.template get_access<uint4, access::mode::read>(CGH);
-       auto BAcc = ImgB.template get_access<uint4, access::mode::write>(CGH);
+       auto AAcc = ImgA.template get_access<uint4, access_mode::read>(CGH);
+       auto BAcc = ImgB.template get_access<uint4, access_mode::write>(CGH);
        CGH.parallel_for<CopyKernel<Dimensions>>(
            ImgRange, [=](id<Dimensions> Id) {
              // Use int2 for 2D and int4 for 3D images.

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks correctness of hierarchical kernel execution when the work
@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/h_item.hpp>
 
 void __attribute__((noinline)) foo(sycl::group<1> work_group) {
   work_group.parallel_for_work_item([&](sycl::h_item<1> index) {});

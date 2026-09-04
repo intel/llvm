@@ -13,6 +13,7 @@
 // accessor - based ESIMD intrinsics when stateless memory accesses are
 // enforced, i.e. accessor based accesses are automatically converted to
 // stateless accesses with newly introduced predicate parameter.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -35,8 +36,8 @@ template <unsigned SIMDSize> int testAccessor(queue q) {
     auto buf_0 = buffer{vec_0};
     auto buf_2 = buffer{vec_2};
     q.submit([&](handler &h) {
-      auto access_0 = buf_0.template get_access<access::mode::read_write>(h);
-      auto access_2 = buf_2.template get_access<access::mode::read_write>(h);
+      auto access_0 = buf_0.template get_access<access_mode::read_write>(h);
+      auto access_2 = buf_2.template get_access<access_mode::read_write>(h);
 
       h.parallel_for(
           range<1>{size / SIMDSize}, [=](id<1> id) SYCL_ESIMD_KERNEL {

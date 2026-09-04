@@ -16,6 +16,7 @@
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
+#include <clang/Config/config.h>
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/CudaInstallationDetector.h>
 #include <clang/Driver/Driver.h>
@@ -43,6 +44,8 @@
 #include <llvm/SYCLLowerIR/LowerInvokeSimd.h>
 #include <llvm/SYCLLowerIR/SYCLDeviceLibBF16.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
+#include <llvm/SYCLLowerIR/SYCLUtils.h>
+#include <llvm/SYCLLowerIR/SanitizerUtils.h>
 #include <llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h>
 #include <llvm/SYCLPostLink/ModuleSplitter.h>
 #include <llvm/Support/BLAKE3.h>
@@ -51,9 +54,10 @@
 #include <llvm/Support/BinaryStreamReader.h>
 #include <llvm/Support/BinaryStreamWriter.h>
 #include <llvm/Support/Caching.h>
+#include <llvm/Support/FormatVariadic.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
-#include <llvm/TargetParser/TargetParser.h>
+#include <llvm/TargetParser/AMDGPUTargetParser.h>
 
 #include <algorithm>
 #include <array>
@@ -167,6 +171,14 @@ template <> struct std::hash<auto_pch_key> {
 };
 
 namespace {
+std::string getLibPathSuffix() {
+#ifdef _WIN32
+  return llvm::formatv("/{0}/", CLANG_INSTALL_LIBDIR_BASENAME);
+#else
+  return llvm::formatv("/{0}/dpcpp-{1}/sycl/", CLANG_INSTALL_LIBDIR_BASENAME,
+                       DPCPP_VERSION_MAJOR);
+#endif
+}
 class SYCLToolchain {
   static auto &getToolchainFS() {
     // TODO: For some reason, removing `thread_local` results in data races
@@ -236,7 +248,6 @@ class SYCLToolchain {
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 
-      Files->clearStatCache();
       return Success;
     }
   };
@@ -311,7 +322,7 @@ class SYCLToolchain {
       PCHFS->addFile(PCHPath, 0, std::move(PrecompiledPreamble));
       auto OverlayFS =
           llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(VFS);
-      OverlayFS->pushOverlay(PCHFS);
+      OverlayFS->pushOverlay(std::move(PCHFS));
       VFS = std::move(OverlayFS);
     }
 
@@ -784,17 +795,11 @@ static void getDeviceLibraries(const ArgList &Args,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-cmath",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-imf",
-                                             "libsycl-fallback-imf-fp64",
-                                             "libsycl-fallback-imf-bf16"};
+                                             "libsycl-imf"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
@@ -841,16 +846,16 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     LibNames.push_back(Libclc);
   }
 
+  std::string TripleName = (Format == BinaryFormat::PTX) ? "nvptx64-nvidia-cuda"
+                                                         : "amdgcn-amd-amdhsa";
+
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
-    std::string TripleName = (Format == BinaryFormat::PTX)
-                                 ? "nvptx64-nvidia-cuda"
-                                 : "amdgcn-amd-amdhsa";
     std::string LibPath =
         (LibName.find("libspirv") != std::string::npos)
             ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + "/lib/" + LibName).str();
+            : (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =
@@ -954,6 +959,25 @@ static IRSplitMode getDeviceCodeSplitMode(const InputArgList &UserArgList) {
   return SPLIT_AUTO;
 }
 
+// Parse and return the value of `-fsycl-id-queries-range=<int|uint|size_t>`
+// option. Return 0 if option is not specified (default value) or if value
+// specified is int, Return 1 if value specified is uint, and 2 if value
+// specified is size_t.
+static int getSYCLIdMaxRange(const InputArgList &UserArgList) {
+  int MaxRange = 0;
+  if (auto *Arg = UserArgList.getLastArg(OPT_fsycl_id_queries_range_EQ)) {
+    StringRef ArgVal{Arg->getValue()};
+    if (ArgVal == "int") {
+      MaxRange = 0;
+    } else if (ArgVal == "uint") {
+      MaxRange = 1;
+    } else if (ArgVal == "size_t") {
+      MaxRange = 2;
+    }
+  }
+  return MaxRange;
+}
+
 static void encodeProperties(PropertySetRegistry &Properties,
                              RTCDevImgInfo &DevImgInfo) {
   const auto &PropertySets = Properties.getPropSets();
@@ -994,6 +1018,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
       options::OPT_fsycl_allow_device_image_dependencies,
       options::OPT_fno_sycl_allow_device_image_dependencies, false);
 
+  const int MaxIdRange = getSYCLIdMaxRange(UserArgList);
+
   // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
   //       `shouldEmitOnlyKernelsAsEntryPoints` in
   //       `clang/lib/Driver/ToolChains/Clang.cpp`.
@@ -1015,8 +1041,9 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   // Otherwise: Port over the `removeSYCLKernelsConstRefArray` and
   // `removeDeviceGlobalFromCompilerUsed` methods.
 
-  assert(!(isModuleUsingAsan(*Module) || isModuleUsingMsan(*Module) ||
-           isModuleUsingTsan(*Module)));
+  assert(!(utils::isModuleUsingAsan(*Module) ||
+           utils::isModuleUsingMsan(*Module) ||
+           utils::isModuleUsingTsan(*Module)));
   // Otherwise: Run `SanitizerKernelMetadataPass`.
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
@@ -1085,7 +1112,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
                                   /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
           computeModuleProperties(MDesc->getModule(), MDesc->entries(), PropReq,
-                                  AllowDeviceImageDependencies);
+                                  AllowDeviceImageDependencies, MaxIdRange);
 
       // When the split mode is none, the required work group size will be added
       // to the whole module, which will make the runtime unable to launch the
@@ -1111,7 +1138,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath =
-          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
+          (SYCLToolchain::instance().getPrefix() + getLibPathSuffix() + LibName)
+              .str();
       ModuleUPtr LibModule;
       if (auto Error = SYCLToolchain::instance()
                            .loadBitcodeLibrary(LibPath, Ctx)

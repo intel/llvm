@@ -70,6 +70,9 @@ jobs:
             runner: UR_L0
             other_adapter: NATIVE_CPU
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0_V2
+            runner: UR_L0_BMG
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
           - name: CUDA
             runner: UR_CUDA
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all

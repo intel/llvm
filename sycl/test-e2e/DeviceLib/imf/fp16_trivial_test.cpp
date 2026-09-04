@@ -7,6 +7,7 @@
 // RUN: %{build} %{mathflags} -c -DSOURCE2 -o %t2.o
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} %t1.o %t2.o  -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "imf_utils.hpp"
 #include <cmath>

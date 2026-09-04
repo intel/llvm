@@ -10,7 +10,7 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: convergent norecurse nounwind mustprogress
-define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() local_unnamed_addr #0 !kernel_arg_buffer_location !4 {
+define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() local_unnamed_addr #0 {
 entry:
 ; CHECK: _ZTSZ4mainE15kernel_function(
 ; CHECK-NEXT: entry:
@@ -53,4 +53,3 @@ attributes #2 = { convergent nounwind }
 !1 = !{i32 1, i32 2}
 !2 = !{i32 4, i32 100000}
 !3 = !{!"clang version 13.0.0 (https://github.com/intel/llvm.git f16527331b8cd18b3e45a4a7bc13a2460c8d0d84)"}
-!4 = !{}

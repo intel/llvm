@@ -25,7 +25,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel = comdat any
 @__msan_func = internal addrspace(2) constant [106 x i8] c"typeinfo name for main::'lambda'(sycl::_V1::handler&)::operator()(sycl::_V1::handler&) const::MyKernelR_4\00"
 
 ; Function Attrs: mustprogress norecurse nounwind sanitize_memory uwtable
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel(ptr addrspace(1) noundef align 4 %_arg_array) local_unnamed_addr #1 comdat !srcloc !6 !kernel_arg_buffer_location !7 !sycl_fixed_targets !8 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel(ptr addrspace(1) noundef align 4 %_arg_array) local_unnamed_addr #1 comdat !srcloc !6 !sycl_fixed_targets !8 {
 entry:
   %0 = load i32, ptr addrspace(1) %_arg_array, align 4
   %1 = ptrtoint ptr addrspace(1) %_arg_array to i64
@@ -85,7 +85,6 @@ attributes #2 = { mustprogress noinline norecurse nounwind sanitize_memory uwtab
 !4 = !{i32 4, i32 100000}
 !5 = !{!"clang version 19.0.0git (https://github.com/intel/llvm f8eada76c08c6a5e6c5842842ac5b98fa72669be)"}
 !6 = !{i32 563}
-!7 = !{i32 -1}
 !8 = !{}
 !9 = !{!10}
 !10 = !{i32 41, !"__MsanKernelMetadata", i32 0}

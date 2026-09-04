@@ -76,6 +76,7 @@
 // RESULT2: Result (0): 2
 // RESULT2: Result (1): 2
 // RESULT2: Result (2): 2
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

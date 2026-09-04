@@ -1,8 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/marray.hpp>
 #include <sycl/specialization_id.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 

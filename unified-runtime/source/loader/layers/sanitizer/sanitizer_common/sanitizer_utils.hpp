@@ -14,12 +14,37 @@
 
 #include "sanitizer_libdevice.hpp"
 #include "unified-runtime/ur_api.h"
+#include "ur/ur.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <string>
 #include <vector>
 
 namespace ur_sanitizer_layer {
+
+// Accumulates events whose release must be deferred until a safe point
+// (e.g., context release). L0 may not retain input events passed to
+// pfnEventsWait long enough for the caller to release them immediately.
+struct DeferredEventList {
+  void add(const std::vector<ur_event_handle_t> &Events) {
+    std::scoped_lock<ur_shared_mutex> Lock(Mutex);
+    List.insert(List.end(), Events.begin(), Events.end());
+  }
+
+  void releaseAll() {
+    std::scoped_lock<ur_shared_mutex> Lock(Mutex);
+    for (auto &E : List) {
+      [[maybe_unused]] auto Result =
+          getContext()->urDdiTable.Event.pfnRelease(E);
+      assert(Result == UR_RESULT_SUCCESS);
+    }
+    List.clear();
+  }
+
+private:
+  ur_shared_mutex Mutex;
+  std::vector<ur_event_handle_t> List;
+};
 
 struct ManagedQueue {
   ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device,
@@ -67,6 +92,20 @@ size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
                                   ur_device_handle_t Device);
 size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device);
+
+inline bool hasZeroGlobalWorkSize(uint32_t WorkDim,
+                                  const size_t *GlobalWorkSize) {
+  for (uint32_t Dim = 0; Dim < WorkDim; ++Dim) {
+    if (GlobalWorkSize[Dim] == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+ur_result_t GetProgramMetadataNames(ur_program_handle_t Program,
+                                    std::string_view Prefix,
+                                    std::vector<std::string> &MetadataNames);
 
 template <class T>
 ur_result_t EnqueueUSMSet(ur_queue_handle_t Queue, void *Ptr, T *Value,

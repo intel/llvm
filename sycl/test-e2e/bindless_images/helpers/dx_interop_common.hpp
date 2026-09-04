@@ -9,6 +9,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include <iostream>
 #include <windows.h>
 
 // Windows Runtime C++ Template Library (ComPtr and friends)
@@ -312,7 +313,7 @@ ComPtr<IDXGIAdapter1> getDXGIHardwareAdapter(IDXGIFactory1 *pFactory,
 
       adapterName = getD3DDeviceName(desc);
 #ifdef VERBOSE_PRINT
-      std::cout << "Considering D3D device: " << name << std::endl;
+      std::cout << "Considering D3D device: " << adapterName << std::endl;
 #endif
       // Try matching SYCL device name with D3D device name
       // TODO: This should be replaced by LUID matching

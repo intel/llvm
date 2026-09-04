@@ -21,7 +21,7 @@ class KernelA;
 void threadFunction(sycl::buffer<int, 1> &Buf) {
   sycl::queue Q;
   Q.submit([&](sycl::handler &Cgh) {
-    auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
+    auto Acc = Buf.get_access<sycl::access_mode::read_write>(Cgh);
     Cgh.single_task<class KernelA>([=]() { Acc[0] += 1; });
   });
 }

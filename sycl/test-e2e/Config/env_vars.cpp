@@ -26,7 +26,7 @@ int main() {
   bool shouldCrash = env::isDefined("SHOULD_CRASH");
   try {
     myQueue.submit([&](handler &cgh) {
-      auto B = buf.get_access<access::mode::read_write>(cgh);
+      auto B = buf.get_access<access_mode::read_write>(cgh);
       cgh.single_task<class kernel_name1>([=]() { B[0] = 0; });
     });
     assert(!shouldCrash);

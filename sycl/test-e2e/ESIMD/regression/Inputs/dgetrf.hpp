@@ -10,6 +10,7 @@
 // decomposition without pivoting. The program contains multiple branches
 // corresponding to LU input sizes; all internal functions are inlined.
 //
+#include <iostream>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

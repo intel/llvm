@@ -20,7 +20,7 @@ int main() {
                        {property::buffer::use_host_ptr()});
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class id1>(globalRange,
                                     [=](id<1> index) { B[index] = index[0]; });
       });
@@ -43,7 +43,7 @@ int main() {
                         {property::buffer::use_host_ptr()});
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class item1_nooffset>(
             globalRange, [=](item<1, false> index) {
               B[index.get_id()] = int2{index.get_id()[0], index.get_range()[0]};
@@ -72,7 +72,7 @@ int main() {
                         {property::buffer::use_host_ptr()});
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class item1_offset>(
             globalRange, globalOffset, [=](item<1> index) {
               B[index.get_id()] = int3{index.get_id()[0], index.get_range()[0],
@@ -107,7 +107,7 @@ int main() {
                         {property::buffer::use_host_ptr()});
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
+        auto B = b.get_access<access_mode::read_write>(cgh);
         cgh.parallel_for<class item1_nd_range>(ndRange, [=](nd_item<1> index) {
           B[index.get_global_id()] =
               int3{index.get_global_id()[0], index.get_global_range()[0],

@@ -10,8 +10,10 @@
 // RUN: %{run} %t.out
 
 // This test verifies DPAS support for bfloat16.
+#include <iostream>
 
 #include "dpas_common.hpp"
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 int main(int argc, const char *argv[]) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());

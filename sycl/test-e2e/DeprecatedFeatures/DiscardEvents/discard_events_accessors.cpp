@@ -69,7 +69,7 @@ int main(int Argc, const char *Argv[]) {
   RunKernelHelper(Q, [&](int *Harray) {
     sycl::buffer<int, 1> Buf(Range);
     Q.submit([&](sycl::handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(CGH);
       CGH.parallel_for<class kernel_using_buffer_accessor>(
           Range, [=](sycl::item<1> itemID) {
             size_t i = itemID.get_id(0);

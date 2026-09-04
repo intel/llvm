@@ -2,6 +2,9 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
+// Uncomment to print additional test information
+// #define VERBOSE_PRINT
+
 class kernel_sampled_fetch;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -19,7 +22,7 @@ int test() {
 
   try {
     syclexp::bindless_image_sampler samp(
-        sycl::addressing_mode::repeat,
+        sycl::addressing_mode::clamp,
         sycl::coordinate_normalization_mode::unnormalized,
         sycl::filtering_mode::nearest);
 

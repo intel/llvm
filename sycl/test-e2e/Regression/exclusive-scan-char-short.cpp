@@ -5,6 +5,7 @@
 // for the first work item when given a short or char argument with
 // the maximum or minimum operator is computed correctly.
 #include "../helpers.hpp"
+#include <iostream>
 #include <numeric>
 
 #include <sycl/detail/core.hpp>

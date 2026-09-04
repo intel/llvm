@@ -73,9 +73,9 @@ int main(void) {
               << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read>(cgh);
-      auto PB = bufb.get_access<access::mode::read>(cgh);
-      auto PC = bufc.get_access<access::mode::write>(cgh);
+      auto PA = bufa.get_access<access_mode::read>(cgh);
+      auto PB = bufb.get_access<access_mode::read>(cgh);
+      auto PC = bufc.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<class Test>(
           nd_range<1>(GlobalRange, LocalRange),

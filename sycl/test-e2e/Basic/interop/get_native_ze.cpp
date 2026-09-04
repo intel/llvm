@@ -1,6 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %{build} %level_zero_options -o %t.ze.out
 // RUN: %{run} %t.ze.out
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 

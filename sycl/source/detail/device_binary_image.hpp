@@ -14,7 +14,7 @@
 #include <sycl/detail/ur.hpp>
 #include <unified-runtime/ur_api.h>
 
-#include <sycl/detail/iostream_proxy.hpp>
+#include <iostream>
 
 #include <atomic>
 #include <cstring>
@@ -218,6 +218,14 @@ public:
   const PropertyRange &getSpecConstantsDefaultValues() const {
     return SpecConstDefaultValuesMap;
   }
+  // Optional property set, only present in SYCLBIN produced by
+  // ext_oneapi_get_content when a spec constant was user-set. Records the
+  // runtime-effective blob of user-set spec constant values so the reader can
+  // restore the per-descriptor IsSet state on reload. Absent for ordinary
+  // (compiler-produced) images.
+  const PropertyRange &getSpecConstantsSetValues() const {
+    return SpecConstSetValuesMap;
+  }
   const PropertyRange &getDeviceLibMetadata() const {
     return DeviceLibMetadata;
   }
@@ -250,6 +258,17 @@ public:
     return ImageId;
   }
 
+  uint32_t getIdQueriesRangeProperties() const {
+    std::call_once(*MIdQueriesRangeFlag, [this]() {
+      if (auto Prop = this->getProperty("idQueriesRange")) {
+        MIdQueriesRange = DeviceBinaryProperty(Prop).asUint32();
+      } else {
+        MIdQueriesRange = 0; // Default value is "int" range.
+      }
+    });
+    return MIdQueriesRange;
+  }
+
 protected:
   sycl_device_binary get() const { return Bin; }
 
@@ -258,6 +277,7 @@ protected:
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
+  RTDeviceBinaryImage::PropertyRange SpecConstSetValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
@@ -277,6 +297,12 @@ protected:
 private:
   static std::atomic<uintptr_t> ImageCounter;
   uintptr_t ImageId = 0;
+  // Wrap MIdQueriesRangeFlag in a std::unique_ptr<std::once_flag>,
+  // which is movable (unlike std::once_flag itself).
+  // This allows the defaulted = operator to compile.
+  mutable std::unique_ptr<std::once_flag> MIdQueriesRangeFlag =
+      std::make_unique<std::once_flag>();
+  mutable uint32_t MIdQueriesRange = 0;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary

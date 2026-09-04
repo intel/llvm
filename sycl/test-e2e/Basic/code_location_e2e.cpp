@@ -21,6 +21,7 @@
    may change. pass in any value to signal "report only" and not run tests.
 
 */
+#include <iostream>
 
 #include <cstring>
 #include <sycl/detail/core.hpp>

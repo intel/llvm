@@ -16,6 +16,7 @@
 
 // CHECK-INTEL-GPU-WITH: <--- urProgramBuild
 // CHECK-INTEL-GPU-WITH-SAME: -igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

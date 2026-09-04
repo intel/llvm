@@ -60,7 +60,7 @@ bool test0() {
     buffer<MyStruct, 1> Buf(&S0, range<1>(1));
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      auto B = Buf.get_access<access::mode::write>(cgh);
+      auto B = Buf.get_access<access_mode::write>(cgh);
       cgh.single_task<class MyKernel>([=] { B[0] = S; });
     });
   }
@@ -87,7 +87,7 @@ bool test1() {
     buffer<unsigned int, 1> Buffer((unsigned int *)result, range<1>(4));
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      auto B = Buffer.get_access<access::mode::write>(cgh);
+      auto B = Buffer.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class bufferByRange_cap>(range<1>{4}, [=](id<1> index) {
         B[index.get(0)] = index.get(0) > 2 ? ice2 : ice.get(index.get(0));
       });

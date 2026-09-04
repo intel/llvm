@@ -56,3 +56,12 @@
 #else
 #define __SYCL_STANDALONE_DEBUG
 #endif
+
+// `__builtin_expect` is a GCC/Clang builtin; MSVC has no equivalent. Provide a
+// no-op shim here so headers using `__builtin_expect(cond, hint)` compile
+// cleanly under MSVC. Defined unconditionally in this central header to avoid
+// relying on transitive includes from headers that happen to define their own
+// shim.
+#if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
+#define __builtin_expect(a, b) (a)
+#endif

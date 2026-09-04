@@ -20,7 +20,7 @@
 // XFAIL: windows && intel_gpu_lnl_m && O0
 // XFAIL-TRACKER: CMPLRLLVM-72111
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED: linux && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21 || arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21096
 
 // RUN: %{build} -o %t.out
@@ -28,6 +28,7 @@
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out %}
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
+#include <iostream>
 
 #include "common.hpp"
 

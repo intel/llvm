@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/relational.h>
-#include <libspirv/spirv.h>
+#include "clc/clc_convert.h"
+#include "clc/relational/clc_islessgreater.h"
+#include "libspirv/spirv.h"
 
-#define _CLC_SPIRV_BUILTIN __spirv_LessOrGreater
-#define _CLC_BUILTIN_IMPL __spirv_FOrdNotEqual
-#include "genbinrelational.inc"
+#define __CLC_FUNCTION __spirv_LessOrGreater
+#define __CLC_IMPL_FUNCTION(x) __clc_islessgreater
+#define __CLC_BODY "relational_binary_def.inc"
+#include "clc/math/gentype.inc"

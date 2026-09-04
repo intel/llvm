@@ -242,3 +242,55 @@ _{endnote}_]
 
 |====
 
+
+== Examples
+
+=== Linking a SYCLBIN with a runtime-compiled source bundle
+
+The following example shows how a precompiled SYCLBIN file
+(`kernels.syclbin`) is loaded at runtime, linked together with a kernel
+bundle compiled from a SYCL source string, and used to launch a kernel
+defined in the SYCLBIN. Kernels from either origin are reachable through
+`ext_oneapi_get_kernel` on the linked bundle.
+
+The SYCLBIN file is produced ahead of time:
+
+[source,console]
+----
+clang++ --offload-new-driver -fsyclbin=object \
+        kernels.cpp -o kernels.syclbin
+----
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+int main() {
+  sycl::queue q;
+
+  auto kbObj = syclexp::get_kernel_bundle<sycl::bundle_state::object>(
+      q.get_context(), "kernels.syclbin");
+
+  std::string source = R"""(
+    // SYCL source providing a SYCL_EXTERNAL function used by kernels in
+    // kernels.syclbin and/or a sibling kernel of its own.
+  )""";
+  auto kbSrc = syclexp::create_kernel_bundle_from_source(
+      q.get_context(), syclexp::source_language::sycl, source);
+
+  auto kbSrcObj = syclexp::compile(kbSrc);
+
+  auto kbExe = sycl::link({kbObj, kbSrcObj});
+
+  sycl::kernel k = kbExe.ext_oneapi_get_kernel("MyKernel");
+  q.submit([&](sycl::handler &cgh) {
+     // Set args and launch.
+   }).wait_and_throw();
+}
+----
+
+The same pattern applies when both inputs are SYCLBIN files and when a
+SYCLBIN is loaded in `bundle_state::input` and brought to object state
+with `sycl::compile` before linking.
+

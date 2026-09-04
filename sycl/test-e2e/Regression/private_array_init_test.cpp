@@ -30,7 +30,7 @@ int main() {
   {
     s::buffer<size_t, 1> buf(&data, s::range<1>(1));
     q.submit([&](s::handler &cgh) {
-      auto acc = buf.get_access<s::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<s::access_mode::read_write>(cgh);
       cgh.single_task<class test>([=]() {
         // Test that SYCL program is not crashed if it contains a class/struct
         // that has private array member which is initialized by zeroes.

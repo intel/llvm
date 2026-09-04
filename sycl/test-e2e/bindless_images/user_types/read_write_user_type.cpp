@@ -15,6 +15,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 
 template <typename MyType, int NElems, typename OutType,
           sycl::image_channel_type ChannelType, typename KernelName>

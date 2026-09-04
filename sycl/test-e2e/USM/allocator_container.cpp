@@ -48,11 +48,11 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     runTest<usm::alloc::shared, class shared_test>(dev, ctxt, q);
   }
 
-  if (dev.get_info<info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     runTest<usm::alloc::host, class host_test>(dev, ctxt, q);
   }
 

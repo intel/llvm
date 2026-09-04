@@ -321,14 +321,26 @@ jobs:
         tar xf sycl_linux.tar.gz -C toolchain
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
-    - run: which clang++ sycl-ls
-    - run: sycl-ls --verbose
-    - run: SYCL_UR_TRACE=1 sycl-ls
+    - run: which dpclang++ dpsycl-ls
+    - run: dpsycl-ls --verbose
+    - run: SYCL_UR_TRACE=1 dpsycl-ls
     - name: Print IGC version
       run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
+
+    # Best-effort reservation of a few HugeTLB pages so the explicit huge-page
+    # path of the register_host_memory E2E test is exercised rather than being
+    # UNSUPPORTED. Failing to set it just means the huge-page test is UNSUPPORTED
+    # there, so never fail the job.
+    - name: Reserve HugeTLB pages
+      if: inputs.tests_selector == 'e2e'
+      continue-on-error: true
+      run: |
+        grep -i Huge /proc/meminfo
+        echo 2 | sudo tee /proc/sys/vm/nr_hugepages || true
+        grep -i Huge /proc/meminfo
 
     - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'

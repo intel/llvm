@@ -238,6 +238,11 @@ bool SPIRVType::isTypeVectorFloat() const {
   return isTypeVector() && getVectorComponentType()->isTypeFloat();
 }
 
+bool SPIRVType::isTypeIEEE754Float() const {
+  const SPIRVType *Ty = isTypeVector() ? getVectorComponentType() : this;
+  return Ty->isTypeFloat(16) || Ty->isTypeFloat(32) || Ty->isTypeFloat(64);
+}
+
 bool SPIRVType::isTypeVectorOrScalarBool() const {
   return isTypeBool() || isTypeVectorBool();
 }

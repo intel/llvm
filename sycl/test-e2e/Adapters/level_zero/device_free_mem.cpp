@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 using namespace sycl;
 
 int main() {

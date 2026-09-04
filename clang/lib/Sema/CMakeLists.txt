@@ -96,6 +96,7 @@ add_clang_library(clangSema
   SemaDeclCXX.cpp
   SemaDeclObjC.cpp
   SemaExceptionSpec.cpp
+  SemaExpand.cpp
   SemaExpr.cpp
   SemaExprCXX.cpp
   SemaExprMember.cpp
@@ -151,6 +152,9 @@ add_clang_library(clangSema
   omp_gen
   ClangDriverOptions
   acc_gen
+  # SemaAMDGPU.cpp includes AMDGPUTargetParser.h, which includes generated
+  # TargetParser headers.
+  target_parser_gen
 
   LINK_LIBS
   clangAPINotes

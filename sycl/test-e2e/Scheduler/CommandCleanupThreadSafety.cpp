@@ -16,7 +16,7 @@ class Foo;
 
 event submitTask(queue &Q, buffer<int, 1> &Buf) {
   return Q.submit([&](handler &Cgh) {
-    auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+    auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
     Cgh.single_task<Foo>([=]() { Acc[0] = 42; });
   });
 }

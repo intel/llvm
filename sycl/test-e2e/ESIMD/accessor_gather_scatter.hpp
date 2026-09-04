@@ -8,6 +8,7 @@
 //
 // The test checks functionality of the gather/scatter accessor-based ESIMD
 // intrinsics.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -56,7 +57,7 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
     range<1> glob_range{size / VL};
 
     auto e = q.submit([&](handler &cgh) {
-      auto acc = buf.template get_access<access::mode::read_write>(cgh);
+      auto acc = buf.template get_access<access_mode::read_write>(cgh);
       Kernel<T, VL, STRIDE> kernel(acc);
       cgh.parallel_for(glob_range, kernel);
     });

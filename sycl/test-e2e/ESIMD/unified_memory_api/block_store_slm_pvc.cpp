@@ -15,6 +15,7 @@
 // and using optional compile-time esimd::properties.
 // The slm_block_store() calls in this test use the mask operand and
 // requires PVC features.
+#include <iostream>
 
 #include "Inputs/block_store.hpp"
 

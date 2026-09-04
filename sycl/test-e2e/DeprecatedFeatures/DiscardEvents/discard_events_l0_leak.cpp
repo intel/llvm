@@ -1,8 +1,5 @@
 // REQUIRES: level_zero
 //
-// UNSUPPORTED: windows && level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
-//
 // RUN: %{build} -o %t.out
 //
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' %{l0_leak_check} %{run} %t.out wait  2>&1 | FileCheck %s
@@ -16,6 +13,7 @@
 // checks that urKernelRelease to be executed for each kernel call, and
 // EventRelease for events, that are used for dependencies between
 // command-lists.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>

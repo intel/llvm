@@ -2,6 +2,7 @@
 
 // When using zero dimension accessors with atomic access we
 // want to make sure they are compiling correctly on all devices.
+#include <iostream>
 
 #include <sycl/sycl.hpp>
 

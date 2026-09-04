@@ -95,8 +95,7 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
     return Loc->second();
 
   SPIRVDBG(spvdbgs() << "No factory for OpCode " << (unsigned)OpCode << '\n';)
-  assert(0 && "Not implemented");
-  return 0;
+  return nullptr;
 }
 
 std::unique_ptr<SPIRV::SPIRVEntry> SPIRVEntry::createUnique(Op OC) {
@@ -171,6 +170,7 @@ bool SPIRVEntry::isEndOfBlock() const {
   case OpReturn:
   case OpReturnValue:
   case OpUnreachable:
+  case OpAbortKHR:
     return true;
   default:
     return false;

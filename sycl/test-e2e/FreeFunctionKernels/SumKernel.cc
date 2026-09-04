@@ -16,3 +16,12 @@ void SumKernel::sum(accessor<int, 1> accA, accessor<int, 1> accB,
       ext::oneapi::this_work_item::get_nd_item<1>().get_global_linear_id();
   result[id] = accA[id] + accB[id];
 }
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
+void SumKernel::sumUSM(float *y, const float *x, int n) {
+  size_t i =
+      ext::oneapi::this_work_item::get_nd_item<1>().get_global_linear_id();
+  if (i < (size_t)n)
+    y[i] = x[i] + y[i];
+}

@@ -8,6 +8,7 @@
 #include "atomic_memory_order.h"
 #include <cassert>
 #include <iostream>
+#include <sycl/group_barrier.hpp>
 using namespace sycl;
 
 int main() {

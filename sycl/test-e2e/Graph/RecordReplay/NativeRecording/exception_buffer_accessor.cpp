@@ -30,7 +30,7 @@ int main() {
   if (!expectException(
           [&]() {
             Queue.submit([&](handler &CGH) {
-              auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
+              auto Acc = Buf.get_access<sycl::access_mode::write>(CGH);
               CGH.parallel_for(sycl::range<1>{N},
                                [=](sycl::id<1> Idx) { Acc[Idx] = 0; });
             });

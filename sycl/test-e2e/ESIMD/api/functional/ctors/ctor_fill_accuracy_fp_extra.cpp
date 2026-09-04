@@ -17,6 +17,7 @@
 //  - call simd with predefined base and step values
 //  - bitwise comparing that output[0] value is equal to base value and
 //    output[i] is equal to output[i -1] + step_value
+#include <iostream>
 
 #include "ctor_fill.hpp"
 

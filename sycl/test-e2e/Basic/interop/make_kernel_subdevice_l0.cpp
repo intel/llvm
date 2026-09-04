@@ -2,6 +2,7 @@
 // RUN: %{build} %level_zero_options %opencl_lib -o %t.ze.out
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.ze.out
 
+#include <CL/cl.h>
 #include <cstdlib>
 #include <iostream>
 #include <level_zero/ze_api.h>
@@ -132,7 +133,7 @@ int main() {
   }
 
   Q.submit([&](handler &cgh) {
-    auto acc = buf.get_access<access::mode::write>(cgh);
+    auto acc = buf.get_access<access_mode::write>(cgh);
     cgh.set_args(acc);
     cgh.parallel_for(range<1>(1), K);
   });

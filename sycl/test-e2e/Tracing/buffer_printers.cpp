@@ -27,9 +27,9 @@ int main() {
     buffer<int, 2> DstBuffer(DstData.data(), range<2>(Height, Width));
 
     Queue.submit([&](handler &CGH) {
-      auto Read = SrcBuffer.get_access<access::mode::read>(
+      auto Read = SrcBuffer.get_access<access_mode::read>(
           CGH, range<2>(Height, Width), id(Height, Width));
-      auto Write = DstBuffer.get_access<access::mode::write>(CGH);
+      auto Write = DstBuffer.get_access<access_mode::write>(CGH);
       CGH.copy(Read, Write);
     });
   }
@@ -44,7 +44,7 @@ int main() {
     sycl::buffer<int, 1> SubBuf(Buf, Size / 2, 8);
 
     Queue.submit([&](sycl::handler &CGH) {
-      auto Acc = SubBuf.get_access<sycl::access::mode::write>(CGH);
+      auto Acc = SubBuf.get_access<sycl::access_mode::write>(CGH);
       CGH.single_task<class empty_task>([=]() {});
     });
   }

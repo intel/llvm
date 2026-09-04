@@ -6,6 +6,7 @@
 // This test ensures that the Kernel Compiler build option flags
 // are passed all the way through to the final binary when using OpenCL C
 // source.
+#include <iostream>
 
 #include <cmath>
 

@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/relational.h>
-#include <libspirv/spirv.h>
+#include "clc/clc_convert.h"
+#include "clc/relational/clc_isnormal.h"
 
-#define _CLC_SPIRV_BUILTIN __spirv_IsNormal
-#define _CLC_BUILTIN_IMPL __builtin_isnormal
-#include "genunary.inc"
+#define __CLC_FUNCTION __spirv_IsNormal
+#define __CLC_IMPL_FUNCTION(x) __clc_isnormal
+#define __CLC_BODY "relational_unary_def.inc"
+#include "clc/math/gentype.inc"
