@@ -48,9 +48,6 @@ auto getDeviceComparisonLambda();
 } // namespace detail
 
 namespace ext::oneapi {
-// Forward declaration
-class filter_selector;
-
 enum class peer_access {
   access_supported = 0x0,
   atomics_supported = 0x1,

@@ -190,11 +190,6 @@ std::mutex &GlobalHandler::getPlatformMapMutex() {
   return PlatformMapMutex;
 }
 
-std::mutex &GlobalHandler::getFilterMutex() {
-  static std::mutex &FilterMutex = getOrCreate(MFilterMutex);
-  return FilterMutex;
-}
-
 std::vector<adapter_impl *> &GlobalHandler::getAdapters() {
   static std::vector<adapter_impl *> &adapters = getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
