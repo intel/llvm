@@ -51,7 +51,8 @@ static constexpr unsigned ConstantAddrspaceID = 2;
 // of the non-variadic (variadic template) calls.
 using FunctionVecTy = SmallVector<Function *, 8>;
 
-Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType);
+Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType,
+                               CallingConv::ID CC);
 size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
                                  FunctionVecTy &FunctionsToDrop);
 } // namespace
@@ -70,7 +71,7 @@ ModulePass *llvm::createSYCLMutatePrintfAddrspaceLegacyPass() {
 PreservedAnalyses
 SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto *CASLiteralType = PointerType::get(M.getContext(), ConstantAddrspaceID);
-  Function *CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType);
+  Function *CASPrintfFunc = nullptr;
 
   FunctionVecTy FunctionsToDrop;
   bool ModuleChanged = false;
@@ -82,13 +83,21 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
     if (F.getArg(0)->getType() == CASLiteralType)
       // No need to replace the literal type and its printf users
       continue;
+    if (F.use_empty()) {
+      FunctionsToDrop.emplace_back(&F);
+      ModuleChanged = true;
+      continue;
+    }
+    if (!CASPrintfFunc)
+      CASPrintfFunc =
+          getCASPrintfFunction(M, CASLiteralType, F.getCallingConv());
     ModuleChanged |=
         setFuncCallsOntoCASPrintf(&F, CASPrintfFunc, FunctionsToDrop);
   }
   for (Function *F : FunctionsToDrop)
     F->eraseFromParent();
 
-  return ModuleChanged ? PreservedAnalyses::all() : PreservedAnalyses::none();
+  return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
 /// Helper implementations
@@ -97,7 +106,8 @@ namespace {
 /// Get the constant addrspace version of the __spirv_ocl_printf declaration,
 /// or generate it if the IR module doesn't have it yet. Also make it
 /// variadic so that it could replace all non-variadic generic AS versions.
-Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType) {
+Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType,
+                               CallingConv::ID CC) {
   Type *Int32Type = Type::getInt32Ty(M.getContext());
   auto *CASPrintfFuncTy = FunctionType::get(Int32Type, CASLiteralType,
                                             /*isVarArg=*/true);
@@ -106,7 +116,7 @@ Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType) {
   FunctionCallee CASPrintfFuncCallee =
       M.getOrInsertFunction("_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy);
   auto *CASPrintfFunc = cast<Function>(CASPrintfFuncCallee.getCallee());
-  CASPrintfFunc->setCallingConv(CallingConv::SPIR_FUNC);
+  CASPrintfFunc->setCallingConv(CC);
   CASPrintfFunc->setDSOLocal(true);
   return CASPrintfFunc;
 }
