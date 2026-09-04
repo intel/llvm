@@ -883,6 +883,136 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
                        /*InsertBarrierForInOrderCommand*/ false);
 }
 
+namespace {
+// The two argument forms differ only in how one element yields the bytes to
+// bind and their kind: a raw_kernel_arg carries plain bytes unless it was built
+// as a pointer argument.
+inline sycl::detail::KernelArgView
+makeKernelArgView(const sycl::detail::KernelArgView &Arg) {
+  return Arg;
+}
+inline sycl::detail::KernelArgView
+makeKernelArgView(const ext::oneapi::experimental::raw_kernel_arg &Arg) {
+  namespace syclex_detail = ext::oneapi::experimental::detail;
+  return {syclex_detail::RawKernelArgAccess::getData(Arg),
+          syclex_detail::RawKernelArgAccess::getSize(Arg),
+          syclex_detail::RawKernelArgAccess::isPointer(Arg)
+              ? sycl::detail::kernel_param_kind_t::kind_pointer
+              : sycl::detail::kernel_param_kind_t::kind_std_layout};
+}
+} // namespace
+
+template <typename ArgT>
+void queue_impl::submit_kernel_obj_direct_impl(
+    const detail::nd_range_view &RangeView,
+    const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+    sycl::span<const ArgT> Args, const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc) {
+
+  KernelData KData;
+  KData.setDeviceKernelInfoPtr(&KernelImpl->getDeviceKernelInfo());
+  KData.setNDRDesc(NDRDescT(RangeView));
+  KData.getArgs().reserve(Args.size());
+
+  // The kernel may have come from a bundle, and the bundle has to travel with
+  // it the way the handler path lets it: it is what lets enqueueImpKernel
+  // initialize the device globals a bundle keeps to itself.
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl =
+      KernelImpl->get_kernel_bundle();
+
+  // This overload carries no properties, so a kernel that needs work group
+  // scratch memory can never have been given a size. The handler path reports
+  // that in handler.cpp, so report it here too rather than launching a kernel
+  // whose scratch allocation is missing.
+  if (KData.getDeviceKernelInfoPtr()->getWorkGroupDynamicLocalMem())
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::memory_allocation),
+        "Kernel allocates work group scratch memory but an allocation size "
+        "has not been specified through the work_group_scratch_size property!");
+
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData)
+      -> std::pair<EventImplPtr, bool> {
+    bool SchedulerBypass =
+        (CGData.MEvents.size() > 0
+             ? detail::Scheduler::areEventsSafeForSchedulerBypass(
+                   CGData.MEvents, getContextImpl())
+             : true) &&
+        !hasCommandGraph();
+
+    // On the bypass path the argument values are read before this call returns,
+    // so they can be bound where the caller keeps them. Otherwise the command
+    // group outlives the call and they have to be copied into its storage.
+    for (size_t I = 0; I < Args.size(); ++I) {
+      const sycl::detail::KernelArgView View = makeKernelArgView(Args[I]);
+      // `ArgDesc` holds a `void *` because the kinds that carry an object
+      // rather than bytes hand it out as a mutable pointer. These arguments are
+      // bytes and this path only ever reads them, hence the cast.
+      void *Value = const_cast<void *>(View.MPtr);
+      if (!SchedulerBypass) {
+        const char *Bytes = static_cast<const char *>(View.MPtr);
+        CGData.MArgsStorage.emplace_back(Bytes, Bytes + View.MSize);
+        Value = CGData.MArgsStorage.back().data();
+      }
+      KData.addArg(View.MKind, Value, static_cast<int>(View.MSize),
+                   static_cast<int>(I));
+    }
+
+    if (SchedulerBypass)
+      return {submit_kernel_scheduler_bypass(
+                  KData, CGData.MEvents, /*EventNeeded*/ false,
+                  KernelImpl.get(), KernelBundleImpl.get(), CodeLoc,
+                  IsTopCodeLoc),
+              /*SchedulerBypass*/ true};
+
+    // Extract data to move KData
+    ur_kernel_cache_config_t KernelCacheConfig = KData.getKernelCacheConfig();
+    bool IsCooperative = KData.isCooperative();
+    bool UsesClusterLaunch = KData.usesClusterLaunch();
+    size_t KernelWorkGroupMemorySize = KData.getKernelWorkGroupMemorySize();
+
+    auto CommandGroup = std::make_unique<detail::CGExecKernel>(
+        KData.getNDRDesc(), /*HostKernel*/ nullptr, KernelImpl,
+        KernelBundleImpl, std::move(CGData), std::move(KData).getArgs(),
+        *KData.getDeviceKernelInfoPtr(),
+        std::vector<std::shared_ptr<detail::stream_impl>>{},
+        std::vector<std::shared_ptr<const void>>{}, detail::CGType::Kernel,
+        KernelCacheConfig, IsCooperative, UsesClusterLaunch,
+        KernelWorkGroupMemorySize, CodeLoc);
+    CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+    if (auto GraphImpl = getCommandGraph(); GraphImpl)
+      return {submit_command_to_graph(*GraphImpl, std::move(CommandGroup),
+                                      detail::CGType::Kernel),
+              /*SchedulerBypass*/ false};
+
+    return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                   *this, true),
+            /*SchedulerBypass*/ false};
+  };
+
+  submit_direct(/*CallerNeedsEvent*/ false, /*DepEvents*/ {}, SubmitKernelFunc,
+                detail::CGType::Kernel,
+                /*InsertBarrierForInOrderCommand*/ false);
+}
+
+void queue_impl::submit_kernel_obj_direct_without_event(
+    const detail::nd_range_view &RangeView,
+    const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+    sycl::span<const sycl::detail::KernelArgView> Args,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  submit_kernel_obj_direct_impl(RangeView, KernelImpl, Args, CodeLoc,
+                                IsTopCodeLoc);
+}
+
+void queue_impl::submit_kernel_obj_direct_without_event(
+    const detail::nd_range_view &RangeView,
+    const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+    sycl::span<const ext::oneapi::experimental::raw_kernel_arg> Args,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  submit_kernel_obj_direct_impl(RangeView, KernelImpl, Args, CodeLoc,
+                                IsTopCodeLoc);
+}
+
 EventImplPtr queue_impl::submit_graph_direct_impl(
     std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
         ExecGraph,

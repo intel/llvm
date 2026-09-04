@@ -10,11 +10,16 @@
 
 #include <utility>
 
+#if __has_include(<span>)
+#include <span>
+#endif
+
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
@@ -97,6 +102,101 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
     return MLaunchConfig.getProperties();
   }
 };
+
+// The argument type as the kernel sees it. Deliberately not `std::decay_t`,
+// which turns an array into a pointer: an array has to keep being bound as the
+// bytes it is, which is what `handler::setArgHelper` does with it.
+template <typename T>
+using plain_arg_t = std::remove_cv_t<std::remove_reference_t<T>>;
+
+// An argument that is bound as its own bytes with no further interpretation.
+template <typename T>
+inline constexpr bool is_scalar_kernel_arg_v =
+    std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_pointer_v<T>;
+
+// An argument that can be bound as plain bytes, i.e. one that carries no
+// requirement for the scheduler to track. Accessors, local accessors, streams
+// and work group memory are deliberately excluded and keep using the command
+// group path; `HasSpecialCaptures` in the runtime draws the same line. So is
+// every other class type, which may be a struct with special types inside and
+// then needs `kind_struct_with_special_type` instead.
+//
+// An array of scalars is bound as the bytes it is, which is what
+// `handler::setArgHelper` does with it, so it belongs on this path.
+template <typename T>
+inline constexpr bool is_plain_kernel_arg_v =
+    is_scalar_kernel_arg_v<plain_arg_t<T>> ||
+    (std::is_array_v<plain_arg_t<T>> &&
+     is_scalar_kernel_arg_v<std::remove_all_extents_t<plain_arg_t<T>>>) ||
+    std::is_same_v<plain_arg_t<T>, raw_kernel_arg>;
+
+// The kind a plain argument has to carry. A pointer has to keep its kind: the
+// runtime binds a pointer argument as UR_EXP_KERNEL_ARG_TYPE_POINTER, which the
+// OpenCL adapter passes to clSetKernelArgMemPointerINTEL rather than to
+// clSetKernelArg, so plain bytes are not a substitute. The Native CPU adapter
+// draws the same distinction: it puts a pointer argument straight into the
+// argument slot, whereas a value argument lands there as the address of the
+// adapter's own copy.
+//
+// `cl_mem` is the one pointer that is not an address: it names a memory object
+// and has to be bound as the bytes of the handle, which is the exception
+// `handler::setArgHelper` makes for `OpenCLMemT`. A `raw_kernel_arg` is not
+// here because it says at run time which of the two it carries.
+template <typename T>
+inline constexpr sycl::detail::kernel_param_kind_t plain_arg_kind_v =
+    (std::is_pointer_v<plain_arg_t<T>> &&
+     !std::is_same_v<plain_arg_t<T>, sycl::OpenCLMemT>)
+        ? sycl::detail::kernel_param_kind_t::kind_pointer
+        : sycl::detail::kernel_param_kind_t::kind_std_layout;
+
+template <typename T>
+sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
+  using sycl::detail::kernel_param_kind_t;
+  if constexpr (std::is_same_v<plain_arg_t<T>, raw_kernel_arg>)
+    return {RawKernelArgAccess::getData(Arg), RawKernelArgAccess::getSize(Arg),
+            RawKernelArgAccess::isPointer(Arg)
+                ? kernel_param_kind_t::kind_pointer
+                : kernel_param_kind_t::kind_std_layout};
+  else
+    return {&Arg, sizeof(plain_arg_t<T>), plain_arg_kind_v<T>};
+}
+
+// True when a parameter pack overload was handed the argument list itself, as a
+// container that converts to the span the sibling overload takes. A pack is an
+// exact match and wins overload resolution, so such a call has to be forwarded
+// rather than bound as one argument. Without `std::span` there is no overload
+// taking a sequence, so no call can be one.
+#if __cpp_lib_span
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_container_v =
+    sizeof...(ArgsT) == 1 &&
+    (std::is_convertible_v<ArgsT, std::span<const raw_kernel_arg>> && ...);
+#else
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_container_v = false;
+#endif
+
+#if !__cpp_lib_span
+// A contiguous sequence of `raw_kernel_arg`, recognized without `std::span` so
+// that a caller passing its argument list as a container before C++20 is told
+// so, rather than having the container bound as a single kernel argument, which
+// compiles for any trivially copyable one.
+template <typename T, typename = void>
+inline constexpr bool is_raw_kernel_arg_sequence_v =
+    std::is_array_v<T> &&
+    std::is_same_v<std::remove_all_extents_t<T>, raw_kernel_arg>;
+template <typename T>
+inline constexpr bool is_raw_kernel_arg_sequence_v<
+    T, std::void_t<decltype(std::declval<const T &>().size()),
+                   decltype(std::declval<const T &>().data())>> =
+    std::is_convertible_v<decltype(std::declval<const T &>().data()),
+                          const raw_kernel_arg *>;
+
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_sequence_v =
+    sizeof...(ArgsT) == 1 &&
+    (is_raw_kernel_arg_sequence_v<plain_arg_t<ArgsT>> && ...);
+#endif
 
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
@@ -398,20 +498,103 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   }
 }
 
+#if __cpp_lib_span
+template <int Dimensions>
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args);
+#endif
+
 template <int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                const kernel &KernelObj, ArgsT &&...Args) {
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(Range, KernelObj);
+#if !__cpp_lib_span
+  // Reached for a container both directly and through the queue overload, which
+  // falls back to a command group for anything that is not a plain argument.
+  static_assert(
+      !detail::is_arg_list_sequence_v<ArgsT...>,
+      "Passing the arguments of a sycl::kernel as a sequence requires "
+      "C++20, where the nd_launch overload taking a std::span of "
+      "raw_kernel_arg is available. Compile with C++20 or pass the "
+      "arguments as a parameter pack.");
+#endif
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    nd_launch(CGH, Range, KernelObj,
+              std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.parallel_for(Range, KernelObj);
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions>
+void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
+               std::span<const raw_kernel_arg> Args,
+               const sycl::detail::code_location &CodeLoc =
+                   sycl::detail::code_location::current());
+#endif
 
 template <int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
                ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
-  });
+  // A container of raw_kernel_arg is the argument list, not one argument, and
+  // the pack is what overload resolution picks for it, so hand it over to the
+  // overload that takes a span.
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    nd_launch(std::move(Q), Range, KernelObj,
+              std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else if constexpr ((detail::is_plain_kernel_arg_v<ArgsT> && ...)) {
+    // Bind the arguments straight from this call, so that neither a handler nor
+    // a command group object has to be created. The array is one element longer
+    // than the pack so that a zero-argument kernel stays well formed.
+    const sycl::detail::KernelArgView ArgViews[sizeof...(ArgsT) + 1] = {
+        detail::makeKernelArgView(Args)...};
+    // An overload that ends in a parameter pack cannot take a trailing
+    // code_location parameter, so the location is the one this header sees,
+    // as it was when this overload went through submit(). Seed the TLS slot
+    // rather than leaving it default-constructed, which the instrumentation
+    // reads as a null file and function name.
+    sycl::detail::tls_code_loc_t TlsCodeLocCapture{
+        sycl::detail::code_location::current()};
+    sycl::submit_kernel_obj_direct_without_event_impl(
+        Q, sycl::detail::nd_range_view(Range), KernelObj, ArgViews,
+        sizeof...(ArgsT), TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
+    });
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions>
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args) {
+  // set_arg only takes an rvalue raw_kernel_arg; an lvalue would select the
+  // generic overload and bind the object itself as the argument.
+  for (size_t I = 0; I < Args.size(); ++I)
+    CGH.set_arg(static_cast<int>(I), raw_kernel_arg{Args[I]});
+  CGH.parallel_for(Range, KernelObj);
+}
+
+// Takes the kernel arguments as a contiguous sequence instead of a parameter
+// pack, for a caller that only learns its argument list at run time and would
+// otherwise need one instantiation of the pack overload per argument count.
+template <int Dimensions>
+void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
+               std::span<const raw_kernel_arg> Args,
+               const sycl::detail::code_location &CodeLoc) {
+  sycl::detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  sycl::submit_kernel_obj_direct_without_event_impl(
+      Q, sycl::detail::nd_range_view(Range), KernelObj, Args.data(),
+      Args.size(), TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+}
+#endif // __cpp_lib_span
 
 template <int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
