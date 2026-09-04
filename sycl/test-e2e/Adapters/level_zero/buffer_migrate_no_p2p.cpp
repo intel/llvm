@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // REQUIRES: level_zero, gpu
-// RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_USE_LEVEL_ZERO_V2=1 SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=1 %{run} %t.out
-// RUN: env SYCL_UR_USE_LEVEL_ZERO_V2=1 SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out
 //
 // Tests the host-mediated buffer migration fallback in
 // ur_discrete_buffer_handle_t::getDevicePtr, taken when a buffer must move
@@ -26,8 +24,19 @@ buffer<int, 1> createInitializedBuffer(std::size_t Size, int Value) {
   return Buf;
 }
 
+property_list makeQueueProps(bool InOrder, bool Batched) {
+  if (InOrder && Batched)
+    return {property::queue::in_order(),
+            ext::intel::property::queue::no_immediate_command_list()};
+  if (InOrder)
+    return {property::queue::in_order()};
+  if (Batched)
+    return {ext::intel::property::queue::no_immediate_command_list()};
+  return {};
+}
+
 int runMigration(const context &Ctx, const std::vector<device> &Devices,
-                 bool InOrder) {
+                 bool InOrder, bool Batched) {
   constexpr std::size_t NumBuffers = 8;
   constexpr std::size_t Size = 256;
 
@@ -36,10 +45,9 @@ int runMigration(const context &Ctx, const std::vector<device> &Devices,
     Bufs.push_back(createInitializedBuffer(Size, 0));
 
   device DevA = Devices[0], DevB = Devices[1];
-  queue QA = InOrder ? queue(Ctx, DevA, {property::queue::in_order()})
-                     : queue(Ctx, DevA);
-  queue QB = InOrder ? queue(Ctx, DevB, {property::queue::in_order()})
-                     : queue(Ctx, DevB);
+  property_list Props = makeQueueProps(InOrder, Batched);
+  queue QA(Ctx, DevA, Props);
+  queue QB(Ctx, DevB, Props);
 
   for (auto &Buf : Bufs)
     QA.submit([&](handler &H) {
@@ -55,7 +63,8 @@ int runMigration(const context &Ctx, const std::vector<device> &Devices,
     });
   QB.wait();
 
-  std::cout << (InOrder ? "in-order: " : "out-of-order: ");
+  std::cout << (Batched ? "batched " : "immediate ")
+            << (InOrder ? "in-order: " : "out-of-order: ");
   for (auto &Buf : Bufs) {
     host_accessor HostAcc{Buf, read_only};
     for (std::size_t I = 0; I < Size; ++I)
@@ -76,10 +85,11 @@ int main() {
     return 0;
   }
 
-  const bool OutOfOrder = false, InOrder = true;
   context Ctx(Devices);
 
-  int Result1 = runMigration(Ctx, Devices, OutOfOrder);
-  int Result2 = runMigration(Ctx, Devices, InOrder);
-  return Result1 || Result2;
+  int Result = 0;
+  for (bool Batched : {false, true})
+    for (bool InOrder : {false, true})
+      Result |= runMigration(Ctx, Devices, InOrder, Batched);
+  return Result;
 }
