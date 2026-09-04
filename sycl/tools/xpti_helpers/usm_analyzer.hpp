@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 
 struct TracepointInfo {
   std::string Source;
@@ -286,7 +287,7 @@ public:
     Info.Location = GS.LastTracepoint;
     Info.Length = *Params->psize;
     Info.Kind = AllocKind::host;
-    GS.ActivePointers[**Params->pppMem] = Info;
+    GS.ActivePointers[**Params->pppMem] = std::move(Info);
   }
 
   static void handleUSMDeviceAlloc(const ur_usm_device_alloc_params_t *Params) {
@@ -296,7 +297,7 @@ public:
     Info.Location = GS.LastTracepoint;
     Info.Length = *Params->psize;
     Info.Kind = AllocKind::device;
-    GS.ActivePointers[**Params->pppMem] = Info;
+    GS.ActivePointers[**Params->pppMem] = std::move(Info);
   }
 
   static void handleUSMSharedAlloc(const ur_usm_shared_alloc_params_t *Params) {
@@ -305,7 +306,7 @@ public:
     Info.Location = GS.LastTracepoint;
     Info.Length = *Params->psize;
     Info.Kind = AllocKind::shared;
-    GS.ActivePointers[**Params->pppMem] = Info;
+    GS.ActivePointers[**Params->pppMem] = std::move(Info);
   }
 
   static void handleUSMFree(const ur_usm_free_params_t *Params) {
