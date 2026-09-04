@@ -15,6 +15,7 @@
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
@@ -97,6 +98,61 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
     return MLaunchConfig.getProperties();
   }
 };
+
+// The argument type as the kernel sees it. Deliberately not `std::decay_t`,
+// which turns an array into a pointer: an array has to keep being bound as the
+// bytes it is, which is what `handler::setArgHelper` does with it.
+template <typename T>
+using plain_arg_t = std::remove_cv_t<std::remove_reference_t<T>>;
+
+// An argument that is bound as its own bytes with no further interpretation.
+template <typename T>
+inline constexpr bool is_scalar_kernel_arg_v =
+    std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_pointer_v<T>;
+
+// An argument that can be bound as plain bytes, i.e. one that carries no
+// requirement for the scheduler to track. Accessors, local accessors, streams
+// and work group memory are deliberately excluded and keep using the command
+// group path; `HasSpecialCaptures` in the runtime draws the same line. So is
+// every other class type, which may be a struct with special types inside and
+// then needs `kind_struct_with_special_type` instead.
+//
+// An array of scalars is bound as the bytes it is, which is what
+// `handler::setArgHelper` does with it, so it belongs on this path.
+template <typename T>
+inline constexpr bool is_plain_kernel_arg_v =
+    is_scalar_kernel_arg_v<plain_arg_t<T>> ||
+    (std::is_array_v<plain_arg_t<T>> &&
+     is_scalar_kernel_arg_v<std::remove_all_extents_t<plain_arg_t<T>>>) ||
+    std::is_same_v<plain_arg_t<T>, raw_kernel_arg>;
+
+// The kind a plain argument has to carry. A pointer has to keep its kind: the
+// runtime binds a pointer argument as UR_EXP_KERNEL_ARG_TYPE_POINTER, which the
+// OpenCL adapter passes to clSetKernelArgMemPointerINTEL rather than to
+// clSetKernelArg, so plain bytes are not a substitute. The Native CPU adapter
+// draws the same distinction: it puts a pointer argument straight into the
+// argument slot, whereas a value argument lands there as the address of the
+// adapter's own copy.
+//
+// `cl_mem` is the one pointer that is not an address: it names a memory object
+// and has to be bound as the bytes of the handle, which is the exception
+// `handler::setArgHelper` makes for `OpenCLMemT`.
+template <typename T>
+inline constexpr sycl::detail::kernel_param_kind_t plain_arg_kind_v =
+    (std::is_pointer_v<plain_arg_t<T>> &&
+     !std::is_same_v<plain_arg_t<T>, sycl::OpenCLMemT>)
+        ? sycl::detail::kernel_param_kind_t::kind_pointer
+        : sycl::detail::kernel_param_kind_t::kind_std_layout;
+
+template <typename T>
+sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
+  using sycl::detail::kernel_param_kind_t;
+  if constexpr (std::is_same_v<plain_arg_t<T>, raw_kernel_arg>)
+    return {RawKernelArgAccess::getData(Arg), RawKernelArgAccess::getSize(Arg),
+            kernel_param_kind_t::kind_std_layout};
+  else
+    return {&Arg, sizeof(plain_arg_t<T>), plain_arg_kind_v<T>};
+}
 
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
@@ -408,9 +464,28 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
 template <int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
                ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
-  });
+  if constexpr ((detail::is_plain_kernel_arg_v<ArgsT> && ...)) {
+    // Bind the arguments straight from this call, so that neither a handler nor
+    // a command group object has to be created. The array is one element longer
+    // than the pack so that a zero-argument kernel stays well formed.
+    const sycl::detail::KernelArgView ArgViews[sizeof...(ArgsT) + 1] = {
+        detail::makeKernelArgView(Args)...};
+    // An overload that ends in a parameter pack cannot take a trailing
+    // code_location parameter, so the location is the one this header sees,
+    // as it was when this overload went through submit(). Seed the TLS slot
+    // rather than leaving it default-constructed, which the instrumentation
+    // reads as a null file and function name.
+    sycl::detail::tls_code_loc_t TlsCodeLocCapture{
+        sycl::detail::code_location::current()};
+    sycl::submit_kernel_obj_direct_without_event_impl(
+        Q, sycl::detail::nd_range_view(Range), KernelObj,
+        {ArgViews, sizeof...(ArgsT)}, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
+    });
+  }
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
