@@ -162,9 +162,9 @@
 // RUN:   --linker-path=/usr/bin/ld -o /dev/null %t1.o %t1_skl.o --dry-run 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PER-ARCH-DC %s
 // CHK-PER-ARCH-DC-DAG: sycl-post-link{{.*}} -o intel_gpu_pvc,{{.*}}.table
-// CHK-PER-ARCH-DC-DAG: ocloc{{.*}} -device pvc{{.*}}-extraopt_pvc
+// CHK-PER-ARCH-DC-DAG: ocloc{{.*}} -device pvc{{.*}}-extraopt_pvc -output
 // CHK-PER-ARCH-DC-DAG: sycl-post-link{{.*}} -o intel_gpu_skl,{{.*}}.table
-// CHK-PER-ARCH-DC-DAG: ocloc{{.*}} -device skl{{.*}}-extraopt_skl
+// CHK-PER-ARCH-DC-DAG: ocloc{{.*}} -device skl{{.*}}-extraopt_skl -output
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
 // -------

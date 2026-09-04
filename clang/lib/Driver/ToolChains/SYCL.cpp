@@ -1670,18 +1670,14 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (IsGenTriple) {
-        // "aot_generic" is a new-offload-model pseudo-arch bucket for raw
-        // -Xsycl-target-backend=spir64_gen entries; inert in old model.
-        StringRef AOTGenericArch = "aot_generic";
-        if (Device != GenDevice && !Device.empty() &&
-            !(GenDevice.empty() && Device == AOTGenericArch))
+        if (Device != GenDevice && !Device.empty())
           continue;
         if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
           continue;
-        if (OptTargetTriple == Triple && !Device.empty() &&
-            Device != AOTGenericArch)
+        if (OptTargetTriple == Triple && !Device.empty())
+          // Triples match, but we are expecting a specific device to be set.
           continue;
       } else if (OptTargetTriple != Triple)
         continue;

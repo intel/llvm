@@ -303,40 +303,31 @@ that may be useful for our usage.
 
 Compilation behaviors involving AOT for GPU involve an additional call to
 the OpenCL Offline compiler (OCLOC).  This call occurs after the post-link
-step performed by `sycl-post-link` and the SPIR-V translation step which is done
-by `llvm-spirv`.  Additional options passed by the user via the
-`-Xsycl-target-backend=spir64_gen <opts>` command as well as the implied
-options set via target options such as `-fsycl-targets=intel_gpu_skl`
-will be processed by a new options to the wrapper, `--gpu-tool-arg=<arg>`
+step performed by `sycl-post-link` and the SPIR-V translation step which is
+done by `llvm-spirv`.  User options from `-Xsycl-target-backend=<triple> <opts>`
+and the implied options for `-fsycl-targets=intel_gpu_<arch>` are forwarded to
+the wrapper as `--device-compiler=[<kind>:][<triple>[/<arch>]=]<value>` (one
+occurrence per token).  For the `spir64_gen` triple, the `/<arch>` qualifier
+routes each token to the OCLOC invocation for that arch, so per-arch options
+do not leak between archs.  A `--device-compiler` occurrence with no
+`/<arch>` (or from a non-gen triple) applies to every arch of the matching
+triple.
 
-To support multiple target specifications, for instance:
-`-fsycl-targets=intel_gpu_skl,intel_gpu_pvc`, multiple `--gpu-tool-arg`
-options can be passed on the command line.  Each instance will be considered
-a separate OCLOC call passing along the `<args>` as options to the OCLOC call.
-The compiler driver will be responsible for putting together the full option
-list to be passed along.
+*Example:*
 
-> -fsycl -fsycl-targets=spir64_gen,intel_gpu_skl
--Xsycl-target-backend=spir64_gen "-device pvc -options -extraopt_pvc"
+> -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_skl
+-Xsycl-target-backend=intel_gpu_pvc "-options -extraopt_pvc"
 -Xsycl-target-backend=intel_gpu_skl "-options -extraopt_skl"
 
-*Example: spir64_gen enabling options*
+produces:
 
-> --device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-device
---device-compiler=sycl:spir64_gen-unknown-unknown/pvc=pvc
---device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-options
+> --device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-options
 --device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-extraopt_pvc
 --device-compiler=sycl:spir64_gen-unknown-unknown/skl=-options
 --device-compiler=sycl:spir64_gen-unknown-unknown/skl=-extraopt_skl
 
-*Example: clang-linker-wrapper options*
-
 Each `(triple, arch)` pair produces its own OCLOC call and its own device
-binary that is individually wrapped and linked into the final executable. The
-`/<arch>` qualifier on the key routes each option token to the ocloc
-invocation for that arch; a `--device-compiler` occurrence with no
-`/<arch>` (or from a non-gen triple) applies to every arch of the matching
-triple.
+binary that is individually wrapped and linked into the final executable.
 
 #### --offload-arch
 
