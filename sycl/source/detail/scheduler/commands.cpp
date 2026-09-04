@@ -2925,8 +2925,7 @@ void enqueueImpKernel(
       // are compiled with assumption that id/range will fit in size_t.
       if (MSyclKernel->isInteropOrSourceBased()) {
         IdQueryRangeProp = 2; // size_t range
-      }
-      else {
+      } else {
         DeviceImageImpl = &MSyclKernel->getDeviceImage();
         IdQueryRangeProp =
             DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
