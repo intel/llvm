@@ -2919,12 +2919,18 @@ void enqueueImpKernel(
       NDRDesc, static_cast<uint64_t>(std::numeric_limits<int>::max()));
   if (isRangeGreaterThanIntMax) {
     uint32_t IdQueryRangeProp = 0;
-
     // Get device image of kernel and retrieve the id queries range property.
-    if (MSyclKernel != nullptr && !MSyclKernel->isInteropOrSourceBased()) {
-      DeviceImageImpl = &MSyclKernel->getDeviceImage();
-      IdQueryRangeProp =
-          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    if (MSyclKernel != nullptr) {
+      // Interop and source-based kernels do not have device images and they
+      // are compiled with assumption that id/range will fit in size_t.
+      if (MSyclKernel->isInteropOrSourceBased()) {
+        IdQueryRangeProp = 2; // size_t range
+      }
+      else {
+        DeviceImageImpl = &MSyclKernel->getDeviceImage();
+        IdQueryRangeProp =
+            DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+      }
     } else if (DeviceImageImpl != nullptr) {
       IdQueryRangeProp =
           DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
