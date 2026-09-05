@@ -108,8 +108,11 @@ supports.
 |Description
 
 |1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
+|The initial version of this extension.
+
+|2
+|Adds the `SYCL_EXT_ONEAPI_KERNEL_FUNCTION` macro for launching a free function
+ kernel by name with template-argument deduction / overload resolution.
 |===
 
 === Headers
@@ -461,6 +464,62 @@ _Effects_: Enqueues a kernel object to the `queue` or `handler` as an ND-range
 kernel, using the launch configuration specified by `c`.
 Each value in the `args` pack is passed to the corresponding argument in
 `Func`, converting it to the argument's type if necessary.
+
+=== Launching a kernel by name
+
+The launch functions above take the kernel as a `kernel_function<Func>`
+non-type template argument, which names a fully-resolved function.  When the
+free function kernel is a function template or an overload set, the application
+must therefore name a specific specialization or disambiguate the overload
+explicitly (see the example in _Free function kernels which are templates or
+overloaded_).
+
+This extension optionally provides a macro that lets the kernel be named by its
+bare identifier, with the specialization resolved from the launch arguments the
+same way an ordinary call to the kernel would resolve it:
+
+```
+SYCL_EXT_ONEAPI_KERNEL_FUNCTION(kernel-name, args...)
+```
+
+_Effect_: expands to the arguments of an enclosing free function kernel launch
+(`single_task` or `nd_launch`).  The macro resolves `kernel-name` against the
+types of `args` using ordinary C++ overload resolution and template argument
+deduction — exactly as the expression `kernel-name(args...)` would — and forms
+a launch of the resolved free function kernel with `args` as its kernel
+arguments.  It is used in the position of the `kernel_function<Func>` argument
+and the kernel arguments of a launch function, for example:
+
+```
+// Equivalent to nd_launch(q, ndr, kernel_function<iota<float>>, 3.14f, fptr):
+nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, fptr));
+
+single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, fptr));
+```
+
+The `args` are used only to resolve the kernel; they are not evaluated more than
+once, and the resolved kernel is launched with those same `args`.
+
+The return type of the macro is unspecified.  Applications must use it only in
+the argument position of a free function kernel launch function; the result is
+not otherwise usable.
+
+_Constraints_: The program is ill-formed if `kernel-name`, resolved against the
+types of `args`, does not name a SYCL free function kernel (a function declared
+with the `nd_range_kernel<Dims>` or `single_task_kernel` property).
+
+Ordinary C++ template argument deduction applies to `kernel-name`.  A template
+parameter of the kernel that cannot be deduced from `args` — for example a
+non-type template parameter that does not appear in any function parameter, or a
+type parameter used only in a non-deduced context — must be specified
+explicitly, just as it would be in a direct call to the kernel (this matches the
+behavior of CUDA's `<<<>>>` launch).  See the examples below.
+
+This macro requires support from the device compiler.  An implementation that
+provides it predefines the macro `SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED` to
+`1`; applications can test for this macro to determine whether the feature is
+available.  The remaining APIs of this extension do not require this support and
+are available with any host compiler.
 
 === New kernel bundle member functions
 
@@ -1115,6 +1174,47 @@ int main() {
 
   q.wait();
 }
+----
+
+Alternatively, when the implementation defines
+`SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED`, the same launches can name the
+kernel by its bare identifier and let the compiler deduce the template argument
+or resolve the overload from the launch arguments:
+
+[source,c++]
+----
+#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
+  // T is deduced as float / int from the launch arguments.
+  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, fptr));
+  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3, iptr));
+
+  // The correct ping overload is selected from the argument type.
+  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, fptr));
+  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, iptr));
+#endif
+----
+
+A template parameter that cannot be deduced from the launch arguments must still
+be specified explicitly — this is a property of standard C++ template argument
+deduction, not a limitation specific to this macro.  For example:
+
+[source,c++]
+----
+// Dim is a non-type template parameter that appears in no function parameter,
+// so it cannot be deduced from the launch arguments.
+template <int Dim, typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dim>))
+void fill(T *ptr, T value) { /* ... */ }
+
+#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
+  // Ill-formed: Dim cannot be deduced (same as writing fill(fptr, 1.0f)).
+  // syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill, fptr, 1.0f));
+
+  // Specify the non-deducible Dim explicitly; T is still deduced. The extra
+  // parentheses keep the '<...>' comma from being read as a macro-argument
+  // separator.
+  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION((fill<1>), fptr, 1.0f));
+#endif
 ----
 
 === Using "scratch" work-group local memory
