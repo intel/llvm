@@ -5,6 +5,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DefaultContext.cpp
   DeviceIsIntegratedGPU.cpp
   DeviceArchitecture.cpp
+  NvidiaDeviceArchitecture.cpp
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
   OneAPISubGroupMask.cpp
