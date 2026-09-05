@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Remove this header.
+
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
@@ -30,3 +33,5 @@ struct __SYCL_DEPRECATED("use sycl::sub_group() instead") sub_group
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
