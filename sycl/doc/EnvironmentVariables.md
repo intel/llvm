@@ -30,6 +30,7 @@ compiler and runtime.
 | `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target architecture to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
 | `SYCL_GRAPH_FORCE_NATIVE_RECORDING` | '1' or '0' | When set to '1', forces every `command_graph` to use native recording as if `property::graph::enable_native_recording` was passed in its property list. When unset or set to any other value, native recording is enabled only when that property is set explicitly. Default is disabled. |
+| `SYCL_LAUNCH_BLOCKING` | Integer | Enable by specifying non-zero value. See [below](#sycl_launch_blocking). Default is '0'. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -113,6 +114,14 @@ A list of devices and their driver version following the pattern:
 `BackendName:XXX,DeviceType:YYY,DeviceVendorId:0xXYZW,DriverVersion:{{X.Y.Z.W}}`.
 Also may contain `PlatformVersion`, `DeviceName` and `PlatformName`. There is no
 fixed order of properties in the pattern.
+
+### `SYCL_LAUNCH_BLOCKING`
+
+When set to a non-zero value, every command submitted to any `sycl::queue`
+becomes synchronous: the submitting thread blocks until all work enqueued to that
+queue has completed before the submission call returns. This is the DPC++
+counterpart of CUDA's `CUDA_LAUNCH_BLOCKING=1` and is intended for debugging only
+\- it serializes the application and will significantly reduce performance. Default is `0`.
 
 ## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
 

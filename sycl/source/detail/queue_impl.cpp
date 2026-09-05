@@ -354,7 +354,11 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     // Check if we are still in no last event mode. There could
     // have been a concurrent submit.
     if (MNoLastEventMode.load(std::memory_order_relaxed)) {
-      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+      detail::EventImplPtr Event =
+          finalizeHandlerInOrderNoEventsUnlocked(Handler);
+      Lock.unlock();
+      waitIfLaunchBlocking(Type);
+      return Event;
     }
   }
 
@@ -394,6 +398,8 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       registerStreamServiceEvent(FlushEvent);
     }
   }
+
+  waitIfLaunchBlocking(Type);
 
   // TODO Avoid event creation in the first place if it's not needed
   return CallerNeedsEvent ? EventImpl : nullptr;
@@ -1012,7 +1018,10 @@ detail::EventImplPtr queue_impl::submit_direct(
     addEventUnlocked(EventImpl);
   }
 
-  return CallerNeedsEvent ? std::move(EventImpl) : nullptr;
+  EventImplPtr ResEvent = CallerNeedsEvent ? std::move(EventImpl) : nullptr;
+  Lock.unlock();
+  waitIfLaunchBlocking(Type);
+  return ResEvent;
 }
 
 template <typename HandlerFuncT>
@@ -1060,6 +1069,9 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
                   getUrEvents(ExpandedDepEvents),
                   /*UrEvent*/ nullptr);
 
+        if (Lock.owns_lock())
+          Lock.unlock();
+        waitIfLaunchBlocking(CGType::None);
         return nullptr;
       }
 
@@ -1092,6 +1104,9 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
         EventToStoreIn = ResEventImpl;
       }
 
+      if (Lock.owns_lock())
+        Lock.unlock();
+      waitIfLaunchBlocking(CGType::None);
       return ResEventImpl;
     }
   }
