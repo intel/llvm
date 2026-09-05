@@ -5,8 +5,7 @@
 This page summarizes default-off BOLT optimization flags that users may
 explicitly enable when optimizing AArch64 binaries.
 
-BOLT is to be used with binaries linked with
-relocations (`--emit-relocs` or `-Wl,-q`) and representative profile data.
+I need this to be done
 
 ## Main Code-Layout Optimizations
 
