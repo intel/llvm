@@ -22,7 +22,7 @@
 //      that explicitly opts into no_immediate_command_list, and
 //      expecting a sycl::exception.
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -31,7 +31,7 @@
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 int main() {
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkSemaphore vkSem = createExportableSemaphore(vkCtx);
 
   // Lawful queue: import the semaphore here.

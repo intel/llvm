@@ -32,7 +32,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 
 #include <optional>
 #include <string>
@@ -103,7 +103,7 @@ int runTest(
                           : getVulkanFormat<T>(channels);
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, (uint32_t)height, (uint32_t)depth};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_3D, tiling);

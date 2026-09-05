@@ -41,7 +41,7 @@
 */
 // clang-format on
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <iostream>
 #include <string>
 #include <sycl/detail/core.hpp>
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
             << " | Mode: " << modeStr << std::endl;
 
   // VULKAN SETUP
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
 
   // Exportable device-local buffers
   BufferResources inBuf = createExportableBuffer(
