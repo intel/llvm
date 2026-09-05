@@ -21,6 +21,7 @@
 #include <sycl/khr/dynamic_addrspace_cast.hpp>
 #include <sycl/khr/free_function_commands.hpp>
 #include <sycl/khr/group_interface.hpp>
+#include <sycl/khr/max_work_group_queries.hpp>
 #include <sycl/khr/split_headers/accessor.hpp>
 #include <sycl/khr/split_headers/atomic.hpp>
 #include <sycl/khr/split_headers/backend.hpp>
