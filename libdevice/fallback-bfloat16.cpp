@@ -8,6 +8,7 @@
 
 #include "device.h"
 
+
 #if defined(__SPIR__) || defined(__SPIRV__)
 
 #include <cstdint>
