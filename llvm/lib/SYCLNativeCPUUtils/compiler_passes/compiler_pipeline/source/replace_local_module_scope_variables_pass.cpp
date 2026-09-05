@@ -308,7 +308,8 @@ PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
     // global. This is also needed if '__attribute__(aligned)' was used to
     // set a specific alignment.
     const unsigned int alignment =
-        std::max(global->getAlignment(), calculateTypeAlign(memberType, dl));
+        std::max(global->getAlign().valueOrOne().value(),
+                 calculateTypeAlign(memberType, dl));
     assert(alignment > 0 && "'0' is an impossible alignment");
 
     // check if this is the largest alignment seen so far

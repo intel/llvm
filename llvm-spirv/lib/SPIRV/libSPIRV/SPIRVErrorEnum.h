@@ -2,6 +2,7 @@
 _SPIRV_OP(Success, "Success")
 _SPIRV_OP(InvalidTargetTriple,
           "Expects spir-unknown-unknown or spir64-unknown-unknown.")
+_SPIRV_OP(InvalidTargetTripleOverride, "Unknown target triple override:")
 _SPIRV_OP(InvalidSubArch, "Expecting v1.0-v1.6.")
 _SPIRV_OP(TripleMaxVersionIncompatible,
           "Triple version and maximum version are incompatible.")

@@ -103,7 +103,7 @@ GetNewFormatStringAsGlobalVar(Module &module,
       new_format_string_const, Twine(string_value->getName() + "_"),
       string_value, thread_local_mode, addr_space, is_externally_initialized);
 
-  new_var->setAlignment(MaybeAlign(string_value->getAlignment()));
+  new_var->setAlignment(string_value->getAlign());
   new_var->setUnnamedAddr(string_value->getUnnamedAddr());
 
   return new_var;

@@ -1646,11 +1646,22 @@ SPIRVInstruction *LLVMToSPIRVBase::transBinaryInst(BinaryOperator *B,
 SPIRVInstruction *LLVMToSPIRVBase::transCmpInst(CmpInst *Cmp,
                                                 SPIRVBasicBlock *BB) {
   auto *Op0 = Cmp->getOperand(0);
-  SPIRVValue *TOp0 = transValue(Op0, BB);
-  SPIRVValue *TOp1 = transValue(Cmp->getOperand(1), BB);
-  // TODO: once the translator supports SPIR-V 1.4, update the condition below:
-  // if (/* */->isPointerTy() && /* it is not allowed to use SPIR-V 1.4 */)
+  auto *Op1 = Cmp->getOperand(1);
+  SPIRVValue *TOp0 = transValue(Op0, BB, true, FuncTransMode::Pointer);
+  SPIRVValue *TOp1 = transValue(Op1, BB, true, FuncTransMode::Pointer);
   if (Op0->getType()->isPointerTy()) {
+    auto P = Cmp->getPredicate();
+    if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4) &&
+        (P == ICmpInst::ICMP_EQ || P == ICmpInst::ICMP_NE) &&
+        Cmp->getOperand(1)->getType()->isPointerTy()) {
+      // OpPtrEqual/OpPtrNotEqual require both operands to be of the same
+      // pointer type. Bitcast the second operand to the first operand's
+      // type if they differ.
+      if (TOp1->getType() != TOp0->getType())
+        TOp1 = BM->addUnaryInst(OpBitcast, TOp0->getType(), TOp1, BB);
+      Op OC = P == ICmpInst::ICMP_EQ ? OpPtrEqual : OpPtrNotEqual;
+      return BM->addBinaryInst(OC, transType(Cmp->getType()), TOp0, TOp1, BB);
+    }
     unsigned AS = cast<PointerType>(Op0->getType())->getAddressSpace();
     SPIRVType *Ty = transType(getSizetType(AS));
     TOp0 = BM->addUnaryInst(OpConvertPtrToU, Ty, TOp0, BB);
@@ -2601,6 +2612,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                LoopControl, Parameters, SuccessorTrue);
       }
     }
+    // Starting with SPIR-V 1.6, the True Label and False Label of an
+    // "OpBranchConditional" must not be the same, so emit an unconditional
+    // branch - always valid, required for 1.6+
+    if (SuccessorTrue == SuccessorFalse)
+      return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
+
     return mapValue(
         V, BM->addBranchConditionalInst(transValue(Branch->getCondition(), BB),
                                         SuccessorTrue, SuccessorFalse, BB));
@@ -2655,8 +2672,16 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                    FuncTransMode::Pointer);
       if (Val->getType() != Ty)
         Val = BM->addUnaryInst(OpBitcast, Ty, Val, BB);
-      IncomingPairs.push_back(Val);
-      IncomingPairs.push_back(transValue(Phi->getIncomingBlock(I), nullptr));
+      SPIRVValue *Block = transValue(Phi->getIncomingBlock(I), nullptr);
+      bool IsDuplicate = false;
+      for (size_t Idx = 1; Idx < IncomingPairs.size(); Idx += 2) {
+        if (IncomingPairs[Idx] == Block)
+          IsDuplicate = true;
+      }
+      if (!IsDuplicate) {
+        IncomingPairs.push_back(Val);
+        IncomingPairs.push_back(Block);
+      }
     }
     return mapValue(V, BM->addPhiInst(Ty, IncomingPairs, BB));
   }
@@ -3047,6 +3072,19 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
     case DecorationStableKernelArgumentINTEL:
     case DecorationRestrict: {
       Target->addDecorate(new SPIRVDecorate(DecoKind, Target));
+      break;
+    }
+    case DecorationUniformId: {
+      ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+                        "UniformId requires exactly 1 extra operand");
+      auto *ScopeEO = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      ErrLog.checkError(ScopeEO, SPIRVEC_InvalidLlvmModule,
+                        "UniformId requires extra operand to be an integer");
+      SPIRVModule *BM = Target->getModule();
+      SPIRVValue *ScopeConst = BM->addIntegerConstant(BM->addIntegerType(32),
+                                                      ScopeEO->getZExtValue());
+      Target->addDecorate(
+          new SPIRVDecorateId(DecoKind, Target, ScopeConst->getId()));
       break;
     }
     case DecorationBufferLocationINTEL:
@@ -3444,7 +3482,8 @@ bool LLVMToSPIRVBase::transAlign(Value *V, SPIRVValue *BV) {
     return true;
   }
   if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-    BM->setAlignment(BV, GV->getAlignment());
+    if (MaybeAlign Alignment = GV->getAlign())
+      BM->setAlignment(BV, Alignment->value());
     return true;
   }
   return true;
@@ -6591,6 +6630,11 @@ static bool hasVectorComputeMetadata(Module *M) {
 
 bool LLVMToSPIRVBase::translate() {
   BM->setGeneratorVer(KTranslatorVer);
+
+  if (!BM->getErrorLog().checkError(
+          M->getModuleInlineAsm().empty(), SPIRVEC_InvalidLlvmModule,
+          "Module-level inline assembly is not supported in SPIR-V"))
+    return false;
 
   if (isEmptyLLVMModule(M))
     BM->addCapability(CapabilityLinkage);

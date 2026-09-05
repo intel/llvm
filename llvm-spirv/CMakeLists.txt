@@ -164,7 +164,7 @@ install(
     ${LLVM_SPIRV_INCLUDE_DIRS}/LLVMSPIRVOpts.h
     ${LLVM_SPIRV_INCLUDE_DIRS}/LLVMSPIRVExtensions.inc
   DESTINATION
-    ${CMAKE_INSTALL_PREFIX}/include/LLVMSPIRVLib
+    include/LLVMSPIRVLib
 )
 
 configure_file(LLVMSPIRVLib.pc.in ${CMAKE_BINARY_DIR}/LLVMSPIRVLib.pc @ONLY)
@@ -172,5 +172,5 @@ install(
   FILES
     ${CMAKE_BINARY_DIR}/LLVMSPIRVLib.pc
   DESTINATION
-    ${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}/pkgconfig
+    lib${LLVM_LIBDIR_SUFFIX}/pkgconfig
 )

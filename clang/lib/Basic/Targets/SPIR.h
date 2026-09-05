@@ -75,6 +75,9 @@ class LLVM_LIBRARY_VISIBILITY BaseSPIRTargetInfo : public TargetInfo {
   std::unique_ptr<TargetInfo> HostTarget;
 
 protected:
+  // Read-only access for derived classes. Null when there is no host target.
+  const TargetInfo *getHostTarget() const { return HostTarget.get(); }
+
   BaseSPIRTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : TargetInfo(Triple) {
     assert((Triple.isSPIR() || Triple.isSPIRV()) &&
@@ -135,6 +138,16 @@ protected:
       UseExplicitBitFieldAlignment = HostTarget->useExplicitBitFieldAlignment();
       ZeroLengthBitfieldBoundary = HostTarget->getZeroLengthBitfieldBoundary();
 
+      // Copy pointer width and related type representations from host so
+      // that sizeof(void*), sizeof(size_t), sizeof(ptrdiff_t), and
+      // sizeof(intptr_t) match between host and device. Without this,
+      // LLP64 hosts (Windows) get incorrect LP64-style defaults.
+      PointerWidth = PointerAlign =
+          HostTarget->getPointerWidth(LangAS::Default);
+      SizeType = HostTarget->getSizeType();
+      PtrDiffType = HostTarget->getPtrDiffType(LangAS::Default);
+      IntPtrType = HostTarget->getIntPtrType();
+
       // This is a bit of a lie, but it controls __GCC_ATOMIC_XXX_LOCK_FREE, and
       // we need those macros to be identical on host and device, because (among
       // other things) they affect which standard library classes are defined,
@@ -162,6 +175,8 @@ public:
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
+    if (HostTarget)
+      return HostTarget->getBuiltinVaListKind();
     return TargetInfo::VoidPtrBuiltinVaList;
   }
 
@@ -171,17 +186,13 @@ public:
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel ||
+    return (CC == CC_C || CC == CC_DeviceKernel ||
             // Permit CC_X86RegCall which is used to mark external functions
             // with explicit simd or structure type arguments to pass them via
             // registers.
             CC == CC_X86RegCall)
                ? CCCR_OK
                : CCCR_Warning;
-  }
-
-  CallingConv getDefaultCallingConv() const override {
-    return CC_SpirFunction;
   }
 
   void setAddressSpaceMap(bool DefaultIsGeneric) {
@@ -244,9 +255,16 @@ public:
       : SPIRTargetInfo(Triple, Opts) {
     assert(Triple.getArch() == llvm::Triple::spir &&
            "Invalid architecture for 32-bit SPIR.");
+    // FIXME: Assert that a present host target's pointer types match the ones
+    // set below, once the driver diagnoses unsupported host/device combinations
+    // (until then such an assert would fire on existing tests).
     PointerWidth = PointerAlign = 32;
-    SizeType = TargetInfo::UnsignedInt;
-    PtrDiffType = IntPtrType = TargetInfo::SignedInt;
+    const TargetInfo *HostTarget = getHostTarget();
+    if (!HostTarget || HostTarget->getPointerWidth(LangAS::Default) != 32) {
+      SizeType = TargetInfo::UnsignedInt;
+      PtrDiffType = IntPtrType = TargetInfo::SignedInt;
+    }
+
     // SPIR32 has support for atomic ops if atomic extension is enabled.
     // Take the maximum because it's possible the Host supports wider types.
     MaxAtomicInlineWidth = std::max<unsigned char>(MaxAtomicInlineWidth, 64);
@@ -265,9 +283,16 @@ public:
       : SPIRTargetInfo(Triple, Opts) {
     assert(Triple.getArch() == llvm::Triple::spir64 &&
            "Invalid architecture for 64-bit SPIR.");
+    // FIXME: Assert that a present host target's pointer types match the ones
+    // set below, once the driver diagnoses unsupported host/device combinations
+    // (until then such an assert would fire on existing tests).
     PointerWidth = PointerAlign = 64;
-    SizeType = TargetInfo::UnsignedLong;
-    PtrDiffType = IntPtrType = TargetInfo::SignedLong;
+    const TargetInfo *HostTarget = getHostTarget();
+    if (!HostTarget || HostTarget->getPointerWidth(LangAS::Default) != 64) {
+      SizeType = TargetInfo::UnsignedLong;
+      PtrDiffType = IntPtrType = TargetInfo::SignedLong;
+    }
+
     // SPIR64 has support for atomic ops if atomic extension is enabled.
     // Take the maximum because it's possible the Host supports wider types.
     MaxAtomicInlineWidth = std::max<unsigned char>(MaxAtomicInlineWidth, 64);
@@ -307,8 +332,7 @@ public:
     if (CC == CC_X86VectorCall)
       // Permit CC_X86VectorCall which is used in Microsoft headers
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
-                                    : CCCR_Warning;
+    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
   }
 };
 
@@ -359,8 +383,7 @@ public:
       // Permit CC_X86RegCall which is used to mark external functions with
       // explicit simd or structure type arguments to pass them via registers.
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
-                                    : CCCR_Warning;
+    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
   }
 
   bool
@@ -408,8 +431,7 @@ public:
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
   }
 };
 
@@ -504,9 +526,15 @@ public:
            "32-bit SPIR-V target must use unknown, chipstar, or vulkan OS");
     assert(getTriple().getEnvironment() == llvm::Triple::UnknownEnvironment &&
            "32-bit SPIR-V target must use unknown environment type");
+    // FIXME: Assert that a present host target's pointer types match the ones
+    // set below, once the driver diagnoses unsupported host/device combinations
+    // (until then such an assert would fire on existing tests).
     PointerWidth = PointerAlign = 32;
-    SizeType = TargetInfo::UnsignedInt;
-    PtrDiffType = IntPtrType = TargetInfo::SignedInt;
+    const TargetInfo *HostTarget = getHostTarget();
+    if (!HostTarget || HostTarget->getPointerWidth(LangAS::Default) != 32) {
+      SizeType = TargetInfo::UnsignedInt;
+      PtrDiffType = IntPtrType = TargetInfo::SignedInt;
+    }
     // SPIR-V has core support for atomic ops, and Int32 is always available;
     // we take the maximum because it's possible the Host supports wider types.
     MaxAtomicInlineWidth = std::max<unsigned char>(MaxAtomicInlineWidth, 64);
@@ -529,9 +557,15 @@ public:
            "64-bit SPIR-V target must use unknown, chipstar, or vulkan OS");
     assert(getTriple().getEnvironment() == llvm::Triple::UnknownEnvironment &&
            "64-bit SPIR-V target must use unknown environment type");
+    // FIXME: Assert that a present host target's pointer types match the ones
+    // set below, once the driver diagnoses unsupported host/device combinations
+    // (until then such an assert would fire on existing tests).
     PointerWidth = PointerAlign = 64;
-    SizeType = TargetInfo::UnsignedLong;
-    PtrDiffType = IntPtrType = TargetInfo::SignedLong;
+    const TargetInfo *HostTarget = getHostTarget();
+    if (!HostTarget || HostTarget->getPointerWidth(LangAS::Default) != 64) {
+      SizeType = TargetInfo::UnsignedLong;
+      PtrDiffType = IntPtrType = TargetInfo::SignedLong;
+    }
     // SPIR-V has core support for atomic ops, and Int64 is always available;
     // we take the maximum because it's possible the Host supports wider types.
     MaxAtomicInlineWidth = std::max<unsigned char>(MaxAtomicInlineWidth, 64);
@@ -580,8 +614,7 @@ public:
     if (CC == CC_X86VectorCall)
       // Permit CC_X86VectorCall which is used in Microsoft headers
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
   }
 };
 
@@ -630,8 +663,7 @@ public:
       // Permit CC_X86RegCall which is used to mark external functions with
       // explicit simd or structure type arguments to pass them via registers.
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
   }
 };
 
@@ -673,8 +705,7 @@ public:
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+    return (CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
   }
 };
 
