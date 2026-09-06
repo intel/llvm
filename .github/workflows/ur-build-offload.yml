@@ -16,7 +16,7 @@ jobs:
         build_type: [Release]
         compiler: [{c: gcc, cxx: g++}]
 
-    runs-on: [ "Linux", "build" ]
+    runs-on: [ "Linux", "build-test" ]
     container:
       image: 'ghcr.io/intel/llvm/ubuntu2404_build'
 
