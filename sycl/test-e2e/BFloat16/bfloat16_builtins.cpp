@@ -13,6 +13,9 @@
 // UNSUPPORTED: spirv-backend && cpu
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
+// XFAIL: linux && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22054
+
 #include "bfloat16_builtins.hpp"
 
 int main() {
