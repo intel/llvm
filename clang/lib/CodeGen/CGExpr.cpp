@@ -4631,7 +4631,8 @@ void CodeGenFunction::EmitTrapCheck(llvm::Value *Checked,
   EmitBlock(Cont);
 }
 
-llvm::CallInst *CodeGenFunction::EmitTrapCall(llvm::Intrinsic::ID IntrID) {
+llvm::CallInst *CodeGenFunction::EmitTrapCall(llvm::Intrinsic::ID IntrID,
+                                              bool EnsureInsertPoint) {
   llvm::Function *TrapIntrinsic = CGM.getIntrinsic(IntrID);
   llvm::CallInst *TrapCall = Builder.CreateCall(TrapIntrinsic);
 
@@ -4648,9 +4649,23 @@ llvm::CallInst *CodeGenFunction::EmitTrapCall(llvm::Intrinsic::ID IntrID) {
   if (TrapIntrinsic->doesNotReturn()) {
     TrapCall->setDoesNotReturn();
     Builder.CreateUnreachable();
-    EmitBlock(createBasicBlock());
+    if (EnsureInsertPoint)
+      EmitBlock(createBasicBlock());
+    else
+      Builder.ClearInsertionPoint();
   }
   return TrapCall;
+}
+
+void CodeGenFunction::EmitTrapCallAndMakeUnreachable() {
+  llvm::CallInst *TrapCall =
+      EmitTrapCall(llvm::Intrinsic::trap, /*EnsureInsertPoint=*/false);
+  TrapCall->setDoesNotReturn();
+  TrapCall->setDoesNotThrow();
+  if (HaveInsertPoint()) {
+    Builder.CreateUnreachable();
+    Builder.ClearInsertionPoint();
+  }
 }
 
 Address CodeGenFunction::EmitArrayToPointerDecay(const Expr *E,
