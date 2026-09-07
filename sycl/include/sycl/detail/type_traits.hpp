@@ -20,7 +20,11 @@ namespace sycl {
 inline namespace _V1 {
 
 template <int Dimensions> class group;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+struct sub_group;
+#else
 class sub_group;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 namespace ext::oneapi {
 struct sub_group;
 
