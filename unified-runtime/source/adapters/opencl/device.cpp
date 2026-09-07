@@ -263,10 +263,7 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
     assert(MaxWorkItemDimensions >= 3);
 
     size_t ReturnBuffer[ReturnBufferSize];
-    size_t *ClCallBuffer = new size_t[MaxWorkItemDimensions];
-
-    oclv::OpenCLVersion DevVer;
-    UR_RETURN_ON_FAILURE(Device->getDeviceVersion(DevVer));
+    std::vector<size_t> ClCallBuffer(MaxWorkItemDimensions);
 
     CL_RETURN_ON_FAILURE(
         clGetDeviceInfo(Device->CLDevice, CL_DEVICE_MAX_WORK_ITEM_SIZES,
@@ -275,7 +272,6 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
     ReturnBuffer[0] = ClCallBuffer[0];
     ReturnBuffer[1] = ClCallBuffer[1];
     ReturnBuffer[2] = ClCallBuffer[2];
-    delete[] ClCallBuffer;
     return ReturnValue(ReturnBuffer);
   }
   case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
