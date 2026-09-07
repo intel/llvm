@@ -1,3 +1,7 @@
+// Sporadically fails on:
+// UNSUPPORTED: linux && level_zero && arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22555
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG

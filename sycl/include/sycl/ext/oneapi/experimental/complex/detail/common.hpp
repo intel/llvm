@@ -49,8 +49,14 @@ struct is_gencomplex
 /// DEFINES
 ////////////////////////////////////////////////////////////////////////////////
 
+#if defined(_MSC_VER) && !defined(__clang__)
+// cl.exe does not understand GCC-style __attribute__((...)); it is only a
+// visibility/always-inline hint, so fall back to __forceinline for parity.
+#define _SYCL_EXT_CPLX_INLINE_VISIBILITY __forceinline
+#else
 #define _SYCL_EXT_CPLX_INLINE_VISIBILITY                                       \
   inline __attribute__((__visibility__("hidden"), __always_inline__))
+#endif
 
 } // namespace experimental
 } // namespace oneapi

@@ -47,8 +47,9 @@ namespace ur::level_zero {
     }
   } catch (...) {
   }
-  UR_LOG(DEBUG,
-         "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  UR_LOG_SAFE(
+      DEBUG,
+      "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
   return false;
 }
 
