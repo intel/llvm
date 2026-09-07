@@ -36,7 +36,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-// The class-key must match the definition in sycl/sub_group.hpp.
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group;
 #else
