@@ -1,5 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 #include <algorithm>
@@ -233,6 +233,7 @@ bool test_bundle_apis(queue Queue) {
   std::cout << "PassR=" << PassR << std::endl;
   Pass &= PassR;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   kernel_bundle Bundle_ff2 = ext::oneapi::experimental::get_kernel_bundle<
       ff_2, bundle_state::executable>(Context);
 
@@ -244,6 +245,7 @@ bool test_bundle_apis(queue Queue) {
   std::cout << "Test retrieving function_name using context: " << PassS
             << std::endl;
   Pass &= PassS;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   kernel_bundle Bundle_ff3 = ext::oneapi::experimental::get_kernel_bundle<
       ff_3<int>, bundle_state::executable>(Context);

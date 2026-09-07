@@ -140,21 +140,27 @@ inline bool is_valid_uid(const xpti::uid128_t &UID) {
 struct hash_t {
   /// @brief Calculates the number of bits required to represent a given value.
   ///
-  /// This function uses the logarithm base 2 (log2) of the input value to
-  /// calculate the number of bits required to represent it. It then adds 1 to
-  /// the result to account for the fact that log2 of a value is one less than
-  /// the number of bits required to represent it.
+  /// This function computes the bit count using integer arithmetic. For zero,
+  /// it returns 1 to ensure zero fields keep their place in the hash. For
+  /// non-zero values, it counts the number of shifts needed to reduce the
+  /// value to zero, i.e. the position of the highest set bit plus 1.
   ///
   /// @param value A 64-bit integer for which the bit count is to be calculated.
   /// @return The number of bits required to represent the input value.
   unsigned bit_count(uint64_t value) {
-    // FIXME: using std::log2 is imprecise. There is no guarantee that the
-    // implementation has actual integer overload for log2 and it is allowed to
-    // do a static_cast<double>(value) to compute the result. Not every integer
-    // is represetntable as floating-point, meaning that byte representation of
-    // value as double may not be the same as for integer, resulting in
-    // different result.
-    return static_cast<unsigned>(std::log2(value)) + 1;
+    // Computed with integer arithmetic: std::log2 is imprecise for large
+    // integers, which are not all representable as floating-point, and
+    // std::log2(0) is -inf, which is not representable as unsigned.
+    // Zero still takes one bit, so that a zero field keeps its place in the
+    // hash instead of letting the neighbouring fields shift into it.
+    if (value == 0)
+      return 1;
+    unsigned count = 0;
+    while (value) {
+      ++count;
+      value >>= 1;
+    }
+    return count;
   }
 
   /// @brief Compacts the file ID, function ID, line number, and column number

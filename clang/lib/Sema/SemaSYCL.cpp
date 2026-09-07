@@ -425,6 +425,21 @@ static bool isZeroSizedArray(SemaSYCL &S, QualType Ty) {
   return false;
 }
 
+static std::pair<const RecordDecl *, bool> needsDeepTypeCheck(SemaSYCL &S,
+                                                              QualType Ty) {
+  while (Ty->isAnyPointerType() || Ty->isArrayType() || Ty->isReferenceType()) {
+    // A zero-length array has no record to traverse, but the DFS below must
+    // still visit it to emit the required diagnostic.
+    if (isZeroSizedArray(S, Ty))
+      return {nullptr, true};
+    if (Ty->isArrayType())
+      Ty = QualType{Ty->getArrayElementTypeNoTypeQual(), 0};
+    else
+      Ty = Ty->getPointeeType();
+  }
+  return {Ty->getAsRecordDecl(), false};
+}
+
 static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
                           llvm::DenseSet<QualType> Visited,
                           SourceRange UsedAtLoc = SourceRange()) {
@@ -5986,13 +6001,25 @@ SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
 }
 
 void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
-                                      llvm::DenseSet<QualType> Visited,
                                       ValueDecl *DeclToCheck) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
+  const auto [RootRecord, HasZeroSizedArray] =
+      needsDeepTypeCheck(*this, DeclToCheck->getType());
+  if (!RootRecord && !HasZeroSizedArray)
+    return;
+  if (RootRecord && RootRecord->isCompleteDefinition() &&
+      DeepTypeCheckedRecords.contains(RootRecord))
+    return;
+
   // Emit notes only for the first discovered declaration of unsupported type
   // to avoid mess of notes. This flag is to track that error already happened.
   bool NeedToEmitNotes = true;
+  bool FoundError = false;
+  bool CanCacheResult = RootRecord && RootRecord->isCompleteDefinition();
+  llvm::SmallDenseSet<QualType, 8> Visited;
+  // Cache complete nested records after this whole traversal succeeds.
+  llvm::SmallDenseSet<CanonicalDeclPtr<const TagDecl>, 8> VisitedRecords;
 
   auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
     bool ErrorFound = false;
@@ -6035,6 +6062,10 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
 
     if (!Visited.insert(NextTy).second)
       continue;
+    // A dependent type can resolve differently when instantiated, so an
+    // error-free traversal cannot be reused for later instantiations.
+    if (NextTy->isDependentType())
+      CanCacheResult = false;
 
     auto EmitHistory = [&]() {
       // The first element is always nullptr.
@@ -6049,6 +6080,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
       if (NeedToEmitNotes)
         EmitHistory();
       NeedToEmitNotes = false;
+      FoundError = true;
     }
 
     // In case pointer/array/reference type is met get pointee type, then
@@ -6063,10 +6095,18 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
         if (NeedToEmitNotes)
           EmitHistory();
         NeedToEmitNotes = false;
+        FoundError = true;
       }
     }
 
     if (const auto *RecDecl = NextTy->getAsRecordDecl()) {
+      // An incomplete record can acquire unsupported fields when completed.
+      if (!RecDecl->isCompleteDefinition())
+        CanCacheResult = false;
+      else if (DeepTypeCheckedRecords.contains(RecDecl))
+        continue;
+      else
+        VisitedRecords.insert(RecDecl);
       if (auto *NextFD = dyn_cast<FieldDecl>(Next))
         History.push_back(NextFD);
       // When nullptr is discovered, this means we've gone back up a level, so
@@ -6075,6 +6115,9 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
       llvm::append_range(StackForRecursion, RecDecl->fields());
     }
   } while (!StackForRecursion.empty());
+
+  if (CanCacheResult && !FoundError)
+    DeepTypeCheckedRecords.insert_range(VisitedRecords);
 }
 
 void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
@@ -8041,7 +8084,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   for (const VarDecl *VD : GlobalVars) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
+    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This
     // can happen if it was a deduced type.
     if (!SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
         !SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&

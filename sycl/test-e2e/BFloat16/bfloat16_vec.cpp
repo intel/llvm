@@ -10,6 +10,10 @@
 // RUN: %{run} %t.out
 // RUN: %{build} -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -o %t2.out
 // RUN: %{run} %t2.out
+
+// XFAIL: linux && level_zero && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23094
+
 #include <iostream>
 
 #include <sycl/detail/core.hpp>

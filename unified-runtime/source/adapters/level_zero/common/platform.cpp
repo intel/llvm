@@ -796,10 +796,15 @@ ur_result_t ur_platform_handle_t_::initialize() {
       .DisableZeLaunchKernelWithArgs =
       getenv_tobool("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS", false);
 
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeCommandListAppendHostFunction",
-                   reinterpret_cast<void **>(
-                       &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+  if (this->isDriverVersionNewerOrSimilar(1, 17, 0)) {
+    ZeHostTaskExt.zeCommandListAppendHostFunction =
+        zeCommandListAppendHostFunction;
+  } else {
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, "zeCommandListAppendHostFunction",
+                     reinterpret_cast<void **>(
+                         &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+  }
 
   ZeHostTaskExt.Supported =
       ZeHostTaskExt.zeCommandListAppendHostFunction != nullptr;
