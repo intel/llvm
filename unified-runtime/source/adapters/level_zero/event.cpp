@@ -890,16 +890,24 @@ urEventRelease(
       (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
        Event->CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER) &&
       Event->Completed;
-  bool isEventDeleted = false;
-  UR_CALL(urEventReleaseInternal(Event, &isEventDeleted));
   // If this is a Completed Event Wait Out Event, then we need to cleanup the
   // event at user release and not at the time of completion.
   // Use CleanupCompletedEvent which is a no-op if the event was already
   // cleaned up (e.g. by CleanupEventListFromResetCmdList), preventing a
   // double-release of the internal reference count.
-  if (isEventsWaitCompleted & !isEventDeleted) {
+  //
+  // Clean up before dropping the reference this call owns. Once
+  // urEventReleaseInternal() drops the last reference the event goes back into
+  // the context event cache, and another thread can take it from there right
+  // away for an unrelated command. Touching it after that point corrupts the
+  // new owner's event: CleanupCompletedEvent() would set CleanedUp on it, which
+  // makes every subsequent cleanup of the recycled event return early and so
+  // leak the reference that createEventAndAssociateQueue() took. That reference
+  // keeps the queue alive too, so its ZeCommandQueue is never destroyed.
+  if (isEventsWaitCompleted) {
     UR_CALL(CleanupCompletedEvent(Event, false, false));
   }
+  UR_CALL(urEventReleaseInternal(Event));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1116,13 +1124,12 @@ ur::level_zero::v1::ur_event_handle_t_::~ur_event_handle_t_() {
   }
 }
 
-ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
-                                   bool *isEventDeleted) {
+ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   if (!Event->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (Event->OriginAllocEvent) {
-    urEventReleaseInternal(Event->OriginAllocEvent, isEventDeleted);
+    urEventReleaseInternal(Event->OriginAllocEvent);
   }
 
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
@@ -1163,7 +1170,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
   // and release a reference to it.
   if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
     // Decrement ref-count of the host-visible proxy event.
-    UR_CALL(urEventReleaseInternal(Event->HostVisibleEvent, isEventDeleted));
+    UR_CALL(urEventReleaseInternal(Event->HostVisibleEvent));
   }
 
   // Save pointer to the queue before deleting/resetting event.
@@ -1192,9 +1199,6 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
   // must released later.
   if (DisableEventsCaching || !Event->OwnNativeHandle) {
     delete Event;
-    if (isEventDeleted) {
-      *isEventDeleted = true;
-    }
   } else {
     Event->Context->addEventToContextCache(Event);
   }
