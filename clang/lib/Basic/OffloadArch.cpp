@@ -154,7 +154,7 @@ static OffloadArch parseIntelGPUArch(llvm::StringRef S) {
     const IntelGPUArchEntry &Entry = IntelGPUArchs[Index];
     if (S == Entry.Name)
       return OffloadArch::getIntelXeGPU(Index);
-    if (S == Entry.IGCALevel)
+    if (!Entry.namesAGroup() && S == Entry.IGCALevel)
       return OffloadArch::getIntelXeGPU(Index | IntelGPUIGCALevelFlag);
   }
 
