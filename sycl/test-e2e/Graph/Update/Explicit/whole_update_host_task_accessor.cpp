@@ -3,10 +3,8 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero && !system-windows %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-// XFAIL: arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h || arch-intel_gpu_wcl
-// XFAIL-TRACKER: CMPLRTST-27275
-// XFAIL-TRACKER: CMPLRLLVM-72055
-// XFAIL-TRACKER: CMPLRTST-28665
+// UNSUPPORTED: arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h || arch-intel_gpu_wcl
+// UNSUPPORTED-TRACKER: CMPLRTST-28665
 
 #define GRAPH_E2E_EXPLICIT
 

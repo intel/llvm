@@ -11,6 +11,10 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
+
+// XFAIL: linux && level_zero && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23094
+
 #include <iostream>
 
 #include <sycl/detail/core.hpp>

@@ -3992,6 +3992,25 @@ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
   if (const auto *A = FD->getAttr<SYCLUsesAspectsAttr>())
     applySYCLAspectsMD(A, getContext(), getLLVMContext(), F,
                        "sycl_used_aspects");
+
+  // Compile-time properties are also applied to definitions in
+  // CodeGenFunction::StartFunction, but they have to be present on declarations
+  // as well: a translation unit which only sees a declaration of an
+  // 'indirectly_callable' virtual function still needs that information in
+  // order for SYCLVirtualFunctionsAnalysisPass to propagate the
+  // "calls-indirectly" attribute onto kernels which reference the corresponding
+  // vtable.
+  if (getLangOpts().SYCLIsDevice) {
+    if (const auto *A = FD->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          A->getFilteredAttributeNameValuePairs(getContext());
+
+      llvm::AttrBuilder FnAttrBuilder(F->getContext());
+      for (const auto &NameValuePair : NameValuePairs)
+        FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
+      F->addFnAttrs(FnAttrBuilder);
+    }
+  }
 }
 
 void CodeGenModule::addUsedGlobal(llvm::GlobalValue *GV) {
