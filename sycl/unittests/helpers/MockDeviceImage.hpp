@@ -380,7 +380,7 @@ inline MockProperty makeSpecConstant(std::vector<char> &ValData,
                                      std::tuple<T...> DefaultValues) {
   const uint64_t PropByteArraySize = sizeof...(T) * sizeof(uint32_t) * 3;
   std::vector<char> DescData;
-  DescData.resize(8 + PropByteArraySize);
+  DescData.resize(sizeof(PropByteArraySize) + PropByteArraySize);
   std::memcpy(DescData.data(), &PropByteArraySize, sizeof(PropByteArraySize));
 
   if (ValData.empty())
