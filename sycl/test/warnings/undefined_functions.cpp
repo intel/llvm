@@ -4,12 +4,6 @@
 // This test checks that sycl-post-link emits the "Undefined function ..."
 // warning by default, that -fsycl-allow-device-image-dependencies suppresses
 // it (existing behaviour), and that -Wno-sycl-undefined-func-in-image
-// suppresses it (end-to-end coverage that the -W flag is threaded from the
-// driver all the way through sycl-post-link and honoured in the output).
-// Last-W-wins semantics is a pure driver-argument concern and is covered by
-// clang/test/Driver/sycl-suppress-undefined-func-warnings.cpp; no need to
-// warning by default,
-// and that -Wno-sycl-undefined-func-in-image
 // suppresses it.
 
 // CHECK-WARNING: warning: Undefined function _Z11external_f1ii found in

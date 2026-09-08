@@ -77,9 +77,10 @@
 // CHK-SPEC-CONST-MODE-EMULATION: sycl-post-link-library:{{.*}} SpecializationConstantMode: emulation
 
 // Check how --sycl-suppress-undefined-func-warnings maps to
-// PostLinkSettings.SuppressUndefinedFuncWarnings on the in-process library
+// PostLinkSettings.SuppressUndefinedFuncWarnings for the in-process library
 // path.
 // RUN: clang-linker-wrapper --sycl-suppress-undefined-func-warnings -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SUPPRESS-UNDEF-TRUE %s
+// RUN: clang-linker-wrapper -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SUPPRESS-UNDEF-FALSE %s
 
 // CHK-SUPPRESS-UNDEF-TRUE: sycl-post-link-library:{{.*}} SuppressUndefinedFuncWarnings: true
 // CHK-SUPPRESS-UNDEF-TRUE-SAME: esimd.SuppressUndefinedFuncWarnings: true
