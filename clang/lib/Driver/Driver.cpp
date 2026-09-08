@@ -7572,11 +7572,15 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
 
     // If we ended with something, add to the output list.
-    if (Current) {
+    if (Current)
       Actions.push_back(Current);
+
+    // Add any top level actions generated for offloading.
+    if (!UseNewOffloadingDriver)
+      OffloadBuilder->appendTopLevelActions(Actions, Current, InputArg);
+    else if (Current)
       Current->propagateHostOffloadInfo(C.getActiveOffloadKinds(),
                                         /*BA=*/{});
-    }
   }
 
   if (!UseNewOffloadingDriver) {
@@ -8142,7 +8146,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
   // SYCL, allow the building of offloading actions to add the device side to
   // the bundle.
   if (!(isa<CompileJobAction>(HostAction) ||
-        // isa<PrecompileJobAction>(HostAction) || SYCLBundleFile ||
+        isa<PrecompileJobAction>(HostAction) || SYCLBundleFile ||
         getFinalPhase(Args, {Input}) == phases::Preprocess))
     return HostAction;
 
