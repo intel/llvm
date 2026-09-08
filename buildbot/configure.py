@@ -200,19 +200,20 @@ def do_configure(args, passthrough_args):
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
 
-    llvm_spirv64_runtimes = "compiler-rt"
-    llvm_spirv64_sanitizers = ""
-    runtime_targets += ";spirv64-unknown-unknown"
-    cmake_cmd.extend(
-        [
-            "-DRUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES={}".format(
-                llvm_spirv64_runtimes
-            ),
-            "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
-                llvm_spirv64_sanitizers
-            ),
-        ]
-    )
+    if sys.platform != "darwin":
+        llvm_spirv64_runtimes = "compiler-rt"
+        llvm_spirv64_sanitizers = ""
+        runtime_targets += ";spirv64-unknown-unknown"
+        cmake_cmd.extend(
+            [
+                "-DRUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES={}".format(
+                    llvm_spirv64_runtimes
+                ),
+                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
+                    llvm_spirv64_sanitizers
+                ),
+            ]
+        )
 
     if llvm_enable_runtimes:
         cmake_cmd.extend(
