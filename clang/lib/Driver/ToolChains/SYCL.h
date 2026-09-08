@@ -39,6 +39,12 @@ void populateSYCLDeviceTraitsMacrosArgs(
     const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets);
 
 bool shouldDoPerObjectFileLinking(const Compilation &C);
+
+// If TC targets SPIR/SPIR-V, appends the spirv64 compiler-rt directory
+// (where libclang_rt.builtins.bc is installed) to LibraryPaths.
+void addSPIRVCompilerRTPath(const ToolChain &TC,
+                            SmallVectorImpl<SmallString<128>> &LibraryPaths);
+
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
 // offloading information. Finally compiles to object using llc

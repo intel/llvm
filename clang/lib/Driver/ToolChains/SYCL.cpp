@@ -306,6 +306,16 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
                               /*default=*/true);
 }
 
+void SYCL::addSPIRVCompilerRTPath(
+    const ToolChain &TC, SmallVectorImpl<SmallString<128>> &LibraryPaths) {
+  if (!TC.getTriple().isSPIROrSPIRV())
+    return;
+  SmallString<128> SPIRVCompilerRTPath(TC.getCompilerRTPath());
+  llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
+  if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
+    LibraryPaths.emplace_back(SPIRVCompilerRTPath);
+}
+
 // Return whether to use native bfloat16 library.
 static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
                              const llvm::Triple &Triple, const ToolChain &TC,
@@ -2008,13 +2018,7 @@ SYCLToolChain::getDeviceLibs(
   SmallVector<SmallString<128>, 4> LibraryPaths;
   SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
 
-  if (getTriple().isSPIROrSPIRV()) {
-    std::string CompilerRTPath = getCompilerRTPath();
-    SmallString<128> SPIRVCompilerRTPath(CompilerRTPath);
-    llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
-    if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
-      LibraryPaths.emplace_back(SPIRVCompilerRTPath);
-  }
+  SYCL::addSPIRVCompilerRTPath(*this, LibraryPaths);
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
