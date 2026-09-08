@@ -28,10 +28,9 @@
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_EBO
+#include <sycl/feature_test.hpp>              // for SYCL_KHR_PROPERTIES
 
 #include <type_traits>
-
-#define SYCL_KHR_PROPERTIES 1
 
 namespace sycl {
 inline namespace _V1 {
