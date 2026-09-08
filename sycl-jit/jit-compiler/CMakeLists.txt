@@ -27,8 +27,13 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   sycl-headers
   OpenCL-Headers
   clang-resource-headers
-  libsycldevice
-  builtins-spirv64-unknown-unknown)
+  libsycldevice)
+
+if ("compiler-rt" IN_LIST RUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES OR
+    ("compiler-rt" IN_LIST LLVM_ENABLE_RUNTIMES AND
+     "spirv64-unknown-unknown" IN_LIST LLVM_BUILTIN_TARGETS))
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS builtins-spirv64-unknown-unknown)
+endif()
 
 set(libclc_enabled FALSE)
 foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
