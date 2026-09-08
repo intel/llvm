@@ -8,7 +8,9 @@
 // driver all the way through sycl-post-link and honoured in the output).
 // Last-W-wins semantics is a pure driver-argument concern and is covered by
 // clang/test/Driver/sycl-suppress-undefined-func-warnings.cpp; no need to
-// re-run a full -fsycl-link compile here.
+// warning by default,
+// and that -Wno-sycl-undefined-func-in-image
+// suppresses it.
 
 // CHECK-WARNING: warning: Undefined function _Z11external_f1ii found in
 // CHECK-WARNING-DYNAMIC-NOT: warning: Undefined function _Z11external_f1ii found in
