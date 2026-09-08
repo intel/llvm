@@ -14,8 +14,9 @@
 #include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node class
 #include <sycl/property_list.hpp>                      // for property_list
 
-#include <memory> // for shared_ptr
-#include <vector> // for vector
+#include <cstdint> // for uint64_t
+#include <memory>  // for shared_ptr
+#include <vector>  // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -57,6 +58,25 @@ public:
   /// memory allocations.
   size_t get_required_mem_size() const;
 
+  /// Queries a characteristic of this graph.
+  ///
+  /// Descriptors report the graph's effective state rather than the contents
+  /// of the property list it was finalized with.
+  /// @tparam Param One of the descriptors in the `info::graph` namespace which
+  /// is valid in the executable state.
+  /// @return The value of the queried characteristic.
+  template <typename Param>
+  typename Param::return_type get_info() const noexcept {
+    static_assert(detail::is_graph_info_desc<Param>::value,
+                  "Param must be one of the info descriptors in the "
+                  "sycl::ext::oneapi::experimental::info::graph namespace.");
+    static_assert(detail::graph_info_valid_in_executable<Param>::value,
+                  "This info descriptor is not valid for a command_graph in "
+                  "the graph_state::executable state.");
+    return static_cast<typename Param::return_type>(
+        getInfoImpl(Param::info_kind));
+  }
+
   /// Common Reference Semantics
   friend bool operator==(const executable_command_graph &LHS,
                          const executable_command_graph &RHS) {
@@ -78,6 +98,13 @@ protected:
 
   /// Creates a backend representation of the graph in \p impl member variable.
   void finalizeImpl();
+
+  /// Templateless implementation of get_info(). Every graph descriptor is
+  /// scalar, so all of them share this one exported entry point and are
+  /// returned widened to uint64_t.
+  /// @param Kind Which characteristic to report.
+  /// @return The characteristic's value, widened to uint64_t.
+  uint64_t getInfoImpl(detail::graph_info_kind Kind) const noexcept;
 
   std::shared_ptr<detail::exec_graph_impl> impl;
 };

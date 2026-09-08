@@ -12,6 +12,7 @@
 #include "dynamic_impl.hpp" // for dynamic classes
 #include "node_impl.hpp"    // for node_impl
 #include <algorithm>        // for count_if
+#include <cassert>          // for assert
 #include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
 #include <detail/config.hpp>                          // for SYCLConfig
 #include <detail/event_impl.hpp>                      // for event_impl
@@ -2381,6 +2382,25 @@ size_t modifiable_command_graph::get_id() const noexcept {
   return impl->getID();
 }
 
+uint64_t modifiable_command_graph::getInfoImpl(
+    detail::graph_info_kind Kind) const noexcept {
+  // No lock is taken: every characteristic reported here is immutable after
+  // graph construction.
+  switch (Kind) {
+  case detail::graph_info_kind::recording_mode: {
+    const bool IsNative = isNativeRecordingEnabledForGraph(*impl);
+    return static_cast<uint64_t>(IsNative ? graph_recording_mode::native
+                                          : graph_recording_mode::runtime);
+  }
+  case detail::graph_info_kind::updatable:
+    // Not valid in the modifiable state, rejected by static_assert in
+    // get_info().
+    break;
+  }
+  assert(false && "Unhandled graph info descriptor");
+  return 0;
+}
+
 void modifiable_command_graph::checkNodePropertiesAndThrow(
     const property_list &Properties) {
   auto CheckDataLessProperties = [](int PropertyKind) {
@@ -2460,6 +2480,24 @@ size_t executable_command_graph::get_required_mem_size() const {
   // now. This call my change if we move to being able to share memory between
   // unique graphs.
   return impl->getGraphImpl()->getMemPool().getMemUseCurrent();
+}
+
+uint64_t executable_command_graph::getInfoImpl(
+    detail::graph_info_kind Kind) const noexcept {
+  // No lock is taken: every characteristic reported here is immutable after
+  // finalization. Note that the recording mode is answered from this graph's
+  // own native handle rather than by reaching through to the parent graph.
+  switch (Kind) {
+  case detail::graph_info_kind::recording_mode: {
+    const bool IsNative = impl->getNativeExecutableGraphHandle() != nullptr;
+    return static_cast<uint64_t>(IsNative ? graph_recording_mode::native
+                                          : graph_recording_mode::runtime);
+  }
+  case detail::graph_info_kind::updatable:
+    return static_cast<uint64_t>(impl->isUpdatable());
+  }
+  assert(false && "Unhandled graph info descriptor");
+  return 0;
 }
 } // namespace detail
 } // namespace experimental

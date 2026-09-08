@@ -15,6 +15,7 @@
 #include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node class
 #include <sycl/property_list.hpp>                      // for property_list
 
+#include <cstdint>    // for uint64_t
 #include <functional> // for function
 #include <memory>     // for shared_ptr
 #include <tuple>      // for tuple, apply
@@ -178,6 +179,25 @@ public:
   /// Returns a process-unique ID associated with this graph object.
   size_t get_id() const noexcept;
 
+  /// Queries a characteristic of this graph.
+  ///
+  /// Descriptors report the graph's effective state rather than the contents
+  /// of the property list it was constructed with.
+  /// @tparam Param One of the descriptors in the `info::graph` namespace which
+  /// is valid in the modifiable state.
+  /// @return The value of the queried characteristic.
+  template <typename Param>
+  typename Param::return_type get_info() const noexcept {
+    static_assert(detail::is_graph_info_desc<Param>::value,
+                  "Param must be one of the info descriptors in the "
+                  "sycl::ext::oneapi::experimental::info::graph namespace.");
+    static_assert(detail::graph_info_valid_in_modifiable<Param>::value,
+                  "This info descriptor is not valid for a command_graph in "
+                  "the graph_state::modifiable state.");
+    return static_cast<typename Param::return_type>(
+        getInfoImpl(Param::info_kind));
+  }
+
   /// Common Reference Semantics
   friend bool operator==(const modifiable_command_graph &LHS,
                          const modifiable_command_graph &RHS) {
@@ -220,6 +240,13 @@ protected:
   void print_graph(sycl::detail::string_view path, bool verbose = false) const;
 
   void setDestructionCallbackImpl(std::function<void()> Callback);
+
+  /// Templateless implementation of get_info(). Every graph descriptor is
+  /// scalar, so all of them share this one exported entry point and are
+  /// returned widened to uint64_t.
+  /// @param Kind Which characteristic to report.
+  /// @return The characteristic's value, widened to uint64_t.
+  uint64_t getInfoImpl(detail::graph_info_kind Kind) const noexcept;
 
   std::shared_ptr<detail::graph_impl> impl;
 

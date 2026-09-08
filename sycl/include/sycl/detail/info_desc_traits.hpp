@@ -64,6 +64,11 @@ struct kernel_device_specific : info_class_base<void> {};
 struct kernel_queue_specific : info_class_base<void> {};
 struct event : info_class_base<ur_event_info_t> {};
 struct event_profiling : info_class_base<ur_profiling_info_t> {};
+// No UR enum lookup applies; graph characteristics are runtime-side state
+// settled at graph construction/finalization. The tag lives here rather than
+// in the graph extension header so that all info_class tags stay in one place
+// and `is_info_class_tag` remains closed over `info_class_base` derivation.
+struct graph : info_class_base<void> {};
 } // namespace info_class
 
 // Detects that `T` is one of the `info_class::*` tags above. Holds when `T`
