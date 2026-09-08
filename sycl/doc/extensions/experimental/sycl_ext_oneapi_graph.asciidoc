@@ -1302,16 +1302,12 @@ struct updatable {
 } // namespace sycl::ext::oneapi::experimental
 ----
 
-A `command_graph` that is received from outside the code holding it — across a
-library boundary, or from a factory function — carries characteristics which
-determine whether a given operation on it will succeed. The information
-descriptors in the `info::graph` namespace make those characteristics
-queryable through the `get_info` member function of `command_graph`.
+A `command_graph` that is declared at one call site and used in a different call site does not have access to information used to
+instruct its creation, such as whether it is updatable or uses native recording. The `get_info` method can be used to obtain information
+descriptors in the `info::graph` namespace to query such information.
 
-These descriptors report the graph's *effective state*, not the contents of the
-`property_list` the graph was constructed or finalized with. A descriptor may
-therefore report a characteristic that was never requested through a property,
-if the implementation enabled it by some other means.
+These descriptors report the graph's effective state, which may differ from the contents of the
+`property_list` the graph was constructed or finalized with.
 
 `info::graph::recording_mode` is valid in both the `graph_state::modifiable`
 and `graph_state::executable` states. `info::graph::updatable` is valid only in
@@ -1321,8 +1317,7 @@ The `graph_recording_mode` enumerators have the following meaning:
 
 * `graph_recording_mode::runtime` indicates that the SYCL runtime owns the
   graph's node model. It is the value reported for any graph that does not use
-  native recording, including a graph built exclusively through the explicit
-  graph-building API and never used for queue recording.
+  native recording.
 
 * `graph_recording_mode::native` indicates that graph capture is delegated to
   the backend, and that the restrictions listed in
@@ -1687,18 +1682,19 @@ template<typename Param>
 typename Param::return_type get_info() const noexcept;
 ----
 
-_Constraints:_ This member function is only available when the `command_graph`
-state is `graph_state::modifiable`. `Param` must be one of the
+_Constraints:_ `Param` must be one of the
 <<graph-info-descriptors, graph information descriptors>> that is valid in the
 `graph_state::modifiable` state, that is, `info::graph::recording_mode`.
 
 _Returns:_ Information about the graph as described by `Param`.
 
 `info::graph::recording_mode` returns `graph_recording_mode::native` if native
-recording is in effect for this graph, whether it was enabled by passing
-`property::graph::enable_native_recording` at construction or by setting
-`SYCL_GRAPH_FORCE_NATIVE_RECORDING=1`. Otherwise it returns
+recording is in effect for this graph. Otherwise it returns
 `graph_recording_mode::runtime`.
+
+`info::graph::updatable` returns `true` if `property::graph::updatable` was
+passed to the `finalize` call that created the executable graph. This is only available when the `command_graph`
+state is `graph_state::executable`.
 
 [NOTE]
 ====
@@ -1729,46 +1725,6 @@ _Constraints:_ This member function is only available when the `command_graph` s
 _Returns:_ The total size in bytes of the memory required for
 <<graph-memory-allocations, graph-owned memory allocations>> in this graph.
 
-[source,c++]
-----
-template<typename Param>
-typename Param::return_type get_info() const noexcept;
-----
-
-_Constraints:_ This member function is only available when the `command_graph`
-state is `graph_state::executable`. `Param` must be one of the
-<<graph-info-descriptors, graph information descriptors>> that is valid in the
-`graph_state::executable` state, that is, `info::graph::recording_mode` or
-`info::graph::updatable`.
-
-_Returns:_ Information about the graph as described by `Param`.
-
-`info::graph::recording_mode` returns `graph_recording_mode::native` if the
-modifiable graph this executable graph was finalized from used native
-recording, and `graph_recording_mode::runtime` otherwise.
-
-`info::graph::updatable` returns `true` if `property::graph::updatable` was
-passed to the `finalize` call that created this executable graph, and `false`
-otherwise. When it returns `false`, the `update` member functions throw an
-`exception` with error code `invalid`.
-
-[NOTE]
-====
-Example: a consumer of an executable graph produced elsewhere checking whether
-it may update the graph:
-
-[source,c++]
-----
-namespace exp_ext = sycl::ext::oneapi::experimental;
-
-void consume(exp_ext::command_graph<exp_ext::graph_state::executable>& g,
-             const std::vector<exp_ext::node>& newNodes) {
-  if (g.get_info<exp_ext::info::graph::updatable>()) {
-    g.update(newNodes);
-  }
-}
-----
-====
 
 =====  Member functions of the `command_graph` class for graph update
 
@@ -2960,10 +2916,7 @@ native APIs on a graph handle owned by a `command_graph` object is undefined
 behavior.
 
 Furthermore, the following features cannot be used with native recording and
-will throw an exception if attempted. A consumer holding a graph it did not create can
-determine whether these restrictions apply by querying the
-`info::graph::recording_mode` <<graph-info-descriptors, information
-descriptor>>, rather than probing with exceptions.
+will throw an exception if attempted:
 
 [cols="1,3,1"]
 |===
