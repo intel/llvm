@@ -3377,13 +3377,7 @@ public:
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getElementType());
-  }
-
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Element) {
-    ID.AddPointer(Element.getAsOpaquePtr());
-  }
+  QualType getKey() const { return getElementType(); }
 
   static bool classof(const Type *T) { return T->getTypeClass() == Complex; }
 };
@@ -3403,13 +3397,7 @@ public:
   bool isSugared() const { return true; }
   QualType desugar() const { return getInnerType(); }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getInnerType());
-  }
-
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Inner) {
-    Inner.Profile(ID);
-  }
+  QualType getKey() const { return getInnerType(); }
 
   static bool classof(const Type *T) { return T->getTypeClass() == Paren; }
 };
@@ -3430,13 +3418,7 @@ public:
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getPointeeType());
-  }
-
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Pointee) {
-    ID.AddPointer(Pointee.getAsOpaquePtr());
-  }
+  QualType getKey() const { return getPointeeType(); }
 
   static bool classof(const Type *T) { return T->getTypeClass() == Pointer; }
 };
@@ -3680,13 +3662,7 @@ public:
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
-      Profile(ID, getPointeeType());
-  }
-
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Pointee) {
-      ID.AddPointer(Pointee.getAsOpaquePtr());
-  }
+  QualType getKey() const { return getPointeeType(); }
 
   static bool classof(const Type *T) {
     return T->getTypeClass() == BlockPointer;
@@ -3712,23 +3688,16 @@ public:
 
   QualType getPointeeTypeAsWritten() const { return PointeeType; }
 
+  std::pair<QualType, bool> getKey() const {
+    return {getPointeeTypeAsWritten(), isSpelledAsLValue()};
+  }
+
   QualType getPointeeType() const {
     // FIXME: this might strip inner qualifiers; okay?
     const ReferenceType *T = this;
     while (T->isInnerRef())
       T = T->PointeeType->castAs<ReferenceType>();
     return T->PointeeType;
-  }
-
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, PointeeType, isSpelledAsLValue());
-  }
-
-  static void Profile(llvm::FoldingSetNodeID &ID,
-                      QualType Referencee,
-                      bool SpelledAsLValue) {
-    ID.AddPointer(Referencee.getAsOpaquePtr());
-    ID.AddBoolean(SpelledAsLValue);
   }
 
   static bool classof(const Type *T) {
@@ -8290,7 +8259,6 @@ public:
   static void Profile(llvm::FoldingSetNodeID &ID, QualType T) {
     ID.AddPointer(T.getAsOpaquePtr());
   }
-
   static bool classof(const Type *T) {
     return T->getTypeClass() == ObjCObjectPointer;
   }
@@ -8309,16 +8277,10 @@ public:
   /// the type returned by performing an atomic load of this atomic type.
   QualType getValueType() const { return ValueType; }
 
+  QualType getKey() const { return getValueType(); }
+
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
-
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getValueType());
-  }
-
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType T) {
-    ID.AddPointer(T.getAsOpaquePtr());
-  }
 
   static bool classof(const Type *T) {
     return T->getTypeClass() == Atomic;
@@ -8343,13 +8305,8 @@ public:
 
   QualType desugar() const { return QualType(this, 0); }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getElementType(), isReadOnly());
-  }
-
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType T, bool isRead) {
-    ID.AddPointer(T.getAsOpaquePtr());
-    ID.AddBoolean(isRead);
+  std::pair<QualType, bool> getKey() const {
+    return {getElementType(), isReadOnly()};
   }
 
   static bool classof(const Type *T) {

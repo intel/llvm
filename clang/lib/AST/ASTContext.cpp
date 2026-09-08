@@ -3983,11 +3983,8 @@ void ASTContext::adjustExceptionSpec(
 QualType ASTContext::getComplexType(QualType T) const {
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
-  llvm::FoldingSetNodeID ID;
-  ComplexType::Profile(ID, T);
-
   llvm::FoldingSetInsertToken Token;
-  if (ComplexType *CT = ComplexTypes.lookup(ID, Token))
+  if (ComplexType *CT = ComplexTypes.lookup(T, Token))
     return QualType(CT, 0);
 
   // If the pointee type isn't canonical, this won't be a canonical type either,
@@ -3996,9 +3993,7 @@ QualType ASTContext::getComplexType(QualType T) const {
   if (!T.isCanonical()) {
     Canonical = getComplexType(getCanonicalType(T));
 
-    // Get the new insert position for the node we care about.
-    ComplexType *NewIP = ComplexTypes.lookup(ID, Token);
-    assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
+    assert(!ComplexTypes.lookup(T, Token) && "Shouldn't be in the map!");
   }
   auto *New = new (*this, alignof(ComplexType)) ComplexType(T, Canonical);
   Types.push_back(New);
@@ -4011,11 +4006,8 @@ QualType ASTContext::getComplexType(QualType T) const {
 QualType ASTContext::getPointerType(QualType T) const {
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
-  llvm::FoldingSetNodeID ID;
-  PointerType::Profile(ID, T);
-
   llvm::FoldingSetInsertToken Token;
-  if (PointerType *PT = PointerTypes.lookup(ID, Token))
+  if (PointerType *PT = PointerTypes.lookup(T, Token))
     return QualType(PT, 0);
 
   // If the pointee type isn't canonical, this won't be a canonical type either,
@@ -4024,9 +4016,7 @@ QualType ASTContext::getPointerType(QualType T) const {
   if (!T.isCanonical()) {
     Canonical = getPointerType(getCanonicalType(T));
 
-    // Get the new insert position for the node we care about.
-    PointerType *NewIP = PointerTypes.lookup(ID, Token);
-    assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
+    assert(!PointerTypes.lookup(T, Token) && "Shouldn't be in the map!");
   }
   auto *New = new (*this, alignof(PointerType)) PointerType(T, Canonical);
   Types.push_back(New);
@@ -4135,11 +4125,8 @@ QualType ASTContext::getBlockPointerType(QualType T) const {
   assert(T->isFunctionType() && "block of function types only");
   // Unique pointers, to guarantee there is only one block of a particular
   // structure.
-  llvm::FoldingSetNodeID ID;
-  BlockPointerType::Profile(ID, T);
-
   llvm::FoldingSetInsertToken Token;
-  if (BlockPointerType *PT = BlockPointerTypes.lookup(ID, Token))
+  if (BlockPointerType *PT = BlockPointerTypes.lookup(T, Token))
     return QualType(PT, 0);
 
   // If the block pointee type isn't canonical, this won't be a canonical
@@ -4148,9 +4135,7 @@ QualType ASTContext::getBlockPointerType(QualType T) const {
   if (!T.isCanonical()) {
     Canonical = getBlockPointerType(getCanonicalType(T));
 
-    // Get the new insert position for the node we care about.
-    BlockPointerType *NewIP = BlockPointerTypes.lookup(ID, Token);
-    assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
+    assert(!BlockPointerTypes.lookup(T, Token) && "Shouldn't be in the map!");
   }
   auto *New =
       new (*this, alignof(BlockPointerType)) BlockPointerType(T, Canonical);
@@ -4169,11 +4154,9 @@ ASTContext::getLValueReferenceType(QualType T, bool SpelledAsLValue) const {
 
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
-  llvm::FoldingSetNodeID ID;
-  ReferenceType::Profile(ID, T, SpelledAsLValue);
-
   llvm::FoldingSetInsertToken Token;
-  if (LValueReferenceType *RT = LValueReferenceTypes.lookup(ID, Token))
+  if (LValueReferenceType *RT =
+          LValueReferenceTypes.lookup({T, SpelledAsLValue}, Token))
     return QualType(RT, 0);
 
   const auto *InnerRef = T->getAs<ReferenceType>();
@@ -4185,9 +4168,8 @@ ASTContext::getLValueReferenceType(QualType T, bool SpelledAsLValue) const {
     QualType PointeeType = (InnerRef ? InnerRef->getPointeeType() : T);
     Canonical = getLValueReferenceType(getCanonicalType(PointeeType));
 
-    // Get the new insert position for the node we care about.
-    LValueReferenceType *NewIP = LValueReferenceTypes.lookup(ID, Token);
-    assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
+    assert(!LValueReferenceTypes.lookup({T, SpelledAsLValue}, Token) &&
+           "Shouldn't be in the map!");
   }
 
   auto *New = new (*this, alignof(LValueReferenceType))
@@ -4207,11 +4189,8 @@ QualType ASTContext::getRValueReferenceType(QualType T) const {
 
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
-  llvm::FoldingSetNodeID ID;
-  ReferenceType::Profile(ID, T, false);
-
   llvm::FoldingSetInsertToken Token;
-  if (RValueReferenceType *RT = RValueReferenceTypes.lookup(ID, Token))
+  if (RValueReferenceType *RT = RValueReferenceTypes.lookup({T, false}, Token))
     return QualType(RT, 0);
 
   const auto *InnerRef = T->getAs<ReferenceType>();
@@ -4223,9 +4202,8 @@ QualType ASTContext::getRValueReferenceType(QualType T) const {
     QualType PointeeType = (InnerRef ? InnerRef->getPointeeType() : T);
     Canonical = getRValueReferenceType(getCanonicalType(PointeeType));
 
-    // Get the new insert position for the node we care about.
-    RValueReferenceType *NewIP = RValueReferenceTypes.lookup(ID, Token);
-    assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
+    assert(!RValueReferenceTypes.lookup({T, false}, Token) &&
+           "Shouldn't be in the map!");
   }
 
   auto *New = new (*this, alignof(RValueReferenceType))
@@ -5219,11 +5197,8 @@ QualType ASTContext::getFunctionTypeInternal(
 }
 
 QualType ASTContext::getPipeType(QualType T, bool ReadOnly) const {
-  llvm::FoldingSetNodeID ID;
-  PipeType::Profile(ID, T, ReadOnly);
-
   llvm::FoldingSetInsertToken Token;
-  if (PipeType *PT = PipeTypes.lookup(ID, Token))
+  if (PipeType *PT = PipeTypes.lookup({T, ReadOnly}, Token))
     return QualType(PT, 0);
 
   // If the pipe element type isn't canonical, this won't be a canonical type
@@ -5232,10 +5207,8 @@ QualType ASTContext::getPipeType(QualType T, bool ReadOnly) const {
   if (!T.isCanonical()) {
     Canonical = getPipeType(getCanonicalType(T), ReadOnly);
 
-    // Get the new insert position for the node we care about.
-    PipeType *NewIP = PipeTypes.lookup(ID, Token);
-    assert(!NewIP && "Shouldn't be in the map!");
-    (void)NewIP;
+    assert(!PipeTypes.lookup({T, ReadOnly}, Token) &&
+           "Shouldn't be in the map!");
   }
   auto *New = new (*this, alignof(PipeType)) PipeType(T, Canonical, ReadOnly);
   Types.push_back(New);
@@ -6209,20 +6182,16 @@ QualType ASTContext::getTemplateSpecializationType(
 
 QualType
 ASTContext::getParenType(QualType InnerType) const {
-  llvm::FoldingSetNodeID ID;
-  ParenType::Profile(ID, InnerType);
-
   llvm::FoldingSetInsertToken Token;
-  ParenType *T = ParenTypes.lookup(ID, Token);
+  ParenType *T = ParenTypes.lookup(InnerType, Token);
   if (T)
     return QualType(T, 0);
 
   QualType Canon = InnerType;
   if (!Canon.isCanonical()) {
     Canon = getCanonicalType(InnerType);
-    ParenType *CheckT = ParenTypes.lookup(ID, Token);
-    assert(!CheckT && "Paren canonical type broken");
-    (void)CheckT;
+    assert(!ParenTypes.lookup(InnerType, Token) &&
+           "Paren canonical type broken");
   }
 
   T = new (*this, alignof(ParenType)) ParenType(InnerType, Canon);
@@ -7015,11 +6984,8 @@ QualType ASTContext::getDeducedTemplateSpecializationType(
 QualType ASTContext::getAtomicType(QualType T) const {
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
-  llvm::FoldingSetNodeID ID;
-  AtomicType::Profile(ID, T);
-
   llvm::FoldingSetInsertToken Token;
-  if (AtomicType *AT = AtomicTypes.lookup(ID, Token))
+  if (AtomicType *AT = AtomicTypes.lookup(T, Token))
     return QualType(AT, 0);
 
   // If the atomic value type isn't canonical, this won't be a canonical type
@@ -7028,9 +6994,7 @@ QualType ASTContext::getAtomicType(QualType T) const {
   if (!T.isCanonical()) {
     Canonical = getAtomicType(getCanonicalType(T));
 
-    // Get the new insert position for the node we care about.
-    AtomicType *NewIP = AtomicTypes.lookup(ID, Token);
-    assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
+    assert(!AtomicTypes.lookup(T, Token) && "Shouldn't be in the map!");
   }
   auto *New = new (*this, alignof(AtomicType)) AtomicType(T, Canonical);
   Types.push_back(New);
