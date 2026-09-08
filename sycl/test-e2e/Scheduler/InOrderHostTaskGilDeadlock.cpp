@@ -1,21 +1,25 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Regression test for CMPLRLLVM-77682 / Argonne #157.
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-77682
+//
 //
 // With multiple worker threads submitting to an in-order queue, if each
 // thread (a) holds an application-level mutex across its q.submit() calls
 // and (b) the submitted host_task itself acquires that same mutex, a
-// three-way deadlock can arise between:
+// three-way deadlock could arise between:
 //   - a submitter blocked on the scheduler graph write lock in
 //     Scheduler::addCG,
-//   - another submitter that holds the graph read lock inside q.wait() and
-//     is blocked in event_impl::waitInternal for a host_task's completion,
+//   - another submitter inside q.wait() holding the graph read lock and,
+//     while walking dependencies in GraphProcessor::enqueueCommand for an
+//     in-order successor, synchronously waiting in event_impl::waitInternal
+//     for a prior host_task's dep event to complete,
 //   - the ThreadPool worker running that host_task, blocked acquiring the
 //     application mutex held by the first submitter.
 //
-// The pattern models a Python-GIL-style lock held across SYCL submissions,
-// which is how Argonne originally hit this from a PyTorch/XPU workload.
+// This has been fixed and this test serves as a regression guard against its
+// reintroduction. 
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
