@@ -22,7 +22,7 @@ jobs:
   coverity:
     if: github.repository == 'intel/llvm'
     name: Coverity
-    runs-on: [Linux, build]
+    runs-on: [Linux, build-test]
     container:
       image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
       options: -u 1001:1001
