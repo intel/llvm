@@ -414,8 +414,7 @@ def main():
     parser.add_argument(
         "--llvm-link-dylib",
         action="store_true",
-        help="Build/link against the shared libLLVM.so and libclang-cpp.so "
-        "(sets LLVM_LINK_LLVM_DYLIB=ON and CLANG_LINK_CLANG_DYLIB=ON)",
+        help="Build/link against the shared libLLVM.so and libclang-cpp.so ",
     )
     parser.add_argument(
         "--llvm-external-projects",
