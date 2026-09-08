@@ -1,10 +1,13 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// REQUIRES: linux
 // expected-no-diagnostics
 //
-// Checks the size and trivial-copyability guarantees of khr::properties. The
-// extension does not mandate these, but we ensure: compile-time-only lists are
-// minimal size, mixed lists pay only for their runtime members, and lists are
-// trivially copyable (unlike a std::tuple-based implementation).
+// Checks the size guarantees of khr::properties. The extension does not mandate
+// any specific size and the exact layout is ABI-specific (e.g. MSVC lays out
+// multiple bases sharing a common empty base with extra padding), so this test
+// is restricted to the Itanium C++ ABI: compile-time-only lists are minimal
+// size and mixed lists pay only for their runtime members. Trivial copyability
+// is a portable guarantee and is checked in properties.cpp.
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <sycl/khr/properties.hpp>
@@ -49,12 +52,3 @@ static_assert(sizeof(properties{ct1<16>, ct2<8>}) == 1);
 static_assert(sizeof(properties{rt1{true}, rt2{false}}) == 2 * sizeof(bool));
 static_assert(sizeof(properties{rt1{true}, ct1<16>, ct2<8>}) == sizeof(bool));
 static_assert(sizeof(properties{hy<1>{2}, ct1<16>}) == sizeof(int));
-
-// Trivial copyability (a std::tuple-based list would fail these).
-static_assert(std::is_trivially_copyable_v<rt1>);
-static_assert(std::is_trivially_copyable_v<hy<1>>);
-static_assert(std::is_trivially_copyable_v<decltype(properties{})>);
-static_assert(
-    std::is_trivially_copyable_v<decltype(properties{rt1{true}, ct1<16>})>);
-static_assert(std::is_trivially_copyable_v<decltype(properties{
-                  hy<1>{2}, rt1{true}, ct1<16>})>);

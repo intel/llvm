@@ -57,8 +57,7 @@ template <int X> struct hybrid : kd::hybrid_property<hybrid_key> {
 template <>
 struct sycl::khr::is_property_key_for<hybrid_key, MyClass> : std::true_type {};
 
-// Runtime property applicable only to OtherClass, used to exercise property
-// lists that mix properties applicable to different classes.
+// Runtime property for OtherClass only (for mixed-class list checks).
 struct other_only_key : kd::runtime_property_key {};
 struct other_only : kd::runtime_property<other_only_key> {
   int value;
@@ -84,8 +83,7 @@ static_assert(is_property_key_compile_time_v<alignment_key> &&
 static_assert(!is_property_key_compile_time_v<enable_profiling_key> &&
               !is_property_key_compile_time_v<hybrid_key>);
 
-// is_property_key_for / is_property_for, checked for every property kind
-// (runtime, compile-time value, compile-time type, hybrid).
+// is_property_key_for / is_property_for, for every property kind.
 static_assert(is_property_key_for_v<enable_profiling_key, MyClass> &&
               is_property_key_for_v<alignment_key, MyClass> &&
               is_property_key_for_v<alignment_type_key, MyClass> &&
@@ -120,11 +118,20 @@ void container() {
   static_assert(!is_property_list_for_v<decltype(p), OtherClass>);
   static_assert(is_property_list_for_v<empty_properties_t, OtherClass>);
 
-  // A list that mixes properties applicable to different classes is a property
-  // list for neither class (every property must be usable with the class).
+  // A list mixing properties for different classes is a list for neither.
   properties mixed{enable_profiling{true}, other_only{7}};
   static_assert(is_property_for_v<enable_profiling, MyClass> &&
                 is_property_for_v<other_only, OtherClass>);
   static_assert(!is_property_list_for_v<decltype(mixed), MyClass>);
   static_assert(!is_property_list_for_v<decltype(mixed), OtherClass>);
 }
+
+// Properties and property lists are trivially copyable (sizes: see
+// properties_layout.cpp).
+static_assert(std::is_trivially_copyable_v<enable_profiling>);
+static_assert(std::is_trivially_copyable_v<hybrid<1>>);
+static_assert(std::is_trivially_copyable_v<empty_properties_t>);
+static_assert(std::is_trivially_copyable_v<decltype(properties{
+                  enable_profiling{true}, alignment<16>})>);
+static_assert(std::is_trivially_copyable_v<decltype(properties{
+                  hybrid<1>{2}, enable_profiling{true}, alignment<16>})>);
