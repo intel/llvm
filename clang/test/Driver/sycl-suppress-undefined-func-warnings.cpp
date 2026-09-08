@@ -1,22 +1,7 @@
 /// Verify how -W[no-]sycl-undefined-func-in-image maps to what actually
 /// reaches sycl-post-link. The warning is emitted by sycl-post-link, and
 /// -Wno-... is expected to silence it in every driver mode.
-///
-/// * Legacy offload path (default): the driver forwards the raw flag as
-///   a `-suppress-undefined-func-warnings` occurrence to sycl-post-link.
-/// * New offload path (`--offload-new-driver`): sycl-post-link runs in
-///   process inside clang-linker-wrapper and reads its own arg list, so
-///   the driver instead pushes the linker-wrapper native flag
-///   `--sycl-suppress-undefined-func-warnings`.
-///
-/// Both %clangxx (default driver) and %clang_cl (Windows-style driver)
-/// must forward the flag; %clang is redundant here since -fsycl already
-/// implies C++ processing.
-
-// -----------------------------------------------------------------------
 // Legacy offload path.
-// -----------------------------------------------------------------------
-
 // RUN: %clangxx -### -fsycl -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=NO-FLAG %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 %s 2>&1 \
