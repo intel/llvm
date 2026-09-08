@@ -39,11 +39,7 @@
 // LAST-WNO: "{{.*}}sycl-post-link{{(\.exe)?}}"
 // LAST-WNO-SAME: "-suppress-undefined-func-warnings"
 
-// -----------------------------------------------------------------------
-// New offload path: sycl-post-link runs in process, so the driver must
-// push the linker-wrapper native flag in addition to (or in place of)
-// the sycl-post-link-options= forwarding.
-// -----------------------------------------------------------------------
+// New offload path:
 
 // RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=NO-FLAG-NEW %s
