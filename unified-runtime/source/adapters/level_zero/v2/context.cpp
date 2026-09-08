@@ -73,8 +73,7 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                           phDevices[0]->Platform),
       hContext(hContext, ownZeContext),
       commandListCache(
-          hContext, {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
-                     phDevices[0]->Platform->ZeMutableCmdListExt.Supported,
+          hContext, {phDevices[0]->Platform->ZeMutableCmdListExt.Supported,
                      phDevices[0]->Platform->ZeCopyOffloadQueueFlagSupported,
                      phDevices[0]->Platform->ZeCopyOffloadListFlagSupported}),
       eventPoolCacheImmediate(
