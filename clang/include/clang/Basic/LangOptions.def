@@ -269,7 +269,6 @@ LANGOPT(SPIRVDefaultAddrSpaceIsGeneric, 1, 0, NotCompatible, "use generic addres
 
 LANGOPT(SYCLIsDevice      , 1, 0, NotCompatible, "Generate code for SYCL device")
 LANGOPT(SYCLIsHost        , 1, 0, NotCompatible, "SYCL host compilation")
-LANGOPT(IntelFPGA         , 1, 0, NotCompatible, "Perform ahead-of-time compilation for FPGA")
 LANGOPT(SYCLAllowFuncPtr  , 1, 0, NotCompatible, "Allow function pointers in SYCL device code")
 LANGOPT(SYCLStdLayoutKernelParams, 1, 0, NotCompatible, "Enable standard layout requirement for SYCL kernel parameters")
 LANGOPT(SYCLUnnamedLambda , 1, 0, NotCompatible, "Allow unnamed lambda SYCL kernels")

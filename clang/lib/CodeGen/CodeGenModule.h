@@ -1360,8 +1360,6 @@ public:
 
   void setAspectsEnumDecl(const EnumDecl *ED);
 
-  void addGlobalIntelFPGAAnnotation(const VarDecl *VD, llvm::GlobalValue *GV);
-
   /// Given a builtin id for a function like "__builtin_fabsf", return a
   /// Function* for "fabsf".
   llvm::Constant *getBuiltinLibFunction(const FunctionDecl *FD,

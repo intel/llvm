@@ -1567,13 +1567,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     // This gets called twice, once with TI set to the host TargetInfo, once
     // with TI set to the device TargetInfo.
     const llvm::Triple &Triple = TI.getTriple();
-    const llvm::Triple::SubArchType SubArch = Triple.getSubArch();
-
-    // Enable generation of USM address spaces for FPGA.
-    if (SubArch == llvm::Triple::SPIRSubArch_fpga) {
-      Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
-      Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
-    }
 
     if (Triple.isWindowsMSVCEnvironment()) {
       // MSVC inline definitions of stdio functions should not be used for SYCL
