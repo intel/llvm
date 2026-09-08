@@ -2001,18 +2001,8 @@ static bool canConstantFoldIntrinsic(Intrinsic::ID ID, bool IsStrictFP) {
     return !IsStrictFP;
 
   // NVVM add intrinsics with explicit rounding modes
-  case Intrinsic::nvvm_add_rm_d:
-  case Intrinsic::nvvm_add_rn_d:
-  case Intrinsic::nvvm_add_rp_d:
-  case Intrinsic::nvvm_add_rz_d:
-  case Intrinsic::nvvm_add_rm_f:
-  case Intrinsic::nvvm_add_rn_f:
-  case Intrinsic::nvvm_add_rp_f:
-  case Intrinsic::nvvm_add_rz_f:
-  case Intrinsic::nvvm_add_rm_ftz_f:
-  case Intrinsic::nvvm_add_rn_ftz_f:
-  case Intrinsic::nvvm_add_rp_ftz_f:
-  case Intrinsic::nvvm_add_rz_ftz_f:
+  case Intrinsic::nvvm_fadd:
+  case Intrinsic::nvvm_fadd_ftz:
 
   // NVVM div intrinsics with explicit rounding modes
   case Intrinsic::nvvm_div_rm_d:
@@ -3625,37 +3615,6 @@ static Constant *ConstantFoldIntrinsicCall2(Intrinsic::ID IntrinsicID, Type *Ty,
         return ConstantFP::get(Ty, Res);
       }
 
-      case Intrinsic::nvvm_add_rm_f:
-      case Intrinsic::nvvm_add_rn_f:
-      case Intrinsic::nvvm_add_rp_f:
-      case Intrinsic::nvvm_add_rz_f:
-      case Intrinsic::nvvm_add_rm_d:
-      case Intrinsic::nvvm_add_rn_d:
-      case Intrinsic::nvvm_add_rp_d:
-      case Intrinsic::nvvm_add_rz_d:
-      case Intrinsic::nvvm_add_rm_ftz_f:
-      case Intrinsic::nvvm_add_rn_ftz_f:
-      case Intrinsic::nvvm_add_rp_ftz_f:
-      case Intrinsic::nvvm_add_rz_ftz_f: {
-
-        bool IsFTZ = nvvm::FAddShouldFTZ(IntrinsicID);
-        APFloat A = IsFTZ ? FTZPreserveSign(Op1V) : Op1V;
-        APFloat B = IsFTZ ? FTZPreserveSign(Op2V) : Op2V;
-
-        APFloat::roundingMode RoundMode =
-            nvvm::GetFAddRoundingMode(IntrinsicID);
-
-        APFloat Res = A;
-        APFloat::opStatus Status = Res.add(B, RoundMode);
-
-        if (!Res.isNaN() &&
-            (Status == APFloat::opOK || Status == APFloat::opInexact)) {
-          Res = IsFTZ ? FTZPreserveSign(Res) : Res;
-          return ConstantFP::get(Ty, Res);
-        }
-        return nullptr;
-      }
-
       case Intrinsic::nvvm_mul_rm_f:
       case Intrinsic::nvvm_mul_rn_f:
       case Intrinsic::nvvm_mul_rp_f:
@@ -4203,6 +4162,27 @@ static Constant *ConstantFoldScalarCall3(StringRef Name,
         }
         }
       }
+
+      // TODO: Add constant folding for the _sat variants.
+      if (IntrinsicID == Intrinsic::nvvm_fadd ||
+          IntrinsicID == Intrinsic::nvvm_fadd_ftz) {
+        bool IsFTZ = IntrinsicID == Intrinsic::nvvm_fadd_ftz;
+        APFloat A =
+            IsFTZ ? FTZPreserveSign(Op1->getValueAPF()) : Op1->getValueAPF();
+        APFloat B =
+            IsFTZ ? FTZPreserveSign(Op2->getValueAPF()) : Op2->getValueAPF();
+
+        APFloat Res = A;
+        APFloat::opStatus Status =
+            Res.add(B, nvvm::GetRoundingModeFromImmArg(Operands[2]));
+
+        if (!Res.isNaN() &&
+            (Status == APFloat::opOK || Status == APFloat::opInexact)) {
+          Res = IsFTZ ? FTZPreserveSign(Res) : Res;
+          return ConstantFP::get(Ty, Res);
+        }
+        return nullptr;
+      }
     }
   }
 
@@ -4489,6 +4469,12 @@ static Constant *ConstantFoldFixedVectorCall(
 
     return ConstantVector::get(Result);
   }
+  case Intrinsic::nvvm_fadd:
+  case Intrinsic::nvvm_fadd_ftz:
+    // The rounding mode operand is a scalar, so the lane-wise folding below
+    // does not apply.
+    // TODO: Fold these by passing the rounding mode through to every lane.
+    return nullptr;
   default:
     break;
   }
