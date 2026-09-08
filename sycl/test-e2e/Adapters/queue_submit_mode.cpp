@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env %{l0_leak_check} SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 0 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
-// RUN: env %{l0_leak_check} SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 1 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
+// RUN: env %{l0_leak_check} SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 1 2>&1 | FileCheck %s --check-prefixes=%if level_zero_v2_adapter %{CHECK-IMM-V2%} %else %{CHECK-IMM%}
 //
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
@@ -36,6 +36,9 @@ int main(int argc, char *argv[]) {
 
   // CHECK-STD: zeCommandListCreateImmediate = 1
   // CHECK-IMM: zeCommandListCreateImmediate = 2
+  // v2 out-of-order immediate queues always create a fixed number
+  // (numCommandLists = 4) of immediate command lists.
+  // CHECK-IMM-V2: zeCommandListCreateImmediate = 4
   queue Q1{P};
   queue_submit(Q1);
 
