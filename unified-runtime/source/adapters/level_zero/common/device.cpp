@@ -1471,12 +1471,16 @@ ur_result_t urDeviceGetInfo(
     int32_t Speed = -1;
     for (auto Fan : ZeFanHandles) {
       int32_t CurSpeed;
-      auto result = ze2urResult(ZE_CALL_NOCHECK(
-          zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed)));
-      if (result != UR_RESULT_SUCCESS)
-        return result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-                   ? UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
-                   : result;
+      const auto ZeResult = ZE_CALL_NOCHECK(
+          zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed));
+
+      if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+          ZeResult == ZE_RESULT_ERROR_NOT_AVAILABLE)
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
+      if (ZeResult != ZE_RESULT_SUCCESS)
+        return ze2urResult(ZeResult);
+
       Speed = std::max(Speed, CurSpeed);
     }
     return ReturnValue(Speed);
