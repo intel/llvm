@@ -19,7 +19,7 @@
 //     application mutex held by the first submitter.
 //
 // This has been fixed and this test serves as a regression guard against its
-// reintroduction. 
+// reintroduction.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
