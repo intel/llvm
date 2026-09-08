@@ -493,7 +493,7 @@ and not recommended to use in production environment.
 
 **`-W[no-]sycl-undefined-func-in-image`**
 
-    Controls SYCL link-time "Undefined function <name> found in <image>"
+    Controls the SYCL link-time "Undefined function <name> found in <image>"
     warning. Enabled by default. Use -Wno- when the symbol is resolved by
     the GPU runtime or JIT (e.g. SPV_INTEL_ray_tracing builtins). Affects
     the diagnostic only.
