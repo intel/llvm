@@ -31,6 +31,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
+#include <exception>
 #include <memory>
 #include <utility>
 
@@ -455,31 +456,65 @@ public:
     throw_asynchronous();
   }
 
-  /// Makes the just-completed submission of \p Type synchronous when
-  /// SYCL_LAUNCH_BLOCKING is set to a non-zero value, i.e. blocks until
-  /// everything enqueued to this queue has finished executing.
+  /// Drains this queue if SYCL_LAUNCH_BLOCKING is set, making the submission of
+  /// \p Type synchronous. The exclusions below are documented in
+  /// EnvironmentVariables.md.
   ///
-  /// Must be called with MMutex unlocked, as wait() acquires it.
+  /// Must be called with MMutex unlocked, as wait() acquires it. Prefer
+  /// LaunchBlockingGuard below, which takes care of that.
   void waitIfLaunchBlocking(CGType Type) {
-    // Barriers are excluded. They run no user work, so blocking on one adds no
-    // debugging value, and they may carry a dependency on an event the
-    // application only signals after the submission returns (e.g. an interop
-    // event), where waiting would risk a hang instead of exposing one.
-    if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist)
-      return;
-
     if (!SYCLConfig<SYCL_LAUNCH_BLOCKING>::get())
       return;
 
-    // Nothing is executed while a command graph is being recorded, and wait()
-    // is not a legal operation on a recording queue. Native recording does not
-    // go through setCommandGraph(), so MGraph is not set for it and the
-    // context-level flag has to be checked as well.
-    if (!MGraph.expired() || getContextImpl().isNativeRecordingActive())
+    // Markers execute no user code, and may depend on an event the application
+    // only signals after the submission returns.
+    if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist ||
+        Type == CGType::ProfilingTag)
+      return;
+
+    // Nothing executes while a graph is being recorded, and wait() is illegal
+    // on a recording queue. Native recording does not go through
+    // setCommandGraph(), so MGraph is not set for it.
+    if (hasCommandGraph() || isNativeRecording())
       return;
 
     wait();
   }
+
+  /// Calls waitIfLaunchBlocking() when the enclosing scope is left normally, so
+  /// that a submission path with several exits cannot forget to block on one.
+  ///
+  /// Declare it before the scope's lock on MMutex, so that it is destroyed
+  /// after the lock is released, as wait() requires.
+  class LaunchBlockingGuard {
+  public:
+    LaunchBlockingGuard(queue_impl &Queue, CGType Type = CGType::None)
+        : MQueue(Queue), MType(Type),
+          MUncaughtExceptions(std::uncaught_exceptions()) {}
+    LaunchBlockingGuard(const LaunchBlockingGuard &) = delete;
+    LaunchBlockingGuard &operator=(const LaunchBlockingGuard &) = delete;
+
+    /// The command group type is only known once the command group function has
+    /// run, so submit_impl() fills it in later.
+    void setType(CGType Type) { MType = Type; }
+
+    /// Hands the blocking over to a path that does it on its own.
+    void release() { MArmed = false; }
+
+    // Reports the submitted command's synchronous errors, so it must throw.
+    ~LaunchBlockingGuard() noexcept(false) {
+      // Nothing was submitted if the scope is left through an exception, and a
+      // second one from here would terminate.
+      if (MArmed && std::uncaught_exceptions() == MUncaughtExceptions)
+        MQueue.waitIfLaunchBlocking(MType);
+    }
+
+  private:
+    queue_impl &MQueue;
+    CGType MType;
+    int MUncaughtExceptions;
+    bool MArmed = true;
+  };
 
   /// Synchronous errors will be reported through SYCL exceptions.
   /// Asynchronous errors will be passed to the async_handler passed to the

@@ -6,19 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// SYCL_LAUNCH_BLOCKING makes every submission synchronous by draining the
-// queue, which the runtime does through urQueueFinish. Counting that call is
-// what lets these tests observe the two things an end-to-end test cannot:
-// that nothing is drained when the variable is unset or zero, and that barriers
-// stay excluded even when it is set.
+// SYCL_LAUNCH_BLOCKING drains the queue through urQueueFinish. Counting that
+// call tells whether a submission blocked, which an end-to-end test cannot do:
+// there, an operation may have completed on its own by the time it returns.
 //
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
 #include <gtest/gtest.h>
+#include <helpers/CommandSubmitWrappers.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/sycl.hpp>
+
+#include <stdexcept>
 
 namespace {
 using namespace sycl;
@@ -36,8 +40,8 @@ const char *LaunchBlockingName =
 auto resetLaunchBlocking =
     detail::SYCLConfig<detail::SYCL_LAUNCH_BLOCKING>::reset;
 
-// Everything a test needs: a mocked adapter, a queue, and a USM allocation to
-// operate on. Construction leaves QueueFinishCount at zero.
+// A mocked adapter, a queue and a USM allocation. Construction leaves
+// QueueFinishCount at zero.
 struct Fixture {
   Fixture(bool InOrder = true)
       : Plt{platform()}, Ctx{Plt.get_devices()[0]},
@@ -125,6 +129,21 @@ TEST(LaunchBlocking, DrainsOnOutOfOrderQueue) {
   EXPECT_GE(QueueFinishCount, 1);
 }
 
+// Both kernel spellings must block, on either queue kind.
+TEST(LaunchBlocking, DrainsAfterKernel) {
+  unittest::UrMock<> Mock;
+  hookQueueFinish();
+  unittest::ScopedEnvVar Var{LaunchBlockingName, "1", resetLaunchBlocking};
+
+  for (bool Shortcut : {true, false})
+    for (bool InOrder : {true, false}) {
+      Fixture F{InOrder};
+      unittest::single_task_wrapper<TestKernel>(Shortcut, F.Q, []() {});
+      EXPECT_GE(QueueFinishCount, 1)
+          << "shortcut=" << Shortcut << " in-order=" << InOrder;
+    }
+}
+
 // Barriers are excluded from blocking mode. This is the case no end-to-end test
 // covers: an event handed to a barrier always has its work already enqueued, so
 // the exclusion never changes an observable outcome there.
@@ -168,6 +187,77 @@ TEST(LaunchBlocking, DoesNotDrainAfterQueueBarrier) {
   QueueFinishCount = 0;
 
   F.Q.ext_oneapi_submit_barrier();
+  EXPECT_EQ(QueueFinishCount, 0);
+}
+
+// A recording queue must not be drained: nothing executes yet and wait() is
+// illegal on it.
+TEST(LaunchBlocking, DoesNotDrainWhileRecording) {
+  unittest::UrMock<> Mock;
+  hookQueueFinish();
+  unittest::ScopedEnvVar Var{LaunchBlockingName, "1", resetLaunchBlocking};
+
+  Fixture F;
+  ext::oneapi::experimental::command_graph Graph{F.Ctx, F.Q.get_device()};
+  Graph.begin_recording(F.Q);
+  unittest::single_task_wrapper<TestKernel>(/*UseShortcutFunction=*/false, F.Q,
+                                            []() {});
+  EXPECT_EQ(QueueFinishCount, 0);
+  Graph.end_recording(F.Q);
+
+  // Executing the finalized graph is a regular submission and does block.
+  F.Q.ext_oneapi_graph(Graph.finalize());
+  EXPECT_GE(QueueFinishCount, 1);
+}
+
+// Blocking mode waits from a destructor, which must stay out of the way of a
+// command group that throws.
+TEST(LaunchBlocking, DoesNotDrainWhenCommandGroupThrows) {
+  unittest::UrMock<> Mock;
+  hookQueueFinish();
+  unittest::ScopedEnvVar Var{LaunchBlockingName, "1", resetLaunchBlocking};
+
+  Fixture F;
+  EXPECT_THROW(F.Q.submit([](handler &CGH) {
+    CGH.single_task<TestKernel>([]() {});
+    throw std::runtime_error("from the command group");
+  }),
+               std::runtime_error);
+  EXPECT_EQ(QueueFinishCount, 0);
+
+  F.Q.memset(F.Ptr, 0, 1);
+  EXPECT_GE(QueueFinishCount, 1);
+}
+
+// Reports the device as supporting timestamp recording, so that a profiling tag
+// takes its native path instead of falling back to a barrier.
+ur_result_t redefinedDeviceGetInfoWithTimestampSupport(void *pParams) {
+  auto &Params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*Params.ppropName == UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP) {
+    constexpr ur_bool_t Supported = true;
+    if (Params.ppPropValue)
+      *static_cast<ur_bool_t *>(*Params.ppPropValue) = Supported;
+    if (*Params.ppPropSizeRet)
+      **Params.ppPropSizeRet = sizeof(Supported);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+// A profiling tag is a marker as well, so it is excluded too. Its fallback path
+// is a barrier, hence blocking mode would otherwise be device-dependent.
+TEST(LaunchBlocking, DoesNotDrainAfterProfilingTag) {
+  unittest::UrMock<> Mock;
+  hookQueueFinish();
+  mock::getCallbacks().set_after_callback(
+      "urDeviceGetInfo", &redefinedDeviceGetInfoWithTimestampSupport);
+  unittest::ScopedEnvVar Var{LaunchBlockingName, "1", resetLaunchBlocking};
+
+  Fixture F;
+  ASSERT_TRUE(F.Q.get_device().has(aspect::ext_oneapi_queue_profiling_tag));
+  F.Q.memset(F.Ptr, 0, 1);
+  QueueFinishCount = 0;
+
+  ext::oneapi::experimental::submit_profiling_tag(F.Q);
   EXPECT_EQ(QueueFinishCount, 0);
 }
 

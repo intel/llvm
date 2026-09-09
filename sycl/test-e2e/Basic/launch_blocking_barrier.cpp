@@ -1,22 +1,13 @@
-// Barriers and markers are deliberately excluded from SYCL_LAUNCH_BLOCKING:
-// they run no user work, so blocking on one adds no debugging value.
-//
-// This test checks that the whole barrier family still completes and still
-// orders work correctly in blocking mode, on both queue kinds and through the
-// queue, handler and free-function spellings. It is a liveness and correctness
-// test: it does not assert that barriers stay asynchronous, since a barrier may
-// legitimately complete immediately, and it does not prove the exclusion is
-// required - see the comment on queue_impl::waitIfLaunchBlocking for that
-// reasoning.
+// Markers are excluded from SYCL_LAUNCH_BLOCKING, see EnvironmentVariables.md.
+// That the exclusion holds is checked by the unit tests in
+// sycl/unittests/queue/LaunchBlocking.cpp; here we check that the barrier
+// family still completes and still orders work in blocking mode.
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: env SYCL_LAUNCH_BLOCKING=1 %{run} %t.out
-// RUN: env SYCL_LAUNCH_BLOCKING=2 %{run} %t.out
 
 #include <cassert>
-#include <cstdlib>
-#include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
@@ -28,7 +19,7 @@ namespace exp_ext = sycl::ext::oneapi::experimental;
 
 constexpr size_t N = 1024;
 
-static void runOnQueue(sycl::queue &Q, const char *Order) {
+static void runOnQueue(sycl::queue &Q) {
   int *Out = sycl::malloc_device<int>(N, Q);
   Q.fill(Out, 0, N).wait();
 
@@ -45,8 +36,7 @@ static void runOnQueue(sycl::queue &Q, const char *Order) {
   sycl::event E = bump();
   Q.ext_oneapi_submit_barrier({E});
 
-  // handler barrier inside a command group. This is the path that reaches
-  // submit_impl with CGType::Barrier, i.e. the excluded type.
+  // handler barrier inside a command group: CGType::Barrier.
   bump();
   Q.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_barrier(); });
 
@@ -69,7 +59,6 @@ static void runOnQueue(sycl::queue &Q, const char *Order) {
     assert(V == 6 && "barrier interfered with kernel results");
 
   sycl::free(Out, Q);
-  std::cout << Order << " queue: OK" << std::endl;
 }
 
 // Reusable events cross two queues through enqueue_signal_event and
@@ -101,15 +90,14 @@ static void runReusableEventCase() {
     assert(V == 10 && "cross-queue event ordering was not respected");
 
   sycl::free(Out, Q1);
-  std::cout << "reusable events: OK" << std::endl;
 }
 
 int main() {
   sycl::queue InOrder{sycl::property::queue::in_order{}};
-  runOnQueue(InOrder, "in-order");
+  runOnQueue(InOrder);
 
   sycl::queue OutOfOrder;
-  runOnQueue(OutOfOrder, "out-of-order");
+  runOnQueue(OutOfOrder);
 
   runReusableEventCase();
 
