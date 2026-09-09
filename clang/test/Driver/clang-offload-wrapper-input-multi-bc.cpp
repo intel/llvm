@@ -1,9 +1,9 @@
 // Ensure that --sym-prop-bc-files option works when multiple sym/prop bc files are listed
 
-// Generate fake AOCX files
-// RUN: echo 'pseudo-aocx-0' > %t0.aocx
-// RUN: echo 'pseudo-aocx-1' > %t1.aocx
-// RUN: echo 'pseudo-aocx-2' > %t2.aocx
+// Generate fake device code files
+// RUN: echo 'pseudo-code-0' > %t0.spv
+// RUN: echo 'pseudo-code-1' > %t1.spv
+// RUN: echo 'pseudo-code-2' > %t2.spv
 
 // Generate property files
 // RUN: echo '[SYCL/devicelib req mask]'                                     >  %t0.prop
@@ -47,30 +47,30 @@
 
 // Generate table file for reference BC file
 // RUN: echo '[Code|Properties|Symbols]'                                     >  %t.table
-// RUN: echo '%t0.aocx|%t0.prop|%t0.sym'                                     >> %t.table
-// RUN: echo '%t1.aocx|%t1.prop|%t1.sym'                                     >> %t.table
-// RUN: echo '%t2.aocx|%t2.prop|%t2.sym'                                     >> %t.table
+// RUN: echo '%t0.spv|%t0.prop|%t0.sym'                                     >> %t.table
+// RUN: echo '%t1.spv|%t1.prop|%t1.sym'                                     >> %t.table
+// RUN: echo '%t2.spv|%t2.prop|%t2.sym'                                     >> %t.table
 
 // Generate reference BC file with Code, Properties and Symbols
-// RUN: clang-offload-wrapper "-o=%t1.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %t.table
+// RUN: clang-offload-wrapper "-o=%t1.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=spir64-unknown-unknown" "-kind=sycl" "-batch"  %t.table
 
 // Generate table files for SYM/PROP BC files
 // RUN: echo '[Code|Properties|Symbols]'                                     >  %tA.table
-// RUN: echo '%t0.aocx|%t0.prop|%t0.sym'                                     >> %tA.table
+// RUN: echo '%t0.spv|%t0.prop|%t0.sym'                                     >> %tA.table
 // RUN: echo '[Code|Properties|Symbols]'                                     >  %tB.table
-// RUN: echo '%t1.aocx|%t1.prop|%t1.sym'                                     >> %tB.table
+// RUN: echo '%t1.spv|%t1.prop|%t1.sym'                                     >> %tB.table
 // RUN: echo '[Code|Properties|Symbols]'                                     >  %tC.table
-// RUN: echo '%t2.aocx|%t2.prop|%t2.sym'                                     >> %tC.table
+// RUN: echo '%t2.spv|%t2.prop|%t2.sym'                                     >> %tC.table
 y
 // Generate BC files with Properties and Symbols
-// RUN: clang-offload-wrapper "-o=%tA.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %tA.table
-// RUN: clang-offload-wrapper "-o=%tB.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %tB.table
-// RUN: clang-offload-wrapper "-o=%tC.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %tC.table
+// RUN: clang-offload-wrapper "-o=%tA.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=spir64-unknown-unknown" "-kind=sycl" "-batch"  %tA.table
+// RUN: clang-offload-wrapper "-o=%tB.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=spir64-unknown-unknown" "-kind=sycl" "-batch"  %tB.table
+// RUN: clang-offload-wrapper "-o=%tC.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=spir64-unknown-unknown" "-kind=sycl" "-batch"  %tC.table
 
-// Update fake AOCX files
-// RUN: echo 'fake-aocx-0-updated'        > %t0.aocx
-// RUN: echo 'fake-aocx-1-enhanced'       > %t1.aocx
-// RUN: echo 'fake-aocx-2-different-form' > %t2.aocx
+// Update fake device code files
+// RUN: echo 'fake-code-0-updated'        > %t0.spv
+// RUN: echo 'fake-code-1-enhanced'       > %t1.spv
+// RUN: echo 'fake-code-2-different-form' > %t2.spv
 
 // Create BC file with only Code in table
 // RUN: file-table-tform  --extract=Code  %t.table  -o %t_code_only.table
@@ -83,14 +83,14 @@ y
 
 // Generate BC file with only Code coming from the table but everything else coming through --sym-prop-bc-files
 // Thus %t1.bc and %t2.bc should be the same except for their Code.
-// RUN: clang-offload-wrapper "-o=%t2.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %t_code_only.table --sym-prop-bc-files=%t_sym_prop_files.txt
+// RUN: clang-offload-wrapper "-o=%t2.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=spir64-unknown-unknown" "-kind=sycl" "-batch"  %t_code_only.table --sym-prop-bc-files=%t_sym_prop_files.txt
 
 // RUN: llvm-dis %t1.bc
 // RUN: llvm-dis %t2.bc
 
 // Filter out expected differences
 // ModuleID:                      filename is different
-// sycl_offloading.?.data:        fake AOCX were updated
+// sycl_offloading.?.data:        fake device code was updated
 // sycl_offloading.device_images: pointer type to offloading data includes the length which is different
 // RUN: grep -v '\(ModuleID\|^@\.sycl_offloading\.[0-9]\.data\|^@\.sycl_offloading\.device_images\)' %t1.ll > %tfiltered1.txt
 // RUN: grep -v '\(ModuleID\|^@\.sycl_offloading\.[0-9]\.data\|^@\.sycl_offloading\.device_images\)' %t2.ll > %tfiltered2.txt
@@ -101,10 +101,10 @@ y
 // RUN: FileCheck --check-prefix=CHECK_LL2 < %t2.ll %s
 
 // Check that expected code is found
-// CHECK_LL1: pseudo-aocx-0
-// CHECK_LL1: pseudo-aocx-1
-// CHECK_LL1: pseudo-aocx-2
+// CHECK_LL1: pseudo-code-0
+// CHECK_LL1: pseudo-code-1
+// CHECK_LL1: pseudo-code-2
 
-// CHECK_LL2: fake-aocx-0-updated
-// CHECK_LL2: fake-aocx-1-enhanced
-// CHECK_LL2: fake-aocx-2-different-form
+// CHECK_LL2: fake-code-0-updated
+// CHECK_LL2: fake-code-1-enhanced
+// CHECK_LL2: fake-code-2-different-form

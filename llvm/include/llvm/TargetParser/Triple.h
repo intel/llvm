@@ -114,7 +114,6 @@ public:
     wasm64,         // WebAssembly with 64-bit pointers
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
-    fpga,           // Intel FPGA
     native_cpu,     // Native CPU
     ve,             // NEC SX-Aurora Vector Engine
     LastArchType = ve
