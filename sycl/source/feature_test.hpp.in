@@ -135,6 +135,7 @@ inline namespace _V1 {
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #define SYCL_KHR_INCLUDES 1
 #define SYCL_KHR_FREE_FUNCTION_COMMANDS 1
+#define SYCL_KHR_PROPERTIES 1
 #endif
 
 #ifndef __has_include
