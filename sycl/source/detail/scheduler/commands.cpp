@@ -891,12 +891,27 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
-  ur_result_t Res = enqueueImp();
 
-  if (UR_RESULT_SUCCESS != Res)
+  // Wake any thread parked in event_impl::waitInternal's deferred cv.wait.
+  // Otherwise if enqueueImp fails the deferred waiter could sleep forever.
+  auto WakeWaitersOnFailure = [this] {
+    if (!MEvent->isDiscarded() &&
+        (MEvent->isHost() || MEvent->getHandle() == nullptr))
+      MEvent->setComplete();
+  };
+  ur_result_t Res;
+  try {
+    Res = enqueueImp();
+  } catch (...) {
+    WakeWaitersOnFailure();
+    throw;
+  }
+
+  if (UR_RESULT_SUCCESS != Res) {
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
-  else {
+    WakeWaitersOnFailure();
+  } else {
     MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
