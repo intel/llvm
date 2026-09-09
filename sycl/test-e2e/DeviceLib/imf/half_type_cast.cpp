@@ -10,27 +10,7 @@
 #include <iostream>
 
 #include "imf_utils.hpp"
-#include <algorithm>
 #include <sycl/ext/intel/math.hpp>
-#include <vector>
-
-template <typename Query> bool check_subnormal(const sycl::device &dev) {
-  constexpr const char *label =
-      std::is_same_v<Query, sycl::info::device::half_fp_config> ? "FP16"
-                                                                : "FP32";
-  std::vector<sycl::info::fp_config> cfg;
-  try {
-    cfg = dev.get_info<Query>();
-  } catch (const sycl::exception &e) {
-    std::cerr << label << " fp_config query failed: " << e.what() << "\n";
-    throw;
-  }
-  const bool result = std::find(cfg.begin(), cfg.end(),
-                                sycl::info::fp_config::denorm) != cfg.end();
-  std::cout << label << " subnormal support : " << (result ? "YES" : "NO")
-            << "\n";
-  return result;
-}
 
 int main() {
 
@@ -227,7 +207,8 @@ int main() {
          FT1(sycl::half, sycl::ext::intel::math::half2short_rz));
 
     if (has_half_subnormal) {
-      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1, 0x3FF, 0x0256};
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1,
+                                                        0x3FF, 0x0256};
       std::initializer_list<short> sub_ref_vals_rd = {-1, -1, 0, 0, 0};
       std::initializer_list<short> sub_ref_vals_rn = {0, 0, 0, 0, 0};
       std::initializer_list<short> sub_ref_vals_ru = {0, 0, 1, 1, 1};
@@ -301,7 +282,8 @@ int main() {
          FT1(sycl::half, sycl::ext::intel::math::half2ushort_rz));
 
     if (has_half_subnormal) {
-      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1, 0x3FF, 0x0256};
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1,
+                                                        0x3FF, 0x0256};
       std::initializer_list<unsigned short> sub_ref_vals_rd = {0, 0, 0, 0, 0};
       std::initializer_list<unsigned short> sub_ref_vals_rn = {0, 0, 0, 0, 0};
       std::initializer_list<unsigned short> sub_ref_vals_ru = {0, 0, 1, 1, 1};
@@ -555,7 +537,8 @@ int main() {
          FT1(sycl::half, sycl::ext::intel::math::half2ull_rz));
 
     if (has_half_subnormal) {
-      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1, 0x3FF, 0x0256};
+      std::initializer_list<uint16_t> sub_input_vals = {0x8001, 0x83FF, 0x1,
+                                                        0x3FF, 0x0256};
       std::initializer_list<unsigned long long> sub_ref_vals_rd = {0, 0, 0, 0,
                                                                    0};
       std::initializer_list<unsigned long long> sub_ref_vals_rn = {0, 0, 0, 0,
