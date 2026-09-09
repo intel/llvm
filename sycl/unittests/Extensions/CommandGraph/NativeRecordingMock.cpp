@@ -23,6 +23,10 @@ MockState &state() {
   return State;
 }
 
+void trace(std::string EntryPoint, const void *Handle) {
+  state().Trace.push_back({std::move(EntryPoint), Handle});
+}
+
 size_t traceCount(std::string_view EntryPoint) {
   const std::vector<TraceEntry> &Trace = state().Trace;
   return std::count_if(
@@ -52,10 +56,6 @@ size_t traceIndex(std::string_view EntryPoint) {
 }
 
 namespace {
-
-void trace(std::string EntryPoint, const void *Handle = nullptr) {
-  state().Trace.push_back({std::move(EntryPoint), Handle});
-}
 
 // This is called after urDeviceGetInfo() to inject native recording support
 ur_result_t mock_urDeviceGetInfoAfter(void *pParams) {
