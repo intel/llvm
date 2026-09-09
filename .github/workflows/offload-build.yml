@@ -50,7 +50,9 @@ jobs:
 
     runs-on: [ "Linux", "build" ]
     container:
-      image: 'ghcr.io/intel/llvm/ubuntu2404_build@sha256:6a635ec95cecfe4e38d2f2c4138def72cbc48246a741dfc5e2ab90d5e09a8636'
+      # This private package rejects digest-addressed pulls with the Actions
+      # runner token (403), while tag-addressed pulls are authorized.
+      image: 'ghcr.io/intel/llvm/ubuntu2404_build' # zizmor: ignore[unpinned-images]
     outputs:
       liboffload_artifact: ${{ inputs.artifact_name }}
       liboffload_artifact_filename: liboffload_linux.tar.zst
@@ -109,7 +111,9 @@ jobs:
 
     runs-on: [ "Linux", "build" ]
     container:
-      image: 'ghcr.io/intel/llvm/ubuntu2404_build@sha256:6a635ec95cecfe4e38d2f2c4138def72cbc48246a741dfc5e2ab90d5e09a8636'
+      # This private package rejects digest-addressed pulls with the Actions
+      # runner token (403), while tag-addressed pulls are authorized.
+      image: 'ghcr.io/intel/llvm/ubuntu2404_build' # zizmor: ignore[unpinned-images]
 
     steps:
     - name: Checkout LLVM
