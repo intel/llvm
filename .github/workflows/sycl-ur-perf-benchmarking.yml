@@ -193,13 +193,20 @@ jobs:
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
 
+  build_liboffload_dispatch:
+    name: '[Dispatch] Build liboffload'
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.trigger_nightly == 'false' }}
+    uses: ./.github/workflows/offload-build.yml
+    with:
+      build_ur_adapter: false
+
   benchmark_dispatch:
     name: '[Dispatch] Benchmarks'
-    needs: [ build_sycl_dispatch, sanitize_inputs_dispatch ]
+    needs: [ build_sycl_dispatch, build_liboffload_dispatch, sanitize_inputs_dispatch ]
     permissions:
       contents: write
       packages: read
-    if: ${{ !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success' && needs.build_liboffload_dispatch.result == 'success' }}
     strategy:
       matrix:
         include:
@@ -225,6 +232,8 @@ jobs:
       toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build_sycl_dispatch.outputs.toolchain_decompress_command }}
+      benchmark_liboffload_artifact: ${{ needs.build_liboffload_dispatch.outputs.liboffload_artifact }}
+      benchmark_liboffload_artifact_filename: ${{ needs.build_liboffload_dispatch.outputs.liboffload_artifact_filename }}
   # END manual trigger (dispatch) path
 
   # Nightly benchmarking path:
@@ -244,13 +253,20 @@ jobs:
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
 
+  build_liboffload_nightly:
+    name: '[Nightly] Build liboffload'
+    if: ${{ github.repository == 'intel/llvm' && (github.event_name == 'schedule' || inputs.trigger_nightly == 'true') }}
+    uses: ./.github/workflows/offload-build.yml
+    with:
+      build_ur_adapter: false
+
   benchmark_nightly:
     name: '[Nightly] Benchmarks'
-    needs: [build_nightly]
+    needs: [build_nightly, build_liboffload_nightly]
     permissions:
       contents: write
       packages: read
-    if: ${{ !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build_nightly.outputs.build_conclusion == 'success' && needs.build_liboffload_nightly.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -276,6 +292,8 @@ jobs:
       toolchain_artifact: ${{ needs.build_nightly.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_nightly.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build_nightly.outputs.toolchain_decompress_command }}
+      benchmark_liboffload_artifact: ${{ needs.build_liboffload_nightly.outputs.liboffload_artifact }}
+      benchmark_liboffload_artifact_filename: ${{ needs.build_liboffload_nightly.outputs.liboffload_artifact_filename }}
   # END nightly benchmarking path
 
   # BEGIN benchmark framework builds and runs on PRs path:
@@ -300,13 +318,20 @@ jobs:
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
 
+  build_liboffload_test:
+    name: '[PR] Build liboffload'
+    if: ${{ github.repository == 'intel/llvm' && (github.event_name == 'pull_request' && inputs.trigger_nightly != 'true') }}
+    uses: ./.github/workflows/offload-build.yml
+    with:
+      build_ur_adapter: false
+
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
-    needs: [build_test]
+    needs: [build_test, build_liboffload_test]
     permissions:
       contents: write
       packages: read
-    if: ${{ !cancelled() && needs.build_test.outputs.build_conclusion == 'success' }}
+    if: ${{ !cancelled() && needs.build_test.outputs.build_conclusion == 'success' && needs.build_liboffload_test.result == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: 'Framework test only: L0, Minimal preset, dry-run'
@@ -323,4 +348,6 @@ jobs:
       toolchain_artifact: ${{ needs.build_test.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_test.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build_test.outputs.toolchain_decompress_command }}
+      benchmark_liboffload_artifact: ${{ needs.build_liboffload_test.outputs.liboffload_artifact }}
+      benchmark_liboffload_artifact_filename: ${{ needs.build_liboffload_test.outputs.liboffload_artifact_filename }}
   # END benchmark framework builds and runs on PRs path

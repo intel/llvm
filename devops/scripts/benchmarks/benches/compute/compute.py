@@ -95,8 +95,8 @@ class ComputeBench(Suite):
         if offload_enabled():
             extra_args += [
                 "-DBUILD_OL=ON",
-                f"-DOFFLOAD_INSTALL_DIR={Path(options.offload_prefix) / 'lib'}",
-                f"-DOFFLOAD_INCLUDE_DIR={Path(options.offload_prefix) / 'include' / 'offload'}",
+                f"-DLIBOFFLOAD_LIBRARY_DIR={options.offload_lib_dir}",
+                f"-DLIBOFFLOAD_INCLUDE_DIR={Path(options.offload_prefix) / 'include'}",
             ]
 
         if self._project is None:
@@ -168,6 +168,10 @@ class ComputeBench(Suite):
             measure_completion,
             use_events,
         ) in submit_kernel_params:
+            if runtime == RUNTIMES.OFFLOAD and not in_order_queue:
+                # The liboffload SubmitKernel implementation only supports
+                # in-order queues.
+                continue
             long_kernel_exec_time = (
                 long_kernel_exec_time_ioq
                 if in_order_queue
@@ -783,6 +787,9 @@ class ComputeBenchCoreSuite(ComputeBench):
             in_order_queue,
             profiler_type,
         ) in submit_kernel_params:
+            if runtime == RUNTIMES.OFFLOAD and not in_order_queue:
+                # liboffload doesn't support out-of-order queues.
+                continue
             core_benches.append(
                 SubmitKernel(
                     self,
@@ -895,11 +902,6 @@ class SubmitKernel(ComputeBenchmark):
         if offload_enabled():
             return SUBMIT_KERNEL_RUNTIMES.copy()
         return COMPUTE_BENCHMARK_RUNTIMES.copy()
-
-    def _extra_env_vars(self) -> dict:
-        if self._runtime == RUNTIMES.OFFLOAD and options.force_offload_plugin:
-            return {"FORCE_OFFLOAD_PLUGIN": options.force_offload_plugin}
-        return {}
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
