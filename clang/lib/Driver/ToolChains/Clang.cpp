@@ -6304,10 +6304,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-llvm-uselists");
 
     if (IsUsingLTO) {
-      bool IsUsingOffloadNewDriver = Args.hasFlag(
-          options::OPT_offload_new_driver, options::OPT_no_offload_new_driver,
-          (C.isOffloadingHostKind(Action::OFK_Cuda) ||
-           C.isOffloadingHostKind(Action::OFK_HIP)));
+      bool IsUsingOffloadNewDriver = D.getUseNewOffloadingDriver();
       Arg *SYCLSplitMode =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
       const Arg *LTOArg = Args.getLastArg(options::OPT_foffload_lto,
