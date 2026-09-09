@@ -170,7 +170,6 @@ public:
 
     MipsSubArch_r6,
 
-    SPIRSubArch_fpga,
     SPIRSubArch_gen,
     SPIRSubArch_gen_image,
     SPIRSubArch_x86_64,

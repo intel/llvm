@@ -754,9 +754,7 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
   if (SubArchName.starts_with("spir")) {
     StringRef SA(SubArchName);
     if (SA.consume_front("spir64_") || SA.consume_front("spir_")) {
-      if (SA == "fpga")
-        return Triple::SPIRSubArch_fpga;
-      else if (SA == "gen")
+      if (SA == "gen")
         return Triple::SPIRSubArch_gen;
       else if (SA == "gen_image")
         return Triple::SPIRSubArch_gen_image;
