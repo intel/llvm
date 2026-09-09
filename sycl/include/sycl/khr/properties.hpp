@@ -38,6 +38,11 @@ namespace khr {
 
 template <typename... EncodedProperties> class __SYCL_EBO properties;
 
+// The property-definition infrastructure lives in `sycl::khr::property::detail`
+// (not `sycl::khr::detail`) so it does not shadow `sycl::detail` for
+// unqualified `detail::` lookups in sibling headers under `namespace
+// sycl::khr`.
+namespace property {
 namespace detail {
 
 //===----------------------------------------------------------------------===//
@@ -77,13 +82,14 @@ inline constexpr bool __detail_has_runtime_value =
 
 // Base for a runtime property key (all of the property's values are supplied at
 // runtime). Usage:
-//   struct my_key : detail::runtime_property_key {};
-//   struct my_prop : detail::runtime_property<my_key> { int value; ... };
+//   struct my_key : property::detail::runtime_property_key {};
+//   struct my_prop : property::detail::runtime_property<my_key> { int value;
+//   ... };
 struct runtime_property_key : property_key_tag {};
 template <typename Key> struct runtime_property : property_base<Key> {};
 
 // Base for a compile-time property key with a single non-type value. Usage:
-//   struct my_key : detail::constant_value_property_key {};
+//   struct my_key : property::detail::constant_value_property_key {};
 //   template <int V>
 //   inline constexpr my_key::__detail_property_t<my_key, int, V> my_prop;
 struct constant_value_property_key : compile_time_property_key_tag {
@@ -94,7 +100,7 @@ struct constant_value_property_key : compile_time_property_key_tag {
 };
 
 // Base for a compile-time property key with a single type value. Usage:
-//   struct my_key : detail::constant_type_property_key {};
+//   struct my_key : property::detail::constant_type_property_key {};
 //   template <typename T>
 //   inline constexpr my_key::__detail_property_t<my_key, T> my_prop;
 struct constant_type_property_key : compile_time_property_key_tag {
@@ -107,8 +113,9 @@ struct constant_type_property_key : compile_time_property_key_tag {
 // Base for a hybrid property key (some values compile-time, some runtime). The
 // key is a runtime key (the property carries runtime data and is stored).
 // Usage:
-//   struct my_key : detail::hybrid_property_key {};
-//   template <int X> struct my_prop : detail::hybrid_property<my_key> {
+//   struct my_key : property::detail::hybrid_property_key {};
+//   template <int X> struct my_prop : property::detail::hybrid_property<my_key>
+//   {
 //     static constexpr int x = X; int y; constexpr my_prop(int y):y{y}{} };
 struct hybrid_property_key : property_key_tag {};
 template <typename Key> struct hybrid_property : property_base<Key> {};
@@ -162,25 +169,36 @@ struct build_storage<property_storage<Sel...>, P, Rest...>
 template <typename... All>
 using storage_for = typename build_storage<property_storage<>, All...>::type;
 
+// True if T is a khr::properties list. Used to exclude the list itself from
+// is_property (the list privately inherits its properties, so is_base_of would
+// otherwise report it as a property).
+template <typename> struct is_properties_list : std::false_type {};
+template <typename... Ps>
+struct is_properties_list<properties<Ps...>> : std::true_type {};
+
 } // namespace detail
+} // namespace property
 
 //===----------------------------------------------------------------------===//
 // Property traits
 //===----------------------------------------------------------------------===//
 
 template <typename T>
-struct is_property : std::is_base_of<detail::property_tag, T> {};
+struct is_property
+    : std::bool_constant<std::is_base_of_v<property::detail::property_tag, T> &&
+                         !property::detail::is_properties_list<T>::value> {};
 template <typename T>
 inline constexpr bool is_property_v = is_property<T>::value;
 
 template <typename T>
-struct is_property_key : std::is_base_of<detail::property_key_tag, T> {};
+struct is_property_key
+    : std::is_base_of<property::detail::property_key_tag, T> {};
 template <typename T>
 inline constexpr bool is_property_key_v = is_property_key<T>::value;
 
 template <typename T>
 struct is_property_key_compile_time
-    : std::is_base_of<detail::compile_time_property_key_tag, T> {};
+    : std::is_base_of<property::detail::compile_time_property_key_tag, T> {};
 template <typename T>
 inline constexpr bool is_property_key_compile_time_v =
     is_property_key_compile_time<T>::value;
@@ -219,8 +237,8 @@ inline constexpr bool is_property_list_for_v =
 
 template <typename... EncodedProperties>
 class __SYCL_EBO properties
-    : private detail::storage_for<EncodedProperties...> {
-  using storage_t = detail::storage_for<EncodedProperties...>;
+    : private property::detail::storage_for<EncodedProperties...> {
+  using storage_t = property::detail::storage_for<EncodedProperties...>;
 
   static_assert((is_property_v<EncodedProperties> && ...),
                 "Template arguments of khr::properties must be properties.");
@@ -251,18 +269,18 @@ public:
   template <typename PropertyKey>
   static constexpr auto get_property() -> std::enable_if_t<
       is_property_key_compile_time_v<PropertyKey>,
-      detail::property_of_key_t<PropertyKey, EncodedProperties...>> {
-    return detail::property_of_key_t<PropertyKey, EncodedProperties...>{};
+      property::detail::property_of_key_t<PropertyKey, EncodedProperties...>> {
+    return property::detail::property_of_key_t<PropertyKey,
+                                               EncodedProperties...>{};
   }
 
   // Runtime (or hybrid) key: return a copy of the stored property.
   template <typename PropertyKey>
   constexpr auto get_property() const -> std::enable_if_t<
       !is_property_key_compile_time_v<PropertyKey>,
-      detail::property_of_key_t<PropertyKey, EncodedProperties...>> {
-    return static_cast<
-        const detail::property_of_key_t<PropertyKey, EncodedProperties...> &>(
-        *this);
+      property::detail::property_of_key_t<PropertyKey, EncodedProperties...>> {
+    return static_cast<const property::detail::property_of_key_t<
+        PropertyKey, EncodedProperties...> &>(*this);
   }
 };
 
