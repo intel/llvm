@@ -117,11 +117,8 @@ fixed order of properties in the pattern.
 
 ### `SYCL_LAUNCH_BLOCKING`
 
-When set to `1` (any non-zero value works), every command submitted to any
-`sycl::queue` becomes synchronous: before the submission call returns, the
-submitting thread blocks until the queue has drained, that is until this command
-and everything submitted to the same queue before it has completed. This is the
-DPC++ counterpart of CUDA's `CUDA_LAUNCH_BLOCKING=1` and is intended for
+When set to `1`, every command submitted to a `sycl::queue` becomes synchronous.
+This is the analogoes to CUDA's `CUDA_LAUNCH_BLOCKING=1` and is intended for
 debugging only \- it serializes the application and will significantly reduce
 performance. Default is `0`.
 

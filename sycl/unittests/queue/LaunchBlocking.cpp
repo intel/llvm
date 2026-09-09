@@ -95,15 +95,17 @@ TEST(LaunchBlocking, DrainsAfterMemoryOperation) {
   EXPECT_GE(QueueFinishCount, 1);
 }
 
-// Any non-zero value enables the feature, matching CUDA_LAUNCH_BLOCKING.
-TEST(LaunchBlocking, NonZeroValueDrainsTheQueue) {
-  unittest::UrMock<> Mock;
-  hookQueueFinish();
-  unittest::ScopedEnvVar Var{LaunchBlockingName, "2", resetLaunchBlocking};
+// Only 1 enables the feature, matching CUDA_LAUNCH_BLOCKING.
+TEST(LaunchBlocking, OtherValuesDoNotDrainTheQueue) {
+  for (const char *Value : {"2", "-1", "10", "true", "on"}) {
+    unittest::UrMock<> Mock;
+    hookQueueFinish();
+    unittest::ScopedEnvVar Var{LaunchBlockingName, Value, resetLaunchBlocking};
 
-  Fixture F;
-  F.Q.memset(F.Ptr, 0, 1);
-  EXPECT_GE(QueueFinishCount, 1);
+    Fixture F;
+    F.Q.memset(F.Ptr, 0, 1);
+    EXPECT_EQ(QueueFinishCount, 0) << "value=" << Value;
+  }
 }
 
 // A command group goes through submit_impl rather than the memory operation

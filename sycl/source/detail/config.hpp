@@ -173,7 +173,7 @@ private:
   }
 };
 
-// Enabled by any non-zero value.
+// Enabled only by the value 1, matching CUDA_LAUNCH_BLOCKING.
 template <> class SYCLConfig<SYCL_LAUNCH_BLOCKING> {
   using BaseT = SYCLConfigBase<SYCL_LAUNCH_BLOCKING>;
 
@@ -186,7 +186,7 @@ private:
   static bool getCachedValue(bool ResetCache = false) {
     const auto Parser = []() {
       const char *ValStr = BaseT::getRawValue();
-      return ValStr && std::atoi(ValStr) != 0;
+      return ValStr && std::string(ValStr) == "1";
     };
 
     static bool Enabled = Parser();
