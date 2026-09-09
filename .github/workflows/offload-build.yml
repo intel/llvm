@@ -1,6 +1,7 @@
 name: Offload build
 
-permissions: read-all
+permissions:
+  contents: read
 
 on:
   workflow_call:
@@ -49,7 +50,7 @@ jobs:
 
     runs-on: [ "Linux", "build" ]
     container:
-      image: 'ghcr.io/intel/llvm/ubuntu2404_build'
+      image: 'ghcr.io/intel/llvm/ubuntu2404_build@sha256:6a635ec95cecfe4e38d2f2c4138def72cbc48246a741dfc5e2ab90d5e09a8636'
     outputs:
       liboffload_artifact: ${{ inputs.artifact_name }}
       liboffload_artifact_filename: liboffload_linux.tar.zst
@@ -108,7 +109,7 @@ jobs:
 
     runs-on: [ "Linux", "build" ]
     container:
-      image: 'ghcr.io/intel/llvm/ubuntu2404_build'
+      image: 'ghcr.io/intel/llvm/ubuntu2404_build@sha256:6a635ec95cecfe4e38d2f2c4138def72cbc48246a741dfc5e2ab90d5e09a8636'
 
     steps:
     - name: Checkout LLVM
@@ -123,10 +124,12 @@ jobs:
         name: ${{ needs.liboffload.outputs.liboffload_artifact }}
 
     - name: Extract liboffload
+      env:
+        LIBOFFLOAD_ARTIFACT_FILENAME: ${{ needs.liboffload.outputs.liboffload_artifact_filename }}
       run: |
         mkdir -p llvm-project-install
-        tar -I zstd -xf "${{ needs.liboffload.outputs.liboffload_artifact_filename }}" -C llvm-project-install
-        rm -f "${{ needs.liboffload.outputs.liboffload_artifact_filename }}"
+        tar -I zstd -xf "$LIBOFFLOAD_ARTIFACT_FILENAME" -C llvm-project-install
+        rm -f -- "$LIBOFFLOAD_ARTIFACT_FILENAME"
 
     - name: Configure intel/llvm
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long

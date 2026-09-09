@@ -293,11 +293,12 @@ runs:
   - name: Extract liboffload
     if: inputs.liboffload_artifact != ''
     shell: bash
+    env:
+      LIBOFFLOAD_ARTIFACT_FILENAME: ${{ inputs.liboffload_artifact_filename }}
     run: |
       mkdir -p liboffload
-      tar -I zstd -xf "${{ inputs.liboffload_artifact_filename }}" -C liboffload
-      rm -f "${{ inputs.liboffload_artifact_filename }}"
-      echo "OFFLOAD_PREFIX=$(realpath ./liboffload)" >> $GITHUB_ENV
+      tar -I zstd -xf "$LIBOFFLOAD_ARTIFACT_FILENAME" -C liboffload
+      rm -f -- "$LIBOFFLOAD_ARTIFACT_FILENAME"
   - name: Run dpsycl-ls
     shell: bash
     run: |
@@ -310,6 +311,7 @@ runs:
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       LLVM_BENCHMARKS_USE_GDB: ${{ inputs.gdb_mode }}
       CR_BUILD_REF: ${{ steps.establish_outputs.outputs.CR_BUILD_REF }}
+      LIBOFFLOAD_ARTIFACT: ${{ inputs.liboffload_artifact }}
     run: |
       # Build and run benchmarks
 
@@ -322,6 +324,11 @@ runs:
 
       echo "::endgroup::"
       echo "::group::run_benchmarks"
+
+      offload_args=()
+      if [ -n "$LIBOFFLOAD_ARTIFACT" ]; then
+        offload_args=(--offload-prefix "$(realpath ./liboffload)")
+      fi
 
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$BENCH_WORKDIR" \
@@ -337,7 +344,7 @@ runs:
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
         $([[ -n "${CR_BUILD_REF}" ]] && echo "--compute-runtime ${CR_BUILD_REF}" || echo '') \
-        $([ -n "$OFFLOAD_PREFIX" ] && echo "--offload-prefix $OFFLOAD_PREFIX" || echo '') \
+        "${offload_args[@]}" \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
