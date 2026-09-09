@@ -29,13 +29,22 @@
 namespace sycl {
 inline namespace _V1 {
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group;
+#else
+class sub_group;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 namespace ext::oneapi::this_work_item {
 inline sycl::sub_group get_sub_group();
 } // namespace ext::oneapi::this_work_item
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group {
-
+#else
+class sub_group {
+public:
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   using id_type = id<1>;
   using range_type = range<1>;
   using linear_id_type = uint32_t;
