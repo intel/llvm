@@ -34,6 +34,10 @@
 
 namespace sycl {
 inline namespace _V1 {
+// Forward declarations of the SYCL classes that the named properties below
+// register against (via is_property_key_for). Only incomplete types are needed.
+class queue;
+
 namespace khr {
 
 template <typename... EncodedProperties> class __SYCL_EBO properties;
@@ -290,6 +294,38 @@ template <typename... Properties>
 properties(Properties... props) -> properties<Properties...>;
 
 using empty_properties_t = decltype(properties{});
+
+//===----------------------------------------------------------------------===//
+// Named properties
+//
+// The concrete properties defined by this extension live here (one header for
+// the whole extension). Each property registers the classes it applies to via
+// is_property_key_for. Constructor/overload support for these lives in the
+// respective SYCL object headers (e.g. queue.hpp).
+//===----------------------------------------------------------------------===//
+
+namespace property {
+namespace key {
+struct enable_profiling : detail::runtime_property_key {};
+struct in_order : detail::runtime_property_key {};
+} // namespace key
+
+// Queue properties.
+struct enable_profiling : detail::runtime_property<key::enable_profiling> {
+  constexpr enable_profiling(bool v = true) : value{v} {}
+  bool value;
+};
+struct in_order : detail::runtime_property<key::in_order> {
+  constexpr in_order(bool v = true) : value{v} {}
+  bool value;
+};
+} // namespace property
+
+template <>
+struct is_property_key_for<property::key::enable_profiling, queue>
+    : std::true_type {};
+template <>
+struct is_property_key_for<property::key::in_order, queue> : std::true_type {};
 
 } // namespace khr
 } // namespace _V1
