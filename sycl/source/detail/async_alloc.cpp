@@ -114,8 +114,13 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
       q,
       [&](sycl::handler &h) {
         // In order queues must wait on the previous event before calling alloc.
-        if (q.is_in_order() && q.ext_oneapi_get_last_event())
-          h.depends_on(q.ext_oneapi_get_last_event().value());
+        // Query the last event once: when the queue has no last event yet, each
+        // call enqueues a fresh marker instead of returning the same one.
+        if (q.is_in_order()) {
+          if (std::optional<sycl::event> LastEvent =
+                  q.ext_oneapi_get_last_event())
+            h.depends_on(*LastEvent);
+        }
         temp = async_malloc(h, kind, size);
       },
       CodeLoc);
@@ -175,8 +180,13 @@ async_malloc_from_pool(const sycl::queue &q, size_t size,
       q,
       [&](sycl::handler &h) {
         // In order queues must wait on the previous event before calling alloc.
-        if (q.is_in_order() && q.ext_oneapi_get_last_event())
-          h.depends_on(q.ext_oneapi_get_last_event().value());
+        // Query the last event once: when the queue has no last event yet, each
+        // call enqueues a fresh marker instead of returning the same one.
+        if (q.is_in_order()) {
+          if (std::optional<sycl::event> LastEvent =
+                  q.ext_oneapi_get_last_event())
+            h.depends_on(*LastEvent);
+        }
         temp = async_malloc_from_pool(h, size, pool);
       },
       CodeLoc);
