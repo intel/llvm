@@ -58,7 +58,7 @@ class ComputeBench(Suite):
         return "Compute Benchmarks"
 
     def git_url(self) -> str:
-        return "https://github.com/311Volt/compute-benchmarks" # CHANGE BEFORE MARKING AS READY FOR REVIEW
+        return "https://github.com/311Volt/compute-benchmarks"  # CHANGE BEFORE MARKING AS READY FOR REVIEW
 
     def git_hash(self) -> str:
         return "11c72c2cbc0c15157dde0ef41b61b63986fcf62a"
