@@ -58,11 +58,10 @@ class ComputeBench(Suite):
         return "Compute Benchmarks"
 
     def git_url(self) -> str:
-        return "https://github.com/intel/compute-benchmarks.git"
+        return "https://github.com/311Volt/compute-benchmarks" # CHANGE BEFORE MARKING AS READY FOR REVIEW
 
     def git_hash(self) -> str:
-        # Jul 01, 2026
-        return "2f1c59bd731477de9b99b95a37bad5ebc9dae922"
+        return "11c72c2cbc0c15157dde0ef41b61b63986fcf62a"
 
     def setup(self) -> None:
         if options.sycl is None:
