@@ -101,7 +101,7 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 
 // The argument type as the kernel sees it. Deliberately not `std::decay_t`,
 // which turns an array into a pointer: an array has to keep being bound as the
-// bytes it is, which is what `handler::setArgHelper` does with it.
+// The argument type as the kernel sees it.
 template <typename T>
 using plain_arg_t = std::remove_cv_t<std::remove_reference_t<T>>;
 
