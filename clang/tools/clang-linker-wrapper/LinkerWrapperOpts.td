@@ -16,6 +16,10 @@ def linker_path_EQ : Joined<["--"], "linker-path=">,
 def cuda_path_EQ : Joined<["--"], "cuda-path=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<dir>">,
   HelpText<"Set the system CUDA path">;
+def ocloc_path_EQ : Joined<["--"], "ocloc-path=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<dir>">,
+  HelpText<"Path to the ocloc tool, which is used for ahead of time "
+           "compilation targeting Intel GPUs">;
 def host_triple_EQ : Joined<["--"], "host-triple=">,
                      Flags<[WrapperOnlyOption]>,
                      MetaVarName<"<triple>">,
@@ -234,6 +238,15 @@ def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
 def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-image-dependencies">,
   Flags<[WrapperOnlyOption, HelpHidden]>,
   HelpText<"Allow dependencies between device code images">;
+
+// Silences sycl-post-link's per-image "Undefined function ... found in ..."
+// warning when the in-process library path is used. Forwarded by the clang
+// driver from -Wno-sycl-undefined-func-in-image.
+def sycl_suppress_undefined_func_warnings :
+    Flag<["--", "-"], "sycl-suppress-undefined-func-warnings">,
+    Flags<[WrapperOnlyOption, HelpHidden]>,
+    HelpText<"Suppress sycl-post-link's warning about undefined functions in "
+             "a device image.">;
 
 // Options to force the output to be of the SYCLBIN format.
 def syclbin_EQ : Joined<["--", "-"], "syclbin=">,

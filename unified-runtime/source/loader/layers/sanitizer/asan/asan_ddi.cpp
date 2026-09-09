@@ -2108,9 +2108,6 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
 } // namespace asan
 
 ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
-
-  UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: ASAN");
-
   ur_result_t result =
       ur_sanitizer_layer::asan::urCheckVersion(UR_API_VERSION_CURRENT);
 

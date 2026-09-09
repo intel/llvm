@@ -1,5 +1,11 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
+// RUN: not --crash %t.out get_local_id_1d
+// RUN: not --crash %t.out get_local_linear_id_1d
+// RUN: not --crash %t.out get_local_id_2d
+// RUN: not --crash %t.out get_local_linear_id_2d
+// RUN: not --crash %t.out get_local_id_3d
+// RUN: not --crash %t.out get_local_linear_id_3d
 
 // XFAIL: libcxx
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
@@ -12,13 +18,42 @@
 //
 //===----------------------------------------------------------------------===//
 #include <cassert>
+#include <cstring>
 #include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace std;
 using sycl::detail::Builder;
 
-int main() {
+// get_local_id()/get_local_linear_id() are noexcept and call std::terminate()
+// when unimplemented on host, so each case is run as a separate death test
+// rather than caught via try/catch.
+static void runDeathCase(const char *mode) {
+  sycl::group<1> one_dim = Builder::createGroup<1>({8}, {4}, {1});
+  sycl::group<2> two_dim = Builder::createGroup<2>({8, 4}, {4, 2}, {1, 1});
+  sycl::group<3> three_dim =
+      Builder::createGroup<3>({16, 8, 4}, {8, 4, 2}, {1, 1, 1});
+
+  if (strcmp(mode, "get_local_id_1d") == 0)
+    one_dim.get_local_id();
+  else if (strcmp(mode, "get_local_linear_id_1d") == 0)
+    one_dim.get_local_linear_id();
+  else if (strcmp(mode, "get_local_id_2d") == 0)
+    two_dim.get_local_id();
+  else if (strcmp(mode, "get_local_linear_id_2d") == 0)
+    two_dim.get_local_linear_id();
+  else if (strcmp(mode, "get_local_id_3d") == 0)
+    three_dim.get_local_id();
+  else if (strcmp(mode, "get_local_linear_id_3d") == 0)
+    three_dim.get_local_linear_id();
+}
+
+int main(int argc, char **argv) {
+  if (argc > 1) {
+    runDeathCase(argv[1]);
+    return 0; // Unreachable: runDeathCase() above must have terminated.
+  }
+
   sycl::group<1> one = Builder::createGroup<1>({8}, {4}, {1});
   // one dimension group
   sycl::group<1> one_dim = Builder::createGroup<1>({8}, {4}, {1});
@@ -33,19 +68,6 @@ int main() {
   assert(one_dim[0] == 1);
   assert(one_dim.get_linear_id() == 1);
   assert(one_dim.get_group_linear_id() == 1);
-
-  try {
-    one_dim.get_local_id();
-    assert(one_dim.get_local_id(0) == one_dim.get_local_id()[0]);
-    assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::exception) {
-  }
-
-  try {
-    one_dim.get_local_linear_id();
-    assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::exception) {
-  }
 
   // two dimension group
   sycl::group<2> two_dim = Builder::createGroup<2>({8, 4}, {4, 2}, {1, 1});
@@ -65,20 +87,6 @@ int main() {
   assert(two_dim[1] == 1);
   assert(two_dim.get_linear_id() == 3);
   assert(two_dim.get_group_linear_id() == 3);
-
-  try {
-    two_dim.get_local_id();
-    assert(two_dim.get_local_id(0) == two_dim.get_local_id()[0]);
-    assert(two_dim.get_local_id(1) == two_dim.get_local_id()[1]);
-    assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::exception) {
-  }
-
-  try {
-    two_dim.get_local_linear_id();
-    assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::exception) {
-  }
 
   // three dimension group
   sycl::group<3> three_dim =
@@ -104,19 +112,4 @@ int main() {
   assert(three_dim[2] == 1);
   assert(three_dim.get_linear_id() == 7);
   assert(three_dim.get_group_linear_id() == 7);
-
-  try {
-    three_dim.get_local_id();
-    assert(three_dim.get_local_id(0) == three_dim.get_local_id()[0]);
-    assert(three_dim.get_local_id(1) == three_dim.get_local_id()[1]);
-    assert(three_dim.get_local_id(2) == three_dim.get_local_id()[2]);
-    assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::exception) {
-  }
-
-  try {
-    three_dim.get_local_linear_id();
-    assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::exception) {
-  }
 }

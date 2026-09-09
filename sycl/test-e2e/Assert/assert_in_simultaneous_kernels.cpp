@@ -3,6 +3,7 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22966
 // RUN: %{build} -o %t.out %threads_lib
 //
 // XFAIL: (opencl && gpu)

@@ -271,15 +271,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeDriverEuCountExtensionFound = true;
       }
     }
-    if (strncmp(extension.name,
-                ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME,
-                strlen(ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME) +
-                    1) == 0) {
-      if (extension.version ==
-          ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_VERSION_1_0) {
-        ZeCopyOffloadExtensionSupported = true;
-      }
-    }
     if (strncmp(extension.name, ZE_BINDLESS_IMAGE_EXP_NAME,
                 strlen(ZE_BINDLESS_IMAGE_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_BINDLESS_IMAGE_EXP_VERSION_1_0) {
@@ -796,10 +787,15 @@ ur_result_t ur_platform_handle_t_::initialize() {
       .DisableZeLaunchKernelWithArgs =
       getenv_tobool("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS", false);
 
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeCommandListAppendHostFunction",
-                   reinterpret_cast<void **>(
-                       &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+  if (this->isDriverVersionNewerOrSimilar(1, 17, 0)) {
+    ZeHostTaskExt.zeCommandListAppendHostFunction =
+        zeCommandListAppendHostFunction;
+  } else {
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, "zeCommandListAppendHostFunction",
+                     reinterpret_cast<void **>(
+                         &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+  }
 
   ZeHostTaskExt.Supported =
       ZeHostTaskExt.zeCommandListAppendHostFunction != nullptr;
@@ -812,6 +808,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeCopyOffloadListFlagSupported =
       this->isDriverVersionNewerOrSimilar(1, 15, 0);
 
+  ZE_CALL_NOCHECK(
+      zeDriverGetExtensionFunctionAddress,
+      (ZeDriver, "zeDeviceGetVectorWidthPropertiesExt",
+       reinterpret_cast<void **>(
+           &ZeDeviceVectorWidthExt.zeDeviceGetVectorWidthPropertiesExt)));
+
+  ZeDeviceVectorWidthExt.Supported =
+      ZeDeviceVectorWidthExt.zeDeviceGetVectorWidthPropertiesExt != nullptr;
   return UR_RESULT_SUCCESS;
 }
 

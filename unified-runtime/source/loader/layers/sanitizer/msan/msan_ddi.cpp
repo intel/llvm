@@ -2085,8 +2085,6 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
 ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: MSAN");
-
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::msan::urCheckVersion(UR_API_VERSION_CURRENT);
   }

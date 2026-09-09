@@ -27,6 +27,7 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/Support/IOSandbox.h>
 
 #include <cstdlib>
 #include <functional>
@@ -89,6 +90,8 @@ PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &builtin_info = MAM.getResult<compiler::utils::BuiltinInfoAnalysis>(M);
 
   VectorizationContext Ctx(M, *target_info, builtin_info);
+  // FIXME(sandboxing): Need to pass VFS into PassMachinery::PB.
+  auto BypassSandbox = sys::sandbox::scopedDisable();
   VeczPassMachinery Mach(M.getContext(), target_info->getTargetMachine(), Ctx,
                          /*verifyEach*/ false,
                          DebugVeczPipeline

@@ -11506,6 +11506,13 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 
+  // Silence sycl-post-link's "Undefined function ... found in ..." warning
+  // when the user opts out with -Wno-sycl-undefined-func-in-image.
+  if (!TCArgs.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                      options::OPT_Wno_sycl_undefined_func_in_image,
+                      /*Default=*/true))
+    addArgs(PostLinkArgs, TCArgs, {"-suppress-undefined-func-warnings"});
+
   // Forward -fsycl-id-queries-range= to sycl-post-link.
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_id_queries_range_EQ)) {
     PostLinkArgs.push_back(
@@ -12146,6 +12153,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
 
+    // Forward the user provided location for ocloc.
+    if (Arg *A = Args.getLastArg(options::OPT_ocloc_path_EQ))
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("--ocloc-path=") + A->getValue()));
+
     if (Args.hasArg(options::OPT_fsycl_link_EQ))
       CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
 
@@ -12317,6 +12329,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                      SYCLBINImpliesAllowDeps))
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
+
+    // Mirror -Wno-sycl-undefined-func-in-image as a native linker-wrapper
+    // flag. --sycl-post-link-options= reaches only the external
+    // sycl-post-link tool; the in-process post-link path in
+    // clang-linker-wrapper builds its settings from its own arg list.
+    if (!Args.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                      options::OPT_Wno_sycl_undefined_func_in_image,
+                      /*Default=*/true))
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-suppress-undefined-func-warnings"));
 
     // Pass backend compiler, linker, sycl-post-link,
     // llvm-spirv, and spirv-to-ir-wrapper options specified at link

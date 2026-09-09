@@ -336,6 +336,16 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
                            diag::warn_drv_empty_joined_argument,
                            SourceLocation()) > DiagnosticsEngine::Warning;
     }
+
+    // An empty --ocloc-path= is rejected here for consistent usage for areas
+    // that consume it.
+    if (A->getOption().matches(options::OPT_ocloc_path_EQ) &&
+        A->containsValue("")) {
+      Diag(diag::err_drv_invalid_value) << A->getSpelling() << A->getValue();
+      ContainsError |= Diags.getDiagnosticLevel(diag::err_drv_invalid_value,
+                                                SourceLocation()) >
+                       DiagnosticsEngine::Warning;
+    }
   }
 
   for (const Arg *A : Args.filtered(options::OPT_UNKNOWN)) {
@@ -2817,6 +2827,10 @@ void Driver::PrintHelp(bool ShowHidden) const {
 // Print the help from any of the given tools which are used for AOT
 // compilation for SYCL
 void Driver::PrintSYCLToolHelp(const Compilation &C) const {
+  // Do not run any external tools if the command line was already rejected.
+  if (C.containsError())
+    return;
+
   SmallVector<std::tuple<llvm::Triple, StringRef, StringRef, StringRef>, 4>
       HelpArgs;
   // Populate the vector with the tools and help options
@@ -2841,15 +2855,22 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
 
   // Go through the args and emit the help information for each.
   for (auto &HA : HelpArgs) {
-    llvm::outs() << "Emitting help information for " << std::get<1>(HA) << '\n'
-        << "Use triple of '" << std::get<0>(HA).normalize() <<
-        "' to enable ahead of time compilation\n";
+    StringRef ToolName = std::get<1>(HA);
+    llvm::outs() << "Emitting help information for " << ToolName << '\n'
+                 << "Use triple of '" << std::get<0>(HA).normalize()
+                 << "' to enable ahead of time compilation\n";
     // Flush out the buffer before calling the external tool.
     llvm::outs().flush();
-    std::vector<StringRef> ToolArgs = {std::get<1>(HA), std::get<2>(HA),
+    std::vector<StringRef> ToolArgs = {ToolName, std::get<2>(HA),
                                        std::get<3>(HA)};
-    SmallString<128> ExecPath(
-        C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
+    SmallString<128> ExecPath;
+    // The lookup for ocloc is shared with the AOT compilation step, which
+    // honors any user provided --ocloc-path=.
+    if (ToolName == "ocloc")
+      ExecPath = tools::SYCL::gen::getOclocPath(C, C.getDefaultToolChain(),
+                                                C.getArgs());
+    else
+      ExecPath = C.getDefaultToolChain().GetProgramPath(ToolName.data());
     // do not run the tools with -###.
     if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
       llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"";
@@ -2859,12 +2880,13 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
       continue;
     }
     auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
-    if (ToolBinary.getError()) {
+    if (ToolBinary.getError() || !llvm::sys::fs::can_execute(*ToolBinary)) {
       C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
       continue;
     }
     // Run the Tool.
-    llvm::sys::ExecuteAndWait(ToolBinary.get(), ToolArgs);
+    if (llvm::sys::ExecuteAndWait(ToolBinary.get(), ToolArgs))
+      C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
   }
 }
 

@@ -29,6 +29,8 @@ template <int Dimensions = 1> class nd_range {
 public:
   static constexpr int dimensions = Dimensions;
 
+  nd_range() = default;
+
 private:
   range<Dimensions> globalSize;
   range<Dimensions> localSize;

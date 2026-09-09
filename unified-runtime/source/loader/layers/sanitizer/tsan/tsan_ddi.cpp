@@ -1704,8 +1704,6 @@ ur_result_t urGetIPCExpProcAddrTable(
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: TSAN");
-
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urCheckVersion(UR_API_VERSION_CURRENT);
   }

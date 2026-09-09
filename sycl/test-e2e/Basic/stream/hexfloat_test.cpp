@@ -5,6 +5,9 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
+// XFAIL: linux && level_zero && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23094
+
 // Test for issue #22057: `sycl::stream` should print floating-point values in
 // hexadecimal form when `hexfloat` is set (and not fall back to scientific).
 #include <iomanip>
