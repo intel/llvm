@@ -6,7 +6,6 @@ define weak_odr dso_local spir_kernel void @sycl_grf_size() #1 {
 ; CHECK-IR-NOT: !RegisterAllocMode
 ; CHECK-IR: sycl_grf_size() #[[#Attr1:]]{{.*}}!RegisterAllocMode ![[#MDVal:]] {
 ; CHECK-IR-NOT: !RegisterAllocMode
-; CHECK-IR: ![[#MDVal]] = !{i32 2}
 entry:
   ret void
 }
@@ -29,7 +28,21 @@ entry:
   ret void
 }
 
+; A GRF size of 512 has no RegisterAllocMode representation. For JIT (no AOT
+; triple) it is left to the runtime's -ze-opt-register-file-size=512 driver
+; option, so no metadata is added here. See grf-size-aot.ll for the AOT case.
+; Function Attrs: convergent norecurse
+define weak_odr dso_local spir_kernel void @sycl_grf_size_512() #2 {
+; CHECK-IR-NOT: !MaximumRegisters
+; CHECK-IR: sycl_grf_size_512() #[[#]] {
+entry:
+  ret void
+}
+
+; CHECK-IR-DAG: ![[#MDVal]] = !{i32 2}
+
 attributes #0 = { convergent norecurse }
 attributes #1 = { convergent norecurse "sycl-grf-size"="256" }
+attributes #2 = { convergent norecurse "sycl-grf-size"="512" }
 
 !1 = !{}

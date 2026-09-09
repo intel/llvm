@@ -484,10 +484,25 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if ((AttrKindStr == SyclGrfSizeAttr) && !llvm::esimd::isESIMD(F)) {
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
-    // The RegisterAllocMode metadata supports only 0, 128, and 256 for
-    // PropVal.
-    if (PropVal != 0 && PropVal != 128 && PropVal != 256)
+    // Only 0 (auto), 128 (small), 256 (large) and 512 are supported.
+    if (PropVal != 0 && PropVal != 128 && PropVal != 256 && PropVal != 512)
       return std::nullopt;
+    if (PropVal == 512) {
+      // The RegisterAllocMode metadata (lowered via the legacy
+      // num-thread-per-eu UserSemantic decoration) can only encode 0, 128 and
+      // 256, so 512 is routed through the MaximumRegisters metadata instead
+      // (lowered via SPV_INTEL_maximum_registers). Only for AOT: JIT already
+      // requests 512 GRF via the -ze-opt-register-file-size=512 driver option,
+      // which does not require the extension, so avoid failing on drivers that
+      // lack it.
+      if (!F.getParent()->getTargetTriple().isSPIRAOT())
+        return std::nullopt;
+      Metadata *AttrMDArgs[] = {
+          ConstantAsMetadata::get(Constant::getIntegerValue(
+              Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
+      return std::pair<std::string, MDNode *>("MaximumRegisters",
+                                              MDNode::get(Ctx, AttrMDArgs));
+    }
     // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
     static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
     static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
