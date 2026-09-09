@@ -59,6 +59,7 @@ public:
   virtual void visitSExtInst(llvm::SExtInst &I);
   virtual void visitUIToFPInst(llvm::UIToFPInst &I);
   virtual void visitSIToFPInst(llvm::SIToFPInst &I);
+  virtual void visitICmpInst(llvm::ICmpInst &I);
   bool runLowerBool(llvm::Module &M);
 
 private:
