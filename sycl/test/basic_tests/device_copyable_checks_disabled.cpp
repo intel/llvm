@@ -11,13 +11,15 @@ struct NotDeviceCopyable {
   ~NotDeviceCopyable() {}
 };
 
+// The macro only turns the checks off, it must not change what the user facing
+// trait reports about a type.
+static_assert(!sycl::is_device_copyable_v<NotDeviceCopyable>);
+
 int main() {
   NotDeviceCopyable Val;
   // checks-on-error@*:* {{The specified type is not device copyable}}
-#ifdef SYCL_DISABLE_DEVICE_COPYABLE_CHECKS
-  static_assert(sycl::is_device_copyable_v<NotDeviceCopyable>);
-#else
-  static_assert(!sycl::is_device_copyable_v<NotDeviceCopyable>);
-#endif
   sycl::queue{}.single_task([=] { (void)Val; });
+
+  // checks-on-error@*:* {{a buffer must be device copyable}}
+  sycl::buffer<NotDeviceCopyable, 1> Buf{sycl::range<1>{1}};
 }
