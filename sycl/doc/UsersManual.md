@@ -495,8 +495,9 @@ and not recommended to use in production environment.
 
     Controls the SYCL link-time "Undefined function <name> found in <image>"
     warning. Enabled by default. Use `-Wno-sycl-undefined-func-in-image`
-    when the symbol is resolved at runtime (e.g. SPV_INTEL_ray_tracing
-    builtins). Affects the diagnostic only.
+    when the symbol is resolved at runtime. This option only silences the
+    diagnostic; it does not change generated device code or how the SYCL
+    runtime attempts to resolve the symbol.
 
     Only -W[no-]sycl-undefined-func-in-image controls this warning. -w,
     -Wno-everything and -Werror=sycl-undefined-func-in-image do not apply.

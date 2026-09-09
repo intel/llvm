@@ -12311,9 +12311,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Native linker-wrapper flag mirroring -Wno-sycl-undefined-func-in-image,
-    // so the in-process post-link path honours it. See intel/llvm#TODO for
-    // why --sycl-post-link-options= alone is not sufficient here.
+    // Mirror -Wno-sycl-undefined-func-in-image as a native linker-wrapper
+    // flag. --sycl-post-link-options= reaches only the external
+    // sycl-post-link tool; the in-process post-link path in
+    // clang-linker-wrapper builds its settings from its own arg list.
     if (!Args.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
                       options::OPT_Wno_sycl_undefined_func_in_image,
                       /*Default=*/true))
