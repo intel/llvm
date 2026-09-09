@@ -1,4 +1,6 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: linux
+// REQUIRES-INTEL-DRIVER: lin: 39428
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
