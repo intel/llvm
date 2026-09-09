@@ -10,27 +10,7 @@
 #include <iostream>
 
 #include "imf_utils.hpp"
-#include <algorithm>
 #include <sycl/ext/intel/math.hpp>
-#include <vector>
-
-template <typename Query> bool check_subnormal(const sycl::device &dev) {
-  constexpr const char *label =
-      std::is_same_v<Query, sycl::info::device::half_fp_config> ? "FP16"
-                                                                : "FP32";
-  std::vector<sycl::info::fp_config> cfg;
-  try {
-    cfg = dev.get_info<Query>();
-  } catch (const sycl::exception &e) {
-    std::cerr << label << " fp_config query failed: " << e.what() << "\n";
-    throw;
-  }
-  const bool result = std::find(cfg.begin(), cfg.end(),
-                                sycl::info::fp_config::denorm) != cfg.end();
-  std::cout << label << " subnormal support : " << (result ? "YES" : "NO")
-            << "\n";
-  return result;
-}
 
 int main() {
 
