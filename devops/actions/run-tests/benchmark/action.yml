@@ -50,6 +50,14 @@ inputs:
     type: string
     required: False
     default: ""
+  liboffload_artifact:
+    type: string
+    required: False
+    default: ""
+  liboffload_artifact_filename:
+    type: string
+    required: False
+    default: ""
 
 runs:
   # composite actions don't make use of 'name', so copy-paste steps' names as a comment in the first line of each step
@@ -277,6 +285,19 @@ runs:
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
 
       echo "::endgroup::"
+  - name: Download liboffload
+    if: inputs.liboffload_artifact != ''
+    uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+    with:
+      name: ${{ inputs.liboffload_artifact }}
+  - name: Extract liboffload
+    if: inputs.liboffload_artifact != ''
+    shell: bash
+    run: |
+      mkdir -p liboffload
+      tar -I zstd -xf "${{ inputs.liboffload_artifact_filename }}" -C liboffload
+      rm -f "${{ inputs.liboffload_artifact_filename }}"
+      echo "OFFLOAD_PREFIX=$(realpath ./liboffload)" >> $GITHUB_ENV
   - name: Run dpsycl-ls
     shell: bash
     run: |
@@ -316,6 +337,7 @@ runs:
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
         $([[ -n "${CR_BUILD_REF}" ]] && echo "--compute-runtime ${CR_BUILD_REF}" || echo '') \
+        $([ -n "$OFFLOAD_PREFIX" ] && echo "--offload-prefix $OFFLOAD_PREFIX" || echo '') \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
