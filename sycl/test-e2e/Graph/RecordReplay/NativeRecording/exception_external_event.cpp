@@ -1,6 +1,6 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 // REQUIRES: linux
-// REQUIRES-INTEL-DRIVERx: lin: 39938
+// REQUIRES-INTEL-DRIVER: lin: 39938
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -8,7 +8,7 @@
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests that mixing events across a graph recording boundary throws
-// errc::runtime. Exercises the UR this external event path in
+// errc::runtime. Exercises the UR external event path in
 // two directions:
 //   1. An event produced before begin_recording that is waited on while a
 //      graph is being recorded (external event pulled into the graph).
