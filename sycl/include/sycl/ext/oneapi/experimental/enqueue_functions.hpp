@@ -112,32 +112,32 @@ inline constexpr bool is_scalar_kernel_arg_v =
 // An argument that can be bound without a handler: a scalar, an array of
 // scalars, or a `raw_kernel_arg`. Anything else keeps using the command group
 // path.
-template <typename T>
+template <typename T, typename ArgT = unqualified_arg_t<T>>
 inline constexpr bool is_direct_kernel_arg_v =
-    is_scalar_kernel_arg_v<unqualified_arg_t<T>> ||
-    (std::is_array_v<unqualified_arg_t<T>> &&
-     is_scalar_kernel_arg_v<std::remove_all_extents_t<unqualified_arg_t<T>>>) ||
-    std::is_same_v<unqualified_arg_t<T>, raw_kernel_arg>;
+    is_scalar_kernel_arg_v<ArgT> ||
+    (std::is_array_v<ArgT> &&
+     is_scalar_kernel_arg_v<std::remove_all_extents_t<ArgT>>) ||
+    std::is_same_v<ArgT, raw_kernel_arg>;
 
 // The kind such an argument is bound with. A pointer keeps its kind, since a
 // backend may bind a pointer through a different entry point than bytes.
 // `cl_mem` is the exception: it names a memory object, so it is bound as the
 // bytes of the handle, as `handler::setArgHelper` does.
-template <typename T>
+template <typename T, typename ArgT = unqualified_arg_t<T>>
 inline constexpr sycl::detail::kernel_param_kind_t kernel_arg_kind_v =
-    (std::is_pointer_v<unqualified_arg_t<T>> &&
-     !std::is_same_v<unqualified_arg_t<T>, sycl::OpenCLMemT>)
+    (std::is_pointer_v<ArgT> && !std::is_same_v<ArgT, sycl::OpenCLMemT>)
         ? sycl::detail::kernel_param_kind_t::kind_pointer
         : sycl::detail::kernel_param_kind_t::kind_std_layout;
 
 template <typename T>
 sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
   using sycl::detail::kernel_param_kind_t;
-  if constexpr (std::is_same_v<unqualified_arg_t<T>, raw_kernel_arg>)
+  using ArgT = unqualified_arg_t<T>;
+  if constexpr (std::is_same_v<ArgT, raw_kernel_arg>)
     return {RawKernelArgAccess::getData(Arg), RawKernelArgAccess::getSize(Arg),
             kernel_param_kind_t::kind_std_layout};
   else
-    return {&Arg, sizeof(unqualified_arg_t<T>), kernel_arg_kind_v<T>};
+    return {&Arg, sizeof(ArgT), kernel_arg_kind_v<T>};
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
