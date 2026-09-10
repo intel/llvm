@@ -50,7 +50,9 @@ public:
     return NativePrograms;
   }
 
-  std::unordered_map<std::string, sycl::detail::DeviceKernelInfo> &
+  std::unordered_map<
+      std::string,
+      std::vector<std::unique_ptr<sycl::detail::DeviceKernelInfo>>> &
   getDeviceKernelInfoMap() {
     return m_DeviceKernelInfoMap;
   }
@@ -438,5 +440,60 @@ TEST(ImageRemoval, DeviceGlobalInitializerCleanupOnRemoveImages) {
 
   EXPECT_EQ(CtxImpl->getDeviceGlobalNotInitializedCnt(), 1u)
       << "Counter should be 1 after re-registering the reused program handle";
+}
+// Verify that kernels with the same name from different DSOs get separate
+// DeviceKernelInfo entries with distinct kernel_ids.
+// In unit tests, stack-allocated images yield nullptr module handles from
+// dladdr, so each image always creates a new entry (simulating the multi-DSO
+// case where module handles differ).
+TEST(ImageRemoval, SameKernelNameDifferentDSOs) {
+  ProgramManagerExposed PM;
+
+  // Create two images with the same kernel name "Kernel_A" but register
+  // them separately (simulating different .so files).
+  auto Img1 = generateImageKernelOnly("A");
+  auto Img2 = generateImageKernelOnly("A");
+
+  sycl_device_binary_struct NativeImage1;
+  NativeImage1 = Img1.convertToNativeType();
+  sycl_device_binaries_struct Binaries1{SYCL_DEVICE_BINARIES_VERSION, 1,
+                                        &NativeImage1, nullptr, nullptr};
+  PM.addImages(&Binaries1);
+
+  sycl_device_binary_struct NativeImage2;
+  NativeImage2 = Img2.convertToNativeType();
+  sycl_device_binaries_struct Binaries2{SYCL_DEVICE_BINARIES_VERSION, 1,
+                                        &NativeImage2, nullptr, nullptr};
+  PM.addImages(&Binaries2);
+
+  // The map should have one key ("Kernel_A") but two entries in the vector.
+  auto &DKIMap = PM.getDeviceKernelInfoMap();
+  std::string KernelName = generateRefName("A", "Kernel");
+  ASSERT_EQ(DKIMap.count(KernelName), 1u);
+  ASSERT_EQ(DKIMap[KernelName].size(), 2u)
+      << "Two separate DSOs should produce two DeviceKernelInfo entries";
+
+  // The two entries should have different kernel_ids.
+  auto &Entry0 = DKIMap[KernelName][0];
+  auto &Entry1 = DKIMap[KernelName][1];
+  EXPECT_NE(Entry0->getKernelID(), Entry1->getKernelID())
+      << "Entries from different DSOs must have distinct kernel_ids";
+
+  // Each entry should have exactly one image mapped to its kernel_id.
+  auto &KID2Img = PM.getKernelID2BinImage();
+  EXPECT_EQ(KID2Img.count(Entry0->getKernelID()), 1u);
+  EXPECT_EQ(KID2Img.count(Entry1->getKernelID()), 1u);
+
+  // Remove one DSO's images and verify the other survives.
+  PM.removeImages(&Binaries2);
+  ASSERT_EQ(DKIMap.count(KernelName), 1u);
+  ASSERT_EQ(DKIMap[KernelName].size(), 1u)
+      << "Only one entry should remain after removing one DSO's images";
+  EXPECT_EQ(KID2Img.count(DKIMap[KernelName][0]->getKernelID()), 1u);
+
+  // Remove the last DSO's images.
+  PM.removeImages(&Binaries1);
+  EXPECT_EQ(DKIMap.count(KernelName), 0u)
+      << "Map entry should be fully removed when last DSO is removed";
 }
 } // anonymous namespace
