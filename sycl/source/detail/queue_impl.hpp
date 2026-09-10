@@ -457,8 +457,7 @@ public:
   }
 
   /// Drains this queue if SYCL_LAUNCH_BLOCKING is set, making the submission of
-  /// \p Type synchronous. The exclusions below are documented in
-  /// EnvironmentVariables.md.
+  /// \p Type synchronous.
   ///
   /// Must be called with MMutex unlocked, as wait() acquires it. Prefer
   /// LaunchBlockingGuard below, which takes care of that.
