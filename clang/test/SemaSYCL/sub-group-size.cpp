@@ -12,30 +12,29 @@
 
 // expected-error@+2 {{'intel::named_sub_group_size' and 'sycl::reqd_sub_group_size' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-// expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[sycl::reqd_sub_group_size(1)]] [[intel::named_sub_group_size(automatic)]] void f1();
-// expected-error@+2 {{'sycl::reqd_sub_group_size' and 'intel::named_sub_group_size' attributes are not compatible}}
-// expected-note@+1 {{conflicting attribute is here}}
+// expected-error@+3 {{'sycl::reqd_sub_group_size' and 'intel::named_sub_group_size' attributes are not compatible}}
+// expected-note@+2 {{conflicting attribute is here}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(primary)]] [[sycl::reqd_sub_group_size(1)]] void f2();
 
 // expected-note@+1 {{conflicting attribute is here}}
 [[sycl::reqd_sub_group_size(1)]] void f3();
-// expected-error@+1 {{'intel::named_sub_group_size' and 'sycl::reqd_sub_group_size' attributes are not compatible}}
+// expected-error@+2 {{'intel::named_sub_group_size' and 'sycl::reqd_sub_group_size' attributes are not compatible}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(primary)]] void f3();
 
-// expected-note@+1 {{conflicting attribute is here}}
+// expected-note@+2 {{conflicting attribute is here}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(primary)]] void f4();
 // expected-error@+1 {{'sycl::reqd_sub_group_size' and 'intel::named_sub_group_size' attributes are not compatible}}
 [[sycl::reqd_sub_group_size(1)]] void f4();
 
-// expected-note@+1 {{previous attribute is here}}
+// expected-note@+2 {{previous attribute is here}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(automatic)]] void f5();
 
-// expected-warning@+1 {{attribute 'intel::named_sub_group_size' is already applied with different arguments}}
+// expected-warning@+2 {{attribute 'intel::named_sub_group_size' is already applied with different arguments}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(primary)]] void f5();
 
@@ -45,37 +44,36 @@
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(automatic)]] void f6();
 
-// expected-warning@+1 {{'intel::named_sub_group_size' attribute argument not supported: invalid}}
+// expected-warning@+2 {{'intel::named_sub_group_size' attribute argument not supported: invalid}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(invalid)]] void f7();
 
 // expected-error@+2 {{'intel::named_sub_group_size' and 'intel::sycl_explicit_simd' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-// expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::sycl_explicit_simd]] [[intel::named_sub_group_size(automatic)]] void f8();
 // expected-error@+2 {{'intel::sub_group_size' and 'intel::sycl_explicit_simd' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::sycl_explicit_simd]] [[intel::sub_group_size(1)]] void f9();
 
-// expected-note@+1 {{conflicting attribute is here}}
+// expected-note@+2 {{conflicting attribute is here}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(primary)]] void f10();
 // expected-error@+1 {{'intel::sycl_explicit_simd' and 'intel::named_sub_group_size' attributes are not compatible}}
 [[intel::sycl_explicit_simd]] void f10();
 
-// expected-note@+1 {{conflicting attribute is here}}
+// expected-note@+2 {{conflicting attribute is here}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size("primary")]] void f11();
 // expected-error@+1 {{'intel::sycl_explicit_simd' and 'intel::named_sub_group_size' attributes are not compatible}}
 [[intel::sycl_explicit_simd]] void f11();
 
-// expected-note@+1 {{conflicting attribute is here}}
+// expected-note@+2 {{conflicting attribute is here}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size("automatic")]] void f12();
 // expected-error@+1 {{'intel::sycl_explicit_simd' and 'intel::named_sub_group_size' attributes are not compatible}}
 [[intel::sycl_explicit_simd]] void f12();
 
-// expected-warning@+1 {{'intel::named_sub_group_size' attribute argument not supported: invalid string}}
+// expected-warning@+2 {{'intel::named_sub_group_size' attribute argument not supported: invalid string}}
 // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size("invalid string")]] void f13();
 
