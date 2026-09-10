@@ -6,7 +6,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    set(LLVMGenXIntrinsics_GIT_TAG 47fa68b3b5ca42fc59ff06fc93e7243a1d6d6fc9)
+    set(LLVMGenXIntrinsics_GIT_TAG 0c3296b5fe7ab5a8392197478d0bbd35649dc924)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
