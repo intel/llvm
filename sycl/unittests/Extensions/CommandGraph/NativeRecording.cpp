@@ -212,5 +212,5 @@ TEST_F(NativeRecordingTest, LaunchBlockingDoesNotDrainWhileRecording) {
 
   // Executing the finalized graph is a regular submission and does block.
   Queue.ext_oneapi_graph(Graph.finalize());
-  EXPECT_GE(QueueFinishCount, 1);
+  EXPECT_EQ(QueueFinishCount, 1);
 }
