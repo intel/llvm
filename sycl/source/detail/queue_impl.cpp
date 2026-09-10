@@ -81,8 +81,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 }
 
 template <>
-bool queue_impl::get_info<info::queue::ext_oneapi_supports_semaphores>()
-    const {
+bool queue_impl::get_info<info::queue::ext_oneapi_supports_semaphores>() const {
   ur_queue_flags_t Flags = 0;
   getAdapter().call<UrApiKind::urQueueGetInfo>(MQueue, UR_QUEUE_INFO_FLAGS,
                                                sizeof(Flags), &Flags, nullptr);
