@@ -17,4 +17,7 @@
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
+// XFAIL: linux && level_zero && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23094
+
 #include "bfloat16_conversion_test.hpp"

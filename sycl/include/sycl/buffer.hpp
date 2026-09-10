@@ -173,7 +173,7 @@ class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
   static_assert((dimensions > 0) && (dimensions <= 3),
                 "buffer dimensions must be 1, 2, or 3");
-  static_assert(is_device_copyable_v<T>,
+  static_assert(detail::check_if_device_copyable_v<T>,
                 "Underlying type of a buffer must be device copyable!");
 
 public:

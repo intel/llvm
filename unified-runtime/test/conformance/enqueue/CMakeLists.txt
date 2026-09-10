@@ -27,6 +27,7 @@ add_conformance_kernels_test(enqueue
     urEnqueueUSMAdvise.cpp
     urEnqueueUSMMemcpy.cpp
     urEnqueueUSMMemcpy2D.cpp
+    urEnqueueUSMOperationsOrderingIOQ.cpp
     urEnqueueUSMPrefetch.cpp
     urEnqueueReadHostPipe.cpp
     urEnqueueWriteHostPipe.cpp
