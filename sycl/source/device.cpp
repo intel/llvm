@@ -291,7 +291,9 @@ __SYCL_DEVICE_INFO_INST(usm_system_allocations, bool)
 __SYCL_DEVICE_INFO_INST(image_max_array_size, size_t)
 __SYCL_DEVICE_INFO_INST(opencl_c_version, std::string)
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(sub_group_independent_forward_progress, bool)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_oneapi_srgb, bool)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_intel_pci_address, std::string)

@@ -5,11 +5,13 @@
 #include "Inputs/sycl.hpp"
 
 struct Functor {
+  // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
   [[intel::named_sub_group_size(automatic)]] void operator()() const {
   }
 };
 
 struct Functor1 {
+  // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
   [[intel::named_sub_group_size(primary)]] void operator()() const {
   }
 };
@@ -18,6 +20,7 @@ struct Functor1 {
 void calls_kernel_1() {
   // CHECK: FunctionDecl {{.*}}Kernel1
   // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
+  // expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
   sycl::kernel_single_task<class Kernel1>([]() [[intel::named_sub_group_size(automatic)]] {
   });
 }
@@ -34,6 +37,7 @@ void calls_kernel_2() {
   sycl::kernel_single_task<class Kernel3>(F1);
 }
 
+// expected-warning@+1 {{the 'intel::named_sub_group_size' attribute is deprecated; use the}}
 [[intel::named_sub_group_size(primary)]] void AttrFunc() {} // expected-error{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
 
 // Test attribute does not get propagated to the kernel.
