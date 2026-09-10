@@ -1,7 +1,6 @@
-// Markers are excluded from SYCL_LAUNCH_BLOCKING, see EnvironmentVariables.md.
-// That the exclusion holds is checked by the unit tests in
-// sycl/unittests/queue/LaunchBlocking.cpp; here we check that the barrier
-// family still completes and still orders work in blocking mode.
+// Markers are excluded from SYCL_LAUNCH_BLOCKING.
+// This test checks that the barrier family still
+// completes and still orders work in blocking mode.
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -23,32 +22,30 @@ static void runOnQueue(sycl::queue &Q) {
   int *Out = sycl::malloc_device<int>(N, Q);
   Q.fill(Out, 0, N).wait();
 
-  auto bump = [&]() {
-    return Q.parallel_for(sycl::range<1>{N},
-                          [=](sycl::id<1> Idx) { Out[Idx] += 1; });
-  };
-
   // Queue-level barrier with no dependencies.
-  bump();
+  Q.parallel_for(sycl::range<1>{N}, [=](sycl::id<1> Idx) { Out[Idx] += 1; });
   Q.ext_oneapi_submit_barrier();
 
   // Queue-level barrier with an explicit wait list.
-  sycl::event E = bump();
+  sycl::event E = Q.parallel_for(sycl::range<1>{N},
+                                 [=](sycl::id<1> Idx) { Out[Idx] += 1; });
   Q.ext_oneapi_submit_barrier({E});
 
   // handler barrier inside a command group: CGType::Barrier.
-  bump();
+  Q.parallel_for(sycl::range<1>{N}, [=](sycl::id<1> Idx) { Out[Idx] += 1; });
   Q.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_barrier(); });
 
   // handler barrier with a wait list: CGType::BarrierWaitlist.
-  sycl::event E2 = bump();
+  sycl::event E2 = Q.parallel_for(sycl::range<1>{N},
+                                  [=](sycl::id<1> Idx) { Out[Idx] += 1; });
   Q.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_barrier({E2}); });
 
   // Free function forms.
-  bump();
+  Q.parallel_for(sycl::range<1>{N}, [=](sycl::id<1> Idx) { Out[Idx] += 1; });
   exp_ext::barrier(Q);
 
-  sycl::event E3 = bump();
+  sycl::event E3 = Q.parallel_for(sycl::range<1>{N},
+                                  [=](sycl::id<1> Idx) { Out[Idx] += 1; });
   exp_ext::partial_barrier(Q, {E3});
 
   Q.wait();

@@ -1,7 +1,4 @@
 // SYCL_LAUNCH_BLOCKING inserts a queue-wide wait into every submission path.
-// That a submission really blocks is checked by the unit tests in
-// sycl/unittests/queue/LaunchBlocking.cpp; what this test adds is that every
-// path still works, and does not deadlock, when all of them block.
 //
 // REQUIRES: aspect-usm_shared_allocations
 //
