@@ -60,7 +60,7 @@ uint64_t SPIRVType::getArrayLength() const {
 }
 
 SPIRVWord SPIRVType::getBitWidth() const {
-  if (isTypeVector())
+  if (isTypeVector() || isTypeVectorIdEXT())
     return getVectorComponentType()->getBitWidth();
   if (isTypeBool())
     return 1;
@@ -117,6 +117,8 @@ SPIRVWord SPIRVType::getVectorComponentCount() const {
 SPIRVType *SPIRVType::getVectorComponentType() const {
   if (OpCode == OpTypeVector)
     return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == OpTypeVectorIdEXT)
+    return static_cast<const SPIRVTypeVectorIdEXT *>(this)->getComponentType();
   if (OpCode == OpTypeCooperativeMatrixKHR)
     return static_cast<const SPIRVTypeCooperativeMatrixKHR *>(this)
         ->getCompType();
@@ -142,6 +144,7 @@ SPIRVType *SPIRVType::getScalarType() const {
   case OpTypeArray:
     return getArrayElementType();
   case OpTypeVector:
+  case OpTypeVectorIdEXT:
     return getVectorComponentType();
   case OpTypeMatrix:
     return getMatrixColumnType()->getVectorComponentType();
@@ -161,8 +164,8 @@ bool SPIRVType::isTypeArray() const { return OpCode == OpTypeArray; }
 bool SPIRVType::isTypeBool() const { return OpCode == OpTypeBool; }
 
 bool SPIRVType::isTypeComposite() const {
-  return isTypeVector() || isTypeArray() || isTypeStruct() ||
-         isTypeCooperativeMatrixKHR();
+  return isTypeVector() || isTypeVectorIdEXT() || isTypeArray() ||
+         isTypeStruct() || isTypeCooperativeMatrixKHR();
 }
 
 bool SPIRVType::isTypeFloat(unsigned Bits,
@@ -221,21 +224,27 @@ bool SPIRVType::isTypeStruct() const { return OpCode == OpTypeStruct; }
 
 bool SPIRVType::isTypeVector() const { return OpCode == OpTypeVector; }
 
+bool SPIRVType::isTypeVectorIdEXT() const {
+  return OpCode == OpTypeVectorIdEXT;
+}
 
 bool SPIRVType::isTypeCooperativeMatrixKHR() const {
   return OpCode == OpTypeCooperativeMatrixKHR;
 }
 
 bool SPIRVType::isTypeVectorBool() const {
-  return isTypeVector() && getVectorComponentType()->isTypeBool();
+  return (isTypeVector() || isTypeVectorIdEXT()) &&
+         getVectorComponentType()->isTypeBool();
 }
 
 bool SPIRVType::isTypeVectorInt() const {
-  return isTypeVector() && getVectorComponentType()->isTypeInt();
+  return (isTypeVector() || isTypeVectorIdEXT()) &&
+         getVectorComponentType()->isTypeInt();
 }
 
 bool SPIRVType::isTypeVectorFloat() const {
-  return isTypeVector() && getVectorComponentType()->isTypeFloat();
+  return (isTypeVector() || isTypeVectorIdEXT()) &&
+         getVectorComponentType()->isTypeFloat();
 }
 
 bool SPIRVType::isTypeIEEE754Float() const {
@@ -307,6 +316,37 @@ void SPIRVTypeArray::validate() const {
 SPIRVValue *SPIRVTypeArray::getLength() const { return getValue(Length); }
 
 _SPIRV_IMP_ENCDEC3(SPIRVTypeArray, Id, ElemType, Length)
+
+void SPIRVTypeVectorIdEXT::validate() const {
+  SPIRVEntry::validate();
+  CompType->validate();
+  SPIRVErrorLog &SPVErrLog = getModule()->getErrorLog();
+  std::string InstName = OpCodeNameMap::map(OpCode);
+  // Component Type must be a scalar type.
+  SPVErrLog.checkError(CompType->isTypeBool() || CompType->isTypeInt() ||
+                           CompType->isTypeFloat(),
+                       SPIRVEC_InvalidInstruction,
+                       InstName + ": component type must be a scalar type\n");
+  SPIRVValue *Count = getComponentCount();
+  // Component Count must be a constant instruction with 32-bit int type
+  Op CountOC = Count->getOpCode();
+  SPVErrLog.checkError(
+      CountOC == OpConstant || CountOC == OpSpecConstant ||
+          CountOC == OpSpecConstantOp,
+      SPIRVEC_InvalidInstruction,
+      InstName + ": component count must be a constant instruction\n");
+  SPVErrLog.checkError(
+      Count->getType()->isTypeInt(32), SPIRVEC_InvalidInstruction,
+      InstName + ": component count must have scalar 32-bit integer type\n");
+  // Component size is treated as unsigned value and must be greater than zero
+  if (CountOC == OpConstant)
+    SPVErrLog.checkError(
+        static_cast<SPIRVConstant *>(Count)->getZExtIntValue() > 0,
+        SPIRVEC_InvalidInstruction,
+        InstName + ": component count must be greater than zero\n");
+}
+
+_SPIRV_IMP_ENCDEC3(SPIRVTypeVectorIdEXT, Id, CompType, ComponentCount)
 
 void SPIRVTypeForwardPointer::encode(spv_ostream &O) const {
   getEncoder(O) << PointerId << SC;

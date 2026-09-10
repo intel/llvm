@@ -1,0 +1,80 @@
+; Checks reverse-translation of value-level ops on an OpTypeVectorIdEXT value:
+; OpVectorExtractDynamic, OpVectorInsertDynamic, OpVectorShuffle, OpAccessChain.
+; OpVectorShuffle additionally mixes a plain OpTypeVector operand with an
+; OpTypeVectorIdEXT operand (both lower to the same LLVM vector type).
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.3 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability LongVectorEXT
+               OpExtension "SPV_EXT_long_vector"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn_ved "test_vec_extract_dynamic"
+               OpName %fn_vid "test_vec_insert_dynamic"
+               OpName %fn_vs "test_vec_shuffle"
+               OpName %fn_ac "test_access_chain"
+               OpDecorate %fn_ved LinkageAttributes "test_vec_extract_dynamic" Export
+               OpDecorate %fn_vid LinkageAttributes "test_vec_insert_dynamic" Export
+               OpDecorate %fn_vs LinkageAttributes "test_vec_shuffle" Export
+               OpDecorate %fn_ac LinkageAttributes "test_access_chain" Export
+       %uint = OpTypeInt 32 0
+      %float = OpTypeFloat 32
+     %uint_4 = OpConstant %uint 4
+   %count_sc = OpSpecConstant %uint 4
+    %v4float = OpTypeVectorIdEXT %float %uint_4
+ %v4float_sc = OpTypeVectorIdEXT %float %count_sc
+   %pv4float = OpTypeVector %float 4
+ %ptr_fn_v4f = OpTypePointer Function %v4float
+ %ptr_fn_flt = OpTypePointer Function %float
+   %fnty_ved = OpTypeFunction %float %v4float_sc %uint
+   %fnty_vid = OpTypeFunction %v4float %v4float %float %uint
+    %fnty_vs = OpTypeFunction %v4float %pv4float %v4float
+    %fnty_ac = OpTypeFunction %float %uint
+
+; CHECK: define spir_func float @test_vec_extract_dynamic(<4 x float> %[[#V:]], i32 %[[#I:]])
+; CHECK: extractelement <4 x float> %[[#V]], i32 %[[#I]]
+     %fn_ved = OpFunction %float None %fnty_ved
+      %ved_v = OpFunctionParameter %v4float_sc
+      %ved_i = OpFunctionParameter %uint
+  %entry_ved = OpLabel
+       %vedr = OpVectorExtractDynamic %float %ved_v %ved_i
+               OpReturnValue %vedr
+               OpFunctionEnd
+
+; CHECK: define spir_func <4 x float> @test_vec_insert_dynamic(<4 x float> %[[#V:]], float %[[#S:]], i32 %[[#I:]])
+; CHECK: insertelement <4 x float> %[[#V]], float %[[#S]], i32 %[[#I]]
+     %fn_vid = OpFunction %v4float None %fnty_vid
+      %vid_v = OpFunctionParameter %v4float
+      %vid_s = OpFunctionParameter %float
+      %vid_i = OpFunctionParameter %uint
+  %entry_vid = OpLabel
+       %vidr = OpVectorInsertDynamic %v4float %vid_v %vid_s %vid_i
+               OpReturnValue %vidr
+               OpFunctionEnd
+
+; CHECK: define spir_func <4 x float> @test_vec_shuffle(<4 x float> %[[#A:]], <4 x float> %[[#B:]])
+; CHECK: shufflevector <4 x float> %[[#A]], <4 x float> %[[#B]]
+      %fn_vs = OpFunction %v4float None %fnty_vs
+       %vs_a = OpFunctionParameter %pv4float
+       %vs_b = OpFunctionParameter %v4float
+   %entry_vs = OpLabel
+        %vsr = OpVectorShuffle %v4float %vs_a %vs_b 0 1 4 5
+               OpReturnValue %vsr
+               OpFunctionEnd
+
+; CHECK: define spir_func float @test_access_chain(i32 %[[#I:]])
+; CHECK: getelementptr <4 x float>, ptr %[[#]], i32 0, i32 %[[#I]]
+; CHECK: load float
+      %fn_ac = OpFunction %float None %fnty_ac
+       %ac_i = OpFunctionParameter %uint
+   %entry_ac = OpLabel
+     %ac_var = OpVariable %ptr_fn_v4f Function
+     %ac_gep = OpAccessChain %ptr_fn_flt %ac_var %ac_i
+     %ac_val = OpLoad %float %ac_gep
+               OpReturnValue %ac_val
+               OpFunctionEnd
