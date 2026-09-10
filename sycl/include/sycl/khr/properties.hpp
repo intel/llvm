@@ -279,8 +279,13 @@ public:
   }
 
   // Runtime (or hybrid) key: return a copy of the stored property.
+  //
+  // The dummy `int` parameter gives this overload a parameter list distinct
+  // from the static compile-time overload above. Without it, MSVC rejects the
+  // two overloads (static vs non-static) as differing only in return type
+  // (C2686) during class definition, before the enable_if SFINAE applies.
   template <typename PropertyKey>
-  constexpr auto get_property() const -> std::enable_if_t<
+  constexpr auto get_property(int = 0) const -> std::enable_if_t<
       !is_property_key_compile_time_v<PropertyKey>,
       property::detail::property_of_key_t<PropertyKey, EncodedProperties...>> {
     return static_cast<const property::detail::property_of_key_t<
