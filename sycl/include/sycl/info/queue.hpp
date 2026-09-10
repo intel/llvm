@@ -32,7 +32,7 @@ struct context : queue_traits<UR_QUEUE_INFO_CONTEXT> {
 struct device : queue_traits<UR_QUEUE_INFO_DEVICE> {
   using return_type = sycl::device;
 };
-struct ext_oneapi_immediate_command_list : queue_traits<UR_QUEUE_INFO_FLAGS> {
+struct ext_oneapi_supports_semaphores : queue_traits<UR_QUEUE_INFO_FLAGS> {
   using return_type = bool;
 };
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

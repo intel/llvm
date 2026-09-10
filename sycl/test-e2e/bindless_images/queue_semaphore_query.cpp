@@ -11,8 +11,8 @@
 
 int main() {
   sycl::queue Q{sycl::ext::intel::property::queue::no_immediate_command_list()};
-  assert(!Q.get_info<sycl::info::queue::ext_oneapi_immediate_command_list>());
+  assert(!Q.get_info<sycl::info::queue::ext_oneapi_supports_semaphores>());
 
   sycl::queue Q2{sycl::ext::intel::property::queue::immediate_command_list()};
-  assert(Q2.get_info<sycl::info::queue::ext_oneapi_immediate_command_list>());
+  assert(Q2.get_info<sycl::info::queue::ext_oneapi_supports_semaphores>());
 }
