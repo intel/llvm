@@ -162,7 +162,6 @@ jobs:
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
-            env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu

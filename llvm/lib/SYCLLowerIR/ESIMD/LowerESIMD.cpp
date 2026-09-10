@@ -41,6 +41,7 @@
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 
 #include <cctype>
+#include <cstdlib>
 #include <cstring>
 #include <unordered_map>
 
@@ -1981,12 +1982,16 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     if (NameNode->getKind() == id::Node::KLocalName)
       return false;
 
+    // OutputBuffer does not own its buffer - it must be freed by the caller.
     id::OutputBuffer NameBuf;
     NameNode->print(NameBuf);
     StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
 
-    return Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
-           Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+    bool IsESIMDFunction =
+        Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+        Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+    std::free(NameBuf.getBuffer());
+    return IsESIMDFunction;
   };
   bool NeedInline = false;
   for (auto &F : M) {

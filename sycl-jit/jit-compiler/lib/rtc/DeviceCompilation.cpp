@@ -1018,6 +1018,10 @@ jit_compiler::performPostLink(ModuleUPtr Module,
       options::OPT_fsycl_allow_device_image_dependencies,
       options::OPT_fno_sycl_allow_device_image_dependencies, false);
 
+  const bool SuppressUndefinedFuncWarnings =
+      !UserArgList.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                           options::OPT_Wno_sycl_undefined_func_in_image, true);
+
   const int MaxIdRange = getSYCLIdMaxRange(UserArgList);
 
   // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
@@ -1060,7 +1064,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
       std::make_unique<ModuleDesc>(std::move(Module)), SplitMode,
       /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints,
-      AllowDeviceImageDependencies);
+      AllowDeviceImageDependencies, SuppressUndefinedFuncWarnings);
   assert(Splitter->hasMoreSplits());
 
   if (auto Err = Splitter->verifyNoCrossModuleDeviceGlobalUsage()) {
@@ -1082,9 +1086,9 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     // TODO: Call `MDesc.fixupLinkageOfDirectInvokeSimdTargets()` when
     //       `invoke_simd` is supported.
 
-    SmallVector<std::unique_ptr<ModuleDesc>, 2> ESIMDSplits =
-        splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
-                     AllowDeviceImageDependencies);
+    SmallVector<std::unique_ptr<ModuleDesc>, 2> ESIMDSplits = splitByESIMD(
+        std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
+        AllowDeviceImageDependencies, SuppressUndefinedFuncWarnings);
     for (auto &ES : ESIMDSplits) {
       MDesc = std::move(ES);
 
