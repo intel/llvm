@@ -202,7 +202,7 @@ ur_result_t ur_queue_batched_t::queueFinishPoolsUnlocked() {
 ur_result_t batch_manager::batchFinish() {
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::batchFinish");
 
-  UR_CALL(activeBatch.releaseSubmittedKernels());
+  UR_CALL(activeBatch.releaseSubmittedResources());
 
   if (!isActiveBatchEmpty()) {
     // The active batch was already submitted to the immediate command list

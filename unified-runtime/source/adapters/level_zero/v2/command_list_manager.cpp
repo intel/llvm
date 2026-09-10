@@ -606,15 +606,56 @@ ur_result_t ur_command_list_manager::appendTimestampRecordingExp(
 
   auto [timestampPtr, zeSignalEvent] = phEvent->getEventEndTimestampAndHandle();
 
-  ZE2UR_CALL(zeCommandListAppendWriteGlobalTimestamp,
-             (getZeCommandList(), timestampPtr, zeSignalEvent, numWaitEvents,
-              pWaitEvents));
+  // timestampPtr points into phEvent, so the append leaves the device with a
+  // raw pointer into the event. Keep it alive until the write has completed, no
+  // matter when the application drops its own reference.
+  phEvent->retainForTimestampWrite();
+  pendingTimestampEvents.push_back(phEvent);
+
+  auto zeResult = ZE_CALL_NOCHECK(
+      zeCommandListAppendWriteGlobalTimestamp,
+      (getZeCommandList(), timestampPtr, zeSignalEvent, numWaitEvents,
+       pWaitEvents));
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    // Nothing was submitted, so there is no write to wait for.
+    pendingTimestampEvents.pop_back();
+    UR_CALL_NOCHECK(phEvent->releaseAfterTimestampWrite());
+    return ze2urResult(zeResult);
+  }
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize, (getZeCommandList(), UINT64_MAX));
+    UR_CALL(releasePendingTimestampEvents());
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::releasePendingTimestampEvents() {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  for (auto &hEvent : pendingTimestampEvents) {
+    auto releaseResult = hEvent->releaseAfterTimestampWrite();
+    if (releaseResult != UR_RESULT_SUCCESS) {
+      result = releaseResult;
+    }
+  }
+  pendingTimestampEvents.clear();
+  return result;
+}
+
+void ur_command_list_manager::tryReleasePendingTimestampEvents() {
+  if (pendingTimestampEvents.empty()) {
+    return;
+  }
+
+  // Zero timeout only queries: SUCCESS means everything submitted to this list,
+  // the timestamp writes among it, has completed. Anything else leaves the
+  // events pending for a later call.
+  auto status =
+      ZE_CALL_NOCHECK(zeCommandListHostSynchronize, (getZeCommandList(), 0));
+  if (status == ZE_RESULT_SUCCESS) {
+    UR_CALL_NOCHECK(releasePendingTimestampEvents());
+  }
 }
 
 ur_result_t ur_command_list_manager::appendGenericCommandListsExp(
@@ -1119,13 +1160,15 @@ ur_result_t ur_command_list_manager::appendEventsWaitWithBarrier(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_command_list_manager::releaseSubmittedKernels() {
+ur_result_t ur_command_list_manager::releaseSubmittedResources() {
+  auto result = releasePendingTimestampEvents();
+
   // Free deferred kernels
   for (auto &hKernel : submittedKernels) {
     UR_CALL(hKernel->release());
   }
   submittedKernels.clear();
-  return UR_RESULT_SUCCESS;
+  return result;
 }
 
 ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(

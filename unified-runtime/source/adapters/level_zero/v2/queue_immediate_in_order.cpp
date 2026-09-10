@@ -121,8 +121,8 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
 
   {
     TRACK_SCOPE_LATENCY(
-        "ur_queue_immediate_in_order_t::releaseSubmittedKernels");
-    UR_CALL(lockedCommandListManager->releaseSubmittedKernels());
+        "ur_queue_immediate_in_order_t::releaseSubmittedResources");
+    UR_CALL(lockedCommandListManager->releaseSubmittedResources());
   }
 
   return UR_RESULT_SUCCESS;

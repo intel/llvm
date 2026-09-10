@@ -94,6 +94,21 @@ void ur_event_handle_t_::initTimestampRecording() {
   profilingData.initTimestampRecording(hDevice);
 }
 
+void ur_event_handle_t_::retainForTimestampWrite() {
+  // A recording always gets a fresh event, so there is at most one write in
+  // flight per event.
+  assert(!timestampWritePending);
+  timestampWritePending = true;
+  RefCount.retain();
+}
+
+ur_result_t ur_event_handle_t_::releaseAfterTimestampWrite() {
+  assert(timestampWritePending);
+  // This may be the last reference, and reset() checks the flag.
+  timestampWritePending = false;
+  return release();
+}
+
 bool event_profiling_data_t::recordingStarted() const {
   return timestampRecorded;
 }
@@ -148,6 +163,10 @@ uint64_t ur_event_handle_t_::getEventEndTimestamp() {
 }
 
 void ur_event_handle_t_::reset() {
+  // The command list holds a reference while a timestamp write into this event
+  // is in flight, so it cannot be recycled before that write has completed.
+  assert(!timestampWritePending);
+
   // consider make an abstraction for regular/counter based
   // events if there's more of this type of conditions
   if (!(flags & v2::EVENT_FLAGS_COUNTER)) {

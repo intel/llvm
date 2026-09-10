@@ -57,6 +57,10 @@ add_l0_v2_devices_test(batched_queue
     batched_queue_test.cpp
 )
 
+add_l0_v2_devices_test(timestamp_recording
+    timestamp_recording_test.cpp
+)
+
 if(NOT UR_FOUND_DPCXX)
     # Tests that require kernels can't be used if we aren't generating
     # device binaries

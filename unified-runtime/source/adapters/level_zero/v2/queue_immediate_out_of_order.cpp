@@ -114,7 +114,7 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueFinish() {
   for (size_t i = 0; i < numCommandLists; i++) {
     ZE2UR_CALL(zeCommandListHostSynchronize,
                (commandListManagersLocked[i].getZeCommandList(), UINT64_MAX));
-    UR_CALL(commandListManagersLocked[i].releaseSubmittedKernels());
+    UR_CALL(commandListManagersLocked[i].releaseSubmittedResources());
   }
 
   hContext->getAsyncPool()->cleanupPoolsForQueue(this);

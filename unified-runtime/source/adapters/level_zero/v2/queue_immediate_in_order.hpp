@@ -482,7 +482,13 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    return commandListManager.lock()->appendTimestampRecordingExp(
+    auto cmdListMan = commandListManager.lock();
+
+    // Recordings hold their event until the device write has completed; give
+    // back the ones that finished in the meantime.
+    cmdListMan->tryReleasePendingTimestampEvents();
+
+    return cmdListMan->appendTimestampRecordingExp(
         blocking, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }

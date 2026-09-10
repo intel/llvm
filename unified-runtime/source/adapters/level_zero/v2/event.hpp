@@ -135,6 +135,13 @@ public:
   // Caller is responsible for signaling the event once the timestamp is ready.
   std::pair<uint64_t *, ze_event_handle_t> getEventEndTimestampAndHandle();
 
+  // getEventEndTimestampAndHandle() hands out storage inside this event, so a
+  // device command writing into it holds a raw pointer into the event. The
+  // command list that appended the write takes a reference on behalf of the
+  // device and drops it once the write has completed.
+  void retainForTimestampWrite();
+  ur_result_t releaseAfterTimestampWrite();
+
   uint64_t getEventEndTimestamp();
 
   ur::RefCount RefCount;
@@ -162,6 +169,11 @@ protected:
 
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
+
+  // Set while a device timestamp write into profilingData is in flight. Only
+  // accessed by the command list manager that appended the write, under its
+  // lock.
+  bool timestampWritePending = false;
 };
 
 } // namespace ur::level_zero::v2

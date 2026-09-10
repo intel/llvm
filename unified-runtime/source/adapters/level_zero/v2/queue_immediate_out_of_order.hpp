@@ -596,7 +596,13 @@ public:
 
     auto commandListId =
         getNextCommandListId(phEventWaitList, numEventsInWaitList);
-    return commandListManagers.lock()[commandListId]
+    auto commandListManagersLocked = commandListManagers.lock();
+
+    // Recordings hold their event until the device write has completed; give
+    // back the ones that finished in the meantime.
+    commandListManagersLocked[commandListId].tryReleasePendingTimestampEvents();
+
+    return commandListManagersLocked[commandListId]
         .appendTimestampRecordingExp(
             blocking, waitListView,
             createEventIfRequested(eventPool.get(), phEvent, this));

@@ -61,7 +61,16 @@ struct ur_command_list_manager {
 
   ze_command_list_handle_t getZeCommandList();
 
-  ur_result_t releaseSubmittedKernels();
+  // Release what this command list kept alive for the commands it has run: the
+  // kernels it launched and the events holding timestamp write destinations.
+  // Must only be called once those commands have completed.
+  ur_result_t releaseSubmittedResources();
+
+  // Drop the references taken for the timestamp writes submitted to this
+  // command list, but only if a non-blocking query shows the list is already
+  // done. Callers appending timestamp recordings should use this to keep the
+  // pending list from growing.
+  void tryReleasePendingTimestampEvents();
 
   /************ Generic queue methods *************/
   ur_result_t appendEventsWait(wait_list_view &waitListView,
@@ -248,6 +257,10 @@ struct ur_command_list_manager {
   void replaceCommandList(v2::raii::command_list_unique_handle &&cmdlist);
 
 private:
+  // Drop the references taken for the timestamp writes submitted to this
+  // command list. Must only be called after the list has been synchronized.
+  ur_result_t releasePendingTimestampEvents();
+
   ur_result_t appendKernelLaunchWithArgsExpOld(
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -317,6 +330,10 @@ private:
   std::unordered_set<ur_kernel_handle_t> submittedKernels;
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
+
+  // Events holding the destination of a timestamp write submitted to this
+  // command list, see appendTimestampRecordingExp.
+  std::vector<ur_event_handle_t> pendingTimestampEvents;
 };
 
 } // namespace ur::level_zero::v2
