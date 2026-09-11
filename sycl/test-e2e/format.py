@@ -299,9 +299,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 build_targets.add(test.config.backend_to_target[backend])
 
         triples = set(test.config.target_to_triple[t] for t in build_targets)
-        test.config.available_features = test.config.available_features.union(
-            build_targets
-        )
+        features_for_test = test.config.available_features.union(build_targets)
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
 
@@ -449,7 +447,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 )
         script = new_script
 
-        conditions = {feature: True for feature in test.config.available_features}
+        conditions = {feature: True for feature in features_for_test}
         script = lit.TestRunner.applySubstitutions(
             script,
             substitutions,
@@ -472,7 +470,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             return code
 
         if len(triples) == 1 and test.config.test_mode == "build-only":
-            result.code = map_result(test.config.available_features, result.code)
+            result.code = map_result(features_for_test, result.code)
         if len(devices_for_test) == 1:
             device = devices_for_test[0]
             result.code = map_result(test.config.sycl_dev_features[device], result.code)
