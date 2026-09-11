@@ -101,6 +101,11 @@ public:
     ErrorCode = ErrCode;
     ErrorMsg = ErrMsg;
   }
+  // Select what happens when a check fails. Defaults to the SPIRVDbgError
+  // global; SPIRVModule overrides it from TranslatorOpts.
+  void setErrorHandlingKind(SPIRVDbgErrorHandlingKinds Kind) {
+    ErrorHandling = Kind;
+  }
   // Check if Condition is satisfied and set ErrCode and DetailedMsg
   // if not. Returns true if no error.
   bool checkError(bool Condition, SPIRVErrorCode ErrCode,
@@ -122,6 +127,7 @@ public:
 protected:
   SPIRVErrorCode ErrorCode;
   std::string ErrorMsg;
+  SPIRVDbgErrorHandlingKinds ErrorHandling = SPIRVDbgError;
 };
 
 inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
@@ -164,7 +170,7 @@ inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
   if (SPIRVDbgErrorMsgIncludesSourceInfo && FileName)
     SS << " [Src: " << FileName << ":" << LineNo << " " << CondString << " ]";
   setError(ErrCode, SS.str());
-  switch (SPIRVDbgError) {
+  switch (ErrorHandling) {
   case SPIRVDbgErrorHandlingKinds::Abort:
     std::cerr << SS.str() << std::endl;
     abort();
@@ -174,12 +180,13 @@ inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
     std::exit(ErrCode);
     break;
   case SPIRVDbgErrorHandlingKinds::Ignore:
-    // Still print info about the error into debug output stream
-    // TODO: The value Ignore is not currently used but if it would be used
-    // then places where this routine is called must be checked as just
-    // ignoring the error may lead to NULL pointer dereferences
-    spvdbgs() << SS.str() << '\n';
-    spvdbgs().flush();
+    // The caller reads the failure back through getError(), so say nothing
+    // unless debug output was asked for. An embedder selects this kind
+    // precisely to keep the failure out of the process' stderr.
+    if (SPIRVDbgEnable) {
+      spvdbgs() << SS.str() << '\n';
+      spvdbgs().flush();
+    }
     break;
   }
   return Cond;

@@ -16,12 +16,8 @@ kernel void test(int global *in, int global *in2) {
 // RUN: spirv-val %t.spv
 // clang-format on
 
-// CHECK-SPIRV:ConvertPtrToU
-// CHECK-SPIRV:ConvertPtrToU
-// CHECK-SPIRV:INotEqual
-// CHECK-SPIRV:ConvertPtrToU
-// CHECK-SPIRV:ConvertPtrToU
-// CHECK-SPIRV:IEqual
+// CHECK-SPIRV:PtrNotEqual
+// CHECK-SPIRV:PtrEqual
 // CHECK-SPIRV:ConvertPtrToU
 // CHECK-SPIRV:ConvertPtrToU
 // CHECK-SPIRV:UGreaterThan

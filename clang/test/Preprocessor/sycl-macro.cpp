@@ -17,9 +17,20 @@
 // RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_90a -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-CUDA-FEATURE %s
 // RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_90a -fsycl-is-device -fsycl-cuda-compatibility -E -dM | FileCheck --check-prefix=CHECK-SYCL-CUDA-COMPAT %s
 
+/// __CLANG_RDC__ tells a SYCL implementation whether device symbols may be
+/// referenced across translation units. It is predefined in both the device and
+/// the host pass, and only when relocatable device code is enabled.
+// RUN: %clang_cc1 %s -fsycl-is-device -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s
+// RUN: %clang_cc1 %s -fsycl-is-host -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s
+// RUN: %clang_cc1 %s -fsycl-is-device -fno-gpu-rdc -E -dM | FileCheck --check-prefix=CHECK-NO-RDC %s
+// RUN: %clang_cc1 %s -fsycl-is-host -fno-gpu-rdc -E -dM | FileCheck --check-prefix=CHECK-NO-RDC %s
+
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-NOT:#define SYCL_EXTERNAL
 // CHECK-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
+
+// CHECK-RDC:#define __CLANG_RDC__ 1
+// CHECK-NO-RDC-NOT:#define __CLANG_RDC__
 
 // CHECK-SYCL-STD:#define SYCL_LANGUAGE_VERSION 202012L
 

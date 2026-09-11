@@ -614,6 +614,10 @@ public:
     return TranslationOpts.getAddrSpaceMap();
   }
 
+  llvm::StringRef getTargetTripleOverride() const noexcept {
+    return TranslationOpts.getSPIRVTargetTriple();
+  }
+
   unsigned getFunctionProgramAddrSpace() const noexcept {
     return TranslationOpts.getFunctionProgramAddrSpace();
   }

@@ -34,7 +34,6 @@ endif()
 target_include_directories(llvm-spirv
   PRIVATE
     ${LLVM_INCLUDE_DIRS}
-    ${LLVM_SPIRV_INCLUDE_DIRS}
 )
 
 if(SPIRV_TOOLS_FOUND AND LLVM_SPIRV_ENABLE_LIBSPIRV_DIS)
