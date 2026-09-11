@@ -903,7 +903,8 @@ public:
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
 
-  /// getUseNewOffloadingDriver - use the new offload driver for OpenMP.
+  /// getUseNewOffloadingDriver - whether the new offload driver is in use
+  /// for the current compilation (OpenMP, CUDA, HIP, or -foffload-via-llvm).
   bool getUseNewOffloadingDriver() const { return UseNewOffloadingDriver; };
 
   /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been

@@ -13,6 +13,9 @@
 
 #include "Common.hpp"
 
+#include <gmock/gmock.h>
+
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -49,6 +52,51 @@ struct MockState {
 };
 
 MockState &state();
+
+// Records a call to EntryPoint, optionally against the object it was about.
+void trace(std::string EntryPoint, const void *Handle = nullptr);
+
+// Fails EntryPoint before its mock implementation runs while still tracing the
+// call
+#define FAIL_UR_BEFORE(EntryPoint, Error)                                      \
+  mock::getCallbacks().set_before_callback(                                    \
+      #EntryPoint, [](void *) -> ur_result_t {                                 \
+        static_assert(Error != UR_RESULT_SUCCESS,                              \
+                      "Injected error must be a failure");                     \
+        NativeRecordingMock::trace(#EntryPoint);                               \
+        return Error;                                                          \
+      })
+
+// Fails EntryPoint after its mock implementation ran
+#define FAIL_UR_AFTER(EntryPoint, Error)                                       \
+  mock::getCallbacks().set_after_callback(                                     \
+      #EntryPoint, [](void *) -> ur_result_t {                                 \
+        static_assert(Error != UR_RESULT_SUCCESS,                              \
+                      "Injected error must be a failure");                     \
+        return Error;                                                          \
+      })
+
+// Runs Operation, which is expected to throw, and checks the SYCL / UR error
+// codes from the exception. The error message is returned to the user.
+template <typename FnT>
+std::string expectFailure(FnT Operation,
+                          std::optional<ur_result_t> ExpectedUrError,
+                          sycl::errc ExpectedCode = sycl::errc::runtime) {
+  try {
+    Operation();
+  } catch (sycl::exception &E) {
+    EXPECT_EQ(E.code(), ExpectedCode);
+    if (ExpectedUrError) {
+      EXPECT_EQ(sycl::detail::get_ur_error(E),
+                static_cast<int32_t>(*ExpectedUrError));
+      EXPECT_THAT(E.what(), ::testing::HasSubstr(
+                                sycl::detail::codeToString(*ExpectedUrError)));
+    }
+    return E.what();
+  }
+  ADD_FAILURE() << "Expected an exception";
+  return {};
+}
 
 size_t traceCount(std::string_view EntryPoint);
 

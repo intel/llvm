@@ -11,6 +11,7 @@ add_sycl_unittest(CommandGraphExtensionTests OBJECT
   InOrderQueue.cpp
   MultiThreaded.cpp
   NativeRecording.cpp
+  NativeRecordingExceptions.cpp
   NativeRecordingMock.cpp
   Queries.cpp
   Regressions.cpp

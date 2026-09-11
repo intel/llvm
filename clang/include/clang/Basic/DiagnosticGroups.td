@@ -1797,6 +1797,7 @@ def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
 def SyclPrivateAllocaPositiveSize : DiagGroup<"sycl-private-alloca-positive-size">;
+def SyclUndefinedFuncInImage : DiagGroup<"sycl-undefined-func-in-image">;
 
 // Common warnings for SYCL and OpenMP offloading
 def OffloadTarget : DiagGroup<"offload-target">;
