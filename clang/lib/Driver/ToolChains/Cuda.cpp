@@ -1023,8 +1023,6 @@ void CudaToolChain::addClangTargetOptions(
       CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
                       "--nvptx-prec-sqrtf32=0"});
 
-    CC1Args.append({"-mllvm", "-enable-memcpyopt-without-libcalls"});
-
     // Add NVVM reflect flags based on SYCL ID queries range assumption.
     if (DriverArgs.hasArg(options::OPT_fsycl_id_queries_range_EQ)) {
       StringRef RangeValue =
@@ -1040,9 +1038,7 @@ void CudaToolChain::addClangTargetOptions(
     SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
                                          HostTC.getTriple(), CC1Args);
   } else {
-    CC1Args.append({"-fcuda-is-device", "-mllvm",
-                    "-enable-memcpyopt-without-libcalls",
-                    "-fno-threadsafe-statics"});
+    CC1Args.append({"-fcuda-is-device", "-fno-threadsafe-statics"});
 
     // Add these flags for .cu SYCL compilation.
     if (DeviceOffloadingKind == Action::OFK_Cuda &&
