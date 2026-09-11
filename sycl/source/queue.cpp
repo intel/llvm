@@ -13,6 +13,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/handler.hpp>
+#include <sycl/kernel.hpp>
 #include <sycl/queue.hpp>
 
 #include <algorithm>
@@ -315,6 +316,24 @@ void submit_kernel_direct_without_event_impl(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   detail::getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
+      IsTopCodeLoc);
+}
+
+void submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel, const detail::KernelArgView *Args, size_t NumArgs,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  detail::getSyclObjImpl(Queue)->submit_kernel_obj_direct_without_event(
+      RangeView, detail::getSyclObjImpl(Kernel), {Args, NumArgs}, CodeLoc,
+      IsTopCodeLoc);
+}
+
+void submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel, const ext::oneapi::experimental::raw_kernel_arg *Args,
+    size_t NumArgs, const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  detail::getSyclObjImpl(Queue)->submit_kernel_obj_direct_without_event(
+      RangeView, detail::getSyclObjImpl(Kernel), {Args, NumArgs}, CodeLoc,
       IsTopCodeLoc);
 }
 

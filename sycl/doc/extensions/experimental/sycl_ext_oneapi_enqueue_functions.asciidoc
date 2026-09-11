@@ -41,6 +41,12 @@ This extension is written against the SYCL 2020 revision 7 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
+The `nd_launch` overloads that take the kernel arguments as a `std::span` depend
+on version 2 of link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[
+sycl_ext_oneapi_raw_kernel_arg], which is what lets an element of that sequence
+represent a pointer argument.  Those overloads use `std::span`, so they are
+available only when the application is compiled with C++20 or later.
+
 
 == Status
 
@@ -86,6 +92,12 @@ functions to be used either at command-group scope or as a replacement for
 existing queue shortcuts. A future version of this extension may adjust this
 overload set to include functions compatible with future C++ concepts (e.g,
 by accepting a scheduler and returning a sender).
+
+The arguments of a `sycl::kernel` can be passed either as a parameter pack or as
+a sequence, for an application that only learns its argument list at run time and
+would otherwise have to instantiate a parameter pack overload for each number of
+arguments it may encounter. The sequence is a `std::span`, so those overloads
+require C++20.
 
 
 === Usage example
@@ -165,8 +177,13 @@ implementation supports.
 |Description
 
 |1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
+|Initial version of this extension.
+
+|2
+|Adds the `nd_launch` overloads that take the arguments of a `sycl::kernel` as
+ a `std::span` of `raw_kernel_arg`, which require C++20, and specifies that a
+ parameter pack overload handed such a sequence as its only argument passes it
+ on as the argument list.
 |===
 
 
@@ -525,6 +542,42 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template <int Dimensions> // Requires C++20
+void nd_launch(sycl::queue q, sycl::nd_range<Dimensions> r,
+               const sycl::kernel& k, std::span<const raw_kernel_arg> args);
+
+template <int Dimensions> // Requires C++20
+void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
+               const sycl::kernel& k, std::span<const raw_kernel_arg> args);
+
+}
+----
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the number of work-items specified by a
+`sycl::nd_range`. The element `args[i]` is passed to the kernel as the argument
+at index `i`, as if it had been passed to `set_arg`. The sequence referenced by
+`args` need only remain valid until the function returns.
+
+If one of the parameter pack overloads above is called with a single argument
+whose type is convertible to `std::span<const raw_kernel_arg>`, that argument is
+the kernel argument list and the effects are those of the overload taking a
+`std::span`.
+
+[_Note:_ An element that represents a pointer argument has to be constructed
+with the `pointer_arg` overload of `raw_kernel_arg`, as described in
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg],
+since a `raw_kernel_arg` holding the bytes of a pointer is only guaranteed to
+bind that pointer on the Level Zero backend. _end note_]
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 template <int Dimensions, typename Properties, typename... Args>
 void nd_launch(sycl::queue q,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
@@ -770,6 +823,27 @@ to device and context provided at command graph creation.
 _Effects_: Submits an executable command graph to the `sycl::queue` or `sycl::handler`.
 
 |====
+
+== Examples
+
+An argument list that is only known at run time is held in a container and passed
+as the sequence of arguments: a `std::vector<raw_kernel_arg>`, a `std::array` of
+them and a `std::span` of them all convert to `std::span<const raw_kernel_arg>`.
+These overloads require C++20.
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+int count = 1024;
+float *data = sycl::malloc_device<float>(count, q);
+
+std::vector<syclex::raw_kernel_arg> args;
+args.emplace_back(&data, syclex::pointer_arg);
+args.emplace_back(&count, sizeof(count));
+
+syclex::nd_launch(q, sycl::nd_range<1>{count, 256}, k, args);
+----
 
 == Issues
 

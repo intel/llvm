@@ -54,11 +54,17 @@ specification.*
 
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for GPU devices and
-only when using the Level Zero backend.  Attempting to use this extension in
-kernels that run on other devices or backends may result in undefined
-behavior.  Be aware that the compiler is not able to issue a diagnostic to
-warn you if this happens.
+This extension is currently implemented in {dpcpp} for the Level Zero, OpenCL,
+CUDA and Native CPU backends.  Attempting to use this extension on other
+backends may result in undefined behavior.  Be aware that the compiler is not
+able to issue a diagnostic to warn you if this happens.
+
+A kernel argument that is a pointer must be constructed with the `pointer_arg`
+overload described below.  Passing the byte representation of a pointer to the
+byte overload is only guaranteed to bind that pointer on the Level Zero backend,
+because a backend may take a pointer argument through a different entry point
+than the one that takes plain bytes, and it cannot tell the two apart from the
+bytes alone.
 
 
 == Overview
@@ -85,6 +91,19 @@ h.set_arg(1, sycl::ext::oneapi::experimental::raw_kernel_arg(opaque_type, nbytes
 h.parallel_for(range, kernel);
 ----
 
+An argument that is a pointer says so, since a backend may bind a pointer
+through a different entry point than a sequence of bytes:
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+int* ptr = sycl::malloc_device<int>(n, q);
+...
+h.set_arg(0, syclex::raw_kernel_arg(&ptr, syclex::pointer_arg));
+h.parallel_for(range, kernel);
+----
+
 
 == Specification
 
@@ -104,8 +123,10 @@ implementation supports.
 |Description
 
 |1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
+|Initial version of this extension.
+
+|2
+|Adds the `raw_kernel_arg` constructor that takes a pointer argument.
 |===
 
 === The `raw_kernel_arg` class
@@ -117,9 +138,15 @@ kernel arguments via a raw byte representation.
 ----
 namespace sycl::ext::oneapi::experimental {
 
+  struct pointer_arg_t {};
+  inline constexpr pointer_arg_t pointer_arg{};
+
   class raw_kernel_arg {
   public:
     raw_kernel_arg(const void* bytes, size_t count);
+
+    template <typename T>
+    raw_kernel_arg(T* const* pointer_location, pointer_arg_t tag);
   };
 
 } // namespace sycl::ext::oneapi::experimental
@@ -131,12 +158,33 @@ raw_kernel_arg(const void* bytes, size_t count);
 ----
 _Preconditions_: `bytes` must point to an array of at least `count` bytes,
 which is the byte representation of a kernel argument that is trivially
-copyable.
+copyable.  If the argument is a pointer, only the Level Zero backend is
+guaranteed to bind it; see _Backend support status_ above.
 
 _Effects_: Constructs a `raw_kernel_arg` representing a view of the `count`
 bytes starting at the address specified by `bytes`. Since the `raw_kernel_arg`
 object is only a view, the caller must ensure that the lifetime of the `bytes`
 memory lasts at least as long as the lifetime of the `raw_kernel_arg` object.
+
+[source,c++]
+----
+template <typename T>
+raw_kernel_arg(T* const* pointer_location, pointer_arg_t tag);
+----
+_Preconditions_: `pointer_location` must point to a pointer that is a valid
+kernel argument, such as a pointer to memory allocated by one of the USM
+allocation functions.
+
+_Effects_: Constructs a `raw_kernel_arg` representing a view of the pointer
+stored at `pointer_location`, to be bound as a pointer argument rather than as
+the `sizeof(T*)` bytes it is made of. Since the `raw_kernel_arg` object is only
+a view, the caller must ensure that the lifetime of the pointer object at
+`pointer_location` lasts at least as long as the lifetime of the
+`raw_kernel_arg` object.
+
+[_Note:_ The constructor takes the address of the pointer, in keeping with the
+byte overload taking the address of the bytes, so that passing the pointer
+itself does not compile. _{endnote}_]
 
 === Using a raw kernel argument
 
@@ -154,7 +202,8 @@ argument in `args` was passed to `set_arg` ", adding a new overload of
 void set_arg(int argIndex, sycl::ext::oneapi::experimental::raw_kernel_arg&& arg);
 ----
 _Effects_: Sets the kernel argument associated with index `argIndex` using the
-bytes represented by `arg`.
+bytes represented by `arg`, or as a pointer argument if `arg` was constructed
+with the `pointer_arg` overload.
 
 
 == Issues

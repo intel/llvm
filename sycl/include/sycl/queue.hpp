@@ -18,6 +18,7 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/kernel_arg_view.hpp>    // for KernelArgView
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/optional.hpp>
@@ -59,11 +60,34 @@ inline namespace _V1 {
 class context;
 class device;
 class event;
+class kernel;
 class queue;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
+
+namespace ext::oneapi::experimental {
+class raw_kernel_arg;
+} // namespace ext::oneapi::experimental
+
+// Launches an already built `sycl::kernel` with an explicit argument list,
+// bypassing the handler and the command group object the same way
+// submit_kernel_direct_* does for kernel function objects. The arguments are
+// passed as a pointer and a count rather than as a view type, so that the
+// spelling the public overloads use is not part of the ABI.
+void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel, const detail::KernelArgView *Args, size_t NumArgs,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+// As above, for an argument list that is already a contiguous sequence of
+// `raw_kernel_arg`, which carries its own kind per element, so the caller needs
+// no conversion step.
+void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel, const ext::oneapi::experimental::raw_kernel_arg *Args,
+    size_t NumArgs, const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
