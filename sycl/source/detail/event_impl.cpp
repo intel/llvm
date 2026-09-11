@@ -54,7 +54,23 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal(bool *Success) {
+  if (MState == HES_Discarded)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "waitInternal method cannot be used for a discarded event.");
+
   auto Handle = this->getHandle();
+  if (!MIsHostEvent && !Handle && MState != HES_Complete) {
+    // Enqueue deferred. Sleep until either the native handle appears (set by
+    // the eventual Cmd->enqueue via setHandle, which notifies cv) or the event
+    // is marked complete on its own.
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] {
+      return MState == HES_Complete || this->getHandle() != nullptr;
+    });
+    Handle = this->getHandle();
+  }
+
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
     ur_result_t Err =
@@ -71,11 +87,6 @@ void event_impl::waitInternal(bool *Success) {
       if (Success != nullptr)
         *Success = true;
     }
-  } else if (MState == HES_Discarded) {
-    // Waiting for the discarded event is invalid
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "waitInternal method cannot be used for a discarded event.");
   } else if (MState != HES_Complete) {
     // Wait for the host event
     std::unique_lock<std::mutex> lock(MMutex);
