@@ -1,25 +1,10 @@
-//==-------- maximum_registers_spirv.cpp - DPC++ SYCL SPIR-V test --------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-// Checks that maximum_registers<256> and maximum_registers_automatic lower to
-// the expected SPIR-V execution modes, without relying on a GPU driver.
-
-// REQUIRES: target-spir && build-mode
-
-// UNSUPPORTED: spirv-backend
-// UNSUPPORTED-INTENDED: The required SPIR-V extensions are not supported.
-
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir
 
 // Range rounding disabled so each lambda kernel yields a single entry point.
 // -fsycl-device-code-split=off with -fno-sycl-device-code-split-esimd keeps all
 // kernels (including ESIMD) in one dumped SPIR-V module, so a single .spv is
 // produced and can be renamed to a known name and converted to text.
-// RUN: %{build} -fsycl-range-rounding=disable -fsycl-device-code-split=off -fno-sycl-device-code-split-esimd -o %t.out -save-offload-code=%t.spvdir
+// RUN: %clangxx -fsycl -fsycl-range-rounding=disable -fsycl-device-code-split=off -fno-sycl-device-code-split-esimd -o %t.out -save-offload-code=%t.spvdir %s
 // RUN: mv %t.spvdir/*.spv %t.spvdir/dump.spv
 // RUN: llvm-spirv -to-text %t.spvdir/dump.spv
 
@@ -42,4 +27,4 @@
 // CHECK-DAG: EntryPoint {{[0-9]+}} [[#EsimdLambdaAutomaticId:]] "{{.*}}runLambdaESIMD{{.*}}maximum_registers_automatic_key{{.*}}"
 // CHECK-DAG: ExecutionMode [[#EsimdLambdaAutomaticId]] [[NAMED_MAXIMUM_REGISTERS_INTEL]] [[AUTO_INTEL]]
 
-#include "maximum_registers.cpp"
+#include "../../../test-e2e/Properties/maximum_registers.cpp"
