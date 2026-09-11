@@ -46,8 +46,7 @@ using namespace sycl;
 int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
   constexpr auto BE = sycl::backend::ext_oneapi_level_zero;
-  sycl::device D =
-      sycl::ext::oneapi::filter_selector("level_zero:gpu").select_device();
+  sycl::device D{sycl::ext::oneapi::filter_selector("level_zero:gpu")};
 
   // Initializing Level Zero driver is required if this test is linked
   // statically with Level Zero loader, otherwise the driver will not be
