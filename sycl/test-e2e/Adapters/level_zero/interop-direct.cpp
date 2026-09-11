@@ -3,8 +3,18 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out
-// RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out
+// RUN: %if !level_zero_v2_adapter %{env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out%}
+// RUN: %if !level_zero_v2_adapter %{env UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out%}
+//
+// Per sycl_ext_oneapi_backend_level_zero.md, when using the L0v2 adapter
+// make_queue() only accepts an in-order ze_command_list_handle_t (wrapping a
+// bare ze_command_queue_handle_t is not supported and is explicitly rejected
+// with UR_RESULT_ERROR_UNSUPPORTED_FEATURE, see
+// urQueueCreateWithNativeHandle in v2/queue_create.cpp). So v2 gets its own
+// build/run exercising only the interop model it actually supports, instead
+// of reusing the v1 command-queue-wrapping variants above.
+// RUN: %if level_zero_v2_adapter %{%{build} %level_zero_options -DTEST_LEVEL_ZERO_V2_NATIVE_INTEROP -o %t_v2.out%}
+// RUN: %if level_zero_v2_adapter %{%{run} %t_v2.out%}
 
 #include <iostream>
 #include <level_zero/ze_api.h>
@@ -79,7 +89,12 @@ int main() {
   Qdescriptor.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
   Qdescriptor.ordinal = 0;
   Qdescriptor.index = 0;
+#ifdef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
+  // L0v2 only supports wrapping an in-order immediate command list.
+  Qdescriptor.flags = ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
+#endif
 
+#ifndef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
   ze_command_queue_handle_t ZeCommand_queue = nullptr;
   result = zeCommandQueueCreate(ZeContext, ZeDevices[0], &Qdescriptor,
                                 &ZeCommand_queue);
@@ -88,6 +103,7 @@ int main() {
     return 1;
   }
   std::cout << "Commandqueue created: " << ZeCommand_queue << std::endl;
+#endif
 
   // Create Command List
   ze_command_list_handle_t ZeCommand_list = nullptr;
@@ -122,6 +138,7 @@ int main() {
       make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
   std::cout << "Made context\n";
 
+#ifndef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
   backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCQ{
       ZeCommand_queue, InteropDevice, ext::oneapi::level_zero::ownership::keep};
   queue InteropQueueCQ = make_queue<backend::ext_oneapi_level_zero>(
@@ -146,6 +163,7 @@ int main() {
       return 1;
     }
   }
+#endif
 
   backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCL{
       ZeCommand_list, InteropDevice, ext::oneapi::level_zero::ownership::keep};
@@ -170,6 +188,14 @@ int main() {
               << std::endl;
     return 1;
   }
+
+  // On v2 there is no interop queue wrapping a bare command queue, so the
+  // command-list-backed interop queue is used for both loop sections below.
+#ifdef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
+  queue &InteropQueueForOps = InteropQueueCL;
+#else
+  queue &InteropQueueForOps = InteropQueueCQ;
+#endif
 
   int data[3] = {7, 8, 0};
   buffer<int, 1> bufData{data, 3};
@@ -200,8 +226,8 @@ int main() {
               << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
 
     // Try interop queue with standard commandlist
-    InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();
-    InteropQueueCQ.submit([&](handler &cgh) {
+    InteropQueueForOps.copy<int>(addend, deviceData, 2).wait();
+    InteropQueueForOps.submit([&](handler &cgh) {
       accessor numbers{bufDataCQ, cgh, read_write};
       cgh.parallel_for(dataCount,
                        [=](id<1> Id) { numbers[Id] += deviceData[0]; });
@@ -211,8 +237,8 @@ int main() {
               << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
 
     // Try interop queue with immediate commandlist
-    InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();
-    InteropQueueCQ.submit([&](handler &cgh) {
+    InteropQueueForOps.copy<int>(addend, deviceData, 2).wait();
+    InteropQueueForOps.submit([&](handler &cgh) {
       accessor numbers{bufDataCL, cgh, read_write};
       cgh.single_task(
           [=]() { numbers[2] += numbers[0] + numbers[1] + deviceData[1]; });

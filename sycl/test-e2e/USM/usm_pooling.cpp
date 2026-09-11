@@ -1,6 +1,10 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: memory allocation logs are not emitted in
+// level_zero_v2_adapter
+
 // UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
