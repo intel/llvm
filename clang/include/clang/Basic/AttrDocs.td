@@ -945,10 +945,10 @@ listed aspects. Second, it causes the compiler to issue a diagnostic if the kern
 (or any of the functions it calls) uses an optional feature that is associated with
 an aspect that is not listed in the attribute.
 
-.. code-block:: c++
-
-  [[sycl::device_has()]] int func1() {}
-  [[sycl::device_has(sycl::aspect1, sycl::aspect2)]] int func2() {}
+```c++
+[[sycl::device_has()]] int func1() {}
+[[sycl::device_has(sycl::aspect1, sycl::aspect2)]] int func2() {}
+```
 
   }];
 }
@@ -3292,13 +3292,13 @@ program is ill-formed and no diagnostic is required.
 The ``intel::kernel_args_restrict`` attribute has an effect when applied to a
 function, and no effect otherwise.
 
-.. code-block:: c++
+```c++
+[[intel::kernel_args_restrict]] void func() {}
 
-  [[intel::kernel_args_restrict]] void func() {}
-
-  struct bar {
-    [[intel::kernel_args_restrict]] void operator()() const {}
-  };
+struct bar {
+  [[intel::kernel_args_restrict]] void operator()() const {}
+};
+```
 
   }];
 }
@@ -3323,9 +3323,9 @@ In OpenCL C, this attribute is available with the GNU spelling
 are required. See section 6.7.2 Optional Attribute Qualifiers of OpenCL 1.2
 specification for details.
 
-.. code-block:: c++
-
-  __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
+```c++
+__kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
+```
 
 In SYCL, the attribute accepts either one, two, or three arguments; in each
 form, the last (or only) argument is the index that increments fastest. The
@@ -3345,23 +3345,23 @@ In SYCL 1.2.1 mode, the ``cl::reqd_work_group_size`` and
 are applied to onto the kernel which calls the function. In SYCL 2020 mode, the
 attributes are not propagated to the kernel.
 
-.. code-block:: c++
+```c++
+[[sycl::reqd_work_group_size(4, 4, 4)]] void foo() {}
 
-  [[sycl::reqd_work_group_size(4, 4, 4)]] void foo() {}
+class Foo {
+public:
+  [[sycl::reqd_work_group_size(2)]] void operator()() const {} // optional arguments default to 1
+};
 
-  class Foo {
-  public:
-    [[sycl::reqd_work_group_size(2)]] void operator()() const {} // optional arguments default to 1
-  };
+template <int N, int N1, int N2>
+class Functor {
+public:
+  [[sycl::reqd_work_group_size(N, N1, N2)]] void operator()() const {}
+};
 
-  template <int N, int N1, int N2>
-  class Functor {
-  public:
-    [[sycl::reqd_work_group_size(N, N1, N2)]] void operator()() const {}
-  };
-
-  template <int N, int N1, int N2>
-  [[sycl::reqd_work_group_size(N, N1, N2)]] void func() {}
+template <int N, int N1, int N2>
+[[sycl::reqd_work_group_size(N, N1, N2)]] void func() {}
+```
 
 The ``[[cl::reqd_work_group_size(dim0, dim1, dim2)]]`` and
 ``__attribute__((reqd_work_group_size(dim0, dim1, dim2)))`` spellings are both
@@ -3390,14 +3390,14 @@ are required.
 
 The GNU spelling is deprecated in SYCL mode.
 
-.. code-block:: c++
+```c++
+[[sycl::work_group_size_hint(4, 4, 4)]] void foo() {}
 
-  [[sycl::work_group_size_hint(4, 4, 4)]] void foo() {}
-
-  class Foo {
-  public:
-    [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
-  };
+class Foo {
+public:
+  [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
+};
+```
 
 In SYCL, the attribute accepts either one, two, or three arguments; in each
 form, the last (or only) argument is the index that increments fastest. The
@@ -3418,23 +3418,23 @@ Applies to a device function/lambda function. Indicates the desired minimum
 number of resident work_groups per multiprocessor. It complies to the
 .minnctapersm PTX directive.
 
-.. code-block:: c++
+```c++
+[[intel::min_work_groups_per_cu(2)]] void foo() {}
 
-  [[intel::min_work_groups_per_cu(2)]] void foo() {}
+class Foo {
+public:
+  [[intel::min_work_groups_per_cu(2)]] void operator()() const {}
+};
 
-  class Foo {
-  public:
-    [[intel::min_work_groups_per_cu(2)]] void operator()() const {}
-  };
+template <int N>
+class Functor {
+public:
+  [[intel::min_work_groups_per_cu(N)]] void operator()() const {}
+};
 
-  template <int N>
-  class Functor {
-  public:
-    [[intel::min_work_groups_per_cu(N)]] void operator()() const {}
-  };
-
-  template <int N>
-  [[intel::min_work_groups_per_cu(N)]] void func() {}
+template <int N>
+[[intel::min_work_groups_per_cu(N)]] void func() {}
+```
 
   }];
 }
@@ -3448,23 +3448,23 @@ number work_groups per cluster with which the application will ever launch. It
 complies to the .maxclusterrank PTX directive. Note, that the feature requires
 SM_90 or higher.
 
-.. code-block:: c++
+```c++
+[[intel::max_work_groups_per_mp(2)]] void foo() {}
 
-  [[intel::max_work_groups_per_mp(2)]] void foo() {}
+class Foo {
+public:
+  [[intel::max_work_groups_per_mp(2)]] void operator()() const {}
+};
 
-  class Foo {
-  public:
-    [[intel::max_work_groups_per_mp(2)]] void operator()() const {}
-  };
+template <int N>
+class Functor {
+public:
+  [[intel::max_work_groups_per_mp(N)]] void operator()() const {}
+};
 
-  template <int N>
-  class Functor {
-  public:
-    [[intel::max_work_groups_per_mp(N)]] void operator()() const {}
-  };
-
-  template <int N>
-  [[intel::max_work_groups_per_mp(N)]] void func() {}
+template <int N>
+[[intel::max_work_groups_per_mp(N)]] void func() {}
+```
 
   }];
 }
@@ -3483,12 +3483,12 @@ __builtin_sycl_unique_stable_id.
 We do not intend to support this as a general attribute that user code can use,
 so we have this attribute in sycl_detail namespace.
 
-.. code-block:: c++
+```c++
+template<typename T>
+struct [[__sycl_detail__::device_global]] device_global {}
 
-  template<typename T>
-  struct [[__sycl_detail__::device_global]] device_global {}
-
-  device_global<int> Foo;
+device_global<int> Foo;
+```
   }];
 }
 
@@ -3503,12 +3503,12 @@ attribute are referenced in device code. We do not intend to support this as a
 general attribute that user code can use, therefore it is wrapped in
 sycl_detail namespace.
 
-.. code-block:: c++
-  
-  template<typename T>
-  struct [[__sycl_detail__::global_variable_allowed]] device_global {}
-  
-  device_global<int> Foo;
+```c++
+template<typename T>
+struct [[__sycl_detail__::global_variable_allowed]] device_global {}
+
+device_global<int> Foo;
+```
   }];
 }
 
@@ -3527,12 +3527,12 @@ point, character, boolean, ``const char *``, or an enumeration as either a
 literal or ``constexpr`` value.
 No LLVM IR attribute is generated if the attribute name is an empty string.
 
-.. code-block:: c++
-
-  [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", true, 1)]]
-  void foo() {}
-  // Resulting LLVM IR function definition of foo will have the attributes
-  // "Attr1"="true" and "Attr2"="1".
+```c++
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", true, 1)]]
+void foo() {}
+// Resulting LLVM IR function definition of foo will have the attributes
+// "Attr1"="true" and "Attr2"="1".
+```
 
 Optionally, the first argument of the attribute can be an initializer list
 containing only string literals. This initializer list acts as a filter,
@@ -3540,22 +3540,26 @@ allowing only attributes with names in the initializer list to be generated.
 If this intializer list is present, the attribute must have N*2+1 arguments,
 where the last N*2 are as described above.
 
-.. code-block:: c++
+```c++
+[[__sycl_detail__::add_ir_attributes_function(
+    {"Attr2"}, "Attr1", "Attr2", true, 1)]]
+void foo() {}
+// Resulting LLVM IR function definition of foo will only have the
+// "Attr2"="1" attribute.
+```
 
-  [[__sycl_detail__::add_ir_attributes_function(
-      {"Attr2"}, "Attr1", "Attr2", true, 1)]]
-  void foo() {}
-  // Resulting LLVM IR function definition of foo will only have the
-  // "Attr2"="1" attribute.
+:::{note}
+This attribute will only generate LLVM IR attributes in SYCL device code.
+:::
 
-.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
-  code.
+:::{note}
+This attribute is not currently allowed on defaulted and deleted functions.
+:::
 
-.. Note:: This attribute is not currently allowed on defaulted and deleted
-  functions.
-
-.. Note:: This attribute is intended as an internal implementation detail and is
-  not intended to be used by external users.
+:::{note}
+This attribute is intended as an internal implementation detail and is
+not intended to be used by external users.
+:::
   }];
 }
 
@@ -3577,23 +3581,23 @@ and must be integer, floating point, character, boolean, ``const char *``, or
 an enumeration as either a literal or ``constexpr`` value.
 No LLVM IR attribute is generated if the attribute name is an empty string.
 
-.. code-block:: c++
+```c++
+class __attribute__((sycl_special_class)) Foo {
+public:
+  ...
 
-  class __attribute__((sycl_special_class)) Foo {
-  public:
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(
+      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+          "Attr1", "Attr2", "Attribute value", 3.14)]]
+      int x) {
     ...
-
-  #ifdef __SYCL_DEVICE_ONLY__
-    void __init(
-        [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-            "Attr1", "Attr2", "Attribute value", 3.14)]]
-        int x) {
-      ...
-    }
-  #endif
-  };
-  // Resulting LLVM IR kernel function using Foo will have a parameter for x
-  // with attributes "Attr1"="Attribute value" and "Attr2"="3.14".
+  }
+#endif
+};
+// Resulting LLVM IR kernel function using Foo will have a parameter for x
+// with attributes "Attr1"="Attribute value" and "Attr2"="3.14".
+```
 
 Optionally, the first argument of the attribute can be an initializer list
 containing only string literals. This initializer list acts as a filter,
@@ -3601,29 +3605,32 @@ allowing only attributes with names in the initializer list to be generated.
 If this intializer list is present, the attribute must have N*2+1 arguments,
 where the last N*2 are as described above.
 
-.. code-block:: c++
+```c++
+class __attribute__((sycl_special_class)) Foo {
+public:
+  ...
 
-  class __attribute__((sycl_special_class)) Foo {
-  public:
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(
+      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+          {"Attr1"}, "Attr1", "Attr2", "Attribute value", 3.14)]]
+      int x) {
     ...
+  }
+#endif
+};
+// Resulting LLVM IR kernel function using Foo will have a parameter for x
+// with only the "Attr1"="Attribute value" attribute.
+```
 
-  #ifdef __SYCL_DEVICE_ONLY__
-    void __init(
-        [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-            {"Attr1"}, "Attr1", "Attr2", "Attribute value", 3.14)]]
-        int x) {
-      ...
-    }
-  #endif
-  };
-  // Resulting LLVM IR kernel function using Foo will have a parameter for x
-  // with only the "Attr1"="Attribute value" attribute.
+:::{note}
+This attribute will only generate LLVM IR attributes in SYCL device code.
+:::
 
-.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
-  code.
-
-.. Note:: This attribute is intended as an internal implementation detail and is
-  not intended to be used by external users.
+:::{note}
+This attribute is intended as an internal implementation detail and is
+not intended to be used by external users.
+:::
   }];
 }
 
@@ -3643,17 +3650,17 @@ point, character, boolean, ``const char *``, or an enumeration as either a
 literal or ``constexpr`` value.
 No LLVM IR attribute is generated if the attribute name is an empty string.
 
-.. code-block:: c++
-
-  template <typename... NameValues> struct
-  #ifdef __SYCL_DEVICE_ONLY__
-      [[__sycl_detail__::add_ir_attributes_global_variable(
-          "Attr1", "Attr2", "Attr3", false, 1.234, true)]]
-  #endif
-      Foo {...};
-  Foo a;
-  // Resulting LLVM IR global variable for a will have the attributes
-  // "Attr1"="false", "Attr2"="1.234", and "Attr3"="true".
+```c++
+template <typename... NameValues> struct
+#ifdef __SYCL_DEVICE_ONLY__
+    [[__sycl_detail__::add_ir_attributes_global_variable(
+        "Attr1", "Attr2", "Attr3", false, 1.234, true)]]
+#endif
+    Foo {...};
+Foo a;
+// Resulting LLVM IR global variable for a will have the attributes
+// "Attr1"="false", "Attr2"="1.234", and "Attr3"="true".
+```
 
 Optionally, the first argument of the attribute can be an initializer list
 containing only string literals. This initializer list acts as a filter,
@@ -3661,23 +3668,26 @@ allowing only attributes with names in the initializer list to be generated.
 If this intializer list is present, the attribute must have N*2+1 arguments,
 where the last N*2 are as described above.
 
-.. code-block:: c++
+```c++
+template <typename... NameValues> struct
+#ifdef __SYCL_DEVICE_ONLY__
+    [[__sycl_detail__::add_ir_attributes_global_variable(
+        {"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", false, 1.234, true)]]
+#endif
+    Foo {...};
+Foo a;
+// Resulting LLVM IR global variable for a will have the attributes
+// "Attr1"="false" and "Attr3"="true".
+```
 
-  template <typename... NameValues> struct
-  #ifdef __SYCL_DEVICE_ONLY__
-      [[__sycl_detail__::add_ir_attributes_global_variable(
-          {"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", false, 1.234, true)]]
-  #endif
-      Foo {...};
-  Foo a;
-  // Resulting LLVM IR global variable for a will have the attributes
-  // "Attr1"="false" and "Attr3"="true".
+:::{note}
+This attribute will only generate LLVM IR attributes in SYCL device code.
+:::
 
-.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
-  code.
-
-.. Note:: This attribute is intended as an internal implementation detail and is
-  not intended to be used by external users.
+:::{note}
+This attribute is intended as an internal implementation detail and is
+not intended to be used by external users.
+:::
   }];
 }
 
@@ -3714,21 +3724,21 @@ in this order:
 A pair will not be in the call to ``llvm.ptr.annotation`` if the first value of
 the pair is an empty string.
 
-.. code-block:: c++
-
-  struct Foo {
-    int *ptr
-  #ifdef __SYCL_DEVICE_ONLY__
-        [[__sycl_detail__::add_ir_annotations_member(
-            "Attr1", "Attr2", "Attribute value", 3.14)]]
-  #endif
-        ;
-  };
-  // Accessing the 'ptr' field of 'Foo' will result in a call to
-  // 'llvm.ptr.annotation' with the second argument pointing to a constant
-  // global variable containing "sycl-properties" and the fifth argument
-  // pointing to a constant global variable with pointers to string literals
-  // "Attr1", "Attribute value", "Attr2", "3.14" in that order.
+```c++
+struct Foo {
+  int *ptr
+#ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_annotations_member(
+          "Attr1", "Attr2", "Attribute value", 3.14)]]
+#endif
+      ;
+};
+// Accessing the 'ptr' field of 'Foo' will result in a call to
+// 'llvm.ptr.annotation' with the second argument pointing to a constant
+// global variable containing "sycl-properties" and the fifth argument
+// pointing to a constant global variable with pointers to string literals
+// "Attr1", "Attribute value", "Attr2", "3.14" in that order.
+```
 
 Optionally, the first argument of the attribute can be an initializer list
 containing only string literals. This initializer list acts as a filter,
@@ -3736,27 +3746,31 @@ allowing only pairs with the first value in the initializer list to be
 generated. If this intializer list is present, the attribute must have N*2+1
 arguments, where the last N*2 are as described above.
 
-.. code-block:: c++
+```c++
+struct Foo {
+  int *ptr
+#ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_annotations_member(
+          {"Attr2"}, "Attr1", "Attr2", "Attribute value", 3.14)]]
+#endif
+      ;
+};
+// Accessing the 'ptr' field of 'Foo' will result in a call to
+// 'llvm.ptr.annotation' with the second argument pointing to a constant
+// global variable containing "sycl-properties" and the fifth argument
+// pointing to a constant global variable with pointers to string literals
+// "Attr2", "3.14" in that order.
+```
 
-  struct Foo {
-    int *ptr
-  #ifdef __SYCL_DEVICE_ONLY__
-        [[__sycl_detail__::add_ir_annotations_member(
-            {"Attr2"}, "Attr1", "Attr2", "Attribute value", 3.14)]]
-  #endif
-        ;
-  };
-  // Accessing the 'ptr' field of 'Foo' will result in a call to
-  // 'llvm.ptr.annotation' with the second argument pointing to a constant
-  // global variable containing "sycl-properties" and the fifth argument
-  // pointing to a constant global variable with pointers to string literals
-  // "Attr2", "3.14" in that order.
+:::{note}
+This attribute will only generate a call to ``llvm.ptr.annotation`` in
+SYCL device code.
+:::
 
-.. Note:: This attribute will only generate a call to ``llvm.ptr.annotation`` in
-  SYCL device code.
-
-.. Note:: This attribute is intended as an internal implementation detail and is
-  not intended to be used by external users.
+:::{note}
+This attribute is intended as an internal implementation detail and is
+not intended to be used by external users.
+:::
   }];
 }
 
@@ -3778,13 +3792,13 @@ This attribute allows to pass name and address of the function to a special
 ``sycl::intel::get_device_func_ptr`` API call which extracts the device
 function pointer for the specified function.
 
-.. code-block:: c++
+```c++
+[[intel::device_indirectly_callable]] int func3() {}
 
-  [[intel::device_indirectly_callable]] int func3() {}
-
-  class A {
-    [[intel::device_indirectly_callable]] A() {}
-  };
+class A {
+  [[intel::device_indirectly_callable]] A() {}
+};
+```
 
   }];
 }
@@ -5842,20 +5856,20 @@ In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
 as in the examples below:
 
-.. code-block:: c++
+```c++
+class Functor
+{
+    [[intel::reqd_sub_group_size(16)]] void operator()(item<1> item)
+    {
+        /* kernel code */
+    }
+}
 
-  class Functor
-  {
-      [[intel::reqd_sub_group_size(16)]] void operator()(item<1> item)
-      {
-          /* kernel code */
-      }
-  }
-
-  kernel<class kernel_name>(
-  []() [[intel::reqd_sub_group_size(n)]] {
-       /* kernel code */
-  });
+kernel<class kernel_name>(
+[]() [[intel::reqd_sub_group_size(n)]] {
+     /* kernel code */
+});
+```
 
 See Sub-groups for NDRange Parallelism proposal in sycl/doc/extensions/sub_group_ndrange/sub_group_ndrange.md
   }];
