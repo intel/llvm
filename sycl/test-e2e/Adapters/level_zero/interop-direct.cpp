@@ -8,8 +8,7 @@
 //
 // L0v2 make_queue() supports wrapping an in-order immediate command list,
 // but not a bare command queue.
-// RUN: %if level_zero_v2_adapter %{%{build} %level_zero_options -DTEST_LEVEL_ZERO_V2_NATIVE_INTEROP -o %t_v2.out%}
-// RUN: %if level_zero_v2_adapter %{%{run} %t_v2.out%}
+// RUN: %if level_zero_v2_adapter %{%{build} %level_zero_options -DTEST_LEVEL_ZERO_V2_NATIVE_INTEROP -o %t_v2.out && %{run} %t_v2.out%}
 
 #include <iostream>
 #include <level_zero/ze_api.h>
