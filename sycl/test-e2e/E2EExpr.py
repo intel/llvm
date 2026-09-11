@@ -52,6 +52,20 @@ class E2EExpr(BooleanExpression):
         "new-offload-model",
     }
 
+    # Prefixes for build-environment features that are parametrized by a
+    # detected version (e.g. cuda-ge-12, level-zero-headers-ge-1.14) and
+    # therefore can't be enumerated as exact strings above.
+    build_specific_feature_prefixes = (
+        "cuda-ge-",
+        "level-zero-headers-ge-",
+    )
+
+    @staticmethod
+    def is_build_specific(token):
+        return token in E2EExpr.build_specific_features or token.startswith(
+            E2EExpr.build_specific_feature_prefixes
+        )
+
     def __init__(self, string, variables, build_only_mode, final_unknown_value):
         BooleanExpression.__init__(self, string, variables)
         self.build_only_mode = build_only_mode
@@ -77,7 +91,7 @@ class E2EExpr(BooleanExpression):
     def parseMATCH(self):
         token = self.token
         BooleanExpression.parseMATCH(self)
-        if token not in E2EExpr.build_specific_features and self.build_only_mode:
+        if not E2EExpr.is_build_specific(token) and self.build_only_mode:
             self.unknown = True
         else:
             self.unknown = False
@@ -122,7 +136,7 @@ class E2EExpr(BooleanExpression):
 
     @staticmethod
     def check_build_features(variables):
-        rt_features = [x for x in variables if x not in E2EExpr.build_specific_features]
+        rt_features = [x for x in variables if not E2EExpr.is_build_specific(x)]
         if rt_features:
             raise ValueError(
                 "Runtime features: "
