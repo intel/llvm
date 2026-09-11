@@ -6,13 +6,8 @@
 // RUN: %if !level_zero_v2_adapter %{env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out%}
 // RUN: %if !level_zero_v2_adapter %{env UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out%}
 //
-// Per sycl_ext_oneapi_backend_level_zero.md, when using the L0v2 adapter
-// make_queue() only accepts an in-order ze_command_list_handle_t (wrapping a
-// bare ze_command_queue_handle_t is not supported and is explicitly rejected
-// with UR_RESULT_ERROR_UNSUPPORTED_FEATURE, see
-// urQueueCreateWithNativeHandle in v2/queue_create.cpp). So v2 gets its own
-// build/run exercising only the interop model it actually supports, instead
-// of reusing the v1 command-queue-wrapping variants above.
+// L0v2 make_queue() supports wrapping an in-order immediate command list,
+// but not a bare command queue.
 // RUN: %if level_zero_v2_adapter %{%{build} %level_zero_options -DTEST_LEVEL_ZERO_V2_NATIVE_INTEROP -o %t_v2.out%}
 // RUN: %if level_zero_v2_adapter %{%{run} %t_v2.out%}
 
@@ -90,7 +85,6 @@ int main() {
   Qdescriptor.ordinal = 0;
   Qdescriptor.index = 0;
 #ifdef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
-  // L0v2 only supports wrapping an in-order immediate command list.
   Qdescriptor.flags = ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
 #endif
 
@@ -189,8 +183,6 @@ int main() {
     return 1;
   }
 
-  // On v2 there is no interop queue wrapping a bare command queue, so the
-  // command-list-backed interop queue is used for both loop sections below.
 #ifdef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
   queue &InteropQueueForOps = InteropQueueCL;
 #else
@@ -225,7 +217,7 @@ int main() {
     std::cout << "GPU Result from SYCL Q = {" << hostOut[0] << ", "
               << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
 
-    // Try interop queue with standard commandlist
+    // Try interop queue (command queue on v1, immediate command list on v2)
     InteropQueueForOps.copy<int>(addend, deviceData, 2).wait();
     InteropQueueForOps.submit([&](handler &cgh) {
       accessor numbers{bufDataCQ, cgh, read_write};
@@ -236,7 +228,7 @@ int main() {
     std::cout << "GPU Result from Standard Q = {" << hostOut[0] << ", "
               << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
 
-    // Try interop queue with immediate commandlist
+    // Try interop queue again, writing to a separate buffer
     InteropQueueForOps.copy<int>(addend, deviceData, 2).wait();
     InteropQueueForOps.submit([&](handler &cgh) {
       accessor numbers{bufDataCL, cgh, read_write};

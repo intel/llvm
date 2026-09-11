@@ -36,8 +36,7 @@ int main(int argc, char *argv[]) {
 
   // CHECK-STD: zeCommandListCreateImmediate = 1
   // CHECK-IMM: zeCommandListCreateImmediate = 2
-  // v2 out-of-order immediate queues always create a fixed number
-  // (numCommandLists = 4) of immediate command lists.
+  // L0v2 out-of-order queues use a fixed pool of 4 immediate command lists.
   // CHECK-IMM-V2: zeCommandListCreateImmediate = 4
   queue Q1{P};
   queue_submit(Q1);

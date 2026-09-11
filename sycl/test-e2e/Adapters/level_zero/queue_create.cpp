@@ -10,12 +10,7 @@
 // v1 creates a single regular command queue for the whole run:
 // CHECK:  zeCommandQueueCreate = 1     \--->         zeCommandQueueDestroy = 1
 //
-// v2 has no regular command queue/list for a default (out-of-order,
-// immediate) queue. Instead it creates a fixed-size pool of immediate
-// command lists (numCommandLists = 4, see
-// queue_immediate_out_of_order.hpp) once, reused for all submissions.
-// This exact count is an adapter implementation detail, not a public
-// API contract; this is a white-box check of v2's current behavior.
+// L0v2 reuses a fixed pool of 4 immediate command lists.
 // CHECK-V2: zeCommandListCreateImmediate = 4
 // CHECK-V2: zeCommandListCreate = 0     \---> zeCommandListDestroy = 4
 //
