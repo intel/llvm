@@ -7,9 +7,6 @@
 // RUN: not --crash %t.out get_local_id_3d
 // RUN: not --crash %t.out get_local_linear_id_3d
 
-// XFAIL: libcxx
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
-
 //==--------------- group.cpp - SYCL group test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
