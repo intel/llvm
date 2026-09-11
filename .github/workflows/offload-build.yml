@@ -1,0 +1,150 @@
+name: Offload build
+
+permissions:
+  contents: read
+  packages: read
+
+on:
+  workflow_call:
+    inputs:
+      build_ur_adapter:
+        description: Build the Unified Runtime offload adapter.
+        type: boolean
+        default: true
+      artifact_name:
+        description: Name of the liboffload artifact.
+        type: string
+        default: liboffload_linux
+      retention_days:
+        description: Liboffload artifact retention period.
+        type: string
+        default: '3'
+    outputs:
+      liboffload_artifact:
+        description: Name of the uploaded liboffload artifact.
+        value: ${{ jobs.liboffload.outputs.liboffload_artifact }}
+      liboffload_artifact_filename:
+        description: Filename of the liboffload archive.
+        value: ${{ jobs.liboffload.outputs.liboffload_artifact_filename }}
+  workflow_dispatch:
+    inputs:
+      build_ur_adapter:
+        description: Build the Unified Runtime offload adapter.
+        type: boolean
+        default: true
+      artifact_name:
+        description: Name of the liboffload artifact.
+        type: string
+        default: liboffload_linux
+      retention_days:
+        description: Liboffload artifact retention period.
+        type: string
+        default: '3'
+
+jobs:
+  liboffload:
+    name: Build liboffload
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release]
+
+    runs-on: [ "Linux", "build" ]
+    container:
+      image: 'ghcr.io/intel/llvm/ubuntu2404_build@sha256:6a635ec95cecfe4e38d2f2c4138def72cbc48246a741dfc5e2ab90d5e09a8636'
+    outputs:
+      liboffload_artifact: ${{ inputs.artifact_name }}
+      liboffload_artifact_filename: liboffload_linux.tar.zst
+
+    steps:
+    - name: Checkout LLVM-project
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        repository: llvm/llvm-project
+        ref: 8436dd4a2bfe57d0b3fb6c9c11c69d75c1d1bccb
+        persist-credentials: false
+        path: llvm-project
+
+    - name: Configure llvm-project
+      # Keep level_zero first: OL device index 0 must select a Level Zero GPU.
+      run: >
+        cmake -S llvm-project/llvm -B llvm-project/build -G Ninja
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DLLVM_TARGETS_TO_BUILD='host;SPIRV;NVPTX'
+        -DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra;lldb;lld'
+        -DLLVM_ENABLE_RUNTIMES='offload;openmp;libc'
+        -DLIBOMPTARGET_PLUGINS_TO_BUILD="level_zero;cuda"
+        -DLLVM_PARALLEL_LINK_JOBS=20
+        -DLLVM_BUILD_TESTS=ON
+        -DLLVM_INCLUDE_TESTS=on
+        '-DLLVM_LIT_ARGS=-v -vv'
+        -DCMAKE_INSTALL_PREFIX=./llvm-project-install
+
+
+    - name: Build and install llvm-project
+      run: ninja -C llvm-project/build -j $(($(nproc)/3)) install
+
+    - name: Pack liboffload
+      run: |
+        mkdir -p liboffload/lib liboffload/include/offload
+        cp -a llvm-project-install/include/offload/. liboffload/include/offload/
+        libdir="$(dirname "$(find llvm-project-install/lib -name libLLVMOffload.so -print -quit)")"
+        cp -a "$libdir"/libLLVMOffload.so* liboffload/lib/
+        tar -I 'zstd -9' -cf liboffload_linux.tar.zst -C liboffload .
+
+    - name: Upload liboffload
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: liboffload_linux.tar.zst
+        retention-days: ${{ inputs.retention_days }}
+
+  ur_adapter:
+    name: Build UR offload adapter
+    needs: [liboffload]
+    if: inputs.build_ur_adapter
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release]
+
+    runs-on: [ "Linux", "build" ]
+    container:
+      image: 'ghcr.io/intel/llvm/ubuntu2404_build@sha256:6a635ec95cecfe4e38d2f2c4138def72cbc48246a741dfc5e2ab90d5e09a8636'
+
+    steps:
+    - name: Checkout LLVM
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        path: llvm
+        persist-credentials: false
+
+    - name: Download liboffload
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: ${{ needs.liboffload.outputs.liboffload_artifact }}
+
+    - name: Extract liboffload
+      env:
+        LIBOFFLOAD_ARTIFACT_FILENAME: ${{ needs.liboffload.outputs.liboffload_artifact_filename }}
+      run: |
+        mkdir -p llvm-project-install
+        tar -I zstd -xf "$LIBOFFLOAD_ARTIFACT_FILENAME" -C llvm-project-install
+        rm -f -- "$LIBOFFLOAD_ARTIFACT_FILENAME"
+
+    - name: Configure intel/llvm
+      # ">" is used to avoid adding "\" at the end of each line; this command is quite long
+      run: >
+        python3 llvm/buildbot/configure.py
+        --offload
+        --cuda
+        -t ${{matrix.build_type}}
+        --liboffload-path=./llvm-project-install
+
+    - name: Build intel/llvm
+      # This is so that device binaries can find the sycl runtime library
+      run: python3 llvm/buildbot/compile.py
+
+    - name: Debug CI platform information
+      if: ${{ always() }}
+      run: ./llvm/devops/scripts/get_system_info.sh

@@ -32,6 +32,7 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     set(OPENMP_INSTALL_DIR ${CMAKE_BINARY_DIR}/openmp-install)
     set(UR_OFFLOAD_INSTALL_DIR ${CMAKE_BINARY_DIR}/offload-install)
     set(UR_OFFLOAD_INCLUDE_DIR ${UR_OFFLOAD_INSTALL_DIR}/include)
+    set(UR_OFFLOAD_LIBRARY ${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so)
 
     execute_process(COMMAND git -C "${CMAKE_SOURCE_DIR}" worktree prune)
 
@@ -97,12 +98,30 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
         INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
         UPDATE_COMMAND ""
         DOWNLOAD_COMMAND ""
-        BUILD_BYPRODUCTS "${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so"
+        BUILD_BYPRODUCTS "${UR_OFFLOAD_LIBRARY}"
     )
     add_dependencies(${TARGET_NAME} offload_ext)
     install(DIRECTORY "${UR_OFFLOAD_INSTALL_DIR}/"
         DESTINATION "${CMAKE_INSTALL_PREFIX}"
         COMPONENT ur_adapter_offload)
+else()
+    find_library(UR_OFFLOAD_LIBRARY
+        NAMES LLVMOffload
+        PATHS "${UR_OFFLOAD_INSTALL_DIR}/lib${LLVM_LIBDIR_SUFFIX}"
+        PATH_SUFFIXES "" "${LLVM_DEFAULT_TARGET_TRIPLE}"
+        NO_DEFAULT_PATH
+    )
+    if (NOT UR_OFFLOAD_LIBRARY)
+        # Fall back to any per-target runtime dir, in case the offload install was
+        # configured for a different LLVM_DEFAULT_TARGET_TRIPLE than this build.
+        file(GLOB UR_OFFLOAD_LIBRARY
+            "${UR_OFFLOAD_INSTALL_DIR}/lib*/*/libLLVMOffload.so")
+    endif()
+    if (NOT UR_OFFLOAD_LIBRARY)
+        message(FATAL_ERROR "libLLVMOffload not found under ${UR_OFFLOAD_INSTALL_DIR}; "
+                            "checked lib/ and lib/<target-triple>/ "
+                            "(see LLVM_ENABLE_PER_TARGET_RUNTIME_DIR)")
+    endif()
 endif()
 
 # When targetting CUDA devices, we need a workaround to avoid sending PTX to
@@ -136,7 +155,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
     ur_common
-    ${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so
+    ${UR_OFFLOAD_LIBRARY}
     ${ADDITIONAL_LINK_LIBS}
 )
 
