@@ -1,24 +1,50 @@
 ; RUN: llvm-spirv %s --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED
 ; RUN: llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %s --spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers -o %t.u.spv
+; RUN: llvm-spirv %t.u.spv -to-text -o %t.u.spt
+; RUN: FileCheck < %t.u.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED
+; RUN: llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.u.spv -o %t.ru.bc
+; RUN: llvm-dis %t.ru.bc -o %t.ru.ll
+; RUN: FileCheck < %t.ru.ll %s --check-prefix=CHECK-LLVM-UNTYPED
+
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_INTEL_function_pointers -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefixes=CHECK-LLVM-LLC < %t.llc.rev.ll %}
+
+; TODO: reader currently crashes with output of llc with untyped pointers for this test
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers -filetype=obj %s -o %t.llc.u.spv %}
+; RUNx: %if spirv-backend %{ llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.llc.u.spv -o %t.llc.u.rev.bc %}
+
+; CHECK-SPIRV-UNTYPED: Capability UntypedPointersKHR
+; CHECK-SPIRV: Capability FunctionPointersINTEL
+; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
+; CHECK-SPIRV-UNTYPED: Extension "SPV_KHR_untyped_pointers"
 ; CHECK-SPIRV: EntryPoint [[#]] [[#KERNEL_ID:]] "_ZTS6kernel"
 ; CHECK-SPIRV-DAG: Name [[#BAR:]] "_Z3barii"
 ; CHECK-SPIRV-DAG: Name [[#BAZ:]] "_Z3bazii"
-; CHECK-SPIRV: TypeInt [[#INT32:]] 32
-; CHECK-SPIRV: TypeFunction [[#FUNC_TYPE:]] [[#INT32]] [[#INT32]]
-; CHECK-SPIRV: TypePointer [[#FUNC_PTR_TYPE:]] [[#]] [[#FUNC_TYPE]]
-; CHECK-SPIRV: TypePointer [[#FUNC_PTR_ALLOCA_TYPE:]] [[#]] [[#FUNC_PTR_TYPE]]
-; CHECK-SPIRV-DAG: ConstantFunctionPointerINTEL [[#FUNC_PTR_TYPE]] [[#BARPTR:]] [[#BAR]]
-; CHECK-SPIRV-DAG: ConstantFunctionPointerINTEL [[#FUNC_PTR_TYPE]] [[#BAZPTR:]] [[#BAZ]]
+; CHECK-SPIRV-DAG: TypeInt [[#INT32:]] 32
+; CHECK-SPIRV-DAG: TypeFunction [[#FUNC_TYPE:]] [[#INT32]] [[#INT32]]
+; CHECK-SPIRV-TYPED: TypePointer [[#FUNC_PTR_TYPE:]] [[#]] [[#FUNC_TYPE]]
+; CHECK-SPIRV-TYPED: TypePointer [[#FUNC_PTR_ALLOCA_TYPE:]] [[#]] [[#FUNC_PTR_TYPE]]
+; CHECK-SPIRV-UNTYPED: TypeUntypedPointerKHR [[#PTR:]]
+; CHECK-SPIRV-TYPED-DAG: ConstantFunctionPointerINTEL [[#FUNC_PTR_TYPE]] [[#BARPTR:]] [[#BAR]]
+; CHECK-SPIRV-TYPED-DAG: ConstantFunctionPointerINTEL [[#FUNC_PTR_TYPE]] [[#BAZPTR:]] [[#BAZ]]
+; CHECK-SPIRV-UNTYPED-DAG: ConstantFunctionPointerINTEL [[#PTR]] [[#BARPTR:]] [[#BAR]]
+; CHECK-SPIRV-UNTYPED-DAG: ConstantFunctionPointerINTEL [[#PTR]] [[#BAZPTR:]] [[#BAZ]]
 ; CHECK-SPIRV: Function [[#]] [[#KERNEL_ID]]
-; CHECK-SPIRV: Variable [[#FUNC_PTR_ALLOCA_TYPE]] [[#FPTR:]]
-; CHECK-SPIRV: Select [[#FUNC_PTR_TYPE]] [[#SELECT:]] [[#]] [[#BARPTR]] [[#BAZPTR]]
+; CHECK-SPIRV-TYPED: Variable [[#FUNC_PTR_ALLOCA_TYPE]] [[#FPTR:]]
+; CHECK-SPIRV-UNTYPED: UntypedVariableKHR [[#PTR]] [[#FPTR:]]
+; CHECK-SPIRV-TYPED: Select [[#FUNC_PTR_TYPE]] [[#SELECT:]] [[#]] [[#BARPTR]] [[#BAZPTR]]
+; CHECK-SPIRV-UNTYPED: Select [[#PTR]] [[#SELECT:]]
 ; CHECK-SPIRV: Store [[#FPTR]] [[#SELECT]]
-; CHECK-SPIRV: Load [[#FUNC_PTR_TYPE]] [[#LOAD:]] [[#FPTR]]
+; CHECK-SPIRV-TYPED: Load [[#FUNC_PTR_TYPE]] [[#LOAD:]] [[#FPTR]]
+; CHECK-SPIRV-UNTYPED: Load [[#PTR]] [[#LOAD:]] [[#FPTR]]
 ; CHECK-SPIRV: FunctionPointerCallINTEL [[#]] [[#]] [[#LOAD]]
 
 ; CHECK-LLVM: define spir_kernel void @_ZTS6kernel
@@ -27,6 +53,17 @@
 ; CHECK-LLVM: store ptr addrspace(9) %[[SELECT]], ptr %[[FPTR_ALLOCA]]
 ; CHECK-LLVM: %[[FPTR:.*]] = load ptr addrspace(9), ptr %[[FPTR_ALLOCA]]
 ; CHECK-LLVM: call spir_func addrspace(9) i32 %[[FPTR]](
+
+; CHECK-LLVM-UNTYPED: define spir_kernel void @_ZTS6kernel
+; CHECK-LLVM-UNTYPED: %fptr.alloca = alloca ptr
+; CHECK-LLVM-UNTYPED: select i1 %{{.*}}, ptr addrspacecast (ptr addrspace(9) @_Z3barii to ptr), ptr addrspacecast (ptr addrspace(9) @_Z3bazii to ptr)
+; CHECK-LLVM-UNTYPED: store ptr %{{.*}}, ptr %fptr.alloca
+; CHECK-LLVM-UNTYPED: %fptr = load ptr, ptr %fptr.alloca
+; CHECK-LLVM-UNTYPED: call spir_func i32 %fptr(
+
+; CHECK-LLVM-LLC: %[[SEL:.*]] = select i1 %{{.*}}, ptr addrspace(9) @_Z3barii, ptr addrspace(9) @_Z3bazii
+; CHECK-LLVM-LLC: %[[LD:.*]] = load ptr addrspace(9), ptr %{{.*}}
+; CHECK-LLVM-LLC: call spir_func addrspace(9) i32 %[[LD]](i32 10, i32 10)
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
