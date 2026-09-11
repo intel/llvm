@@ -30,6 +30,7 @@ compiler and runtime.
 | `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target architecture to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
 | `SYCL_GRAPH_FORCE_NATIVE_RECORDING` | '1' or '0' | When set to '1', forces every `command_graph` to use native recording as if `property::graph::enable_native_recording` was passed in its property list. When unset or set to any other value, native recording is enabled only when that property is set explicitly. Default is disabled. |
+| `SYCL_LAUNCH_BLOCKING` | '0' or '1' | When set to '1', makes the device commands of a submission synchronous. See [below](#sycl_launch_blocking). Default is '0'. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -113,6 +114,32 @@ A list of devices and their driver version following the pattern:
 `BackendName:XXX,DeviceType:YYY,DeviceVendorId:0xXYZW,DriverVersion:{{X.Y.Z.W}}`.
 Also may contain `PlatformVersion`, `DeviceName` and `PlatformName`. There is no
 fixed order of properties in the pattern.
+
+### `SYCL_LAUNCH_BLOCKING`
+
+When set to `1`, a command submitted to a `sycl::queue` does not return until the
+device work it enqueued has completed, so a device fault is reported at the
+submission that caused it rather than at the next wait. Analogous to CUDA's
+`CUDA_LAUNCH_BLOCKING=1`, for debugging only: it serializes the application.
+Default is `0`.
+
+It is implemented by a Unified Runtime layer (`UR_LAYER_LAUNCH_BLOCKING`) below
+the SYCL runtime, which has three consequences:
+
+* Only *device* work becomes synchronous. A `host_task` still runs
+  asynchronously, as does a submission waiting for one - the same scope as
+  `CUDA_LAUNCH_BLOCKING`, and what keeps host tasks from deadlocking.
+* Barriers, profiling tags and the reusable-event functions submit no work of
+  their own and are not made synchronous, so a barrier waiting on an interop
+  event keeps working. The commands they order are covered by the next
+  submission that does block.
+* Commands recorded into a `command_graph` are unaffected; launching a finalized
+  graph blocks like any other submission.
+
+The wait has no deadline, so work that can only complete through host progress
+that happens after the submission returns hangs \- a kernel spinning on a
+host-written flag, or a barrier waiting on an interop event the application
+signals later. Such a program runs normally without the variable.
 
 ## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
 
