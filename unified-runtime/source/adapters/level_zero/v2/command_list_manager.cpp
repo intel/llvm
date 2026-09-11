@@ -1482,7 +1482,8 @@ ur_result_t ur_command_list_manager::appendHostTaskExp(
   }
 
   ZE2UR_CALL(hPlatform->ZeHostTaskExt.zeCommandListAppendHostFunction,
-             (getZeCommandList(), (void *)pfnHostTask, data,
+             (getZeCommandList(),
+              reinterpret_cast<ze_host_function_callback_t>(pfnHostTask), data,
               const_cast<void *>(reinterpret_cast<const void *>(pProperties)),
               getSignalEvent(phEvent, UR_COMMAND_HOST_TASK_EXP),
               waitListView.num, waitListView.handles));

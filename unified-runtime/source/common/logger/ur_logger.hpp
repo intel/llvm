@@ -70,10 +70,14 @@ create_logger(std::string logger_name, bool skip_prefix = false,
 inline Logger &
 get_logger(std::string name = "common",
            ur_logger_level_t default_log_level = UR_LOGGER_LEVEL_QUIET) {
-  static Logger logger =
+  struct SingletonLogger {
+    Logger logger;
+    ~SingletonLogger() { isTearDowned.store(true, std::memory_order_release); }
+  };
+  static SingletonLogger singleton{
       create_logger(std::move(name), /*skip_prefix*/ false,
-                    /*slip_linebreak*/ false, default_log_level);
-  return logger;
+                    /*slip_linebreak*/ false, default_log_level)};
+  return singleton.logger;
 }
 
 inline void init(const std::string &name) { get_logger(name.c_str()); }

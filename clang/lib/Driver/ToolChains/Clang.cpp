@@ -6358,10 +6358,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-llvm-uselists");
 
     if (IsUsingLTO) {
-      bool IsUsingOffloadNewDriver = Args.hasFlag(
-          options::OPT_offload_new_driver, options::OPT_no_offload_new_driver,
-          (C.isOffloadingHostKind(Action::OFK_Cuda) ||
-           C.isOffloadingHostKind(Action::OFK_HIP)));
+      bool IsUsingOffloadNewDriver = D.getUseNewOffloadingDriver();
       Arg *SYCLSplitMode =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
       const Arg *LTOArg = Args.getLastArg(options::OPT_foffload_lto,
@@ -11560,6 +11557,13 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 
+  // Silence sycl-post-link's "Undefined function ... found in ..." warning
+  // when the user opts out with -Wno-sycl-undefined-func-in-image.
+  if (!TCArgs.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                      options::OPT_Wno_sycl_undefined_func_in_image,
+                      /*Default=*/true))
+    addArgs(PostLinkArgs, TCArgs, {"-suppress-undefined-func-warnings"});
+
   // Forward -fsycl-id-queries-range= to sycl-post-link.
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_id_queries_range_EQ)) {
     PostLinkArgs.push_back(
@@ -12377,6 +12381,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                      SYCLBINImpliesAllowDeps))
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
+
+    // Mirror -Wno-sycl-undefined-func-in-image as a native linker-wrapper
+    // flag. --sycl-post-link-options= reaches only the external
+    // sycl-post-link tool; the in-process post-link path in
+    // clang-linker-wrapper builds its settings from its own arg list.
+    if (!Args.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                      options::OPT_Wno_sycl_undefined_func_in_image,
+                      /*Default=*/true))
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-suppress-undefined-func-warnings"));
 
     // Pass backend compiler, linker, sycl-post-link,
     // llvm-spirv, and spirv-to-ir-wrapper options specified at link
