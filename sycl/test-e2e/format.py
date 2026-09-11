@@ -185,10 +185,18 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
     getMatchedXFail = getMatchedUnsupported
 
+    target_sg_sizes = {
+        "target-spir": {"sg-8", "sg-16", "sg-32"},
+        "target-nvidia": {"sg-32"},
+        "target-amd": {"sg-16", "sg-32", "sg-64"},
+    }
+
     def select_build_targets_for_test(self, test):
         supported_targets = set()
         for t in test.config.sycl_build_targets:
-            features = test.config.available_features.union({t})
+            features = test.config.available_features.union(
+                {t}, self.target_sg_sizes.get(t, set())
+            )
             if self.getMissingRequiresBuildOnly(features, test.requires):
                 continue
             if self.getMatchedUnsupportedBuildOnly(features, test.unsupported):
@@ -208,7 +216,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             t
             for t in supported_targets
             if not self.getMatchedXFail(
-                test.config.available_features.union({t}), test.xfails
+                test.config.available_features.union(
+                    {t}, self.target_sg_sizes.get(t, set())
+                ),
+                test.xfails,
             )
         ]
 
