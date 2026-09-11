@@ -224,7 +224,7 @@ bool IsSYCLSupportedNVidiaGPUArch(OffloadArch Arch) {
   if (!Arch.isNVPTX())
     return false;
   unsigned SmVersion = llvm::NVPTX::getSmVersion(Arch.nvptxKind());
-  return SmVersion >= 500 && SmVersion <= 900;
+  return SmVersion >= 500 && SmVersion <= 1210;
 }
 
 } // namespace clang

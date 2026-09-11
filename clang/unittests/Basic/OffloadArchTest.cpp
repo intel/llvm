@@ -89,3 +89,17 @@ TEST(OffloadArchTest, IntelGPUFamilyArchParsing) {
             OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
                                   OffloadArch::IntelArch::PTL));
 }
+
+TEST(OffloadArchTest, SYCLNVIDIAArchitectures) {
+  EXPECT_FALSE(IsSYCLSupportedNVidiaGPUArch(parse("sm_37")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_50")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_88")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_90a")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_100a")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_101f")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_103a")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_110f")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_120a")));
+  EXPECT_TRUE(IsSYCLSupportedNVidiaGPUArch(parse("sm_121f")));
+  EXPECT_FALSE(IsSYCLSupportedNVidiaGPUArch(parse("gfx600")));
+}
