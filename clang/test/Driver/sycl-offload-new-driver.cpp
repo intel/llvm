@@ -180,6 +180,19 @@
 // WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-extraopt_pvc"
 // WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-extraopt_skl"
 
+/// spir64_gen + intel_gpu_* aliases to the same arch. FIXME: raw spir64_gen
+/// "-device X" tokens are dropped for now; follow-up will merge them onto /X=.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=spir64_gen,intel_gpu_skl \
+// RUN:          -Xsycl-target-backend=spir64_gen "-device skl -DSKL1" \
+// RUN:          -Xsycl-target-backend=intel_gpu_skl -DSKL2 \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck --implicit-check-not='/pvc=' \
+// RUN:               --implicit-check-not='/dg1=' \
+// RUN:               -check-prefix WRAPPER_OPTIONS_GEN_ALIAS %s
+// WRAPPER_OPTIONS_GEN_ALIAS: clang-linker-wrapper
+// WRAPPER_OPTIONS_GEN_ALIAS-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-DSKL2"
+
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
 // RUN:          -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL \
