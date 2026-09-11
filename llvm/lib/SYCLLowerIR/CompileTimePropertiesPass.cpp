@@ -429,19 +429,6 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
-  // The sycl-single-task attribute currently only has an effect when targeting
-  // SPIR FPGAs, in which case it will generate a "max_global_work_dim" MD node
-  // with a 0 value, similar to applying [[intel::max_global_work_dim(0)]] to
-  // a SYCL single_target kernel.
-  if (AttrKindStr == "sycl-single-task" &&
-      Triple(M.getTargetTriple()).getSubArch() == Triple::SPIRSubArch_fpga) {
-    IntegerType *Ty = Type::getInt32Ty(Ctx);
-    Metadata *MDVal = ConstantAsMetadata::get(Constant::getNullValue(Ty));
-    SmallVector<Metadata *, 1> MD{MDVal};
-    return std::pair<std::string, MDNode *>("max_global_work_dim",
-                                            MDNode::get(Ctx, MD));
-  }
-
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
     //   !ip_interface !N

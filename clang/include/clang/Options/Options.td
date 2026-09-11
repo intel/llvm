@@ -7855,9 +7855,10 @@ def fsycl_default_sub_group_size
 def fsycl_default_sub_group_size_EQ
     : Joined<["-"], "fsycl-default-sub-group-size=">,
       Alias<fsycl_default_sub_group_size>, Visibility<[ClangOption, CC1Option]>;
+// FPGA support has been removed.  The option is retained so that the driver
+// keeps diagnosing its use instead of rejecting it as unknown.
 def fintelfpga : Flag<["-"], "fintelfpga">, Flags<[UnsupportedRemoved]>,
-  Visibility<[ClangOption, CLOption, CC1Option]>,
-  MarshallingInfoFlag<LangOpts<"IntelFPGA">>;
+  Visibility<[ClangOption, CLOption, CC1Option]>;
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">,
   HelpText<"Embed LLVM IR for runtime kernel fusion">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
