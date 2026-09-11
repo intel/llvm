@@ -247,13 +247,19 @@ are needed to pass along this information.
 
 For the Old Offload Model support of NoRDC Mode see [NonRelocatableDeviceCode.md](NonRelocatableDeviceCode.md).
 
-The default compiler behavior is -fsycl-rdc, which incorporates linking of device code. If -fno-sycl-rdc is specified, the compiler skips linking of device code and performs offload processing on every module individually.
+If `-fno-sycl-rdc` is specified, the compiler finalizes device code and performs
+offload processing on every module individually.
 
-A follow-up patch will add support for specifying `-fno-sycl-rdc` at the compile step
-(i.e. `clang++ --offload-new-driver -fsycl -fno-sycl-rdc -c`), matching the old offload
-model's usage pattern. This will be implemented by invoking `clang-linker-wrapper
---sycl-device-link --no-sycl-rdc` per translation unit at compile time to finalize each
-TU's device code independently, embedding the result directly into the host object.
+With the new offload model, `-fno-sycl-rdc` is specified at the compile step:
+```
+clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 -fno-sycl-rdc input1.cpp -c -o object1.o
+clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 -fno-sycl-rdc input2.cpp -c -o object2.o
+clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 object1.o object2.o -o a.out
+```
+`clang-linker-wrapper --sycl-device-link --no-sycl-rdc` is invoked per
+translation unit at compile time to finalize each TU's device code independently,
+embedding the result directly into the host object.
+Specifying `-fno-sycl-rdc` at the link step is silently ignored.
 
 #### Format of the --device-compiler Option
 The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:
