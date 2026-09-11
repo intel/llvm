@@ -193,6 +193,15 @@ This layer shouldn't be enabled explicitly, for example, by the environment vari
 
 Currently, AddressSanitizer only supports some of the devices on OpenCL and Level-Zero adapters, and this could be extended to support other devices and adapters if UR virtual memory APIs and shadow memory mapping in libdevice are supported.
 
+Launch blocking
+---------------------
+
+The validation layer implements a debugging mode (`UR_LAYER_LAUNCH_BLOCKING`) which makes commands enqueued to a queue synchronous: an enqueue does not return until the queue has drained, so a device fault is reported at the command that caused it rather than at the next wait. This serializes the application and is not meant for anything but debugging, which is why `UR_LAYER_FULL_VALIDATION` does not enable it. The SYCL Runtime enables it for `SYCL_LAUNCH_BLOCKING=1`.
+
+Commands that enqueue no work of their own are not made synchronous, because their wait list may hold an event that the application only signals after the enqueue returns, and draining the queue there would hang a program that runs without this layer: ``urEnqueueEventsWait``, ``urEnqueueEventsWaitWithBarrier``, ``urEnqueueEventsWaitWithBarrierExt`` and ``urEnqueueTimestampRecordingExp``. Nothing is lost by skipping them, because the work they order is waited for by the next command that does drain the queue. A queue that is capturing a graph is left alone as well, since it records commands instead of running them.
+
+The wait is ``urQueueFinish``, the adapter's own drain, which adds nothing to the queue and knows what it takes to complete work it batched. It cannot be given a deadline, so an application whose enqueued work can only complete through host progress that happens after the enqueue returns - a kernel spinning on a host-written flag, or a barrier waiting on an interop event the application signals later - hangs under this mode where it would otherwise run.
+
 Logging
 ---------------------
 
@@ -311,6 +320,8 @@ By default, no layers are enabled. Layers currently included with the runtime ar
      - Performs lifetime validation on objects (check if it was used within the scope of its creation and destruction) used in API calls. Automatically enables UR_LAYER_LEAK_CHECKING.
    * - UR_LAYER_FULL_VALIDATION
      - Enables UR_LAYER_PARAMETER_VALIDATION, UR_LAYER_BOUNDS_CHECKING, UR_LAYER_LEAK_CHECKING, and UR_LAYER_LIFETIME_VALIDATION.
+   * - UR_LAYER_LAUNCH_BLOCKING
+     - Makes commands enqueued to a queue synchronous, see `Launch blocking`_ for more detail. Not enabled by UR_LAYER_FULL_VALIDATION.
    * - UR_LAYER_TRACING
      - Enables the XPTI tracing layer, see Tracing_ for more detail.
    * - UR_LAYER_ASAN \| UR_LAYER_MSAN \| UR_LAYER_TSAN
