@@ -46,7 +46,19 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
   // As a side effect, this will return the error
   // ZE_RESULT_ERROR_MODULE_LINK_FAILURE if there are any unresolved symbols.
   if (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS) {
-    return ZE_CALL_NOCHECK(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog));
+    // zeModuleDynamicLink writes a fresh handle into its log argument, so
+    // passing ZeBuildLog directly would drop the handle zeModuleCreate already
+    // produced and leak that driver object. Keep the link log, because it is
+    // the one carrying the unresolved symbol diagnostics that
+    // urProgramGetBuildInfo reports, and destroy the create log here.
+    ze_module_build_log_handle_t ZeLinkLog{};
+    ZeResult = ZE_CALL_NOCHECK(zeModuleDynamicLink, (1, &ZeModule, &ZeLinkLog));
+    if (ZeLinkLog) {
+      if (*ZeBuildLog)
+        ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (*ZeBuildLog));
+      *ZeBuildLog = ZeLinkLog;
+    }
+    return ZeResult;
   }
   return ZE_RESULT_SUCCESS;
 }
