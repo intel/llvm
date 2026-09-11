@@ -50,8 +50,8 @@ struct Strong {
 
 using FP = Strong (*)();
 FP test2_fp = []() -> Strong { return Strong{}; };
-// CHECK-LABEL: define internal { i32, ptr } @"_ZN3$_38__invokeEv"(
-// CHECK: %call = call { i32, ptr } @"_ZNK3$_3clEv"
+// CHECK-LABEL: define internal { i32, ptr } @"_ZN8test2_fpM3$_38__invokeEv"(
+// CHECK: %call = call { i32, ptr } @"_ZNK8test2_fpM3$_3clEv"
 // CHECK: call void @llvm.memcpy.p0.p0.i64(ptr align 8 %retval, ptr align 8 %coerce, i64 16, i1 false)
 // CHECK-NEXT: [[RET:%.*]] = load { i32, ptr }, ptr %retval
 // CHECK-NEXT: ret { i32, ptr } [[RET]]
