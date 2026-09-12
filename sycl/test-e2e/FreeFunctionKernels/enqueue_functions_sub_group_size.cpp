@@ -71,6 +71,5 @@ int main() {
   sycl::queue q;
   int Ret = 0;
   Ret |= test<32>(q);
-  Ret |= test<32>(q);
   return Ret;
 }
