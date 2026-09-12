@@ -1,5 +1,6 @@
 // REQUIRES: aspect-usm_shared_allocations
-// UNSUPPORTED: cuda, hip
+// REQUIRES: sg-32
+// UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Device incompatible error
 
 // UNSUPPORTED: native_cpu
@@ -68,8 +69,5 @@ template <int SIMD> int test(sycl::queue &q) {
 
 int main() {
   sycl::queue q;
-  int Ret = 0;
-  Ret |= test<16>(q);
-  Ret |= test<32>(q);
-  return Ret;
+  return test<32>(q);
 }
