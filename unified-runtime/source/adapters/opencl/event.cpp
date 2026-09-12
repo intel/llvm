@@ -340,12 +340,14 @@ ur_result_t urEnqueueTimestampRecordingExp(
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   for (uint32_t I = 0; I < numEventsInWaitList; I++)
     CLWaitEvents[I] = cast(phEventWaitList[I])->CLEvent;
+  const cl_event *CLWaitList =
+      numEventsInWaitList ? CLWaitEvents.data() : nullptr;
 
   const cl_uint Pattern = 0;
   cl_event Event = nullptr;
   CL_RETURN_ON_FAILURE(clEnqueueFillBuffer(
       Queue->CLQueue, Buffer, &Pattern, sizeof(Pattern), /*offset=*/0,
-      /*size=*/sizeof(Pattern), numEventsInWaitList, CLWaitEvents.data(),
+      /*size=*/sizeof(Pattern), numEventsInWaitList, CLWaitList,
       ifUrEvent(phEvent, Event)));
 
   UR_RETURN_ON_FAILURE(
