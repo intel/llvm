@@ -1,4 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
+// REQUIRES: sg-32
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -19,8 +20,8 @@ namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 static constexpr size_t NUM = 1024;
-static constexpr size_t WGSIZE = 32;
-static constexpr size_t SGSIZE = 16;
+static constexpr size_t WGSIZE = 64;
+static constexpr size_t SGSIZE = 32;
 
 inline void kernel_code(float start, float *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
