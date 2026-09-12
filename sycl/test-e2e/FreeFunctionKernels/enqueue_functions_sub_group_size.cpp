@@ -69,7 +69,5 @@ template <int SIMD> int test(sycl::queue &q) {
 
 int main() {
   sycl::queue q;
-  int Ret = 0;
-  Ret |= test<32>(q);
-  return Ret;
+  return test<32>(q);
 }
