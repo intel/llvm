@@ -1,6 +1,7 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: v2 adapter does not allow disabling caching
+// UNSUPPORTED-INTENDED: the event-caching control used by this test is
+// V1-only.
 
 // RUN: %{build}  -o %t.out
 

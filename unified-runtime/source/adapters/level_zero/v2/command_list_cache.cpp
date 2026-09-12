@@ -96,6 +96,17 @@ static bool ForceDisableCopyOffload = [] {
   return getenv_tobool("UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD");
 }();
 
+static const char *priorityToString(ze_command_queue_priority_t Priority) {
+  switch (Priority) {
+  case ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW:
+    return "Low";
+  case ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH:
+    return "High";
+  default:
+    return "Normal";
+  }
+}
+
 raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   ZexStruct<ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t>
@@ -141,8 +152,9 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
 
     UR_LOG(DEBUG,
            "create command list ordinal: {}, type: immediate, "
-           "device: {}, inOrder: {}",
-           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder);
+           "device: {}, inOrder: {}, priority: {}",
+           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder,
+           priorityToString(ImmCmdDesc->Priority));
 
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,

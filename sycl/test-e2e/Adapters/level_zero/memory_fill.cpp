@@ -1,6 +1,7 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 // UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: v2 adapter does not allow specifying command queue.
+// UNSUPPORTED-INTENDED: the engine-selection control used by this test is
+// V1-only.
 
 // UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
