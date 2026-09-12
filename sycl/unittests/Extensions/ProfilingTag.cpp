@@ -13,6 +13,8 @@
 
 #include <gtest/gtest.h>
 
+#include <tuple>
+
 template <ur_bool_t TimestampSupport>
 ur_result_t after_urDeviceGetInfo(void *pParams) {
   auto &Params = *reinterpret_cast<ur_device_get_info_params_t *>(pParams);
@@ -52,6 +54,54 @@ inline ur_result_t after_urEventGetProfilingInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+constexpr uint64_t ProfilingTagSubmitTime = 11;
+constexpr uint64_t ProfilingTagStartTime = 21;
+constexpr uint64_t ProfilingTagEndTime = 42;
+inline thread_local size_t ProfilingTagGlobalTimestampQueries = 0;
+inline thread_local ur_event_handle_t LastWaitedProfilingTagEvent = nullptr;
+
+inline ur_result_t
+replace_urDeviceGetGlobalTimestampsForProfilingTag(void *pParams) {
+  auto &Params =
+      *static_cast<ur_device_get_global_timestamps_params_t *>(pParams);
+  ++ProfilingTagGlobalTimestampQueries;
+  if (*Params.ppDeviceTimestamp)
+    **Params.ppDeviceTimestamp = ProfilingTagSubmitTime;
+  if (*Params.ppHostTimestamp)
+    **Params.ppHostTimestamp = ProfilingTagSubmitTime;
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t after_urEventWaitForProfilingTag(void *pParams) {
+  auto &Params = *static_cast<ur_event_wait_params_t *>(pParams);
+  EXPECT_EQ(*Params.pnumEvents, 1u);
+  LastWaitedProfilingTagEvent = **Params.pphEventWaitList;
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t
+replace_urEventGetProfilingInfoForProfilingTag(void *pParams) {
+  auto &Params = *static_cast<ur_event_get_profiling_info_params_t *>(pParams);
+  LatestProfilingQuery = *Params.ppropName;
+  // Native CPU exposes start/end times, but not command_submit.
+  if (*Params.ppropName == UR_PROFILING_INFO_COMMAND_SUBMIT)
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  if (*Params.ppropName != UR_PROFILING_INFO_COMMAND_START &&
+      *Params.ppropName != UR_PROFILING_INFO_COMMAND_END)
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  // A GPU-written timestamp is not available until the event completes.
+  if (*Params.phEvent != LastWaitedProfilingTagEvent)
+    return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
+  if (*Params.ppPropValue)
+    *static_cast<uint64_t *>(*Params.ppPropValue) =
+        *Params.ppropName == UR_PROFILING_INFO_COMMAND_START
+            ? ProfilingTagStartTime
+            : ProfilingTagEndTime;
+  if (*Params.ppPropSizeRet)
+    **Params.ppPropSizeRet = sizeof(uint64_t);
+  return UR_RESULT_SUCCESS;
+}
+
 inline thread_local size_t counter_urEnqueueEventsWaitWithBarrierExt = 0;
 inline thread_local ur_event_handle_t LatestBarrierEvent = nullptr;
 inline thread_local bool LatestBarrierEventReleased = false;
@@ -82,6 +132,8 @@ protected:
     LatestBarrierEvent = nullptr;
     LatestBarrierEventReleased = false;
     LatestProfilingQuery = std::nullopt;
+    ProfilingTagGlobalTimestampQueries = 0;
+    LastWaitedProfilingTagEvent = nullptr;
   }
 
 protected:
@@ -111,9 +163,13 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
   //       addressed.
   ASSERT_EQ(size_t{2}, counter_urEnqueueEventsWaitWithBarrierExt);
 
+  E.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  ASSERT_TRUE(LatestProfilingQuery.has_value());
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
+
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
-  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
 
   E.get_profiling_info<sycl::info::event_profiling::command_end>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -144,7 +200,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedInOrderQueue) {
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
-  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
 
   E.get_profiling_info<sycl::info::event_profiling::command_end>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -172,7 +228,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingQueue) {
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
-  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
 
   E.get_profiling_info<sycl::info::event_profiling::command_end>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -205,7 +261,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingInOrderQueue) {
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
-  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
 
   E.get_profiling_info<sycl::info::event_profiling::command_end>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -313,6 +369,96 @@ TEST_F(ProfilingTagTest,
   ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
   ASSERT_NE(nullptr, LatestBarrierEvent);
   ASSERT_EQ(LatestBarrierEvent, sycl::detail::getSyclObjImpl(E)->getHandle());
+}
+
+class ProfilingTagTimestampTest
+    : public ProfilingTagTest,
+      public ::testing::WithParamInterface<std::tuple<bool, bool>> {};
+
+TEST_P(ProfilingTagTimestampTest, UsesCompletionTimeWithoutExplicitWait) {
+  const auto [TimestampSupported, IsInOrder] = GetParam();
+  mock::getCallbacks().set_after_callback(
+      "urDeviceGetInfo", TimestampSupported ? &after_urDeviceGetInfo<true>
+                                            : &after_urDeviceGetInfo<false>);
+  if (TimestampSupported)
+    mock::getCallbacks().set_after_callback(
+        "urEnqueueTimestampRecordingExp",
+        &after_urEnqueueTimestampRecordingExp);
+  else
+    mock::getCallbacks().set_replace_callback(
+        "urEnqueueTimestampRecordingExp",
+        &replace_urEnqueueTimestampRecordingExpUnsupported);
+  mock::getCallbacks().set_replace_callback(
+      "urDeviceGetGlobalTimestamps",
+      &replace_urDeviceGetGlobalTimestampsForProfilingTag);
+  mock::getCallbacks().set_after_callback("urEventWait",
+                                          &after_urEventWaitForProfilingTag);
+  mock::getCallbacks().set_replace_callback(
+      "urEventGetProfilingInfo",
+      &replace_urEventGetProfilingInfoForProfilingTag);
+
+  sycl::property_list Props{sycl::property::queue::enable_profiling{}};
+  if (IsInOrder)
+    Props = {sycl::property::queue::enable_profiling{},
+             sycl::property::queue::in_order{}};
+  sycl::queue Queue{sycl::context{sycl::platform()}, sycl::default_selector_v,
+                    Props};
+  sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+  ASSERT_EQ(counter_urEnqueueTimestampRecordingExp, 1u);
+  LastWaitedProfilingTagEvent = nullptr;
+
+  // Query submit first, without an explicit wait. All three values describe
+  // the completion of the empty tag command, not separate barrier timestamps.
+  uint64_t SubmitTime = 0;
+  ASSERT_NO_THROW(
+      SubmitTime =
+          E.get_profiling_info<sycl::info::event_profiling::command_submit>());
+  EXPECT_EQ(SubmitTime, ProfilingTagEndTime);
+  EXPECT_EQ(LastWaitedProfilingTagEvent,
+            sycl::detail::getSyclObjImpl(E)->getHandle());
+  EXPECT_EQ(E.get_profiling_info<sycl::info::event_profiling::command_start>(),
+            ProfilingTagEndTime);
+  EXPECT_EQ(E.get_profiling_info<sycl::info::event_profiling::command_end>(),
+            ProfilingTagEndTime);
+  EXPECT_EQ(ProfilingTagGlobalTimestampQueries, 0u);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    RecordingAndQueueOrder, ProfilingTagTimestampTest,
+    ::testing::Combine(::testing::Bool(), ::testing::Bool()),
+    [](const ::testing::TestParamInfo<ProfilingTagTimestampTest::ParamType>
+           &Info) {
+      return std::string(std::get<0>(Info.param) ? "Native" : "Fallback") +
+             (std::get<1>(Info.param) ? "InOrder" : "OutOfOrder");
+    });
+
+TEST_F(ProfilingTagTest, RegularEventPreservesProfilingTimestamps) {
+  mock::getCallbacks().set_replace_callback(
+      "urDeviceGetGlobalTimestamps",
+      &replace_urDeviceGetGlobalTimestampsForProfilingTag);
+  mock::getCallbacks().set_after_callback("urEventWait",
+                                          &after_urEventWaitForProfilingTag);
+  mock::getCallbacks().set_replace_callback(
+      "urEventGetProfilingInfo",
+      &replace_urEventGetProfilingInfoForProfilingTag);
+  sycl::queue Queue{sycl::context{sycl::platform()},
+                    sycl::default_selector_v,
+                    {sycl::property::queue::enable_profiling{},
+                     sycl::property::queue::in_order{}}};
+  sycl::event E = Queue.ext_oneapi_submit_barrier();
+  ASSERT_FALSE(sycl::detail::getSyclObjImpl(E)->isProfilingTagEvent());
+  LastWaitedProfilingTagEvent = nullptr;
+
+  EXPECT_EQ(E.get_profiling_info<sycl::info::event_profiling::command_submit>(),
+            ProfilingTagSubmitTime);
+  EXPECT_EQ(LastWaitedProfilingTagEvent, nullptr);
+  EXPECT_FALSE(LatestProfilingQuery.has_value());
+  EXPECT_EQ(E.get_profiling_info<sycl::info::event_profiling::command_start>(),
+            ProfilingTagStartTime);
+  EXPECT_EQ(E.get_profiling_info<sycl::info::event_profiling::command_end>(),
+            ProfilingTagEndTime);
+  EXPECT_EQ(ProfilingTagGlobalTimestampQueries, 1u);
 }
 
 TEST_F(ProfilingTagTest, ProfilingTagTimestampFailureReleasesMarker) {
