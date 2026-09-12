@@ -39,6 +39,20 @@ namespace ur_validation_layer
         sorted_param_checks = sorted(param_checks, key=lambda pair: (0, first_errors.index(pair[0])) if pair[0] in first_errors else (1, 0))
 
         tracked_params = list(filter(lambda p: any(th.subt(n, tags, p['type']) in [hf['handle'], hf['handle'] + "*"] for hf in handle_create_get_retain_release_funcs), obj['params']))
+
+        # Commands whose completion launch blocking waits for before letting the
+        # enqueue return. A command that enqueues no work of its own is left out,
+        # because its wait list may hold an event that the application only signals
+        # after the enqueue returns - waiting for that here would hang a program
+        # that works without launch blocking.
+        launch_blocking_excluded = [x + suffix for suffix in [
+            "EnqueueEventsWait", "EnqueueEventsWaitWithBarrier",
+            "EnqueueEventsWaitWithBarrierExt", "EnqueueTimestampRecordingExp"]]
+        blocks_on_queue = ((func_name.startswith(x + "Enqueue") or
+                            func_name == x + "BindlessImagesImageCopyExp") and
+                           func_name not in launch_blocking_excluded and
+                           len(obj['params']) > 0 and
+                           th.subt(n, tags, obj['params'][0]['type']) == x + "_queue_handle_t")
     %>
 %if 'guard' in obj:
 #if ${obj['guard']}
@@ -147,6 +161,13 @@ namespace ur_validation_layer
         %endif
         %endfor
 
+        %if blocks_on_queue:
+        if( getContext()->enableLaunchBlocking && result == ${X}_RESULT_SUCCESS )
+        {
+            getContext()->blockOnQueue( ${obj['params'][0]['name']} );
+        }
+        %endif
+
         return result;
     }
     %if 'condition' in obj:
@@ -242,7 +263,15 @@ namespace ur_validation_layer
             }
         }
 
-        if (!enableParameterValidation && !enableLeakChecking && !enableLifetimeValidation) {
+        // Not part of full validation: making submissions synchronous changes when an
+        // application's commands run, which is not something a run asking to be
+        // validated should have done to it.
+        if (enabledLayerNames.count(nameLaunchBlocking)) {
+            enableLaunchBlocking = true;
+        }
+
+        if (!enableParameterValidation && !enableLeakChecking &&
+            !enableLifetimeValidation && !enableLaunchBlocking) {
             return result;
         }
 
