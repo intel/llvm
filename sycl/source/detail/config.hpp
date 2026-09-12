@@ -173,6 +173,30 @@ private:
   }
 };
 
+// Enabled only by the value 1, matching CUDA_LAUNCH_BLOCKING.
+template <> class SYCLConfig<SYCL_LAUNCH_BLOCKING> {
+  using BaseT = SYCLConfigBase<SYCL_LAUNCH_BLOCKING>;
+
+public:
+  static bool get() { return getCachedValue(); }
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static bool getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+      return ValStr && std::string(ValStr) == "1";
+    };
+
+    static bool Enabled = Parser();
+    if (ResetCache)
+      Enabled = Parser();
+
+    return Enabled;
+  }
+};
+
 // SYCL_DUMP_IMAGES controls dumping of device image binaries to files:
 // unset or 0 - dumping is disabled.
 // 2 - dump only the device images actually used at runtime.

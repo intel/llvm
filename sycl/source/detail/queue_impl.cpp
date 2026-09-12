@@ -312,6 +312,10 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                         bool CallerNeedsEvent, const detail::code_location &Loc,
                         bool IsTopCodeLoc,
                         const detail::SubmissionInfo &SubmitInfo) {
+  // Declared first, so that it blocks once every local, MMutex lock included,
+  // has been released.
+  LaunchBlockingGuard BlockingGuard{*this};
+
   detail::handler_impl HandlerImplVal(*this, CallerNeedsEvent);
   handler Handler(HandlerImplVal);
 
@@ -334,6 +338,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
   const CGType Type = HandlerImpl.MCGType;
+  BlockingGuard.setType(Type);
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
@@ -925,6 +930,8 @@ detail::EventImplPtr queue_impl::submit_direct(
     SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
     bool InsertBarrierForInOrderCommand) {
   detail::CG::StorageInitHelper CGData;
+  // Declared before the lock, so that it blocks after the lock is released.
+  LaunchBlockingGuard BlockingGuard{*this, Type};
   std::unique_lock<std::mutex> Lock(MMutex);
   const bool inOrder = isInOrder();
 
@@ -1038,6 +1045,10 @@ EventImplPtr
 queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
                               bool CallerNeedsEvent, HandlerFuncT HandlerFunc,
                               MemOpFuncT MemOpFunc, MemOpArgTs &&...MemOpArgs) {
+  // The scheduler-bypass path below has several returns; the guard blocks on
+  // the way out of any of them, after the lock is released.
+  LaunchBlockingGuard BlockingGuard{*this};
+
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
   {
@@ -1095,6 +1106,9 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
       return ResEventImpl;
     }
   }
+
+  // The handler path blocks on its own, inside submit_impl().
+  BlockingGuard.release();
   return submitWithHandler(DepEvents, CallerNeedsEvent, HandlerFunc);
 }
 

@@ -173,3 +173,33 @@ TEST_F(NativeRecordingTest, GetStateUrTrace) {
 
   EXPECT_GE(traceCount("urQueueIsGraphCaptureEnabledExp"), 3u);
 }
+
+namespace {
+int QueueFinishCount = 0;
+
+ur_result_t countQueueFinish(void *) {
+  ++QueueFinishCount;
+  return UR_RESULT_SUCCESS;
+}
+} // namespace
+
+// Native recording does not set the queue's command graph, so
+// SYCL_LAUNCH_BLOCKING has to recognise it from the queue itself. Draining here
+// would wait on an event that only signals once the finalized graph runs.
+TEST_F(NativeRecordingTest, LaunchBlockingDoesNotDrainWhileRecording) {
+  using Config = sycl::detail::SYCLConfig<sycl::detail::SYCL_LAUNCH_BLOCKING>;
+  unittest::ScopedEnvVar Var{Config::getName(), "1", Config::reset};
+  mock::getCallbacks().set_before_callback("urQueueFinish", &countQueueFinish);
+  QueueFinishCount = 0;
+
+  auto Graph = makeGraph();
+  Graph.begin_recording(Queue);
+  Queue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+  EXPECT_EQ(QueueFinishCount, 0);
+  Graph.end_recording(Queue);
+
+  // Executing the finalized graph is a regular submission and does block.
+  Queue.ext_oneapi_graph(Graph.finalize());
+  EXPECT_EQ(QueueFinishCount, 1);
+}
