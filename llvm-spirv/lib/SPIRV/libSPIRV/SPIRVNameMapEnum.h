@@ -643,7 +643,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityAtomicFloat32AddEXT, "AtomicFloat32AddEXT");
   add(CapabilityAtomicFloat64AddEXT, "AtomicFloat64AddEXT");
   add(CapabilityLongCompositesINTEL, "LongCompositesINTEL");
-  add(CapabilityOptNoneINTEL, "OptNoneINTEL");
+  add(CapabilityOptNoneEXT, "OptNoneEXT");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityAtomicFloat16VectorNV, "AtomicFloat16VectorNV");
   add(CapabilityLongVectorEXT, "LongVectorEXT");
@@ -683,7 +683,6 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityAbortKHR, "AbortKHR");
   add(CapabilityPoisonFreezeKHR, "PoisonFreezeKHR");
   // From spirv_internal.hpp
-  add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
   add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
   add(internal::CapabilityGlobalVariableDecorationsINTEL,
