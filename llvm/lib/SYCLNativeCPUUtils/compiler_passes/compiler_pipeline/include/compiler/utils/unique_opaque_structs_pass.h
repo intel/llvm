@@ -43,7 +43,7 @@ namespace utils {
 /// This pass can be used to  resolve this issue by searching for
 /// problematic types and replacing them with their unsuffixed version.
 class UniqueOpaqueStructsPass
-    : public llvm::PassInfoMixin<UniqueOpaqueStructsPass> {
+    : public llvm::OptionalPassInfoMixin<UniqueOpaqueStructsPass> {
 public:
   UniqueOpaqueStructsPass() = default;
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);

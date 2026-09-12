@@ -359,7 +359,7 @@ private:
 
 /// @brief Implement internal builtins.
 class DefineInternalBuiltinsPass
-    : public llvm::PassInfoMixin<DefineInternalBuiltinsPass> {
+    : public llvm::OptionalPassInfoMixin<DefineInternalBuiltinsPass> {
 public:
   /// @brief Create a new pass object.
   DefineInternalBuiltinsPass() {}
