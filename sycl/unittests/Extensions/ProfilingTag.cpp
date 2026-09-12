@@ -30,6 +30,14 @@ inline ur_result_t after_urEnqueueTimestampRecordingExp(void *) {
   return UR_RESULT_SUCCESS;
 }
 
+// Simulates a backend that cannot record a device timestamp (e.g. the OpenCL
+// backend on a queue without profiling enabled), so that the scheduler falls
+// back to a barrier.
+inline ur_result_t replace_urEnqueueTimestampRecordingExpUnsupported(void *) {
+  ++counter_urEnqueueTimestampRecordingExp;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 thread_local std::optional<ur_profiling_info_t> LatestProfilingQuery;
 inline ur_result_t after_urEventGetProfilingInfo(void *pParams) {
   auto &Params =
@@ -205,24 +213,57 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackDefaultQueue) {
   }
 }
 
-TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueue) {
+// Without the aspect but with profiling enabled, the tag is still serviced via
+// the profiling-tag command group. If the backend can record a device
+// timestamp (as the OpenCL backend now does on a profiling-enabled queue), the
+// native recording path is used rather than a bare barrier.
+TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueTimestamp) {
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                           &after_urDeviceGetInfo<false>);
   mock::getCallbacks().set_after_callback(
       "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
+      "urEnqueueEventsWaitWithBarrier",
       &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
                     sycl::default_selector_v,
-                    {sycl::property::queue::enable_profiling()}};
+                    {sycl::property::queue::enable_profiling(),
+                     sycl::property::queue::in_order()}};
   sycl::device Dev = Queue.get_device();
 
   ASSERT_FALSE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
-  ASSERT_EQ(size_t{0}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrierExt);
+}
+
+// If the backend reports that it cannot record a device timestamp, the
+// scheduler must gracefully fall back to a barrier.
+TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueueBarrier) {
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<false>);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueTimestampRecordingExp",
+      &replace_urEnqueueTimestampRecordingExpUnsupported);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier",
+      &after_urEnqueueEventsWaitWithBarrierExt);
+
+  sycl::context Ctx{sycl::platform()};
+  sycl::queue Queue{Ctx,
+                    sycl::default_selector_v,
+                    {sycl::property::queue::enable_profiling(),
+                     sycl::property::queue::in_order()}};
+  sycl::device Dev = Queue.get_device();
+
+  ASSERT_FALSE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
+
+  sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
+  // The timestamp recording is attempted and reports unsupported, so a single
+  // barrier is used as the fallback on this in-order queue.
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
   ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
 }
