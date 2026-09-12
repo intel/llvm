@@ -46,7 +46,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <numeric>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
             << " | Type: " << (useDmaBuf ? "DMA_BUF" : "OPAQUE") << std::endl;
 
   // VULKAN SETUP
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkDeviceSize bufferSize = numElements * sizeof(uint32_t);
 
   // Create Input and Output Buffers

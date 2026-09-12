@@ -115,7 +115,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 
 #include <algorithm>
 #include <optional>
@@ -208,7 +208,7 @@ int runTest(
   std::cout << "  Mode: " << (useSampled ? "SAMPLED Input" : "UNSAMPLED Input")
             << std::endl;
 
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, (uint32_t)height, 1};
 
   VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |

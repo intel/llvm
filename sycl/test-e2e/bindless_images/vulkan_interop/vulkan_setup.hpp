@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -302,6 +303,19 @@ template <typename T> inline bool checkValue(T actual, T expected) {
   }
 }
 
+namespace util {
+
+template <typename DType>
+bool is_equal(DType lhs, DType rhs, float epsilon = 0.0001f) {
+  if constexpr (std::is_floating_point_v<DType>) {
+    return std::abs(lhs - rhs) < epsilon;
+  } else {
+    return lhs == rhs;
+  }
+}
+
+} // namespace util
+
 // ---------------------------------------------------------
 // Boilerplate
 // ---------------------------------------------------------
@@ -336,7 +350,8 @@ inline uint32_t findMemoryType(VkPhysicalDevice physicalDevice,
   throw std::runtime_error("failed to find suitable memory type!");
 }
 
-inline VulkanContext createVulkanContext() {
+inline VulkanContext
+createVulkanContext(const std::array<uint8_t, VK_UUID_SIZE> &SyclDeviceUUID) {
   VulkanContext ctx;
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -434,7 +449,24 @@ inline VulkanContext createVulkanContext() {
   vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, nullptr);
   std::vector<VkPhysicalDevice> devices(deviceCount);
   vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, devices.data());
-  ctx.physicalDevice = devices[0];
+
+  ctx.physicalDevice = VK_NULL_HANDLE;
+  for (VkPhysicalDevice device : devices) {
+    VkPhysicalDeviceIDProperties idProperties{};
+    idProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+    VkPhysicalDeviceProperties2 properties{};
+    properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    properties.pNext = &idProperties;
+    vkGetPhysicalDeviceProperties2(device, &properties);
+    if (std::memcmp(idProperties.deviceUUID, SyclDeviceUUID.data(),
+                    VK_UUID_SIZE) == 0) {
+      ctx.physicalDevice = device;
+      break;
+    }
+  }
+
+  if (ctx.physicalDevice == VK_NULL_HANDLE)
+    throw std::runtime_error("Failed to find matching Vulkan physical device!");
 
   uint32_t queueFamilyCount = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(ctx.physicalDevice,
@@ -495,18 +527,18 @@ inline void cleanupVulkanContext(VulkanContext &ctx) {
 #endif
   vkDestroyInstance(ctx.instance, nullptr);
 }
-
 inline ImageResources createExportableImage(
     VulkanContext &ctx, VkExtent3D extent, VkFormat format, VkImageType type,
     VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL,
     VkImageUsageFlags usage = VK_IMAGE_USAGE_STORAGE_BIT |
                               VK_IMAGE_USAGE_SAMPLED_BIT |
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT) {
+                              VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+    uint32_t mipLevels = 1) {
   VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
   imageInfo.imageType = type;
   imageInfo.extent = extent;
-  imageInfo.mipLevels = 1;
+  imageInfo.mipLevels = mipLevels;
   imageInfo.arrayLayers = 1;
   imageInfo.format = format;
   imageInfo.tiling = tiling;
@@ -670,6 +702,57 @@ inline BufferResources createStagingBuffer(VulkanContext &ctx,
 inline void cleanupBuffer(VulkanContext &ctx, BufferResources &res) {
   vkDestroyBuffer(ctx.device, res.buffer, nullptr);
   vkFreeMemory(ctx.device, res.memory, nullptr);
+}
+
+inline VkCommandBuffer createCommandBuffer(const VulkanContext &ctx,
+                                           VkCommandPool &pool) {
+  VkCommandPoolCreateInfo poolInfo{};
+  poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  poolInfo.queueFamilyIndex = ctx.queueFamilyIndex;
+  poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+  VK_CHECK(vkCreateCommandPool(ctx.device, &poolInfo, nullptr, &pool));
+
+  VkCommandBufferAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfo.commandPool = pool;
+  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandBufferCount = 1;
+  VkCommandBuffer commandBuffer;
+  VK_CHECK(vkAllocateCommandBuffers(ctx.device, &allocInfo, &commandBuffer));
+  return commandBuffer;
+}
+
+inline void submitCommandBuffer(VulkanContext &ctx,
+                                VkCommandBuffer commandBuffer,
+                                VkCommandPool pool) {
+  VK_CHECK(vkEndCommandBuffer(commandBuffer));
+  VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &commandBuffer;
+  VK_CHECK(vkQueueSubmit(ctx.queue, 1, &submitInfo, VK_NULL_HANDLE));
+  VK_CHECK(vkQueueWaitIdle(ctx.queue));
+  vkDestroyCommandPool(ctx.device, pool, nullptr);
+}
+
+inline VkImageMemoryBarrier createImageMemoryBarrier(
+    VkImage image, uint32_t mipLevels,
+    VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    VkImageLayout newLayout = VK_IMAGE_LAYOUT_GENERAL,
+    VkAccessFlags srcAccessMask = 0,
+    VkAccessFlags dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT) {
+  VkImageMemoryBarrier barrier{};
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.srcAccessMask = srcAccessMask;
+  barrier.dstAccessMask = dstAccessMask;
+  barrier.oldLayout = oldLayout;
+  barrier.newLayout = newLayout;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = image;
+  barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  barrier.subresourceRange.levelCount = mipLevels;
+  barrier.subresourceRange.layerCount = 1;
+  return barrier;
 }
 
 // ---------------------------------------------------------

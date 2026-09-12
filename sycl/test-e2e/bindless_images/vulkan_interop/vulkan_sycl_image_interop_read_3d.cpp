@@ -35,7 +35,7 @@
     ./vsr_3d_test.bin --linear --type unorm8 16x16x16
 */
 // clang-format on
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <iostream>
 
 #include <optional>
@@ -121,7 +121,7 @@ int runTest(
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
   // Setup Vulkan
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, (uint32_t)height, (uint32_t)depth};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_3D, tiling);
