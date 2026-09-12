@@ -442,10 +442,13 @@ add_devicelibs(libsycl-crt
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
 
+# Applying no-fast-math, clang will emit __mulsc3/__muldc3/__divsc3/__divdc3
+# when doing complex number multiplication and division
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
+  DEPENDENCIES ${cmath_obj_deps}
+  EXTRA_OPTS -fno-fast-math)
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp

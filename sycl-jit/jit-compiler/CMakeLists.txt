@@ -29,6 +29,12 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
+if ("compiler-rt" IN_LIST RUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES OR
+    ("compiler-rt" IN_LIST LLVM_ENABLE_RUNTIMES AND
+     "spirv64-unknown-unknown" IN_LIST LLVM_BUILTIN_TARGETS))
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS builtins-spirv64-unknown-unknown)
+endif()
+
 set(libclc_enabled FALSE)
 foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
   if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
@@ -62,6 +68,9 @@ foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
         sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc")
       endif()
     endforeach()
+  elseif("${component}" STREQUAL "builtins-spirv64-unknown-unknown")
+    list(APPEND SYCL_JIT_RESOURCE_DEPS builtins-spirv64-unknown-unknown)
+    sycl_jit_add_install_command("clang_rt.builtins-spirv64" "${CMAKE_BINARY_DIR}/runtimes/builtins-spirv64-unknown-unknown-bins/")
   else()
     list(APPEND SYCL_JIT_RESOURCE_DEPS ${component})
     sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}")

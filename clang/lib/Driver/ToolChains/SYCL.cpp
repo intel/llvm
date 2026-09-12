@@ -306,6 +306,16 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
                               /*default=*/true);
 }
 
+void SYCL::addSPIRVCompilerRTPath(
+    const ToolChain &TC, SmallVectorImpl<SmallString<128>> &LibraryPaths) {
+  if (!TC.getTriple().isSPIROrSPIRV())
+    return;
+  SmallString<128> SPIRVCompilerRTPath(TC.getCompilerRTPath());
+  llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
+  if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
+    LibraryPaths.emplace_back(SPIRVCompilerRTPath);
+}
+
 // Return whether to use native bfloat16 library.
 static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
                              const llvm::Triple &Triple, const ToolChain &TC,
@@ -668,7 +678,8 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf"};
+                                             "libsycl-imf",
+                                             "libclang_rt.builtins"};
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const StringRef &Lib : LibsList)
       addLibToList(Args.MakeArgString(Lib + ".bc"));
@@ -883,6 +894,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (IsNVPTX && (InputFilename.starts_with("devicelib-") ||
                       InputFilename.contains("libspirv") ||
                       InputFilename.contains("libdevice")))
+        return true;
+      if (InputFilename.starts_with("libclang_rt.builtins"))
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
@@ -2005,6 +2018,7 @@ SYCLToolChain::getDeviceLibs(
   SmallVector<SmallString<128>, 4> LibraryPaths;
   SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
 
+  SYCL::addSPIRVCompilerRTPath(*this, LibraryPaths);
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());

@@ -5967,6 +5967,7 @@ class OffloadingActionBuilder final {
       int NumOfDeviceLibLinked = 0;
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+      tools::SYCL::addSPIRVCompilerRTPath(*TC, LibLocCandidates);
 
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
