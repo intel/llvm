@@ -3,7 +3,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda, hip
+// UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Device incompatible error
 
 // XFAIL: target-native_cpu
