@@ -9,9 +9,6 @@
 // UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-TRACKER: GSD-10700
 
-// XFAIL: windows && arch-intel_gpu_wcl
-// XFAIL-TRACKER: CMPLRLLVM-72111
-
 // REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix
