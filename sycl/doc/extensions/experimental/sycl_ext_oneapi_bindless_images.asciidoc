@@ -2087,6 +2087,11 @@ memory or semaphore objects. CUDA for example only supports importation of
 external memory and semaphores, but provides no support for their exportation.
 ====
 
+The L0 backend only supports using external semaphores on immediate queues. This
+extension also defines the `sycl::info::queue::ext_oneapi_supports_semaphores`
+queue info query to determine if a queue suppports external semaphores. External
+semaphores should not be used on queues for which this query returns false.
+
 === External Resource types
 
 In order to facilitate the importing of a number of different external memory 
