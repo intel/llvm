@@ -570,7 +570,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP < propName)
+    if (UR_DEVICE_INFO_HOST_SIGNAL_EVENT_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -11483,6 +11483,69 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventCreateHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urEventCreateHostSignalExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  auto pfnCreateHostSignalExp =
+      getContext()->urDdiTable.EventExp.pfnCreateHostSignalExp;
+
+  if (nullptr == pfnCreateHostSignalExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnCreateHostSignalExp(hContext, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urEventHostSignalExp(
+    /// [in] handle of the event object to signal
+    ur_event_handle_t hEvent) {
+  auto pfnHostSignalExp = getContext()->urDdiTable.EventExp.pfnHostSignalExp;
+
+  if (nullptr == pfnHostSignalExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hEvent)) {
+    URLOG_CTX_INVALID_REFERENCE(hEvent);
+  }
+
+  ur_result_t result = pfnHostSignalExp(hEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueHostTaskExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
@@ -12855,6 +12918,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateHostSignalExp = pDdiTable->pfnCreateHostSignalExp;
+  pDdiTable->pfnCreateHostSignalExp =
+      ur_validation_layer::urEventCreateHostSignalExp;
+
+  dditable.pfnHostSignalExp = pDdiTable->pfnHostSignalExp;
+  pDdiTable->pfnHostSignalExp = ur_validation_layer::urEventHostSignalExp;
 
   dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
   pDdiTable->pfnCreateExp = ur_validation_layer::urEventCreateExp;

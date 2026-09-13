@@ -89,6 +89,19 @@ bool Scheduler::GraphProcessor::enqueueCommand(
         return false;
   }
 
+  // A dependency of another context that was replaced with a proxy event is
+  // not among the prepared deps events - the proxy took its place there - so it
+  // needs enqueueing of its own. It has to happen first: the thread pool waits
+  // for that dependency in a blocking manner, and waiting for a command that
+  // nothing has submitted yet would return at once and signal the proxy
+  // prematurely.
+  for (const auto &ProxyDep : Cmd->getCrossContextProxyDeps()) {
+    if (Command *DepCmd = ProxyDep.Dep->getCommand())
+      if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
+                          RootCommand, Blocking))
+        return false;
+  }
+
   // Recursively enqueue all the implicit + explicit host dependencies and
   // exit immediately if any of the commands cannot be enqueued.
   // Host task execution is asynchronous. In current implementation enqueue for

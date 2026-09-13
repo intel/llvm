@@ -272,6 +272,9 @@ public:
   bool supportsReusableEvents();
   bool supportsEventProfiling();
   bool supportsIPCEvents();
+  /// @return True if events created in the unsignalled state and signalled from
+  /// the host are supported, see CrossContextProxy.
+  bool supportsHostSignalEvents();
 
   /// @return True if any native graph recording is active on a queue
   /// in this context.
@@ -313,6 +316,8 @@ private:
   std::mutex MEventProfilingSupportMutex;
   std::optional<bool> MIPCEventSupport;
   std::mutex MIPCEventSupportMutex;
+  std::optional<bool> MHostSignalEventSupport;
+  std::mutex MHostSignalEventSupportMutex;
 
   // Device pools.
   // Weak_ptr preventing circular dependency between memory_pool_impl and

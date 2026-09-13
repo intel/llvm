@@ -155,6 +155,7 @@ void ur_event_handle_t_::reset() {
   }
 
   batchGeneration = std::nullopt;
+  hostSignal = false;
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
@@ -201,6 +202,10 @@ bool ur_event_handle_t_::isIpcCapable() const {
 bool ur_event_handle_t_::isIpcImported() const {
   return flags & v2::EVENT_FLAGS_IPC_IMPORTED;
 }
+
+bool ur_event_handle_t_::isHostSignal() const { return hostSignal; }
+
+void ur_event_handle_t_::markHostSignal() { hostSignal = true; }
 
 std::pair<uint64_t *, ze_event_handle_t>
 ur_event_handle_t_::getEventEndTimestampAndHandle() {
@@ -447,6 +452,43 @@ ur_result_t urEventCreateExp(::ur_context_handle_t hContextOpque,
   // process's reference), so they get a detached, self-owning event.
   *phEvent = (flags & v2::EVENT_FLAGS_IPC) ? eventPool->allocateDetached()
                                            : eventPool->allocate();
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urEventCreateHostSignalExp(::ur_context_handle_t hContextOpque,
+                                       ::ur_event_handle_t *phEventOpque) try {
+  UR_ASSERT(hContextOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(phEventOpque, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  auto hContext = v2_cast(hContextOpque);
+  auto phEvent = v2_cast(phEventOpque);
+
+  // A counter-based event cannot be signalled from the host. The native events
+  // pool is not counter-based, see context_t::getNativeEventsPool.
+  UR_ASSERT(
+      !(hContext->getNativeEventsPool().getFlags() & v2::EVENT_FLAGS_COUNTER),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  // Events handed out by the pool are always in the unsignalled state, the pool
+  // resets them on release.
+  *phEvent = hContext->getNativeEventsPool().allocate();
+  (*phEvent)->markHostSignal();
+
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urEventHostSignalExp(::ur_event_handle_t hEventOpque) try {
+  UR_ASSERT(hEventOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  auto hEvent = v2_cast(hEventOpque);
+  UR_ASSERT(hEvent->isHostSignal(), UR_RESULT_ERROR_INVALID_EVENT);
+
+  ZE2UR_CALL(zeEventHostSignal, (hEvent->getZeEvent()));
+
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

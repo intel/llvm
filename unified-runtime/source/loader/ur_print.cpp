@@ -2145,6 +2145,22 @@ ur_result_t urPrintEventSetCallbackParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintEventCreateHostSignalExpParams(
+    const struct ur_event_create_host_signal_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEventHostSignalExpParams(
+    const struct ur_event_host_signal_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintEventCreateExpParams(const struct ur_event_create_exp_params_t *params,
                             char *buffer, const size_t buff_size,

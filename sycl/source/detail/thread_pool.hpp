@@ -70,11 +70,17 @@ class ThreadPool {
         return;
       }
 
-      std::function<void()> Job = std::move(MJobQueue.front());
-      MJobQueue.pop();
-      Lock.unlock();
+      {
+        std::function<void()> Job = std::move(MJobQueue.front());
+        MJobQueue.pop();
+        Lock.unlock();
 
-      Job();
+        Job();
+        // Job goes out of scope here, before the pool reports itself idle:
+        // whatever it captured is released while it still counts as being in
+        // the pool, so that drain() is a barrier for the captures too, not just
+        // for the job body. Also keeps that release out of MJobQueueMutex.
+      }
 
       Lock.lock();
 

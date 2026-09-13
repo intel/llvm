@@ -6067,6 +6067,40 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventCreateHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urEventCreateHostSignalExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnCreateHostSignalExp = dditable->EventExp.pfnCreateHostSignalExp;
+  if (nullptr == pfnCreateHostSignalExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCreateHostSignalExp(hContext, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urEventHostSignalExp(
+    /// [in] handle of the event object to signal
+    ur_event_handle_t hEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hEvent);
+
+  auto *pfnHostSignalExp = dditable->EventExp.pfnHostSignalExp;
+  if (nullptr == pfnHostSignalExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnHostSignalExp(hEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueHostTaskExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
@@ -7080,6 +7114,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
+      pDdiTable->pfnCreateHostSignalExp = ur_loader::urEventCreateHostSignalExp;
+      pDdiTable->pfnHostSignalExp = ur_loader::urEventHostSignalExp;
       pDdiTable->pfnCreateExp = ur_loader::urEventCreateExp;
     } else {
       // return pointers directly to platform's DDIs

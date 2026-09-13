@@ -302,6 +302,15 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEventProcAddrTable_t)(
     ur_api_version_t, ur_event_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEventCreateHostSignalExp
+typedef ur_result_t(UR_APICALL *ur_pfnEventCreateHostSignalExp_t)(
+    ur_context_handle_t, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEventHostSignalExp
+typedef ur_result_t(UR_APICALL *ur_pfnEventHostSignalExp_t)(ur_event_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEventCreateExp
 typedef ur_result_t(UR_APICALL *ur_pfnEventCreateExp_t)(
     ur_context_handle_t, ur_device_handle_t, const ur_exp_event_desc_t *,
@@ -310,6 +319,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnEventCreateExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EventExp functions pointers
 typedef struct ur_event_exp_dditable_t {
+  ur_pfnEventCreateHostSignalExp_t pfnCreateHostSignalExp;
+  ur_pfnEventHostSignalExp_t pfnHostSignalExp;
   ur_pfnEventCreateExp_t pfnCreateExp;
 } ur_event_exp_dditable_t;
 

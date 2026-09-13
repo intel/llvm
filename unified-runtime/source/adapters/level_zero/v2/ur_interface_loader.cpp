@@ -277,6 +277,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnCreateHostSignalExp =
+      ur::level_zero::v2::urEventCreateHostSignalExp;
+  pDdiTable->pfnHostSignalExp = ur::level_zero::v2::urEventHostSignalExp;
   pDdiTable->pfnCreateExp = ur::level_zero::v2::urEventCreateExp;
 
   return result;

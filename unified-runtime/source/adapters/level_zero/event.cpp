@@ -1029,6 +1029,15 @@ ur_result_t urEventCreateExp(::ur_context_handle_t /*hContext*/,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urEventCreateHostSignalExp(::ur_context_handle_t /*hContext*/,
+                                       ::ur_event_handle_t * /*phEvent*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urEventHostSignalExp(::ur_event_handle_t /*hEvent*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t urIPCGetEventHandleExp(::ur_event_handle_t /*hEvent*/,
                                    void ** /*ppIPCEventHandleData*/,
                                    size_t * /*pIPCEventHandleDataSizeRet*/) {
