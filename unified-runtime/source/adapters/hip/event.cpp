@@ -53,11 +53,25 @@ ur_result_t ur_event_handle_t_::release() {
     return UR_RESULT_SUCCESS;
 
   assert(Queue != nullptr);
-  UR_CHECK_ERROR(hipEventDestroy(EvEnd));
+
+  // During runtime/process shutdown the HIP context may already have been
+  // destroyed (e.g. static SYCL buffer destructors that run after the SYCL
+  // runtime released its contexts). The backing events are torn down together
+  // with the context, so treat these shutdown-specific errors as a successful
+  // release rather than surfacing an exception (which would otherwise abort in
+  // the event_impl destructor).
+  auto destroyEvent = [](hipEvent_t Event) {
+    hipError_t Res = hipEventDestroy(Event);
+    if (Res == hipErrorContextIsDestroyed || Res == hipErrorDeinitialized)
+      return;
+    UR_CHECK_ERROR(Res);
+  };
+
+  destroyEvent(EvEnd);
 
   if (HasProfiling) {
-    UR_CHECK_ERROR(hipEventDestroy(EvQueued));
-    UR_CHECK_ERROR(hipEventDestroy(EvStart));
+    destroyEvent(EvQueued);
+    destroyEvent(EvStart);
   }
 
   return UR_RESULT_SUCCESS;
