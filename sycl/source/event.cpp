@@ -87,7 +87,9 @@ event::get_profiling_info() const {
                           "recording state.");
   }
 
-  if constexpr (!std::is_same_v<Param, info::event_profiling::command_submit>) {
+  // A profiling tag uses its device-recorded completion time for submit too.
+  if (!std::is_same_v<Param, info::event_profiling::command_submit> ||
+      impl->isProfilingTagEvent()) {
     impl->wait();
   }
   return impl->template get_profiling_info<Param>();
