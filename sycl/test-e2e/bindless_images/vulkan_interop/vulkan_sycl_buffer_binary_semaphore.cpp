@@ -7,8 +7,11 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
-// RUN: %{run} %t.out --dual-sem
-// RUN: %{run} %t.out
+
+// Binary semaphore does not work on Linux issue is in driver
+// related to CMPLRLLVM-78008.
+// RUN-IF: !linux %{run} %t.out --dual-sem
+// RUN-IF: !linux %{run} %t.out
 
 // clang-format off
 /*
