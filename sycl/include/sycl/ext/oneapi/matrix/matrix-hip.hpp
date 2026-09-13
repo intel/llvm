@@ -117,8 +117,11 @@ void load_accumulator_layoutT(
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
-  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                   sg.get_local_linear_id();
+  // The fragment lane index is the work-item's position within its own
+  // sub-group (0 .. sub_group_size-1). It must NOT include the sub-group's
+  // index within the work-group, otherwise kernels that launch more than one
+  // sub-group per work-group compute out-of-range element offsets.
+  const auto idx = sg.get_local_linear_id();
 
   if constexpr (std::is_same_v<S, double>) {
     const auto thread_x = idx % N;
@@ -211,33 +214,52 @@ template <
 void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
                            multi_ptr<T, Space, IsDecorated> src, size_t stride,
                            Group &sg) {
-  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                   sg.get_local_linear_id();
+  // The fragment lane index is the work-item's position within its own
+  // sub-group (0 .. sub_group_size-1). It must NOT include the sub-group's
+  // index within the work-group, otherwise kernels that launch more than one
+  // sub-group per work-group compute out-of-range element offsets.
+  const auto idx = sg.get_local_linear_id();
 
-  if constexpr (std::is_same_v<S, double>) {
-    if constexpr (Layout ==
-                  sycl::ext::oneapi::experimental::matrix::layout::row_major) {
-      res.wi_marray[0] = src[idx];
-    } else {
-      res.wi_marray[0] = src[(idx % M) * stride + idx / M];
+  // The AMD MFMA fragment layout is described in terms of the matrix's "free"
+  // dimension (rows M for the A multiplicand, columns N for the B multiplicand)
+  // and the shared contraction dimension K. Whether the free dimension is the
+  // strided one in memory depends on BOTH the use and the layout:
+  //   - A row_major: element (m,k) at m*stride + k -> free dim (m) is strided.
+  //   - A col_major: element (m,k) at k*stride + m -> free dim (m) is contiguous.
+  //   - B row_major: element (k,n) at k*stride + n -> free dim (n) is contiguous.
+  //   - B col_major: element (k,n) at n*stride + k -> free dim (n) is strided.
+  // So the strided-free-dim access pattern applies to (A, row_major) and
+  // (B, col_major); the contiguous-free-dim pattern applies to (A, col_major)
+  // and (B, row_major). Selecting the pattern from this combined condition
+  // (rather than from the layout alone) makes both layouts behave correctly for
+  // the A multiplicand, which previously loaded A transposed for row_major.
+  constexpr bool StridedFreeDim =
+      (Use == sycl::ext::oneapi::experimental::matrix::use::a)
+          ? (Layout ==
+             sycl::ext::oneapi::experimental::matrix::layout::row_major)
+          : (Layout ==
+             sycl::ext::oneapi::experimental::matrix::layout::col_major);
+
+  // Free dimension: M for the A multiplicand, N for the B multiplicand. The
+  // wavefront is split into (WAVEFRONT_SIZE / FreeDim) groups along the
+  // contraction dimension K, and each work-item holds one contiguous K-block of
+  // `Size` elements (Size == 1 for the double shapes).
+  constexpr int FreeDim =
+      (Use == sycl::ext::oneapi::experimental::matrix::use::a) ? M : N;
+  constexpr int Size = (M * N) / WAVEFRONT_SIZE;
+
+  const auto thread_x = idx % FreeDim;
+  const auto thread_y = idx / FreeDim;
+
+  if constexpr (StridedFreeDim) {
+    for (int i = 0; i < Size; ++i) {
+      const int c_idx = thread_x * stride + i + thread_y * Size;
+      res.wi_marray[i] = src[c_idx];
     }
   } else {
-    constexpr int Dim = (M == 16) ? 16 : 32;
-
-    const auto thread_x = idx % Dim;
-    const auto thread_y = idx / Dim;
-
-    if constexpr (Layout ==
-                  sycl::ext::oneapi::experimental::matrix::layout::col_major) {
-      for (int i = 0; i < 4; ++i) {
-        const int c_idx = thread_x * stride + i + thread_y * 4;
-        res.wi_marray[i] = src[c_idx];
-      }
-    } else {
-      for (int i = 0; i < 4; ++i) {
-        const int r_idx = thread_x + i * stride + thread_y * stride * 4;
-        res.wi_marray[i] = src[r_idx];
-      }
+    for (int i = 0; i < Size; ++i) {
+      const int r_idx = thread_x + i * stride + thread_y * stride * Size;
+      res.wi_marray[i] = src[r_idx];
     }
   }
 }
@@ -251,8 +273,11 @@ void store_layoutT(
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group &sg) {
-  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                   sg.get_local_linear_id();
+  // The fragment lane index is the work-item's position within its own
+  // sub-group (0 .. sub_group_size-1). It must NOT include the sub-group's
+  // index within the work-group, otherwise kernels that launch more than one
+  // sub-group per work-group compute out-of-range element offsets.
+  const auto idx = sg.get_local_linear_id();
 
   if constexpr (std::is_same_v<T, double>) {
     const auto thread_x = idx % N;
