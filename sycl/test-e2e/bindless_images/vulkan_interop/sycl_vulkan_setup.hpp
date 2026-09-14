@@ -19,3 +19,9 @@ inline VulkanContext createSyclVulkanContext(const sycl::device &SyclDevice) {
 inline VulkanContext createSyclVulkanContext() {
   return createSyclVulkanContext(sycl::device{});
 }
+
+// RAII helper that tears down a VulkanContext when it goes out of scope.
+struct VulkanContextGuard {
+  VulkanContext &context;
+  ~VulkanContextGuard() { cleanupVulkanContext(context); }
+};

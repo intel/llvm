@@ -417,10 +417,7 @@ int main() {
   try {
     sycl::device dev;
     VulkanContext vkCtx = createSyclVulkanContext(dev);
-    struct VulkanContextGuard {
-      VulkanContext &context;
-      ~VulkanContextGuard() { cleanupVulkanContext(context); }
-    } guard{vkCtx};
+    VulkanContextGuard guard{vkCtx};
 
     bool result_ok = run_tests(vkCtx, dev);
 

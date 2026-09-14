@@ -249,10 +249,7 @@ int main(int argc, char *argv[]) {
     VulkanContext VulkanCtx;
     try {
       VulkanCtx = createSyclVulkanContext(SyclDevice);
-      struct VulkanContextGuard {
-        VulkanContext &context;
-        ~VulkanContextGuard() { cleanupVulkanContext(context); }
-      } vulkanContextGuard{VulkanCtx};
+      VulkanContextGuard vulkanContextGuard{VulkanCtx};
 
       try {
         auto TestPassed = runTest(VulkanCtx, SyclDevice, MemorySizeBytes);
