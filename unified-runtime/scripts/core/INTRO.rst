@@ -197,11 +197,6 @@ Launch blocking
 ---------------------
 
 The validation layer implements a debugging mode (`UR_LAYER_LAUNCH_BLOCKING`) which makes commands enqueued to a queue synchronous: an enqueue does not return until the queue has drained, so a device fault is reported at the command that caused it. It serializes the application, which is why `UR_LAYER_FULL_VALIDATION` does not enable it. The SYCL Runtime enables it for `SYCL_LAUNCH_BLOCKING=1`.
-
-Commands that enqueue no work of their own are not made synchronous, because their wait list may hold an event the application signals later: ``urEnqueueEventsWait``, ``urEnqueueEventsWaitWithBarrier``, ``urEnqueueEventsWaitWithBarrierExt`` and ``urEnqueueTimestampRecordingExp``. The work they order is waited for by the next command that does drain the queue. A queue capturing a graph is skipped as well, since it records commands instead of running them.
-
-The wait is ``urQueueFinish`` and has no deadline, so an application whose enqueued work can only complete through host progress that happens after the enqueue returns - a kernel spinning on a host-written flag, or a barrier waiting on an interop event signalled later - hangs under this mode where it would otherwise run.
-
 Logging
 ---------------------
 

@@ -25,9 +25,6 @@ ur_result_t reportCapturing(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-// A loader with the given layers enabled, and a queue on the mock adapter. The
-// layer is chosen per test, which is why this lives here rather than in the SYCL
-// unit tests: the SYCL runtime initializes the loader once per process.
 struct launchBlockingTest : ::testing::Test {
   void SetUp(const char *Layer) {
     QueueFinishCount = 0;
@@ -74,7 +71,7 @@ struct launchBlockingTest : ::testing::Test {
     urLoaderTearDown();
   }
 
-  // Any command that is not a marker; fill stands in for all of them.
+  // Any command that is not a marker; USMfill, for instance.
   ur_result_t enqueueWork() {
     uint8_t Pattern = 0;
     return urEnqueueUSMFill(Queue, &Storage, sizeof(Pattern), &Pattern,

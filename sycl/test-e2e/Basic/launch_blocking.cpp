@@ -1,9 +1,6 @@
 // SYCL_LAUNCH_BLOCKING makes a submission's device work complete before the
 // submission returns, so its event is complete and its result readable without
-// waiting. One case per submission path.
-//
-// Nothing here waits, so the host task cases also cover that blocking never
-// waits for a host task: each hangs if it ever does.
+// waiting.
 //
 // REQUIRES: aspect-usm_shared_allocations
 //

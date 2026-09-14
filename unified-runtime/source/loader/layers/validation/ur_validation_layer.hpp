@@ -64,10 +64,6 @@ private:
   /// Makes commands enqueued to a queue synchronous, so that a device fault is
   /// reported where it was caused. Serializes the application; a debugging aid
   /// only. Enabled by the SYCL Runtime for SYCL_LAUNCH_BLOCKING=1.
-  ///
-  /// The drain has no deadline, so work that can only complete through host
-  /// progress after the submission returns hangs instead - see
-  /// sycl/doc/EnvironmentVariables.md.
   inline static const std::string nameLaunchBlocking =
       "UR_LAYER_LAUNCH_BLOCKING";
 };

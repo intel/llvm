@@ -191,7 +191,6 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
   CHECK_UR_SUCCESS(loaderConfigSetCodeLocationCallback(
       LoaderConfig, codeLocationCallback, nullptr));
 
-  // Implemented in UR; see EnvironmentVariables.md.
   if (SYCLConfig<SYCL_LAUNCH_BLOCKING>::get())
     CHECK_UR_SUCCESS(
         loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_LAUNCH_BLOCKING"));
