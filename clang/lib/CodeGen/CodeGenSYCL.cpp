@@ -70,11 +70,14 @@ void CodeGenModule::EmitSYCLKernelCaller(const FunctionDecl *KernelEntryPointFn,
       Ctx.getCanonicalType(KernelEntryPointAttr->getKernelName());
   const SYCLKernelInfo &KernelInfo = Ctx.getSYCLKernelInfo(KernelNameType);
 
-  // The entry point inherits the linkage of the free function it wraps. A
-  // template instantiation or inline function has ODR linkage and may be
-  // emitted in multiple translation units, so the entry point must be
-  // mergeable. Use weak_odr, not linkonce_odr: the entry point is referenced
-  // only externally (via the offload entry table) and must not be discarded.
+  // The entry point inherits the linkage of the sycl_kernel_entry_point
+  // attributed function. If that function has external linkage and may be
+  // defined in multiple translation units (because it is an inline function
+  // or an instantiated function template specialization), then the kernel
+  // entry point also must permit multiple definitions and is thus emitted
+  // with weak linkage (weak_odr rather than linkonce_odr so that it is
+  // not discarded). Otherwise, the kernel entry point is emitted with
+  // strong external linkage.
   GVALinkage GVAL = Ctx.GetGVALinkageForFunction(KernelEntryPointFn);
   llvm::GlobalValue::LinkageTypes Linkage =
       (GVAL == GVA_DiscardableODR || GVAL == GVA_StrongODR)
