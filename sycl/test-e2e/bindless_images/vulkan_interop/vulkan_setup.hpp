@@ -295,26 +295,14 @@ inline T generateTestValue(size_t index, int channel, size_t rangeMax) {
 }
 
 // Compares values with appropriate tolerance for Floats
-template <typename T> inline bool checkValue(T actual, T expected) {
+template <typename T>
+inline bool checkValue(T actual, T expected, float epsilon = 0.01f) {
   if constexpr (std::is_floating_point_v<T>) {
-    return std::abs(actual - expected) < 0.01f;
+    return std::abs(actual - expected) < epsilon;
   } else {
     return actual == expected;
   }
 }
-
-namespace util {
-
-template <typename DType>
-bool is_equal(DType lhs, DType rhs, float epsilon = 0.0001f) {
-  if constexpr (std::is_floating_point_v<DType>) {
-    return std::abs(lhs - rhs) < epsilon;
-  } else {
-    return lhs == rhs;
-  }
-}
-
-} // namespace util
 
 // ---------------------------------------------------------
 // Boilerplate

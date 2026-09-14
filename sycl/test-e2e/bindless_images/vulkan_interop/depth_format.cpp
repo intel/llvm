@@ -285,7 +285,7 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
     float expected = inputVec[i];
     // Use helper function to determine if data is accepted.
     // For floats, use default accepted error variance.
-    if (!util::is_equal(outputVec[i], expected)) {
+    if (!checkValue(outputVec[i], expected)) {
       std::cerr << "Result mismatch! actual[" << i << "] == " << outputVec[i]
                 << " : expected == " << expected << "\n";
       validated = false;
