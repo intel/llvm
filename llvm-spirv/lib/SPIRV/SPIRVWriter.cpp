@@ -4578,13 +4578,14 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       BM->getErrorLog().checkError(BitWidth == 32, SPIRVEC_InvalidBitWidth,
                                    std::to_string(BitWidth));
     }
+    SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
     SPIRVValue *IntVal =
         BM->addVariable(ITy,
                         ITy->isTypeUntypedPointerKHR()
                             ? transType(II->getType()->getStructElementType(1))
                             : nullptr,
                         false, spv::internal::LinkageTypeInternal, nullptr, "",
-                        ITy->getStorageClass(), BB);
+                        ITy->getStorageClass(), EntryBB);
 
     std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB), IntVal};
 
