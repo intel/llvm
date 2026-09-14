@@ -85,8 +85,6 @@ command_list_cache_t::command_list_cache_t(
     ze_context_handle_t ZeContext,
     supported_extensions_descriptor_t supportedExtensions)
     : ZeContext{ZeContext},
-      ZeCopyOffloadExtensionSupported{
-          supportedExtensions.ZeCopyOffloadExtensionSupported},
       ZeMutableCmdListExtentionSupported{
           supportedExtensions.ZeMutableCmdListExtentionSupported},
       ZeCopyOffloadQueueFlagSupported{

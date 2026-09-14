@@ -291,7 +291,12 @@ protected:
 
 /* Checks that key values with \0 symbols are processed correctly
  */
+#ifdef _WIN32
+// https://github.com/intel/llvm/issues/23137
+TEST_P(PersistentDeviceCodeCache, DISABLED_KeysWithNullTermSymbol) {
+#else
 TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
+#endif
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(

@@ -2169,11 +2169,17 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Use new offloading path for OpenMP.  This is disabled as the SYCL
   // offloading path is not properly setup to use the updated device linking
   // scheme.
-  if ((C->isOffloadingHostKind(Action::OFK_OpenMP) &&
-       TranslatedArgs->hasFlag(options::OPT_fopenmp_new_driver,
-                               options::OPT_no_offload_new_driver, true)) ||
+  //
+  // Mirrors the default computed independently in BuildActions() for
+  // UseNewOffloadingDriver, so that getUseNewOffloadingDriver() is the
+  // single source of truth for every consumer (see BuildActions()).
+  if (C->isOffloadingHostKind(Action::OFK_OpenMP) ||
+      TranslatedArgs->hasFlag(options::OPT_foffload_via_llvm,
+                              options::OPT_fno_offload_via_llvm, false) ||
       TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
-                              options::OPT_no_offload_new_driver, false))
+                              options::OPT_no_offload_new_driver,
+                              (C->isOffloadingHostKind(Action::OFK_Cuda) ||
+                               C->isOffloadingHostKind(Action::OFK_HIP))))
     setUseNewOffloadingDriver();
 
   bool UseModulesDriver = C->getArgs().hasFlag(
@@ -7349,14 +7355,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
   }
 
-  bool UseNewOffloadingDriver =
-      C.isOffloadingHostKind(Action::OFK_OpenMP) ||
-      Args.hasFlag(options::OPT_foffload_via_llvm,
-                   options::OPT_fno_offload_via_llvm, false) ||
-      Args.hasFlag(options::OPT_offload_new_driver,
-                   options::OPT_no_offload_new_driver,
-                   (C.isOffloadingHostKind(Action::OFK_Cuda) ||
-                    C.isOffloadingHostKind(Action::OFK_HIP)));
+  bool UseNewOffloadingDriver = getUseNewOffloadingDriver();
   bool HIPRDCDeviceOnlyFatBin =
       UseNewOffloadingDriver && C.isOffloadingHostKind(Action::OFK_HIP) &&
       offloadDeviceOnly() && Args.hasArg(options::OPT_hip_link) &&

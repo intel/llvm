@@ -36,7 +36,11 @@
 
 namespace sycl {
 inline namespace _V1 {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group;
+#else
+class sub_group;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 namespace detail {
 
 // ---- linear_id_to_id

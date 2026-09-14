@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/exception.hpp>
 #include <sycl/group.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/sub_group.hpp>
