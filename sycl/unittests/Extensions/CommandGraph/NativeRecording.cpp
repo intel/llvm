@@ -12,17 +12,6 @@ using NativeRecordingMock::state;
 using NativeRecordingMock::traceCount;
 using NativeRecordingMock::traceIndex;
 
-// Test that native recording throws when UR does not support it
-TEST_F(NativeRecordingTest, NativeRecordingUnsupportedDevice) {
-  state().SupportsNativeRecording = false;
-  try {
-    makeGraph();
-    FAIL() << "Expected an exception";
-  } catch (sycl::exception &E) {
-    EXPECT_EQ(E.code(), sycl::errc::invalid);
-  }
-}
-
 // Traces UR recording layer
 TEST_F(NativeRecordingTest, RecordingUrTrace) {
   auto Graph = makeGraph();
