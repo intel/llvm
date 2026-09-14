@@ -453,3 +453,28 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
   return std::move(Result);
 }
+
+Expected<SYCLBIN::BundleState> SYCLBIN::getBundleState() const {
+  const auto &PropSets = GlobalMetadata->getPropSets();
+  auto GlobalMetadataIt = PropSets.find(
+      StringRef{llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA});
+  if (GlobalMetadataIt == PropSets.end())
+    return createStringError(inconvertibleErrorCode(),
+                             "SYCLBIN is missing global metadata.");
+
+  const auto &StateIt = GlobalMetadataIt->second.find(StringRef{"state"});
+  if (StateIt == GlobalMetadataIt->second.end())
+    return createStringError(
+        inconvertibleErrorCode(),
+        "SYCLBIN global metadata does not contain the bundle state.");
+  if (StateIt->second.getType() != llvm::util::PropertyValue::UINT32)
+    return createStringError(inconvertibleErrorCode(),
+                             "SYCLBIN bundle state is not an integer.");
+
+  uint32_t State = StateIt->second.asUint32();
+  if (State > static_cast<uint32_t>(BundleState::Executable))
+    return createStringError(inconvertibleErrorCode(),
+                             "Unknown SYCLBIN bundle state " +
+                                 std::to_string(State) + ".");
+  return static_cast<BundleState>(State);
+}

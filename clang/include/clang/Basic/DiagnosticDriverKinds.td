@@ -468,6 +468,10 @@ def err_drv_sycl_offload_arch_new_driver: Error<
   "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
 def err_drv_sycl_offload_arch_missing_value : Error<
   "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
+def err_drv_syclbin_input_requires_option : Error<
+  "SYCLBIN input file '%0' requires '%1'">;
+def err_drv_syclbin_input_mixed_with_other_inputs : Error<
+  "SYCLBIN input file '%0' cannot be linked with non-SYCLBIN input file '%1'">;
 def warn_drv_offload_target_duplicate
     : Warning<
           "offloading target '%0' is similar to target '%1' already specified; "

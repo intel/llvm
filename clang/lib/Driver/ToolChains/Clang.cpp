@@ -12155,7 +12155,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString(Twine("--ocloc-path=") + A->getValue()));
 
-    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+    // When linking SYCLBIN files the output is a SYCLBIN file rather than the
+    // device image the '--sycl-device-link' path copies to the output, so the
+    // '--syclbin=' option added below drives the link instead.
+    if (Args.hasArg(options::OPT_fsycl_link_EQ) && !D.getSYCLBINLinkSeen())
       CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
 
     // Propagate [no-]rdc mode to the linker wrapper for the SYCL case.
@@ -12401,7 +12404,25 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // Add option to enable creating of the .syclbin file.
     const ArgList &Args =
         C.getArgsForToolChain(nullptr, BoundArch{}, Action::OFK_SYCL);
-    if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
+    if (D.getSYCLBINLinkSeen()) {
+      // Linking SYCLBIN files always produces a SYCLBIN file in executable
+      // state.
+      CmdArgs.push_back("--syclbin=executable");
+      // The device code held by a SYCLBIN file is not tied to a device, so the
+      // targets to compile it for cannot be taken from the inputs the way they
+      // are for a regular link. '--offload-arch' is required in this mode, and
+      // the device code is compiled ahead of time for every architecture it
+      // names.
+      for (auto &TCI :
+           llvm::make_range(C.getOffloadToolChains<Action::OFK_SYCL>())) {
+        const ToolChain *SYCLTC = TCI.second;
+        for (const BoundArch &Arch :
+             D.getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, *SYCLTC))
+          CmdArgs.push_back(Args.MakeArgString(
+              "--syclbin-link-target=" + SYCLTC->getTripleString() + "=" +
+              Arch.ArchName));
+      }
+    } else if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
           Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
   }
