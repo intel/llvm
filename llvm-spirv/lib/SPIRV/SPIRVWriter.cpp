@@ -1650,6 +1650,9 @@ SPIRVInstruction *LLVMToSPIRVBase::transCmpInst(CmpInst *Cmp,
   SPIRVValue *TOp0 = transValue(Op0, BB, true, FuncTransMode::Pointer);
   SPIRVValue *TOp1 = transValue(Op1, BB, true, FuncTransMode::Pointer);
   if (Op0->getType()->isPointerTy()) {
+#if 1 // INTEL_CUSTOMIZATION
+    // CMPLRLLVM-76619: Fall back to OpConvertPtrToU + OpIEqual/OpINotEqual.
+#else
     auto P = Cmp->getPredicate();
     if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4) &&
         (P == ICmpInst::ICMP_EQ || P == ICmpInst::ICMP_NE) &&
@@ -1662,6 +1665,7 @@ SPIRVInstruction *LLVMToSPIRVBase::transCmpInst(CmpInst *Cmp,
       Op OC = P == ICmpInst::ICMP_EQ ? OpPtrEqual : OpPtrNotEqual;
       return BM->addBinaryInst(OC, transType(Cmp->getType()), TOp0, TOp1, BB);
     }
+#endif // INTEL_CUSTOMIZATION
     unsigned AS = cast<PointerType>(Op0->getType())->getAddressSpace();
     SPIRVType *Ty = transType(getSizetType(AS));
     TOp0 = BM->addUnaryInst(OpConvertPtrToU, Ty, TOp0, BB);
