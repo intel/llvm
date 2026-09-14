@@ -32,7 +32,7 @@ class BuiltinInfo;
 
 namespace vecz {
 class SimplifyInfiniteLoopPass
-    : public llvm::PassInfoMixin<SimplifyInfiniteLoopPass> {
+    : public llvm::OptionalPassInfoMixin<SimplifyInfiniteLoopPass> {
 public:
   SimplifyInfiniteLoopPass() = default;
 
@@ -43,7 +43,8 @@ public:
 
 /// @brief This pass replaces calls to builtins that require special attention
 /// (e.g. there is no scalar or vector equivalent) with inline implementations.
-class BuiltinInliningPass : public llvm::PassInfoMixin<BuiltinInliningPass> {
+class BuiltinInliningPass
+    : public llvm::OptionalPassInfoMixin<BuiltinInliningPass> {
 public:
   /// @brief Create a new pass object.
   BuiltinInliningPass() = default;
@@ -72,7 +73,7 @@ private:
 /// @brief This pass tries to remove unecessary allocas that are not optimized
 /// away by LLVM's Mem2Reg pass, for example in the presence of bitcasts. It is
 /// however much simpler than LLVM's.
-class BasicMem2RegPass : public llvm::PassInfoMixin<BasicMem2RegPass> {
+class BasicMem2RegPass : public llvm::OptionalPassInfoMixin<BasicMem2RegPass> {
 public:
   BasicMem2RegPass() {};
 
@@ -103,7 +104,7 @@ private:
   bool promoteAlloca(llvm::AllocaInst *Alloca) const;
 };
 
-class PreLinearizePass : public llvm::PassInfoMixin<PreLinearizePass> {
+class PreLinearizePass : public llvm::OptionalPassInfoMixin<PreLinearizePass> {
 public:
   PreLinearizePass() = default;
 
@@ -115,7 +116,8 @@ public:
 
 /// @brief Wraps llvm's LoopRotatePass but retricts the range of loops on which
 /// it works.
-class VeczLoopRotatePass : public llvm::PassInfoMixin<VeczLoopRotatePass> {
+class VeczLoopRotatePass
+    : public llvm::OptionalPassInfoMixin<VeczLoopRotatePass> {
 public:
   VeczLoopRotatePass() {}
 
@@ -126,7 +128,7 @@ public:
   static llvm::StringRef name() { return "Vecz Loop Rotation Wrapper"; };
 };
 
-class RemoveIntPtrPass : public llvm::PassInfoMixin<RemoveIntPtrPass> {
+class RemoveIntPtrPass : public llvm::OptionalPassInfoMixin<RemoveIntPtrPass> {
 public:
   RemoveIntPtrPass() = default;
 
@@ -137,7 +139,7 @@ public:
 };
 
 class SquashSmallVectorsPass
-    : public llvm::PassInfoMixin<SquashSmallVectorsPass> {
+    : public llvm::OptionalPassInfoMixin<SquashSmallVectorsPass> {
 public:
   SquashSmallVectorsPass() = default;
 
@@ -150,7 +152,7 @@ public:
 /// @brief Try to replace or remove masked memory operations that are trivially
 /// not needed or can be converted to non-masked operations.
 class SimplifyMaskedMemOpsPass
-    : public llvm::PassInfoMixin<SimplifyMaskedMemOpsPass> {
+    : public llvm::OptionalPassInfoMixin<SimplifyMaskedMemOpsPass> {
 public:
   /// @brief Create a new pass object.
   SimplifyMaskedMemOpsPass() = default;
@@ -172,7 +174,7 @@ public:
 
 /// @brief reassociate uniform binary operators and split branches
 class UniformReassociationPass
-    : public llvm::PassInfoMixin<UniformReassociationPass> {
+    : public llvm::OptionalPassInfoMixin<UniformReassociationPass> {
 public:
   UniformReassociationPass() = default;
 
@@ -184,7 +186,7 @@ public:
 
 /// @brief Removes uniform divergence reductions created by CFG conversion
 class DivergenceCleanupPass
-    : public llvm::PassInfoMixin<DivergenceCleanupPass> {
+    : public llvm::OptionalPassInfoMixin<DivergenceCleanupPass> {
 public:
   /// @brief Create a new pass object.
   DivergenceCleanupPass() = default;

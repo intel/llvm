@@ -31,7 +31,7 @@ class VectorizationUnit;
 /// @brief This pass removes every duplicate GEP instruction before the
 /// packetization pass.
 class CommonGEPEliminationPass
-    : public llvm::PassInfoMixin<CommonGEPEliminationPass> {
+    : public llvm::OptionalPassInfoMixin<CommonGEPEliminationPass> {
 public:
   static void *ID() { return (void *)&PassID; };
 

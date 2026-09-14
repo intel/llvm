@@ -29,7 +29,7 @@ namespace vecz {
 /// @brief This pass replaces calls to builtins that require special attention
 /// after vectorization.
 class InlinePostVectorizationPass
-    : public llvm::PassInfoMixin<InlinePostVectorizationPass> {
+    : public llvm::OptionalPassInfoMixin<InlinePostVectorizationPass> {
 public:
   /// @brief Create a new pass object.
   InlinePostVectorizationPass() {}

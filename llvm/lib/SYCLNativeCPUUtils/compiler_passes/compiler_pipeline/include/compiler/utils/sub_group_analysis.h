@@ -100,7 +100,7 @@ private:
 /// @brief Helper pass to print out the contents of the SubgroupAnalysis
 /// analysis.
 class SubgroupAnalysisPrinterPass
-    : public llvm::PassInfoMixin<SubgroupAnalysisPrinterPass> {
+    : public llvm::OptionalPassInfoMixin<SubgroupAnalysisPrinterPass> {
   llvm::raw_ostream &OS;
 
 public:

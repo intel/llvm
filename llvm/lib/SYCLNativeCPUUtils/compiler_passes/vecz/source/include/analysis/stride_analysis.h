@@ -126,7 +126,7 @@ private:
 /// @brief Helper pass to print out the contents of the StrideAnalysis
 /// analysis.
 class StrideAnalysisPrinterPass
-    : public llvm::PassInfoMixin<StrideAnalysisPrinterPass> {
+    : public llvm::OptionalPassInfoMixin<StrideAnalysisPrinterPass> {
   llvm::raw_ostream &OS;
 
 public:

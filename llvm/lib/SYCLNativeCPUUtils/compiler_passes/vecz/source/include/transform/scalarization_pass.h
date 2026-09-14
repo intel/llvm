@@ -38,7 +38,8 @@ class VectorizationUnit;
 
 /// @brief Scalarization pass where vector instructions that need it are
 /// scalarized, starting from leaves.
-class ScalarizationPass : public llvm::PassInfoMixin<ScalarizationPass> {
+class ScalarizationPass
+    : public llvm::OptionalPassInfoMixin<ScalarizationPass> {
 public:
   /// @brief Create a new scalarizaation pass.
   ScalarizationPass();

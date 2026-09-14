@@ -32,7 +32,7 @@ namespace utils {
 /// @brief Sets up the per-function mux metadata used by later passes.
 /// Transfers per-module !opencl.kernel metadata to mux kernel metadata.
 struct TransferKernelMetadataPass
-    : public llvm::PassInfoMixin<TransferKernelMetadataPass> {
+    : public llvm::OptionalPassInfoMixin<TransferKernelMetadataPass> {
   explicit TransferKernelMetadataPass() {}
 
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
@@ -44,7 +44,7 @@ struct EncodeKernelMetadataPassOptions {
 };
 
 struct EncodeKernelMetadataPass
-    : public llvm::PassInfoMixin<EncodeKernelMetadataPass> {
+    : public llvm::OptionalPassInfoMixin<EncodeKernelMetadataPass> {
   EncodeKernelMetadataPass(EncodeKernelMetadataPassOptions Options)
       : KernelName(Options.KernelName), LocalSizes(Options.LocalSizes) {}
 
