@@ -20,6 +20,8 @@ void kernel_single_task(KernelType kernelFunc) {
 struct TemplatedKernelName;
 struct ExplicitKernelName;
 struct NonTemplateKernelName;
+struct InlineKernelName;
+struct UnnamedNSKernelName;
 
 struct Functor {
   void operator()() const {}
@@ -32,6 +34,7 @@ void trigger_implicit() {
 
 // Explicit instantiation of the entry-point template -> weak_odr.
 template void kernel_single_task<ExplicitKernelName, Functor>(Functor);
+
 // inline kernel entry point -> weak_odr.
 [[clang::sycl_kernel_entry_point(InlineKernelName)]]
 inline void inline_non_template_kernel(Functor kernelFunc) {
@@ -53,4 +56,6 @@ void non_template_kernel(Functor kernelFunc) {
 
 // CHECK-DAG: define weak_odr {{.*}}spir_kernel void @{{.*}}TemplatedKernelName
 // CHECK-DAG: define weak_odr {{.*}}spir_kernel void @{{.*}}ExplicitKernelName
+// CHECK-DAG: define weak_odr {{.*}}spir_kernel void @{{.*}}InlineKernelName
 // CHECK-DAG: define {{(dso_local )?}}spir_kernel void @{{.*}}NonTemplateKernelName
+// CHECK-DAG: define {{(dso_local )?}}spir_kernel void @{{.*}}UnnamedNSKernelName
