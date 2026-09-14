@@ -1801,10 +1801,9 @@ void exec_graph_impl::update(nodes_range Nodes) {
   if (NeedScheduledUpdate) {
     if (MContainsHostTask) {
       // Wait synchronously for prior submits of this exec graph to
-      // GPU-complete before creating the update command. Otherwise
-      // urCommandBufferUpdateKernelLaunchExp inside
-      // UpdateCommandBufferCommand::enqueueImp can mutate the mutable command
-      // list while a prior urEnqueueCommandBufferExp is still in flight.
+      // GPU-complete before creating the update command. Otherwise a
+      // deferred submit can issue after this update mutates the command
+      // list, running with the wrong state.
       for (const auto &Event : MSchedulerDependencies) {
         Event->wait();
       }
