@@ -210,7 +210,7 @@ variables in production code.</span>
 | `SYCL_PROGRAM_APPEND_COMPILE_OPTIONS` | String of valid compile options | Append to the end of compile options for all programs. |
 | `SYCL_PROGRAM_APPEND_LINK_OPTIONS` | String of valid link options | Append to the end of link options for all programs. |
 | `SYCL_USE_KERNEL_SPV` | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `sycl::runtime_error` exception is thrown. The image is assumed to have been created using the `-fno-sycl-dead-args-optimization` option. |
-| `SYCL_DUMP_IMAGES` | Any(\*) | Dump device image binaries to file. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
+| `SYCL_DUMP_IMAGES` | Integer | Dump device image binaries to file. `2` dumps only the device images that are actually used at runtime, reporting each dump to `stderr`. `0` disables dumping. Any other value dumps all device images loaded into the SYCL runtime. Each image is dumped at most once. The default is unset, i.e. no images are dumped. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
 | `SYCL_HOST_UNIFIED_MEMORY` | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
 | `SYCL_CACHE_TRACE` | Described [below](#sycl_cache_trace-options). | Enable tracing for different SYCL and `kernel_compiler` caches. |
 | `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE` | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |

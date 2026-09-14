@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 #include <helpers/UrMock.hpp>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/IOSandbox.h>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
 
@@ -112,6 +113,14 @@ public:
   bool SYCLCachePersistentChanged = false;
 
   std::string RootSYCLCacheDir;
+
+  // This test makes many calls to llvm::sys::fs calls, which as of RFC
+  // https://discourse.llvm.org/t/rfc-file-system-sandboxing-in-clang-llvm/88791
+  // now errors upon using llvm::sys::fs calls without disabling the sandbox.
+  //
+  // Disable the sandbox for the duration of this test.
+  llvm::sys::sandbox::ScopedSetting BypassSandbox =
+      llvm::sys::sandbox::scopedDisable();
 
   // Caches the initial value of the SYCL_CACHE_PERSISTENT environment variable
   // before overwriting it with the new value.
@@ -282,7 +291,12 @@ protected:
 
 /* Checks that key values with \0 symbols are processed correctly
  */
+#ifdef _WIN32
+// https://github.com/intel/llvm/issues/23137
+TEST_P(PersistentDeviceCodeCache, DISABLED_KeysWithNullTermSymbol) {
+#else
 TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
+#endif
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(

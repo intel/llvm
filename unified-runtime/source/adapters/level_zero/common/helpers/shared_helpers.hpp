@@ -47,8 +47,9 @@ namespace ur::level_zero {
     }
   } catch (...) {
   }
-  UR_LOG(DEBUG,
-         "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  UR_LOG_SAFE(
+      DEBUG,
+      "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
   return false;
 }
 
@@ -283,8 +284,8 @@ public:
   ZeUSMImportExtension() : Supported{false}, Enabled{false} {}
 
   void setZeUSMImport(ur_platform_handle_t_ *Platform);
-  void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
-                     size_t Size);
+  ze_result_t doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
+                            size_t Size);
   void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr);
 };
 

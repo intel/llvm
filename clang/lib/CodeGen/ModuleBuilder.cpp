@@ -21,6 +21,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
@@ -347,8 +348,14 @@ namespace {
       if (Diags.hasUnrecoverableErrorOccurred())
         return;
 
-      // No VTable usage is legal in SYCL, so don't bother marking them used.
-      if (Ctx->getLangOpts().SYCLIsDevice)
+      // The only vtables which are meaningful in SYCL device code are those of
+      // classes with 'indirectly_callable' virtual functions: they are
+      // inspected by SYCLVirtualFunctionsAnalysisPass to determine which
+      // virtual functions a kernel may end up calling. Emitting vtables for any
+      // other polymorphic class would only add unused globals to the device
+      // image.
+      if (Ctx->getLangOpts().SYCLIsDevice &&
+          !SemaSYCL::hasSYCLIndirectlyCallableVirtualMethod(RD))
         return;
 
       Builder->EmitVTable(RD);

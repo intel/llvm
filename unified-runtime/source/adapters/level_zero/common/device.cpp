@@ -225,6 +225,46 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
+static bool
+supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  constexpr const char *ExtensionName =
+      ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
+  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
+
+  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
+  return Extension != Platform->zeDriverExtensionMap.end() &&
+         Extension->second >= MinVersion;
+#else
+  std::ignore = Platform;
+  return false;
+#endif
+}
+
+static std::optional<uint64_t>
+getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  if (!supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+    return std::nullopt;
+  }
+
+  ZeStruct<ze_device_properties_t> DeviceProperties;
+  ZeStruct<ze_device_usablemem_size_ext_properties_t> UsableMemProperties;
+  DeviceProperties.pNext = &UsableMemProperties;
+
+  auto ZeResult = ZE_CALL_NOCHECK(zeDeviceGetProperties,
+                                  (Device->ZeDevice, &DeviceProperties));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    return std::nullopt;
+  }
+
+  return UsableMemProperties.currUsableMemSize;
+#else
+  std::ignore = Device;
+  return std::nullopt;
+#endif
+}
+
 // Return the Sysman device handle and correpsonding data for the given UR
 // device.
 static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
@@ -874,6 +914,30 @@ ur_result_t urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
+    if (!ParamValue && pSize) {
+      if (supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+        return ReturnValue(uint64_t{0});
+      }
+
+      auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
+      (void)ZesDeviceData;
+      if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+      }
+
+      // Verify the query actually works so the enumeration isn't falsely
+      // advertised as supported.
+      uint32_t MemCount = 0;
+      if (ZE_CALL_NOCHECK(zesDeviceEnumMemoryModules,
+                          (ZesDevice, &MemCount, nullptr)) !=
+              ZE_RESULT_SUCCESS ||
+          MemCount == 0) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+
+      return ReturnValue(uint64_t{0});
+    }
+
     // Calculate the global memory size as the max limit that can be reported as
     // "free" memory for the user to allocate.
     uint64_t GlobalMemSize = calculateGlobalMemSize(Device);
@@ -881,6 +945,10 @@ ur_result_t urDeviceGetInfo(
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
+
+    if (auto CoreUsableMemSize = getDeviceUsableMemSizeFromCore(Device)) {
+      return ReturnValue(std::min(GlobalMemSize, *CoreUsableMemSize));
+    }
 
     auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
@@ -1036,9 +1104,14 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_IMAGE_SRGB:
     return ReturnValue(ur_bool_t{false});
 
-  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
-  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     ur_queue_flags_t queue_flags = 0;
+    return ReturnValue(queue_flags);
+  }
+  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+    ur_queue_flags_t queue_flags = UR_QUEUE_FLAG_DISCARD_EVENTS |
+                                   UR_QUEUE_FLAG_SUBMISSION_BATCHED |
+                                   UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     return ReturnValue(queue_flags);
   }
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
@@ -1403,12 +1476,18 @@ ur_result_t urDeviceGetInfo(
     int32_t Speed = -1;
     for (auto Fan : ZeFanHandles) {
       int32_t CurSpeed;
-      auto result = ze2urResult(ZE_CALL_NOCHECK(
-          zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed)));
-      if (result != UR_RESULT_SUCCESS)
-        return result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+      // Some drivers/KMDs report an enumerated fan as unreadable via
+      // ZE_RESULT_ERROR_UNSUPPORTED_FEATURE, others via
+      // ZE_RESULT_ERROR_NOT_AVAILABLE. Treat both as "unsupported" so the
+      // query is reported consistently instead of surfacing an unrelated
+      // UR error (e.g. UR_RESULT_ERROR_INVALID_OPERATION).
+      ze_result_t ZeResult = ZE_CALL_NOCHECK(
+          zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed));
+      if (ZeResult != ZE_RESULT_SUCCESS)
+        return (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+                ZeResult == ZE_RESULT_ERROR_NOT_AVAILABLE)
                    ? UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
-                   : result;
+                   : ze2urResult(ZeResult);
       Speed = std::max(Speed, CurSpeed);
     }
     return ReturnValue(Speed);
@@ -2074,10 +2153,10 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         Properties.native_vector_width_float = 1u;
         Properties.native_vector_width_half = 8u;
 
-        if (UrPlatform->zeDriverExtensionMap.count(
-                ZE_DEVICE_VECTOR_SIZES_EXT_NAME)) {
+        if (UrPlatform->ZeDeviceVectorWidthExt.Supported) {
           uint32_t Count = 0;
-          ZE_CALL_NOCHECK(zeDeviceGetVectorWidthPropertiesExt,
+          ZE_CALL_NOCHECK(UrPlatform->ZeDeviceVectorWidthExt
+                              .zeDeviceGetVectorWidthPropertiesExt,
                           (ZeDevice, &Count, nullptr));
 
           std::vector<ZeStruct<ze_device_vector_width_properties_ext_t>>
@@ -2087,7 +2166,8 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
           ZeStruct<ze_device_vector_width_properties_ext_t>
               MaxVectorWidthProperties;
 
-          ZE_CALL_NOCHECK(zeDeviceGetVectorWidthPropertiesExt,
+          ZE_CALL_NOCHECK(UrPlatform->ZeDeviceVectorWidthExt
+                              .zeDeviceGetVectorWidthPropertiesExt,
                           (ZeDevice, &Count, PropertiesVector.data()));
           if (!PropertiesVector.empty()) {
             // Find the largest vector_width_size property
@@ -2291,10 +2371,11 @@ void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
     setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
   }
 }
-void ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
-                                         void *HostPtr, size_t Size) {
-  ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
-                  (DriverHandle, HostPtr, Size));
+
+ze_result_t ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
+                                                void *HostPtr, size_t Size) {
+  return ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
+                         (DriverHandle, HostPtr, Size));
 }
 void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
                                           void *HostPtr) {
