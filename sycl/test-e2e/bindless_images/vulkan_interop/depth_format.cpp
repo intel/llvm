@@ -154,7 +154,9 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
   }
 
   // Transition image layouts.
+#ifdef VERBOSE_PRINT
   std::cout << "Submitting image layout transition\n";
+#endif
   {
     VkImageMemoryBarrier imgInBarrier =
         createImageMemoryBarrier(inputImage.image, 1);
