@@ -69,7 +69,6 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   bool ZeDriverEventPoolCountingEventsExtensionFound{false};
   bool zeDriverImmediateCommandListAppendFound{false};
   bool ZeDriverEuCountExtensionFound{false};
-  bool ZeCopyOffloadExtensionSupported{false};
   bool ZeCopyOffloadQueueFlagSupported{false};
   bool ZeCopyOffloadListFlagSupported{false};
   bool ZeBindlessImagesExtensionSupported{false};

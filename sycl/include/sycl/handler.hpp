@@ -1168,7 +1168,7 @@ public:
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<OpenCLMemT, T>::value      // Interop
         || is_same_type<stream, T>::value          // Stream
-        || sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
+        || detail::check_if_device_copyable_v<remove_cv_ref_t<T>>;
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -2016,7 +2016,7 @@ public:
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
     setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
-    static_assert(is_device_copyable<T>::value,
+    static_assert(detail::check_if_device_copyable_v<T>,
                   "Pattern must be device copyable");
     if (getDeviceBackend() == backend::ext_oneapi_level_zero) {
       parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
