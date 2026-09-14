@@ -8,9 +8,16 @@
 
 #include "NativeRecordingMock.hpp"
 
+#include <detail/context_impl.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
+
+using NativeRecordingMock::expectFailure;
+using NativeRecordingMock::getUrWaitLists;
 using NativeRecordingMock::state;
 using NativeRecordingMock::traceCount;
 using NativeRecordingMock::traceIndex;
+using NativeRecordingMock::UrWaitLists;
 
 // Traces UR recording layer
 TEST_F(NativeRecordingTest, RecordingUrTrace) {
@@ -172,4 +179,225 @@ TEST_F(NativeRecordingTest, GetStateUrTrace) {
   EXPECT_EQ(Queue.ext_oneapi_get_state(), experimental::queue_state::executing);
 
   EXPECT_GE(traceCount("urQueueIsGraphCaptureEnabledExp"), 3u);
+}
+
+TEST_F(NativeRecordingTest, PotentiallyNativeRecordedEvents) {
+  sycl::queue ExecutingQueue{
+      Queue.get_context(), Dev, {sycl::property::queue::in_order{}}};
+  int HostVal = 42;
+  int *DevPtr = sycl::malloc_device<int>(1, Queue);
+  auto Graph = makeGraph();
+
+  auto submitOps = [&](sycl::queue &Q) {
+    return std::vector<std::pair<std::string, sycl::event>>{
+        {"barrier handler",
+         Q.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_barrier(); })},
+        {"barrier shortcut", Q.ext_oneapi_submit_barrier()},
+        {"fill handler",
+         Q.submit([&](sycl::handler &CGH) { CGH.fill(DevPtr, 0, 1); })},
+        {"fill shortcut", Q.fill(DevPtr, 0, 1)},
+        {"memset handler", Q.submit([&](sycl::handler &CGH) {
+           CGH.memset(DevPtr, 0, sizeof(int));
+         })},
+        {"memset shortcut", Q.memset(DevPtr, 0, sizeof(int))},
+        {"memcpy handler", Q.submit([&](sycl::handler &CGH) {
+           CGH.memcpy(DevPtr, &HostVal, sizeof(int));
+         })},
+        {"memcpy shortcut", Q.memcpy(DevPtr, &HostVal, sizeof(int))},
+        {"kernel handler", Q.submit([&](sycl::handler &CGH) {
+           CGH.single_task<TestKernel>([]() {});
+         })},
+        {"kernel shortcut", Q.single_task<TestKernel>([]() {})}};
+  };
+
+  auto expectRecorded = [&](sycl::queue &Q, bool Expected) {
+    for (const auto &[Name, Event] : submitOps(Q))
+      EXPECT_EQ(getSyclObjImpl(Event)->isPotentiallyNativeRecorded(), Expected)
+          << Name;
+  };
+
+  expectRecorded(Queue, false);
+
+  Graph.begin_recording(Queue);
+  expectRecorded(Queue, true);
+  // Even though the ExecutingQueue is not recording, we assume the user may
+  // have forked the call to avoid having to round-trip through the driver API.
+  expectRecorded(ExecutingQueue, true);
+
+  Graph.end_recording(Queue);
+  expectRecorded(Queue, false);
+
+  sycl::free(DevPtr, Queue);
+}
+
+TEST_F(NativeRecordingTest, PotentiallyNativeRecordedEventsOtherContext) {
+  sycl::context OtherContext{Dev};
+  sycl::queue OtherQueue{
+      OtherContext, Dev, {sycl::property::queue::in_order{}}};
+  ASSERT_NE(OtherQueue.get_context(), Queue.get_context());
+
+  auto Graph = makeGraph();
+  Graph.begin_recording(Queue);
+  auto Unrelated = OtherQueue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+  Graph.end_recording(Queue);
+
+  EXPECT_FALSE(getSyclObjImpl(Unrelated)->isPotentiallyNativeRecorded());
+}
+
+TEST_F(NativeRecordingTest, PotentiallyNativeRecordedReusableEvent) {
+  auto Graph = makeGraph();
+  auto Reusable = experimental::make_event(Queue.get_context());
+
+  experimental::enqueue_signal_event(Queue, Reusable);
+  EXPECT_FALSE(getSyclObjImpl(Reusable)->isPotentiallyNativeRecorded());
+
+  Graph.begin_recording(Queue);
+  experimental::enqueue_signal_event(Queue, Reusable);
+  EXPECT_TRUE(getSyclObjImpl(Reusable)->isPotentiallyNativeRecorded());
+  Graph.end_recording(Queue);
+
+  experimental::enqueue_signal_event(Queue, Reusable);
+  EXPECT_FALSE(getSyclObjImpl(Reusable)->isPotentiallyNativeRecorded());
+}
+
+TEST_F(NativeRecordingTest, ExternalSignalDepReachesUr) {
+  auto Graph = makeGraph();
+
+  Graph.begin_recording(Queue);
+  auto Recorded = Queue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+  Graph.end_recording(Queue);
+
+  ASSERT_EQ(getUrWaitLists("urEnqueueKernelLaunchWithArgsExp"),
+            (UrWaitLists{{}}));
+  // In a real run, this call should throw by the driver API. For mock testing,
+  // checking the dependency is specified validates the SYCL / UR layer.
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(Recorded);
+    CGH.single_task<TestKernel>([]() {});
+  });
+  EXPECT_EQ(getUrWaitLists("urEnqueueKernelLaunchWithArgsExp"),
+            (UrWaitLists{{}, {getSyclObjImpl(Recorded)->getHandle()}}));
+}
+
+TEST_F(NativeRecordingTest, ExternalWaitDepReachesUr) {
+  auto Graph = makeGraph();
+  auto BeforeRecording = Queue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+  ASSERT_FALSE(getSyclObjImpl(BeforeRecording)->isPotentiallyNativeRecorded());
+
+  Graph.begin_recording(Queue);
+  // In a real run, this call should throw by the driver API. For mock testing,
+  // checking the dependency is specified validates the SYCL / UR layer.
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(BeforeRecording);
+    CGH.single_task<TestKernel>([]() {});
+  });
+  Graph.end_recording(Queue);
+  EXPECT_EQ(getUrWaitLists("urEnqueueKernelLaunchWithArgsExp"),
+            (UrWaitLists{{}, {getSyclObjImpl(BeforeRecording)->getHandle()}}));
+}
+
+TEST_F(NativeRecordingTest, UnrecordedEventDepStillDropped) {
+  auto BeforeRecording = Queue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+  {
+    auto Graph = makeGraph();
+    Graph.begin_recording(Queue);
+    Graph.end_recording(Queue);
+  }
+  ASSERT_FALSE(getSyclObjImpl(BeforeRecording)->isPotentiallyNativeRecorded());
+
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(BeforeRecording);
+    CGH.single_task<TestKernel>([]() {});
+  });
+
+  EXPECT_EQ(getUrWaitLists("urEnqueueKernelLaunchWithArgsExp"),
+            (UrWaitLists{{}, {}}));
+}
+
+TEST_F(NativeRecordingTest, ContextMultipleRecordingsActive) {
+  sycl::queue SecondQueue{Dev, {sycl::property::queue::in_order{}}};
+  sycl::detail::context_impl &Ctx = *getSyclObjImpl(Queue.get_context());
+  ASSERT_EQ(SecondQueue.get_context(), Queue.get_context());
+
+  auto Graph = makeGraph();
+  auto SecondGraph = makeGraph();
+  EXPECT_FALSE(Ctx.isNativeRecordingActive());
+
+  Graph.begin_recording(Queue);
+  EXPECT_TRUE(Ctx.isNativeRecordingActive());
+
+  SecondGraph.begin_recording(SecondQueue);
+  EXPECT_TRUE(Ctx.isNativeRecordingActive());
+
+  Graph.end_recording(Queue);
+  EXPECT_TRUE(Ctx.isNativeRecordingActive());
+
+  SecondGraph.end_recording(SecondQueue);
+  EXPECT_FALSE(Ctx.isNativeRecordingActive());
+}
+
+TEST_F(NativeRecordingTest, ContextRecordingActiveGraphDestroyed) {
+  sycl::detail::context_impl &Ctx = *getSyclObjImpl(Queue.get_context());
+  {
+    auto Graph = makeGraph();
+    Graph.begin_recording(Queue);
+    EXPECT_TRUE(Ctx.isNativeRecordingActive());
+  }
+  EXPECT_FALSE(Ctx.isNativeRecordingActive());
+}
+
+TEST_F(NativeRecordingTest, ContextRecordingActiveQueueDestroyed) {
+  sycl::detail::context_impl &Ctx = *getSyclObjImpl(Queue.get_context());
+  {
+    auto Graph = makeGraph();
+    {
+      sycl::queue RecordingQueue{Dev, {sycl::property::queue::in_order{}}};
+      ASSERT_EQ(RecordingQueue.get_context(), Queue.get_context());
+      Graph.begin_recording(RecordingQueue);
+      EXPECT_TRUE(Ctx.isNativeRecordingActive());
+    }
+    EXPECT_TRUE(Ctx.isNativeRecordingActive());
+  }
+  // The graph is responsible for cleaning up the context flag if the queue
+  // is destroyed.
+  EXPECT_FALSE(Ctx.isNativeRecordingActive());
+}
+
+TEST_F(NativeRecordingTest, ContextRecordingActiveNonNativeGraph) {
+  sycl::context SyclCtx = Queue.get_context();
+  sycl::detail::context_impl &Ctx = *getSyclObjImpl(SyclCtx);
+  ModifiableGraph Graph{SyclCtx, Dev};
+
+  Graph.begin_recording(Queue);
+  EXPECT_FALSE(Ctx.isNativeRecordingActive());
+  Graph.end_recording(Queue);
+}
+
+TEST_F(NativeRecordingTest, ContextRecordingActiveBeginFailure) {
+  sycl::detail::context_impl &Ctx = *getSyclObjImpl(Queue.get_context());
+  auto Graph = makeGraph();
+
+  FAIL_UR_BEFORE(urQueueBeginCaptureIntoGraphExp,
+                 UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED);
+  expectFailure([&]() { Graph.begin_recording(Queue); },
+                UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED);
+  EXPECT_FALSE(Ctx.isNativeRecordingActive());
+}
+
+TEST_F(NativeRecordingTest, ContextRecordingActiveEndCaptureUrFailsAfter) {
+  sycl::detail::context_impl &Ctx = *getSyclObjImpl(Queue.get_context());
+  auto Graph = makeGraph();
+
+  Graph.begin_recording(Queue);
+  ASSERT_TRUE(Ctx.isNativeRecordingActive());
+
+  FAIL_UR_AFTER(urQueueEndGraphCaptureExp,
+                UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS);
+  expectFailure([&]() { Graph.end_recording(Queue); },
+                UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS);
+  EXPECT_FALSE(Ctx.isNativeRecordingActive());
 }
