@@ -224,11 +224,11 @@ int main(int argc, char *argv[]) {
   }
 
   // CleanupFailed is set by the guard's destructor, which only logs on
-  // failure; capturing the whole test body in a lambda lets us observe
-  // that flag (after the guard has already run) before main returns.
+  // failure.
   bool CleanupFailed = false;
+  int TestExitCode;
 
-  int TestExitCode = [&SyclDevice, &CleanupFailed, MemorySizeBytes]() -> int {
+  do {
     struct SyclCleanupGuard {
       const sycl::device &device;
       bool &Failed;
@@ -255,23 +255,27 @@ int main(int argc, char *argv[]) {
         auto TestPassed = runTest(VulkanCtx, SyclDevice, MemorySizeBytes);
         if (TestPassed) {
           std::cout << "Test passed!\n";
-          return 0;
+          TestExitCode = 0;
+          break;
         }
       } catch (const std::exception &e) {
         std::cerr << "Vulkan test failed: " << e.what() << "\n";
-        return 11;
+        TestExitCode = 11;
+        break;
       } catch (...) {
         std::cerr << "Unknown exception during Vulkan test.\n";
-        return 12;
+        TestExitCode = 12;
+        break;
       }
     } catch (const std::exception &e) {
       std::cerr << "Vulkan setup failed: " << e.what() << "\n";
-      return 4;
+      TestExitCode = 4;
+      break;
     }
 
     std::cerr << "Test failed\n";
-    return 10;
-  }();
+    TestExitCode = 10;
+  } while (false);
 
   if (CleanupFailed && TestExitCode == 0) {
     std::cerr << "Test failed due to SYCL cleanup error\n";
