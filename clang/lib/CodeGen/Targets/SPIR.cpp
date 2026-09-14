@@ -224,7 +224,7 @@ class AMDGCNSPIRVABIInfo : public SPIRVABIInfo {
 
   ABIArgInfo classifyReturnType(QualType RetTy) const;
   ABIArgInfo classifyKernelArgumentType(QualType Ty) const;
-  ABIArgInfo classifyArgumentType(QualType Ty) const;
+  ABIArgInfo classifyArgumentType(QualType Ty, bool Variadic) const;
 
 public:
   AMDGCNSPIRVABIInfo(CodeGenTypes &CGT) : SPIRVABIInfo(CGT) {}
@@ -472,12 +472,19 @@ ABIArgInfo AMDGCNSPIRVABIInfo::classifyKernelArgumentType(QualType Ty) const {
   return ABIArgInfo::getDirect(LTy, 0, nullptr, false);
 }
 
-ABIArgInfo AMDGCNSPIRVABIInfo::classifyArgumentType(QualType Ty) const {
+ABIArgInfo AMDGCNSPIRVABIInfo::classifyArgumentType(QualType Ty,
+                                                    bool Variadic) const {
   assert(NumRegsLeft <= MaxNumRegsForArgsRet && "register estimate underflow");
 
   Ty = useFirstFieldIfTransparentUnion(Ty);
 
-  // TODO: support for variadics.
+  if (Variadic) {
+    return ABIArgInfo::getDirect(/*T=*/nullptr,
+                                 /*Offset=*/0,
+                                 /*Padding=*/nullptr,
+                                 /*CanBeFlattened=*/false,
+                                 /*Align=*/0);
+  }
 
   if (!isAggregateTypeForABI(Ty)) {
     ABIArgInfo ArgInfo = DefaultABIInfo::classifyArgumentType(Ty);
@@ -548,12 +555,17 @@ void AMDGCNSPIRVABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
 
+  unsigned ArgumentIndex = 0;
+  const unsigned NumRequiredArgs = FI.getNumRequiredArgs();
+
   NumRegsLeft = MaxNumRegsForArgsRet;
   for (auto &I : FI.arguments()) {
-    if (CC == llvm::CallingConv::SPIR_KERNEL)
+    if (CC == llvm::CallingConv::SPIR_KERNEL) {
       I.info = classifyKernelArgumentType(I.type);
-    else
-      I.info = classifyArgumentType(I.type);
+    } else {
+      bool FixedArgument = ArgumentIndex++ < NumRequiredArgs;
+      I.info = classifyArgumentType(I.type, !FixedArgument);
+    }
   }
 }
 
