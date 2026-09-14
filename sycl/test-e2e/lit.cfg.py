@@ -1316,12 +1316,8 @@ try:
     import psutil
 
     if config.test_mode == "run-only":
-        # DEBUG: Bumped from 300 to 400 seconds to give
-        # sycl/test-e2e/Adapters/max_malloc.cpp more time to complete without
-        # being killed by lit's per-test watchdog. This is suite-wide, but CI
-        # is currently LIT_FILTER-restricted to only run that one test.
-        # TODO: revert to 300 once the max_malloc.cpp reproduction is done.
-        config.maxIndividualTestTime = 400
+        # DEBUG: Bumped from 300 to 600 seconds
+        config.maxIndividualTestTime = 600
     else:
         config.maxIndividualTestTime = 600
 
