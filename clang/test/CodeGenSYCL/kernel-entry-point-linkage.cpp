@@ -32,7 +32,19 @@ void trigger_implicit() {
 
 // Explicit instantiation of the entry-point template -> weak_odr.
 template void kernel_single_task<ExplicitKernelName, Functor>(Functor);
+// inline kernel entry point -> weak_odr.
+[[clang::sycl_kernel_entry_point(InlineKernelName)]]
+inline void inline_non_template_kernel(Functor kernelFunc) {
+  kernelFunc();
+}
 
+// kernel entry point in unnamed namespace -> strong external.
+namespace {
+[[clang::sycl_kernel_entry_point(UnnamedNSKernelName)]]
+void non_template_kernel_in_unnamed_namespace(Functor kernelFunc) {
+  kernelFunc();
+}
+}
 // Non-template kernel entry point -> strong external.
 [[clang::sycl_kernel_entry_point(NonTemplateKernelName)]]
 void non_template_kernel(Functor kernelFunc) {
