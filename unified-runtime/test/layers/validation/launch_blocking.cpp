@@ -52,7 +52,6 @@ struct launchBlockingTest : ::testing::Test {
               UR_RESULT_SUCCESS);
     ASSERT_EQ(urQueueCreate(Context, Device, nullptr, &Queue),
               UR_RESULT_SUCCESS);
-    // Only what the queue itself needed, if anything.
     QueueFinishCount = 0;
   }
 
