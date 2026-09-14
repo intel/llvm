@@ -260,26 +260,26 @@ int main(int argc, char *argv[]) {
         }
       } catch (const std::exception &e) {
         std::cerr << "Vulkan test failed: " << e.what() << "\n";
-        TestExitCode = 11;
+        TestExitCode = 1;
         break;
       } catch (...) {
         std::cerr << "Unknown exception during Vulkan test.\n";
-        TestExitCode = 12;
+        TestExitCode = 1;
         break;
       }
     } catch (const std::exception &e) {
       std::cerr << "Vulkan setup failed: " << e.what() << "\n";
-      TestExitCode = 4;
+      TestExitCode = 1;
       break;
     }
 
     std::cerr << "Test failed\n";
-    TestExitCode = 10;
+    TestExitCode = 1;
   } while (false);
 
   if (CleanupFailed && TestExitCode == 0) {
     std::cerr << "Test failed due to SYCL cleanup error\n";
-    return 13;
+    return 1;
   }
 
   return TestExitCode;
