@@ -16,39 +16,65 @@ def remove_level_zero_suffix(devices):
     return [device.replace("_v2", "").replace("_v1", "") for device in devices]
 
 
-def parse_min_intel_driver_req(line_number, line, output):
-    """
-    Driver version looks like this for Intel devices:
-          Linux/L0:       [1.3.26370]
-          Linux/opencl:   [23.22.26370.18]
-          Windows/L0:     [1.3.26370]
-          Windows/opencl: [31.0.101.4502]
-    Only "26370" and "101.4502" are interesting for us for the purpose of detecting
-    if the driver has required changes or not. As such we refer to the former
-    (5-digit) as "lin" format and as "win" for the latter."""
-    if not output:
-        output = {}
+# Intel devices report their driver version in one of a few formats, and which
+# one is reported depends on the backend and the OS rather than on the hardware:
+#
+#       L0 (any OS):     [1.3.26370]          -> compute-runtime build "26370"
+#       OpenCL/Linux:    [23.22.26370.18]     -> compute-runtime build "26370"
+#       OpenCL/Windows:  [31.0.101.4502]      -> Windows package version "101.4502"
+#       CPU (OpenCL):    [2024.18.12.0.05_160000]
+#
+# The compute-runtime build number (five digits) is the one reported by the
+# Level Zero adapter everywhere, so it is the OS-agnostic way to gate a test.
+# The Windows package version (101.XXXX) is *only* visible under the OpenCL
+# backend on Windows. To make this distinction explicit (and to stop a
+# Windows-only requirement from silently passing when the device only reports
+# the L0 build number) each format has its own directive:
+#
+#       REQUIRES-L0-DRIVER:             26370       (Level Zero build number)
+#       REQUIRES-INTEL-WINDOWS-DRIVER:  101.4502    (Windows OpenCL package)
+#       REQUIRES-INTEL-CPU-DRIVER:      2024.18.12  (CPU OpenCL runtime)
+#
+# These correspond to the "l0", "intel_windows" and "intel_cpu" keys of the
+# per-device version dictionary built in lit.cfg.py.
 
-    lin = re.search(r"lin: *([0-9]{5})", line)
-    if lin:
-        if "lin" in output:
-            raise ValueError('Multiple entries for "lin" version')
-        output["lin"] = int(lin.group(1))
 
-    win = re.search(r"win: *([0-9]{3}\.[0-9]{4})", line)
-    if win:
-        if "win" in output:
-            raise ValueError('Multiple entries for "win" version')
-        # Return "win" version as (101, 4502) to ease later comparison.
-        output["win"] = tuple(map(int, win.group(1).split(".")))
+def parse_l0_driver_req(line_number, line, output):
+    """Level Zero driver requirement, e.g. `REQUIRES-L0-DRIVER: 26370`. The
+    value is the five-digit compute-runtime build number."""
+    if output is not None:
+        raise ValueError("Multiple REQUIRES-L0-DRIVER directives")
+    m = re.search(r"([0-9]{5})", line)
+    if not m:
+        raise ValueError(
+            "REQUIRES-L0-DRIVER expects a five-digit build number, e.g. 26370"
+        )
+    return int(m.group(1))
 
-    cpu = re.search(r"cpu:\s*([^\s]+)", line)
-    if cpu:
-        if "cpu" in output:
-            raise ValueError('Multiple entries for "cpu" version')
-        output["cpu"] = cpu.group(1)
 
-    return output
+def parse_intel_windows_driver_req(line_number, line, output):
+    """Windows package version requirement, e.g.
+    `REQUIRES-INTEL-WINDOWS-DRIVER: 101.4502`. Returned as a tuple such as
+    (101, 4502) to ease comparison."""
+    if output is not None:
+        raise ValueError("Multiple REQUIRES-INTEL-WINDOWS-DRIVER directives")
+    m = re.search(r"([0-9]+)\.([0-9]+)", line)
+    if not m:
+        raise ValueError(
+            "REQUIRES-INTEL-WINDOWS-DRIVER expects a package version, e.g. 101.4502"
+        )
+    return (int(m.group(1)), int(m.group(2)))
+
+
+def parse_intel_cpu_driver_req(line_number, line, output):
+    """CPU OpenCL runtime requirement, e.g. `REQUIRES-INTEL-CPU-DRIVER: 2026`.
+    The value is compared as a string."""
+    if output is not None:
+        raise ValueError("Multiple REQUIRES-INTEL-CPU-DRIVER directives")
+    m = re.search(r"(\S+)", line)
+    if not m:
+        raise ValueError("REQUIRES-INTEL-CPU-DRIVER expects a version value")
+    return m.group(1)
 
 
 def parse_run_if(line_number, line, output):
@@ -104,9 +130,19 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 test.getSourcePath(),
                 additional_parsers=[
                     IntegratedTestKeywordParser(
-                        "REQUIRES-INTEL-DRIVER:",
+                        "REQUIRES-L0-DRIVER:",
                         ParserKind.CUSTOM,
-                        parse_min_intel_driver_req,
+                        parse_l0_driver_req,
+                    ),
+                    IntegratedTestKeywordParser(
+                        "REQUIRES-INTEL-WINDOWS-DRIVER:",
+                        ParserKind.CUSTOM,
+                        parse_intel_windows_driver_req,
+                    ),
+                    IntegratedTestKeywordParser(
+                        "REQUIRES-INTEL-CPU-DRIVER:",
+                        ParserKind.CUSTOM,
+                        parse_intel_cpu_driver_req,
                     ),
                     IntegratedTestKeywordParser(
                         "RUN-IF:", ParserKind.CUSTOM, parse_run_if
@@ -139,7 +175,18 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if parsed["ALLOW_RETRIES:"]:
             test.allowed_retries = parsed["ALLOW_RETRIES:"][0]
 
-        test.intel_driver_req = parsed["REQUIRES-INTEL-DRIVER:"]
+        # Minimum driver versions this test requires, keyed by the same format
+        # names used in config.intel_driver_ver (see lit.cfg.py). An entry is
+        # present only if the corresponding directive appears in the test.
+        test.intel_driver_req = {}
+        if parsed["REQUIRES-L0-DRIVER:"] is not None:
+            test.intel_driver_req["l0"] = parsed["REQUIRES-L0-DRIVER:"]
+        if parsed["REQUIRES-INTEL-WINDOWS-DRIVER:"] is not None:
+            test.intel_driver_req["intel_windows"] = parsed[
+                "REQUIRES-INTEL-WINDOWS-DRIVER:"
+            ]
+        if parsed["REQUIRES-INTEL-CPU-DRIVER:"] is not None:
+            test.intel_driver_req["intel_cpu"] = parsed["REQUIRES-INTEL-CPU-DRIVER:"]
 
         return script
 
@@ -224,18 +271,29 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if self.getMatchedUnsupported(features, test.unsupported):
                 continue
 
-            driver_ok = True
             if test.intel_driver_req:
-                for fmt in ["lin", "win", "cpu"]:
-                    if (
-                        fmt in test.intel_driver_req
-                        and fmt in test.config.intel_driver_ver[full_name]
-                        and test.config.intel_driver_ver[full_name][fmt]
-                        < test.intel_driver_req[fmt]
+                # Empty for non-Intel devices, in which case an Intel-driver
+                # requirement is simply inapplicable and does not gate the test.
+                dev_ver = test.config.intel_driver_ver[full_name]
+                if dev_ver:
+                    # An Intel device reports its version in exactly one of
+                    # these formats (which one depends on the backend and OS -
+                    # see the comment in lit.cfg.py), so a test that needs to
+                    # gate on multiple device configurations specifies each
+                    # relevant format. Check every required format the device
+                    # actually reports.
+                    relevant = [fmt for fmt in test.intel_driver_req if fmt in dev_ver]
+                    if not relevant:
+                        # The device reports none of the required formats, so we
+                        # cannot confirm its driver is new enough. Fail closed
+                        # and skip rather than silently running the test - this
+                        # is what a bare REQUIRES-INTEL-WINDOWS-DRIVER used to
+                        # get wrong on Level Zero (see intel/llvm#23004).
+                        continue
+                    if any(
+                        dev_ver[fmt] < test.intel_driver_req[fmt] for fmt in relevant
                     ):
-                        driver_ok = False
-            if not driver_ok:
-                continue
+                        continue
 
             devices.append(full_name)
 

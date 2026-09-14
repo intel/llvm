@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES-L0-DRIVER: 26690
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4576
 // The test checks functionality of the gather_rgba/scatter_rgba local
 // accessor-based ESIMD intrinsics.
 #include <iostream>

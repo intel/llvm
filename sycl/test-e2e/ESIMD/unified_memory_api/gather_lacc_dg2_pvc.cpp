@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: gpu-intel-dg2 || arch-intel_gpu_pvc
-// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES-L0-DRIVER: 26690
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4576
 
 // Use per-kernel compilation to have more information about failing cases.
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out

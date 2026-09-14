@@ -1,5 +1,6 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
-// REQUIRES-INTEL-DRIVER: lin: 37561, win: 101.8724
+// REQUIRES-L0-DRIVER: 37561
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.8724
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

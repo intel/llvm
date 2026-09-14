@@ -10,7 +10,8 @@
 //
 //
 // Note: "lin" format below is used for Win L0 as well.
-// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.51086
+// REQUIRES-L0-DRIVER: 26816
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.51086
 //
 
 // This test verifies usage of slm_block_load() and slm_block_store().

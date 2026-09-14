@@ -9,7 +9,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// REQUIRES-INTEL-DRIVER: lin: 28690
+// REQUIRES-L0-DRIVER: 28690
 
 // This is basic test to validate rdtsc function.
 

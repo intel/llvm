@@ -6,7 +6,7 @@
 
 // Support for ZE_STRUCTURE_TYPE_CUSTOM_PITCH_EXP_DESC was added in Level Zero
 // build 38646.
-// REQUIRES-INTEL-DRIVER: lin: 38646
+// REQUIRES-L0-DRIVER: 38646
 
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957

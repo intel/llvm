@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES-L0-DRIVER: 26690
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4576
 // Use per-kernel compilation to have more information about failing cases.
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out

@@ -1,7 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 
 // Test requires at least this version of the Intel GPU driver on Arc.
-// REQUIRES-INTEL-DRIVER: lin: 32370
+// REQUIRES-L0-DRIVER: 32370
 
 // UNSUPPORTED: target-amd || level_zero
 // UNSUPPORTED-INTENDED: Unimplemented in the HIP adapter yet.

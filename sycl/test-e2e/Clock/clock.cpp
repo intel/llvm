@@ -1,4 +1,4 @@
-// REQUIRES-INTEL-DRIVER: cpu: 2026
+// REQUIRES-INTEL-CPU-DRIVER: 2026
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

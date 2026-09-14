@@ -1,4 +1,5 @@
-// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+// REQUIRES-L0-DRIVER: 26816
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4576
 // REQUIRES: linux && level_zero
 
 // RUN: %{build} -o %t.out

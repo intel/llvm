@@ -1,5 +1,6 @@
 //
-// REQUIRES-INTEL-DRIVER: lin: 28454, win: 101.5333
+// REQUIRES-L0-DRIVER: 28454
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.5333
 //
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out

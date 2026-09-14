@@ -12,7 +12,8 @@
 // REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix, gpu
-// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
+// REQUIRES-L0-DRIVER: 27501
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4943
 
 // RUN: %{build} -o %t.out -DINIT_LIST -DVNNI %fp-model-precise
 // RUN: %{run} %t.out
