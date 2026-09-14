@@ -122,6 +122,18 @@ TEST_F(launchBlockingTest, DoesNotDrainWhileCapturingAGraph) {
   EXPECT_EQ(QueueFinishCount, 0);
 }
 
+// A fault the drain reports becomes the command's result, which is the point of
+// blocking: it is reported at the command that caused it.
+TEST_F(launchBlockingTest, ReportsAFailedDrain) {
+  SetUp("UR_LAYER_LAUNCH_BLOCKING");
+  mock::getCallbacks().set_replace_callback("urQueueFinish", [](void *) {
+    ++QueueFinishCount;
+    return UR_RESULT_ERROR_DEVICE_LOST;
+  });
+  EXPECT_EQ(enqueueWork(), UR_RESULT_ERROR_DEVICE_LOST);
+  EXPECT_EQ(QueueFinishCount, 1);
+}
+
 // A failed enqueue submitted nothing to wait for.
 TEST_F(launchBlockingTest, DoesNotDrainWhenTheCommandFails) {
   SetUp("UR_LAYER_LAUNCH_BLOCKING");

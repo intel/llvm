@@ -40,13 +40,20 @@ namespace ur_validation_layer
 
         tracked_params = list(filter(lambda p: any(th.subt(n, tags, p['type']) in [hf['handle'], hf['handle'] + "*"] for hf in handle_create_get_retain_release_funcs), obj['params']))
 
-        # Left out of launch blocking: these enqueue no work of their own, and
-        # their wait list may hold an event the application signals later.
+        # Markers: no work of their own, and their wait list may hold an event
+        # the application signals later. Timestamp recording does enqueue work,
+        # but takes its own `blocking` parameter, and blocking it would make
+        # SYCL's profiling tag synchronous only where this native path is taken.
         launch_blocking_excluded = [x + suffix for suffix in [
             "EnqueueEventsWait", "EnqueueEventsWaitWithBarrier",
             "EnqueueEventsWaitWithBarrierExt", "EnqueueTimestampRecordingExp"]]
+        # Commands outside the Enqueue tables that submit work to a queue.
+        # WaitExternalSemaphoreExp is not one: it waits for an external signal.
+        launch_blocking_extra = [x + suffix for suffix in [
+            "BindlessImagesImageCopyExp",
+            "BindlessImagesSignalExternalSemaphoreExp"]]
         blocks_on_queue = ((func_name.startswith(x + "Enqueue") or
-                            func_name == x + "BindlessImagesImageCopyExp") and
+                            func_name in launch_blocking_extra) and
                            func_name not in launch_blocking_excluded and
                            len(obj['params']) > 0 and
                            th.subt(n, tags, obj['params'][0]['type']) == x + "_queue_handle_t")
@@ -161,7 +168,7 @@ namespace ur_validation_layer
         %if blocks_on_queue:
         if( getContext()->enableLaunchBlocking && result == ${X}_RESULT_SUCCESS )
         {
-            getContext()->blockOnQueue( ${obj['params'][0]['name']} );
+            result = getContext()->blockOnQueue( ${obj['params'][0]['name']} );
         }
         %endif
 

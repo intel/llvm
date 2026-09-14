@@ -4024,7 +4024,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4114,7 +4114,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4247,7 +4247,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4381,7 +4381,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4483,7 +4483,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4622,7 +4622,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4727,7 +4727,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4825,7 +4825,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4923,7 +4923,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5031,7 +5031,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5127,7 +5127,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5203,7 +5203,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5296,7 +5296,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5389,7 +5389,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5472,7 +5472,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5532,7 +5532,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5641,7 +5641,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
                    numEventsInWaitList, phEventWaitList, phEvent);
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5749,7 +5749,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
                      height, numEventsInWaitList, phEventWaitList, phEvent);
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5839,7 +5839,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5929,7 +5929,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -6020,7 +6020,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -6112,7 +6112,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -6231,7 +6231,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -6907,7 +6907,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -6988,7 +6988,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -7069,7 +7069,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -7140,7 +7140,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -7991,7 +7991,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
       numEventsInWaitList, phEventWaitList, phEvent);
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -8823,6 +8823,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
   ur_result_t result = pfnSignalExternalSemaphoreExp(
       hQueue, hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
       phEventWaitList, phEvent);
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
 
   return result;
 }
@@ -11413,7 +11417,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -11668,7 +11672,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -11818,7 +11822,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -12090,7 +12094,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueGraphExp(
   }
 
   if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    getContext()->blockOnQueue(hQueue);
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;

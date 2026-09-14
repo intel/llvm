@@ -196,7 +196,8 @@ Currently, AddressSanitizer only supports some of the devices on OpenCL and Leve
 Launch blocking
 ---------------------
 
-The validation layer implements a debugging mode (`UR_LAYER_LAUNCH_BLOCKING`) which makes commands enqueued to a queue synchronous: an enqueue does not return until the queue has drained, so a device fault is reported at the command that caused it. It serializes the application, which is why `UR_LAYER_FULL_VALIDATION` does not enable it. The SYCL Runtime enables it for `SYCL_LAUNCH_BLOCKING=1`.
+The validation layer implements a debugging mode (`UR_LAYER_LAUNCH_BLOCKING`) which makes commands enqueued to a queue synchronous: an enqueue does not return until the queue has drained, so a device fault is reported at the command that caused it. It serializes the application, which is why `UR_LAYER_FULL_VALIDATION` does not enable it. The SYCL Runtime enables it for `SYCL_LAUNCH_BLOCKING=1`. Markers, host tasks and capturing queues are not made synchronous, and the drain has no deadline, so work that can only complete through host progress after the enqueue returns hangs.
+
 Logging
 ---------------------
 

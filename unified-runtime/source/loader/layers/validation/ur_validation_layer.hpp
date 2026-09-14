@@ -44,9 +44,10 @@ public:
                    codeloc_data codelocData) override;
   ur_result_t tearDown() override;
 
-  /// Drains \p hQueue. Never fails: a queue an adapter cannot drain is left
-  /// asynchronous.
-  void blockOnQueue(ur_queue_handle_t hQueue);
+  /// Drains \p hQueue and returns what the drain reported, so that a fault it
+  /// finds becomes the result of the command that caused it. A queue an adapter
+  /// cannot drain is left asynchronous.
+  ur_result_t blockOnQueue(ur_queue_handle_t hQueue);
 
   std::unique_ptr<RefCountContext> refCountContext;
 

@@ -122,6 +122,12 @@ device work it enqueued has completed, so a device fault is reported at the
 submission that caused it rather than at the next wait. Analogous to CUDA's
 `CUDA_LAUNCH_BLOCKING=1`, for debugging only: it serializes the application.
 Default is `0`.
+
+The wait has no deadline, so a program hangs under it if the work it enqueued can
+only complete through host progress that happens after the submission returns \-
+for example a kernel spinning on a host-written flag. Host tasks, barriers and
+graph recording are not made synchronous.
+
 ## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
 
 This environment variable controls the preferred work-group size for reductions on specified device types. Setting this will affect all reductions without an explicitly specified work-group size on devices of types in the value of the environment variable.

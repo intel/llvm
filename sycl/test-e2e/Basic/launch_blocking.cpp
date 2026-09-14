@@ -182,14 +182,20 @@ static void runSubmitFromHostTask(sycl::queue &Q) {
 
 // One thread blocked in a host task must not hold up another thread.
 static void runSharedQueue(sycl::queue &Q) {
-  std::promise<void> Gate;
+  std::promise<void> Gate, Running;
   std::future<void> Gated = Gate.get_future();
+  std::future<void> IsRunning = Running.get_future();
   std::thread Blocked{[&]() {
     Q.submit([&](sycl::handler &CGH) {
-      CGH.host_task([&Gated]() { Gated.wait(); });
+      CGH.host_task([&]() {
+        Running.set_value();
+        Gated.wait();
+      });
     });
   }};
 
+  // Submit only once the host task is known to be blocking.
+  IsRunning.wait();
   int *Out = sycl::malloc_device<int>(1, Q);
   Q.single_task([=]() { *Out = 1; });
 
