@@ -7,19 +7,10 @@
 //===----------------------------------------------------------------------===//
 //
 // Implementation of the sycl_khr_properties extension: the
-// `sycl::khr::properties` compile-time property list container and the
-// associated classification traits.
+// `sycl::khr::properties` container and its classification traits.
 //
-// Design notes:
-//  * The list stores its properties as private base classes. Properties whose
-//    values are all compile-time (empty types) are NOT stored -- they are
-//    default-constructed on retrieval -- so an all-compile-time list is
-//    zero-overhead and a mixed list only pays for its runtime members. This
-//    keeps the list trivially copyable and cheap to compile (no std::tuple).
-//  * The list does not canonicalize (sort) its element order. Per the
-//    extension, two lists built from the same properties in a different order
-//    may have different types; comparison operators are intentionally not
-//    provided.
+// Compile-time-only properties are not stored (they are default-constructed on
+// retrieval); the list preserves element order (no sorting) per the extension.
 //
 //===----------------------------------------------------------------------===//
 
@@ -49,16 +40,9 @@ template <typename... EncodedProperties> class __SYCL_EBO properties;
 namespace property {
 namespace detail {
 
-//===----------------------------------------------------------------------===//
-// Base tags
-//
-// Every property derives (directly or via a convenience base) from
-// `property_tag`, and exposes a `__detail_key_t` alias naming its key. Every
-// key derives from `property_key_tag`; a key whose property has no
-// runtime-provided values additionally derives from
-// `compile_time_property_key_tag`.
-//===----------------------------------------------------------------------===//
-
+// Every property derives from `property_tag` and exposes a `__detail_key_t`
+// alias naming its key. Every key derives from `property_key_tag`; a
+// compile-time key also derives from `compile_time_property_key_tag`.
 struct property_tag {};
 struct property_key_tag {};
 struct compile_time_property_key_tag : property_key_tag {};
@@ -76,26 +60,15 @@ inline constexpr bool __detail_has_runtime_value =
     !std::is_base_of_v<compile_time_property_key_tag,
                        typename Prop::__detail_key_t>;
 
-//===----------------------------------------------------------------------===//
-// Convenience base classes for defining properties
-//
-// These mirror the patterns in the extension's "Examples for implementors".
-// Implementations may define properties directly on `property_base`/the tags,
-// but these reduce boilerplate for the common shapes.
-//===----------------------------------------------------------------------===//
+// Convenience base classes for defining properties, mirroring the extension's
+// examples for implementors. Properties may also be defined directly on the
+// tags above.
 
-// Base for a runtime property key (all of the property's values are supplied at
-// runtime). Usage:
-//   struct my_key : property::detail::runtime_property_key {};
-//   struct my_prop : property::detail::runtime_property<my_key> { int value;
-//   ... };
+// Runtime property key: all of the property's values are supplied at runtime.
 struct runtime_property_key : property_key_tag {};
 template <typename Key> struct runtime_property : property_base<Key> {};
 
-// Base for a compile-time property key with a single non-type value. Usage:
-//   struct my_key : property::detail::constant_value_property_key {};
-//   template <int V>
-//   inline constexpr my_key::__detail_property_t<my_key, int, V> my_prop;
+// Compile-time key with a single non-type value.
 struct constant_value_property_key : compile_time_property_key_tag {
   template <typename PropertyKey, typename Type, Type Value>
   struct __detail_property_t : property_base<PropertyKey> {
@@ -103,10 +76,7 @@ struct constant_value_property_key : compile_time_property_key_tag {
   };
 };
 
-// Base for a compile-time property key with a single type value. Usage:
-//   struct my_key : property::detail::constant_type_property_key {};
-//   template <typename T>
-//   inline constexpr my_key::__detail_property_t<my_key, T> my_prop;
+// Compile-time key with a single type value.
 struct constant_type_property_key : compile_time_property_key_tag {
   template <typename PropertyKey, typename Type>
   struct __detail_property_t : property_base<PropertyKey> {
@@ -114,19 +84,12 @@ struct constant_type_property_key : compile_time_property_key_tag {
   };
 };
 
-// Base for a hybrid property key (some values compile-time, some runtime). The
-// key is a runtime key (the property carries runtime data and is stored).
-// Usage:
-//   struct my_key : property::detail::hybrid_property_key {};
-//   template <int X> struct my_prop : property::detail::hybrid_property<my_key>
-//   {
-//     static constexpr int x = X; int y; constexpr my_prop(int y):y{y}{} };
+// Hybrid property key: some values compile-time, some runtime. The property
+// carries runtime data and is stored.
 struct hybrid_property_key : property_key_tag {};
 template <typename Key> struct hybrid_property : property_base<Key> {};
 
-//===----------------------------------------------------------------------===//
-// Retrieval / storage machinery
-//===----------------------------------------------------------------------===//
+// Retrieval / storage machinery.
 
 // Selects, from a pack of properties, the one whose key is `Key`. Assumes
 // exactly one match (enforced by the "no duplicate key" mandate).
@@ -183,10 +146,10 @@ struct is_properties_list<properties<Ps...>> : std::true_type {};
 } // namespace detail
 } // namespace property
 
-//===----------------------------------------------------------------------===//
-// Property traits
-//===----------------------------------------------------------------------===//
+// Classification traits.
 
+// A property list is not itself a property: it privately inherits its
+// properties, so is_base_of would otherwise report it as one -- exclude it.
 template <typename T>
 struct is_property
     : std::bool_constant<std::is_base_of_v<property::detail::property_tag, T> &&
@@ -235,10 +198,7 @@ template <typename T, typename Class>
 inline constexpr bool is_property_list_for_v =
     is_property_list_for<T, Class>::value;
 
-//===----------------------------------------------------------------------===//
-// The properties class
-//===----------------------------------------------------------------------===//
-
+// The properties container.
 template <typename... EncodedProperties>
 class __SYCL_EBO properties
     : private property::detail::storage_for<EncodedProperties...> {
@@ -300,15 +260,9 @@ properties(Properties... props) -> properties<Properties...>;
 
 using empty_properties_t = decltype(properties{});
 
-//===----------------------------------------------------------------------===//
-// Named properties
-//
-// The concrete properties defined by this extension live here (one header for
-// the whole extension). Each property registers the classes it applies to via
-// is_property_key_for. Constructor/overload support for these lives in the
-// respective SYCL object headers (e.g. queue.hpp).
-//===----------------------------------------------------------------------===//
-
+// Named properties. Each registers its supported classes via
+// is_property_key_for; constructor support lives in the object headers (e.g.
+// queue.hpp).
 namespace property {
 namespace key {
 struct enable_profiling : detail::runtime_property_key {};

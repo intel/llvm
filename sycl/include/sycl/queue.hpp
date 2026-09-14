@@ -200,6 +200,35 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
   friend sycl::detail::ImplUtils;
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // sycl_khr_properties: predicate and translation used by the khr constructors
+  // below. Declared here (before the constructors) as they are referenced in
+  // the constructors' default template arguments.
+  template <typename PropertyOrList>
+  static constexpr bool KhrPropsForQueue =
+      khr::is_property_for_v<PropertyOrList, queue> ||
+      khr::is_property_list_for_v<PropertyOrList, queue>;
+
+  template <typename PropertyOrList>
+  static property_list khrToPropertyList(const PropertyOrList &Props) {
+    if constexpr (khr::is_property_v<PropertyOrList>) {
+      return khrToPropertyList(khr::properties{Props});
+    } else {
+      detail::PropertyListBuilder Builder;
+      if constexpr (PropertyOrList::template has_property<
+                        khr::property::key::in_order>())
+        if (Props.template get_property<khr::property::key::in_order>().value)
+          Builder.template add<property::queue::in_order>();
+      if constexpr (PropertyOrList::template has_property<
+                        khr::property::key::enable_profiling>())
+        if (Props.template get_property<khr::property::key::enable_profiling>()
+                .value)
+          Builder.template add<property::queue::enable_profiling>();
+      return Builder.finalize();
+    }
+  }
+#endif
+
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
@@ -359,38 +388,11 @@ public:
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-  // sycl_khr_properties queue constructors. These mirror the property_list
-  // constructors above but accept a khr property or property list, translating
-  // it to the corresponding old-style property_list. PropertyOrList is not
-  // defaulted: the property_list constructors already cover the no-property
-  // case, and defaulting here would make e.g. `queue q{}` ambiguous.
-private:
-  template <typename PropertyOrList>
-  static constexpr bool KhrPropsForQueue =
-      khr::is_property_for_v<PropertyOrList, queue> ||
-      khr::is_property_list_for_v<PropertyOrList, queue>;
-
-  // Translate a khr property or property list into an old-style property_list.
-  template <typename PropertyOrList>
-  static property_list khrToPropertyList(const PropertyOrList &Props) {
-    if constexpr (khr::is_property_v<PropertyOrList>) {
-      return khrToPropertyList(khr::properties{Props});
-    } else {
-      detail::PropertyListBuilder Builder;
-      if constexpr (PropertyOrList::template has_property<
-                        khr::property::key::in_order>())
-        if (Props.template get_property<khr::property::key::in_order>().value)
-          Builder.template add<property::queue::in_order>();
-      if constexpr (PropertyOrList::template has_property<
-                        khr::property::key::enable_profiling>())
-        if (Props.template get_property<khr::property::key::enable_profiling>()
-                .value)
-          Builder.template add<property::queue::enable_profiling>();
-      return Builder.finalize();
-    }
-  }
-
-public:
+  // sycl_khr_properties queue constructors. Accept a khr property or property
+  // list and translate it to the old-style property_list (see khrToPropertyList
+  // in the private section). PropertyOrList is not defaulted: the property_list
+  // constructors already cover the no-property case, and defaulting here would
+  // make `queue q{}` ambiguous.
   template <typename PropertyOrList,
             typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
   explicit queue(PropertyOrList props) : queue(khrToPropertyList(props)) {}
