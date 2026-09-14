@@ -11,7 +11,7 @@ int main() {
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   int *Ptr = malloc_shared<int>(Size, Queue);
-  Queue.fill(Ptr, int{0}, Size).wait_and_throw();
+  Queue.fill(Ptr, int{0}, Size);
 
   unsigned HostTaskRuns = 0;
 
@@ -45,6 +45,8 @@ int main() {
     Queue.ext_oneapi_graph(GraphExec);
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
+  // Needed despite blocking: the host task node splits the graph into pieces
+  // submitted around it, and host tasks are not made synchronous.
   Queue.wait_and_throw();
 
   const int Reference = 2 * 2 * Iterations;

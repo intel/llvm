@@ -25,9 +25,28 @@ constexpr size_t Rows = 64;
 constexpr size_t Cols = 64;
 constexpr size_t N = Rows * Cols;
 
-static bool isComplete(sycl::event E) {
-  return E.get_info<sycl::info::event::command_execution_status>() ==
-         sycl::info::event_command_status::complete;
+static void checkComplete(sycl::event E) {
+  assert(E.get_info<sycl::info::event::command_execution_status>() ==
+         sycl::info::event_command_status::complete);
+}
+
+template <typename T> static void checkFilled(const T *Ptr, T Value) {
+  assert(Ptr[0] == Value && Ptr[N - 1] == Value);
+}
+
+// Work long enough that it cannot have finished on its own by the time the
+// event is queried, so that this check depends on blocking rather than on
+// timing.
+static void runLongKernel(sycl::queue &Q) {
+  constexpr int Iterations = 5'000'000;
+  int *Out = sycl::malloc_shared<int>(1, Q);
+  *Out = 0;
+  checkComplete(Q.single_task([=]() {
+    for (int I = 0; I < Iterations; ++I)
+      ++Out[0];
+  }));
+  assert(*Out == Iterations);
+  sycl::free(Out, Q);
 }
 
 static void runKernels(sycl::queue &Q) {
@@ -38,42 +57,43 @@ static void runKernels(sycl::queue &Q) {
 
   // Handler submission: submit_impl.
   ++Tag;
-  sycl::event E = Q.submit([&](sycl::handler &CGH) {
+  checkComplete(Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for(sycl::range<1>{N},
                      [=](sycl::id<1> Idx) { Out[Idx] = Tag; });
-  });
-  assert(isComplete(E) && Out[0] == Tag && Out[N - 1] == Tag);
+  }));
+  checkFilled(Out, Tag);
 
   // Kernel shortcut: submit_kernel_direct_impl.
   ++Tag;
-  E = Q.parallel_for(sycl::range<1>{N},
-                     [=](sycl::id<1> Idx) { Out[Idx] = Tag; });
-  assert(isComplete(E) && Out[0] == Tag && Out[N - 1] == Tag);
+  checkComplete(Q.parallel_for(sycl::range<1>{N},
+                               [=](sycl::id<1> Idx) { Out[Idx] = Tag; }));
+  checkFilled(Out, Tag);
 
   ++Tag;
-  E = Q.single_task([=]() {
+  checkComplete(Q.single_task([=]() {
     for (size_t I = 0; I < N; ++I)
       Out[I] = Tag;
-  });
-  assert(isComplete(E) && Out[0] == Tag && Out[N - 1] == Tag);
+  }));
+  checkFilled(Out, Tag);
 
   // Returns no event, taking the discard-event exit of the fast path.
   ++Tag;
   exp_ext::nd_launch(
       Q, sycl::nd_range<1>{sycl::range<1>{N}, sycl::range<1>{64}},
       [=](sycl::nd_item<1> It) { Out[It.get_global_id(0)] = Tag; });
-  assert(Out[0] == Tag && Out[N - 1] == Tag);
+  checkFilled(Out, Tag);
 
   // A reduction submits runtime-internal kernels around the user kernel.
   ++Tag;
-  E = Q.submit([&](sycl::handler &CGH) {
+  checkComplete(Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for(sycl::range<1>{N}, sycl::reduction(Sum, sycl::plus<int>()),
                      [=](sycl::id<1> Idx, auto &Reducer) {
                        Out[Idx] = Tag;
                        Reducer += 1;
                      });
-  });
-  assert(isComplete(E) && Out[0] == Tag && *Sum == static_cast<int>(N));
+  }));
+  checkFilled(Out, Tag);
+  assert(*Sum == static_cast<int>(N));
 
   // A stream makes submit_impl recurse to submit its flush host task.
   Q.submit([&](sycl::handler &CGH) {
@@ -81,7 +101,8 @@ static void runKernels(sycl::queue &Q) {
     CGH.single_task([=]() { OS << 1 << sycl::endl; });
   });
 
-  // A kernel depending on a host task cannot bypass the scheduler.
+  // A kernel depending on a host task cannot bypass the scheduler. Host tasks
+  // are not made synchronous, hence the wait.
   ++Tag;
   sycl::event HostEvent =
       Q.submit([&](sycl::handler &CGH) { CGH.host_task([]() {}); });
@@ -91,7 +112,7 @@ static void runKernels(sycl::queue &Q) {
                      [=](sycl::id<1> Idx) { Out[Idx] = Tag; });
   });
   Q.wait();
-  assert(Out[0] == Tag && Out[N - 1] == Tag);
+  checkFilled(Out, Tag);
 
   sycl::free(Sum, Q);
   sycl::free(Out, Q);
@@ -105,37 +126,41 @@ static void runMemOps(sycl::queue &Q) {
   auto prepareSrc = [&](char Value) { Q.memset(Src, Value, N); };
 
   // Event-returning operations: the scheduler-bypass path of submitMemOpHelper.
-  assert(isComplete(Q.memset(Dst, 1, N)) && Dst[0] == 1 && Dst[N - 1] == 1);
-  assert(isComplete(Q.fill(Dst, char{2}, N)) && Dst[0] == 2);
+  checkComplete(Q.memset(Dst, 1, N));
+  checkFilled(Dst, char{1});
+
+  checkComplete(Q.fill(Dst, char{2}, N));
+  checkFilled(Dst, char{2});
 
   prepareSrc(3);
-  assert(isComplete(Q.memcpy(Dst, Src, N)) && Dst[0] == 3 && Dst[N - 1] == 3);
+  checkComplete(Q.memcpy(Dst, Src, N));
+  checkFilled(Dst, char{3});
 
   prepareSrc(4);
-  assert(isComplete(Q.copy(reinterpret_cast<int *>(Src),
-                           reinterpret_cast<int *>(Dst), N / sizeof(int))) &&
-         Dst[0] == 4);
+  checkComplete(Q.copy(reinterpret_cast<int *>(Src),
+                       reinterpret_cast<int *>(Dst), N / sizeof(int)));
+  checkFilled(Dst, char{4});
 
   // 2D operations go through a command group instead. The pitch matches the
   // width, so the region is contiguous.
   prepareSrc(5);
-  assert(isComplete(Q.ext_oneapi_memcpy2d(Dst, Cols, Src, Cols, Cols, Rows)) &&
-         Dst[0] == 5 && Dst[N - 1] == 5);
+  checkComplete(Q.ext_oneapi_memcpy2d(Dst, Cols, Src, Cols, Cols, Rows));
+  checkFilled(Dst, char{5});
 
   // Void-returning free functions: the discard-event exit of the fast path.
   exp_ext::memset(Q, Dst, 6, N);
-  assert(Dst[0] == 6 && Dst[N - 1] == 6);
+  checkFilled(Dst, char{6});
 
   exp_ext::fill(Q, Dst, char{7}, N);
-  assert(Dst[0] == 7 && Dst[N - 1] == 7);
+  checkFilled(Dst, char{7});
 
   prepareSrc(8);
   exp_ext::memcpy(Q, Dst, Src, N);
-  assert(Dst[0] == 8 && Dst[N - 1] == 8);
+  checkFilled(Dst, char{8});
 
   prepareSrc(9);
   exp_ext::copy(Q, Src, Dst, N);
-  assert(Dst[0] == 9 && Dst[N - 1] == 9);
+  checkFilled(Dst, char{9});
 
   sycl::free(Dst, Q);
   sycl::free(Src, Q);
@@ -157,6 +182,7 @@ static void runBufferCase(sycl::queue &Q) {
   }
 }
 
+// Blocking never waits for a host task: the three cases below hang if it does.
 // A host task that only finishes once the submitting thread continues.
 static void runGatedHostTask(sycl::queue &Q) {
   std::promise<void> Gate;
@@ -180,7 +206,7 @@ static void runSubmitFromHostTask(sycl::queue &Q) {
   sycl::free(Out, Q);
 }
 
-// One thread blocked in a host task must not hold up another thread.
+// A thread blocked in a host task must not hold up another thread.
 static void runSharedQueue(sycl::queue &Q) {
   std::promise<void> Gate, Running;
   std::future<void> Gated = Gate.get_future();
@@ -194,8 +220,7 @@ static void runSharedQueue(sycl::queue &Q) {
     });
   }};
 
-  // Submit only once the host task is known to be blocking.
-  IsRunning.wait();
+  IsRunning.wait(); // Submit only once the host task is blocking.
   int *Out = sycl::malloc_device<int>(1, Q);
   Q.single_task([=]() { *Out = 1; });
 
@@ -206,13 +231,14 @@ static void runSharedQueue(sycl::queue &Q) {
 }
 
 int main() {
+  // Both queue kinds: they take different submission paths.
   sycl::queue InOrder{sycl::property::queue::in_order{}};
-  runKernels(InOrder);
-  runMemOps(InOrder);
-
   sycl::queue OutOfOrder;
-  runKernels(OutOfOrder);
-  runMemOps(OutOfOrder);
+  for (sycl::queue *Q : {&InOrder, &OutOfOrder}) {
+    runLongKernel(*Q);
+    runKernels(*Q);
+    runMemOps(*Q);
+  }
 
   runBufferCase(InOrder);
   runGatedHostTask(InOrder);
