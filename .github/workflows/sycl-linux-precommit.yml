@@ -86,6 +86,14 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             # DEBUG: Only run Adapters/max_malloc.cpp.
             env: '{"LIT_FILTER":"Adapters/max_malloc.cpp"}'
+          # DEBUG: Added to reproduce/verify the max_malloc.cpp failure seen
+          # on PVC (malloc_device() returning nullptr near the device's max
+          # memory).
+          - name: Intel / Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
+            # DEBUG: Only run Adapters/max_malloc.cpp.
+            env: '{"LIT_FILTER":"Adapters/max_malloc.cpp"}'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
