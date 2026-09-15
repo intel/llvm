@@ -254,6 +254,12 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
                                              hGraph, pNext, phExecutableGraph);
     }
 
+    bool hasEndGraphCapture() const {
+      return UsesLegacyExperimentalApi
+                 ? zeCommandListEndGraphCaptureExpLegacy != nullptr
+                 : zeCommandListEndGraphCaptureExp != nullptr;
+    }
+
     // Legacy experimental query results use different bit patterns than the
     // stable enumerators of the same name; translate to the stable ones.
     // Applied unconditionally: a known NEO bug makes the stable *Ext query
