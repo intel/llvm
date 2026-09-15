@@ -40,6 +40,21 @@ inline bool operator!=(const enable_profiling &lhs,
   return !(lhs == rhs);
 }
 
+struct low_power
+    : detail::run_time_property_key<low_power, detail::PropKind::LowPower> {
+  constexpr low_power(bool enable = true) : value(enable) {}
+  bool value;
+};
+
+using low_power_key = low_power;
+
+inline bool operator==(const low_power &lhs, const low_power &rhs) {
+  return lhs.value == rhs.value;
+}
+inline bool operator!=(const low_power &lhs, const low_power &rhs) {
+  return !(lhs == rhs);
+}
+
 template <>
 struct is_property_key_of<enable_profiling_key, sycl::event> : std::true_type {
 };
@@ -47,10 +62,14 @@ struct is_property_key_of<enable_profiling_key, sycl::event> : std::true_type {
 template <>
 struct is_property_key_of<enable_ipc_key, sycl::event> : std::true_type {};
 
+template <>
+struct is_property_key_of<low_power_key, sycl::event> : std::true_type {};
+
 namespace detail {
 enum make_event_flags : uint32_t {
   make_event_flag_enable_profiling = 1u << 0,
   make_event_flag_enable_ipc = 1u << 1,
+  make_event_flag_low_power = 1u << 2,
 };
 
 __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt, uint32_t Flags);
@@ -65,6 +84,10 @@ uint32_t getMakeEventFlags(const PropertyListT &props) {
   if constexpr (PropertyListT::template has_property<enable_ipc_key>()) {
     if (props.template get_property<enable_ipc_key>().value)
       Flags |= make_event_flag_enable_ipc;
+  }
+  if constexpr (PropertyListT::template has_property<low_power_key>()) {
+    if (props.template get_property<low_power_key>().value)
+      Flags |= make_event_flag_low_power;
   }
   return Flags;
 }

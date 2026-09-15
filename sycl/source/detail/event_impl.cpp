@@ -13,7 +13,6 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
 #include <sycl/device_selector.hpp>
-
 #include "detail/config.hpp"
 
 #include <chrono>
@@ -201,6 +200,13 @@ ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
     Desc.flags |= UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
   if (MIPCEnabled)
     Desc.flags |= UR_EXP_EVENT_FLAG_IPC_EXP;
+  
+  ur_exp_event_sync_mode_desc_t SyncDesc = {};
+  if (MLowPower) {                                                                                                                                                                                                                                                                                                   
+      SyncDesc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC;                                                                                                                                                                                                                                                     
+      SyncDesc.flags = UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;                                                                                                                                                                                                                                                     
+      Desc.pNext = &SyncDesc;                                                                                                                                                                                                                                                                                          
+  }
 
   ur_result_t Result =
       getAdapter().call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
