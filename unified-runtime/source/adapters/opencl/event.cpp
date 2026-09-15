@@ -195,6 +195,11 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
   case UR_EVENT_INFO_REFERENCE_COUNT: {
     return ReturnValue(Event->RefCount.getCount());
   }
+  case UR_EVENT_INFO_COMMAND_TYPE: {
+    if (Event->CommandTypeOverride)
+      return ReturnValue(*Event->CommandTypeOverride);
+    [[fallthrough]];
+  }
   default: {
     size_t CheckPropSize = 0;
     cl_int RetErr = clGetEventInfo(Event->CLEvent, CLEventInfo, propSize,
@@ -309,10 +314,55 @@ ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urEnqueueTimestampRecordingExp(ur_queue_handle_t, bool, uint32_t,
-                                           const ur_event_handle_t *,
-                                           ur_event_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_result_t urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, bool Blocking, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  // OpenCL has no native "record device timestamp" primitive. Some drivers
+  // (notably the Intel GPU driver) timestamp synchronization-only commands
+  // (barriers/markers) at the point they are inserted into the pipeline rather
+  // than when the preceding work actually completes, which breaks profiling-tag
+  // orderings (see https://github.com/intel/llvm/issues/22229). We therefore
+  // emulate a timestamp by enqueuing a lightweight *real* device command (a
+  // small buffer fill), whose profiling timestamps do reflect completion of the
+  // preceding work.
+  //
+  // This relies on OpenCL command profiling, which is only available when the
+  // queue was created with CL_QUEUE_PROFILING_ENABLE. If profiling is not
+  // enabled we cannot honor the request and report it as unsupported so the
+  // caller can fall back.
+  auto Queue = cast(hQueue);
+
+  cl_command_queue_properties QueueProperties = 0;
+  CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+      Queue->CLQueue, CL_QUEUE_PROPERTIES, sizeof(QueueProperties),
+      &QueueProperties, nullptr));
+  if (!(QueueProperties & CL_QUEUE_PROFILING_ENABLE))
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  cl_mem Buffer = nullptr;
+  UR_RETURN_ON_FAILURE(Queue->Context->getTimestampRecordingBuffer(&Buffer));
+
+  std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
+  for (uint32_t I = 0; I < numEventsInWaitList; I++)
+    CLWaitEvents[I] = cast(phEventWaitList[I])->CLEvent;
+  const cl_event *CLWaitList =
+      numEventsInWaitList ? CLWaitEvents.data() : nullptr;
+
+  const cl_uint Pattern = 0;
+  cl_event Event = nullptr;
+  CL_RETURN_ON_FAILURE(clEnqueueFillBuffer(
+      Queue->CLQueue, Buffer, &Pattern, sizeof(Pattern), /*offset=*/0,
+      /*size=*/sizeof(Pattern), numEventsInWaitList, CLWaitList,
+      ifUrEvent(phEvent, Event)));
+
+  UR_RETURN_ON_FAILURE(createUREvent(Event, cast(Queue->Context), cast(Queue),
+                                     phEvent,
+                                     UR_COMMAND_TIMESTAMP_RECORDING_EXP));
+
+  if (Blocking)
+    CL_RETURN_ON_FAILURE(clFinish(Queue->CLQueue));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urEventCreateExp(ur_context_handle_t, ur_device_handle_t,
