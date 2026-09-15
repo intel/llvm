@@ -155,6 +155,7 @@ jobs:
           - name: Intel / GEN 12 Integrated
             runner: '["Linux", "gen12"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            env: '{"VK_LOADER_DRIVERS_DISABLE": "*nvidia*"}'
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
@@ -162,22 +163,27 @@ jobs:
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
+            env: '{"VK_LOADER_DRIVERS_DISABLE": "*nvidia*"}'
           - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
+            env: '{"VK_LOADER_DRIVERS_DISABLE": "*nvidia*"}'
           - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
+            env: '{"VK_LOADER_DRIVERS_DISABLE": "*nvidia*"}'
           - name: Preview Mode
             runner: '["Linux", "gen12"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
             skip_run: ${{ startsWith(github.base_ref, 'sycl-rel-') }}
+            env: '{"VK_LOADER_DRIVERS_DISABLE": "*nvidia*"}'
           - name: Intel / ARL with L0 v2
             runner: '["Linux", "arl"]'
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u
             extra_lit_opts: --param test-preview-mode=True
+            env: '{"VK_LOADER_DRIVERS_DISABLE": "*nvidia*"}'
 
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
@@ -203,6 +209,7 @@ jobs:
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      env: ${{ matrix.env || '{}' }}
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
