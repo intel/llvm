@@ -32,26 +32,14 @@ int main() {
     return 1;
   }
 
-  // Create Driver
-  uint32_t driver_handle_count = 0;
-  result = zeDriverGet(&driver_handle_count, nullptr);
-  if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeDriverGet failed\n";
-    return 1;
-  }
-  std::cout << "Found " << driver_handle_count << " driver(s)\n";
-  if (driver_handle_count == 0)
-    return 1;
-
-  std::vector<ze_driver_handle_t> driver_handles(driver_handle_count);
-  result = zeDriverGet(&driver_handle_count, driver_handles.data());
-  if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeDriverGet failed\n";
-    return 1;
-  }
-
-  ze_driver_handle_t ZeDriver = driver_handles[0];
-  std::cout << "Using default driver, index 0\n";
+  // Respects ONEAPI_DEVICE_SELECTOR, unlike raw zeDriverGet/zeDeviceGet.
+  device SyclSelectedDevice;
+  platform SyclSelectedPlatform = SyclSelectedDevice.get_platform();
+  ze_driver_handle_t ZeDriver =
+      get_native<backend::ext_oneapi_level_zero>(SyclSelectedPlatform);
+  ze_device_handle_t ZeDevice0 =
+      get_native<backend::ext_oneapi_level_zero>(SyclSelectedDevice);
+  std::cout << "Using SYCL-selected driver and device\n";
 
   // Create Context
   ze_context_handle_t ZeContext;
@@ -60,22 +48,6 @@ int main() {
     std::cout << "Context create failed\n";
     return 1;
   }
-
-  // Create Devices
-  uint32_t device_count = 0;
-  result = zeDeviceGet(ZeDriver, &device_count, nullptr);
-  if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeDeviceGet failed to get count of devices\n";
-    return 1;
-  }
-
-  std::vector<ze_device_handle_t> ZeDevices(device_count);
-  result = zeDeviceGet(ZeDriver, &device_count, ZeDevices.data());
-  if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeDeviceGet failed to get device handles\n";
-    return 1;
-  }
-  std::cout << "Using default device, index 0\n";
 
   // Create Command Queue
   ze_command_queue_desc_t Qdescriptor = {};
@@ -89,7 +61,7 @@ int main() {
 
 #ifndef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
   ze_command_queue_handle_t ZeCommand_queue = nullptr;
-  result = zeCommandQueueCreate(ZeContext, ZeDevices[0], &Qdescriptor,
+  result = zeCommandQueueCreate(ZeContext, ZeDevice0, &Qdescriptor,
                                 &ZeCommand_queue);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeCommandQueueCreate failed\n";
@@ -100,7 +72,7 @@ int main() {
 
   // Create Command List
   ze_command_list_handle_t ZeCommand_list = nullptr;
-  result = zeCommandListCreateImmediate(ZeContext, ZeDevices[0], &Qdescriptor,
+  result = zeCommandListCreateImmediate(ZeContext, ZeDevice0, &Qdescriptor,
                                         &ZeCommand_list);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeCommandListCreate failed\n";
@@ -110,7 +82,7 @@ int main() {
 
   // Interop object creation
   backend_traits<backend::ext_oneapi_level_zero>::return_type<device> ZeDevice;
-  ZeDevice = ZeDevices[0];
+  ZeDevice = ZeDevice0;
 
   backend_input_t<backend::ext_oneapi_level_zero, platform>
       InteropPlatformInput{ZeDriver};
