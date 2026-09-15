@@ -165,6 +165,16 @@ public:
            has_property<property::image::use_host_ptr>();
   }
 
+  bool canReadHostPtr(void *HostPtr, const size_t RequiredAlign) {
+    bool Aligned =
+        (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
+    return Aligned || useHostPtr();
+  }
+
+  bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
+    return !MHostPtrReadOnly && canReadHostPtr(HostPtr, RequiredAlign);
+  }
+
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
     MHostPtrProvided = true;
     if (!MHostPtrReadOnly && HostPtr) {
@@ -173,18 +183,24 @@ public:
       });
     }
 
-    if (!HostPtr)
-      return;
-
-    MUserPtr = HostPtr;
-    if (MHostPtrReadOnly) {
-      std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
-      MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+    if (HostPtr) {
+      if (canReuseHostPtr(HostPtr, RequiredAlign)) {
+        MUserPtr = HostPtr;
+      } else if (canReadHostPtr(HostPtr, RequiredAlign)) {
+        MUserPtr = HostPtr;
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
+        MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+          setAlign(RequiredAlign);
+          MShadowCopy = allocateHostMem();
+          MUserPtr = MShadowCopy;
+          std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+        };
+      } else {
         setAlign(RequiredAlign);
         MShadowCopy = allocateHostMem();
         MUserPtr = MShadowCopy;
         std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
-      };
+      }
     }
   }
 
@@ -198,22 +214,27 @@ public:
     MHostPtrProvided = true;
     MSharedPtrStorage = HostPtr;
     MHostPtrReadOnly = IsConstPtr;
+    if (HostPtr) {
+      if (!MHostPtrReadOnly)
+        set_final_data_from_storage();
 
-    if (!HostPtr)
-      return;
-
-    if (!MHostPtrReadOnly)
-      set_final_data_from_storage();
-
-    MUserPtr = HostPtr.get();
-    if (MHostPtrReadOnly) {
-      std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
-      MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+      if (canReuseHostPtr(HostPtr.get(), RequiredAlign)) {
+        MUserPtr = HostPtr.get();
+      } else if (canReadHostPtr(HostPtr.get(), RequiredAlign)) {
+        MUserPtr = HostPtr.get();
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
+        MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+          setAlign(RequiredAlign);
+          MShadowCopy = allocateHostMem();
+          MUserPtr = MShadowCopy;
+          std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
+        };
+      } else {
         setAlign(RequiredAlign);
         MShadowCopy = allocateHostMem();
         MUserPtr = MShadowCopy;
         std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
-      };
+      }
     }
   }
 
