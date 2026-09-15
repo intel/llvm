@@ -2325,25 +2325,26 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
     }
   }
 
-  if (QueueImpl.hasCommandGraph() && !IsRecordingToThisGraph)
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "end_recording called for a queue which is recording "
-                          "to a different graph.");
+  if (IsRecordingToThisGraph)
+    return;
 
-  // A natively recording queue carries no SYCL command-graph, so the checks
-  // above cannot see it. The graph lock is released by now: querying the queue
-  // while holding it would invert the queue/graph lock order.
-  if (!IsRecordingToThisGraph && QueueImpl.isNativeRecording()) {
-    if (QueueImpl.getNativeRecordingGraph().get() == impl.get())
-      throw sycl::exception(
-          sycl::make_error_code(errc::feature_not_supported),
-          "end_recording is only supported for the queue passed to "
-          "begin_recording, not for another queue capturing into the same "
-          "graph.");
+  // A natively recording queue carries no SYCL command-graph, so which graph it
+  // is capturing into has to be queried from the backend. The graph lock is
+  // released by now: querying the queue while holding it would invert the
+  // queue/graph lock order.
+  const bool IsNativeRecording = QueueImpl.isNativeRecording();
+  if (IsNativeRecording &&
+      QueueImpl.getNativeRecordingGraph().get() == impl.get())
+    throw sycl::exception(
+        sycl::make_error_code(errc::feature_not_supported),
+        "end_recording is only supported for the queue passed to "
+        "begin_recording, not for another queue capturing into the same "
+        "graph.");
+
+  if (QueueImpl.hasCommandGraph() || IsNativeRecording)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
-  }
 }
 
 void modifiable_command_graph::end_recording(
