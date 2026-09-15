@@ -1613,11 +1613,26 @@ void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
     }
 }
 
+// The kernel info map is filled from the offload entries of the device images
+// registered by the `__sycl_register_lib` constructors. A kernel missing from
+// it therefore means that no device image providing it made it into the
+// program, which is a build/link problem rather than a programming error -
+// report it as such instead of asserting.
+[[noreturn]] static void throwUnregisteredKernel(std::string_view KernelName) {
+  throw exception(make_error_code(errc::runtime),
+                  "No device image found for kernel '" +
+                      std::string(KernelName) +
+                      "'. The device code of the kernel has not been "
+                      "registered with the SYCL runtime, which usually means "
+                      "that it was dropped while linking the program.");
+}
+
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(Info.Name));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throwUnregisteredKernel(Info.Name);
   It->second.setCompileTimeInfoIfNeeded(Info);
   return It->second;
 }
@@ -1626,7 +1641,8 @@ DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throwUnregisteredKernel(KernelName);
   return It->second;
 }
 

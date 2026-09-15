@@ -186,6 +186,7 @@ private:
   mutable std::unique_ptr<Tool> FileTableTform;
   mutable std::unique_ptr<Tool> SpirvToIrWrapper;
   mutable std::unique_ptr<Tool> LinkerWrapper;
+  mutable std::unique_ptr<Tool> PartialLinker;
 
   Tool *getClang() const;
   Tool *getFlang() const;
@@ -206,6 +207,7 @@ private:
   Tool *getTableTform() const;
   Tool *getSpirvToIrWrapper() const;
   Tool *getLinkerWrapper() const;
+  Tool *getPartialLinker() const;
 
   /// Track if diagnostics have been emitted for sanitizer arguments already to
   /// avoid duplicate diagnostics.

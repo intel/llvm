@@ -23,6 +23,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
@@ -31,6 +32,7 @@
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
+#include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/Error.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/OffloadBundle.h"
@@ -633,6 +635,16 @@ class ObjectFileHandler final : public FileHandler {
 
     // If it does not start with the reserved suffix, just skip this section.
     if (llvm::identify_magic(*NameOrErr) != llvm::file_magic::offload_bundle)
+      return std::nullopt;
+
+    // The name prefix alone is not conclusive: clang-offload-wrapper names the
+    // device image data it embeds after the very same convention, so a wrapped
+    // (and therefore already finalized) device object would otherwise be
+    // mistaken for a fat object.  Bundles are always created excluded from the
+    // link - they hold no data for the host program - while an embedded device
+    // image is a regular allocated section.
+    if (isa<ELFObjectFileBase>(CurSection.getObject()) &&
+        !(ELFSectionRef(CurSection).getFlags() & ELF::SHF_EXCLUDE))
       return std::nullopt;
 
     // Return the triple that is right after the reserved prefix.
