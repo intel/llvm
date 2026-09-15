@@ -10479,11 +10479,12 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += '-';
     // Incoming DeviceArch is set, break down the Current triple and add the
     // device arch value to it.
-    // This is done for AOT targets only.
+    // This is done for the non-RDC SPIR-V targets, whose device slice holds a
+    // finalized device image rather than device IR.
     std::string DeviceArch;
     llvm::Triple TargetTriple(CurTC->getTriple());
-    if (CurKind == Action::OFK_SYCL && TargetTriple.isSPIRAOT() &&
-        tools::SYCL::shouldDoPerObjectFileLinking(C))
+    if (CurKind == Action::OFK_SYCL &&
+        tools::SYCL::hasFinalDeviceImage(C, TargetTriple))
       DeviceArch = std::string("image");
     if (CurKind != Action::OFK_Host && !DeviceArch.empty()) {
       llvm::Triple T(CurTC->getTriple());
@@ -10540,6 +10541,25 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       CmdArgs, ArrayRef<InputInfo>(), Output));
+}
+
+void PartialLink::ConstructJob(Compilation &C, const JobAction &JA,
+                               const InputInfo &Output,
+                               const InputInfoList &Inputs,
+                               const llvm::opt::ArgList &TCArgs,
+                               const char *LinkingOutput) const {
+  assert(isa<PartialLinkJobAction>(JA) && "Expecting partial link job!");
+
+  ArgStringList CmdArgs{"-r", "-o", Output.getFilename()};
+  for (const InputInfo &I : Inputs) {
+    assert(I.isFilename() && "Invalid input for the partial link.");
+    CmdArgs.push_back(I.getFilename());
+  }
+
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileCurCP(),
+      TCArgs.MakeArgString(getToolChain().GetLinkerPath()), CmdArgs, Inputs,
+      Output));
 }
 
 void OffloadBundler::ConstructJobMultipleOutputs(

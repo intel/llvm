@@ -306,6 +306,23 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
                               /*default=*/true);
 }
 
+bool SYCL::hasFinalDeviceImage(const Compilation &C,
+                               const llvm::Triple &TargetTriple) {
+  // NVPTX, AMDGCN and NativeCPU still require the device link to happen as
+  // part of the host link, so their objects are never self-contained.
+  return shouldDoPerObjectFileLinking(C) && TargetTriple.isSPIROrSPIRV();
+}
+
+ArrayRef<StringRef> SYCL::getFinalDeviceImageArchNames() {
+  // Keep in sync with hasFinalDeviceImage():  every SPIR-V arch name that can
+  // be the target of a non-RDC compilation has to be listed here so that a
+  // subsequent link recognizes the finalized device image and passes it
+  // through untouched.
+  static constexpr StringRef ArchNames[] = {"spir64", "spir64_gen",
+                                            "spir64_x86_64", "spirv64"};
+  return ArchNames;
+}
+
 // Return whether to use native bfloat16 library.
 static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
                              const llvm::Triple &Triple, const ToolChain &TC,

@@ -5314,11 +5314,12 @@ class OffloadingActionBuilder final {
             A = C.MakeAction<CompileJobAction>(A, OutputType);
           }
           // Add any of the device linking steps when -fno-sycl-rdc is
-          // specified. Device linking is only available for AOT at this
-          // time.
+          // specified.  This finalizes and wraps the device image at compile
+          // time, making the resulting object self-contained so that it does
+          // not need any device processing from the final link.
           llvm::Triple TargetTriple = TargetInfo.TC->getTriple();
-          if (tools::SYCL::shouldDoPerObjectFileLinking(C) &&
-              TargetTriple.isSPIRAOT() && FinalPhase != phases::Link) {
+          if (tools::SYCL::hasFinalDeviceImage(C, TargetTriple) &&
+              FinalPhase != phases::Link) {
             ActionList CAList;
             CAList.push_back(A);
             ActionList DeviceLinkActions;
@@ -6255,15 +6256,13 @@ class OffloadingActionBuilder final {
           for (auto Section : UniqueSections) {
             if (SectionFound)
               break;
-            SmallVector<std::string, 3> ArchList = {"spir64_gen",
-                                                    "spir64_x86_64"};
-            for (auto ArchStr : ArchList) {
-              std::string Arch(ArchStr + "_image");
-              if (Section.find(Arch) != std::string::npos) {
+            for (StringRef ArchStr :
+                 tools::SYCL::getFinalDeviceImageArchNames())
+              if (Section.find((ArchStr + "_image").str()) !=
+                  std::string::npos) {
                 SectionFound = true;
                 break;
               }
-            }
             // Use of -fsycl-force-target=triple forces the compiler to use the
             // specified target triple when extracting device code from any of
             // the given objects on the command line. If the target specified
@@ -6331,19 +6330,18 @@ class OffloadingActionBuilder final {
     // Go through the offload sections of the provided binary.  Gather all
     // all of the sections which match the expected format of the triple
     // generated when creating fat objects that contain full device binaries.
-    // Expected format is sycl-<aot_arch>_image-unknown-unknown.
-    //   <aot_arch> values:  spir64_gen, spir64_x86_64
+    // Expected format is sycl-<arch>_image-unknown-unknown.
+    //   <arch> values:  spir64, spir64_gen, spir64_x86_64, spirv64
     SmallVector<std::string, 4> deviceBinarySections(Compilation &C,
                                                      const StringRef &Input) {
       SmallVector<std::string, 4> Sections(getOffloadSections(C, Input));
       SmallVector<std::string, 4> FinalDeviceSections;
       for (auto S : Sections) {
-        SmallVector<std::string, 3> ArchList = {"spir64_gen", "spir64_x86_64"};
-        for (auto A : ArchList) {
-          std::string Arch("sycl-" + A + "_image");
-          if (S.find(Arch) != std::string::npos)
+        for (StringRef A : tools::SYCL::getFinalDeviceImageArchNames())
+          if (S.find(("sycl-" + A + "_image").str()) != std::string::npos) {
             FinalDeviceSections.push_back(S);
-        }
+            break;
+          }
       }
       return FinalDeviceSections;
     }
@@ -6814,6 +6812,36 @@ public:
     return false;
   }
 
+  /// Returns true when \p Actions - the device dependences followed by the host
+  /// action - can be merged into a single self-contained relocatable object
+  /// with a partial link instead of being bundled into a fat object.
+  ///
+  /// This is possible in SYCL non-RDC mode: there the device image is fully
+  /// finalized (and wrapped, i.e. it already carries the `__sycl_register_lib`
+  /// constructor) at compile time, so nothing is left for the final link to do
+  /// with it.  Merging it into the host object rather than hiding it in an
+  /// offloading section is what makes the object usable with a plain host
+  /// linker.
+  bool canPartialLinkDeviceImages(const ActionList &Actions) const {
+    if (!tools::SYCL::shouldDoPerObjectFileLinking(C))
+      return false;
+    // A partial link needs a linker supporting `-r`, which the MSVC toolchain
+    // does not provide.  Keep bundling there.
+    if (C.getDefaultToolChain().getTriple().isOSWindows())
+      return false;
+    // The host action is the last one, everything before it is a device
+    // dependence which has to be a finalized device image.
+    assert(!Actions.empty() && "Expected at least the host action");
+    if (Actions.back()->getType() != types::TY_Object)
+      return false;
+    ArrayRef<Action *> DeviceActions = ArrayRef<Action *>(Actions).drop_back();
+    return !DeviceActions.empty() &&
+           llvm::all_of(DeviceActions, [](const Action *A) {
+             return A->getOffloadingDeviceKind() == Action::OFK_SYCL &&
+                    A->getType() == types::TY_Object;
+           });
+  }
+
   /// Add the offloading top level actions to the provided action list. This
   /// function can replace the host action by a bundling action if the
   /// programming models allow it.
@@ -6845,7 +6873,15 @@ public:
       // We expect that the host action was just appended to the action list
       // before this method was called.
       assert(HostAction == AL.back() && "Host action not in the list??");
-      HostAction = C.MakeAction<OffloadBundlingJobAction>(OffloadAL);
+      // When every device dependence already carries a finalized device image,
+      // merge them into the host object instead of bundling them into an
+      // offloading section.  The resulting object is self-contained, so it can
+      // be linked with any host linker.
+      if (canPartialLinkDeviceImages(OffloadAL))
+        HostAction =
+            C.MakeAction<PartialLinkJobAction>(OffloadAL, types::TY_Object);
+      else
+        HostAction = C.MakeAction<OffloadBundlingJobAction>(OffloadAL);
       recordHostAction(HostAction, InputArg);
       AL.back() = HostAction;
     } else
