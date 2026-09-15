@@ -144,28 +144,42 @@
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_LINK %s
 // WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-link-opt"
 
-/// Test option passing behavior for clang-offload-wrapper options for AOT.
+/// AOT: -Xsycl-target-backend tokens ride the packager's per-image
+/// compile-opts=/link-opts= (one image per fsycl-target entry, one
+/// ocloc/opencl-aot call per image).
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl-targets=spir64_gen,spir64_x86_64 \
 // RUN:          -Xsycl-target-backend=spir64_gen -backend-gen-opt \
 // RUN:          -Xsycl-target-backend=spir64_x86_64 -backend-cpu-opt \
 // RUN:          -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND_AOT %s
-// WRAPPER_OPTIONS_BACKEND_AOT: clang-linker-wrapper{{.*}}  "--host-triple=x86_64-unknown-linux-gnu"
-// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown=-backend-gen-opt"
-// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-backend-cpu-opt"
+// WRAPPER_OPTIONS_BACKEND_AOT: llvm-offload-binary
+// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--image={{[^"]*}}triple=spir64_gen-unknown-unknown{{[^"]*}}compile-opts={{[^"]*}}-backend-gen-opt
+// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--image={{[^"]*}}triple=spir64_x86_64-unknown-unknown{{[^"]*}}compile-opts={{[^"]*}}-backend-cpu-opt
 
-/// Test that -Xsycl-target-backend and -Xsycl-target-linker options for an
-/// AOT (ocloc) target are forwarded via --device-compiler=/--device-linker=
-/// respectively, each token as its own argument, the same as for JIT
-/// targets.
+/// Single AOT entry: compile-opts= carries -Xsycl-target-backend and
+/// link-opts= carries -Xsycl-target-linker.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl-targets=intel_gpu_pvc \
 // RUN:          -Xsycl-target-backend -opt1 -Xsycl-target-linker -opt2 \
 // RUN:          -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_AOT_SEPARATE %s
-// WRAPPER_OPTIONS_AOT_SEPARATE: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-opt1"
-// WRAPPER_OPTIONS_AOT_SEPARATE-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=-opt2"
+// WRAPPER_OPTIONS_AOT_SEPARATE: llvm-offload-binary
+// WRAPPER_OPTIONS_AOT_SEPARATE-SAME: "--image={{[^"]*}}arch=pvc{{[^"]*}}compile-opts={{[^"]*}}-opt1{{[^"]*}}link-opts=-opt2
+
+/// Two disjoint intel_gpu_* archs: each image's compile-opts= only carries
+/// tokens for its own fsycl-target entry (no cross-arch leak).
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=intel_gpu_pvc,intel_gpu_skl \
+// RUN:          -Xsycl-target-backend=intel_gpu_pvc "-options -extraopt_pvc" \
+// RUN:          -Xsycl-target-backend=intel_gpu_skl "-options -extraopt_skl" \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck --implicit-check-not='arch=pvc{{[^"]*}}-extraopt_skl' \
+// RUN:               --implicit-check-not='arch=skl{{[^"]*}}-extraopt_pvc' \
+// RUN:               -check-prefix WRAPPER_OPTIONS_MULTI_GEN %s
+// WRAPPER_OPTIONS_MULTI_GEN: llvm-offload-binary
+// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--image={{[^"]*}}arch=pvc{{[^"]*}}compile-opts={{[^"]*}}-options -extraopt_pvc
+// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--image={{[^"]*}}arch=skl{{[^"]*}}compile-opts={{[^"]*}}-options -extraopt_skl
 
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
