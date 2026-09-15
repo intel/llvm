@@ -471,7 +471,14 @@ commands.
 
 === Implementation limitations
 
-This extension has been implemented with the following limitations:
+This extension has been implemented with the following limitations. A program
+must avoid them in order to work correctly, but a violation is only diagnosed
+in some cases. The implementation throws an `exception` with the `errc::invalid`
+error code if, at the point of the call, the command which the "event signal" or
+"event wait" operation depends on is still pending inside the SYCL runtime. If
+that command has already been submitted to the backend by then, the operation
+succeeds instead. Since an application cannot generally observe which of the
+two is the case, it must not rely on either outcome.
 
 * The `evt` passed to the `enqueue_wait_event` function and all events in
   `evts` passed to the `enqueue_wait_events` function need to have the same
@@ -501,11 +508,16 @@ This extension has been implemented with the following limitations:
   `handler::ext_oneapi_memset2d`, if the backend does not support 2D fill or
   the target memory is on host.
 * When an event is passed to the `enqueue_signal_event` function and is also
-  set as a dependency of a command - using `handler::depends_on`, one of the
+  used as a dependency of a command (via `handler::depends_on`, one of the
   `queue` member functions which take event dependencies, or any other API
-  which establishes an event dependency - the same limitations apply as
-  described for the `enqueue_wait_event` function above. The behavior in this
-  cases is undefined. Unlike the other cases in this section, this one is not
-  reported with an exception as the implementation does not currently
-  differentiate between events enqueued for signaling using
+  which establishes an event dependency), the same limitations apply as those
+  described above for the `enqueue_wait_event` and `enqueue_wait_events`
+  functions. This includes the restriction that the event needs to have the
+  same context as the queue to which the dependent command is submitted, which
+  temporarily restricts the behavior described in the section "Interaction with
+  other event APIs". These limitations apply regardless of whether the
+  dependent command is submitted before or after the call to
+  `enqueue_signal_event`. If any of these limitations is violated, the behavior
+  is undefined. This case is never diagnosed, because the implementation does
+  not currently differentiate between events enqueued for signaling using
   `enqueue_signal_event` and regular events produced during command submission.
