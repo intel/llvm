@@ -11,6 +11,7 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 #include <iostream>
+#include <sstream>
 
 #include "../helpers/common.hpp"
 #include "sycl_vulkan_setup.hpp"
@@ -96,10 +97,10 @@ void runSycl(const sycl::device &syclDevice, sycl::range<2> globalSize,
     syclexp::release_external_memory(externalMemIn, syclQueue);
     syclexp::release_external_memory(externalMemOut, syclQueue);
   } catch (sycl::exception e) {
-    std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
+    log_error(std::string("\tKernel submission failed! ") + e.what());
     exit(-1);
   } catch (...) {
-    std::cerr << "\tKernel submission failed!" << std::endl;
+    log_error("\tKernel submission failed!");
     exit(-1);
   }
 }
@@ -154,9 +155,7 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
   }
 
   // Transition image layouts.
-#ifdef VERBOSE_PRINT
-  std::cout << "Submitting image layout transition\n";
-#endif
+  log_debug("Submitting image layout transition");
   {
     VkImageMemoryBarrier imgInBarrier =
         createImageMemoryBarrier(inputImage.image, 1);
@@ -185,7 +184,7 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
   }
 
   // Allocate temporary staging buffer and copy input data to device.
-  std::cout << "Allocating staging memory and copying to device image\n";
+  log_debug("Allocating staging memory and copying to device image");
   {
     auto staging = createStagingBuffer(vkCtx, imgSizeBytes,
                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
@@ -223,7 +222,7 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
     cleanupBuffer(vkCtx, staging);
   }
 
-  std::cout << "Getting memory interop handles\n";
+  log_debug("Getting memory interop handles");
   // Get memory interop handles.
 #ifdef _WIN32
   auto imgMemIn = getMemHandle(vkCtx, inputImage.memory);
@@ -234,12 +233,12 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
 #endif
 
   // Call into SYCL to fetch from input image, and populate the output image.
-  std::cout << "Calling into SYCL with interop memory handles\n";
+  log_debug("Calling into SYCL with interop memory handles");
   // Pass the real import size so the SYCL import matches the Vulkan allocation.
   runSycl(syclDevice, dims, localSize, imgMemIn, imgMemOut, importSizeBytes);
 
   // Copy image memory to temporary staging buffer, and back to host.
-  std::cout << "Copying image memory to host\n";
+  log_debug("Copying image memory to host");
   std::vector<float> outputVec(imgSizeElems, 0.f);
   {
     auto staging = createStagingBuffer(vkCtx, imgSizeBytes,
@@ -288,8 +287,10 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
     // Use helper function to determine if data is accepted.
     // For floats, use default accepted error variance.
     if (!checkValue(outputVec[i], expected)) {
-      std::cerr << "Result mismatch! actual[" << i << "] == " << outputVec[i]
-                << " : expected == " << expected << "\n";
+      std::ostringstream oss;
+      oss << "Result mismatch! actual[" << i << "] == " << outputVec[i]
+          << " : expected == " << expected;
+      log_error(oss.str());
       validated = false;
     }
     if (!validated)
@@ -297,7 +298,7 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
   }
 
   if (validated) {
-    std::cout << "Results are correct!\n";
+    log_info("Results are correct!");
   }
 
   return validated;
@@ -312,14 +313,14 @@ int main() {
     auto testPassed = runTest(vkCtx, syclDevice, {128, 128}, {16, 16});
 
     if (testPassed) {
-      std::cout << "Test passed!\n";
+      log_info("Test passed!");
       return EXIT_SUCCESS;
     }
 
-    std::cerr << "Test failed\n";
+    log_error("Test failed");
     return EXIT_FAILURE;
   } catch (const std::exception &e) {
-    std::cerr << "Vulkan interop test failed: " << e.what() << "\n";
+    log_error(std::string("Vulkan interop test failed: ") + e.what());
     return EXIT_FAILURE;
   }
 }

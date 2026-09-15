@@ -12,6 +12,7 @@
 // Define NOMINMAX to enable compilation on Windows
 #define NOMINMAX
 #include <iostream>
+#include <sstream>
 
 #include "../helpers/common.hpp"
 #include "sycl_vulkan_setup.hpp"
@@ -157,14 +158,14 @@ bool run_sycl(const sycl::device &dev, sycl::range<NDims> globalSize,
         handles.imgMem, syclexp::image_type::mipmap, dev, ctxt);
     syclexp::release_external_memory(handles.inputExternalMem, dev, ctxt);
   } catch (const sycl::exception &e) {
-    std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
+    log_error(std::string("\tKernel submission failed! ") + e.what());
     exit(-1);
   } catch (...) {
-    std::cerr << "\tKernel submission failed!" << std::endl;
+    log_error("\tKernel submission failed!");
     exit(-1);
   }
 
-  std::cout << "Validating\n";
+  log_debug("Validating");
   // Expected is sum of first two levels in the mipmap
   // Each subsequent level repeats in each dimension
   bool validated = true;
@@ -192,9 +193,10 @@ bool run_sycl(const sycl::device &dev, sycl::range<NDims> globalSize,
           }
           if (mismatch) {
 #ifdef VERBOSE_PRINT
-            std::cout << "Result mismatch! Expected: " << expected
-                      << ", Actual: " << out[i + width * (j + height * k)]
-                      << "\n";
+            std::ostringstream oss;
+            oss << "Result mismatch! Expected: " << expected
+                << ", Actual: " << out[i + width * (j + height * k)];
+            log_debug(oss.str());
 #else
             break;
 #endif
@@ -223,8 +225,10 @@ bool run_sycl(const sycl::device &dev, sycl::range<NDims> globalSize,
         }
         if (mismatch) {
 #ifdef VERBOSE_PRINT
-          std::cout << "Result mismatch! Expected: " << expected
-                    << ", Actual: " << out[j + (width * i)] << "\n";
+          std::ostringstream oss;
+          oss << "Result mismatch! Expected: " << expected
+              << ", Actual: " << out[j + (width * i)];
+          log_debug(oss.str());
 #else
           break;
 #endif
@@ -233,7 +237,7 @@ bool run_sycl(const sycl::device &dev, sycl::range<NDims> globalSize,
     }
   }
   if (validated) {
-    std::cout << "Results are correct!\n";
+    log_info("Results are correct!");
   }
 
   return validated;
@@ -267,7 +271,7 @@ bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
   using VecType = sycl::vec<DType, NChannels>;
   VkFormat format = getVulkanFormat<DType>(NChannels);
 
-  std::cout << "Creating input image\n";
+  log_debug("Creating input image");
   // Create input image memory
   auto inputImage = createExportableImage(
       vkCtx, {width, height, depth}, format, imgType, VK_IMAGE_TILING_OPTIMAL,
@@ -277,13 +281,13 @@ bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
   vkGetImageMemoryRequirements(vkCtx.device, inputImage.image,
                                &memRequirements);
 
-  std::cout << "Creating staging buffers\n";
+  log_debug("Creating staging buffers");
   // Create input staging memory
   auto inputStaging = createStagingBuffer(vkCtx, memRequirements.size,
                                           VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                                               VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-  std::cout << "Populating staging buffer\n";
+  log_debug("Populating staging buffer");
   // Populate staging memory
   VecType *inputStagingData = nullptr;
   VK_CHECK(vkMapMemory(vkCtx.device, inputStaging.memory, 0 /*offset*/,
@@ -305,7 +309,7 @@ bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
   }
   vkUnmapMemory(vkCtx.device, inputStaging.memory);
 
-  std::cout << "Submitting image layout transition\n";
+  log_debug("Submitting image layout transition");
   // Transition image layouts
   {
     VkImageMemoryBarrier barrierInput =
@@ -324,7 +328,7 @@ bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
     submitCommandBuffer(vkCtx, commandBuffer, pool);
   }
 
-  std::cout << "Copying staging memory to images\n";
+  log_debug("Copying staging memory to images");
   // Copy staging to main image memory
   {
     VkDeviceSize currentOffset{0};
@@ -359,7 +363,7 @@ bool run_test(VulkanContext &vkCtx, sycl::range<NDims> dims,
     }
   }
 
-  std::cout << "Getting memory file descriptors and calling into SYCL\n";
+  log_debug("Getting memory file descriptors and calling into SYCL");
   // Pass memory to SYCL for modification
 #ifdef _WIN32
   auto inputMemHandle = getMemHandle(vkCtx, inputImage.memory);
@@ -422,14 +426,14 @@ int main() {
     bool result_ok = run_tests(vkCtx, dev);
 
     if (result_ok) {
-      std::cout << "All tests passed!\n";
+      log_info("All tests passed!");
       return EXIT_SUCCESS;
     }
 
-    std::cerr << "Test failed\n";
+    log_error("Test failed");
     return EXIT_FAILURE;
   } catch (const std::exception &e) {
-    std::cerr << "Vulkan interop test failed: " << e.what() << "\n";
+    log_error(std::string("Vulkan interop test failed: ") + e.what());
     return EXIT_FAILURE;
   }
 }
