@@ -63,7 +63,6 @@ public:
 
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
-  std::mutex &getFilterMutex();
   std::vector<adapter_impl *> &getAdapters();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
@@ -132,7 +131,6 @@ private:
       MPlatformToDefaultContextCache;
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
-  InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<adapter_impl *>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;

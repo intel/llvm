@@ -60,10 +60,6 @@ class platform_impl;
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 
 } // namespace detail
-namespace ext::oneapi {
-// Forward declaration
-class filter_selector;
-} // namespace ext::oneapi
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///

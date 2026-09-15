@@ -8,16 +8,15 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/device_selector.hpp>
+#include <sycl/device.hpp>
 
+#include <string>
 #include <vector>
 
 namespace sycl {
 inline namespace _V1 {
-
-// Forward declarations
-class device;
 
 namespace ext {
 namespace oneapi {
@@ -25,18 +24,17 @@ namespace detail {
 
 using filter = sycl::detail::ods_target;
 
+/// The set of devices matching the filter string is computed once, when the
+/// selector is created. That keeps operator() a pure function, so that the
+/// selector can be used as a SYCL 2020 callable device selector.
 class filter_selector_impl {
 public:
   filter_selector_impl(const std::string &filter);
   int operator()(const device &dev) const;
-  void reset() const;
 
 private:
   static constexpr int REJECT_DEVICE_SCORE = -1;
-  mutable std::vector<filter> mFilters;
-  mutable int mNumDevicesSeen;
-  int mNumTotalDevices;
-  mutable bool mMatchFound;
+  std::vector<device> mMatchingDevices;
 };
 } // namespace detail
 } // namespace oneapi
