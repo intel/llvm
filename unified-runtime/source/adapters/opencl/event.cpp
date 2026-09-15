@@ -195,6 +195,11 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
   case UR_EVENT_INFO_REFERENCE_COUNT: {
     return ReturnValue(Event->RefCount.getCount());
   }
+  case UR_EVENT_INFO_COMMAND_TYPE: {
+    if (Event->CommandTypeOverride)
+      return ReturnValue(*Event->CommandTypeOverride);
+    [[fallthrough]];
+  }
   default: {
     size_t CheckPropSize = 0;
     cl_int RetErr = clGetEventInfo(Event->CLEvent, CLEventInfo, propSize,
@@ -350,8 +355,9 @@ ur_result_t urEnqueueTimestampRecordingExp(
       /*size=*/sizeof(Pattern), numEventsInWaitList, CLWaitList,
       ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(
-      createUREvent(Event, cast(Queue->Context), cast(Queue), phEvent));
+  UR_RETURN_ON_FAILURE(createUREvent(Event, cast(Queue->Context), cast(Queue),
+                                     phEvent,
+                                     UR_COMMAND_TIMESTAMP_RECORDING_EXP));
 
   if (Blocking)
     CL_RETURN_ON_FAILURE(clFinish(Queue->CLQueue));
