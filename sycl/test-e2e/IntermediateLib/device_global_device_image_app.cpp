@@ -3,7 +3,7 @@
 // The fix ensures that device globals from all linked images are properly
 // registered, not just those from the main image.
 
-// REQUIRES-INTEL-DRIVER: lin: 37170
+// REQUIRES-L0-DRIVER: 37170
 
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-12574

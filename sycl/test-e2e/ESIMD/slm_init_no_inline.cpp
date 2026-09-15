@@ -1,5 +1,6 @@
 // TODO: Investigate fail of this test on Gen12 platform
-// REQUIRES-INTEL-DRIVER: lin: 27427, win: 101.4827
+// REQUIRES-L0-DRIVER: 27427
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4827
 // REQUIRES: arch-intel_gpu_pvc
 // DEFINE: %{inlineflags} = %if cl_options %{/clang:-fno-inline-functions%} %else %{-fno-inline-functions%}
 // RUN: %{build} %{inlineflags} -o %t.out

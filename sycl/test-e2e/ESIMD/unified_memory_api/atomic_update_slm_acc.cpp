@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES-INTEL-DRIVER: lin: 26918, win: 101.4953
+// REQUIRES-L0-DRIVER: 26918
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4953
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <iostream>

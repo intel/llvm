@@ -3,7 +3,8 @@
 // REQUIRES: vulkan
 
 // Linux fix tracked by GSD-12371, landed in driver 38362.
-// REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
+// REQUIRES-L0-DRIVER: 38362
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.9999
 
 // Binary semaphore sharing is broken in driver on linux.
 // UNSUPPORTED: linux

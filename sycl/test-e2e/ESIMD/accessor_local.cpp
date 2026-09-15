@@ -1,4 +1,5 @@
-// REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
+// REQUIRES-L0-DRIVER: 27202
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4677
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // This test verifies usage of local_accessor methods operator[]

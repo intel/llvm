@@ -1,4 +1,5 @@
-// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES-L0-DRIVER: 26690
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4576
 // REQUIRES: sg-8
 //
 // Check that full compilation works:

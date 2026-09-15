@@ -1,5 +1,6 @@
 // REQUIRES: level_zero_v2_adapter && level_zero_dev_kit && arch-intel_gpu_bmg_g21
-// REQUIRES-INTEL-DRIVER: lin: 37561, win: 101.8724
+// REQUIRES-L0-DRIVER: 37561
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.8724
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
