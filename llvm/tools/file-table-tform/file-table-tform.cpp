@@ -356,7 +356,6 @@ struct TformCmd {
 
               if (Out.has_error())
                 return createFileError(Output, Out.error());
-              Out.close();
               return Error::success();
             });
     return F(this);
@@ -471,7 +470,6 @@ int main(int argc, char **argv) {
 
     if (Out.has_error())
       CHECK_AND_EXIT(createFileError(Output, Out.error()));
-    Out.close();
   }
   return 0;
 }

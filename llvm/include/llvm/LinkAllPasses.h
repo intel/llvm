@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This header file pulls in all transformation and analysis passes for tools
-// like opt and bugpoint that need this functionality.
+// like opt that need this functionality.
 //
 //===----------------------------------------------------------------------===//
 
@@ -98,7 +98,6 @@ struct ForcePassLinking {
     (void)llvm::createLCSSAPass();
     (void)llvm::createLICMPass();
     (void)llvm::createLazyValueInfoPass();
-    (void)llvm::createLoopExtractorPass();
     (void)llvm::createLoopSimplifyPass();
     (void)llvm::createLoopStrengthReducePass();
     (void)llvm::createLoopTermFoldPass();
@@ -122,7 +121,6 @@ struct ForcePassLinking {
     (void)llvm::createRegionViewerPass();
     (void)llvm::createSafeStackPass();
     (void)llvm::createSROAPass();
-    (void)llvm::createSingleLoopExtractorPass();
     (void)llvm::createTailCallEliminationPass();
     (void)llvm::createConstantHoistingPass();
     (void)llvm::createCodeGenPrepareLegacyPass();

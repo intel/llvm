@@ -29,24 +29,21 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
-if ("compiler-rt" IN_LIST RUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES OR
-    ("compiler-rt" IN_LIST LLVM_ENABLE_RUNTIMES AND
-     "spirv64-unknown-unknown" IN_LIST LLVM_BUILTIN_TARGETS))
-  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS builtins-spirv64-unknown-unknown)
-endif()
-
 set(libclc_enabled FALSE)
-foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
-  if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
-    set(libclc_enabled TRUE)
-    break()
-  endif()
-endforeach()
+set(compiler-rt_enabled FALSE)
+include(CheckEnabledLLVMRuntime)
+is_llvm_runtime_enabled(libclc libclc_enabled)
+is_llvm_runtime_enabled(compiler-rt compiler-rt_enabled)
 
 if (libclc_enabled)
   # If some targets required `libclc` then we should embed it for the
   # `sycl-jit`.
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
+endif()
+
+# We only enable compiler-rt builtin library for spirv64 target.
+if(compiler-rt_enabled)
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS builtins-spirv64-unknown-unknown)
 endif()
 
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
