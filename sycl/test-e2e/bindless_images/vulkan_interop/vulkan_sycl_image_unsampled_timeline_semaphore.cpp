@@ -48,7 +48,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -109,7 +109,7 @@ int runTest(
 
   std::cout << "  VK Format: " << getFormatString(vkFormat) << std::endl;
 
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)imageWidth, (uint32_t)imageHeight, 1};
 
   VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
