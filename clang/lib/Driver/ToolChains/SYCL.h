@@ -220,6 +220,14 @@ private:
   SYCLInstallationDetector SYCLInstallation;
 };
 
+// TC is a SYCLToolChain only for SPIR/SPIR-V/NativeCPU triples (NVPTX/AMDGCN
+// reuse CudaToolChain/AMDGPUToolChain). Returns TC cast when safe, else
+// builds a scratch SYCLToolChain (owned by \p SYCLTC) from TC's triple.
+const SYCLToolChain &
+getSYCLToolChain(const Driver &D, const ToolChain &TC, const ToolChain &HostTC,
+                 const llvm::opt::ArgList &Args,
+                 std::unique_ptr<SYCLToolChain> &SYCLTC);
+
 } // end namespace toolchains
 } // end namespace driver
 } // end namespace clang
