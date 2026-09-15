@@ -1,14 +1,245 @@
-# The actual version of this file can be found on the latest sycl-rel-* branch.
-# A new release branch copies this file from the latest release branch.
-# This file is still needed to launch the workflow on another branches.
-
 name: SYCL Release Branch Nightly
 
 on:
   workflow_dispatch:
+    inputs:
+      add_build_date:
+        description: |
+          Adds the build date to the version. Set to 0 for release builds.
+        default: '1'
+
+
+permissions: read-all
 
 jobs:
-  dummy:
+  get_build_info:
     runs-on: ubuntu-latest
+    outputs:
+      info: ${{ steps.get_info.outputs.info }}
     steps:
-      - run: echo "Doing nothing"
+    - id: get_info
+      run: |
+        if [ "${{ inputs.add_build_date }}" = "1" ]; then
+          date=$(date +'%Y-%m-%d')
+          info="-DSYCL_BUILD_INFO=\"Nightly $date\""
+          echo "info=$info" >> $GITHUB_OUTPUT
+        fi
+
+  ubuntu2204_build:
+    needs: get_build_info
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_configure_extra_args: '${{ needs.get_build_info.outputs.info }} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --cuda'
+      build_image: ghcr.io/intel/llvm/release_build:latest
+
+      toolchain_artifact: sycl_linux_default
+      # We upload the build for people to download/use, override its name and
+      # prefer widespread gzip compression.
+      toolchain_artifact_filename: sycl_linux.tar.gz
+
+      release_toolchain_artifact: sycl_linux_release
+
+  ubuntu2204_test:
+    needs: [ubuntu2204_build]
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+
+          - name: Intel L0 Gen12 GPU
+            runner: '["Linux", "gen12"]'
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Battlemage GPU
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Arc A-Series GPU
+            runner: '["Linux", "arc"]'
+            target_devices: level_zero:gpu
+
+          - name: Intel OCL Gen12 GPU
+            runner: '["Linux", "gen12"]'
+            target_devices: opencl:gpu
+
+          - name: OCL CPU (Intel/GEN12)
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
+
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: e2e
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+
+  build-win:
+    needs: get_build_info
+    uses: ./.github/workflows/sycl-windows-build.yml
+    with:
+      # We upload both Linux/Windows build via Github's "Releases"
+      # functionality, make sure Linux/Windows names follow the same pattern.
+      toolchain_artifact_filename: sycl_windows.tar.gz
+      build_configure_extra_args: '${{ needs.get_build_info.outputs.info }} -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
+      release_toolchain_artifact: sycl_windows_release
+
+  e2e-win:
+    needs: build-win
+    # Continue if build was successful.
+    if: |
+      !cancelled()
+      && needs.build-win.outputs.build_conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel L0 Gen12 GPU
+            runner: '["Windows", "gen12"]'
+
+          - name: Intel L0 Arc GPU
+            runner: '["Windows", "arc"]'
+
+          - name: Intel L0 Battlemage GPU
+            runner: '["Windows","bmg"]'
+
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      target_devices: level_zero:gpu
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+
+  build-sycl-cts-linux:
+    needs: ubuntu2204_build
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: Build SYCL-CTS
+      runner: '["Linux", "build"]'
+      testing_mode: 'build-only'
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+      tests_selector: cts
+      repo_ref: ${{ github.sha }}
+      # Author: Alexey Bader <alexey.bader@intel.com>
+      # Date:   Thu May 28 08:07:51 2026 -0700
+      # Merge pull request #1202 from 0x12CC/fix-nextafter
+      # Disambiguate `nextafter`
+      tests_ref: 493fca2e1f319516c0e9816cd4a714c9c37f1220
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+      binaries_artifact: sycl_cts_bin_linux
+
+  run-sycl-cts-linux:
+    needs: [ubuntu2204_build, build-sycl-cts-linux]
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SYCL-CTS on OCL CPU
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
+
+          - name: SYCL-CTS on L0 gen12
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      testing_mode: 'run-only'
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: cts
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+      binaries_artifact: sycl_cts_bin_linux
+
+  build-sycl-cts-win:
+    needs: build-win
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: Build SYCL-CTS for Windows
+      runner: '["Windows", "build"]'
+      testing_mode: 'build-only'
+      tests_selector: cts
+      repo_ref: ${{ github.sha }}
+      # Author: Alexey Bader <alexey.bader@intel.com>
+      # Date:   Thu May 28 08:07:51 2026 -0700
+      # Merge pull request #1202 from 0x12CC/fix-nextafter
+      # Disambiguate `nextafter`
+      tests_ref: 493fca2e1f319516c0e9816cd4a714c9c37f1220
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      binaries_artifact: sycl_cts_bin_win
+
+  run-sycl-cts-win:
+    needs: [build-win, build-sycl-cts-win]
+    if: ${{ !cancelled() && needs.build-win.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SYCL-CTS on L0 gen12
+            runner: '["Windows", "gen12"]'
+            target_devices: level_zero:gpu
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      testing_mode: 'run-only'
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: cts
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      binaries_artifact: sycl_cts_bin_win
+
+  hardening-check:
+    needs: [ubuntu2204_build, build-win]
+    if: |
+      !cancelled()
+      && needs.ubuntu2204_build.outputs.build_conclusion == 'success'
+      && needs.build-win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-hardening-check.yml
+    with:
+      sycl_linux_artifact: sycl_linux_release
+      sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+
+      sycl_windows_artifact: sycl_windows_release
+      sycl_windows_archive: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
