@@ -493,6 +493,17 @@ two is the case, it must not rely on either outcome.
   link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions] extension is supported.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  functions cannot be dependent on a command which accesses a memory object
+  while a host accessor for that memory object exists (`enqueue_wait_event` and
+  `enqueue_wait_events` cannot take an event produced by such a command as an
+  argument and all those functions cannot be enqueued behind such a command on
+  an in-order queue). This applies to `host_accessor`,
+  `buffer::get_host_access`, `host_unsampled_image_accessor` and
+  `host_sampled_image_accessor`. Unlike a host task, which completes on its own,
+  such a command is held until the host accessor is destroyed, which happens
+  when the last copy of the host accessor is destroyed, so the application
+  controls how long this limitation lasts.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
   functions cannot be dependent on any commands which use cross-context
   event dependencies.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
