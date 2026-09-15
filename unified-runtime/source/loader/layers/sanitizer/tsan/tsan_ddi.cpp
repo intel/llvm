@@ -1274,8 +1274,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   KernelInfo.ArgProps.resize(numArgs);
   // A kernel may take no arguments at all, in which case pArgs is null and the
   // resized vector has not allocated, so both memcpy pointers are null. That is
-  // undefined behaviour even for a zero length, and fatal in a build configured
-  // with -fno-sanitize-recover.
+  // undefined behaviour even for a zero length.
   if (numArgs)
     std::memcpy(KernelInfo.ArgProps.data(), pArgs,
                 numArgs * sizeof(ur_exp_kernel_arg_properties_t));
