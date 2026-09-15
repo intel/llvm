@@ -1,13 +1,14 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: V1-only behavior for
-// UR_L0_USE_IMMEDIATE_COMMANDLISTS=0/1
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out
-// RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out
+// RUN: %if !level_zero_v2_adapter %{env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out%}
+// RUN: %if !level_zero_v2_adapter %{env UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out%}
+//
+// L0v2 make_queue() supports wrapping an in-order immediate command list,
+// but not a bare command queue.
+// RUN: %if level_zero_v2_adapter %{%{build} %level_zero_options -DTEST_LEVEL_ZERO_V2_NATIVE_INTEROP -o %t_v2.out && %{run} %t_v2.out%}
 
 #include <iostream>
 #include <level_zero/ze_api.h>
@@ -31,26 +32,14 @@ int main() {
     return 1;
   }
 
-  // Create Driver
-  uint32_t driver_handle_count = 0;
-  result = zeDriverGet(&driver_handle_count, nullptr);
-  if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeDriverGet failed\n";
-    return 1;
-  }
-  std::cout << "Found " << driver_handle_count << " driver(s)\n";
-  if (driver_handle_count == 0)
-    return 1;
-
-  std::vector<ze_driver_handle_t> driver_handles(driver_handle_count);
-  result = zeDriverGet(&driver_handle_count, driver_handles.data());
-  if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeDriverGet failed\n";
-    return 1;
-  }
-
-  ze_driver_handle_t ZeDriver = driver_handles[0];
-  std::cout << "Using default driver, index 0\n";
+  // Respects ONEAPI_DEVICE_SELECTOR, unlike raw zeDriverGet/zeDeviceGet.
+  device SyclSelectedDevice;
+  platform SyclSelectedPlatform = SyclSelectedDevice.get_platform();
+  ze_driver_handle_t ZeDriver =
+      get_native<backend::ext_oneapi_level_zero>(SyclSelectedPlatform);
+  ze_device_handle_t ZeDevice0 =
+      get_native<backend::ext_oneapi_level_zero>(SyclSelectedDevice);
+  std::cout << "Using SYCL-selected driver and device\n";
 
   // Everything below is created with ownership::keep, so this test owns the
   // Level Zero handles and must destroy them. Declared before the SYCL interop
@@ -79,31 +68,19 @@ int main() {
   }
   ZeOwned.Context = ZeContext;
 
-  // Create Devices
-  uint32_t device_count = 0;
-  result = zeDeviceGet(ZeDriver, &device_count, nullptr);
-  if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeDeviceGet failed to get count of devices\n";
-    return 1;
-  }
-
-  std::vector<ze_device_handle_t> ZeDevices(device_count);
-  result = zeDeviceGet(ZeDriver, &device_count, ZeDevices.data());
-  if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeDeviceGet failed to get device handles\n";
-    return 1;
-  }
-  std::cout << "Using default device, index 0\n";
-
   // Create Command Queue
   ze_command_queue_desc_t Qdescriptor = {};
   Qdescriptor.stype = ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC;
   Qdescriptor.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
   Qdescriptor.ordinal = 0;
   Qdescriptor.index = 0;
+#ifdef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
+  Qdescriptor.flags = ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
+#endif
 
+#ifndef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
   ze_command_queue_handle_t ZeCommand_queue = nullptr;
-  result = zeCommandQueueCreate(ZeContext, ZeDevices[0], &Qdescriptor,
+  result = zeCommandQueueCreate(ZeContext, ZeDevice0, &Qdescriptor,
                                 &ZeCommand_queue);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeCommandQueueCreate failed\n";
@@ -111,10 +88,11 @@ int main() {
   }
   ZeOwned.Queue = ZeCommand_queue;
   std::cout << "Commandqueue created: " << ZeCommand_queue << std::endl;
+#endif
 
   // Create Command List
   ze_command_list_handle_t ZeCommand_list = nullptr;
-  result = zeCommandListCreateImmediate(ZeContext, ZeDevices[0], &Qdescriptor,
+  result = zeCommandListCreateImmediate(ZeContext, ZeDevice0, &Qdescriptor,
                                         &ZeCommand_list);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeCommandListCreate failed\n";
@@ -125,7 +103,7 @@ int main() {
 
   // Interop object creation
   backend_traits<backend::ext_oneapi_level_zero>::return_type<device> ZeDevice;
-  ZeDevice = ZeDevices[0];
+  ZeDevice = ZeDevice0;
 
   backend_input_t<backend::ext_oneapi_level_zero, platform>
       InteropPlatformInput{ZeDriver};
@@ -146,6 +124,7 @@ int main() {
       make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
   std::cout << "Made context\n";
 
+#ifndef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
   backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCQ{
       ZeCommand_queue, InteropDevice, ext::oneapi::level_zero::ownership::keep};
   queue InteropQueueCQ = make_queue<backend::ext_oneapi_level_zero>(
@@ -170,6 +149,7 @@ int main() {
       return 1;
     }
   }
+#endif
 
   backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCL{
       ZeCommand_list, InteropDevice, ext::oneapi::level_zero::ownership::keep};
@@ -194,6 +174,12 @@ int main() {
               << std::endl;
     return 1;
   }
+
+#ifdef TEST_LEVEL_ZERO_V2_NATIVE_INTEROP
+  queue &InteropQueueForOps = InteropQueueCL;
+#else
+  queue &InteropQueueForOps = InteropQueueCQ;
+#endif
 
   int data[3] = {7, 8, 0};
   buffer<int, 1> bufData{data, 3};
@@ -223,9 +209,9 @@ int main() {
     std::cout << "GPU Result from SYCL Q = {" << hostOut[0] << ", "
               << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
 
-    // Try interop queue with standard commandlist
-    InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();
-    InteropQueueCQ.submit([&](handler &cgh) {
+    // Try interop queue (command queue on v1, immediate command list on v2)
+    InteropQueueForOps.copy<int>(addend, deviceData, 2).wait();
+    InteropQueueForOps.submit([&](handler &cgh) {
       accessor numbers{bufDataCQ, cgh, read_write};
       cgh.parallel_for(dataCount,
                        [=](id<1> Id) { numbers[Id] += deviceData[0]; });
@@ -234,9 +220,9 @@ int main() {
     std::cout << "GPU Result from Standard Q = {" << hostOut[0] << ", "
               << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
 
-    // Try interop queue with immediate commandlist
-    InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();
-    InteropQueueCQ.submit([&](handler &cgh) {
+    // Try interop queue again, writing to a separate buffer
+    InteropQueueForOps.copy<int>(addend, deviceData, 2).wait();
+    InteropQueueForOps.submit([&](handler &cgh) {
       accessor numbers{bufDataCL, cgh, read_write};
       cgh.single_task(
           [=]() { numbers[2] += numbers[0] + numbers[1] + deviceData[1]; });

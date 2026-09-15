@@ -1,19 +1,21 @@
 // REQUIRES: gpu, level_zero
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: v2 adapter does not allow disabling caching
 
 // RUN: %{build}  -o %t.out
 
-// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED %s
+// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=%if level_zero_v2_adapter %{CHECK-V2%} %else %{CACHING-ENABLED%} %s
+// RUN: %if !level_zero_v2_adapter %{env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s%}
+// RUN: %if !level_zero_v2_adapter %{env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED %s%}
 //
 // With events caching we should be reusing them and 9 should be enough.
 // Might require more than one if previous one hasn't been released by the time
 // we need a new one.
+//
+// L0v2 has no on/off switch for event caching, but reuses events via
+// zexCounterBasedEventCreate2, so far fewer than 256 creations are expected.
 
 // CACHING-ENABLED: zeEventCreate = {{[1-9]}}
 // CACHING-DISABLED: zeEventCreate = 256
+// CHECK-V2: zexCounterBasedEventCreate2 = {{[1-9][0-9]?}}
 
 // Check event caching modes in the L0 adapter.
 
