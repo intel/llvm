@@ -730,6 +730,13 @@ public:
 
   bool isNativeRecording() const;
 
+  /// Queries the backend for the graph this queue is natively capturing into.
+  /// \return The graph being captured into, or nullptr if the queue is not
+  ///         natively recording or the captured graph is not one this context
+  ///         created.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getNativeRecordingGraph() const;
+
   struct NativeRecordingResult {
     ur_exp_graph_handle_t CapturedGraph = nullptr;
     bool RecordingActive = false;
