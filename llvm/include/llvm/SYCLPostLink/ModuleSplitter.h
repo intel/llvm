@@ -365,6 +365,15 @@ bool isESIMDFunction(const Function &F);
 bool canBeImportedFunction(const Function &F,
                            bool AllowDeviceImageDependencies);
 
+/// Collects the names of the functions that are used in \p M but never defined
+/// in it. These are typically SYCL_EXTERNAL functions whose definition was not
+/// made available to the device link step. Declarations that are resolved by
+/// the compiler or the runtime rather than by device linking (intrinsics,
+/// SPIR-V/ESIMD builtins and everything else in the reserved '__' namespace)
+/// are not reported.
+void collectUndefinedFunctions(const Module &M,
+                               SmallVectorImpl<StringRef> &Names);
+
 } // namespace module_split
 
 } // namespace llvm

@@ -306,13 +306,13 @@ checkForCallsToUndefinedFunctions(const Module &M,
                                   bool SuppressUndefinedFuncWarnings) {
   if (AllowDeviceImageDependencies || SuppressUndefinedFuncWarnings)
     return;
-  for (const Function &F : M) {
-    if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
-      WithColor::warning()
-          << "Undefined function " << F.getName() << " found in " << M.getName()
-          << ". This may result in runtime errors. Use "
-             "-Wno-sycl-undefined-func-in-image to suppress this warning.\n";
-  }
+  SmallVector<StringRef> UndefinedFunctions;
+  collectUndefinedFunctions(M, UndefinedFunctions);
+  for (StringRef Name : UndefinedFunctions)
+    WithColor::warning()
+        << "Undefined function " << Name << " found in " << M.getName()
+        << ". This may result in runtime errors. Use "
+           "-Wno-sycl-undefined-func-in-image to suppress this warning.\n";
 }
 
 // Check "spirv.ExecutionMode" named metadata in the module and remove nodes
@@ -1265,6 +1265,13 @@ Error splitSYCLModule(
   }
 
   return Error::success();
+}
+
+void collectUndefinedFunctions(const Module &M,
+                               SmallVectorImpl<StringRef> &Names) {
+  for (const Function &F : M)
+    if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
+      Names.push_back(F.getName());
 }
 
 bool canBeImportedFunction(const Function &F,

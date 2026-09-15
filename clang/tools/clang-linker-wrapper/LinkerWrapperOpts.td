@@ -250,6 +250,16 @@ def sycl_suppress_undefined_func_warnings :
              "a device image.">;
 
 // Options to force the output to be of the SYCLBIN format.
+// The device code in a SYCLBIN input is not tied to a device, so the targets to
+// compile it for cannot be derived from the input the way they are for the
+// device images extracted from a host binary. If no target is given, every IR
+// module keeps the target it was recorded with and is left for the runtime to
+// compile.
+def syclbin_link_target_EQ : Joined<["--", "-"], "syclbin-link-target=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<triple>=<arch>">,
+  HelpText<"Target to compile the device code of the SYCLBIN files being "
+           "linked for. May be given more than once.">;
+
 def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable)">;

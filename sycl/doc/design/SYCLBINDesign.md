@@ -238,9 +238,43 @@ based), this option currently requires `--offload-new-driver` to be set.
 </tr>
 </table>
 
-Additionally, `-fsycl-link` should work with .syclbin files.
+### Linking SYCLBIN files with `-fsycl-link`
 
-### Linking SYCLBIN files
+One or more SYCLBIN files can be linked ahead of time into a single SYCLBIN file
+in executable state:
+
+```
+clang++ -fsycl-link --offload-arch=arch1[,arch2...] a.syclbin [b.syclbin...] [-o c.syclbin]
+```
+
+Each input must be a SYCLBIN file in either input or object state, as the device
+code in a SYCLBIN file in executable state has already been linked. The output is
+always a SYCLBIN file in executable state.
+
+The link is performed by the clang-linker-wrapper through the SYCL offloading
+toolchain, so a SYCLBIN input implies both `-fsycl` and `--offload-new-driver`;
+explicitly negating either of them is an error. `-fsycl-link` is required. The
+name of the output file is picked the same way as for `-fsyclbin`, that is the
+argument of `-o` if it is given and `a.syclbin` otherwise.
+
+The device code in a SYCLBIN file is not tied to a device, so unlike a regular
+link there is nothing to derive the set of targets to compile it for from. At
+least one architecture must therefore be named with `--offload-arch`, and the
+linked device code is compiled for each of them ahead of time. The driver passes
+the requested targets to the clang-linker-wrapper as
+`--syclbin-link-target=<triple>=<arch>` options. The wrapper then feeds every IR
+module of the SYCLBIN inputs whose recorded target has the same architecture as a
+requested target into that target's device linking pipeline, so that for example
+generic `spir64` device code is compiled for both `spir64_gen` and
+`spir64_x86_64` targets. If none of the inputs holds device code that can be
+compiled for a requested target, the link fails.
+
+SYCLBIN files carry device code only, so this is a device-only link: the driver
+creates a single clang-linker-wrapper job taking the SYCLBIN files as its inputs,
+and no host compilation or host linking takes place. Consequently SYCLBIN inputs
+cannot be mixed with other kinds of input files.
+
+### Runtime linking of SYCLBIN files
 
 `sycl::link` of two or more `kernel_bundle<bundle_state::object>` objects
 that originate from SYCLBIN files (or from a mix of SYCLBIN and
@@ -284,7 +318,26 @@ Additionally, in this case the clang-linker-wrapper will skip the wrapping of
 the device code and the host code linking stage, as there is no host code to
 wrap the device code in and link.
 
-*TODO:* Describe the details of linking SYCLBIN files.
+When linking SYCLBIN files, the input files of the clang-linker-wrapper are
+SYCLBIN files rather than host binaries. Each of them is read using the SYCLBIN
+reader and every IR module it contains is turned into an offload binary of its
+own, tagged with the target triple recorded in the IR module metadata. From that
+point on these images are indistinguishable from the device images extracted from
+any other input, so they go through the usual device code linking pipeline
+(SPIR-V to IR translation, `llvm-link`, sycl-post-link, and so on) and the result
+is packaged into a single SYCLBIN file in executable state.
+
+Ahead-of-time compiled device code has no linkable representation, so SYCLBIN
+files containing native device code images are rejected, as are SYCLBIN files
+that are already in executable state.
+
+Because the resulting SYCLBIN file is fully linked, symbols that are left
+undefined by device linking can never be resolved. Module splitting only warns
+about undefined functions, as another device image may define them at run time,
+but when producing a SYCLBIN file in executable state the clang-linker-wrapper
+reports undefined `SYCL_EXTERNAL` functions as an error instead.
+`--sycl-allow-device-image-dependencies`, which asks for symbols to be resolved
+from other device images at run time, suppresses this error.
 
 
 ## SYCL runtime library changes

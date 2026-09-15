@@ -84,6 +84,9 @@ public:
   /// Deserialize the contents of \p Source to produce a SYCLBIN object.
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
 
+  /// Get the bundle state recorded in the global metadata of this SYCLBIN.
+  Expected<BundleState> getBundleState() const;
+
   struct IRModule {
     std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
     StringRef RawIRBytes;
