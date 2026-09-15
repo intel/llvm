@@ -195,7 +195,7 @@ jobs:
 
   build_liboffload_dispatch:
     name: '[Dispatch] Build liboffload'
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.trigger_nightly == 'false' }}
+    needs: [ sanitize_inputs_dispatch ]
     uses: ./.github/workflows/offload-build.yml
     with:
       build_ur_adapter: false
