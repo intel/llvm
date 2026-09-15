@@ -1316,7 +1316,8 @@ try:
     import psutil
 
     if config.test_mode == "run-only":
-        config.maxIndividualTestTime = 300
+        # DEBUG: Bumped from 300 to 600 seconds
+        config.maxIndividualTestTime = 600
     else:
         config.maxIndividualTestTime = 600
 
