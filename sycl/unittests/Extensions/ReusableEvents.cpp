@@ -42,8 +42,7 @@ ur_result_t redefinedUrEventCreateExp(void *pParams) {
 
   const ur_exp_event_desc_t *desc = *params.ppEventDesc;
   for (const auto *base = static_cast<const ur_base_desc_t *>(desc->pNext);
-       base;
-       base = static_cast<const ur_base_desc_t *>(base->pNext)) {
+  base = static_cast<const ur_base_desc_t *>(base->pNext)) {
     if (base->stype == UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC) {
       const auto *sync =
           reinterpret_cast<const ur_exp_event_sync_mode_desc_t *>(base);

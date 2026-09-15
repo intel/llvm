@@ -517,7 +517,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #elif defined(__HIP_PLATFORM_AMD__)
     S << Props.gcnArchName;
 #else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#error ("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
     return ReturnValue(S.str().c_str());
   }
@@ -1223,7 +1223,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 #elif defined(__HIP_PLATFORM_NVIDIA__)
   const char *BinaryType = UR_DEVICE_BINARY_TARGET_NVPTX64;
 #else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#error ("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
   std::optional<uint32_t> FirstBackupCandidate;
 

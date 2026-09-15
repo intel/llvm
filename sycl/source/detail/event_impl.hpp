@@ -371,8 +371,7 @@ public:
 
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 
-  void setLowPower(bool Value) { 
-    MLowPower = Value; }
+  void setLowPower(bool Value) { MLowPower = Value; }
 
   // Sets a command-buffer command when this event represents an enqueue to a
   // Command Buffer.

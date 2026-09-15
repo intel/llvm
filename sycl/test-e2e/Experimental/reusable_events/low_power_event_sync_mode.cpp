@@ -11,7 +11,6 @@
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
-
 int main() {
   constexpr size_t numElements = 1024;
   sycl::queue q{sycl::property::queue::in_order{}};

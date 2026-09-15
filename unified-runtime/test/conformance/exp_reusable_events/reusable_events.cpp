@@ -86,7 +86,8 @@ TEST_P(urEventCreateExpTest, SyncModeFlagsZeroIsNoop) {
 }
 
 struct urEnqueueEventsWaitWithBarrierLowPowerEventTest : uur::urQueueTest {};
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueEventsWaitWithBarrierLowPowerEventTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(
+    urEnqueueEventsWaitWithBarrierLowPowerEventTest);
 
 TEST_P(urEnqueueEventsWaitWithBarrierLowPowerEventTest, SignalAndWait) {
   ur_exp_event_sync_mode_desc_t sync{
@@ -112,8 +113,8 @@ TEST_P(urEnqueueEventsWaitWithBarrierLowPowerEventTest, SignalAndWait) {
       0,
   };
 
-  ur_result_t r = urEnqueueEventsWaitWithBarrierExt(
-      queue, &props, 0, nullptr, signal_event.ptr());
+  ur_result_t r = urEnqueueEventsWaitWithBarrierExt(queue, &props, 0, nullptr,
+                                                    signal_event.ptr());
   if (r == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
     return;
   ASSERT_SUCCESS(r);
