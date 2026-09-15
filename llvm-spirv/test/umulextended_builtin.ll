@@ -5,6 +5,8 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck --check-prefix CHECK-LLVM %s
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.spvir.bc
+; RUN: llvm-dis %t.rev.spvir.bc -o - | FileCheck --check-prefix CHECK-LLVM %s
 ; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 target triple = "spir64-unknown-unknown"
@@ -59,7 +61,7 @@ define spir_func void @test_builtin_umulextcc(i8 %a, i8 %b) {
 ; CHECK-SPIRV:                               OpFunctionEnd
 
 ; CHECK-LLVM:   %0 = alloca [[i8struct]], align 8
-; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedcc(ptr sret([[i8struct]]) %0, i8 %a, i8 %b)
+; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedhh(ptr sret([[i8struct]]) %0, i8 %a, i8 %b)
 ; CHECK-LLVM:   ret void
 define spir_func void @test_builtin_umulextss(i16 %a, i16 %b) {
   entry:
@@ -77,7 +79,7 @@ define spir_func void @test_builtin_umulextss(i16 %a, i16 %b) {
 ; CHECK-SPIRV:                               OpFunctionEnd
 
 ; CHECK-LLVM:   %0 = alloca [[i16struct]], align 8
-; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedss(ptr sret([[i16struct]]) %0, i16 %a, i16 %b)
+; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedtt(ptr sret([[i16struct]]) %0, i16 %a, i16 %b)
 ; CHECK-LLVM:   ret void
 define spir_func void @test_builtin_umulextii(i32 %a, i32 %b) {
   entry:
@@ -95,7 +97,7 @@ define spir_func void @test_builtin_umulextii(i32 %a, i32 %b) {
 ; CHECK-SPIRV:                               OpFunctionEnd
 
 ; CHECK-LLVM:   %0 = alloca [[i32struct]], align 8
-; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedii(ptr sret([[i32struct]]) %0, i32 %a, i32 %b)
+; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedjj(ptr sret([[i32struct]]) %0, i32 %a, i32 %b)
 ; CHECK-LLVM:   ret void
 define spir_func void @test_builtin_umulextll(i64 %a, i64 %b) {
   entry:
@@ -113,7 +115,7 @@ define spir_func void @test_builtin_umulextll(i64 %a, i64 %b) {
 ; CHECK-SPIRV:                               OpFunctionEnd
 
 ; CHECK-LLVM:   %0 = alloca [[i64struct]]
-; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedll(ptr sret([[i64struct]]) %0, i64 %a, i64 %b)
+; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedmm(ptr sret([[i64struct]]) %0, i64 %a, i64 %b)
 ; CHECK-LLVM:   ret void
 define spir_func void @test_builtin_umulextDv4_xS_(<4 x i32> %a, <4 x i32> %b) {
   entry:
@@ -131,7 +133,7 @@ define spir_func void @test_builtin_umulextDv4_xS_(<4 x i32> %a, <4 x i32> %b) {
 ; CHECK-SPIRV:                               OpFunctionEnd
 
 ; CHECK-LLVM:   %0 = alloca [[vecstruct]]
-; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedDv4_iS_(ptr sret([[vecstruct]]) %0, <4 x i32> %a, <4 x i32> %b)
+; CHECK-LLVM:   call spir_func void @_Z20__spirv_UMulExtendedDv4_jS_(ptr sret([[vecstruct]]) %0, <4 x i32> %a, <4 x i32> %b)
 ; CHECK-LLVM:   ret void
 
 
@@ -152,7 +154,7 @@ define spir_func void @test_builtin_umulext_anon(i32 %a, i32 %b) {
 
 ; CHECK-LLVM:  %0 = alloca [[struct_anon]], align 8
 ; CHECK-LLVM:  %1 = addrspacecast ptr %0 to ptr addrspace(4)
-; CHECK-LLVM:  call spir_func void @_Z20__spirv_UMulExtendedii.1(ptr addrspace(4) sret([[struct_anon]]) %1, i32 %a, i32 %b)
+; CHECK-LLVM:  call spir_func void @_Z20__spirv_UMulExtendedjj.1(ptr addrspace(4) sret([[struct_anon]]) %1, i32 %a, i32 %b)
 ; CHECK-LLVM:  ret void
 
 declare void @_Z20__spirv_UMulExtendedIiiE4anonIT_T0_ES1_S2_(ptr addrspace(4) sret(%struct.anon) align 4, i32, i32)
