@@ -34,6 +34,11 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
     // TODO: Reschedule commands.
     throw exception(make_error_code(errc::runtime), "Enqueue process failed.");
 
+  // If the enqueue was deferred because Cmd was blocked on an in-flight host
+  // task, we drop the graph read lock and sleep on Cmd's event. When the host
+  // task completes, Scheduler::NotifyHostTaskCompletion walks the host task's
+  // MBlockedUsers and re-enters enqueueCommand for Cmd, which then runs
+  // Cmd->enqueue and setComplete on the event, waking us here.
   assert(Cmd->getEvent().get() == &Event);
 
   GraphReadLock.unlock();
@@ -43,15 +48,24 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
     GraphReadLock.lock();
 }
 
-bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
-                                                  EnqueueResultT &EnqueueResult,
-                                                  Command *RootCommand,
-                                                  BlockingT Blocking) {
-  if (Cmd == RootCommand || Blocking)
+bool Scheduler::GraphProcessor::handleBlockingCmd(
+    Command *Cmd, EnqueueResultT &EnqueueResult, Command *RootCommand,
+    [[maybe_unused]] BlockingT Blocking) {
+  // A caller enqueueing itself does not block on itself.
+  if (Cmd == RootCommand)
     return true;
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
+      // Cmd is a host task that has not yet completed. Register the root
+      // command as a blocked user and defer its enqueue until
+      // Scheduler::NotifyHostTaskCompletion fires. This holds even for
+      // Blocking=true callers (Scheduler::waitForEvent): we return
+      // SyclEnqueueBlocked, the caller drops the graph read lock, and
+      // waitInternal on the root's event sleeps until the host task
+      // completes and unblocks us. This avoids the graph-read-lock /
+      // app-mutex deadlock in CMPLRLLVM-77682 that arose from waiting on
+      // host-task deps synchronously inside Command::enqueue.
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
@@ -91,10 +105,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 
   // Recursively enqueue all the implicit + explicit host dependencies and
   // exit immediately if any of the commands cannot be enqueued.
-  // Host task execution is asynchronous. In current implementation enqueue for
-  // this command will wait till host task completion by waitInternal call on
-  // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
-  // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,

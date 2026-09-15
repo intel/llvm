@@ -12,6 +12,10 @@
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
 
+#include <atomic>
+#include <chrono>
+#include <thread>
+
 using namespace sycl;
 
 TEST_F(SchedulerTest, FailedDependency) {
@@ -161,4 +165,51 @@ TEST(FailedCommandsTest, CheckUREventReleaseWithBarrier) {
   Queue.wait();
   ASSERT_TRUE(DummyEventReturned);
   ASSERT_FALSE(DummyEventReleaseAttempt);
+}
+
+// Regression for the deferred-enqueue-failure hang identified in PR #22993
+// review. When Command::enqueue's re-attempt on a ThreadPool worker (via
+// NotifyHostTaskCompletion -> enqueueUnblockedCommands) fails, a caller
+// that deferred via MBlockedUsers and parked in event_impl::waitInternal's
+// cv.wait must still wake. The failure itself surfaces via
+// reportAsyncException on the queue's async handler.
+inline ur_result_t failingKernelLaunch(void *) {
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+
+TEST(FailedCommandsTest, DeferredEnqueueFailureWakesWaitInternal) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunchWithArgsExp",
+                                           &failingKernelLaunch);
+
+  std::atomic<bool> done{false};
+  std::thread t([&] {
+    platform Plt = sycl::platform();
+    queue Q(context(Plt), default_selector_v,
+            sycl::property::queue::in_order{});
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.host_task(
+          [] { std::this_thread::sleep_for(std::chrono::milliseconds(100)); });
+    });
+    Q.submit([&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+    try {
+      Q.wait();
+    } catch (...) {
+    }
+    done.store(true, std::memory_order_release);
+  });
+
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (!done.load(std::memory_order_acquire) &&
+         std::chrono::steady_clock::now() < deadline)
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+  if (!done.load(std::memory_order_acquire)) {
+    // Detach so the hung worker doesn't block process teardown.
+    t.detach();
+    FAIL() << "queue::wait() hung: deferred-enqueue failure did not wake "
+              "waitInternal (see PR #22993 review)";
+    return;
+  }
+  t.join();
 }
