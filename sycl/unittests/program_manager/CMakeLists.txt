@@ -14,6 +14,7 @@ add_sycl_unittest(ProgramManagerTests OBJECT
   LibraryCompilation.cpp
   SYCLBINSelector.cpp
   SYCLBINAOTLink.cpp
+  FreeFunctionKernelInfo.cpp
 )
 endif()
 

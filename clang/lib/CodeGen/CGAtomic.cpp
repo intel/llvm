@@ -632,6 +632,7 @@ static void EmitAtomicOp(CodeGenFunction &CGF, AtomicExpr *E, Address Dest,
     llvm::LoadInst *Load = CGF.Builder.CreateLoad(Ptr);
     Load->setAtomic(Order, Scope);
     Load->setVolatile(E->isVolatile());
+    CGF.getTargetHooks().setTargetAtomicMetadata(CGF, *Load, E);
     CGF.maybeAttachRangeForLoad(Load, E->getValueType(), E->getExprLoc());
     auto *I = CGF.Builder.CreateStore(Load, Dest);
     CGF.addInstToCurrentSourceAtom(I, Load);
@@ -649,6 +650,7 @@ static void EmitAtomicOp(CodeGenFunction &CGF, AtomicExpr *E, Address Dest,
     llvm::StoreInst *Store = CGF.Builder.CreateStore(LoadVal1, Ptr);
     Store->setAtomic(Order, Scope);
     Store->setVolatile(E->isVolatile());
+    CGF.getTargetHooks().setTargetAtomicMetadata(CGF, *Store, E);
     CGF.addInstToCurrentSourceAtom(Store, LoadVal1);
     return;
   }
@@ -823,6 +825,7 @@ static void EmitAtomicOp(CodeGenFunction &CGF, AtomicExpr *E, Address Dest,
         CGF.Builder.CreateStore(CGF.Builder.getInt8(0), Ptr);
     Store->setAtomic(Order, Scope);
     Store->setVolatile(E->isVolatile());
+    CGF.getTargetHooks().setTargetAtomicMetadata(CGF, *Store, E);
     CGF.addInstToCurrentSourceAtom(Store, nullptr);
     return;
   }
@@ -1630,6 +1633,7 @@ llvm::Value *AtomicInfo::EmitAtomicLoadOp(llvm::AtomicOrdering AO,
     Addr = castToAtomicIntPointer(Addr);
   llvm::LoadInst *Load = CGF.Builder.CreateLoad(Addr, "atomic-load");
   Load->setAtomic(AO);
+  CGF.getTargetHooks().setTargetAtomicMetadata(CGF, *Load);
 
   // Other decoration.
   if (IsVolatile)
@@ -1797,6 +1801,7 @@ std::pair<llvm::Value *, llvm::Value *> AtomicInfo::EmitAtomicCompareExchangeOp(
   // Other decoration.
   Inst->setVolatile(LVal.isVolatileQualified());
   Inst->setWeak(IsWeak);
+  CGF.getTargetHooks().setTargetAtomicMetadata(CGF, *Inst);
 
   // Okay, turn that back into the original value type.
   auto *PreviousVal = CGF.Builder.CreateExtractValue(Inst, /*Idxs=*/0);
@@ -2152,8 +2157,10 @@ void CodeGenFunction::EmitAtomicStore(RValue rvalue, LValue dest,
     else if (AO == llvm::AtomicOrdering::AcquireRelease)
       AO = llvm::AtomicOrdering::Release;
     // Initializations don't need to be atomic.
-    if (!isInit)
+    if (!isInit) {
       store->setAtomic(AO);
+      getTargetHooks().setTargetAtomicMetadata(*this, *store);
+    }
 
     // Other decoration.
     if (IsVolatile)
@@ -2195,6 +2202,13 @@ CodeGenFunction::emitAtomicRMWInst(llvm::AtomicRMWInst::BinOp Op, Address Addr,
       Builder.CreateAtomicRMW(Op, Addr, Val, Order, SSID);
   getTargetHooks().setTargetAtomicMetadata(*this, *RMW, AE);
   return RMW;
+}
+
+llvm::FenceInst *CodeGenFunction::emitAtomicFence(llvm::AtomicOrdering Order,
+                                                  llvm::SyncScope::ID SSID) {
+  llvm::FenceInst *Fence = Builder.CreateFence(Order, SSID);
+  getTargetHooks().setTargetAtomicMetadata(*this, *Fence);
+  return Fence;
 }
 
 void CodeGenFunction::EmitAtomicUpdate(

@@ -95,8 +95,7 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
     return Loc->second();
 
   SPIRVDBG(spvdbgs() << "No factory for OpCode " << (unsigned)OpCode << '\n';)
-  assert(0 && "Not implemented");
-  return 0;
+  return nullptr;
 }
 
 std::unique_ptr<SPIRV::SPIRVEntry> SPIRVEntry::createUnique(Op OC) {
@@ -534,6 +533,17 @@ std::vector<SPIRVDecorate const *> SPIRVEntry::getDecorations() const {
   std::vector<SPIRVDecorate const *> Decors;
   Decors.reserve(Decorates.size());
   for (auto &DecoPair : Decorates)
+    Decors.push_back(DecoPair.second);
+  return Decors;
+}
+
+std::vector<SPIRVDecorateGeneric const *>
+SPIRVEntry::getAllDecorations() const {
+  std::vector<SPIRVDecorateGeneric const *> Decors;
+  Decors.reserve(Decorates.size() + DecorateIds.size());
+  for (auto &DecoPair : Decorates)
+    Decors.push_back(DecoPair.second);
+  for (auto &DecoPair : DecorateIds)
     Decors.push_back(DecoPair.second);
   return Decors;
 }

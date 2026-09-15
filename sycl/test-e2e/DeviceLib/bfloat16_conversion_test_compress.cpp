@@ -11,6 +11,9 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
 
+// XFAIL: linux && level_zero && arch-intel_gpu_mtl_u
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23094
+
 // REQUIRES: linux, zstd
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{build} --offload-compress -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t_compress.so

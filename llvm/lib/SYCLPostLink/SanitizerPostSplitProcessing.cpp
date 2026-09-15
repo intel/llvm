@@ -14,14 +14,16 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 
 using namespace llvm;
 
 namespace {
 
 bool createSanitizerModuleID(Module &M) {
-  constexpr StringRef Prefixes[] = {
-      "__AsanKernelMetadata", "__MsanKernelMetadata", "__TsanKernelMetadata"};
+  constexpr StringRef Prefixes[] = {sycl::utils::ASAN_KERNEL_METADATA_PREFIX,
+                                    sycl::utils::MSAN_KERNEL_METADATA_PREFIX,
+                                    sycl::utils::TSAN_KERNEL_METADATA_PREFIX};
   SmallVector<StringRef, 3> ModuleIDs;
   for (GlobalVariable &GV : M.globals()) {
     auto GVName = GV.getName();

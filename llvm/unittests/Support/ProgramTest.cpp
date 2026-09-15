@@ -692,8 +692,9 @@ TEST_F(ProgramEnvTest, TestExecuteEmptyEnvironment) {
 
   std::string Error;
   bool ExecutionFailed;
-  int RetCode = ExecuteAndWait(Executable, argv, ArrayRef<StringRef>{}, {}, 0,
-                               0, &Error, &ExecutionFailed);
+  [[maybe_unused]] int RetCode =
+      ExecuteAndWait(Executable, argv, ArrayRef<StringRef>{}, {}, 0, 0, &Error,
+                     &ExecutionFailed);
   EXPECT_FALSE(ExecutionFailed) << Error;
 #if 0 // INTEL
   // When running with an empty environment, the child process doesn't in herit

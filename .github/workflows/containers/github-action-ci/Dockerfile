@@ -49,7 +49,7 @@ COPY --from=stage1-toolchain $LLVM_SYSROOT $LLVM_SYSROOT
 # Need libedit, libxml2 and lzma for LLDB.
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    binutils \
+    binutils-dev \
     cmake \
     curl \
     git \

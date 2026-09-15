@@ -43,15 +43,14 @@
 namespace SPIRV {
 
 class SPIRVLowerBitCastToNonStandardTypePass
-    : public llvm::PassInfoMixin<SPIRVLowerBitCastToNonStandardTypePass> {
+    : public llvm::RequiredPassInfoMixin<
+          SPIRVLowerBitCastToNonStandardTypePass> {
 public:
   SPIRVLowerBitCastToNonStandardTypePass(const SPIRV::TranslatorOpts &Opts)
       : Opts(Opts) {}
 
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &FAM);
-
-  static bool isRequired() { return true; }
 
 private:
   SPIRV::TranslatorOpts Opts;

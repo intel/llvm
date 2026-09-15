@@ -29,6 +29,11 @@ This file describes macros that have effect on SYCL compiler and run-time.
   Disables all deprecation warnings in SYCL runtime headers, including SYCL
   1.2.1 deprecations.
 
+- **SYCL_DISABLE_DEVICE_COPYABLE_CHECKS**
+
+  Disables all diagnostics that the SYCL headers issue when a type does not
+  satisfy the device copyability requirements of the SYCL specification.
+
 - **SYCL_DISABLE_IMAGE_ASPECT_WARNING**
 
   Disables warning diagnostic issued when calling `device::has(aspect::image)`

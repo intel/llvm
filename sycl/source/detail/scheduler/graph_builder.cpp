@@ -385,8 +385,9 @@ Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     NewCmd = insertMapUnmapForLinkedCmds(AllocaCmdSrc, AllocaCmdDst, MapMode);
     Record->MHostAccess = MapMode;
   } else {
-    if ((Req->MAccessMode == access::mode::discard_write) ||
-        (Req->MAccessMode == access::mode::discard_read_write)) {
+    if (((Req->MAccessMode == access::mode::discard_write) ||
+         (Req->MAccessMode == access::mode::discard_read_write)) &&
+        Req->isFullMemoryAccess()) {
       Record->setCurContext(Context);
       return nullptr;
     } else {
@@ -728,9 +729,11 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // might need to also create a host alloca right away in order to perform
       // the initial memory write.
       if (Record->MAllocaCommands.empty()) {
-        if (!HostUnifiedMemory &&
-            Req->MAccessMode != access::mode::discard_write &&
-            Req->MAccessMode != access::mode::discard_read_write) {
+        const bool IsFullDiscard =
+            (Req->MAccessMode == access::mode::discard_write ||
+             Req->MAccessMode == access::mode::discard_read_write) &&
+            Req->isFullMemoryAccess();
+        if (!HostUnifiedMemory && !IsFullDiscard) {
           // There's no need to make a host allocation if the buffer is not
           // initialized with user data.
           if (MemObj->hasUserDataPtr()) {

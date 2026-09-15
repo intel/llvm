@@ -107,7 +107,12 @@ protected:
 
 // Test that program is retained for each subset of the list of devices and that
 // number of urKernelRelease calls is correct.
+#ifdef _WIN32
+// https://github.com/intel/llvm/issues/21553
+TEST_P(MultipleDeviceCacheTest, DISABLED_ProgramRetain) {
+#else
 TEST_P(MultipleDeviceCacheTest, ProgramRetain) {
+#endif
   {
     // Reset counters
     RetainCounter = 0;

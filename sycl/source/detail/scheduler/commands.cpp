@@ -241,12 +241,6 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
   return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
 }
 
-bool Command::isHostTask() const {
-  return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
-         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
-          CGType::CodeplayHostTask);
-}
-
 namespace {
 
 struct EnqueueNativeCommandData {
@@ -1737,11 +1731,14 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
-  // Omit copying if mode is discard one.
+  // Omit copying if mode is discard one and the accessor covers the full
+  // memory object; a ranged discard accessor must still preserve elements
+  // outside its range (SYCL 2020 §4.7.6.4).
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
-      MDstReq.MAccessMode == access::mode::discard_write) {
+  if ((MDstReq.MAccessMode == access::mode::discard_read_write ||
+       MDstReq.MAccessMode == access::mode::discard_write) &&
+      MDstReq.isFullMemoryAccess()) {
     Command::waitForEvents(Queue, EventImpls, UREvent);
 
     return UR_RESULT_SUCCESS;
@@ -2294,8 +2291,14 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
   if (NDR.GlobalSize[0] != 0)
     return; // GlobalSize is set - no need to adjust
-  // check the prerequisites:
-  assert(NDR.LocalSize[0] == 0);
+  if (NDR.LocalSize[0] != 0)
+    return; // User set LocalSize but GlobalSize is zero (e.g. nd_range with
+            // zero global, non-zero local). Per SYCL 2020 the kernel is not
+            // executed; leave the range as-is.
+  // Zero global and zero local: either parallel_for_work_group (NumWorkGroups
+  // is set) or plain parallel_for with an empty range. Fill in WGSize so that
+  // downstream layers (in particular DeviceASAN's preLaunchKernel) always see
+  // a non-zero local work size even when the launch is a no-op.
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
@@ -2864,8 +2867,7 @@ void enqueueImpKernel(
   FastKernelCacheValPtr KernelCacheVal;
 
   if (nullptr != MSyclKernel) {
-    assert(MSyclKernel->get_info<info::kernel::context>() ==
-           Queue.get_context());
+    assert(&MSyclKernel->getContextImpl() == &ContextImpl);
     Kernel = MSyclKernel->getHandleRef();
     Program = MSyclKernel->getProgramRef();
 
@@ -2921,12 +2923,20 @@ void enqueueImpKernel(
       NDRDesc, static_cast<uint64_t>(std::numeric_limits<int>::max()));
   if (isRangeGreaterThanIntMax) {
     uint32_t IdQueryRangeProp = 0;
-
     // Get device image of kernel and retrieve the id queries range property.
-    if (MSyclKernel != nullptr && !MSyclKernel->isInteropOrSourceBased()) {
-      DeviceImageImpl = &MSyclKernel->getDeviceImage();
-      IdQueryRangeProp =
-          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    if (MSyclKernel != nullptr) {
+      // Interop kernels and kernels built from a non-SYCL source language
+      // (OpenCL C, SPIR-V) carry no SYCL metadata, so there is no id queries
+      // range property to read; their id queries are size_t by definition.
+      // Kernels built from SYCL source do have a device image with the
+      // property, so they must still be checked.
+      if (!MSyclKernel->hasSYCLMetadata()) {
+        IdQueryRangeProp = 2; // size_t range
+      } else {
+        DeviceImageImpl = &MSyclKernel->getDeviceImage();
+        IdQueryRangeProp =
+            DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+      }
     } else if (DeviceImageImpl != nullptr) {
       IdQueryRangeProp =
           DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();

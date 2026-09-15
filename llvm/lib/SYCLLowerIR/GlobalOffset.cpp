@@ -95,7 +95,7 @@ void GlobalOffsetPass::createClonesAndPopulateVMap(
     const bool IsKernel = KCache.isKernel(*Func);
     FunctionType *FuncTy = Func->getFunctionType();
     Type *ImplicitArgumentType =
-        IsKernel ? KernelImplicitArgumentType->getPointerTo()
+        IsKernel ? PointerType::get(KernelImplicitArgumentType->getContext(), 0)
                  : ImplicitOffsetPtrType;
 
     // Construct an argument list containing all of the previous arguments.

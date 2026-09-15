@@ -46,6 +46,9 @@ public:
                    const std::set<std::string> &enabledLayerNames,
                    codeloc_data codelocData) override;
 
+  /// @brief Hook up one more ddi table to the already initialized sanitizer.
+  ur_result_t interceptDdiTable(ur_dditable_t *dditable);
+
   ur_result_t tearDown() override;
 };
 

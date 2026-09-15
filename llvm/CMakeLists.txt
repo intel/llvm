@@ -248,12 +248,12 @@ endif()
 option(LIBC_GPU_BUILD "Enable the 'libc' project targeting the GPU" OFF)
 if(LIBC_GPU_BUILD)
   if(LLVM_RUNTIME_TARGETS)
-    list(APPEND LLVM_RUNTIME_TARGETS "nvptx64-nvidia-cuda" "amdgcn-amd-amdhsa")
+    list(APPEND LLVM_RUNTIME_TARGETS "nvptx64-nvidia-cuda" "amdgpu-amd-amdhsa")
   else()
-    set(LLVM_RUNTIME_TARGETS "default;nvptx64-nvidia-cuda;amdgcn-amd-amdhsa")
+    set(LLVM_RUNTIME_TARGETS "default;nvptx64-nvidia-cuda;amdgpu-amd-amdhsa")
   endif()
   list(APPEND RUNTIMES_nvptx64-nvidia-cuda_LLVM_ENABLE_RUNTIMES "libc")
-  list(APPEND RUNTIMES_amdgcn-amd-amdhsa_LLVM_ENABLE_RUNTIMES "libc")
+  list(APPEND RUNTIMES_amdgpu-amd-amdhsa_LLVM_ENABLE_RUNTIMES "libc")
 endif()
 
 # Set up Arm64X build of the OpenMP runtime
@@ -270,19 +270,6 @@ if(LIBOMP_ENABLE_ARM64X)
     list(APPEND LLVM_RUNTIME_TARGETS "arm64ec-pc-windows-msvc")
   endif()
   set(RUNTIMES_arm64ec-pc-windows-msvc_LIBOMP_ENABLE_ARM64X ON)
-endif()
-
-foreach(_name ${LLVM_RUNTIME_TARGETS})
-  if("libc" IN_LIST RUNTIMES_${_name}_LLVM_ENABLE_RUNTIMES)
-    if("${_name}" STREQUAL "amdgcn-amd-amdhsa" OR "${_name}" STREQUAL "nvptx64-nvidia-cuda" OR "${_name}" STREQUAL "spirv64-intel-unknown")
-      set(LLVM_LIBC_GPU_BUILD ON)
-    endif()
-  endif()
-endforeach()
-if("${LIBC_TARGET_TRIPLE}" STREQUAL "amdgcn-amd-amdhsa" OR
-   "${LIBC_TARGET_TRIPLE}" STREQUAL "nvptx64-nvidia-cuda" OR
-   "${LIBC_TARGET_TRIPLE}" STREQUAL "spirv64-intel-unknown")
-  set(LLVM_LIBC_GPU_BUILD ON)
 endif()
 
 # LLVM_ENABLE_PROJECTS_USED is `ON` if the user has ever used the
@@ -767,7 +754,7 @@ else()
   option(LLVM_ENABLE_ASSERTIONS "Enable assertions" ON)
 endif()
 
-option(LLVM_ENABLE_IO_SANDBOX "Enable IO sandboxing in supported tools" OFF)
+option(LLVM_ENABLE_IO_SANDBOX "Enable IO sandboxing in supported tools" ${LLVM_ENABLE_ASSERTIONS})
 option(LLVM_ENABLE_EXPENSIVE_CHECKS "Enable expensive checks" OFF)
 
 set(LLVM_ABI_BREAKING_CHECKS "WITH_ASSERTS" CACHE STRING
@@ -1072,12 +1059,7 @@ endif()
 set(LLVM_TARGET_TRIPLE_ENV CACHE STRING "The name of environment variable to override default target. Disabled by blank.")
 mark_as_advanced(LLVM_TARGET_TRIPLE_ENV)
 
-if(CMAKE_SYSTEM_NAME MATCHES "BSD|Linux|OS390|AIX")
-  set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default ON)
-else()
-  set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default OFF)
-endif()
-set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR ${LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default} CACHE BOOL
+set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR ON CACHE BOOL
   "Enable per-target runtimes directory")
 
 set(LLVM_PROFDATA_FILE "" CACHE FILEPATH
@@ -1248,6 +1230,20 @@ set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LLVM_LIBRARY_DIR} )
 # For up-to-date instructions for installing the TFLite dependency, refer to
 # the bot setup script: https://github.com/google/ml-compiler-opt/blob/main/buildbot/buildbot_init.sh
 set(LLVM_HAVE_TFLITE "" CACHE BOOL "Use tflite")
+
+set(LLVM_MLGO_MODELS "" CACHE STRING "List of MLGO models")
+set(LLVM_MLGO_MLIR_OPT "mlir-opt" CACHE STRING "Path or system binary name for mlir-opt")
+set(LLVM_MLGO_MLIR_TRANSLATE "mlir-translate" CACHE STRING "Path or system binary name for mlir-translate")
+
+set(LLVM_HAVE_MLIR_LOWERING OFF)
+if (NOT LLVM_MLGO_MODELS STREQUAL "")
+  set(LLVM_HAVE_MLIR_LOWERING ON)
+endif()
+
+if (LLVM_HAVE_MLIR_LOWERING AND LLVM_HAVE_TFLITE)
+  message(FATAL_ERROR "Only one of LLVM_HAVE_TFLITE and LLVM_HAVE_MLIR_LOWERING can be enabled.")
+endif()
+
 if (LLVM_HAVE_TFLITE)
   find_package(tensorflow-lite REQUIRED)
 endif()
@@ -1275,6 +1271,10 @@ if (NOT TENSORFLOW_AOT_PATH STREQUAL "")
   install(TARGETS tf_xla_runtime EXPORT LLVMDevelopmentExports
     ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT tf_xla_runtime)
   set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS tf_xla_runtime)
+
+  if (LLVM_HAVE_TF_AOT AND LLVM_HAVE_MLIR_LOWERING)
+    message(FATAL_ERROR "Only one of LLVM_HAVE_TF_AOT and LLVM_HAVE_MLIR_LOWERING can be enabled.")
+  endif()
   # Once we add more modules, we should handle this more automatically.
   if (DEFINED LLVM_OVERRIDE_MODEL_HEADER_INLINERSIZEMODEL)
     set(LLVM_INLINER_MODEL_PATH "none")

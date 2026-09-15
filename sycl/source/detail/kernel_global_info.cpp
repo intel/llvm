@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/global_handler.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 namespace sycl {
@@ -14,6 +15,9 @@ namespace detail::free_function_info_map {
 
 __SYCL_EXPORT void add(const char *const *FreeFunctionNames,
                        const unsigned *FreeFunctionNumArgs, unsigned Size) {
+  // Nothing to register if the runtime is already torn down.
+  if (!GlobalHandler::isInstanceAlive())
+    return;
   std::unordered_map<std::string_view, unsigned> GlobalInfoToCopy;
   for (size_t i = 0; i < Size; ++i) {
     GlobalInfoToCopy[std::string_view{FreeFunctionNames[i]}] =
@@ -25,6 +29,9 @@ __SYCL_EXPORT void add(const char *const *FreeFunctionNames,
 
 __SYCL_EXPORT void remove(const char *const *FreeFunctionNames,
                           const unsigned *FreeFunctionNumArgs, unsigned Size) {
+  // Avoid a use-after-free if the runtime is already torn down.
+  if (!GlobalHandler::isInstanceAlive())
+    return;
   std::unordered_map<std::string_view, unsigned> GlobalInfoToCopy;
   for (size_t i = 0; i < Size; ++i) {
     GlobalInfoToCopy[std::string_view{FreeFunctionNames[i]}] =

@@ -1,0 +1,36 @@
+; Verify that SPIR-V using the Float4E2M1INTEL encoding (6214) from
+; SPV_INTEL_float4 is consumed and round-trips back to the INTEL builtin,
+; rather than the Float4E2M1EXT encoding from SPV_EXT_ocp_microscaling_types.
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: call spir_func half @_Z38__builtin_spirv_ConvertE2M1ToFP16INTELi(i4 1)
+
+119734787 65536 393230 11 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Float16Buffer
+2 Capability Float4E2M1INTEL
+2 Capability Int4TypeINTEL
+6 Extension "SPV_INTEL_float4"
+5 Extension "SPV_INTEL_int4"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+3 Source 0 0
+3 Name 4 "f"
+4 Name 5 "entry"
+5 Decorate 4 LinkageAttributes "f" Export
+4 TypeInt 6 4 0
+4 Constant 6 7 1
+3 TypeFloat 2 16
+3 TypeFunction 3 2
+4 TypeFloat 8 4 6214
+5 Function 2 4 0 3
+2 Label 5
+4 Bitcast 8 9 7
+4 FConvert 2 10 9
+2 ReturnValue 10
+1 FunctionEnd

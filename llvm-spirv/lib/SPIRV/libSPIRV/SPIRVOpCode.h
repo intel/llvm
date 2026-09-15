@@ -123,8 +123,10 @@ inline bool isCvtOpCode(Op OpCode) {
 }
 
 inline bool isIntelCvtOpCode(Op OpCode) {
-  return OpCode == internal::OpClampConvertFToSINTEL ||
+  return OpCode == internal::OpClampConvertFToFINTEL ||
+         OpCode == internal::OpClampConvertFToSINTEL ||
          OpCode == internal::OpStochasticRoundFToFINTEL ||
+         OpCode == internal::OpClampStochasticRoundFToFINTEL ||
          OpCode == internal::OpClampStochasticRoundFToSINTEL;
 }
 

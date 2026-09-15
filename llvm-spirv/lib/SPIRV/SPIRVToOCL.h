@@ -383,7 +383,7 @@ public:
   std::string mapAtomicName(Op OC, Type *Ty);
 };
 
-class SPIRVToOCL12Pass : public llvm::PassInfoMixin<SPIRVToOCL12Pass>,
+class SPIRVToOCL12Pass : public llvm::RequiredPassInfoMixin<SPIRVToOCL12Pass>,
                          public SPIRVToOCL12Base {
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
@@ -391,8 +391,6 @@ public:
     return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
                             : llvm::PreservedAnalyses::all();
   }
-
-  static bool isRequired() { return true; }
 };
 
 class SPIRVToOCL12Legacy : public SPIRVToOCL12Base, public SPIRVToOCLLegacy {
@@ -456,7 +454,7 @@ public:
   void visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
 };
 
-class SPIRVToOCL20Pass : public llvm::PassInfoMixin<SPIRVToOCL20Pass>,
+class SPIRVToOCL20Pass : public llvm::RequiredPassInfoMixin<SPIRVToOCL20Pass>,
                          public SPIRVToOCL20Base {
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
@@ -464,8 +462,6 @@ public:
     return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
                             : llvm::PreservedAnalyses::all();
   }
-
-  static bool isRequired() { return true; }
 };
 
 class SPIRVToOCL20Legacy : public SPIRVToOCLLegacy, public SPIRVToOCL20Base {

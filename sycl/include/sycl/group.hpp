@@ -25,7 +25,7 @@
 #include <sycl/range.hpp>                          // for range
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/exception.hpp>
+#include <exception>
 
 #include <memory> // for unique_ptr
 #endif
@@ -60,7 +60,8 @@ inline void workGroupBarrier() {
 //   private data for a given group across the entire group.The id of the
 //   current work-item is passed to any access to grab the correct data.
 template <typename T, int Dimensions = 1>
-class __SYCL_TYPE(private_memory) private_memory {
+class __SYCL_TYPE(private_memory)
+    __SYCL2020_DEPRECATED("Deprecated in SYCL 2020") private_memory {
 public:
   // Construct based directly off the number of work-items
   private_memory(const group<Dimensions> &G) {
@@ -103,28 +104,28 @@ private:
 /// \ingroup sycl_api
 template <int Dimensions = 1> class __SYCL_TYPE(group) group {
 public:
-#ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
   using id_type = id<Dimensions>;
   using range_type = range<Dimensions>;
   using linear_id_type = size_t;
   static constexpr int dimensions = Dimensions;
-#endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
-
   static constexpr sycl::memory_scope fence_scope =
       sycl::memory_scope::work_group;
 
   group() = delete;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
   id<Dimensions> get_id() const { return index; }
 
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
   size_t get_id(int dimension) const { return index[dimension]; }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  id<Dimensions> get_group_id() const { return index; }
+  id<Dimensions> get_group_id() const noexcept { return index; }
 
-  size_t get_group_id(int dimension) const { return index[dimension]; }
+  size_t get_group_id(int dimension) const noexcept { return index[dimension]; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("calculate sycl::group::get_group_range() * "
                         "sycl::group::get_max_local_range() instead")
   range<Dimensions> get_global_range() const { return globalRange; }
@@ -132,50 +133,60 @@ public:
   size_t get_global_range(int dimension) const {
     return globalRange[dimension];
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  id<Dimensions> get_local_id() const {
+  id<Dimensions> get_local_id() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "get_local_id() is not implemented on host");
+    std::terminate();
 #endif
   }
 
-  size_t get_local_id(int dimention) const { return get_local_id()[dimention]; }
+  size_t get_local_id(int dimension) const noexcept {
+    return get_local_id()[dimension];
+  }
 
-  size_t get_local_linear_id() const {
+  size_t get_local_linear_id() const noexcept {
     return get_local_linear_id_impl<Dimensions>();
   }
 
-  range<Dimensions> get_local_range() const { return localRange; }
+  range<Dimensions> get_local_range() const noexcept { return localRange; }
 
-  size_t get_local_range(int dimension) const { return localRange[dimension]; }
+  size_t get_local_range(int dimension) const noexcept {
+    return localRange[dimension];
+  }
 
-  size_t get_local_linear_range() const {
+  size_t get_local_linear_range() const noexcept {
     return get_local_linear_range_impl();
   }
 
-  range<Dimensions> get_group_range() const { return groupRange; }
+  range<Dimensions> get_group_range() const noexcept { return groupRange; }
 
-  size_t get_group_range(int dimension) const {
+  size_t get_group_range(int dimension) const noexcept {
     return get_group_range()[dimension];
   }
 
-  size_t get_group_linear_range() const {
+  size_t get_group_linear_range() const noexcept {
     return get_group_linear_range_impl();
   }
 
-  range<Dimensions> get_max_local_range() const { return get_local_range(); }
+  range<Dimensions> get_max_local_range() const noexcept {
+    return get_local_range();
+  }
 
-  size_t operator[](int dimension) const { return index[dimension]; }
+  size_t operator[](int dimension) const noexcept { return index[dimension]; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group::get_group_linear_id() instead")
   size_t get_linear_id() const { return get_group_linear_id(); }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  size_t get_group_linear_id() const { return get_group_linear_id_impl(); }
+  size_t get_group_linear_id() const noexcept {
+    return get_group_linear_id_impl();
+  }
 
-  bool leader() const { return (get_local_linear_id() == 0); }
+  bool leader() const noexcept { return (get_local_linear_id() == 0); }
 
   // Note: These signatures for parallel_for_work_item are intentionally
   // non-conforming. The spec says this should take const WorkItemFunctionT &,
@@ -187,8 +198,7 @@ public:
 #ifdef __NativeCPU__
   __attribute__((__libclc_call__))
 #endif
-  void
-  parallel_for_work_item(WorkItemFunctionT Func) const {
+  void parallel_for_work_item(WorkItemFunctionT Func) const noexcept {
     // need barriers to enforce SYCL semantics for the work item loop -
     // compilers are expected to optimize when possible
     detail::workGroupBarrier();
@@ -242,9 +252,8 @@ public:
 #ifdef __NativeCPU__
   __attribute__((__libclc_call__))
 #endif
-  void
-  parallel_for_work_item(range<Dimensions> flexibleRange,
-                         WorkItemFunctionT Func) const {
+  void parallel_for_work_item(range<Dimensions> flexibleRange,
+                              WorkItemFunctionT Func) const noexcept {
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
@@ -339,7 +348,7 @@ public:
                                               src,
                                           [[maybe_unused]] size_t numElements,
                                           [[maybe_unused]] size_t srcStride)
-      const {
+      const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(
         __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
@@ -365,7 +374,7 @@ public:
                                           [[maybe_unused]] local_ptr<dataT> src,
                                           [[maybe_unused]] size_t numElements,
                                           [[maybe_unused]] size_t destStride)
-      const {
+      const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(
         __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
@@ -390,7 +399,7 @@ public:
   async_work_group_copy([[maybe_unused]] decorated_local_ptr<DestDataT> dest,
                         [[maybe_unused]] decorated_global_ptr<SrcDataT> src,
                         [[maybe_unused]] size_t numElements,
-                        [[maybe_unused]] size_t srcStride) const {
+                        [[maybe_unused]] size_t srcStride) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(
         __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
@@ -415,7 +424,7 @@ public:
   async_work_group_copy([[maybe_unused]] decorated_global_ptr<DestDataT> dest,
                         [[maybe_unused]] decorated_local_ptr<SrcDataT> src,
                         [[maybe_unused]] size_t numElements,
-                        [[maybe_unused]] size_t destStride) const {
+                        [[maybe_unused]] size_t destStride) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(
         __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
@@ -443,7 +452,7 @@ public:
                                                     access::decorated::legacy>
                                               Src,
                                           size_t NumElements,
-                                          size_t Stride) const {
+                                          size_t Stride) const noexcept {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     auto DestP = multi_ptr<uint8_t, DestS, access::decorated::legacy>(
@@ -469,7 +478,7 @@ public:
                                                     access::decorated::legacy>
                                               Src,
                                           size_t NumElements,
-                                          size_t Stride) const {
+                                          size_t Stride) const noexcept {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     using VecT = detail::change_base_type_t<T, uint8_t>;
@@ -492,7 +501,7 @@ public:
                    device_event>
   async_work_group_copy(multi_ptr<DestT, DestS, access::decorated::yes> Dest,
                         multi_ptr<SrcT, SrcS, access::decorated::yes> Src,
-                        size_t NumElements, size_t Stride) const {
+                        size_t NumElements, size_t Stride) const noexcept {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     using QualSrcT =
@@ -520,7 +529,7 @@ public:
                    device_event>
   async_work_group_copy(multi_ptr<DestT, DestS, access::decorated::yes> Dest,
                         multi_ptr<SrcT, SrcS, access::decorated::yes> Src,
-                        size_t NumElements, size_t Stride) const {
+                        size_t NumElements, size_t Stride) const noexcept {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     using VecT = detail::change_base_type_t<DestT, uint8_t>;
@@ -546,7 +555,7 @@ public:
   __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
   device_event
       async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
-                            size_t numElements) const {
+                            size_t numElements) const noexcept {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
@@ -559,7 +568,7 @@ public:
   __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
   device_event
       async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
-                            size_t numElements) const {
+                            size_t numElements) const noexcept {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
@@ -574,7 +583,7 @@ public:
       std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
   async_work_group_copy(decorated_local_ptr<DestDataT> dest,
                         decorated_global_ptr<SrcDataT> src,
-                        size_t numElements) const {
+                        size_t numElements) const noexcept {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
@@ -589,24 +598,28 @@ public:
       std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
   async_work_group_copy(decorated_global_ptr<DestDataT> dest,
                         decorated_local_ptr<SrcDataT> src,
-                        size_t numElements) const {
+                        size_t numElements) const noexcept {
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
-  template <typename... eventTN> void wait_for(eventTN... Events) const {
+  template <typename... eventTN>
+  void wait_for(eventTN... Events) const noexcept {
     (Events.wait(), ...);
   }
 
-  bool operator==(const group<Dimensions> &rhs) const {
-    bool Result = (rhs.globalRange == globalRange) &&
-                  (rhs.localRange == localRange) && (rhs.index == index);
-    __SYCL_ASSERT(rhs.groupRange == groupRange &&
+  friend bool operator==(const group<Dimensions> &lhs,
+                         const group<Dimensions> &rhs) noexcept {
+    bool Result = (rhs.globalRange == lhs.globalRange) &&
+                  (rhs.localRange == lhs.localRange) &&
+                  (rhs.index == lhs.index);
+    __SYCL_ASSERT(rhs.groupRange == lhs.groupRange &&
                   "inconsistent group class fields");
     return Result;
   }
 
-  bool operator!=(const group<Dimensions> &rhs) const {
-    return !((*this) == rhs);
+  friend bool operator!=(const group<Dimensions> &lhs,
+                         const group<Dimensions> &rhs) noexcept {
+    return !(lhs == rhs);
   }
 
 private:
@@ -617,21 +630,21 @@ private:
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 1), size_t>
-  get_local_linear_id_impl() const {
+  get_local_linear_id_impl() const noexcept {
     id<Dimensions> localId = get_local_id();
     return localId[0];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 2), size_t>
-  get_local_linear_id_impl() const {
+  get_local_linear_id_impl() const noexcept {
     id<Dimensions> localId = get_local_id();
     return localId[0] * localRange[1] + localId[1];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 3), size_t>
-  get_local_linear_id_impl() const {
+  get_local_linear_id_impl() const noexcept {
     id<Dimensions> localId = get_local_id();
     return (localId[0] * localRange[1] * localRange[2]) +
            (localId[1] * localRange[2]) + localId[2];
@@ -639,55 +652,55 @@ private:
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 1), size_t>
-  get_local_linear_range_impl() const {
+  get_local_linear_range_impl() const noexcept {
     auto localRange = get_local_range();
     return localRange[0];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 2), size_t>
-  get_local_linear_range_impl() const {
+  get_local_linear_range_impl() const noexcept {
     auto localRange = get_local_range();
     return localRange[0] * localRange[1];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 3), size_t>
-  get_local_linear_range_impl() const {
+  get_local_linear_range_impl() const noexcept {
     auto localRange = get_local_range();
     return localRange[0] * localRange[1] * localRange[2];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 1), size_t>
-  get_group_linear_range_impl() const {
+  get_group_linear_range_impl() const noexcept {
     auto groupRange = get_group_range();
     return groupRange[0];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 2), size_t>
-  get_group_linear_range_impl() const {
+  get_group_linear_range_impl() const noexcept {
     auto groupRange = get_group_range();
     return groupRange[0] * groupRange[1];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 3), size_t>
-  get_group_linear_range_impl() const {
+  get_group_linear_range_impl() const noexcept {
     auto groupRange = get_group_range();
     return groupRange[0] * groupRange[1] * groupRange[2];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 1), size_t>
-  get_group_linear_id_impl() const {
+  get_group_linear_id_impl() const noexcept {
     return index[0];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 2), size_t>
-  get_group_linear_id_impl() const {
+  get_group_linear_id_impl() const noexcept {
     return index[0] * groupRange[1] + index[1];
   }
 
@@ -703,7 +716,7 @@ private:
   //    work-group id from a multi-dimensional index follows the equation 4.3.
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 3), size_t>
-  get_group_linear_id_impl() const {
+  get_group_linear_id_impl() const noexcept {
     return (index[0] * groupRange[1] * groupRange[2]) +
            (index[1] * groupRange[2]) + index[2];
   }
@@ -711,7 +724,7 @@ private:
 protected:
   friend class detail::Builder;
   group(const range<Dimensions> &G, const range<Dimensions> &L,
-        const range<Dimensions> GroupRange, const id<Dimensions> &I)
+        const range<Dimensions> GroupRange, const id<Dimensions> &I) noexcept
       : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {}
 };
 } // namespace _V1

@@ -161,6 +161,13 @@ static bool CanonicalPrefixes = true;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
+static bool usesLLVMOffloadWrapper(ArrayRef<OffloadingImage> Images) {
+  return llvm::any_of(Images, [](const OffloadingImage &Image) {
+    return Triple(Image.StringData.lookup("triple")).getEnvironment() ==
+           Triple::LLVM;
+  });
+}
+
 namespace llvm {
 // Provide DenseMapInfo so that OffloadKind can be used in a DenseMap.
 template <> struct DenseMapInfo<OffloadKind> {
@@ -334,8 +341,30 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
     return Name.str();
   if (!Path)
     return createStringError(Path.getError(),
-                             "Unable to find '" + Name + "' in path");
+                             "unable to find '" + Name + "' in path");
   return *Path;
+}
+
+/// Locate the 'ocloc' tool used for Intel GPU AOT compilation.
+Expected<std::string> findOcloc(const ArgList &Args) {
+  if (Arg *A = Args.getLastArg(OPT_ocloc_path_EQ)) {
+    StringRef Dir = A->getValue();
+    if (Dir.empty())
+      return createStringError("no directory given for '" + A->getSpelling() +
+                               "'");
+    if (DryRun) {
+      SmallString<128> OclocPath(Dir);
+      sys::path::append(OclocPath, "ocloc");
+      return std::string(OclocPath);
+    }
+    // Only look in the given directory.  The tool name is resolved by
+    // findProgramByName, which takes care of any platform specific executable
+    // extension.
+    if (ErrorOr<std::string> Path = sys::findProgramByName("ocloc", {Dir}))
+      return *Path;
+    return createStringError("unable to find 'ocloc' in '" + Dir + "'");
+  }
+  return findProgram("ocloc", {getExecutableDir("ocloc")});
 }
 
 bool linkerSupportsLTO(const ArgList &Args) {
@@ -694,6 +723,10 @@ getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
   // TODO: fill AllowDeviceImageDependencies, ESIMDOptions.OptLevel and
   // ESIMDOptions.ForceDisableESIMDOpt
 
+  Settings.SuppressUndefinedFuncWarnings =
+      Settings.ESIMDOptions.SuppressUndefinedFuncWarnings =
+          Args.hasArg(OPT_sycl_suppress_undefined_func_warnings);
+
   return Settings;
 }
 
@@ -951,7 +984,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
       ",+SPV_INTEL_fp_max_error"
-      ",+SPV_INTEL_memory_access_aliasing";
+      ",+SPV_INTEL_memory_access_aliasing"
+      ",+SPV_INTEL_maximum_registers";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
@@ -1081,8 +1115,7 @@ runAOTCompileIntelGPU(StringRef InputFile, const ArgList &Args,
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
   SmallVector<StringRef, 8> CmdArgs;
-  Expected<std::string> OclocPath =
-      findProgram("ocloc", {getExecutableDir("ocloc")});
+  Expected<std::string> OclocPath = findOcloc(Args);
   if (!OclocPath)
     return OclocPath.takeError();
 
@@ -1804,8 +1837,13 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (SaveTemps && linkerSupportsLTO(Args))
     CmdArgs.push_back("-Wl,--save-temps");
 
-  if (Args.hasArg(OPT_embed_bitcode))
-    CmdArgs.push_back("-Wl,--lto-emit-llvm");
+  if (Args.hasArg(OPT_embed_bitcode)) {
+    // SPIR-V does not use the LTO linker path, it links bitcode via llvm-link.
+    if (Triple.isSPIRV())
+      CmdArgs.push_back("-emit-llvm");
+    else
+      CmdArgs.push_back("-Wl,--lto-emit-llvm");
+  }
 
   for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
     CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
@@ -2166,7 +2204,8 @@ Error containerizeRawImage(std::unique_ptr<MemoryBuffer> &Img, OffloadKind Kind,
                            const ArgList &Args) {
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Kind == OFK_OpenMP && Triple.isSPIRV() &&
-      Triple.getVendor() == llvm::Triple::Intel)
+      Triple.getVendor() == llvm::Triple::Intel &&
+      !Args.hasArg(OPT_embed_bitcode))
     return offloading::intel::containerizeOpenMPSPIRVImage(Img, Triple);
   return Error::success();
 }
@@ -2500,6 +2539,9 @@ Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
 bundleLinkedOutput(ArrayRef<OffloadingImage> Images, const ArgList &Args,
                    OffloadKind Kind) {
   llvm::TimeTraceScope TimeScope("Bundle linked output");
+  if (usesLLVMOffloadWrapper(Images))
+    return bundleOpenMP(Images);
+
   switch (Kind) {
   case OFK_OpenMP:
     return (Verbose && SaveTemps) ? bundleOpenMPVerbose(Images)
@@ -2904,7 +2946,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       continue;
     }
 
-    auto OutputOrErr = wrapDeviceImages(*BundledImagesOrErr, Args, Kind);
+    OffloadKind WrapperKind = usesLLVMOffloadWrapper(Input) ? OFK_OpenMP : Kind;
+    auto OutputOrErr = wrapDeviceImages(*BundledImagesOrErr, Args, WrapperKind);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
     WrappedOutput.push_back(*OutputOrErr);
@@ -2936,27 +2979,40 @@ findFromSearchPaths(StringRef Name, StringRef Root,
 
 std::optional<std::string>
 searchLibraryBaseName(StringRef Name, StringRef Root,
-                      ArrayRef<StringRef> SearchPaths) {
-  for (StringRef Dir : SearchPaths) {
-    if (std::optional<std::string> File =
-            findFile(Dir, Root, "lib" + Name + ".so"))
-      return File;
-    if (std::optional<std::string> File =
-            findFile(Dir, Root, "lib" + Name + ".a"))
-      return File;
-  }
+                      ArrayRef<StringRef> SearchPaths, bool IsWindows) {
+  SmallVector<std::string> Candidates;
+  if (IsWindows)
+    Candidates = {"lib" + Name.str() + ".dll.a", Name.str() + ".dll.a",
+                  "lib" + Name.str() + ".a", Name.str() + ".lib"};
+  else
+    Candidates = {"lib" + Name.str() + ".so", "lib" + Name.str() + ".a"};
+
+  for (StringRef Dir : SearchPaths)
+    for (StringRef Candidate : Candidates)
+      if (std::optional<std::string> File = findFile(Dir, Root, Candidate))
+        return File;
   return std::nullopt;
 }
 
 /// Search for static libraries in the linker's library path given input like
 /// `-lfoo` or `-l:libfoo.a`.
 std::optional<std::string> searchLibrary(StringRef Input, StringRef Root,
-                                         ArrayRef<StringRef> SearchPaths) {
+                                         ArrayRef<StringRef> SearchPaths,
+                                         bool IsWindows) {
   if (Input.starts_with(":"))
     return findFromSearchPaths(Input.drop_front(), Root, SearchPaths);
   if (Input.ends_with(".lib"))
     return findFromSearchPaths(Input, Root, SearchPaths);
-  return searchLibraryBaseName(Input, Root, SearchPaths);
+  return searchLibraryBaseName(Input, Root, SearchPaths, IsWindows);
+}
+
+/// Search for an input file given by name, e.g. `foo.lib`. COFF linkers use
+/// this in place of `-lfoo` and look it up in \p SearchPaths.
+std::optional<std::string> searchInput(StringRef Input, StringRef Root,
+                                       ArrayRef<StringRef> SearchPaths) {
+  if (sys::fs::exists(Input))
+    return std::string(Input);
+  return findFromSearchPaths(Input, Root, SearchPaths);
 }
 
 /// In verbose mode we need to replay the extracted files so the user can
@@ -3028,10 +3084,18 @@ getDeviceInput(const ArgList &Args) {
   if (Args.hasArg(OPT_override_image))
     return SmallVector<SmallVector<OffloadFile>>();
 
+  const llvm::Triple HostTriple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+
   StringRef Root = Args.getLastArgValue(OPT_sysroot_EQ);
   SmallVector<StringRef> LibraryPaths;
   for (const opt::Arg *Arg : Args.filtered(OPT_library_path, OPT_libpath))
     LibraryPaths.push_back(Arg->getValue());
+
+  // Only `link.exe` style linkers search for their input files.
+  SmallVector<StringRef> InputPaths;
+  for (const opt::Arg *Arg : Args.filtered(OPT_libpath))
+    InputPaths.push_back(Arg->getValue());
 
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
@@ -3041,8 +3105,9 @@ getDeviceInput(const ArgList &Args) {
   SmallVector<OffloadFile> ObjectFilesToExtract;
   SmallVector<OffloadFile> ArchiveFilesToExtract;
   DenseMap<StringRef, StringRef> SourceForImage;
-  for (const opt::Arg *Arg : Args.filtered(
-           OPT_INPUT, OPT_library, OPT_whole_archive, OPT_no_whole_archive)) {
+  for (const opt::Arg *Arg :
+       Args.filtered(OPT_INPUT, OPT_library, OPT_wholearchive_file,
+                     OPT_whole_archive, OPT_no_whole_archive)) {
     if (Arg->getOption().matches(OPT_whole_archive) ||
         Arg->getOption().matches(OPT_no_whole_archive)) {
       WholeArchive = Arg->getOption().matches(OPT_whole_archive);
@@ -3051,8 +3116,9 @@ getDeviceInput(const ArgList &Args) {
 
     std::optional<std::string> Filename =
         Arg->getOption().matches(OPT_library)
-            ? searchLibrary(Arg->getValue(), Root, LibraryPaths)
-            : std::string(Arg->getValue());
+            ? searchLibrary(Arg->getValue(), Root, LibraryPaths,
+                            HostTriple.isOSWindows())
+            : searchInput(Arg->getValue(), Root, InputPaths);
 
     if (!Filename && Arg->getOption().matches(OPT_library))
       return createStringError("unable to find library -l%s", Arg->getValue());
@@ -3060,6 +3126,10 @@ getDeviceInput(const ArgList &Args) {
     if (!Filename || !sys::fs::exists(*Filename) ||
         sys::fs::is_directory(*Filename))
       continue;
+
+    // Unlike `--whole-archive`, `/wholearchive:` applies to a single library.
+    bool ExtractWholeArchive =
+        WholeArchive || Arg->getOption().matches(OPT_wholearchive_file);
 
     ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
         MemoryBuffer::getFile(*Filename);
@@ -3084,7 +3154,7 @@ getDeviceInput(const ArgList &Args) {
             Binary.getBinary()->getMemoryBufferRef().getBufferIdentifier(),
             Saver.save(StringRef(*Filename)));
       if (identify_magic(Buffer.getBuffer()) == file_magic::archive &&
-          !WholeArchive)
+          !ExtractWholeArchive)
         ArchiveFilesToExtract.emplace_back(std::move(Binary));
       else
         ObjectFilesToExtract.emplace_back(std::move(Binary));
@@ -3107,8 +3177,7 @@ getDeviceInput(const ArgList &Args) {
     OffloadFile::TargetID Target = Binary;
     SmallVector<OffloadFile::TargetID> CompatibleTargets;
     for (const auto &[ID, Input] : InputFiles)
-      if (Target.first == ID.first &&
-          clang::isCompatibleTargetID(Target.second, ID.second))
+      if (object::areTargetsEquivalent(Target, ID))
         CompatibleTargets.emplace_back(ID);
 
     // Seed a new image when no existing target can provide for this input.
@@ -3137,7 +3206,8 @@ getDeviceInput(const ArgList &Args) {
 
     SmallVector<OffloadFile::TargetID> CompatibleTargets = {Binary};
     for (const auto &[ID, Input] : InputFiles)
-      if (object::areTargetsCompatible(Binary, ID))
+      if (OffloadFile::TargetID(Binary) != ID &&
+          object::areTargetsCompatible(Binary, ID))
         CompatibleTargets.emplace_back(ID);
 
     for (const auto &[Index, ID] : llvm::enumerate(CompatibleTargets)) {

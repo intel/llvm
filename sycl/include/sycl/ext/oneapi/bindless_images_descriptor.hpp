@@ -58,38 +58,52 @@ struct image_descriptor {
   unsigned int num_channels{4};
   image_channel_type channel_type{image_channel_type::fp32};
   image_type type{image_type::standard};
-  unsigned int num_levels{1};
-  unsigned int array_size{1};
+  // The following fields map to ur_image_desc_t on the bindless-images path
+  // only. Core UR image creation requires numMipLevel/numSamples to be 0; the
+  // bindless-images adapters (e.g. L0's ze_image_desc_t::miplevels) honor them.
+  unsigned int num_levels{1};  // -- ur_image_desc_t::numMipLevel (bindless)
+  unsigned int array_size{1};  // -- ur_image_desc_t::arraySize
+  unsigned int num_samples{0}; // -- ur_image_desc_t::numSamples (bindless)
+  size_t row_pitch{0};         // -- ur_image_desc_t::rowPitch
+  size_t slice_pitch{0};       // -- ur_image_desc_t::slicePitch
 
   image_descriptor() = default;
 
   image_descriptor(range<1> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
-                   unsigned int num_levels = 1, unsigned int array_size = 1)
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0)
       : width(dims[0]), height(0), depth(0), num_channels(num_channels),
         channel_type(channel_type), type(type), num_levels(num_levels),
-        array_size(array_size) {
+        array_size(array_size), num_samples(num_samples) {
     verify();
   }
 
   image_descriptor(range<2> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
-                   unsigned int num_levels = 1, unsigned int array_size = 1)
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0, size_t row_pitch = 0,
+                   size_t slice_pitch = 0)
       : width(dims[0]), height(dims[1]), depth(0), num_channels(num_channels),
         channel_type(channel_type), type(type), num_levels(num_levels),
-        array_size(array_size) {
+        array_size(array_size), num_samples(num_samples), row_pitch(row_pitch),
+        slice_pitch(slice_pitch) {
     verify();
   }
 
   image_descriptor(range<3> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
-                   unsigned int num_levels = 1, unsigned int array_size = 1)
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0, size_t row_pitch = 0,
+                   size_t slice_pitch = 0)
       : width(dims[0]), height(dims[1]), depth(dims[2]),
         num_channels(num_channels), channel_type(channel_type), type(type),
-        num_levels(num_levels), array_size(array_size) {
+        num_levels(num_levels), array_size(array_size),
+        num_samples(num_samples), row_pitch(row_pitch),
+        slice_pitch(slice_pitch) {
     verify();
   };
 
@@ -127,6 +141,30 @@ struct image_descriptor {
     if ((this->num_channels < 1) || (this->num_channels > 4)) {
       throw sycl::exception(sycl::errc::invalid,
                             "Images must have 1, 2, 3, or 4 channels.");
+    }
+
+    // row_pitch is meaningful only for 2D and 3D images.
+    if (this->row_pitch != 0 && this->height == 0) {
+      throw sycl::exception(
+          sycl::errc::invalid,
+          "row_pitch is meaningful only for 2D and 3D images.");
+    }
+
+    // slice_pitch is meaningful only for 3D images and 2D image arrays.
+    const bool is_3d = this->depth != 0;
+    const bool is_2d_array =
+        this->type == image_type::array && this->height != 0;
+    if (this->slice_pitch != 0 && !is_3d && !is_2d_array) {
+      throw sycl::exception(
+          sycl::errc::invalid,
+          "slice_pitch is meaningful only for 3D images and 2D image arrays.");
+    }
+
+    // A non-zero slice_pitch must describe non-overlapping slices.
+    if (this->slice_pitch != 0 && this->row_pitch != 0 && this->height != 0 &&
+        this->slice_pitch < this->row_pitch * this->height) {
+      throw sycl::exception(sycl::errc::invalid,
+                            "slice_pitch must be at least row_pitch * height.");
     }
 
     switch (this->type) {

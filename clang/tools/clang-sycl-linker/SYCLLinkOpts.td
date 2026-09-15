@@ -69,6 +69,11 @@ def ocloc_options_EQ : Joined<["--", "-"], "ocloc-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options passed to ocloc for Intel GPU AOT compilation">;
 
+def ocloc_path_EQ : Joined<["--", "-"], "ocloc-path=">,
+  Flags<[LinkerOnlyOption]>, MetaVarName<"<dir>">,
+  HelpText<"Path to the ocloc tool, which is used for ahead of time "
+           "compilation targeting Intel GPUs">;
+
 def opencl_aot_options_EQ : Joined<["--", "-"], "opencl-aot-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options passed to opencl-aot for Intel CPU AOT compilation">;

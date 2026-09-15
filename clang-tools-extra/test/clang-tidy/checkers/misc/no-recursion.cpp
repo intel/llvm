@@ -170,9 +170,11 @@ int recursion_through_lambda() {
 // CHECK-NOTES: :[[@LINE-13]]:13: warning: function 'operator()' is within a recursive call chain [misc-no-recursion]
 
 struct recursion_through_destructor {
-  ~recursion_through_destructor() {
+  ~recursion_through_destructor() { // CHECK-NOTES: :[[@LINE]]:3: warning: function '~recursion_through_destructor' is within a recursive call chain [misc-no-recursion]
+    // CHECK-NOTES: :[[@LINE-1]]:3: note: example recursive call chain, starting from function '~recursion_through_destructor'
     if (external_oracle()) {
-      recursion_through_destructor variable;
+      recursion_through_destructor variable; // CHECK-NOTES: :[[@LINE]]:36: note: Frame #1: function '~recursion_through_destructor' calls function '~recursion_through_destructor' here:
+      // CHECK-NOTES: :[[@LINE-1]]:36: note: ... which was the starting point of the recursive call chain; there may be other cycles
       // variable goes out of scope, it's destructor runs, and we are back here.
     }
   }

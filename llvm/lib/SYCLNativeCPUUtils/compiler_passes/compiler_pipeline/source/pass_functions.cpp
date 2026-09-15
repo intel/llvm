@@ -547,9 +547,7 @@ llvm::BasicBlock *createLoop(llvm::BasicBlock *entry, llvm::BasicBlock *exit,
 
   if (opts.disableVectorize) {
     auto *const vecDisable = llvm::MDNode::get(
-        ctx, {llvm::MDString::get(ctx, "llvm.loop.vectorize.enable"),
-              llvm::ConstantAsMetadata::get(
-                  llvm::ConstantInt::get(llvm::Type::getInt1Ty(ctx), false))});
+        ctx, {llvm::MDString::get(ctx, "llvm.loop.vectorize.disable")});
     // LLVM loop metadata -- for legacy reasons -- must have a reference to
     // itself as its first operand. See
     // https://llvm.org/docs/LangRef.html#llvm-loop.

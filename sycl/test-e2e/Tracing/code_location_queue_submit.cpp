@@ -1,5 +1,4 @@
 // REQUIRES: cpu
-// UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
 // RUN: %{run} sycl-trace --sycl --print-format=verbose %t.out | FileCheck %s
 

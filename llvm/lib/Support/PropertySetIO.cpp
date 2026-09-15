@@ -167,8 +167,10 @@ PropertyValue::PropertyValue(const byte *Data, SizeTy DataBitSize) {
     Val.ByteArrayVal[I] = (byte)DataBitSize;
     DataBitSize >>= ByteSizeInBits;
   }
-  // Append data.
-  std::memcpy(Val.ByteArrayVal + SizeFieldSize, Data, DataSize);
+  // Append data. Data may be null when DataSize is zero, and memcpy declares
+  // its source as nonnull, so guard the call.
+  if (DataSize > 0)
+    std::memcpy(Val.ByteArrayVal + SizeFieldSize, Data, DataSize);
 }
 
 PropertyValue::PropertyValue(const PropertyValue &P) { *this = P; }

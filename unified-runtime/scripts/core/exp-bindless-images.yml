@@ -148,6 +148,9 @@ etors:
     - name: EXP_WIN32_NAME
       desc: $x_exp_win32_name_t
       value: "0x2008"
+    - name: EXP_IMAGE_USER_PITCH_DESC
+      desc: $x_exp_image_user_pitch_desc_t
+      value: "0x2009"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -373,6 +376,31 @@ members:
     - type: ur_rect_region_t
       name: copyExtent
       desc: "[in] the extent (region) of the image to copy"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: |
+  User-declared image pitch signal for image creation.
+details:
+    - "Chain this off $x_image_desc_t::pNext when the caller has explicitly
+       declared a custom row/slice pitch (e.g. via SYCL's
+       image_descriptor.row_pitch / slice_pitch). The presence of this
+       structure disambiguates a user-supplied pitch from a driver-computed
+       pitch that some SYCL entry points bookkeep back through
+       $x_image_desc_t::rowPitch. Adapters that can override the driver's
+       computed pitch (e.g. Level Zero via ze_custom_pitch_exp_desc_t) should
+       key off the presence of this struct rather than $x_image_desc_t::rowPitch
+       alone. Adapters that always consume $x_image_desc_t::rowPitch as-is may
+       ignore it."
+class: $xBindlessImages
+name: $x_exp_image_user_pitch_desc_t
+base: $x_base_desc_t
+members:
+    - type: size_t
+      name: rowPitch
+      desc: "[in] user-declared row pitch, in bytes"
+    - type: size_t
+      name: slicePitch
+      desc: "[in] user-declared slice pitch, in bytes"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate pitched memory"

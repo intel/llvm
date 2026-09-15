@@ -171,6 +171,14 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt(
                        : &ur_command_list_manager::appendEventsWait;
 
   auto commandListManagersLocked = commandListManagers.lock();
+  bool captureActive = false;
+  commandListManagersLocked[captureCmdListManagerIdx].queryGraphCaptureActive(
+      &captureActive);
+  if (captureActive) {
+    return std::invoke(
+        barrierFn, commandListManagersLocked[captureCmdListManagerIdx],
+        waitListView, createEventIfRequested(eventPool.get(), phEvent, this));
+  }
 
   // Enqueue wait for the user-provider events on the first command list.
   UR_CALL(commandListManagersLocked[0].appendEventsWait(waitListView,

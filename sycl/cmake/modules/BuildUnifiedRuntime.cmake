@@ -132,6 +132,15 @@ if(TARGET UnifiedRuntimeLoader)
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
     RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
+
+  # The loader dlopen()s its shared layers from its own directory, so they have
+  # to be installed alongside it.
+  if(TARGET ur_sanitizer_layer)
+    install(TARGETS ur_sanitizer_layer
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
+    )
+  endif()
 endif()
 
 add_custom_target(UnifiedRuntimeAdapters)

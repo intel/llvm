@@ -10,6 +10,7 @@
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: There is a separate version of this test for PVC.
 
 // This test checks extended math operations called with saturation.
 // Combinations of

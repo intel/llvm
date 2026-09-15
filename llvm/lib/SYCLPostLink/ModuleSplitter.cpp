@@ -30,6 +30,7 @@
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
+#include "llvm/SYCLLowerIR/SanitizerUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/Support/CommandLine.h"
@@ -301,14 +302,16 @@ static bool isIntrinsicOrBuiltin(const Function &F) {
 // Checks for use of undefined user functions and emits a warning message.
 static void
 checkForCallsToUndefinedFunctions(const Module &M,
-                                  bool AllowDeviceImageDependencies) {
-  if (AllowDeviceImageDependencies)
+                                  bool AllowDeviceImageDependencies,
+                                  bool SuppressUndefinedFuncWarnings) {
+  if (AllowDeviceImageDependencies || SuppressUndefinedFuncWarnings)
     return;
   for (const Function &F : M) {
     if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
-      WithColor::warning() << "Undefined function " << F.getName()
-                           << " found in " << M.getName()
-                           << ". This may result in runtime errors.\n";
+      WithColor::warning()
+          << "Undefined function " << F.getName() << " found in " << M.getName()
+          << ". This may result in runtime errors. Use "
+             "-Wno-sycl-undefined-func-in-image to suppress this warning.\n";
   }
 }
 
@@ -385,6 +388,7 @@ extractSubModule(const ModuleDesc &MD, const SetVector<const GlobalValue *> GVs,
 std::unique_ptr<ModuleDesc> extractCallGraph(
     const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
     const DependencyGraph &CG, bool AllowDeviceImageDependencies,
+    bool SuppressUndefinedFuncWarnings,
     const std::function<bool(const Function *)> &IncludeFunctionPredicate =
         nullptr) {
   SetVector<const GlobalValue *> GVs;
@@ -399,7 +403,8 @@ std::unique_ptr<ModuleDesc> extractCallGraph(
   // can be removed once that pass no longer depends on this cleanup.
   SplitM->cleanup(AllowDeviceImageDependencies);
   checkForCallsToUndefinedFunctions(SplitM->getModule(),
-                                    AllowDeviceImageDependencies);
+                                    AllowDeviceImageDependencies,
+                                    SuppressUndefinedFuncWarnings);
 
   return SplitM;
 }
@@ -452,14 +457,17 @@ public:
 class ModuleSplitter : public ModuleSplitterBase {
 public:
   ModuleSplitter(std::unique_ptr<ModuleDesc> MD, EntryPointGroupVec &&GroupVec,
-                 bool AllowDeviceImageDependencies)
+                 bool AllowDeviceImageDependencies,
+                 bool SuppressUndefinedFuncWarnings)
       : ModuleSplitterBase(std::move(MD), std::move(GroupVec),
-                           AllowDeviceImageDependencies),
+                           AllowDeviceImageDependencies,
+                           SuppressUndefinedFuncWarnings),
         CG(Input->getModule(), AllowDeviceImageDependencies) {}
 
   std::unique_ptr<ModuleDesc> nextSplit() override {
     return extractCallGraph(*Input, nextGroup(), CG,
-                            AllowDeviceImageDependencies);
+                            AllowDeviceImageDependencies,
+                            SuppressUndefinedFuncWarnings);
   }
 
 private:
@@ -1049,7 +1057,8 @@ std::string computeFuncCategoryForSplitting(const Function &F,
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(std::unique_ptr<ModuleDesc> MD, IRSplitMode Mode,
                       bool IROutputOnly, bool EmitOnlyKernelsAsEntryPoints,
-                      bool AllowDeviceImageDependencies) {
+                      bool AllowDeviceImageDependencies,
+                      bool SuppressUndefinedFuncWarnings) {
   EntryPointsGroupScope Scope =
       selectDeviceCodeGroupScope(MD->getModule(), Mode, IROutputOnly);
 
@@ -1095,10 +1104,12 @@ getDeviceCodeSplitter(std::unique_ptr<ModuleDesc> MD, IRSplitMode Mode,
 
   if (DoSplit)
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),
-                                            AllowDeviceImageDependencies);
+                                            AllowDeviceImageDependencies,
+                                            SuppressUndefinedFuncWarnings);
 
   return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups),
-                                        AllowDeviceImageDependencies);
+                                        AllowDeviceImageDependencies,
+                                        SuppressUndefinedFuncWarnings);
 }
 
 // Splits input module into two:
@@ -1122,7 +1133,8 @@ getDeviceCodeSplitter(std::unique_ptr<ModuleDesc> MD, IRSplitMode Mode,
 // outside of this function.
 SmallVector<std::unique_ptr<ModuleDesc>, 2>
 splitByESIMD(std::unique_ptr<ModuleDesc> MD, bool EmitOnlyKernelsAsEntryPoints,
-             bool AllowDeviceImageDependencies) {
+             bool AllowDeviceImageDependencies,
+             bool SuppressUndefinedFuncWarnings) {
 
   SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2> Result;
   EntryPointGroupVec EntryPointGroups{};
@@ -1182,6 +1194,7 @@ splitByESIMD(std::unique_ptr<ModuleDesc> MD, bool EmitOnlyKernelsAsEntryPoints,
       // module here.
       Result.emplace_back(extractCallGraph(
           *MD, std::move(Group), CG, AllowDeviceImageDependencies,
+          SuppressUndefinedFuncWarnings,
           [=](const Function *F) -> bool { return !isESIMDFunction(*F); }));
     }
   }
@@ -1215,8 +1228,8 @@ bool runPreSplitProcessingPipeline(Module &M) {
     MPM.addPass(RemoveDeviceGlobalFromLLVMCompilerUsed());
 
   // Sanitizer specific passes.
-  if (sycl::isModuleUsingAsan(M) || sycl::isModuleUsingMsan(M) ||
-      sycl::isModuleUsingTsan(M))
+  if (sycl::utils::isModuleUsingAsan(M) || sycl::utils::isModuleUsingMsan(M) ||
+      sycl::utils::isModuleUsingTsan(M))
     MPM.addPass(SanitizerPostOptimizerPass());
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
@@ -1238,7 +1251,8 @@ Error splitSYCLModule(
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
                                         /*IROutputOnly=*/false,
                                         /*EmitOnlyKernelsAsEntryPoints=*/false,
-                                        Settings.AllowDeviceImageDependencies);
+                                        Settings.AllowDeviceImageDependencies,
+                                        Settings.SuppressUndefinedFuncWarnings);
 
   size_t ID = 0;
   while (Splitter->hasMoreSplits()) {

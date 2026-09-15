@@ -411,6 +411,9 @@ ur_result_t urUSMGetMemAllocInfo(
     case ZE_MEMORY_TYPE_SHARED:
       MemAllocaType = UR_USM_TYPE_SHARED;
       break;
+    case ZE_MEMORY_TYPE_HOST_IMPORTED:
+      MemAllocaType = UR_USM_TYPE_HOST;
+      break;
     default:
       UR_LOG(ERR, "urUSMGetMemAllocInfo: unexpected usm memory type");
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -934,10 +937,32 @@ umf_result_t L0MemoryProvider::ext_close_ipc_handle(void *Ptr,
   return UMF_RESULT_SUCCESS;
 }
 
+umf_result_t L0MemoryProvider::get_cache_line_size(size_t *size) {
+  UR_ASSERT(size, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+
+  *size = 128;
+  if (Device->Platform->zeDriverExtensionMap.count(
+          ZE_CACHELINE_SIZE_EXT_NAME)) {
+    const auto CacheLineSize =
+        Device->ZeDeviceCacheLinePropertiesExt->cacheLineSize;
+    if (CacheLineSize > 0) {
+      *size = CacheLineSize;
+    }
+  }
+
+  return UMF_RESULT_SUCCESS;
+}
+
 umf_result_t L0MemoryProvider::ext_ctl(umf_ctl_query_source_t /*Source*/,
                                        const char *Name, void *Arg, size_t Size,
                                        umf_ctl_query_type_t /*QueryType*/,
                                        va_list /*Args*/) {
+  // We could skip this call for the Level Zero provider because it has no
+  // initialization to perform after applying CTL defaults.
+  if (Name && std::string(Name) == "post_initialize") {
+    return UMF_RESULT_SUCCESS;
+  }
+
   if (!Arg || Size < sizeof(size_t)) {
     return UMF_RESULT_ERROR_INVALID_ARGUMENT;
   }

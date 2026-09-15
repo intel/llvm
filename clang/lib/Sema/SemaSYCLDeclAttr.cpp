@@ -15,6 +15,7 @@
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaSYCL.h"
+#include "llvm/TargetParser/NVPTXTargetParser.h"
 
 using namespace clang;
 
@@ -558,8 +559,8 @@ void SemaSYCL::addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     }
 
     // Feature '.maxclusterrank' requires .target sm_90 or higher.
-    auto SM = getOffloadArch(TI);
-    if (SM == OffloadArch::Unknown || SM < OffloadArch::SM_90) {
+    OffloadArch SM = getOffloadArch(TI);
+    if (SM.isUnknown() || llvm::NVPTX::getSmVersion(SM.nvptxKind()) < 900) {
       Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
           << OffloadArchToString(SM) << CI << E->getSourceRange();
       return;
@@ -828,6 +829,42 @@ void SemaSYCL::addSYCLAddIRAttributesFunctionAttr(
       break;
     }
   }
+}
+
+bool SemaSYCL::hasSYCLAddIRAttributesFunctionAttr(const Decl *D,
+                                                  StringRef Attr) {
+  const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+  if (!A)
+    return false;
+
+  if (D->isTemplated())
+    return false;
+
+  SmallVector<std::pair<std::string, std::string>, 4> Pairs =
+      A->getFilteredAttributeNameValuePairs(D->getASTContext());
+  return llvm::any_of(Pairs, [Attr](const auto &Pair) {
+    return StringRef(Pair.first) == Attr;
+  });
+}
+
+/// Returns true if \p RD itself declares an 'indirectly_callable' virtual
+/// member function, without looking at its base classes.
+static bool declaresIndirectlyCallableVirtualMethod(const CXXRecordDecl *RD) {
+  return llvm::any_of(RD->methods(), [](const CXXMethodDecl *MD) {
+    return MD->isVirtual() && SemaSYCL::hasSYCLAddIRAttributesFunctionAttr(
+                                  MD, "indirectly-callable");
+  });
+}
+
+bool SemaSYCL::hasSYCLIndirectlyCallableVirtualMethod(const CXXRecordDecl *RD) {
+  if (declaresIndirectlyCallableVirtualMethod(RD))
+    return true;
+
+  // forallBases returns false as soon as the callback does, i.e. as soon as we
+  // find a base class which declares such a function.
+  return !RD->forallBases([](const CXXRecordDecl *Base) {
+    return !declaresIndirectlyCallableVirtualMethod(Base);
+  });
 }
 
 void SemaSYCL::addSYCLAddIRAttributesKernelParameterAttr(

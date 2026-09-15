@@ -211,10 +211,8 @@ clang::CodeGen::LoopInfo::createLoopVectorizeMetadata(
     SmallVector<Metadata *, 4> NewLoopProperties;
     if (Enabled == false) {
       NewLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
-      NewLoopProperties.push_back(
-          MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
-                            ConstantAsMetadata::get(ConstantInt::get(
-                                llvm::Type::getInt1Ty(Ctx), 0))}));
+      NewLoopProperties.push_back(MDNode::get(
+          Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.disable")}));
       LoopProperties = NewLoopProperties;
     }
     return createUnrollAndJamMetadata(Attrs, LoopProperties, HasUserTransforms);
@@ -230,11 +228,11 @@ clang::CodeGen::LoopInfo::createLoopVectorizeMetadata(
     IsVectorPredicateEnabled =
         (Attrs.VectorizePredicateEnable == LoopAttributes::Enable);
 
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.vectorize.predicate.enable"),
-        ConstantAsMetadata::get(ConstantInt::get(llvm::Type::getInt1Ty(Ctx),
-                                                 IsVectorPredicateEnabled))};
-    Args.push_back(MDNode::get(Ctx, Vals));
+    Args.push_back(MDNode::get(
+        Ctx,
+        {MDString::get(Ctx, IsVectorPredicateEnabled
+                                ? "llvm.loop.vectorize.predicate.enable"
+                                : "llvm.loop.vectorize.predicate.disable")}));
   }
 
   // Setting vectorize.width
@@ -249,11 +247,10 @@ clang::CodeGen::LoopInfo::createLoopVectorizeMetadata(
 
   if (Attrs.VectorizeScalable != LoopAttributes::Unspecified) {
     bool IsScalable = Attrs.VectorizeScalable == LoopAttributes::Enable;
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.vectorize.scalable.enable"),
-        ConstantAsMetadata::get(
-            ConstantInt::get(llvm::Type::getInt1Ty(Ctx), IsScalable))};
-    Args.push_back(MDNode::get(Ctx, Vals));
+    Args.push_back(MDNode::get(
+        Ctx, {MDString::get(
+                 Ctx, IsScalable ? "llvm.loop.vectorize.scalable.enable"
+                                 : "llvm.loop.vectorize.scalable.disable")}));
   }
 
   // Setting interleave.count
@@ -281,10 +278,10 @@ clang::CodeGen::LoopInfo::createLoopVectorizeMetadata(
       (Attrs.VectorizeScalable == LoopAttributes::Disable &&
        Attrs.VectorizeWidth != 1)) {
     VectorizeEnabled = Attrs.VectorizeEnable != LoopAttributes::Disable;
-    Args.push_back(
-        MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
-                          ConstantAsMetadata::get(ConstantInt::get(
-                              llvm::Type::getInt1Ty(Ctx), VectorizeEnabled))}));
+    Args.push_back(MDNode::get(
+        Ctx, {MDString::get(Ctx, VectorizeEnabled
+                                     ? "llvm.loop.vectorize.enable"
+                                     : "llvm.loop.vectorize.disable")}));
   }
 
   // Apply all loop properties to the vectorized loop.
@@ -334,10 +331,8 @@ clang::CodeGen::LoopInfo::createLoopDistributeMetadata(
     SmallVector<Metadata *, 4> NewLoopProperties;
     if (Enabled == false) {
       NewLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
-      NewLoopProperties.push_back(
-          MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.distribute.enable"),
-                            ConstantAsMetadata::get(ConstantInt::get(
-                                llvm::Type::getInt1Ty(Ctx), 0))}));
+      NewLoopProperties.push_back(MDNode::get(
+          Ctx, {MDString::get(Ctx, "llvm.loop.distribute.disable")}));
       LoopProperties = NewLoopProperties;
     }
     return createLoopVectorizeMetadata(Attrs, LoopProperties,
@@ -351,11 +346,8 @@ clang::CodeGen::LoopInfo::createLoopDistributeMetadata(
   SmallVector<Metadata *, 4> Args;
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
-  Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.distribute.enable"),
-                      ConstantAsMetadata::get(ConstantInt::get(
-                          llvm::Type::getInt1Ty(Ctx),
-                          (Attrs.DistributeEnable == LoopAttributes::Enable)))};
-  Args.push_back(MDNode::get(Ctx, Vals));
+  Args.push_back(
+      MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.distribute.enable")}));
 
   if (FollowupHasTransforms)
     Args.push_back(

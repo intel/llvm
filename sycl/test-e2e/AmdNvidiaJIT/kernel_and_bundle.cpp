@@ -1,4 +1,3 @@
-// UNSUPPORTED: windows
 // REQUIRES: target-nvidia || target-amd
 
 // This test relies on debug output from a pass, make sure that the compiler

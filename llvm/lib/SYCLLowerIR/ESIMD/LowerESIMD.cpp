@@ -41,6 +41,7 @@
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 
 #include <cctype>
+#include <cstdlib>
 #include <cstring>
 #include <unordered_map>
 
@@ -966,7 +967,7 @@ static void translateBlockLoad(CallInst &CI, bool IsSLM) {
   auto DataType = CI.getType();
   if (IsSLM) {
     // Convert 'uint32_t' to 'addrspace(3)*' pointer.
-    auto PtrType = PointerType::get(DataType, 3);
+    auto PtrType = PointerType::get(CI.getContext(), 3);
     Op0 = Builder.CreateIntToPtr(Op0, PtrType);
   }
 
@@ -987,8 +988,7 @@ static void translateBlockStore(CallInst &CI, bool IsSLM) {
   auto Op1 = CI.getArgOperand(1);
   if (IsSLM) {
     // Convert 'uint32_t' to 'addrspace(3)*' pointer.
-    auto DataType = Op1->getType();
-    auto PtrType = PointerType::get(DataType, 3);
+    auto PtrType = PointerType::get(CI.getContext(), 3);
     Op0 = Builder.CreateIntToPtr(Op0, PtrType);
   }
 
@@ -1017,9 +1017,9 @@ static void translateGatherLoad(CallInst &CI, bool IsSLM) {
   // is already 4-generic. Thus, simply use 4-generic for global and private
   // and let GPU BE deduce the actual address space from the use-def graph.
   unsigned AS = IsSLM ? 3 : 4;
-  auto ElemType = DataType->getScalarType();
   auto NumElems = (cast<VectorType>(DataType))->getElementCount();
-  auto VPtrType = VectorType::get(PointerType::get(ElemType, AS), NumElems);
+  auto VPtrType =
+      VectorType::get(PointerType::get(CI.getContext(), AS), NumElems);
   auto VPtrOp = Builder.CreateIntToPtr(OffsetsOp, VPtrType);
 
   auto LI = Builder.CreateMaskedGather(DataType, VPtrOp, AlignValue, MaskOp,
@@ -1049,9 +1049,9 @@ static void translateScatterStore(CallInst &CI, bool IsSLM) {
   // is already 4-generic. Thus, simply use 4-generic for global and private
   // and let GPU BE deduce the actual address space from the use-def graph.
   unsigned AS = IsSLM ? 3 : 4;
-  auto ElemType = DataType->getScalarType();
   auto NumElems = (cast<VectorType>(DataType))->getElementCount();
-  auto VPtrType = VectorType::get(PointerType::get(ElemType, AS), NumElems);
+  auto VPtrType =
+      VectorType::get(PointerType::get(CI.getContext(), AS), NumElems);
   auto VPtrOp = Builder.CreateIntToPtr(OffsetsOp, VPtrType);
 
   auto SI = Builder.CreateMaskedScatter(ValsOp, VPtrOp, AlignValue, MaskOp);
@@ -1982,12 +1982,16 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     if (NameNode->getKind() == id::Node::KLocalName)
       return false;
 
+    // OutputBuffer does not own its buffer - it must be freed by the caller.
     id::OutputBuffer NameBuf;
     NameNode->print(NameBuf);
     StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
 
-    return Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
-           Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+    bool IsESIMDFunction =
+        Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+        Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+    std::free(NameBuf.getBuffer());
+    return IsESIMDFunction;
   };
   bool NeedInline = false;
   for (auto &F : M) {

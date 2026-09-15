@@ -181,7 +181,7 @@
 ; CHECK-SPV-IR: declare spir_func i1 @_Z33__spirv_GroupNonUniformLogicalAndiib(i32, i32, i1) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func i1 @_Z32__spirv_GroupNonUniformLogicalOriib(i32, i32, i1) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func i1 @_Z33__spirv_GroupNonUniformLogicalXoriib(i32, i32, i1) #[[#Attrs]]
-; CHECK-SPV-IR: declare spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiii(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z32__spirv_GroupNonUniformRotateKHRiij(i32, i32, i32) #[[#Attrs]]
 
 ; CHECK-COMMON: attributes #[[#Attrs]] =
 ; CHECK-COMMON-SAME: convergent

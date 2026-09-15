@@ -85,8 +85,6 @@ command_list_cache_t::command_list_cache_t(
     ze_context_handle_t ZeContext,
     supported_extensions_descriptor_t supportedExtensions)
     : ZeContext{ZeContext},
-      ZeCopyOffloadExtensionSupported{
-          supportedExtensions.ZeCopyOffloadExtensionSupported},
       ZeMutableCmdListExtentionSupported{
           supportedExtensions.ZeMutableCmdListExtentionSupported},
       ZeCopyOffloadQueueFlagSupported{
@@ -110,7 +108,8 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     requestedCopyOffload = false;
   }
 
-  if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
+  if (requestedCopyOffload && !ZeCopyOffloadQueueFlagSupported &&
+      !ZeCopyOffloadListFlagSupported) {
     UR_LOG(INFO,
            "Copy offload is requested but is not supported by the driver.");
     requestedCopyOffload = false;

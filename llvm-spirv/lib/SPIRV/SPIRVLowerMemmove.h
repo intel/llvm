@@ -58,13 +58,12 @@ private:
   llvm::LLVMContext *Context;
 };
 
-class SPIRVLowerMemmovePass : public llvm::PassInfoMixin<SPIRVLowerMemmovePass>,
-                              public SPIRVLowerMemmoveBase {
+class SPIRVLowerMemmovePass
+    : public llvm::RequiredPassInfoMixin<SPIRVLowerMemmovePass>,
+      public SPIRVLowerMemmoveBase {
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
-
-  static bool isRequired() { return true; }
 };
 
 class SPIRVLowerMemmoveLegacy : public llvm::ModulePass,
