@@ -999,13 +999,22 @@ bool Sema::LookupBuiltin(LookupResult &R) {
         if (Index.first) {
           InsertBuiltinDeclarationsFromTable<SPIRVBuiltin>(
               *this, R, II, Index.first - 1, Index.second,
-              [this](const SPIRVBuiltin::BuiltinStruct &,
+              [this](const SPIRVBuiltin::BuiltinStruct &Builtin,
                      FunctionDecl &NewBuiltin) {
                 if (!this->getLangOpts().CPlusPlus)
                   NewBuiltin.addAttr(OverloadableAttr::CreateImplicit(Context));
                 if (this->getLangOpts().SYCLIsDevice)
                   NewBuiltin.addAttr(
                       SYCLDeviceAttr::CreateImplicit(this->Context));
+                // A builtin with no side effects cannot trap and always
+                // returns, so it is safe to speculate. Without this, licm
+                // cannot hoist a call to it out of a conditional block.
+                if (Builtin.IsConst) {
+                  NewBuiltin.addAttr(
+                      SpeculatableAttr::CreateImplicit(this->Context));
+                  NewBuiltin.addAttr(
+                      NoConvergentAttr::CreateImplicit(this->Context));
+                }
               });
           return true;
         }

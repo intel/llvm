@@ -3019,6 +3019,10 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // Remove 'convergent' if requested.
     if (TargetDecl->hasAttr<NoConvergentAttr>())
       FuncAttrs.removeAttribute(llvm::Attribute::Convergent);
+
+    // Add 'speculatable' if requested.
+    if (TargetDecl->hasAttr<SpeculatableAttr>())
+      FuncAttrs.addAttribute(llvm::Attribute::Speculatable);
   }
 
   // Add "sample-profile-suffix-elision-policy" attribute for internal linkage
