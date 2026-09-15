@@ -374,6 +374,7 @@ public:
 #endif
   }
 
+
   /// Asynchronously copies a number of elements specified by \p numElements
   /// from the source pointed by \p src to destination pointed by \p dest
   /// with a source stride specified by \p srcStride, and returns a SYCL
