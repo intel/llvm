@@ -85,7 +85,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-9b65cb732c7ead19408867357fd7224809396706
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
@@ -142,15 +142,11 @@ jobs:
       name: Build SYCL-CTS
       runner: '["Linux", "build"]'
       testing_mode: 'build-only'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-9b65cb732c7ead19408867357fd7224809396706
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
       repo_ref: ${{ github.sha }}
-      # Author: Alexey Bader <alexey.bader@intel.com>
-      # Date:   Thu May 28 08:07:51 2026 -0700
-      # Merge pull request #1202 from 0x12CC/fix-nextafter
-      # Disambiguate `nextafter`
-      tests_ref: 493fca2e1f319516c0e9816cd4a714c9c37f1220
+      tests_ref: c3eaacac0613fdc1d1dcb58ce416f2425c1b8457
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
@@ -180,7 +176,7 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       testing_mode: 'run-only'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-17972a0dae286cd36017df087c17d269b0ca568e
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest-9b65cb732c7ead19408867357fd7224809396706
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
@@ -200,11 +196,7 @@ jobs:
       testing_mode: 'build-only'
       tests_selector: cts
       repo_ref: ${{ github.sha }}
-      # Author: Alexey Bader <alexey.bader@intel.com>
-      # Date:   Thu May 28 08:07:51 2026 -0700
-      # Merge pull request #1202 from 0x12CC/fix-nextafter
-      # Disambiguate `nextafter`
-      tests_ref: 493fca2e1f319516c0e9816cd4a714c9c37f1220
+      tests_ref: c3eaacac0613fdc1d1dcb58ce416f2425c1b8457
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       binaries_artifact: sycl_cts_bin_win
 
