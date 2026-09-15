@@ -128,6 +128,7 @@
 ??$get_info_impl@Uimage_max_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uimage_row_pitch_align@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uimage_support@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
+??$get_info_impl@Uip_version@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uis_available@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uis_compiler_available@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uis_endian_little@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ

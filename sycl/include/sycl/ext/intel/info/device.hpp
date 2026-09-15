@@ -119,6 +119,9 @@ struct max_lanes_per_hw_thread
     : device_traits<UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD> {
   using return_type = uint32_t;
 };
+struct ip_version : device_traits<UR_DEVICE_INFO_IP_VERSION> {
+  using return_type = uint32_t;
+};
 
 // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 struct luid : device_runtime_traits {
