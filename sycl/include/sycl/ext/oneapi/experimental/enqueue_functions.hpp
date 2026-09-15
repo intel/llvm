@@ -180,31 +180,65 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
   });
 }
 
+// Free function kernel single_task enqueue functions. These enqueue the free
+// function kernel `Func` directly instead of wrapping `Func` in a helper
+// kernel. Wrapping generated a second, duplicate device kernel and dropped the
+// free function's compile-time kernel properties (e.g. sub_group_size,
+// work_group_size). See intel/llvm#22706. The handler resolves the kernel by
+// name through its cached getDeviceKernelInfo<Func>, so no kernel bundle is
+// built per launch.
 namespace detail {
-template <auto *Func, int tag, typename... ArgsT>
-struct SingleTaskFreeFunctionKernelWrapper;
+// Func-free submit helpers for free function kernels. These are templated only
+// on the argument types (and, for nd_launch, dimensionality/properties) and
+// take the already-resolved DeviceKernelInfo* - never the kernel function
+// pointer `Func`. That keeps the kernel's (potentially huge) mangled signature
+// out of the submit closure's name and every host symbol reached from it, which
+// is the dominant host object size cost of free function kernels under MSVC.
+// `Func` is spelled exactly once, in getDeviceKernelInfo<Func>() at the call
+// site. See CMPLRLLVM-77222.
+template <typename... ArgsT>
+void single_task_free_submit(const queue &Q, sycl::detail::DeviceKernelInfo *KI,
+                             ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.single_task_free_function(KI);
+  });
+}
+
+template <int Dimensions, typename... ArgsT>
+void nd_launch_free_submit(const queue &Q, nd_range<Dimensions> Range,
+                           sycl::detail::DeviceKernelInfo *KI,
+                           ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.nd_launch_free_function(KI, Range, empty_properties_t{});
+  });
+}
+
+template <int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch_free_config_submit(
+    const queue &Q, launch_config<nd_range<Dimensions>, Properties> Config,
+    sycl::detail::DeviceKernelInfo *KI, ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    LaunchConfigAccess<nd_range<Dimensions>, Properties> ConfigAccess(Config);
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.nd_launch_free_function(KI, ConfigAccess.getRange(),
+                                ConfigAccess.getProperties());
+  });
+}
 } // namespace detail
 
-// Free function kernel single_task enqueue functions
 template <auto *Func, typename... ArgsT>
-void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-                 ArgsT &&...Args) {
-  // Here and in the next function, we use the
-  // SingleTaskFreeFunctionKernelWrapper declared above to generate unique
-  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
-  // problems with other host compilers
-  detail::submit_kernel_direct_single_task<
-      detail::SingleTaskFreeFunctionKernelWrapper<Func, 1, ArgsT...>>(
-      std::move(Q), [Args...]() { Func(Args...); });
+void single_task(handler &CGH, kernel_function_s<Func>, ArgsT &&...Args) {
+  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  CGH.single_task_free_function(&sycl::detail::getDeviceKernelInfo<Func>());
 }
 
 template <auto *Func, typename... ArgsT>
-void single_task(handler &CGH,
-                 [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-                 ArgsT &&...Args) {
-  CGH.single_task<
-      detail::SingleTaskFreeFunctionKernelWrapper<Func, 2, ArgsT...>>(
-      [Args...]() { Func(Args...); });
+void single_task(queue Q, kernel_function_s<Func>, ArgsT &&...Args) {
+  detail::single_task_free_submit<ArgsT...>(
+      std::move(Q), &sycl::detail::getDeviceKernelInfo<Func>(),
+      std::forward<ArgsT>(Args)...);
 }
 
 template <typename T>
@@ -448,41 +482,19 @@ struct NdRangeFreeFunctionKernelWrapper;
 
 // Free function kernel nd_launch enqueue functions
 template <auto *Func, int Dimensions, typename... ArgsT>
-void nd_launch(queue Q, nd_range<Dimensions> Range,
-               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-               ArgsT &&...Args) {
-  // Here and in the next 3 functions, we use the
-  // NdRangeFreeFunctionKernelWrapper declared above to generate unique
-  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
-  // problems with other host compilers
-  detail::submit_kernel_direct_parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 1, ArgsT...>>(
-      std::move(Q), Range,
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               kernel_function_s<Func>, ArgsT &&...Args) {
+  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  CGH.nd_launch_free_function(&sycl::detail::getDeviceKernelInfo<Func>(), Range,
+                              empty_properties_t{});
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
-void nd_launch(handler &CGH, nd_range<Dimensions> Range,
-               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
+void nd_launch(queue Q, nd_range<Dimensions> Range, kernel_function_s<Func>,
                ArgsT &&...Args) {
-  CGH.parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 2, ArgsT...>>(
-      Range, [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
-}
-
-template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
-void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-               ArgsT &&...Args) {
-
-  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
-                                                        Properties>
-      ConfigAccess(Config);
-  detail::submit_kernel_direct_parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 3, ArgsT...>>(
-      std::move(Q), ConfigAccess.getRange(),
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); }, {},
-      ConfigAccess.getProperties());
+  detail::nd_launch_free_submit<Dimensions, ArgsT...>(
+      std::move(Q), Range, &sycl::detail::getDeviceKernelInfo<Func>(),
+      std::forward<ArgsT>(Args)...);
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
@@ -493,10 +505,18 @@ void nd_launch(handler &CGH,
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  CGH.parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 4, ArgsT...>>(
-      ConfigAccess.getRange(), ConfigAccess.getProperties(),
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  CGH.nd_launch_free_function(&sycl::detail::getDeviceKernelInfo<Func>(),
+                              ConfigAccess.getRange(),
+                              ConfigAccess.getProperties());
+}
+
+template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+               kernel_function_s<Func>, ArgsT &&...Args) {
+  detail::nd_launch_free_config_submit<Dimensions, Properties, ArgsT...>(
+      std::move(Q), Config, &sycl::detail::getDeviceKernelInfo<Func>(),
+      std::forward<ArgsT>(Args)...);
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {

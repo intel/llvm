@@ -497,7 +497,12 @@ detail::EventImplPtr handler::finalize() {
           &detail::ProgramManager::getInstance().getDeviceKernelInfo(
               std::string_view(MKernelName)));
     }
-    assert(impl->MKernelData.getKernelName() == MKernelName);
+    // Free function kernels set the DeviceKernelInfo pointer directly (via
+    // setFreeFunctionKernelInfoRT) and intentionally leave MKernelName unset -
+    // the name is read from the pointer. Only check the invariant when
+    // MKernelName was populated (classic / kernel-object paths).
+    assert(std::string_view(MKernelName).empty() ||
+           impl->MKernelData.getKernelName() == MKernelName);
     if (!impl->MHasWorkGroupScratchSizeProperty &&
         impl->MKernelData.getDeviceKernelInfoPtr()
             ->getWorkGroupDynamicLocalMem())
