@@ -92,16 +92,16 @@ void launch() {
 
 // The wrapper for the free function kernel without properties gets no property
 // metadata at all.
-// CHECK: define {{.*}}spir_kernel void @{{.*}}NdRangeFreeFunctionKernelWrapper{{.*}}ndr_ff_no_props{{.*}}(ptr addrspace(1) {{[^)]*}}) #[[NOPROP_ATTR:[0-9]+]] {{[^!]*}}!sycl_fixed_targets
+// CHECK: define {{.*}}spir_kernel void @{{.*}}NdRangeFreeFunctionKernelWrapper{{.*}}ndr_ff_no_props{{.*}}(ptr addrspace(1) {{[^)]*}}) #[[NOPROP_ATTR:[0-9]+]] {{.*}}!sycl_fixed_targets
 
 // Full attribute-group matches. Because the SYCL string attributes are emitted
 // in sorted order, matching the complete list proves both that the compile-time
 // property is present AND that the free-function-kernel-kind marker
 // (sycl-nd-range-kernel / sycl-single-task-kernel) was NOT copied onto the
 // wrapper kernel.
-// CHECK-DAG: attributes #[[NDR_ATTR]] = { convergent {{.*}}"sycl-module-id"={{[^ ]+}} "sycl-optlevel"="0" "sycl-sub-group-size"="16" "uniform-work-group-size" }
-// CHECK-DAG: attributes #[[STK_ATTR]] = { convergent {{.*}}"sycl-module-id"={{[^ ]+}} "sycl-optlevel"="0" "sycl-work-group-size"="8" "uniform-work-group-size" }
-// CHECK-DAG: attributes #[[NOPROP_ATTR]] = { convergent {{.*}}"sycl-module-id"={{[^ ]+}} "sycl-optlevel"="0" "uniform-work-group-size" }
+// CHECK-DAG: attributes #[[NDR_ATTR]] = { convergent {{.*}}"sycl-module-id"={{[^ ]+}} "sycl-optlevel"="0" "sycl-sub-group-size"="16" "uniform-work-group-size"="true" }
+// CHECK-DAG: attributes #[[STK_ATTR]] = { convergent {{.*}}"sycl-module-id"={{[^ ]+}} "sycl-optlevel"="0" "sycl-work-group-size"="8" "uniform-work-group-size"="true" }
+// CHECK-DAG: attributes #[[NOPROP_ATTR]] = { convergent {{.*}}"sycl-module-id"={{[^ ]+}} "sycl-optlevel"="0" "uniform-work-group-size"="true" }
 
 // CHECK-DAG: ![[SGSIZE]] = !{i32 16}
 // CHECK-DAG: ![[WGSIZE]] = !{i64 8, i64 1, i64 1}
