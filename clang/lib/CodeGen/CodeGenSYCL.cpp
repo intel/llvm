@@ -73,8 +73,22 @@ void CodeGenModule::EmitSYCLKernelCaller(const FunctionDecl *KernelEntryPointFn,
   CanQualType KernelNameType =
       Ctx.getCanonicalType(KernelEntryPointAttr->getKernelName());
   const SYCLKernelInfo &KernelInfo = Ctx.getSYCLKernelInfo(KernelNameType);
-  auto *Fn = llvm::Function::Create(FnTy, llvm::Function::ExternalLinkage,
-                                    KernelInfo.GetKernelName(), &getModule());
+
+  // The entry point inherits the linkage of the sycl_kernel_entry_point
+  // attributed function. If that function has external linkage and may be
+  // defined in multiple translation units (because it is an inline function
+  // or an instantiated function template specialization), then the kernel
+  // entry point also must permit multiple definitions and is thus emitted
+  // with weak linkage (weak_odr rather than linkonce_odr so that it is
+  // not discarded). Otherwise, the kernel entry point is emitted with
+  // strong external linkage.
+  GVALinkage GVAL = Ctx.GetGVALinkageForFunction(KernelEntryPointFn);
+  llvm::GlobalValue::LinkageTypes Linkage =
+      (GVAL == GVA_DiscardableODR || GVAL == GVA_StrongODR)
+          ? llvm::GlobalValue::WeakODRLinkage
+          : llvm::GlobalValue::ExternalLinkage;
+  auto *Fn = llvm::Function::Create(FnTy, Linkage, KernelInfo.GetKernelName(),
+                                    &getModule());
 
   // Emit the SYCL kernel caller function.
   CodeGenFunction CGF(*this);
