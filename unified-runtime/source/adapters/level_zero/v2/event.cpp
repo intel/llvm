@@ -428,12 +428,22 @@ ur_result_t urEventCreateExp(::ur_context_handle_t hContextOpque,
   auto hDevice = common_cast(hDeviceOpque);
   auto phEvent = v2_cast(phEventOpque);
 
+  ur_exp_event_sync_mode_flags_t syncModeFlags = 0;
+  if (const auto *SyncDesc =
+          find_stype_node<ur_exp_event_sync_mode_desc_t>(pEventDesc)) {
+    syncModeFlags = SyncDesc->flags;
+  }
+  const bool lowPower =
+      syncModeFlags & UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+
   const v2::event_flags_t flags =
       v2::EVENT_FLAGS_COUNTER |
       (pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING
            ? v2::EVENT_FLAGS_PROFILING_ENABLED
            : 0) |
-      (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP ? v2::EVENT_FLAGS_IPC : 0);
+      (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP ? v2::EVENT_FLAGS_IPC
+                                                     : 0) |
+      (lowPower ? v2::EVENT_FLAGS_LOW_POWER : 0);
 
   UR_ASSERT(!(flags & v2::EVENT_FLAGS_IPC &&
               flags & v2::EVENT_FLAGS_PROFILING_ENABLED),

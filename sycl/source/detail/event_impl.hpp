@@ -371,6 +371,8 @@ public:
 
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 
+  void setLowPower(bool Value) { MLowPower = Value; }
+
   // Sets a command-buffer command when this event represents an enqueue to a
   // Command Buffer.
   void setCommandBufferCommand(ur_exp_command_buffer_command_handle_t Command) {
@@ -428,6 +430,7 @@ protected:
   Command *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   bool MIsProfilingEnabled = false;
+  bool MLowPower = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;

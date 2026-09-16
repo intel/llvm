@@ -55,6 +55,35 @@ members:
 
 --- #--------------------------------------------------------------------------
 type: enum
+desc: "Synchronization flags for events."
+name: $x_exp_event_sync_mode_flags_t
+etors:
+    - name: LOW_POWER_WAIT
+      value: "$X_BIT(0)"
+      desc: >
+            When enabled, the driver optimizes event host synchronization
+            calls, such as to use CPU threads more efficiently. 
+            For example, instead of actively polling a memory location, 
+            it may use operating system mechanisms to put the CPU thread to 
+            sleep.
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: >
+    Optional extension descriptor for reusable event synchronization
+    behavior. Chain this off $x_exp_event_desc_t::pNext when creating a
+    reusable event to request a specific synchronization mode. Adapters that
+    cannot honor the requested mode may ignore this structure.
+name: $x_exp_event_sync_mode_desc_t
+base: $x_base_desc_t
+members:
+    - type: $x_exp_event_sync_mode_flags_t
+      name: flags
+      desc: >
+            [in] combination of $x_exp_event_sync_mode_flags_t values.
+
+--- #--------------------------------------------------------------------------
+type: enum
 extend: true
 desc: "Structure type experimental enumerations"
 name: $x_structure_type_t
@@ -62,6 +91,9 @@ etors:
     - name: EXP_EVENT_DESC
       desc: $x_exp_event_desc_t
       value: "0x8000"
+    - name: EXP_EVENT_SYNC_MODE_DESC
+      desc: $x_exp_event_sync_mode_desc_t
+      value: "0x8001"
 
 --- #--------------------------------------------------------------------------
 type: function
