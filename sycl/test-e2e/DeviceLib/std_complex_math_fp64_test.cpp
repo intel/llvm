@@ -1,6 +1,7 @@
 
-// TODO: Remove 'XFAIL' below once https://github.com/llvm/llvm-project/pull/218528
-// lands and cherry-picked to intel/llvm.
+// TODO: Remove 'XFAIL' below once
+// https://github.com/llvm/llvm-project/pull/218528 lands and cherry-picked to
+// intel/llvm.
 // XFAIL: new-offload-model
 // REQUIRES: aspect-fp64
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
