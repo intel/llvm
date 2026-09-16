@@ -338,18 +338,23 @@ def : CudaTargetInfo<"nvidia_gpu_sm_62", !listconcat(CudaMinAspects, CudaBindles
 def : CudaTargetInfo<"nvidia_gpu_sm_70", !listconcat(CudaMinAspects, CudaBindlessImagesAspects, [AspectFp16, AspectAtomic64])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_72", !listconcat(CudaMinAspects, CudaBindlessImagesAspects, [AspectFp16, AspectAtomic64])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_75", !listconcat(CudaMinAspects, CudaBindlessImagesAspects, [AspectFp16, AspectAtomic64])>;
-def : CudaTargetInfo<"nvidia_gpu_sm_80", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
-def : CudaTargetInfo<"nvidia_gpu_sm_86", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
-def : CudaTargetInfo<"nvidia_gpu_sm_87", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
-def : CudaTargetInfo<"nvidia_gpu_sm_89", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
-def : CudaTargetInfo<"nvidia_gpu_sm_90", !listconcat(CudaMinAspects, CudaSM90USMAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_cuda_cluster_group])>;
-def : CudaTargetInfo<"nvidia_gpu_sm_90a", !listconcat(CudaMinAspects, CudaSM90USMAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_cuda_cluster_group])>;
+defvar CudaSM80Aspects = !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier]);
+defvar CudaSM90Aspects = !listconcat(CudaMinAspects, CudaSM90USMAspects, CudaBindlessImagesAspects,
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_cuda_cluster_group]);
+
+foreach Arch = ["nvidia_gpu_sm_80", "nvidia_gpu_sm_86", "nvidia_gpu_sm_87",
+                "nvidia_gpu_sm_88", "nvidia_gpu_sm_89"] in
+  def : CudaTargetInfo<Arch, CudaSM80Aspects>;
+
+foreach Arch = ["nvidia_gpu_sm_90", "nvidia_gpu_sm_90a",
+                "nvidia_gpu_sm_100", "nvidia_gpu_sm_100a", "nvidia_gpu_sm_100f",
+                "nvidia_gpu_sm_101", "nvidia_gpu_sm_101a", "nvidia_gpu_sm_101f",
+                "nvidia_gpu_sm_103", "nvidia_gpu_sm_103a", "nvidia_gpu_sm_103f",
+                "nvidia_gpu_sm_110", "nvidia_gpu_sm_110a", "nvidia_gpu_sm_110f",
+                "nvidia_gpu_sm_120", "nvidia_gpu_sm_120a", "nvidia_gpu_sm_120f",
+                "nvidia_gpu_sm_121", "nvidia_gpu_sm_121a", "nvidia_gpu_sm_121f"] in
+  def : CudaTargetInfo<Arch, CudaSM90Aspects>;
 
 //
 // HIP / AMDGPU device aspects
