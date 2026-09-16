@@ -895,32 +895,35 @@ SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
       continue;
     }
 
-    // No JIT binary available. Native AOT images carry their own notion of
-    // state: an AOT image with imported symbols is in object state (link
-    // still pending) and an AOT image without imports is already in
-    // executable state. Accept the native candidate iff its intrinsic
-    // state, as classified by ProgramManager::getBinImageState, matches
-    // the requested state. The previous selector skipped this case for
-    // non-executable requests, which made AOT-only object SYCLBINs
-    // (produced via -fsyclbin=object with an AOT target) load as an empty
-    // kernel_bundle and broke any subsequent sycl::link.
+    // No JIT binary available, so the native candidate is the only
+    // representation this abstract module has. Native images carry their own
+    // notion of state, as classified by ProgramManager::getBinImageState:
+    //  * an AOT image with imported symbols is in object state (link pending),
+    //  * an AOT image without imports is already in executable state,
+    //  * an image for a target the backend itself compiles before launch is in
+    //    input state. Such an image ends up in the native section only because
+    //    its format is neither SPIR-V nor LLVM IR, not because it is ready to
+    //    run.
     //
-    // Additionally, a native AOT image that only exports symbols (and imports
-    // none) classifies as executable, but it is still a library meant to be
-    // linked into: it must be loadable in object state so it can act as the
-    // provider side of a cross-library sycl::link. Surface such an image for
-    // an object-state request as well. The importing side still resolves its
-    // exported symbols via CreateLinkGraph, which reads the exported-symbol
-    // metadata directly and is independent of the image's classified state.
+    // Accept the candidate when that intrinsic state matches the requested
+    // one, and unconditionally for an object-state request. The latter is
+    // needed because the requested state has already been checked against the
+    // SYCLBIN's own recorded state by the caller: for a SYCLBIN written in
+    // object state the native image IS the object-state content, no matter
+    // which of the three classifications above it falls under, and rejecting
+    // it here yields an empty kernel_bundle whose subsequent sycl::link has
+    // nothing to link (previously: any -fsyclbin=object SYCLBIN carrying only
+    // a native image with neither imported nor exported symbols).
+    //
+    // The state each image is presented in is reconciled where the device
+    // images are created (see ReconcileState in kernel_bundle_impl): an
+    // executable-classified AOT library is downgraded to object so it is not
+    // mistaken for already-linked, and an input-classified image is compiled
+    // to object by the following bringSYCLDeviceImagesToState call.
     if (const RTDeviceBinaryImage *Native =
             FindCompatible(AMDesc.NativeBinaries, AMDesc.NumNativeBinaries)) {
-      const bool StateMatches =
-          ProgramManager::getBinImageState(Native) == State;
-      const bool ExportOnlyLibForObject =
-          State == bundle_state::object &&
-          !Native->getExportedSymbols().empty() &&
-          Native->getImportedSymbols().empty();
-      if (StateMatches || ExportOnlyLibForObject)
+      if (ProgramManager::getBinImageState(Native) == State ||
+          State == bundle_state::object)
         Images.push_back(Native);
     }
   }
