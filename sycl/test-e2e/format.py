@@ -366,6 +366,16 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions.append(("%{run-unfiltered-devices}", run_unfiltered_substitution))
 
+        # Build lines may need device specific flags, so they get the device
+        # features too. Such a line is shared by every device the test runs on,
+        # hence only the features common to all of them are available.
+        build_conditions = {x: True for x in test.config.available_features}
+        if devices_for_test:
+            for feature in set.intersection(
+                *(set(test.config.sycl_dev_features[d]) for d in devices_for_test)
+            ):
+                build_conditions[feature] = True
+
         new_script = []
         for directive in script:
             if not isinstance(directive, lit.TestRunner.CommandDirective):
@@ -384,7 +394,20 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 continue
 
             if "%{run}" not in directive.command:
-                new_script.append(directive)
+                tmp_script = lit.TestRunner.applySubstitutions(
+                    [directive.command],
+                    [],
+                    build_conditions,
+                    recursion_limit=test.config.recursiveExpansionLimit,
+                )
+                new_script.append(
+                    lit.TestRunner.CommandDirective(
+                        directive.start_line_number,
+                        directive.end_line_number,
+                        directive.keyword,
+                        tmp_script[0],
+                    )
+                )
                 continue
 
             for full_dev_name, parsed_dev_name in zip(
