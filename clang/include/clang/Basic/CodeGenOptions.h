@@ -205,7 +205,14 @@ public:
   }
 
   /// Possible exception handling behavior.
-  enum class ExceptionHandlingKind { None, SjLj, WinEH, DwarfCFI, Wasm };
+  enum class ExceptionHandlingKind {
+    None,
+    SjLj,
+    WinEH,
+    DwarfCFI,
+    Wasm,
+    Emscripten
+  };
 
   enum class SwiftAsyncFramePointerKind {
     Auto, // Choose Swift async extended frame info based on deployment target.
@@ -638,6 +645,10 @@ public:
 
   bool hasWasmExceptions() const {
     return getExceptionHandling() == ExceptionHandlingKind::Wasm;
+  }
+
+  bool hasEmscriptenExceptions() const {
+    return getExceptionHandling() == ExceptionHandlingKind::Emscripten;
   }
 
   /// Check if Clang profile instrumenation is on.
