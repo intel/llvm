@@ -11,11 +11,15 @@
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <optional>
+#include <string_view>
+#include <utility>
 
 #if defined(__SYCL_RT_OS_POSIX_SUPPORT)
 #include <unistd.h>
@@ -98,13 +102,25 @@ bool PersistentDeviceCodeCache::areImagesCacheable(
 
 static std::vector<const RTDeviceBinaryImage *>
 getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
+  // Orders an image by the name of its first offload entry - all entry names
+  // are unique among these images, so the first one is enough to tell them
+  // apart. Images with no named entries are legal (e.g. images which only
+  // provide virtual functions, device library images or images coming from a
+  // SYCLBIN file); they sort after the named ones, by their device code, which
+  // is the only thing left to distinguish them by.
+  auto GetSortKey = [](const RTDeviceBinaryImage *Img) {
+    const sycl_device_binary_struct &RawImg = Img->getRawData();
+    if (RawImg.EntriesBegin && RawImg.EntriesBegin != RawImg.EntriesEnd)
+      if (const char *Name = RawImg.EntriesBegin->GetName())
+        return std::pair{false, std::string_view{Name}};
+    return std::pair{true, std::string_view{}};
+  };
+
   std::vector<const RTDeviceBinaryImage *> SortedImgs = Imgs;
   std::sort(SortedImgs.begin(), SortedImgs.end(),
-            [](const RTDeviceBinaryImage *A, const RTDeviceBinaryImage *B) {
-              // All entry names are unique among these images, so comparing the
-              // first ones is enough.
-              return std::strcmp(A->getRawData().EntriesBegin->GetName(),
-                                 B->getRawData().EntriesBegin->GetName()) < 0;
+            [&GetSortKey](const RTDeviceBinaryImage *A,
+                          const RTDeviceBinaryImage *B) {
+              return GetSortKey(A) < GetSortKey(B);
             });
   return SortedImgs;
 }
