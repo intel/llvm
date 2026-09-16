@@ -49,10 +49,12 @@ RUN apt update && apt install -yqq rocm-dev && \
 
 # Fix Vulkan install inside container
 # https://stackoverflow.com/questions/74965945/vulkan-is-unable-to-detect-nvidia-gpu-from-within-a-docker-container-when-using
+# libGLX_nvidia.so.0 also needs libnvidia-gpucomp.so, which ships in libnvidia-compute-565
 RUN apt-get update && \
     apt-get install -y libegl1 && \
-    apt-get install -y --no-install-recommends --download-only libnvidia-gl-565 && \
+    apt-get install -y --no-install-recommends --download-only libnvidia-gl-565 libnvidia-compute-565 && \
     dpkg-deb --extract /var/cache/apt/archives/libnvidia-gl-565_*.deb extracted && \
+    dpkg-deb --extract /var/cache/apt/archives/libnvidia-compute-565_*.deb extracted && \
     cp -R ./extracted/usr/* /usr/ && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb ./extracted
 
