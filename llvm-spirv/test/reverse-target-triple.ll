@@ -9,13 +9,12 @@
 
 ; Override to an AMDGCN triple.
 ; RUN: llvm-spirv -r --spirv-target-triple=amdgcn-amd-amdhsa %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-AMDGCN
-; CHECK-AMDGCN: target datalayout = "m:e-e-p:64:64:64{{.*}}-ni:7:8:9-p7:160:256:256:32
+; CHECK-AMDGCN: target datalayout = "e-m:e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-{{.*}}-n32:64-S32-A5-G1-ni:7:8:9"
 ; CHECK-AMDGCN: target triple = "amdgcn-amd-amdhsa"
 
-; Override to an NVPTX triple.
-; RUN: llvm-spirv -r --spirv-target-triple=nvptx64-nvidia-cuda %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-NVPTX
-; CHECK-NVPTX: target datalayout = "e-p:64:64:64{{.*}}-v1024:1024:1024"
-; CHECK-NVPTX: target triple = "nvptx64-nvidia-cuda"
+; Override to NVPTX triple: no address space map, rejected.
+; RUN: not llvm-spirv -r --spirv-target-triple=nvptx64-nvidia-cuda %t.spv -o - 2>&1 | FileCheck %s --check-prefix=CHECK-NVPTX
+; CHECK-NVPTX: No address space map for target triple 'nvptx64-nvidia-cuda'
 
 ; The option only affects reverse translation; on forward translation it is
 ; ignored with a note.

@@ -4340,49 +4340,58 @@ bool SPIRVToLLVM::translate() {
 }
 
 bool SPIRVToLLVM::transAddressingModel() {
-  // No -G: LLVM auto-injects -G1 for spir triples, and emitting our own
-  // would shift getDefaultGlobalsAddressSpace() away from AS 0 (the LLVM
-  // convention for llvm.global.annotations / llvm.metadata fields).
+  // The datalayout depends on the triple, so resolve triple first.
+  Triple OverrideTT;
+  StringRef Override = BM->getTargetTripleOverride();
+  if (!Override.empty()) {
+    OverrideTT = Triple(Triple::normalize(Override));
+    SPIRVCKRT(OverrideTT.getArch() != Triple::UnknownArch,
+              InvalidTargetTripleOverride, Override.str());
+  }
+
   auto AppendAddrSpaceModifiers = [this](std::string &DL) {
+    // A target datalayout may already pin these; only override on divergence.
+    DataLayout Base(DL);
     unsigned PrivateAS = BM->mapAddrSpace(SPIRAS_Private);
-    if (PrivateAS != SPIRAS_Private)
+    if (PrivateAS != Base.getAllocaAddrSpace())
       DL += "-A" + std::to_string(PrivateAS);
     unsigned ProgramAS = BM->getFunctionProgramAddrSpace();
-    if (ProgramAS != 0)
+    if (ProgramAS != Base.getProgramAddressSpace())
       DL += "-P" + std::to_string(ProgramAS);
   };
 
+  auto SetTripleAndDataLayout = [&](const char *SPIRTriple,
+                                    const char *SPIRDataLayout) {
+    Triple TT = Override.empty() ? Triple(SPIRTriple) : OverrideTT;
+    M->setTargetTriple(TT);
+    // A non-SPIR target sizes pointers per address space (AMDGPU: 32-bit
+    // local/private, 64-bit global/constant/flat); SPIR's uniform 64-bit
+    // layout would misreport them. No -G on the SPIR path: LLVM auto-injects
+    // -G1 for spir triples, and emitting our own would shift
+    // getDefaultGlobalsAddressSpace() away from AS 0 (the LLVM convention for
+    // llvm.global.annotations / llvm.metadata fields).
+    std::string DL = TT.isSPIR() || TT.isSPIRV() ? std::string(SPIRDataLayout)
+                                                 : TT.computeDataLayout();
+    AppendAddrSpaceModifiers(DL);
+    M->setDataLayout(DL);
+  };
+
   switch (BM->getAddressingModel()) {
-  case AddressingModelPhysical64: {
-    M->setTargetTriple(Triple(SPIR_TARGETTRIPLE64));
-    std::string DL = SPIR_DATALAYOUT64;
-    AppendAddrSpaceModifiers(DL);
-    M->setDataLayout(DL);
+  case AddressingModelPhysical64:
+    SetTripleAndDataLayout(SPIR_TARGETTRIPLE64, SPIR_DATALAYOUT64);
     break;
-  }
-  case AddressingModelPhysical32: {
-    M->setTargetTriple(Triple(SPIR_TARGETTRIPLE32));
-    std::string DL = SPIR_DATALAYOUT32;
-    AppendAddrSpaceModifiers(DL);
-    M->setDataLayout(DL);
+  case AddressingModelPhysical32:
+    SetTripleAndDataLayout(SPIR_TARGETTRIPLE32, SPIR_DATALAYOUT32);
     break;
-  }
   case AddressingModelLogical:
-    // Do not set target triple and data layout
+    // No datalayout; the override still names the target.
+    if (!Override.empty())
+      M->setTargetTriple(OverrideTT);
     break;
   default:
     SPIRVCKRT(0, InvalidAddressingModel,
               "Actual addressing mode is " +
                   std::to_string(BM->getAddressingModel()));
-  }
-
-  // Optional override replaces the triple.
-  StringRef Override = BM->getTargetTripleOverride();
-  if (!Override.empty()) {
-    Triple TT(Triple::normalize(Override));
-    SPIRVCKRT(TT.getArch() != Triple::UnknownArch, InvalidTargetTripleOverride,
-              Override.str());
-    M->setTargetTriple(TT);
   }
 
   return true;
@@ -6109,7 +6118,20 @@ SPIRVModuleTextReport formatSpirvReport(const SPIRVModuleReport &Report) {
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              const SPIRV::TranslatorOpts &Opts,
                                              std::string &ErrMsg) {
-  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule(Opts));
+  const SPIRV::TranslatorOpts *EffectiveOpts = &Opts;
+  SPIRV::TranslatorOpts AdjustedOpts;
+  if (!Opts.getSPIRVTargetTriple().empty()) {
+    AdjustedOpts = Opts;
+    if (!AdjustedOpts.deriveTargetAddrSpaces()) {
+      ErrMsg = ("No address space map for target triple '" +
+                Twine(Opts.getSPIRVTargetTriple()) + "'")
+                   .str();
+      return nullptr;
+    }
+    EffectiveOpts = &AdjustedOpts;
+  }
+  std::unique_ptr<SPIRVModule> BM(
+      SPIRVModule::createSPIRVModule(*EffectiveOpts));
 
   IS >> *BM;
   if (!BM->isModuleValid()) {
@@ -6193,7 +6215,10 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
     return false;
   }
 
-  M = convertSpirvToLLVM(C, *BM, Opts, ErrMsg).release();
+  // readSpirvModule normalizes the target triple and derives the address
+  // space map and then builds the module. Take Opts from the module to
+  // avoid divergence.
+  M = convertSpirvToLLVM(C, *BM, BM->getTranslationOpts(), ErrMsg).release();
 
   if (!M)
     return false;
