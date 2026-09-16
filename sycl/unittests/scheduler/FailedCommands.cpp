@@ -191,8 +191,9 @@ TEST(FailedCommandsTest, DeferredEnqueueFailureWakesWaitInternal) {
       CGH.host_task(
           [] { std::this_thread::sleep_for(std::chrono::milliseconds(100)); });
     });
-    Q.submit([&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
     try {
+      Q.submit(
+          [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
       Q.wait();
     } catch (...) {
     }

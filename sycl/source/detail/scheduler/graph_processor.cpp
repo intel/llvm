@@ -34,11 +34,6 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
     // TODO: Reschedule commands.
     throw exception(make_error_code(errc::runtime), "Enqueue process failed.");
 
-  // If the enqueue was deferred because Cmd was blocked on an in-flight host
-  // task, we drop the graph read lock and sleep on Cmd's event. When the host
-  // task completes, Scheduler::NotifyHostTaskCompletion walks the host task's
-  // MBlockedUsers and re-enters enqueueCommand for Cmd, which then runs
-  // Cmd->enqueue and setComplete on the event, waking us here.
   assert(Cmd->getEvent().get() == &Event);
 
   GraphReadLock.unlock();
@@ -57,15 +52,8 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
-      // Cmd is a host task that has not yet completed. Register the root
-      // command as a blocked user and defer its enqueue until
-      // Scheduler::NotifyHostTaskCompletion fires. This holds even for
-      // Blocking=true callers (Scheduler::waitForEvent): we return
-      // SyclEnqueueBlocked, the caller drops the graph read lock, and
-      // waitInternal on the root's event sleeps until the host task
-      // completes and unblocks us. This avoids the graph-read-lock /
-      // app-mutex deadlock in CMPLRLLVM-77682 that arose from waiting on
-      // host-task deps synchronously inside Command::enqueue.
+      // Defer even Blocking=true callers; waitForEvent unlocks the graph and
+      // parks on the root's event, avoiding the CMPLRLLVM-77682 deadlock.
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
