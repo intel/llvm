@@ -10,7 +10,7 @@
 
 constexpr size_t TM = 8;
 constexpr size_t TN = 16;
-constexpr size_t TK = 32;
+constexpr size_t TK = 64;
 
 // numElems is the packing factor of fp4_e2m1_x<numElems>: each storage element
 // holds numElems 4-bit values. Matrix extents below are always expressed in
@@ -40,7 +40,10 @@ void joint_matrix_gemm_vnni(
 
   // B is addressed in packed storage elements unless it is still sycl::half.
   constexpr size_t BPack = convertP ? 1 : numElems;
-  const size_t n_offset = sg_starty / sg_size * TN * vnniFactor;
+  // A B operand still held as sycl::half is packed along K by 2: a dword takes
+  // two 16 bit values where it takes eight 4 bit ones.
+  constexpr size_t BVnni = (convertP && vnniFactor > 1) ? 2 : vnniFactor;
+  const size_t n_offset = sg_starty / sg_size * TN * BVnni;
 
   joint_matrix_load(sg, sub_c,
                     pC + (sg_startx * TM) * N + sg_starty / sg_size * TN, N,
@@ -51,7 +54,7 @@ void joint_matrix_gemm_vnni(
     if constexpr (convertP) {
       joint_matrix<sub_group, sycl::half, use::b, TK, TN, B_layout> sub_bh;
       joint_matrix_load(sg, sub_bh, pB + (k * N + n_offset) / BPack,
-                        N / BPack * vnniFactor);
+                        N / BPack * BVnni);
       joint_matrix_convert(sg, sub_bh, sub_b);
     } else {
       joint_matrix_load(sg, sub_b, pB + (k * N + n_offset) / BPack,
@@ -138,9 +141,10 @@ void joint_matrix_verify(queue q) {
 
   if constexpr (vnniFactor > 1) {
     // Apply VNNI on the sycl::half data, then pack it if the kernel expects
-    // fp4 in memory.
+    // fp4 in memory. The kernel keeps B as sycl::half when convertP is set, and
+    // a 16 bit packed B is packed by 2 (see BVnni in joint_matrix_gemm_vnni).
     sycl::half *vnniBh = malloc_shared<sycl::half>(K * N, q);
-    matrix_vnni(K, N, Bh, vnniBh, vnniFactor);
+    matrix_vnni(K, N, Bh, vnniBh, convertP ? 2 : vnniFactor);
     if constexpr (convertP) {
       matrix_multiply<TA, TB, TC, M, N, K, layout::ext_intel_packed, vnniFactor,
                       numElems, convertP>(C, A, vnniBh, q);
@@ -184,8 +188,11 @@ template <typename TC, unsigned int numElems> void fp4_combinations(queue q) {
   // vnniFactor 8 fills a 32-bit dword with 4-bit elements
   joint_matrix_verify<fp4, fp4, TC, MATRIX_M, MATRIX_N, MATRIX_K,
                       /*vnniFactor=*/8, /*convertP=*/false, numElems>(q);
-  joint_matrix_verify<fp4, fp4, TC, MATRIX_M, MATRIX_N, MATRIX_K, 1, false,
-                      numElems>(q);
+  // A row major fp4 B operand (vnniFactor 1 with convertP false) is not
+  // covered: loading it needs a VNNI transforming 2D block read, and the
+  // hardware has no 4-bit element size for that transform. The matrix engine
+  // only consumes fp4 packed along K, so a row major fp4 B must be widened
+  // first - which is what the convertP cases below do.
   joint_matrix_verify<fp4, fp4, TC, MATRIX_M, MATRIX_N, MATRIX_K, 8, true,
                       numElems>(q);
   joint_matrix_verify<fp4, fp4, TC, MATRIX_M, MATRIX_N, MATRIX_K, 1, true,

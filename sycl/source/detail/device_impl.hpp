@@ -2228,10 +2228,21 @@ public:
                  matrix_type::fp8_e5m2, matrix_type::fp32, matrix_type::fp32},
                 {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
                  matrix_type::fp8_e4m3, matrix_type::fp32, matrix_type::fp32},
-                {0, 0, 0, 8, 16, 32, matrix_type::fp4_e2m1,
+                // K is 64 for fp4: a DPAS channel is 32 bits wide and the
+                // systolic depth is 8, so a 4 bit type contributes 8 values
+                // per channel.
+                {0, 0, 0, 8, 16, 64, matrix_type::fp4_e2m1,
                  matrix_type::fp4_e2m1, matrix_type::fp32, matrix_type::fp32},
-                {0, 0, 0, 8, 16, 32, matrix_type::fp4_e2m1,
+                {0, 0, 0, 8, 16, 64, matrix_type::fp4_e2m1,
                  matrix_type::fp4_e2m1, matrix_type::bf16, matrix_type::bf16},
+                // A B operand is converted to fp4_e2m1 from a 16 bit operand of
+                // the same shape, so the K = 64 B shape has to be declarable
+                // for fp16 and bf16 as well. joint_matrix_mad itself is not
+                // available for a 16 bit type at this K.
+                {0, 0, 0, 8, 16, 64, matrix_type::fp16, matrix_type::fp16,
+                 matrix_type::fp32, matrix_type::fp32},
+                {0, 0, 0, 8, 16, 64, matrix_type::bf16, matrix_type::bf16,
+                 matrix_type::fp32, matrix_type::fp32},
             });
       return pvc_combs;
     } else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||

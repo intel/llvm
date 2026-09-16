@@ -19,6 +19,7 @@
 #endif // defined(__SYCL_DEVICE_ONLY__)
 
 #include <sycl/access/access.hpp>             // for address_space
+#include <sycl/bit_cast.hpp>                  // for bit_cast
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32, convertMatrixUseEnumToString
@@ -30,6 +31,43 @@
 #include <stdint.h>    // for uint32_t
 #include <tuple>       // for ignore, _Swall...
 #include <type_traits> // for is_same, remov...
+
+#if defined(__SYCL_DEVICE_ONLY__)
+namespace sycl {
+namespace detail {
+// Same aliases as <sycl/ext/oneapi/experimental/float_4bit/types.hpp>. The
+// matrix headers deliberately do not include it (see the forward declarations
+// of fp4_e2m1_x in matrix-unified-utils.hpp), and repeating an alias
+// declaration is well formed as long as it names the same type, so both
+// headers can declare these independently.
+using fp4_float16_vec2 = _Float16 __attribute__((ext_vector_type(2)));
+using fp4_bfloat16_vec2 = __bf16 __attribute__((ext_vector_type(2)));
+using fp4_uint8_vec1 = uint8_t __attribute__((ext_vector_type(1)));
+} // namespace detail
+} // namespace sycl
+
+// Packed pair FP4E2M1 converters, used by joint_matrix_convert to convert a
+// cooperative matrix two work item elements at a time. These are declared at
+// global scope by float_4bit/types.hpp, so redeclare the overloads used here.
+//
+// The scalar overloads are deliberately not used. The SPIR-V translator sizes
+// the FP4E2M1 side of a conversion from the width of the integer holding it -
+// an 8 bit integer always means <2 x FP4E2M1> - so a scalar overload lowers to
+// an OpFConvert whose operands disagree in component count, and IGC then reads
+// it back as a call that disagrees with its own builtin definition in return
+// type. The pair overloads are the shape both sides agree on: one uint8_t holds
+// two FP4E2M1 values, the first in the low nibble.
+extern __DPCPP_SYCL_EXTERNAL uint8_t __builtin_spirv_ConvertFP16ToE2M1INTEL(
+    ::sycl::detail::fp4_float16_vec2) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t __builtin_spirv_ConvertBF16ToE2M1INTEL(
+    ::sycl::detail::fp4_bfloat16_vec2) noexcept;
+extern __DPCPP_SYCL_EXTERNAL ::sycl::detail::fp4_float16_vec2
+    __builtin_spirv_ConvertE2M1ToFP16INTEL(
+        ::sycl::detail::fp4_uint8_vec1) noexcept;
+extern __DPCPP_SYCL_EXTERNAL ::sycl::detail::fp4_bfloat16_vec2
+    __builtin_spirv_ConvertE2M1ToBF16INTEL(
+        ::sycl::detail::fp4_uint8_vec1) noexcept;
+#endif // defined(__SYCL_DEVICE_ONLY__)
 
 namespace sycl {
 inline namespace _V1 {
@@ -583,6 +621,12 @@ joint_matrix_convert(Group,
                      const joint_matrix<Group, From, Use, M, N, Layout> &src,
                      joint_matrix<Group, To, Use, M, N, Layout> &dst) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  // Whole matrix FP4E2M1 conversion: a single cooperative matrix OpFConvert.
+  // Disabled because it needs the unratified
+  // Float4E2M1CooperativeMatrixINTEL (6213) capability and a matching
+  // conversion in the joint matrix resolution pass. The element wise path
+  // below needs neither. Kept here for when the capability is ratified.
+#if 0
   // FP4E2M1 Upconversion
   if constexpr (sycl::detail::is_fp4_e2m1<From>::value) {
     if constexpr (std::is_same<To, sycl::half>::value)
@@ -602,6 +646,85 @@ joint_matrix_convert(Group,
       dst.spvm = __spirv_ConvertHF16ToFP4E2M1INTEL<To>(src.spvm);
     else if constexpr (std::is_same<From, sycl::ext::oneapi::bfloat16>::value)
       dst.spvm = __spirv_ConvertBF16ToFP4E2M1INTEL<To>(src.spvm);
+  }
+#endif
+  // Element wise FP4E2M1 conversion. A work item slice is addressed - and its
+  // length reported - in whole storage units, so one access of a 4-bit matrix
+  // covers the two elements packed in a byte: element i in the low nibble and
+  // element i + 1 in the high one. An fp4 M x N slice therefore has half the
+  // length of a 16-bit M x N one, and each byte pairs with two 16-bit
+  // elements. That is exactly the shape of the packed pair converters, the only
+  // ones that agree with the IGC builtins (see the declarations above), so no
+  // splitting, masking or read-modify-write of a byte is needed here.
+  constexpr __spv::MatrixUse SpvUse = spv_matrix_use_traits<Use>::value;
+  constexpr __spv::Scope::Flag SpvScope = spv_scope_traits<Group>::value;
+  // src is const to document that it is not written; building an access chain
+  // needs a mutable handle to it.
+  auto &src_mut =
+      const_cast<joint_matrix<Group, From, Use, M, N, Layout> &>(src);
+  const size_t Length = __spirv_CooperativeMatrixLengthKHR(src_mut.spvm);
+
+  if constexpr (sycl::detail::is_fp4_e2m1<From>::value) {
+    // FP4E2M1 up conversion.
+    static_assert(std::is_same_v<To, sycl::half> ||
+                      std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                  "joint_matrix_convert from fp4_e2m1_x supports only half and "
+                  "bfloat16 destinations.");
+    // Length counts the packed bytes of the fp4 source; the 16-bit destination
+    // takes two elements per byte.
+    for (size_t i = 0; i < Length; i++) {
+      const sycl::detail::fp4_uint8_vec1 Packed = {
+          *__spirv_AccessChain<uint8_t, From, M, N, SpvUse, SpvScope>(
+              &src_mut.spvm, i)};
+      To *InsertP0 =
+          __spirv_AccessChain<To, To, M, N, SpvUse, SpvScope>(&dst.spvm, 2 * i);
+      To *InsertP1 = __spirv_AccessChain<To, To, M, N, SpvUse, SpvScope>(
+          &dst.spvm, 2 * i + 1);
+      if constexpr (std::is_same_v<To, sycl::half>) {
+        const sycl::detail::fp4_float16_vec2 Pair =
+            __builtin_spirv_ConvertE2M1ToFP16INTEL(Packed);
+        *InsertP0 = sycl::bit_cast<sycl::half>(Pair[0]);
+        *InsertP1 = sycl::bit_cast<sycl::half>(Pair[1]);
+      } else {
+        const sycl::detail::fp4_bfloat16_vec2 Pair =
+            __builtin_spirv_ConvertE2M1ToBF16INTEL(Packed);
+        *InsertP0 = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(Pair[0]);
+        *InsertP1 = sycl::bit_cast<sycl::ext::oneapi::bfloat16>(Pair[1]);
+      }
+    }
+  } else if constexpr (sycl::detail::is_fp4_e2m1<To>::value) {
+    // FP4E2M1 down conversion.
+    static_assert(std::is_same_v<From, sycl::half> ||
+                      std::is_same_v<From, sycl::ext::oneapi::bfloat16>,
+                  "joint_matrix_convert to fp4_e2m1_x supports only half and "
+                  "bfloat16 sources.");
+    // Length counts the elements of the 16-bit source; two of them make one
+    // byte of the fp4 destination.
+    for (size_t i = 0; i < Length; i += 2) {
+      const From Elem0 =
+          *__spirv_AccessChain<From, From, M, N, SpvUse, SpvScope>(
+              &src_mut.spvm, i);
+      const From Elem1 =
+          *__spirv_AccessChain<From, From, M, N, SpvUse, SpvScope>(
+              &src_mut.spvm, i + 1);
+      uint8_t Packed;
+      if constexpr (std::is_same_v<From, sycl::half>) {
+        const sycl::detail::fp4_float16_vec2 Pair = {
+            sycl::bit_cast<_Float16>(Elem0), sycl::bit_cast<_Float16>(Elem1)};
+        Packed = __builtin_spirv_ConvertFP16ToE2M1INTEL(Pair);
+      } else {
+        const sycl::detail::fp4_bfloat16_vec2 Pair = {
+            sycl::bit_cast<__bf16>(Elem0), sycl::bit_cast<__bf16>(Elem1)};
+        Packed = __builtin_spirv_ConvertBF16ToE2M1INTEL(Pair);
+      }
+      *__spirv_AccessChain<uint8_t, To, M, N, SpvUse, SpvScope>(&dst.spvm,
+                                                                i / 2) = Packed;
+    }
+  } else {
+    static_assert(sycl::detail::is_fp4_e2m1<From>::value ||
+                      sycl::detail::is_fp4_e2m1<To>::value,
+                  "joint_matrix_convert supports only conversions to or from "
+                  "fp4_e2m1_x.");
   }
 #else
   std::ignore = src;
