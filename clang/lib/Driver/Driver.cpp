@@ -1021,14 +1021,11 @@ using TripleSet = std::multiset<llvm::Triple>;
 // requested offloading kind and architectures.
 static TripleSet inferOffloadToolchains(Compilation &C,
                                         Action::OffloadKind Kind) {
-  // SYCL offloading to AOT Targets with '--offload-arch'
-  // is currently enabled only with '--offload-new-driver' option.
-  // Emit a diagnostic if '--offload-arch' is invoked without
-  // '--offload-new driver' option.
+  // SYCL offloading to AOT Targets with '--offload-arch' requires the new
+  // offloading driver.
   if (Kind == Action::OFK_SYCL &&
       C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) &&
-      !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
-                                options::OPT_no_offload_new_driver, false)) {
+      !C.getDriver().getUseNewOffloadingDriver()) {
     C.getDriver().Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
     return {};
   }
@@ -1371,6 +1368,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (Active)
       Kinds.insert(Kind);
 
+  // Use new offloading path for OpenMP. This is disabled as the SYCL offloading
+  // path is not properly setup to use the updated device linking scheme.
+  //
+  // Must run before inferOffloadToolchains() below, which also consults
+  // getUseNewOffloadingDriver(). The CUDA/HIP part of the default is handled
+  // later, once we know a device toolchain actually got created for them.
+  if (Kinds.contains(Action::OFK_OpenMP) ||
+      C.getInputArgs().hasFlag(options::OPT_foffload_via_llvm,
+                               options::OPT_fno_offload_via_llvm, false) ||
+      C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                               options::OPT_no_offload_new_driver, false))
+    setUseNewOffloadingDriver();
+
   // We currently don't support any kind of mixed offloading.
   if (Kinds.size() > 1 && !IsSYCL) {
     Diag(clang::diag::err_drv_mix_offload)
@@ -1515,6 +1525,16 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
     }
   }
+
+  // CUDA/HIP default: only flip on once a device toolchain actually got
+  // created, so an invalid arch (which leaves no toolchain) doesn't trigger
+  // the new driver.
+  if (!getUseNewOffloadingDriver() &&
+      (C.isOffloadingHostKind(Action::OFK_Cuda) ||
+       C.isOffloadingHostKind(Action::OFK_HIP)) &&
+      C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                               options::OPT_no_offload_new_driver, true))
+    setUseNewOffloadingDriver();
 }
 
 bool Driver::loadZOSCustomizationFile(llvm::cl::ExpansionContext &ExpCtx) {
@@ -2193,22 +2213,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
-
-  // Use new offloading path for OpenMP.  This is disabled as the SYCL
-  // offloading path is not properly setup to use the updated device linking
-  // scheme.
-  //
-  // Mirrors the default computed independently in BuildActions() for
-  // UseNewOffloadingDriver, so that getUseNewOffloadingDriver() is the
-  // single source of truth for every consumer (see BuildActions()).
-  if (C->isOffloadingHostKind(Action::OFK_OpenMP) ||
-      TranslatedArgs->hasFlag(options::OPT_foffload_via_llvm,
-                              options::OPT_fno_offload_via_llvm, false) ||
-      TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
-                              options::OPT_no_offload_new_driver,
-                              (C->isOffloadingHostKind(Action::OFK_Cuda) ||
-                               C->isOffloadingHostKind(Action::OFK_HIP))))
-    setUseNewOffloadingDriver();
 
   bool UseModulesDriver = C->getArgs().hasFlag(
       options::OPT_fmodules_driver, options::OPT_fno_modules_driver, false);
