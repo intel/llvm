@@ -3,7 +3,7 @@
 /// CPU.
 ///
 
-// REQUIRES: opencl-aot, ocloc, gpu-intel-dg2, any-device-is-cpu
+// REQUIRES: opencl-aot, ocloc, gpu-intel-dg2, any-device-is-cpu, target-spir
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device dg2" %s -o %t.out
 // RUN: %if cpu %{ %{run} %t.out %}
