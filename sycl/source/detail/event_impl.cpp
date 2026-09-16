@@ -13,6 +13,7 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
 #include <sycl/device_selector.hpp>
+
 #include "detail/config.hpp"
 
 #include <chrono>

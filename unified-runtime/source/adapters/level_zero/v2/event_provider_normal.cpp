@@ -50,11 +50,12 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
       ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
   if (flags & EVENT_FLAGS_LOW_POWER) {
     eventSyncMode.syncModeFlags =
-        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT |
-        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT;
+        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT;
     if (flags & EVENT_FLAGS_COUNTER) {
+      eventSyncMode.pNext = counterBasedExt.pNext;
       counterBasedExt.pNext = &eventSyncMode;
     } else {
+      eventSyncMode.pNext = desc.pNext;
       desc.pNext = &eventSyncMode;
     }
   }
