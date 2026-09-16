@@ -9,7 +9,7 @@
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
 
-// Sporadic failures observed on Linux across all Intel platforms
+// Sporadic failures observed on Linux across all Intel platforms.
 // UNSUPPORTED: linux && level_zero
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22858
 
