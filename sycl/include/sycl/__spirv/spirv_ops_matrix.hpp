@@ -151,51 +151,6 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixPrefetchINTEL(
     T *Ptr, uint32_t NumRows, uint32_t NumCols, unsigned int CacheLevel,
     __spv::MatrixLayout Layout, size_t Stride);
 
-// FP4E2M1 Upconversion
-template <typename To, typename From, std::size_t R, std::size_t C,
-          __spv::MatrixUse U,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_CooperativeMatrixKHR<To, S, R, C, U> *
-    __spirv_ConvertFP4E2M1ToHF16INTEL(
-        __spv::__spirv_CooperativeMatrixKHR<From, S, R, C, U> *Object);
-template <typename To, typename From, std::size_t R, std::size_t C,
-          __spv::MatrixUse U,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_CooperativeMatrixKHR<To, S, R, C, U> *
-    __spirv_ConvertFP4E2M1ToBF16INTEL(
-        __spv::__spirv_CooperativeMatrixKHR<From, S, R, C, U> *Object);
-template <typename To, typename From, std::size_t R, std::size_t C,
-          __spv::MatrixUse U,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_CooperativeMatrixKHR<To, S, R, C, U> *
-    __spirv_ConvertFP4E2M1ToHF8INTEL(
-        __spv::__spirv_CooperativeMatrixKHR<From, S, R, C, U> *Object);
-template <typename To, typename From, std::size_t R, std::size_t C,
-          __spv::MatrixUse U,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_CooperativeMatrixKHR<To, S, R, C, U> *
-    __spirv_ConvertFP4E2M1ToBF8INTEL(
-        __spv::__spirv_CooperativeMatrixKHR<From, S, R, C, U> *Object);
-// FP4E2M1 down conversion
-template <typename To, typename From, std::size_t R, std::size_t C,
-          __spv::MatrixUse U,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_CooperativeMatrixKHR<To, S, R, C, U> *
-    __spirv_ConvertHF16ToFP4E2M1INTEL(
-        __spv::__spirv_CooperativeMatrixKHR<From, S, R, C, U> *Object);
-template <typename To, typename From, std::size_t R, std::size_t C,
-          __spv::MatrixUse U,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_CooperativeMatrixKHR<To, S, R, C, U> *
-    __spirv_ConvertBF16ToFP4E2M1INTEL(
-        __spv::__spirv_CooperativeMatrixKHR<From, S, R, C, U> *Object);
-
 template <typename TA, typename TB, typename TC, typename TAS, typename TBS,
           std::size_t M, std::size_t K, std::size_t N, __spv::MatrixUse UA,
           __spv::MatrixUse UB, __spv::MatrixUse UC, __spv::MatrixUse UAS,
