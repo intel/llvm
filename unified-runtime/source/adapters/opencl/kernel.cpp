@@ -40,9 +40,15 @@ ur_result_t ur_kernel_handle_t_::makeWithNative(native_type NativeKernel,
     }
     // Only set when this function creates the program wrapper itself, in
     // which case it owns the reference returned by
-    // urProgramCreateWithNativeHandle. A program supplied by the caller stays
-    // owned by the caller.
-    ur_program_handle_t OwnedProgram = nullptr;
+    // urProgramCreateWithNativeHandle and must drop it again - on the success
+    // path below, or here if constructing the kernel throws. A program
+    // supplied by the caller stays owned by the caller.
+    struct ProgramReleaser {
+      void operator()(ur_program_handle_t_ *P) {
+        ur::opencl::urProgramRelease(cast(P));
+      }
+    };
+    std::unique_ptr<ur_program_handle_t_, ProgramReleaser> OwnedProgram;
     if (Program) {
       if (Program->CLProgram != CLProgram) {
         return UR_RESULT_ERROR_INVALID_PROGRAM;
@@ -54,18 +60,16 @@ ur_result_t ur_kernel_handle_t_::makeWithNative(native_type NativeKernel,
       UR_RETURN_ON_FAILURE(ur::opencl::urProgramCreateWithNativeHandle(
           hNativeHandle, cast(Context), nullptr, &hProgram));
       Program = cast(hProgram);
-      OwnedProgram = hProgram;
+      OwnedProgram.reset(Program);
     }
 
     auto URKernel =
         std::make_unique<ur_kernel_handle_t_>(NativeKernel, Program, Context);
     Kernel = URKernel.release();
     // The kernel constructor took its own reference on the program, so drop
-    // the one created above; otherwise the program, and the context it keeps
-    // alive, outlive the kernel forever.
-    if (OwnedProgram) {
-      UR_RETURN_ON_FAILURE(ur::opencl::urProgramRelease(OwnedProgram));
-    }
+    // the one owned here; otherwise the program, and the context it keeps
+    // alive, outlive the kernel forever. OwnedProgram going out of scope does
+    // that, on this path and on the throwing one alike.
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
