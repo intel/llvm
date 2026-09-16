@@ -69,7 +69,6 @@ ur_result_t ur_kernel_handle_t_::makeWithNative(native_type NativeKernel,
     // The kernel constructor took its own reference on the program, so drop
     // the one owned here; otherwise the program, and the context it keeps
     // alive, outlive the kernel forever. OwnedProgram going out of scope does
-    // that, on this path and on the throwing one alike.
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
