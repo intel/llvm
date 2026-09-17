@@ -4318,6 +4318,9 @@ bool SPIRVToLLVM::translate() {
   transGeneratorMD();
   if (!lowerBuiltins(BM, M))
     return false;
+  // Only AMD targets emit these helpers, so only AMD targets reconstruct them.
+  if (M->getTargetTriple().getVendor() == Triple::AMD)
+    lowerAtomicWrapCalls(M);
   if (BM->getDesiredBIsRepresentation() == BIsRepresentation::SPIRVFriendlyIR) {
     SPIRVWord SrcLangVer = 0;
     BM->getSourceLanguage(&SrcLangVer);
