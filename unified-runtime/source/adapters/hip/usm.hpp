@@ -15,10 +15,13 @@
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
+// A ur_usm_pool_handle_t can represent different types of memory pools. It may
+// sit on top of a UMF pool or a hipMemPool_t, but not both.
 struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
   ur::RefCount RefCount;
 
   ur_context_handle_t Context = nullptr;
+  ur_device_handle_t Device = nullptr;
 
   usm::DisjointPoolAllConfigs DisjointPoolConfigs =
       usm::DisjointPoolAllConfigs();
@@ -27,10 +30,25 @@ struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
   umf::pool_unique_handle_t SharedMemPool;
   umf::pool_unique_handle_t HostMemPool;
 
+  hipMemPool_t HIPMemPool{0};
+  size_t maxSize = 0;
+
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc);
 
+  // Explicit device pool backed by a native hipMemPool_t.
+  ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
+                        ur_usm_pool_desc_t *PoolDesc);
+
+  // Explicit device default pool.
+  ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
+                        hipMemPool_t HIPMemPool);
+
   bool hasUMFPool(umf_memory_pool_t *umf_pool);
+
+  // To be used if ur_usm_pool_handle_t represents a hipMemPool_t.
+  bool usesHipPool() const { return HIPMemPool != hipMemPool_t{0}; };
+  hipMemPool_t getHipPool() { return HIPMemPool; };
 };
 
 // Implements memory allocation via driver API for USM allocator interface
