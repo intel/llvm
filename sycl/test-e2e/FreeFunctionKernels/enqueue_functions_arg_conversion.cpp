@@ -21,7 +21,11 @@ namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 // A user-defined type which implicitly converts to the parameter type of the
-// kernels below.
+// kernels below. The conversion has to be implicit: the enqueue functions are
+// constrained on `is_invocable_v`, so a type whose conversion operator is
+// `explicit` is rejected at the call site rather than converted, which
+// sycl/test/extensions/free_function_kernels/enqueue_functions_arg_constraints.cpp
+// checks.
 struct ConvertibleToInt {
   int Value;
   operator int() const { return Value; }
