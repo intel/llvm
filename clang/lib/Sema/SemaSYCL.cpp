@@ -441,7 +441,7 @@ static std::pair<const RecordDecl *, bool> needsDeepTypeCheck(SemaSYCL &S,
 }
 
 static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
-                          llvm::DenseSet<QualType> Visited,
+                          llvm::DenseSet<QualType> &Visited,
                           SourceRange UsedAtLoc = SourceRange()) {
   // Not all variable types are supported inside SYCL kernels,
   // for example the quad type __float128 will cause errors in the
