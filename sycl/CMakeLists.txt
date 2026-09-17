@@ -584,8 +584,6 @@ if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
 
-set(libclc_enabled FALSE)
-set(compiler-rt_enabled FALSE)
 include(CheckEnabledLLVMRuntime)
 is_llvm_runtime_enabled(libclc libclc_enabled)
 is_llvm_runtime_enabled(compiler-rt compiler-rt_enabled)

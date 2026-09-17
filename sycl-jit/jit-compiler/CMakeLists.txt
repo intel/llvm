@@ -29,8 +29,6 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
-set(libclc_enabled FALSE)
-set(compiler-rt_enabled FALSE)
 include(CheckEnabledLLVMRuntime)
 is_llvm_runtime_enabled(libclc libclc_enabled)
 is_llvm_runtime_enabled(compiler-rt compiler-rt_enabled)
