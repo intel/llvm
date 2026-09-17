@@ -3,9 +3,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
-
 // This test checks that arguments passed to the enqueue functions that take a
 // kernel_function_s (nd_launch / single_task) are converted to the types of the
 // corresponding free function kernel parameters, as required by the extension
