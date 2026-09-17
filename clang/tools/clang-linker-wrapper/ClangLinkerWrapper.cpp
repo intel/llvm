@@ -1023,6 +1023,10 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   return *TempFileOrErr;
 }
 
+// -flto=full/-flto=thin can be forwarded here via --device-compiler= (e.g.
+// from -foffload-lto=) for any offload toolchain, reject for ocloc/opencl-aot.
+static bool isLTOArg(StringRef Arg) { return Arg.starts_with("-flto"); }
+
 /// Adds ocloc options required for SYCL AOT compilation step to \p CmdArgs.
 /// ocloc -options takes arguments in the form of '-options "-g
 /// -cl-opt-disable"' where each argument is separated with spaces. split
@@ -1057,7 +1061,10 @@ static void addOclocOptions(StringRef BackendOptions,
     CmdArgs.push_back("-options");
     CmdArgs.push_back(AfterOptions);
   }
-  llvm::append_range(CmdArgs, AOTDeviceArgs);
+  llvm::append_range(
+      CmdArgs, llvm::make_filter_range(AOTDeviceArgs, [](const StringRef &Arg) {
+        return !isLTOArg(Arg);
+      }));
 }
 
 /// Run AOT compilation for Intel CPU.
@@ -1084,7 +1091,10 @@ runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args,
   CmdArgs.push_back(*OpenCLAOTPath);
   CmdArgs.push_back("--device=cpu");
   BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  llvm::append_range(CmdArgs, AOTDeviceArgs);
+  llvm::append_range(
+      CmdArgs, llvm::make_filter_range(AOTDeviceArgs, [](const StringRef &Arg) {
+        return !isLTOArg(Arg);
+      }));
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");

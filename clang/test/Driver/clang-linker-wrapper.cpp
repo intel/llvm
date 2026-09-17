@@ -164,6 +164,11 @@
 // RUN: not clang-linker-wrapper --ocloc-path= --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH-NOARG %s
 // CHK-OCLOC-PATH-NOARG: no directory given for '--ocloc-path='
 
+// Check that -flto=* forwarded via --device-compiler= is dropped before invoking ocloc.
+// RUN: clang-linker-wrapper --device-compiler=spir64_gen-unknown-unknown=-flto=full --linker-path=/usr/bin/ld -o /dev/null %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-LTO-AOT-GEN %s
+// CHK-NO-LTO-AOT-GEN: ocloc{{.*}} -output_no_suffix -spirv_input -device pvc
+// CHK-NO-LTO-AOT-GEN-NOT: -flto
+
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
 // -------
 // Generate .o file as linker wrapper input.
@@ -186,6 +191,11 @@
 // CHK-CMDS-AOT-CPU-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
 // CHK-CMDS-AOT-CPU-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Check that -flto=* forwarded via --device-compiler= is dropped before invoking opencl-aot.
+// RUN: clang-linker-wrapper --device-compiler=spir64_x86_64-unknown-unknown=-flto=full --linker-path=/usr/bin/ld -o /dev/null %t2.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-LTO-AOT-CPU %s
+// CHK-NO-LTO-AOT-CPU: opencl-aot{{.*}} --device=cpu
+// CHK-NO-LTO-AOT-CPU-NOT: -flto
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for NVPTX)
 // -------
