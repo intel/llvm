@@ -83,14 +83,15 @@ using enable_if_kernel_invocable_t =
     std::enable_if_t<std::is_invocable_v<decltype(Func), ArgsT...>>;
 
 // Identifies the `kernel_function_s` tag naming a free function kernel. The
-// generic `nd_launch` overloads take an arbitrary callable followed by a pack of
-// reductions, so they also accept that tag with the kernel arguments trailing it
-// and would try to launch the tag itself as a kernel object. Excluding it keeps
-// a call whose arguments do not satisfy the constraint above from quietly
-// falling back to those overloads, which fail deep inside the header instead of
-// reporting the mismatched arguments at the call site. The generic `single_task`
-// overloads need no such exclusion: they take no trailing pack, so an argument
-// list that fails the constraint does not fit them in the first place.
+// generic `nd_launch` overloads take an arbitrary callable followed by a pack
+// of reductions, so they also accept that tag with the kernel arguments
+// trailing it and would try to launch the tag itself as a kernel object.
+// Excluding it keeps a call whose arguments do not satisfy the constraint above
+// from quietly falling back to those overloads, which fail deep inside the
+// header instead of reporting the mismatched arguments at the call site. The
+// generic `single_task` overloads need no such exclusion: they take no trailing
+// pack, so an argument list that fails the constraint does not fit them in the
+// first place.
 template <typename T> struct is_kernel_function : std::false_type {};
 template <auto *Func>
 struct is_kernel_function<kernel_function_s<Func>> : std::true_type {};
