@@ -403,8 +403,14 @@ runs:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       BENCHMARK_RESULTS_BRANCH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
+      LIBOFFLOAD_ARTIFACT: ${{ inputs.liboffload_artifact }}
     run: |
       # Push benchmarks results
+      offload_args=()
+      if [ -n "$LIBOFFLOAD_ARTIFACT" ]; then
+        offload_args=(--offload-prefix "$(realpath ./liboffload)")
+      fi
+
       cd "${BENCHMARK_RESULTS_REPO_PATH}"
       git config user.name "github-actions[bot]"
       git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -445,6 +451,7 @@ runs:
           --output-html remote \
           --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
           --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
+          "${offload_args[@]}" \
           --dry-run
         cd -
       done
