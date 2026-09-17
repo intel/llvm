@@ -200,7 +200,7 @@ TEST_F(NativeRecordingTest, EndRecordingForkedQueue) {
   Graph.begin_recording(Queue);
 
   sycl::queue Forked{Dev, {sycl::property::queue::in_order{}}};
-  state().ForkedCapturing[urHandle(Forked)] = nativeHandle(Graph);
+  NativeRecordingMock::forkTo(Forked, Graph);
 
   std::string Message =
       expectFailure([&]() { Graph.end_recording(Forked); }, std::nullopt,

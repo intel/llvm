@@ -2849,7 +2849,7 @@ will throw an exception if attempted:
 | `feature_not_supported`
 
 | Calling `end_recording(queue)` with a queue other than the one passed to `begin_recording` that is capturing into the same graph.
-| Capture may be forked onto other queues by the backend, but only the queue capture was begun on can end it.
+| Capture may be forked onto other queues by the backend, but only the primary queue used to begin capture may end it.
 | `feature_not_supported`
 
 |===

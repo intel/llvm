@@ -800,33 +800,37 @@ queue_impl::ext_oneapi_get_state_impl() const {
   return ext::oneapi::experimental::queue_state::executing;
 }
 
-std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+std::pair<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>,
+          ur_result_t>
 queue_impl::getNativeRecordingGraph() const {
   if (!isNativeRecording())
-    return nullptr;
+    return {nullptr, UR_RESULT_SUCCESS};
 
   ur_exp_graph_handle_t UrGraphHandle = nullptr;
   ur_result_t Result = getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
       MQueue, &UrGraphHandle);
 
-  if (Result == UR_RESULT_ERROR_INVALID_OPERATION)
-    return nullptr;
-  if (Result != UR_RESULT_SUCCESS)
-    throw sycl::detail::set_ur_error(
-        sycl::exception(make_error_code(errc::runtime),
-                        "Failed to query native UR graph from queue: " +
-                            sycl::detail::codeToString(Result)),
-        Result);
-  if (!UrGraphHandle)
-    return nullptr;
-  return getContextImpl().getNativeGraph(UrGraphHandle);
+  if (Result != UR_RESULT_SUCCESS || !UrGraphHandle)
+    return {nullptr, Result};
+  return {getContextImpl().getNativeGraph(UrGraphHandle), Result};
 }
 
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
 queue_impl::ext_oneapi_get_graph_impl() const {
   auto Graph = getCommandGraph();
-  if (!Graph)
-    Graph = getNativeRecordingGraph();
+  if (!Graph) {
+    auto [NativeGraph, Result] = getNativeRecordingGraph();
+    // A queue which is not capturing is reported by the query rather than being
+    // an error, so it falls through to the errc::invalid below.
+    if (Result != UR_RESULT_SUCCESS &&
+        Result != UR_RESULT_ERROR_INVALID_OPERATION)
+      throw sycl::detail::set_ur_error(
+          sycl::exception(make_error_code(errc::runtime),
+                          "Failed to query native UR graph from queue: " +
+                              sycl::detail::codeToString(Result)),
+          Result);
+    Graph = std::move(NativeGraph);
+  }
   if (!Graph) {
     throw sycl::exception(
         make_error_code(errc::invalid),

@@ -8,7 +8,10 @@
 
 #include "NativeRecordingMock.hpp"
 
+#include <detail/queue_impl.hpp>
+
 #include <algorithm>
+#include <iterator>
 
 namespace NativeRecordingMock {
 
@@ -31,6 +34,14 @@ ur_exp_graph_handle_t MockState::capturedGraph(ur_queue_handle_t Queue) const {
 MockState &state() {
   static MockState State;
   return State;
+}
+
+void forkTo(
+    const sycl::queue &Queue,
+    const experimental::command_graph<experimental::graph_state::modifiable>
+        &Graph) {
+  state().ForkedCapturing[getSyclObjImpl(Queue)->getHandleRef()] =
+      getSyclObjImpl(Graph)->getNativeGraphHandle();
 }
 
 void trace(std::string EntryPoint, const void *Handle,
@@ -204,8 +215,15 @@ ur_result_t mock_urQueueEndGraphCaptureExp(void *pParams) {
   auto It = State.PrimaryCapturing.find(*Params.phQueue);
   if (It == State.PrimaryCapturing.end())
     return UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING;
-  **Params.pphGraph = It->second;
+  ur_exp_graph_handle_t Graph = It->second;
+  **Params.pphGraph = Graph;
   State.PrimaryCapturing.erase(It);
+  // Ending the capture ends it for the queues it was forked onto as well.
+  for (auto Fork = State.ForkedCapturing.begin();
+       Fork != State.ForkedCapturing.end();) {
+    Fork = Fork->second == Graph ? State.ForkedCapturing.erase(Fork)
+                                 : std::next(Fork);
+  }
   return UR_RESULT_SUCCESS;
 }
 
