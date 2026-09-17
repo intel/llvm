@@ -54,6 +54,7 @@ struct SYCLDeviceRequirements {
 
 SYCLDeviceRequirements
 computeDeviceRequirements(const Module &M,
-                          const SetVector<Function *> &EntryPoints);
+                          const SetVector<Function *> &EntryPoints,
+                          bool AllowSubGroupSizeDisagreement = false);
 
 } // namespace llvm
