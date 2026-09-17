@@ -9,7 +9,7 @@
 // producer side of the "a .o with no undefined symbols is still a .o" case;
 // the consumer is ../aot_object_no_symbols.cpp.
 
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
 
 // No SYCL_EXTERNAL on the kernel: it is defined in this translation unit and
 // only ever reached through the SYCLBIN, so nothing needs to be exported.
