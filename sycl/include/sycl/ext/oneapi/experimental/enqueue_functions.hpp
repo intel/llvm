@@ -82,6 +82,23 @@ template <auto *Func, typename... ArgsT>
 using enable_if_kernel_invocable_t =
     std::enable_if_t<std::is_invocable_v<decltype(Func), ArgsT...>>;
 
+// Identifies the `kernel_function_s` tag naming a free function kernel. The
+// generic `nd_launch` overloads take an arbitrary callable followed by a pack of
+// reductions, so they also accept that tag with the kernel arguments trailing it
+// and would try to launch the tag itself as a kernel object. Excluding it keeps
+// a call whose arguments do not satisfy the constraint above from quietly
+// falling back to those overloads, which fail deep inside the header instead of
+// reporting the mismatched arguments at the call site. The generic `single_task`
+// overloads need no such exclusion: they take no trailing pack, so an argument
+// list that fails the constraint does not fit them in the first place.
+template <typename T> struct is_kernel_function : std::false_type {};
+template <auto *Func>
+struct is_kernel_function<kernel_function_s<Func>> : std::true_type {};
+
+template <typename KernelT>
+using enable_if_not_kernel_function_t =
+    std::enable_if_t<!is_kernel_function<KernelT>::value>;
+
 // Converts a single argument to the type of the free function kernel parameter
 // it is passed to, mirroring what would happen if the kernel was called
 // directly. Arguments which already have the parameter type are returned by
@@ -488,16 +505,18 @@ void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
-void nd_launch(handler &CGH, nd_range<Dimensions> Range,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
+detail::enable_if_not_kernel_function_t<KernelType>
+nd_launch(handler &CGH, nd_range<Dimensions> Range, const KernelType &KernelObj,
+          ReductionsT &&...Reductions) {
   CGH.parallel_for<KernelName>(Range, std::forward<ReductionsT>(Reductions)...,
                                KernelObj);
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
-void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
-               ReductionsT &&...Reductions) {
+detail::enable_if_not_kernel_function_t<KernelType>
+nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
+          ReductionsT &&...Reductions) {
   // TODO The handler-less path does not support reductions, and
   // kernel functions with the kernel_handler type argument yet.
   if constexpr (sizeof...(ReductionsT) == 0 &&
@@ -515,9 +534,9 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
-void nd_launch(handler &CGH,
-               launch_config<nd_range<Dimensions>, Properties> Config,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
+detail::enable_if_not_kernel_function_t<KernelType>
+nd_launch(handler &CGH, launch_config<nd_range<Dimensions>, Properties> Config,
+          const KernelType &KernelObj, ReductionsT &&...Reductions) {
 
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
@@ -529,8 +548,9 @@ void nd_launch(handler &CGH,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
-void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
+detail::enable_if_not_kernel_function_t<KernelType>
+nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+          const KernelType &KernelObj, ReductionsT &&...Reductions) {
   // TODO The handler-less path does not support reductions, and
   // kernel functions with the kernel_handler type argument yet.
   if constexpr (sizeof...(ReductionsT) == 0 &&
