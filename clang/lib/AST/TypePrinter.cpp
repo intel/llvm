@@ -244,6 +244,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::Pipe:
     case Type::BitInt:
     case Type::DependentBitInt:
+    case Type::OverflowBehavior:
     case Type::BTFTagAttributed:
     case Type::HLSLAttributedResource:
     case Type::HLSLInlineSpirv:
@@ -288,7 +289,6 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::PackExpansion:
     case Type::SubstTemplateTypeParm:
     case Type::MacroQualified:
-    case Type::OverflowBehavior:
     case Type::CountAttributed:
     case Type::LateParsedAttr:
       CanPrefixQualifiers = false;
