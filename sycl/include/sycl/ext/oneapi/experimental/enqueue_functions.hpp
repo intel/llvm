@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include <sycl/detail/common.hpp>
@@ -47,6 +49,63 @@ struct NoPropertyHasCompileTimeKernelEffect<properties_t<Ts...>> {
   static constexpr bool value =
       !(HasCompileTimeEffect<Ts>::value || ... || false);
 };
+
+// The runtime knows nothing about the C++ types of a free function kernel's
+// parameters, so the only place the declared parameter types are available is
+// here, where the kernel is named by a pointer-to-function template argument.
+// Peeling the function type off that pointer gives the parameter types, which
+// lets the enqueue functions below hand exactly those types to
+// `handler::set_args`.
+template <typename FuncPtrT> struct free_function_kernel_params;
+template <typename RetT, typename... ParamsT>
+struct free_function_kernel_params<RetT (*)(ParamsT...)> {
+  using type = std::tuple<ParamsT...>;
+};
+// `noexcept` is part of the function type, so it needs its own specialization.
+template <typename RetT, typename... ParamsT>
+struct free_function_kernel_params<RetT (*)(ParamsT...) noexcept> {
+  using type = std::tuple<ParamsT...>;
+};
+
+template <auto *Func>
+using free_function_kernel_params_t =
+    typename free_function_kernel_params<decltype(Func)>::type;
+
+// Converts a single argument to the type of the free function kernel parameter
+// it is passed to, mirroring what would happen if the kernel was called
+// directly. Returns a reference to the original argument when no conversion is
+// needed, so that arguments which are already of the parameter type keep their
+// value category, and so that argument types which the handler recognizes but
+// which are unrelated to the parameter type (e.g. `dynamic_parameter`,
+// `raw_kernel_arg`) are still passed through untouched.
+template <typename ParamT, typename ArgT>
+constexpr decltype(auto) convertKernelArg(ArgT &&Arg) {
+  using DecayedParamT = std::remove_cv_t<std::remove_reference_t<ParamT>>;
+  if constexpr (std::is_same_v<std::decay_t<ArgT>, DecayedParamT> ||
+                !std::is_convertible_v<ArgT &&, DecayedParamT>)
+    return std::forward<ArgT>(Arg);
+  else
+    return static_cast<DecayedParamT>(std::forward<ArgT>(Arg));
+}
+
+template <typename ParamsT, size_t... Is, typename... ArgsT>
+void setKernelArgsImpl(handler &CGH, std::index_sequence<Is...>,
+                       ArgsT &&...Args) {
+  CGH.set_args(convertKernelArg<std::tuple_element_t<Is, ParamsT>>(
+      std::forward<ArgsT>(Args))...);
+}
+
+// Sets the arguments of the free function kernel `Func`, converting each of
+// them to the type of the corresponding kernel parameter first.
+template <auto *Func, typename... ArgsT>
+void setKernelArgs(handler &CGH, ArgsT &&...Args) {
+  using ParamsT = free_function_kernel_params_t<Func>;
+  static_assert(sizeof...(ArgsT) == std::tuple_size_v<ParamsT>,
+                "Number of arguments passed to the free function kernel does "
+                "not match the number of its parameters.");
+  setKernelArgsImpl<ParamsT>(CGH, std::index_sequence_for<ArgsT...>{},
+                             std::forward<ArgsT>(Args)...);
+}
 } // namespace detail
 
 // Available only when Range is range or nd_range
@@ -189,7 +248,7 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
 // built per launch.
 template <auto *Func, typename... ArgsT>
 void single_task(handler &CGH, kernel_function_s<Func>, ArgsT &&...Args) {
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  detail::setKernelArgs<Func>(CGH, std::forward<ArgsT>(Args)...);
   CGH.single_task_free_function<Func>();
 }
 
@@ -443,7 +502,7 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                kernel_function_s<Func>, ArgsT &&...Args) {
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  detail::setKernelArgs<Func>(CGH, std::forward<ArgsT>(Args)...);
   CGH.nd_launch_free_function<Func>(Range, empty_properties_t{});
 }
 
@@ -462,7 +521,7 @@ void nd_launch(handler &CGH,
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+  detail::setKernelArgs<Func>(CGH, std::forward<ArgsT>(Args)...);
   CGH.nd_launch_free_function<Func>(ConfigAccess.getRange(),
                                     ConfigAccess.getProperties());
 }
