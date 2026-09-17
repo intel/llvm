@@ -325,9 +325,8 @@ void BackendConsumer::HandleTranslationUnit(ASTContext &C) {
 
   EmbedBitcode(getModule(), CodeGenOpts, llvm::MemoryBufferRef());
 
-  emitBackendOutput(CI, CI.getCodeGenOpts(),
-                    C.getTargetInfo().getDataLayoutString(), getModule(),
-                    Action, FS, std::move(AsmOutStream), this);
+  emitBackendOutput(CI, CI.getCodeGenOpts(), getModule(), Action, FS,
+                    std::move(AsmOutStream), this);
 }
 
 void BackendConsumer::HandleTagDeclDefinition(TagDecl *D) {
@@ -1331,8 +1330,7 @@ void CodeGenAction::ExecuteAction() {
   }
   LLVMRemarkFileHandle OptRecordFile = std::move(*OptRecordFileOrErr);
 
-  emitBackendOutput(CI, CI.getCodeGenOpts(),
-                    CI.getTarget().getDataLayoutString(), TheModule.get(), BA,
+  emitBackendOutput(CI, CI.getCodeGenOpts(), TheModule.get(), BA,
                     CI.getFileManager().getVirtualFileSystemPtr(),
                     std::move(OS));
   if (OptRecordFile)
