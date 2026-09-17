@@ -113,7 +113,12 @@ getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
     if (RawImg.EntriesBegin && RawImg.EntriesBegin != RawImg.EntriesEnd)
       if (const char *Name = RawImg.EntriesBegin->GetName())
         return std::pair{false, std::string_view{Name}};
-    return std::pair{true, std::string_view{}};
+    if (!RawImg.BinaryStart)
+      return std::pair{true, std::string_view{}};
+    return std::pair{
+        true, std::string_view{
+                  reinterpret_cast<const char *>(RawImg.BinaryStart),
+                  static_cast<size_t>(RawImg.BinaryEnd - RawImg.BinaryStart)}};
   };
 
   std::vector<const RTDeviceBinaryImage *> SortedImgs = Imgs;

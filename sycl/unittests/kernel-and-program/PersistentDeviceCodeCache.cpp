@@ -417,7 +417,7 @@ TEST_P(PersistentDeviceCodeCache, ImagesWithoutEntries) {
   // The item must be found again no matter which order the images come in.
   std::reverse(Imgs.begin(), Imgs.end());
   EXPECT_NE(detail::PersistentDeviceCodeCache::getItemFromDisc({Dev}, Imgs, {},
-                                                              BuildOptions)
+                                                               BuildOptions)
                 .size(),
             static_cast<size_t>(0))
       << "Cache key depends on the order of images without entries";
