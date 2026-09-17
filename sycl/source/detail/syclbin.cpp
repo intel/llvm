@@ -895,31 +895,14 @@ SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
       continue;
     }
 
-    // No JIT binary available, so the native candidate is the only
-    // representation this abstract module has. Native images carry their own
-    // notion of state, as classified by ProgramManager::getBinImageState:
-    //  * an AOT image with imported symbols is in object state (link pending),
-    //  * an AOT image without imports is already in executable state,
-    //  * an image for a target the backend itself compiles before launch is in
-    //    input state. Such an image ends up in the native section only because
-    //    its format is neither SPIR-V nor LLVM IR, not because it is ready to
-    //    run.
-    //
-    // Accept the candidate when that intrinsic state matches the requested
-    // one, and unconditionally for an object-state request. The latter is
-    // needed because the requested state has already been checked against the
-    // SYCLBIN's own recorded state by the caller: for a SYCLBIN written in
-    // object state the native image IS the object-state content, no matter
-    // which of the three classifications above it falls under, and rejecting
-    // it here yields an empty kernel_bundle whose subsequent sycl::link has
-    // nothing to link (previously: any -fsyclbin=object SYCLBIN carrying only
-    // a native image with neither imported nor exported symbols).
-    //
-    // The state each image is presented in is reconciled where the device
-    // images are created (see ReconcileState in kernel_bundle_impl): an
-    // executable-classified AOT library is downgraded to object so it is not
-    // mistaken for already-linked, and an input-classified image is compiled
-    // to object by the following bringSYCLDeviceImagesToState call.
+    // No JIT binary available; the native candidate is this module's only
+    // representation. Accept it when its intrinsic state (from
+    // getBinImageState) matches the requested state, or unconditionally for
+    // object-state requests — the caller already validated against the
+    // SYCLBIN's recorded state, so the native image IS the object-state
+    // content regardless of classification. State reconciliation happens
+    // where device images are created (see ReconcileState in
+    // kernel_bundle_impl).
     if (const RTDeviceBinaryImage *Native =
             FindCompatible(AMDesc.NativeBinaries, AMDesc.NumNativeBinaries)) {
       if (ProgramManager::getBinImageState(Native) == State ||
