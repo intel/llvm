@@ -226,7 +226,12 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() { MEvent->cleanDepEventsThroughOneLevel(); }
+  virtual ~Command() {
+    // A command destroyed without being enqueued still has to give its
+    // dependencies their pending-dependent counts back.
+    releaseUnenqueuedDeps();
+    MEvent->cleanDepEventsThroughOneLevel();
+  }
 
   const char *getBlockReason() const;
 
@@ -265,11 +270,26 @@ protected:
   /// See processDepEvent for details.
   std::vector<EventImplPtr> &MPreparedDepsEvents;
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
+  /// Dependencies this command counted with countUnenqueuedDep(). Kept
+  /// separately because the lists above may be cleared by the destructor of
+  /// another command before this one is enqueued or destroyed.
+  std::vector<EventImplPtr> MUnenqueuedDeps;
 
   void waitForEvents(queue_impl *Queue, std::vector<EventImplPtr> &RawEvents,
                      ur_event_handle_t &Event);
 
   void waitForPreparedHostEvents() const;
+
+  /// Records that this command depends on \p DepEvent and has not been enqueued
+  /// yet, so that the event can report itself as a dependency pending inside
+  /// the SYCL runtime. Balanced by releaseUnenqueuedDeps().
+  void countUnenqueuedDep(const EventImplPtr &DepEvent);
+
+  /// Releases the counts taken by countUnenqueuedDep(). Called when the command
+  /// has been enqueued - by then it has read all of its dependencies and passed
+  /// them to the backend - and when it is destroyed without being enqueued.
+  /// Idempotent.
+  void releaseUnenqueuedDeps();
 
   void flushCrossQueueDeps(events_range Events) {
     for (event_impl &Event : Events) {

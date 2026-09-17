@@ -425,6 +425,17 @@ void Command::waitForPreparedHostEvents() const {
     HostEvent->waitInternal();
 }
 
+void Command::countUnenqueuedDep(const EventImplPtr &DepEvent) {
+  DepEvent->addUnenqueuedDependent();
+  MUnenqueuedDeps.push_back(DepEvent);
+}
+
+void Command::releaseUnenqueuedDeps() {
+  for (const EventImplPtr &DepEvent : MUnenqueuedDeps)
+    DepEvent->removeUnenqueuedDependent();
+  MUnenqueuedDeps.clear();
+}
+
 void Command::waitForEvents(queue_impl *Queue,
                             std::vector<EventImplPtr> &EventImpls,
                             ur_event_handle_t &Event) {
@@ -737,6 +748,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   if (!UrEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
+    countUnenqueuedDep(DepEvent);
     MPreparedHostDepsEvents.push_back(DepEvent);
     return nullptr;
   }
@@ -749,8 +761,10 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   if (&DepEventContext != WorkerContext && WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
-  } else
+  } else {
+    countUnenqueuedDep(DepEvent);
     MPreparedDepsEvents.push_back(std::move(DepEvent));
+  }
 
   return ConnectionCmd;
 }
@@ -898,6 +912,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
     MEvent->setEnqueued();
+    // The command has read its dependencies and passed them to the backend, so
+    // they are no longer pending inside the runtime on its behalf.
+    releaseUnenqueuedDeps();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();

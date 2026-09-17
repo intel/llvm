@@ -27,4 +27,5 @@ add_sycl_unittest(SchedulerTests OBJECT
     HostTaskAndBarrier.cpp
     BarrierDependencies.cpp
     NdRangeViewUsage.cpp
+    PendingDependency.cpp
 )
