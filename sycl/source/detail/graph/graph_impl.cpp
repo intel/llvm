@@ -1799,6 +1799,15 @@ void exec_graph_impl::update(nodes_range Nodes) {
   std::vector<sycl::detail::AccessorImplHost *> UpdateRequirements;
   bool NeedScheduledUpdate = needsScheduledUpdate(Nodes, UpdateRequirements);
   if (NeedScheduledUpdate) {
+    if (MContainsHostTask) {
+      // Wait synchronously for prior submits of this exec graph to
+      // GPU-complete before creating the update command. Otherwise a
+      // deferred submit can issue after this update mutates the command
+      // list, running with the wrong state.
+      for (const auto &Event : MSchedulerDependencies) {
+        Event->wait();
+      }
+    }
     cleanupExecutionEvents(MSchedulerDependencies);
 
     // Track the event for the update command since execution may be blocked by

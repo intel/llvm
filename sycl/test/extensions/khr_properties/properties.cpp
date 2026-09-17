@@ -13,7 +13,7 @@
 #error "SYCL_KHR_PROPERTIES feature-test macro is not defined"
 #endif
 
-namespace kd = sycl::khr::detail;
+namespace kd = sycl::khr::property::detail;
 using namespace sycl::khr;
 
 struct MyClass {};

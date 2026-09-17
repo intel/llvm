@@ -1159,6 +1159,9 @@ enum PredefinedTypeIDs {
 // \brief HLSL intangible types with auto numeration
 #define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
 #include "clang/Basic/HLSLIntangibleTypes.def"
+// \brief SPIR-V types with auto numeration
+#define SPIRV_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
+#include "clang/Basic/SPIRVTypes.def"
 
   /// The placeholder type for unresolved templates.
   PREDEF_TYPE_UNRESOLVED_TEMPLATE,
@@ -1171,7 +1174,7 @@ enum PredefinedTypeIDs {
 ///
 /// Type IDs for non-predefined types will start at
 /// NUM_PREDEF_TYPE_IDs.
-const unsigned NUM_PREDEF_TYPE_IDS = 541;
+const unsigned NUM_PREDEF_TYPE_IDS = 542;
 
 // Ensure we do not overrun the predefined types we reserved
 // in the enum PredefinedTypeIDs above.
@@ -1931,6 +1934,7 @@ enum StmtCode {
 
   EXPR_CXX_DEPENDENT_SCOPE_MEMBER,   // CXXDependentScopeMemberExpr
   EXPR_CXX_DEPENDENT_SCOPE_DECL_REF, // DependentScopeDeclRefExpr
+  EXPR_DEPENDENT_TEMPLATE_ID,        // DependentTemplateIdExpr
   EXPR_CXX_UNRESOLVED_CONSTRUCT,     // CXXUnresolvedConstructExpr
   EXPR_CXX_UNRESOLVED_MEMBER,        // UnresolvedMemberExpr
   EXPR_CXX_UNRESOLVED_LOOKUP,        // UnresolvedLookupExpr
@@ -2006,7 +2010,8 @@ enum StmtCode {
   STMT_OMP_FLUSH_DIRECTIVE,
   STMT_OMP_DEPOBJ_DIRECTIVE,
   STMT_OMP_SCAN_DIRECTIVE,
-  STMT_OMP_ORDERED_DIRECTIVE,
+  STMT_OMP_ORDERED_STANDALONE_DIRECTIVE,
+  STMT_OMP_ORDERED_BLOCK_ASSOC_DIRECTIVE,
   STMT_OMP_ATOMIC_DIRECTIVE,
   STMT_OMP_TARGET_DIRECTIVE,
   STMT_OMP_TARGET_DATA_DIRECTIVE,
@@ -2128,6 +2133,14 @@ enum CtorInitializerType {
   CTOR_INITIALIZER_DELEGATING,
   CTOR_INITIALIZER_MEMBER,
   CTOR_INITIALIZER_INDIRECT_MEMBER
+};
+
+/// Kinds of friend payloads owned by FriendTemplateDecl.
+enum FriendTemplateDeclKind {
+  FTDK_Type = 0,
+  FTDK_Decl = 1,
+  FTDK_Template = 2,
+  FTDK_Dependent = 3,
 };
 
 /// Kinds of cleanup objects owned by ExprWithCleanups.

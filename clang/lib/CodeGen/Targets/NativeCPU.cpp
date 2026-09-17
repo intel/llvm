@@ -40,8 +40,7 @@ public:
 } // namespace
 
 void NativeCPUABIInfo::computeInfo(CGFunctionInfo &FI) const {
-  if (HostABIInfo &&
-      FI.getCallingConvention() != llvm::CallingConv::SPIR_FUNC) {
+  if (HostABIInfo && FI.getASTCallingConvention() != CC_NativeCPUFunction) {
     HostABIInfo->computeInfo(FI);
     return;
   }

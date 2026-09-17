@@ -5612,7 +5612,15 @@ void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
 
   SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
-  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
+  // A free function that is a template instantiation (or is declared inline)
+  // has vague linkage and may be emitted in multiple translation units. The
+  // generated kernel must have vague linkage too so the copies merge at device
+  // link time instead of colliding. Mark it implicitly inline in that case so
+  // it inherits the linkage of the free function it wraps.
+  GVALinkage GVAL = getASTContext().GetGVALinkageForFunction(FD);
+  bool IsInline =
+      FD->isInlined() || GVAL == GVA_DiscardableODR || GVAL == GVA_StrongODR;
+  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), IsInline,
                                     false /*IsSIMDKernel */, FD);
 
   FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);

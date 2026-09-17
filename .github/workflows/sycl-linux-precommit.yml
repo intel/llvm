@@ -176,6 +176,9 @@ jobs:
             skip_run: ${{ startsWith(github.base_ref, 'sycl-rel-') }}
           - name: Intel / ARL with L0 v2
             runner: '["Linux", "arl"]'
+            image_options: >-
+              -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path
+              --privileged --cap-add SYS_ADMIN --memory=48g --memory-swap=56g
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u
             extra_lit_opts: --param test-preview-mode=True
 

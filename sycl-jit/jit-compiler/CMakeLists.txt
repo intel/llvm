@@ -29,13 +29,8 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
-set(libclc_enabled FALSE)
-foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
-  if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
-    set(libclc_enabled TRUE)
-    break()
-  endif()
-endforeach()
+include(CheckEnabledLLVMRuntime)
+is_llvm_runtime_enabled(libclc libclc_enabled)
 
 if (libclc_enabled)
   # If some targets required `libclc` then we should embed it for the

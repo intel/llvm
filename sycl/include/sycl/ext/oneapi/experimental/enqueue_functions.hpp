@@ -17,6 +17,7 @@
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
@@ -176,6 +177,47 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
   }
 };
 
+// The argument type as the kernel sees it.
+template <typename T>
+using unqualified_arg_t = std::remove_cv_t<std::remove_reference_t<T>>;
+
+// An argument that is bound as its own bytes with no further interpretation or
+// special captures. Excludes arguments of types Accessors, Stream, etc.
+template <typename T>
+inline constexpr bool is_scalar_kernel_arg_v =
+    std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_pointer_v<T>;
+
+// An argument that can be bound without a handler: a scalar, an array of
+// scalars, or a `raw_kernel_arg`. Anything else keeps using the command group
+// path.
+template <typename T, typename ArgT = unqualified_arg_t<T>>
+inline constexpr bool is_direct_kernel_arg_v =
+    is_scalar_kernel_arg_v<ArgT> ||
+    (std::is_array_v<ArgT> &&
+     is_scalar_kernel_arg_v<std::remove_all_extents_t<ArgT>>) ||
+    std::is_same_v<ArgT, raw_kernel_arg>;
+
+// The kind such an argument is bound with. A pointer keeps its kind, since a
+// backend may bind a pointer through a different entry point than bytes.
+// `cl_mem` is the exception: it names a memory object, so it is bound as the
+// bytes of the handle, as `handler::setArgHelper` does.
+template <typename T, typename ArgT = unqualified_arg_t<T>>
+inline constexpr sycl::detail::kernel_param_kind_t kernel_arg_kind_v =
+    (std::is_pointer_v<ArgT> && !std::is_same_v<ArgT, sycl::OpenCLMemT>)
+        ? sycl::detail::kernel_param_kind_t::kind_pointer
+        : sycl::detail::kernel_param_kind_t::kind_std_layout;
+
+template <typename T>
+sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
+  using sycl::detail::kernel_param_kind_t;
+  using ArgT = unqualified_arg_t<T>;
+  if constexpr (std::is_same_v<ArgT, raw_kernel_arg>)
+    return {RawKernelArgAccess::getData(Arg), RawKernelArgAccess::getSize(Arg),
+            kernel_param_kind_t::kind_std_layout};
+  else
+    return {&Arg, sizeof(ArgT), kernel_arg_kind_v<T>};
+}
+
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
@@ -267,6 +309,47 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
 // work_group_size). See intel/llvm#22706. The handler resolves the kernel by
 // name through its cached getDeviceKernelInfo<Func>, so no kernel bundle is
 // built per launch.
+namespace detail {
+// Func-free submit helpers for free function kernels. These are templated only
+// on the argument types (and, for nd_launch, dimensionality/properties) and
+// take the already-resolved DeviceKernelInfo* - never the kernel function
+// pointer `Func`. That keeps the kernel's (potentially huge) mangled signature
+// out of the submit closure's name and every host symbol reached from it, which
+// is the dominant host object size cost of free function kernels under MSVC.
+// `Func` is spelled exactly once, in getDeviceKernelInfo<Func>() at the call
+// site. See CMPLRLLVM-77222.
+template <typename... ArgsT>
+void single_task_free_submit(const queue &Q, sycl::detail::DeviceKernelInfo *KI,
+                             ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.single_task_free_function(KI);
+  });
+}
+
+template <int Dimensions, typename... ArgsT>
+void nd_launch_free_submit(const queue &Q, nd_range<Dimensions> Range,
+                           sycl::detail::DeviceKernelInfo *KI,
+                           ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.nd_launch_free_function(KI, Range, empty_properties_t{});
+  });
+}
+
+template <int Dimensions, typename Properties, typename... ArgsT>
+void nd_launch_free_config_submit(
+    const queue &Q, launch_config<nd_range<Dimensions>, Properties> Config,
+    sycl::detail::DeviceKernelInfo *KI, ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    LaunchConfigAccess<nd_range<Dimensions>, Properties> ConfigAccess(Config);
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.nd_launch_free_function(KI, ConfigAccess.getRange(),
+                                ConfigAccess.getProperties());
+  });
+}
+} // namespace detail
+
 template <auto *Func, typename... ArgsT>
 detail::enable_if_kernel_invocable_t<Func, ArgsT...>
 single_task(handler &CGH, kernel_function_s<Func>, ArgsT &&...Args) {
@@ -493,9 +576,24 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
 template <int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
                ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
-  });
+  // The handler-less path only takes arguments that can be bound directly,
+  // anything else goes through the handler overload above.
+  if constexpr ((detail::is_direct_kernel_arg_v<ArgsT> && ...)) {
+    // The array is one element longer than the pack so that a zero-argument
+    // kernel stays well formed.
+    const sycl::detail::KernelArgView ArgViews[sizeof...(ArgsT) + 1] = {
+        detail::makeKernelArgView(Args)...};
+    sycl::detail::tls_code_loc_t TlsCodeLocCapture{
+        sycl::detail::code_location::current()};
+    sycl::submit_kernel_obj_direct_without_event_impl(
+        Q, sycl::detail::nd_range_view(Range), KernelObj,
+        {ArgViews, sizeof...(ArgsT)}, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
+    });
+  }
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
