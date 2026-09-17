@@ -954,7 +954,7 @@ if config.test_mode != "build-only":
     config.sycl_build_targets = set()
 
 
-def get_sycl_ls_verbose(sycl_device, env):
+def get_sycl_ls_verbose(sycl_device, env, allow_failure=False):
     with test_env():
         # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
         # prints warnings that might derail a user thinking something is wrong
@@ -967,6 +967,11 @@ def get_sycl_ls_verbose(sycl_device, env):
             )
             sp.check_returncode()
         except subprocess.CalledProcessError as e:
+            # allow_failure is used for best-effort supplementary queries where
+            # a missing device is not fatal; the caller inspects the result.
+            if allow_failure:
+                lit_config.note(f"No devices found under {sycl_device}")
+                return sp
             # capturing e allows us to see path resolution errors / system
             # permissions errors etc
             lit_config.fatal(
@@ -976,6 +981,27 @@ def get_sycl_ls_verbose(sycl_device, env):
                 f"stderr:{sp.stderr}\n"
             )
         return sp
+
+
+def parse_intel_driver_version(driver_str, intel_driver_ver, is_cpu):
+    """Extract the driver version from a sycl-ls "Driver :" string and store it
+    under the appropriate format key in intel_driver_ver. See the comment above
+    the driver requirement parsers in format.py for the meaning of the formats.
+    """
+    if is_cpu:
+        # CPU OpenCL runtime version, gated by REQUIRES-INTEL-CPU-DRIVER.
+        intel_driver_ver["intel_cpu"] = driver_str
+        return
+    # The Level Zero adapter (any OS) and the OpenCL adapter on Linux report the
+    # five-digit compute-runtime build number, gated by REQUIRES-L0-DRIVER. The
+    # OpenCL adapter on Windows reports the "101.XXXX" package version instead,
+    # gated by REQUIRES-INTEL-WINDOWS-DRIVER.
+    l0 = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
+    if l0:
+        intel_driver_ver["l0"] = int(l0.group(1))
+    win = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4,})", driver_str)
+    if win:
+        intel_driver_ver["intel_windows"] = (int(win.group(1)), int(win.group(2)))
 
 
 # A device filter such as level_zero:gpu can have multiple devices under it and
@@ -1095,7 +1121,8 @@ for full_name, sycl_device in zip(
     dev_sg_sizes = []
     architectures = set()
     device_names = set()
-    # See format.py's parse_min_intel_driver_req for explanation.
+    # Minimum-driver-version detection. See the comment above the driver
+    # requirement parsers in format.py for the meaning of these formats.
     is_intel_driver = False
     intel_driver_ver = {}
     sycl_ls_sp = get_sycl_ls_verbose(sycl_device, env)
@@ -1106,21 +1133,13 @@ for full_name, sycl_device in zip(
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            if sycl_device.endswith("cpu"):
-                intel_driver_ver["cpu"] = driver_str
-            else:
-                # Treat any non-CPU selector as a GPU candidate. Arch-pinned
-                # selectors like "level_zero:arch-intel_gpu_mtl_u" don't end
-                # in "gpu" but still need driver-version parsing for
-                # REQUIRES-INTEL-DRIVER to work.
-                lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
-                if lin:
-                    intel_driver_ver["lin"] = int(lin.group(1))
-                win = re.match(
-                    r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})", driver_str
-                )
-                if win:
-                    intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
+            # Treat any non-CPU selector as a GPU candidate. Arch-pinned
+            # selectors like "level_zero:arch-intel_gpu_mtl_u" don't end in
+            # "gpu" but still need driver-version parsing for the driver
+            # requirement directives to work.
+            parse_intel_driver_version(
+                driver_str, intel_driver_ver, is_cpu=sycl_device.endswith("cpu")
+            )
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -1156,6 +1175,34 @@ for full_name, sycl_device in zip(
 
     if offload_assigned_backend != "":
         config.backend_to_target["offload"] = offload_assigned_backend
+
+    # On Windows the "101.XXXX" package version (REQUIRES-INTEL-WINDOWS-DRIVER)
+    # is only reported by the OpenCL adapter. When the tested device is Level
+    # Zero (or otherwise didn't report it) query the matching OpenCL device so
+    # that the requirement can still be enforced instead of silently skipped.
+    # See intel/llvm#23004.
+    if (
+        platform.system() == "Windows"
+        and is_intel_driver
+        and not sycl_device.endswith("cpu")
+        and "intel_windows" not in intel_driver_ver
+    ):
+        _, ocl_dev = sycl_device.split(":", 1)
+        ocl_selector = "opencl:" + ocl_dev
+        ocl_env = copy.copy(llvm_config.config.environment)
+        ocl_env["ONEAPI_DEVICE_SELECTOR"] = ocl_selector
+        ocl_driver_ver = {}
+        ocl_sp = get_sycl_ls_verbose(ocl_selector, ocl_env, allow_failure=True)
+        for line in ocl_sp.stdout.splitlines():
+            if re.match(r" *Driver *:", line):
+                _, driver_str = line.split(":", 1)
+                parse_intel_driver_version(
+                    driver_str.strip(), ocl_driver_ver, is_cpu=False
+                )
+        # Only borrow the package version; the L0 build number from the primary
+        # query stays authoritative.
+        if "intel_windows" in ocl_driver_ver:
+            intel_driver_ver["intel_windows"] = ocl_driver_ver["intel_windows"]
 
     if dev_aspects == []:
         lit_config.error(

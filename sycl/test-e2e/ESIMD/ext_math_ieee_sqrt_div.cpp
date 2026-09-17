@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: arch-intel_gpu_pvc
-// REQUIRES-INTEL-DRIVER: lin: 31294
+// REQUIRES-L0-DRIVER: 31294
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out

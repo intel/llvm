@@ -1,6 +1,6 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 // REQUIRES: linux
-// REQUIRES-INTEL-DRIVER: lin: 38591
+// REQUIRES-L0-DRIVER: 38591
 
 // TODO: add minimum Windows driver when available
 

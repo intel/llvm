@@ -8,7 +8,7 @@
 // REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES-INTEL-DRIVER: lin: 30049
+// REQUIRES-L0-DRIVER: 30049
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

@@ -14,7 +14,8 @@
 
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
+// REQUIRES-L0-DRIVER: 27501
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.4943
 
 // XFAIL: windows && intel_gpu_lnl_m && O0
 // XFAIL-TRACKER: CMPLRLLVM-72111

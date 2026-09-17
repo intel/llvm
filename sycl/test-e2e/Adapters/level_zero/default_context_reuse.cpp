@@ -1,7 +1,8 @@
 // REQUIRES: level_zero_v2_adapter
 
 // API 1.14+ is required for zeDriverGetDefaultContext
-// REQUIRES-INTEL-DRIVER: lin: 36300, win: 101.7080
+// REQUIRES-L0-DRIVER: 36300
+// REQUIRES-INTEL-WINDOWS-DRIVER: 101.7080
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
