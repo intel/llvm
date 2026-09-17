@@ -33,8 +33,8 @@ bool maybeImportUSM(ze_driver_handle_t hTranslatedDriver,
 
   if (ret == UR_RESULT_SUCCESS && properties.type == ZE_MEMORY_TYPE_UNKNOWN) {
     // Promote the host ptr to USM host memory
-    return ZeUSMImport.doZeUSMImport(hTranslatedDriver, ptr, size) ==
-           ZE_RESULT_SUCCESS;
+    ZeUSMImport.doZeUSMImport(hTranslatedDriver, ptr, size);
+    return true;
   }
   return false;
 }

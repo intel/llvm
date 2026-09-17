@@ -9,7 +9,7 @@
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <sycl/khr/properties.hpp>
 
-namespace kd = sycl::khr::detail;
+namespace kd = sycl::khr::property::detail;
 using namespace sycl::khr;
 
 struct rt_key : kd::property_key_tag {};

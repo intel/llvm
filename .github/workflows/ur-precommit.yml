@@ -104,7 +104,7 @@ jobs:
     name: Adapters (Offload)
     needs: [detect_changes, source_checks]
     if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
-    uses: ./.github/workflows/ur-build-offload.yml
+    uses: ./.github/workflows/offload-build.yml
 
   macos:
     name: MacOS build only
