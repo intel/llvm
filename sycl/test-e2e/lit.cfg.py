@@ -389,6 +389,34 @@ config.level_zero_include = quote_path(
     )
 )
 
+# Detect the Level Zero *headers* API version and add ge-features for
+# conditional test execution, mirroring the cuda-ge-<N> features above.
+# This is independent of REQUIRES-INTEL-DRIVER, which only checks the
+# runtime driver build and can't catch a test using an L0 API that the
+# headers used to build it don't declare at all.
+ze_api_header = os.path.join(
+    config.level_zero_include.strip('"'), "level_zero", "ze_api.h"
+)
+if os.path.exists(ze_api_header):
+    with open(ze_api_header, "r") as f:
+        ze_api_header_text = f.read()
+    ze_api_versions = [
+        tuple(int(p) for p in m.groups())
+        for m in re.finditer(
+            r"ZE_API_VERSION_(\d+)_(\d+)\s*=\s*ZE_MAKE_VERSION",
+            ze_api_header_text,
+        )
+    ]
+    if ze_api_versions:
+        major, minor = max(ze_api_versions)
+        MIN_ZE_API_MINOR = 0  # Earliest L0 minor version tracked by these features
+        for m in range(MIN_ZE_API_MINOR, minor + 1):
+            config.available_features.add(f"level-zero-headers-ge-{major}.{m}")
+        lit_config.note(
+            f"Level Zero headers API {major}.{minor}: added features "
+            f"level-zero-headers-ge-{major}.{MIN_ZE_API_MINOR}..level-zero-headers-ge-{major}.{minor}"
+        )
+
 level_zero_options = level_zero_options = (
     (" -L" + config.level_zero_libs_dir if config.level_zero_libs_dir else "")
     + " -lze_loader "
