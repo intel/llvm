@@ -2331,10 +2331,11 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   // A natively recording queue carries no SYCL command-graph, so which graph it
   // is capturing into has to be queried from the backend. The graph lock is
   // released by now: querying the queue while holding it would invert the
-  // queue/graph lock order.
+  // queue/graph lock order. A failed query is not an error here; it just cannot
+  // name a graph, so it falls through to the errc::invalid below.
   const bool IsNativeRecording = QueueImpl.isNativeRecording();
   if (IsNativeRecording &&
-      QueueImpl.getNativeRecordingGraph().get() == impl.get())
+      QueueImpl.getNativeRecordingGraph().first.get() == impl.get())
     throw sycl::exception(
         sycl::make_error_code(errc::feature_not_supported),
         "end_recording is only supported for the queue passed to "
