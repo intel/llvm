@@ -309,3 +309,18 @@
 // CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV+2]]: compiler, {[[#SYCL_DEV+1]]}, ir, (device-sycl)
 // CHK-OPENMP-SYCL-PHASES: [[#SYCL_DEV+3]]: backend, {[[#SYCL_DEV+2]]}, ir, (device-sycl)
 // CHK-OPENMP-SYCL-PHASES: offload, "device-sycl (spir64-unknown-unknown)" {[[#SYCL_DEV+3]]}, ir
+
+/// '--offload-arch' with '-fsycl' still requires the new offloading driver
+/// when no other offload kind implicitly enables it.
+// RUN: not %clangxx -### -fsycl --offload-arch=gfx900 -nogpulib \
+// RUN:          -fno-sycl-libspirv %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHK-OFFLOAD-ARCH-NEEDS-NEW-DRIVER %s
+// CHK-OFFLOAD-ARCH-NEEDS-NEW-DRIVER: error: '--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'
+
+/// '--offload-arch' with '-fsycl' needs no explicit '--offload-new-driver'
+/// when OpenMP in the same invocation already enables it implicitly.
+// RUN: %clangxx -### -fsycl --offload-arch=gfx900 -nogpulib \
+// RUN:          -fno-sycl-libspirv -fopenmp -fopenmp-targets=spir64 %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHK-OFFLOAD-ARCH-OPENMP-IMPLICIT %s
+// CHK-OFFLOAD-ARCH-OPENMP-IMPLICIT-NOT: error: '--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'
+// CHK-OFFLOAD-ARCH-OPENMP-IMPLICIT: llvm-offload-binary{{.*}} "--image={{.*}}triple=spir64-unknown-unknown,arch=gfx900,kind=sycl

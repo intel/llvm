@@ -69,9 +69,10 @@ add_llvm_library(LLVMSPIRVLib
   )
 
 target_include_directories(LLVMSPIRVLib
+  PUBLIC
+    $<BUILD_INTERFACE:${LLVM_SPIRV_INCLUDE_DIRS}>
   PRIVATE
     ${LLVM_INCLUDE_DIRS}
-    ${LLVM_SPIRV_INCLUDE_DIRS}
     # TODO: Consider using SPIRV-Headers' as a header-only INTERFACE
     # instead. Right now this runs into exporting issues with
     # the LLVM in-tree builds.
