@@ -31,24 +31,3 @@ SYCL-specific projects added on top (`sycl`, `libdevice`, `llvm-spirv`,
 | Runtime/compiler design notes | [sycl/doc/design/](sycl/doc/design/) |
 | Env vars for debugging | [sycl/doc/EnvironmentVariables.md](sycl/doc/EnvironmentVariables.md) |
 | Release notes | [sycl/ReleaseNotes.md](sycl/ReleaseNotes.md) |
-
-## Layout of the SYCL parts
-
-```
-sycl/include/sycl/        Public SYCL headers (sycl/sycl.hpp is the entry point)
-sycl/include/sycl/ext/    Extension headers: oneapi/, intel/, codeplay/
-sycl/include/sycl/detail/ Implementation details, not user-facing API
-sycl/source/              libsycl runtime sources
-sycl/source/detail/       Runtime internals: scheduler, program manager,
-                          adapter_impl (UR calls), memory management, ...
-sycl/test/                Device-independent LIT tests (target: check-sycl)
-sycl/unittests/           googletest unit tests for the runtime (check-sycl-unittests)
-sycl/test-e2e/            End-to-end tests, need real devices/backends
-sycl/doc/extensions/      Extension specifications (asciidoc)
-clang/lib/Sema/SemaSYCL.cpp, clang/lib/Driver/  Front end / driver SYCL support
-llvm/lib/SYCLLowerIR/     SYCL-specific LLVM IR passes
-libdevice/                Device libraries (math, imf, sanitizers, ...)
-unified-runtime/          Unified Runtime (UR): the L0/OpenCL/CUDA/HIP adapters
-sycl-jit/                 Runtime JIT compilation / kernel fusion support
-xpti/, xptifw/            Tracing framework
-```
