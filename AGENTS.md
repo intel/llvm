@@ -25,4 +25,3 @@ SYCL-specific projects added on top (`sycl`, `libdevice`, `llvm-spirv`,
 | E2E test infrastructure | [sycl/test-e2e/README.md](sycl/test-e2e/README.md) |
 | Runtime/compiler design notes | [sycl/doc/design/](sycl/doc/design/) |
 | Env vars for debugging | [sycl/doc/EnvironmentVariables.md](sycl/doc/EnvironmentVariables.md) |
-| Release notes | [sycl/ReleaseNotes.md](sycl/ReleaseNotes.md) |
