@@ -1437,7 +1437,7 @@ Missing before version 10 of this extension.
 
 This extension adds the following device aspect, information descriptor and
 free functions, which allow an application to query the IP version of the
-device and to decompose it into its components.
+device and to decompose the IP version of a GPU device into its components.
 
 ==== New device aspect
 
@@ -1498,9 +1498,9 @@ these components.
 ----
 namespace sycl::ext::intel {
 
-inline uint32_t get_ip_version_major(uint32_t ipVersion);
-inline uint32_t get_ip_version_minor(uint32_t ipVersion);
-inline uint32_t get_ip_version_patch(uint32_t ipVersion);
+inline uint32_t get_gpu_ip_version_major(uint32_t ipVersion);
+inline uint32_t get_gpu_ip_version_minor(uint32_t ipVersion);
+inline uint32_t get_gpu_ip_version_patch(uint32_t ipVersion);
 
 } // namespace sycl::ext::intel
 ----
@@ -1518,9 +1518,11 @@ respectively.
 ----
 if (dev.has(aspect::ext_intel_device_info_ip_version)) {
   auto ipVersion = dev.get_info<ext::intel::info::device::ip_version>();
-  std::cout << ext::intel::get_ip_version_major(ipVersion) << "."
-            << ext::intel::get_ip_version_minor(ipVersion) << "."
-            << ext::intel::get_ip_version_patch(ipVersion) << std::endl;
+  if (dev.is_gpu()) {
+    std::cout << ext::intel::get_gpu_ip_version_major(ipVersion) << "."
+              << ext::intel::get_gpu_ip_version_minor(ipVersion) << "."
+              << ext::intel::get_gpu_ip_version_patch(ipVersion) << std::endl;
+  }
 }
 ----
 

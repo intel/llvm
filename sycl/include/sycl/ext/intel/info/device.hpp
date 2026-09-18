@@ -153,14 +153,14 @@ struct has_2d_block_io_support
 //      10 bits    8 bits    8 bits    6 bits
 //
 // The reserved bits carry no information.
-inline uint32_t get_ip_version_major(uint32_t IPVersion) {
+inline uint32_t get_gpu_ip_version_major(uint32_t IPVersion) {
   return IPVersion >> 22;
 }
-inline uint32_t get_ip_version_minor(uint32_t IPVersion) {
+inline uint32_t get_gpu_ip_version_minor(uint32_t IPVersion) {
   // 0xff is 0b11111111, the 8 bits the minor component occupies.
   return (IPVersion >> 14) & 0xff;
 }
-inline uint32_t get_ip_version_patch(uint32_t IPVersion) {
+inline uint32_t get_gpu_ip_version_patch(uint32_t IPVersion) {
   // 0x3f is 0b111111, the 6 bits the patch component occupies.
   return IPVersion & 0x3f;
 }
