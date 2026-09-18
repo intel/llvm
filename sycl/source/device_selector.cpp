@@ -20,8 +20,6 @@
 // 4.6.1 Device selection class
 
 #include <algorithm>
-#include <cctype>
-#include <regex>
 
 namespace sycl {
 inline namespace _V1 {
@@ -279,27 +277,16 @@ int filter_selector::operator()(const device &Dev) const {
   return impl->operator()(Dev);
 }
 
-void filter_selector::reset() const { impl->reset(); }
-
-// filter_selectors not "Callable"
-// because of the requirement that the filter_selector "reset()" itself
-// between invocations, the filter_selector operator() is not purely callable
-// and cannot be used interchangeably as a SYCL2020 callable device selector.
-// TODO: replace the FilterSelector subclass with something that
-// doesn't pretend to be a device_selector, and instead is something that
-// just returns a device (rather than a score).
-// Then remove ! std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>
-// from device/platform/queue constructors
-device filter_selector::select_device() const {
-  std::lock_guard<std::mutex> Guard(
-      sycl::detail::GlobalHandler::instance().getFilterMutex());
-
-  device Result = device_selector::select_device();
-
-  reset();
-
-  return Result;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+void filter_selector::reset() const {
+  // The selector keeps no state between the invocations of operator(), so
+  // there is nothing to reset. Kept for backwards compatibility.
 }
+
+device filter_selector::select_device() const {
+  return sycl::detail::select_device(*this);
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace ext::oneapi
 
@@ -312,11 +299,13 @@ int filter_selector::operator()(const device &Dev) const {
   return ext::oneapi::filter_selector::operator()(Dev);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
 
 device filter_selector::select_device() const {
   return ext::oneapi::filter_selector::select_device();
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 } // namespace _V1
 } // namespace sycl
