@@ -2,9 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: GSD-12837
-
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe
 
@@ -92,6 +89,11 @@ int main(int argc, char **argv) {
   // Fence via NAME — this is what the test exercises.
   D3D12NamedFence extFence =
       createNamedExportableFence(d3dCtx, L"Global\\SYCLTestNamedFence");
+  // Non-ASCII name (Chiqué气)  verifies UTF-16 codepoints round-trip through
+  // import But rather than "Chiqué气" directly, we use escapes so MSVC
+  // source-charset handling can't reinterpret.
+  D3D12NamedFence utf16Fence = createNamedExportableFence(
+      d3dCtx, L"Global\\SYCLTestChiqu\u00E9\u6C14Fence");
 
   d3dCtx.cmdAlloc->Reset();
   d3dCtx.cmdList->Reset(d3dCtx.cmdAlloc.Get(), nullptr);
@@ -146,6 +148,18 @@ int main(int argc, char **argv) {
             syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
     syclexp::external_semaphore syclSem =
         syclexp::import_external_semaphore(semDesc, device, context);
+
+    // Import success on a non-ASCII name proves encoding fidelity; no need
+    // to signal/wait — the main loop below covers semaphore mechanics.
+    std::cout << "[SYCL] Importing UTF-16 non-ASCII named fence\n";
+    auto utf16SemDesc =
+        syclexp::external_semaphore_descriptor<syclexp::resource_win32_name>{
+            {(const void *)utf16Fence.name.c_str()},
+            syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
+    syclexp::external_semaphore utf16SyclSem =
+        syclexp::import_external_semaphore(utf16SemDesc, device, context);
+    syclexp::release_external_semaphore(utf16SyclSem, device, context);
+    std::cout << "[SYCL] UTF-16 named fence round-trip OK\n";
 
     uint32_t *inPtr = static_cast<uint32_t *>(
         syclexp::map_external_linear_memory(inExtMem, 0, bufferSize, q));
@@ -285,6 +299,8 @@ int main(int argc, char **argv) {
     CloseHandle(outBuf.sharedHandle);
   if (extFence.keepAliveHandle)
     CloseHandle(extFence.keepAliveHandle);
+  if (utf16Fence.keepAliveHandle)
+    CloseHandle(utf16Fence.keepAliveHandle);
   cleanupBuffer(inStaging);
   cleanupBuffer(outStaging);
   if (d3dCtx.fenceEvent)
