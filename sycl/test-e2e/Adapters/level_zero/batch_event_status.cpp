@@ -10,6 +10,9 @@
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23100
+
 // RUN: %{build} -o %t.out
 
 // Set batching to 4 explicitly

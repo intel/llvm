@@ -116,11 +116,12 @@ if (UR_UMF_REQUIRED)
   else()
     set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-    # commit d8763834d68f9545db30bea5d092edd78ad3d748
-    # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-    # Date:   Mon Jul 27 15:32:41 2026 +0200
-    #     1.2.0 release
-    set(UMF_TAG v1.2.0)
+    # commit 19ce12f5f40213a612828e32a3b1d1b857222312
+    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
+    # Date:   Thu Sep 10 10:11:36 2026 +0200
+    #     Add address space support and tests for overlap errors
+
+    set(UMF_TAG v1.3.0-dev2)
 
     if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
       message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

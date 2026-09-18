@@ -18,6 +18,7 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/kernel_arg_view.hpp>    // for KernelArgView
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/optional.hpp>
@@ -38,7 +39,9 @@
 #include <sycl/info/queue.hpp>                    // for is_queue_info_...
 #include <sycl/kernel.hpp>                        // for auto_name
 #include <sycl/kernel_handler.hpp>                // for kernel_handler
+#include <sycl/khr/properties.hpp>                // for khr properties
 #include <sycl/nd_range.hpp>                      // for nd_range
+#include <sycl/properties/queue_properties.hpp>   // for property::queue::*
 #include <sycl/property_list.hpp>                 // for property_list
 #include <sycl/range.hpp>                         // for range
 #include <sycl/sycl_span.hpp>                     // for sycl::span
@@ -59,11 +62,20 @@ inline namespace _V1 {
 class context;
 class device;
 class event;
+class kernel;
 class queue;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
+
+// Launches an already built `sycl::kernel` with an explicit argument list,
+// bypassing the handler and the command group object the same way
+// submit_kernel_direct_* does for kernel function objects.
+void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel, sycl::span<const detail::KernelArgView> Args,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
@@ -166,7 +178,7 @@ auto submit_kernel_direct_single_task(
 
 } // namespace detail
 
-namespace ext ::oneapi ::experimental {
+namespace ext::oneapi::experimental {
 // State of a queue with regards to graph recording,
 // returned by info::queue::state
 enum class queue_state { executing, recording };
@@ -197,6 +209,35 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 /// \ingroup sycl_api
 class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
   friend sycl::detail::ImplUtils;
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // sycl_khr_properties: predicate and translation used by the khr constructors
+  // below. Declared here (before the constructors) as they are referenced in
+  // the constructors' default template arguments.
+  template <typename PropertyOrList>
+  static constexpr bool KhrPropsForQueue =
+      khr::is_property_for_v<PropertyOrList, queue> ||
+      khr::is_property_list_for_v<PropertyOrList, queue>;
+
+  template <typename PropertyOrList>
+  static property_list khrToPropertyList(const PropertyOrList &Props) {
+    if constexpr (khr::is_property_v<PropertyOrList>) {
+      return khrToPropertyList(khr::properties{Props});
+    } else {
+      detail::PropertyListBuilder Builder;
+      if constexpr (PropertyOrList::template has_property<
+                        khr::property::key::in_order>())
+        if (Props.template get_property<khr::property::key::in_order>().value)
+          Builder.template add<property::queue::in_order>();
+      if constexpr (PropertyOrList::template has_property<
+                        khr::property::key::enable_profiling>())
+        if (Props.template get_property<khr::property::key::enable_profiling>()
+                .value)
+          Builder.template add<property::queue::enable_profiling>();
+      return Builder.finalize();
+    }
+  }
+#endif
 
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
@@ -355,6 +396,83 @@ public:
   /// \param PropList is a list of properties for queue construction.
   queue(const context &SyclContext, const device &SyclDevice,
         const async_handler &AsyncHandler, const property_list &PropList = {});
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // sycl_khr_properties queue constructors. Accept a khr property or property
+  // list and translate it to the old-style property_list (see khrToPropertyList
+  // in the private section). PropertyOrList is not defaulted: the property_list
+  // constructors already cover the no-property case, and defaulting here would
+  // make `queue q{}` ambiguous.
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(PropertyOrList props) : queue(khrToPropertyList(props)) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const async_handler &AsyncHandler, PropertyOrList props)
+      : queue(AsyncHandler, khrToPropertyList(props)) {}
+
+  template <typename DeviceSelector,
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>,
+            typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const DeviceSelector &deviceSelector, PropertyOrList props)
+      : queue(deviceSelector, khrToPropertyList(props)) {}
+
+  template <typename DeviceSelector,
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>,
+            typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const DeviceSelector &deviceSelector,
+                 const async_handler &AsyncHandler, PropertyOrList props)
+      : queue(deviceSelector, AsyncHandler, khrToPropertyList(props)) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const device &SyclDevice, PropertyOrList props)
+      : queue(SyclDevice, khrToPropertyList(props)) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const device &SyclDevice, const async_handler &AsyncHandler,
+                 PropertyOrList props)
+      : queue(SyclDevice, AsyncHandler, khrToPropertyList(props)) {}
+
+  template <typename DeviceSelector,
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>,
+            typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const context &SyclContext,
+                 const DeviceSelector &deviceSelector, PropertyOrList props)
+      : queue(SyclContext, deviceSelector, khrToPropertyList(props)) {}
+
+  template <typename DeviceSelector,
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>,
+            typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const context &SyclContext,
+                 const DeviceSelector &deviceSelector,
+                 const async_handler &AsyncHandler, PropertyOrList props)
+      : queue(SyclContext, deviceSelector, AsyncHandler,
+              khrToPropertyList(props)) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const context &SyclContext, const device &SyclDevice,
+                 PropertyOrList props)
+      : queue(SyclContext, SyclDevice, khrToPropertyList(props)) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForQueue<PropertyOrList>>>
+  explicit queue(const context &SyclContext, const device &SyclDevice,
+                 const async_handler &AsyncHandler, PropertyOrList props)
+      : queue(SyclContext, SyclDevice, AsyncHandler, khrToPropertyList(props)) {
+  }
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
   /// cl_command_queue.
@@ -3624,6 +3742,15 @@ public:
   /// to complete unlike wait().
   ///
   void khr_flush() const;
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  /// Returns true only if this queue was constructed with profiling enabled.
+  ///
+  /// Equivalent to has_property<property::queue::enable_profiling>().
+  bool khr_is_profiling_enabled() const {
+    return has_property<property::queue::enable_profiling>();
+  }
+#endif
 
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());

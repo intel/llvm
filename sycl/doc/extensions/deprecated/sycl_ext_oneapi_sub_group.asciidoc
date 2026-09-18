@@ -1,4 +1,8 @@
 = SYCL_INTEL_sub_group
+
+// __INTEL_PREVIEW_BREAKING_CHANGES: Move this specification to the "removed"
+// folder when the feature is removed at the next breaking changes window.
+
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 

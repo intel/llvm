@@ -69,7 +69,6 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   bool ZeDriverEventPoolCountingEventsExtensionFound{false};
   bool zeDriverImmediateCommandListAppendFound{false};
   bool ZeDriverEuCountExtensionFound{false};
-  bool ZeCopyOffloadExtensionSupported{false};
   bool ZeCopyOffloadQueueFlagSupported{false};
   bool ZeCopyOffloadListFlagSupported{false};
   bool ZeBindlessImagesExtensionSupported{false};
@@ -254,6 +253,12 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
                                              hGraph, pNext, phExecutableGraph);
     }
 
+    bool hasEndGraphCapture() const {
+      return UsesLegacyExperimentalApi
+                 ? zeCommandListEndGraphCaptureExpLegacy != nullptr
+                 : zeCommandListEndGraphCaptureExp != nullptr;
+    }
+
     // Legacy experimental query results use different bit patterns than the
     // stable enumerators of the same name; translate to the stable ones.
     // Applied unconditionally: a known NEO bug makes the stable *Ext query
@@ -275,9 +280,10 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   struct ZeHostTaskExtension {
     bool Supported = false;
     ze_result_t (*zeCommandListAppendHostFunction)(
-        ze_command_list_handle_t hCommandList, void *pHostFunction,
-        void *pUserData, void *pNext, ze_event_handle_t hSignalEvent,
-        uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
+        ze_command_list_handle_t hCommandList,
+        ze_host_function_callback_t pHostFunction, void *pUserData,
+        const void *pNext, ze_event_handle_t hSignalEvent,
+        uint32_t numWaitEvents, _ze_event_handle_t **phWaitEvents);
   } ZeHostTaskExt;
 
   // Flag to indicate whether zeDeviceSynchronize is supported.

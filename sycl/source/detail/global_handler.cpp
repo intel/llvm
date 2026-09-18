@@ -302,6 +302,37 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
+#if defined(_WIN32)
+bool GlobalHandler::winEarlyExitCheck(bool ProcessExiting = true) {
+  // In Windows ExitProcess all non host threads are forcibly terminated prior
+  // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
+  // threads being active. In such cases, making XPTI or backend calls at
+  // DLL_PROCESS_DETACH can lead to hangs or memory corruption. Because of this
+  // it is best to not unload the backend after thread destruction.
+#if defined(XPTI_ENABLE_INSTRUMENTATION)
+  if (xptiTraceEnabled())
+    return true;
+#endif
+  if (ProcessExiting) {
+    // Level zero relies on unloading cleanup for UR_L0_LEAKS_DEBUG
+    // functionality on Windows so don't exit early for L0 platforms.
+    if (auto PlatformCache =
+            GlobalHandler::RTGlobalObjHandler->getPlatformCache();
+        !std::any_of(PlatformCache.begin(), PlatformCache.end(),
+                     [](const std::shared_ptr<platform_impl> &p) {
+                       return p->getBackend() == backend::ext_oneapi_level_zero;
+                     })) {
+
+      // If spawned threads using the Windows CRT are forcibly killed, this
+      // can prevent stdout buffer being flushed at the program end.
+      std::fflush(stdout);
+      return true;
+    }
+  }
+  return false;
+}
+#endif
+
 // Note: this function can be called on Windows twice:
 //  1) when library is unloaded via FreeLibrary
 //  2) when process is being terminated
@@ -310,20 +341,28 @@ void shutdown_early(bool CanJoinThreads = true) {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
-  if (xptiTraceEnabled())
-    return; // When doing xpti tracing, we can't safely shutdown on Win.
-            // TODO: figure out why XPTI prevents release.
-#endif
-
   // Now that we are shutting down, we will no longer defer MemObj releases.
   GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
+
+#ifdef _WIN32
+  if (GlobalHandler::winEarlyExitCheck(CanJoinThreads))
+    return;
+#endif
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
   GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(true);
 
-  if (GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst) {
+  // Do not cleanup thread pool on windows during application shutdown.
+  // Let OS do the cleanup.
+  bool doThreadPoolCleanup =
+      GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.get() !=
+      nullptr;
+#ifdef _WIN32
+  doThreadPoolCleanup &= !CanJoinThreads;
+#endif
+
+  if (doThreadPoolCleanup) {
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst->finishAndWait(
         CanJoinThreads);
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
@@ -355,10 +394,9 @@ void shutdown_late() {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
-  if (xptiTraceEnabled())
-    return; // When doing xpti tracing, we can't safely shutdown on Win.
-            // TODO: figure out why XPTI prevents release.
+#ifdef _WIN32
+  if (GlobalHandler::winEarlyExitCheck())
+    return;
 #endif
 
   // First, release resources, that may access adapters.
@@ -373,8 +411,13 @@ void shutdown_late() {
 
   GlobalHandler::RTGlobalObjHandler->MXPTIRegistry.Inst.reset(nullptr);
 
-  // Release the rest of global resources.
+#ifndef _WIN32
+  // Release the rest of global resources. Do not release GlobalHandler
+  // on Windows and let OS reclaim leaked memory. Releasing GlobalHandler
+  // on Windows can seg fault if application uses host tasks, as there
+  // can be a race between host tasks and shutdown.
   delete GlobalHandler::RTGlobalObjHandler;
+#endif
   GlobalHandler::RTGlobalObjHandler = nullptr;
 }
 

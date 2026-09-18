@@ -417,8 +417,12 @@ void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
   waitForEvents(DepEvents);
   OutEvent = nullptr;
 
+  // A host allocation linked to a device one has no pointer of its own until
+  // it is mapped, so the parent can legitimately be null here and offsetting
+  // it would be UB. Null is a safe result: AllocaSubBufCommand recomputes the
+  // sub-buffer pointer from the parent on every getMemAllocation() query.
   if (!TargetContext)
-    return static_cast<void *>(static_cast<char *>(ParentMemObj) + Offset);
+    return ParentMemObj ? static_cast<char *>(ParentMemObj) + Offset : nullptr;
 
   size_t SizeInBytes = ElemSize;
   for (size_t I = 0; I < 3; ++I)

@@ -134,9 +134,9 @@ def library_path_EQ : Joined<["--", "-"], "library-path=">, Flags<[HelpHidden]>,
 def library : JoinedOrSeparate<["-"], "l">, MetaVarName<"<libname>">,
   HelpText<"Search for library <libname>">;
 def library_S : Separate<["--", "-"], "library">, Flags<[HelpHidden]>,
-  Alias<library_path>;
+  Alias<library>;
 def library_EQ : Joined<["--", "-"], "library=">, Flags<[HelpHidden]>,
-  Alias<library_path>;
+  Alias<library>;
 
 def rpath : Separate<["--", "-"], "rpath">;
 def rpath_EQ : Joined<["--", "-"], "rpath=">, Flags<[HelpHidden]>, Alias<rpath>;
@@ -156,7 +156,8 @@ def shared : Flag<["--", "-"], "shared">,
 // link.exe-style linker options.
 def out : Joined<["/", "-", "/?", "-?"], "out:">, Flags<[HelpHidden]>;
 def libpath : Joined<["/", "-", "/?", "-?"], "libpath:">, Flags<[HelpHidden]>;
-def wholearchive_flag : Joined<["/", "-", "/?", "-?"], "wholearchive">, Flags<[HelpHidden]>;
+def wholearchive_file : Joined<["/", "-", "/?", "-?"], "wholearchive:">, Flags<[HelpHidden]>;
+def wholearchive_flag : Flag<["/", "-", "/?", "-?"], "wholearchive">, Flags<[HelpHidden]>;
 
 // Options to specify SYCL device library files
 def sycl_device_library_location_EQ : Joined<["--", "-"],
@@ -238,6 +239,15 @@ def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
 def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-image-dependencies">,
   Flags<[WrapperOnlyOption, HelpHidden]>,
   HelpText<"Allow dependencies between device code images">;
+
+// Silences sycl-post-link's per-image "Undefined function ... found in ..."
+// warning when the in-process library path is used. Forwarded by the clang
+// driver from -Wno-sycl-undefined-func-in-image.
+def sycl_suppress_undefined_func_warnings :
+    Flag<["--", "-"], "sycl-suppress-undefined-func-warnings">,
+    Flags<[WrapperOnlyOption, HelpHidden]>,
+    HelpText<"Suppress sycl-post-link's warning about undefined functions in "
+             "a device image.">;
 
 // Options to force the output to be of the SYCLBIN format.
 def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
