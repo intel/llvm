@@ -6,12 +6,11 @@ conventions apply.
 
 ## What this repository is
 
-This is [intel/llvm](https://github.com/intel/llvm), Intel's LLVM-based
-implementation of SYCL (DPC++). It is a fork of llvm/llvm-project with
-SYCL-specific projects added on top (`sycl`, `libdevice`, `llvm-spirv`,
-`sycl-jit`, `unified-runtime`, `xpti`/`xptifw`, `opencl`).
+This is a fork of llvm/llvm-project with SYCL-specific projects added on top
+(`sycl`, `libdevice`, `llvm-spirv`, `sycl-jit`, `unified-runtime`,
+`xpti`/`xptifw`, `opencl`).
 
-- The development branch is **`sycl`**, not `main`. 
+- The development branch is **`sycl`**, not `main`.
 - Follow sycl/doc/developer/ContributeToDPCPP.md for your contributions.
 
 ## Key documents (read before editing)
