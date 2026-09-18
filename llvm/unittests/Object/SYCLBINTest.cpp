@@ -85,9 +85,8 @@ std::vector<std::vector<uint8_t>> generateUniqueRandomImages(size_t NumImages) {
 }
 
 template <size_t NumIRModules, size_t NumNativeDeviceCodeImages>
-void CommonCheck() {
+void CommonCheck(SYCLBIN::BundleState State = SYCLBIN::BundleState::Input) {
   constexpr size_t NumImages = NumIRModules + NumNativeDeviceCodeImages;
-  constexpr SYCLBIN::BundleState State = SYCLBIN::BundleState::Input;
   static constexpr char Arch[] = "some-arch";
   static constexpr char IRMTarget[] = "spir64-unknown-unknown";
   static constexpr char NDCITarget[] = "spir64_gen-unknown-unknown";
@@ -165,6 +164,12 @@ void CommonCheck() {
   const PropertyValue &GlobalMetadataState = GlobalMetadataStateIt->second;
   ASSERT_EQ(GlobalMetadataState.getType(), PropertyValue::Type::UINT32);
   EXPECT_EQ(GlobalMetadataState.asUint32(), static_cast<uint32_t>(State));
+
+  // The state should also be readable through the SYCLBIN interface.
+  Expected<SYCLBIN::BundleState> ReadStateOrError =
+      SYCLBINObj->getBundleState();
+  ASSERT_THAT_EXPECTED(ReadStateOrError, Succeeded());
+  EXPECT_EQ(*ReadStateOrError, State);
 
   // Currently we have an abstract module per image.
   ASSERT_EQ(SYCLBINObj->AbstractModules.size(), size_t{NumImages});
@@ -291,4 +296,14 @@ TEST(SYCLBINTest, checkSYCLBINBinaryDoubleBasicNativeDeviceCodeImages) {
 
 TEST(SYCLBINTest, checkSYCLBINBinaryMixBasicImages) {
   CommonCheck</*NumIRModules=*/1, /*NumNativeDeviceCodeImages=*/1>();
+}
+
+TEST(SYCLBINTest, checkSYCLBINBinaryObjectState) {
+  CommonCheck</*NumIRModules=*/1, /*NumNativeDeviceCodeImages=*/0>(
+      SYCLBIN::BundleState::Object);
+}
+
+TEST(SYCLBINTest, checkSYCLBINBinaryExecutableState) {
+  CommonCheck</*NumIRModules=*/1, /*NumNativeDeviceCodeImages=*/0>(
+      SYCLBIN::BundleState::Executable);
 }
