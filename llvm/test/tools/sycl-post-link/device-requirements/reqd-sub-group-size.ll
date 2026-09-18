@@ -32,6 +32,13 @@
 ; CHECK-PROP-AUTO-SPLIT-1: [SYCL/device requirements]
 ; CHECK-PROP-AUTO-SPLIT-1: reqd_sub_group_size=1|16
 
+; -split=none keeps disagreeing KernelA/KernelB/KernelC in one module.
+; RUN: sycl-post-link -properties -split=none %s -o %t-none.table
+; RUN: FileCheck %s -input-file=%t-none_0.prop --check-prefix CHECK-PROP-NO-SPLIT
+
+; CHECK-PROP-NO-SPLIT: [SYCL/device requirements]
+; CHECK-PROP-NO-SPLIT: reqd_sub_group_size=1|16
+
 ; ModuleID = 'foo.cpp'
 source_filename = "foo.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
