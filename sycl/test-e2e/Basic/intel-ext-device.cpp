@@ -174,6 +174,10 @@ int main(int argc, char **argv) {
           uint32_t ipVersion =
               dev.get_info<ext::intel::info::device::ip_version>();
           std::cout << "Device IP version = " << ipVersion << std::endl;
+          std::cout << "Device IP version (major.minor.patch) = "
+                    << ext::intel::get_ip_version_major(ipVersion) << "."
+                    << ext::intel::get_ip_version_minor(ipVersion) << "."
+                    << ext::intel::get_ip_version_patch(ipVersion) << std::endl;
         }
       } // SYCL_EXT_INTEL_DEVICE_INFO
       std::cout << std::endl;

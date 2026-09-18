@@ -1435,8 +1435,9 @@ if (dev.has(aspect::ext_intel_max_lanes_per_hw_thread)) {
 
 Missing before version 10 of this extension.
 
-This extension adds the following device aspect and information descriptor,
-which allow an application to query the IP version of the device.
+This extension adds the following device aspect, information descriptor and
+free functions, which allow an application to query the IP version of the
+device and to decompose it into its components.
 
 ==== New device aspect
 
@@ -1468,12 +1469,48 @@ struct ip_version {
 
 _Remarks:_ Template parameter to `device::get_info`.
 
-_Returns:_ The IP version of the device. The meaning of the device IP version
-is implementation-defined, but newer devices should have a higher version than
-older devices.
+_Returns:_ The IP version of the device. For a GPU device, refer to the
+`PRODUCT_CONFIG` enumeration in
+https://github.com/intel/compute-runtime/blob/master/third_party/aot_config_headers/platforms.h[this header]
+for a mapping between IP versions and device names. The meaning of the IP
+version of other devices is implementation-defined, but newer devices should
+have a higher version than older devices.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 the device does not have `aspect::ext_intel_device_info_ip_version`.
+
+==== New free functions
+
+The IP version of a GPU device packs three components, from the most
+significant bit down:
+
+[%header,cols="^10,^8,^8,^6"]
+|===
+| 31:22   | 21:14   | 13:6     | 5:0
+| `major` | `minor` | reserved | `patch`
+| 10 bits | 8 bits  | 8 bits   | 6 bits
+|===
+
+The reserved bits carry no information. The following free functions extract
+these components.
+
+[source,c++]
+----
+namespace sycl::ext::intel {
+
+inline uint32_t get_ip_version_major(uint32_t ipVersion);
+inline uint32_t get_ip_version_minor(uint32_t ipVersion);
+inline uint32_t get_ip_version_patch(uint32_t ipVersion);
+
+} // namespace sycl::ext::intel
+----
+
+_Preconditions:_ `ipVersion` is a value returned by the `ip_version`
+information descriptor of a GPU device. The value returned by these functions
+is unspecified for any other device.
+
+_Returns:_ The major, the minor or the patch component of `ipVersion`,
+respectively.
 
 ==== Example Usage
 
@@ -1481,6 +1518,9 @@ the device does not have `aspect::ext_intel_device_info_ip_version`.
 ----
 if (dev.has(aspect::ext_intel_device_info_ip_version)) {
   auto ipVersion = dev.get_info<ext::intel::info::device::ip_version>();
+  std::cout << ext::intel::get_ip_version_major(ipVersion) << "."
+            << ext::intel::get_ip_version_minor(ipVersion) << "."
+            << ext::intel::get_ip_version_patch(ipVersion) << std::endl;
 }
 ----
 

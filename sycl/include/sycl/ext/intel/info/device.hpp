@@ -143,6 +143,28 @@ struct has_2d_block_io_support
 };
 } // namespace esimd::info::device
 
+// The IP version of a GPU device, as returned by the `ip_version` information
+// descriptor, packs three components, from the most significant bit down:
+//
+//    31        22 21    14 13       6 5     0
+//   +------------+--------+----------+-------+
+//   |    major   |  minor | reserved | patch |
+//   +------------+--------+----------+-------+
+//      10 bits    8 bits    8 bits    6 bits
+//
+// The reserved bits carry no information.
+inline uint32_t get_ip_version_major(uint32_t IPVersion) {
+  return IPVersion >> 22;
+}
+inline uint32_t get_ip_version_minor(uint32_t IPVersion) {
+  // 0xff is 0b11111111, the 8 bits the minor component occupies.
+  return (IPVersion >> 14) & 0xff;
+}
+inline uint32_t get_ip_version_patch(uint32_t IPVersion) {
+  // 0x3f is 0b111111, the 6 bits the patch component occupies.
+  return IPVersion & 0x3f;
+}
+
 } // namespace ext::intel
 } // namespace _V1
 } // namespace sycl
