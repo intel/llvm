@@ -12,11 +12,7 @@ SYCL-specific projects added on top (`sycl`, `libdevice`, `llvm-spirv`,
 `sycl-jit`, `unified-runtime`, `xpti`/`xptifw`, `opencl`).
 
 - The development branch is **`sycl`**, not `main`. 
-- Changes that are not SYCL-specific — generic LLVM/Clang improvements — should
-  go to llvm.org upstream first, not here. See
-  [CONTRIBUTING.md](CONTRIBUTING.md).
-- Every product change must come with a test change (new, extended, or
-  modified). This is enforced by review.
+- Follow sycl/doc/developer/ContributeToDPCPP.md for your contributions.
 
 ## Key documents (read before editing)
 
