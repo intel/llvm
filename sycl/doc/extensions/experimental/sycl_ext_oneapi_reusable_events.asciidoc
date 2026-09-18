@@ -529,6 +529,11 @@ two is the case, it must not rely on either outcome.
   other event APIs". These limitations apply regardless of whether the
   dependent command is submitted before or after the call to
   `enqueue_signal_event`. If any of these limitations is violated, the behavior
-  is undefined. This case is never diagnosed, because the implementation does
-  not currently differentiate between events enqueued for signaling using
-  `enqueue_signal_event` and regular events produced during command submission.
+  is undefined.
+
+The `enqueue_signal_event` function diagnoses the most important case of this:
+it throws an `exception` with the `errc::invalid` error code if, at the point of
+the call, a command which depends on `evt` has not been submitted to the backend
+yet. Note that this includes the case where `evt` is used as a dependency before
+it has ever been enqueued for signaling, because such a dependency is resolved
+on the host once the dependent command is enqueued.

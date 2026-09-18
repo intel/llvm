@@ -126,6 +126,24 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
         "profiling enabled.");
   }
 
+  // The event cannot be re-associated with a new command while a command that
+  // depends on it is still held inside the SYCL runtime. Such a command reads
+  // the event when it is finally enqueued rather than when it was submitted, so
+  // it would capture this signal instead of the one it was submitted with.
+  if (EventImpl.hasUnenqueuedDependents()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "This event cannot be enqueued for signaling, because a command which "
+        "depends on it has not been submitted to the backend yet. That happens "
+        "when the dependent command is queued behind a host task, is blocked "
+        "by "
+        "a host accessor, or uses a cross-context event dependency. It also "
+        "happens when the event was used as a dependency before it was "
+        "enqueued "
+        "for signaling for the first time, because the dependency is then "
+        "resolved on the host once the command is enqueued.");
+  }
+
   QueueImpl.submit_barrier_direct_without_event(
       {}, detail::CGType::Barrier, detail::code_location::current(),
       sycl::detail::getSyclObjImpl(evt));
