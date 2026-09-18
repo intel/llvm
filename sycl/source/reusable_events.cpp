@@ -64,13 +64,24 @@ static void CheckEventAndThrow(detail::event_impl &EventImpl,
   }
 
   // Current limitation:
-  // The queue and an event need to be in the same context. The reason
-  // is, that cross-context dependencies use host tasks, and the wait
-  // command might be queued in the runtime. This flow is currently
-  // not supported by the Reusable Events APIs.
+  // The queue and the event need to be in the same context. A cross-context
+  // dependency is resolved by the runtime with a host task, which the barrier
+  // used here cannot express: the barrier passes the event handles it is given
+  // straight to the backend, without translating them to the queue's context.
   if (&EventImpl.getContextImpl() != &ContextImpl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Event context must match the queue context.");
+  }
+}
+
+// The "event wait" operation is a barrier with a wait list. A barrier recorded
+// into a graph becomes a node which depends on the recorded leaves rather than
+// on the events passed here, so the operation would not do what was asked.
+static void CheckQueueForWaitAndThrow(detail::queue_impl &QueueImpl) {
+  if (QueueImpl.hasCommandGraph()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Enqueueing an event for waiting is not supported on "
+                          "a queue which is recording a graph.");
   }
 }
 
@@ -80,6 +91,7 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
+  detail::CheckQueueForWaitAndThrow(QueueImpl);
   detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
 
   QueueImpl.submit_barrier_direct_without_event(
@@ -90,6 +102,8 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
 __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
                                        const std::vector<event> &evts) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+
+  detail::CheckQueueForWaitAndThrow(QueueImpl);
 
   for (const sycl::event &evt : evts) {
     detail::CheckEventAndThrow(*sycl::detail::getSyclObjImpl(evt),

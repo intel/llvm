@@ -1984,6 +1984,19 @@ ExecCGCommand::ExecCGCommand(
     : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
               CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
+  // A barrier with a wait list keeps those events outside of the dependency
+  // lists that processDepEvent fills: enqueueImp resolves them with
+  // getUrEventsBlocking when the command is enqueued. That is a deferred read
+  // just like any other, so the events have to be counted here instead. Host
+  // and default constructed events are skipped, because getUrEventsBlocking
+  // skips them too - and a host one is already counted through CGData.MEvents.
+  if (MCommandGroup->getType() == CGType::BarrierWaitlist) {
+    for (const EventImplPtr &DepEvent :
+         static_cast<CGBarrier &>(*MCommandGroup).MEventsWaitWithBarrier)
+      if (!DepEvent->isHost() && !DepEvent->isDefaultConstructed())
+        countUnenqueuedDep(DepEvent);
+  }
+
   emitInstrumentationDataProxy();
 }
 
@@ -3731,8 +3744,18 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     std::vector<ur_event_handle_t> UrEvents =
         getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
     if (UrEvents.empty()) {
-      // If Events is empty, then the barrier has no effect.
-      return UR_RESULT_SUCCESS;
+      // If Events is empty, then the barrier has no effect. It can only be
+      // skipped when no event is needed: a command which returns without
+      // producing a backend event leaves its own event without a handle, and a
+      // handle-less event is read as a command which has not reached the
+      // backend yet, see Scheduler::areEventsSafeForSchedulerBypass. An
+      // in-order queue keeps such an event as the dependency of the commands
+      // which follow, so a barrier with nothing to wait for is enqueued there
+      // anyway - waiting for all of the preceding commands is what the queue
+      // guarantees regardless. An out-of-order queue does not order the
+      // following commands after it, so there the event is harmless.
+      if (!Event || !MQueue->isInOrder())
+        return UR_RESULT_SUCCESS;
     }
 
     // Create properties for the barrier.
@@ -3754,7 +3777,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
-                &UrEvents[0], Event);
+                UrEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 

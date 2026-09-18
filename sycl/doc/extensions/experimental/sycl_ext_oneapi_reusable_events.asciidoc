@@ -480,29 +480,33 @@ that command has already been submitted to the backend by then, the operation
 succeeds instead. Since an application cannot generally observe which of the
 two is the case, it must not rely on either outcome.
 
+The limitations below refer to the dependencies of an operation. An "event
+signal" operation depends on the commands which were previously submitted to an
+in-order queue, because it is ordered after them. An "event wait" operation
+depends on the events which are passed to it. It is also ordered after the
+commands previously submitted to an in-order queue, but that is not a
+limitation for it: unlike the "event signal" operation, which has to be
+submitted to the backend by the call itself, the "event wait" operation may be
+left pending inside the SYCL runtime until those commands are submitted to the
+backend.
+
 * The `evt` passed to the `enqueue_wait_event` function and all events in
   `evts` passed to the `enqueue_wait_events` function need to have the same
   context as `q`.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  functions cannot be dependent on a host task (`enqueue_wait_event` and
-  `enqueue_wait_events` cannot take an event produced by a host task submission
-  as an argument and all those functions cannot be enqueued behind a host task
-  on an in-order queue), which has been submitted using the
-  `handler::host_task` function. Submitting host tasks using the
+  functions cannot be dependent on a host task, which has been submitted using
+  the `handler::host_task` function. Submitting host tasks using the
   `sycl::ext::oneapi::experimental::host_task` function from the
   link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions] extension is supported.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
   functions cannot be dependent on a command which accesses a memory object
-  while a host accessor for that memory object exists (`enqueue_wait_event` and
-  `enqueue_wait_events` cannot take an event produced by such a command as an
-  argument and all those functions cannot be enqueued behind such a command on
-  an in-order queue). This applies to `host_accessor`,
-  `buffer::get_host_access`, `host_unsampled_image_accessor` and
-  `host_sampled_image_accessor`. Unlike a host task, which completes on its own,
-  such a command is held until the host accessor is destroyed, which happens
-  when the last copy of the host accessor is destroyed, so the application
-  controls how long this limitation lasts.
+  while a host accessor for that memory object exists. This applies to
+  `host_accessor`, `buffer::get_host_access`, `host_unsampled_image_accessor`
+  and `host_sampled_image_accessor`. Unlike a host task, which completes on its
+  own, such a command is held until the host accessor is destroyed, which
+  happens when the last copy of the host accessor is destroyed, so the
+  application controls how long this limitation lasts.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
   functions cannot be dependent on any commands which use cross-context
   event dependencies.
@@ -521,13 +525,15 @@ two is the case, it must not rely on either outcome.
 * When an event is passed to the `enqueue_signal_event` function and is also
   used as a dependency of a command (via `handler::depends_on`, one of the
   `queue` member functions which take event dependencies, or any other API
-  which establishes an event dependency), the same limitations apply as those
-  described above for the `enqueue_wait_event` and `enqueue_wait_events`
-  functions. This includes the restriction that the event needs to have the
-  same context as the queue to which the dependent command is submitted, which
-  temporarily restricts the behavior described in the section "Interaction with
-  other event APIs". These limitations apply regardless of whether the
-  dependent command is submitted before or after the call to
+  which establishes an event dependency), that command must be submitted to the
+  backend before the event is enqueued for signaling again. It is not submitted
+  to the backend while it is pending inside the SYCL runtime for any of the
+  reasons listed above: it is queued behind a host task, it is blocked by a host
+  accessor, or it uses a cross-context event dependency. The event also needs to
+  have the same context as the queue to which the dependent command is
+  submitted, which temporarily restricts the behavior described in the section
+  "Interaction with other event APIs". These limitations apply regardless of
+  whether the dependent command is submitted before or after the call to
   `enqueue_signal_event`. If any of these limitations is violated, the behavior
   is undefined.
 

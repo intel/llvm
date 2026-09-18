@@ -12,6 +12,7 @@
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
 #include <condition_variable>
@@ -551,6 +552,129 @@ TEST_F(ReusableEventsTest, EnqueueSignalEventAfterDependencyReachedBackend) {
   // Nothing is held in the runtime, so the event can be re-associated.
   EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
   EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
+
+  Queue.wait();
+}
+
+// The "event wait" operation may be handled by the scheduler. It only reads the
+// events it waits for, which happens when the barrier command is enqueued, so
+// it can be queued behind a host task instead of being refused.
+TEST_F(ReusableEventsTest, EnqueueWaitEventBehindHostTask) {
+  // The wait barriers are enqueued with an empty wait list here, because the
+  // event they wait for was signaled on this very in-order queue, so waiting
+  // for it again is redundant. The callback which reports an output event is
+  // used for them and for the signal barriers alike.
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal_create_event);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  // The runtime enqueues operations of its own here, and their events come from
+  // the default mock, so the released handles are not only DummyEventHandle.
+  CheckUrEventReleaseHandle = false;
+
+  auto event = syclex::make_event(Ctx);
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  // Queued behind the host task in the runtime rather than refused.
+  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
+  EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, {event}); });
+
+  // While the barrier commands are held, the event is a pending dependency, so
+  // it cannot be enqueued for signaling again.
+  bool exception = false;
+  try {
+    syclex::enqueue_signal_event(Queue, event);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+  }
+  EXPECT_TRUE(exception);
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  Queue.wait();
+
+  // The barrier commands have read the event, so signaling is allowed again.
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  Queue.wait();
+}
+
+// A barrier recorded into a graph becomes a node which depends on the leaves
+// recorded so far instead of the events passed to it, so the "event wait"
+// operation cannot be expressed while a graph is being recorded.
+TEST_F(ReusableEventsTest, EnqueueWaitEventOnRecordingQueue) {
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  auto event = syclex::make_event(Ctx);
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  auto expectThrow = [](sycl::errc Expected, auto &&Operation) {
+    std::error_code Code = sycl::make_error_code(sycl::errc::success);
+    try {
+      Operation();
+    } catch (sycl::exception const &e) {
+      Code = e.code();
+    }
+    EXPECT_EQ(Code, Expected);
+  };
+
+  syclex::command_graph<syclex::graph_state::modifiable> Graph{Ctx, Dev};
+  Graph.begin_recording(Queue);
+
+  expectThrow(sycl::errc::invalid,
+              [&] { syclex::enqueue_wait_event(Queue, event); });
+  expectThrow(sycl::errc::invalid,
+              [&] { syclex::enqueue_wait_events(Queue, {event}); });
+
+  // An empty wait list is refused as well. This is the case which the graph
+  // builder would not catch on its own: with a non-empty one it reports the
+  // event as a dependency which does not correspond to a node of the graph,
+  // while an empty one would simply be recorded as a barrier node.
+  std::vector<sycl::event> NoEvents;
+  expectThrow(sycl::errc::invalid,
+              [&] { syclex::enqueue_wait_events(Queue, NoEvents); });
+
+  // The "event signal" operation is refused for a reason of its own - a
+  // recorded node cannot adopt the event as its output event - and reports it
+  // with a different error code.
+  expectThrow(sycl::errc::runtime,
+              [&] { syclex::enqueue_signal_event(Queue, event); });
+
+  Graph.end_recording();
+
+  // Once the recording is over, the operations are accepted again and reach the
+  // backend, so the event is waited for.
+  const int BarriersBefore =
+      RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter;
+  ExpectedNumEventsInWaitList = 1;
+
+  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
+  EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, {event}); });
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter,
+            BarriersBefore + 2);
 
   Queue.wait();
 }
