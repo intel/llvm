@@ -3019,6 +3019,12 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // Remove 'convergent' if requested.
     if (TargetDecl->hasAttr<NoConvergentAttr>())
       FuncAttrs.removeAttribute(llvm::Attribute::Convergent);
+
+    // Add 'speculatable' if requested. It belongs on the declaration: a call
+    // site may only carry it while the callee is speculatable as well, which
+    // no longer holds once a module defining the callee is linked in.
+    if (!AttrOnCallSite && TargetDecl->hasAttr<SpeculatableAttr>())
+      FuncAttrs.addAttribute(llvm::Attribute::Speculatable);
   }
 
   // Add "sample-profile-suffix-elision-policy" attribute for internal linkage
