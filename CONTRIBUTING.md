@@ -53,6 +53,18 @@ To contribute:
 
 ### Pull request
 
+#### Commit e-mail address
+
+Please make sure that the e-mail address recorded in your commits is a real one
+and not a GitHub `noreply` address: turn off the
+[Keep my email addresses private](https://github.com/settings/emails) setting in
+your GitHub account and check that your local `git config user.email` matches one
+of the verified addresses of that account. Pull requests authored with a private
+e-mail address are automatically flagged with a warning comment. See
+[LLVM Developer Policy](https://llvm.org/docs/DeveloperPolicy.html#email-addresses)
+and this [LLVM Discourse thread](https://discourse.llvm.org/t/hidden-emails-on-github-should-we-do-something-about-it)
+for more information.
+
 - When creating your commit messages, please make sure to follow
   [LLVM developer policies](
   https://llvm.org/docs/DeveloperPolicy.html#commit-messages) on the subject.
