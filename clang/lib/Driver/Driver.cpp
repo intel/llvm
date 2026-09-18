@@ -1843,6 +1843,13 @@ bool Driver::loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx) {
   return false;
 }
 
+void Driver::addSYCLTargetMacroArg(const llvm::opt::ArgList &Args,
+                                   StringRef Macro) const {
+  StringRef MacroStr = Args.MakeArgString(Macro);
+  if (!llvm::is_contained(SYCLTargetMacroArgs, MacroStr))
+    SYCLTargetMacroArgs.push_back(MacroStr);
+}
+
 Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   llvm::PrettyStackTraceString CrashInfo("Compilation construction");
 
