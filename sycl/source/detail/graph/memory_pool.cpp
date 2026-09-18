@@ -170,6 +170,12 @@ graph_mem_pool::tryReuseExistingAllocation(size_t Size, usm::alloc AllocType,
     NodesToCheck.pop();
   }
 
+  // No reusable allocation was found. The traversal above marked every node it
+  // visited, and sortTopological() requires MTotalVisitedEdges to be zero on
+  // all nodes, so the marks have to be cleared on this path as well as on the
+  // success path above.
+  MGraph.resetNodeVisitedEdges();
+
   return std::nullopt;
 }
 

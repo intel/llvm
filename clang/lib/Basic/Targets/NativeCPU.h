@@ -49,10 +49,12 @@ public:
 
   void setSupportedOpenCLOpts() override { supportAllOpenCLOpts(); }
 
-  CallingConv getLibclcCallingConv() const override { return CC_SpirFunction; }
+  CallingConv getLibclcCallingConv() const override {
+    return CC_NativeCPUFunction;
+  }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    if (CC == CC_SpirFunction)
+    if (CC == CC_NativeCPUFunction)
       return CCCR_OK;
 
     if (HostTarget)

@@ -9,7 +9,8 @@
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
 
-// UNSUPPORTED: linux && (arch-intel_gpu_mtl_u || arch-intel_gpu_bmg_g21)
+// Sporadic failures observed on Linux across all Intel platforms.
+// UNSUPPORTED: linux && level_zero
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22858
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
@@ -93,7 +94,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 
 #include <optional>
 #include <string>
@@ -165,7 +166,7 @@ int runTest(
                           : getVulkanFormat<T>(channels);
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, 1, 1};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_1D, tiling);
