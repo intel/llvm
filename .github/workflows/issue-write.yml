@@ -139,7 +139,7 @@ jobs:
               console.log("Error retrieving pull request number");
               return;
             }
-            
+
             await comments.forEach(function (comment) {
               if (comment.id) {
                 // Security check: Ensure that this comment was created by
