@@ -1987,13 +1987,20 @@ ExecCGCommand::ExecCGCommand(
   // A barrier with a wait list keeps those events outside of the dependency
   // lists that processDepEvent fills: enqueueImp resolves them with
   // getUrEventsBlocking when the command is enqueued. That is a deferred read
-  // just like any other, so the events have to be counted here instead. Host
-  // and default constructed events are skipped, because getUrEventsBlocking
-  // skips them too - and a host one is already counted through CGData.MEvents.
+  // just like any other, so the events have to be counted here instead.
+  //
+  // Every event is counted, including the ones getUrEventsBlocking is going to
+  // skip. An event which has no backend event now may well have one by the time
+  // the barrier is enqueued - that is precisely what enqueue_signal_event does
+  // to an event which was never signaled before - and the barrier would then
+  // wait for that later signal instead of doing nothing. Host events are the
+  // exception: they cannot be given to a barrier at all, and the ones which
+  // reach it through handler::ext_oneapi_barrier are turned into command group
+  // dependencies, where processDepEvent counts them.
   if (MCommandGroup->getType() == CGType::BarrierWaitlist) {
     for (const EventImplPtr &DepEvent :
          static_cast<CGBarrier &>(*MCommandGroup).MEventsWaitWithBarrier)
-      if (!DepEvent->isHost() && !DepEvent->isDefaultConstructed())
+      if (!DepEvent->isHost())
         countUnenqueuedDep(DepEvent);
   }
 

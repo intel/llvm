@@ -260,4 +260,39 @@ TEST_F(PendingDependencyTest, UnsignaledEventIsCountedAsPending) {
   EXPECT_FALSE(imp(Unsignaled).hasUnenqueuedDependents());
 }
 
+// The events of a barrier with a wait list are kept by the command group
+// instead of the dependency lists processDepEvent fills, so they are counted
+// separately, in ExecCGCommand's constructor. An event which has not been
+// signaled yet is counted there as well: the barrier reads the wait list when
+// it is enqueued, and by then a signal may have given the event a backend
+// event, which the barrier would wait for instead of treating the event as
+// nothing to wait for.
+TEST_F(PendingDependencyTest, BarrierWaitListIsCountedIncludingUnsignaled) {
+  queue Q{platform().get_devices()[0], property::queue::in_order()};
+
+  event Signaled = Q.single_task<TestKernel>([] {});
+  Q.wait();
+  ASSERT_NE(imp(Signaled).getHandle(), nullptr);
+
+  event Unsignaled;
+  ASSERT_TRUE(imp(Unsignaled).isDefaultConstructed());
+  ASSERT_EQ(imp(Unsignaled).getHandle(), nullptr);
+
+  HostTaskGate Gate;
+  event Blocker = blockQueue(Q, Gate);
+
+  Q.submit([&](handler &CGH) {
+    CGH.ext_oneapi_barrier({Signaled, Unsignaled});
+  });
+
+  EXPECT_TRUE(imp(Signaled).hasUnenqueuedDependents());
+  EXPECT_TRUE(imp(Unsignaled).hasUnenqueuedDependents());
+
+  Gate.open();
+  Q.wait();
+
+  EXPECT_FALSE(imp(Signaled).hasUnenqueuedDependents());
+  EXPECT_FALSE(imp(Unsignaled).hasUnenqueuedDependents());
+}
+
 } // anonymous namespace
