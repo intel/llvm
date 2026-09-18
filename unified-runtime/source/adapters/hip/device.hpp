@@ -33,7 +33,6 @@ private:
   size_t MaxBlockDim[3];
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
-  size_t MaxChosenStackSize{0};
   int ManagedMemSupport{0};
   int ConcurrentManagedAccess{0};
   bool HardwareImageSupport{false};
@@ -112,8 +111,8 @@ public:
                         UR_RESULT_ERROR_INVALID_VALUE);
         throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      MaxChosenStackSize = static_cast<size_t>(Parsed);
-      UR_CHECK_ERROR(hipDeviceSetLimit(hipLimitStackSize, MaxChosenStackSize));
+      UR_CHECK_ERROR(
+          hipDeviceSetLimit(hipLimitStackSize, static_cast<size_t>(Parsed)));
     }
   }
 
@@ -138,8 +137,6 @@ public:
   int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
   int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
-
-  size_t getMaxChosenStackSize() const noexcept { return MaxChosenStackSize; };
 
   int getManagedMemSupport() const noexcept { return ManagedMemSupport; };
 

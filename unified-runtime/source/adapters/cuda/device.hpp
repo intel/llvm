@@ -36,7 +36,6 @@ private:
   int MaxRegsPerBlock{0};
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
-  size_t MaxChosenStackSize{0};
   uint32_t NumComputeUnits{0};
   std::once_flag NVMLInitFlag;
   std::optional<nvmlDevice_t> NVMLDevice;
@@ -104,8 +103,8 @@ public:
                         UR_RESULT_ERROR_INVALID_VALUE);
         throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      MaxChosenStackSize = static_cast<size_t>(Parsed);
-      UR_CHECK_ERROR(cuCtxSetLimit(CU_LIMIT_STACK_SIZE, MaxChosenStackSize));
+      UR_CHECK_ERROR(
+          cuCtxSetLimit(CU_LIMIT_STACK_SIZE, static_cast<size_t>(Parsed)));
     }
 
     // Max size of memory object allocation in bytes.
@@ -183,8 +182,6 @@ public:
   int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
   int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
-
-  size_t getMaxChosenStackSize() const noexcept { return MaxChosenStackSize; };
 
   uint32_t getNumComputeUnits() const noexcept { return NumComputeUnits; };
 
