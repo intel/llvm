@@ -26,7 +26,7 @@ ur_result_t reportCapturing(void *pParams) {
 }
 
 struct launchBlockingTest : ::testing::Test {
-  void SetUp(const char *Layer) {
+  void initWithLayer(const char *Layer) {
     QueueFinishCount = 0;
     Capturing = false;
     mock::getCallbacks().set_replace_callback("urQueueFinish",
@@ -87,20 +87,20 @@ struct launchBlockingTest : ::testing::Test {
 };
 
 TEST_F(launchBlockingTest, DrainsAfterCommand) {
-  SetUp("UR_LAYER_LAUNCH_BLOCKING");
+  initWithLayer("UR_LAYER_LAUNCH_BLOCKING");
   ASSERT_EQ(enqueueWork(), UR_RESULT_SUCCESS);
   EXPECT_EQ(QueueFinishCount, 1);
 }
 
 TEST_F(launchBlockingTest, DoesNotDrainWhenDisabled) {
-  SetUp("UR_LAYER_PARAMETER_VALIDATION");
+  initWithLayer("UR_LAYER_PARAMETER_VALIDATION");
   ASSERT_EQ(enqueueWork(), UR_RESULT_SUCCESS);
   EXPECT_EQ(QueueFinishCount, 0);
 }
 
 // Blocking is a debugging aid, not a validation check.
 TEST_F(launchBlockingTest, FullValidationDoesNotEnableIt) {
-  SetUp("UR_LAYER_FULL_VALIDATION");
+  initWithLayer("UR_LAYER_FULL_VALIDATION");
   ASSERT_EQ(enqueueWork(), UR_RESULT_SUCCESS);
   EXPECT_EQ(QueueFinishCount, 0);
 }
@@ -108,7 +108,7 @@ TEST_F(launchBlockingTest, FullValidationDoesNotEnableIt) {
 // A marker enqueues no work of its own, and its wait list may hold an event the
 // application signals later.
 TEST_F(launchBlockingTest, DoesNotDrainAfterBarrier) {
-  SetUp("UR_LAYER_LAUNCH_BLOCKING");
+  initWithLayer("UR_LAYER_LAUNCH_BLOCKING");
   ASSERT_EQ(urEnqueueEventsWaitWithBarrier(Queue, 0, nullptr, nullptr),
             UR_RESULT_SUCCESS);
   EXPECT_EQ(QueueFinishCount, 0);
@@ -116,7 +116,7 @@ TEST_F(launchBlockingTest, DoesNotDrainAfterBarrier) {
 
 // Commands are recorded rather than run, so there is nothing to wait for.
 TEST_F(launchBlockingTest, DoesNotDrainWhileCapturingAGraph) {
-  SetUp("UR_LAYER_LAUNCH_BLOCKING");
+  initWithLayer("UR_LAYER_LAUNCH_BLOCKING");
   Capturing = true;
   ASSERT_EQ(enqueueWork(), UR_RESULT_SUCCESS);
   EXPECT_EQ(QueueFinishCount, 0);
@@ -125,7 +125,7 @@ TEST_F(launchBlockingTest, DoesNotDrainWhileCapturingAGraph) {
 // A fault the drain reports becomes the command's result, which is the point of
 // blocking: it is reported at the command that caused it.
 TEST_F(launchBlockingTest, ReportsAFailedDrain) {
-  SetUp("UR_LAYER_LAUNCH_BLOCKING");
+  initWithLayer("UR_LAYER_LAUNCH_BLOCKING");
   mock::getCallbacks().set_replace_callback("urQueueFinish", [](void *) {
     ++QueueFinishCount;
     return UR_RESULT_ERROR_DEVICE_LOST;
@@ -136,7 +136,7 @@ TEST_F(launchBlockingTest, ReportsAFailedDrain) {
 
 // A failed enqueue submitted nothing to wait for.
 TEST_F(launchBlockingTest, DoesNotDrainWhenTheCommandFails) {
-  SetUp("UR_LAYER_LAUNCH_BLOCKING");
+  initWithLayer("UR_LAYER_LAUNCH_BLOCKING");
   mock::getCallbacks().set_replace_callback(
       "urEnqueueUSMFill", [](void *) { return UR_RESULT_ERROR_INVALID_VALUE; });
   ASSERT_NE(enqueueWork(), UR_RESULT_SUCCESS);
