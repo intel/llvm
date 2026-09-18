@@ -62,9 +62,7 @@ etors:
       value: "$X_BIT(0)"
       desc: >
             When enabled, the driver optimizes event host synchronization
-            calls,to use CPU threads more efficiently. For example, instead of 
-            actively polling a memory location, it may use operating system 
-            mechanisms to put the CPU thread to sleep.
+            calls, to use CPU threads more efficiently.
 
 --- #--------------------------------------------------------------------------
 type: struct

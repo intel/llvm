@@ -171,9 +171,10 @@ return sycl::ext::oneapi::experimental::make_event(ctxt, props);
 
 '''
 
-=== New property for creating an event
+=== New properties for creating an event
 
-This extension adds the following property, which can be used with `make_event`:
+This extension adds the following properties, which can be used with
+`make_event`:
 
 '''
 
@@ -193,6 +194,28 @@ This property controls whether the event captures profiling timestamps.
 
 _Effects_ (1): Creates a new `enable_profiling` property with a boolean value
 indicating whether the event captures profiling timestamp information.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct low_power {
+  low_power(bool enable = true);  (1)
+};
+using low_power_key = low_power;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+This property is a hint to the driver to optimize event host
+synchronization calls to use the CPU more efficiently. For example, the
+driver may sleep the waiting thread instead of polling. Using this hint
+may impact completion latency.
+
+_Effects_ (1): Creates a new `low_power` property with a boolean value
+indicating whether the event uses the low-power flag.
 
 '''
 
