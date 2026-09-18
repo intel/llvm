@@ -13,21 +13,20 @@ namespace syclex = sycl::ext::oneapi::experimental;
 
 int main() {
   constexpr size_t numElements = 1024;
-  sycl::queue q{sycl::property::queue::in_order{}};
-
-  auto event = syclex::make_event(q.get_context(),
+  sycl::queue syclQueue;
+  auto event = syclex::make_event(syclQueue.get_context(),
                                   syclex::properties{syclex::low_power{true}});
 
-  int *data = sycl::malloc_shared<int>(numElements, q);
+  int *data = sycl::malloc_shared<int>(numElements, syclQueue);
 
-  q.parallel_for<class LowPowerKernel>(
+  syclQueue.parallel_for<class LowPowerKernel>(
       sycl::range<1>(numElements), [=](sycl::id<1> idx) { data[idx] = 42; });
-  syclex::enqueue_signal_event(q, event);
+  syclex::enqueue_signal_event(syclQueue, event);
   event.wait();
 
   for (size_t i = 0; i < numElements; ++i)
     assert(data[i] == 42);
 
-  sycl::free(data, q);
+  sycl::free(data, syclQueue);
   return 0;
 }
