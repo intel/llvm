@@ -11,8 +11,7 @@ implementation of SYCL (DPC++). It is a fork of llvm/llvm-project with
 SYCL-specific projects added on top (`sycl`, `libdevice`, `llvm-spirv`,
 `sycl-jit`, `unified-runtime`, `xpti`/`xptifw`, `opencl`).
 
-- The development branch is **`sycl`**, not `main`. Base your work on
-  `origin/sycl` (the intel/llvm remote) and target PRs at `sycl`.
+- The development branch is **`sycl`**, not `main`. 
 - Changes that are not SYCL-specific — generic LLVM/Clang improvements — should
   go to llvm.org upstream first, not here. See
   [CONTRIBUTING.md](CONTRIBUTING.md).
