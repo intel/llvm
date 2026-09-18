@@ -1487,7 +1487,7 @@ significant bit down:
 [%header,cols="^10,^8,^8,^6"]
 |===
 | 31:22   | 21:14   | 13:6     | 5:0
-| `major` | `minor` | reserved | `patch`
+| `major` | `minor` | reserved | `revision`
 | 10 bits | 8 bits  | 8 bits   | 6 bits
 |===
 
@@ -1500,7 +1500,7 @@ namespace sycl::ext::intel {
 
 inline uint32_t get_gpu_ip_version_major(uint32_t ipVersion);
 inline uint32_t get_gpu_ip_version_minor(uint32_t ipVersion);
-inline uint32_t get_gpu_ip_version_patch(uint32_t ipVersion);
+inline uint32_t get_gpu_ip_version_revision(uint32_t ipVersion);
 
 } // namespace sycl::ext::intel
 ----
@@ -1509,7 +1509,7 @@ _Preconditions:_ `ipVersion` is a value returned by the `ip_version`
 information descriptor of a GPU device. The value returned by these functions
 is unspecified for any other device.
 
-_Returns:_ The major, the minor or the patch component of `ipVersion`,
+_Returns:_ The major, the minor or the revision component of `ipVersion`,
 respectively.
 
 ==== Example Usage
@@ -1521,7 +1521,8 @@ if (dev.has(aspect::ext_intel_device_info_ip_version)) {
   if (dev.is_gpu()) {
     std::cout << ext::intel::get_gpu_ip_version_major(ipVersion) << "."
               << ext::intel::get_gpu_ip_version_minor(ipVersion) << "."
-              << ext::intel::get_gpu_ip_version_patch(ipVersion) << std::endl;
+              << ext::intel::get_gpu_ip_version_revision(ipVersion)
+              << std::endl;
   }
 }
 ----

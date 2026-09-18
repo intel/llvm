@@ -175,10 +175,10 @@ int main(int argc, char **argv) {
               dev.get_info<ext::intel::info::device::ip_version>();
           std::cout << "Device IP version = " << ipVersion << std::endl;
           if (dev.is_gpu()) {
-            std::cout << "Device IP version (major.minor.patch) = "
+            std::cout << "Device IP version (major.minor.revision) = "
                       << ext::intel::get_gpu_ip_version_major(ipVersion) << "."
                       << ext::intel::get_gpu_ip_version_minor(ipVersion) << "."
-                      << ext::intel::get_gpu_ip_version_patch(ipVersion)
+                      << ext::intel::get_gpu_ip_version_revision(ipVersion)
                       << std::endl;
           }
         }
