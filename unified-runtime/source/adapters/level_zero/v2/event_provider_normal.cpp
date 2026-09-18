@@ -17,6 +17,7 @@
 #include "event_provider_normal.hpp"
 
 #include "../common.hpp"
+#include "../common/event_sync_modes.hpp"
 #include "../common/latency_tracker.hpp"
 
 namespace ur::level_zero::v2 {
@@ -43,6 +44,20 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
 
   if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
     desc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+  }
+
+  ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
+      ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
+  if (flags & EVENT_FLAGS_LOW_POWER) {
+    eventSyncMode.syncModeFlags =
+        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT;
+    if (flags & EVENT_FLAGS_COUNTER) {
+      eventSyncMode.pNext = counterBasedExt.pNext;
+      counterBasedExt.pNext = &eventSyncMode;
+    } else {
+      eventSyncMode.pNext = desc.pNext;
+      desc.pNext = &eventSyncMode;
+    }
   }
 
   std::vector<ze_device_handle_t> devices;
