@@ -465,8 +465,8 @@ public:
         dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
-  buffer(buffer &&rhs,
-         const detail::code_location CodeLoc = detail::code_location::current())
+  buffer(buffer &&rhs, const detail::code_location CodeLoc =
+                           detail::code_location::current()) noexcept
       : buffer_plain(std::move(rhs.impl)), Range(rhs.Range),
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
     buffer_plain::constructorNotification(
