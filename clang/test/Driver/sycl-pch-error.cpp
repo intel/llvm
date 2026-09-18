@@ -8,7 +8,7 @@
 // RUN: FileCheck %s -input-file=%t1.txt
 // CHECK: input is not a PCH file
 //
-// RUN: not %clang --offload-new-driver -c -fsycl -include-pch %t.h %s 2> %t1.txt
+// RUN: not %clang --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -c -fsycl -include-pch %t.h %s 2> %t1.txt
 // RUN: FileCheck -check-prefix=CHECK-OND %s -input-file=%t1.txt
 // CHECK-OND: input is not a PCH file
 
@@ -17,6 +17,6 @@
 // RUN: not %clang_cl -fsycl /Yu%t.h /c -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-YU %s
 // CHECK-YU: {{[Nn]}}o such file or directory
-// RUN: not %clang_cl --offload-new-driver -fsycl /Yu%t.h /c -- %s 2>&1 \
+// RUN: not %clang_cl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -fsycl /Yu%t.h /c -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-YU-OND %s
 // CHECK-YU-OND: {{[Nn]}}o such file or directory

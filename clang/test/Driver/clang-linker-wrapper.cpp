@@ -1,5 +1,5 @@
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl
-// REQUIRES: libdevice
+// REQUIRES: spirv-to-ir-wrapper, sycl-post-link
 // -------
 // Generate .o file as linker wrapper input.
 //
