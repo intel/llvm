@@ -1101,6 +1101,8 @@ else ()
                      "SHELL:-Xclang -mcode-object-version=none" BUILTIN_CFLAGS)
     endif()
     if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
+      # TODO: remove the usage of -fspirv-default-addr-space-is-generic when default
+      # address space ambiguity is removed in upstream for SPIR targets.
       append_list_if(COMPILER_RT_HAS_SPIRV_DEFAULT_ADDR_SPACE_IS_GENERIC
                      "SHELL:-Xclang -fspirv-default-addr-space-is-generic" BUILTIN_CFLAGS)
     endif()
