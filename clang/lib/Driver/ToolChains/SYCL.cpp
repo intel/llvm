@@ -884,6 +884,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                       InputFilename.contains("libspirv") ||
                       InputFilename.contains("libdevice")))
         return true;
+      if (InputFilename.starts_with("libclang_rt.builtins"))
+        return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix))
