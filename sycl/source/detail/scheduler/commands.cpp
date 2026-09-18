@@ -328,7 +328,16 @@ public:
     }
 #endif
 
-    if (!waitForEvents()) {
+    const bool DepsSatisfied = waitForEvents();
+
+    // The dependencies have been read now, on this thread, so they are no
+    // longer pending inside the runtime on this command's behalf.
+    // Command::enqueue cannot do this for a host task, because enqueueing one
+    // only hands the job to the thread pool - the handles are read here
+    // instead.
+    MThisCmd->releaseUnenqueuedDeps();
+
+    if (!DepsSatisfied) {
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::exception(
           make_error_code(errc::runtime),
           std::string("Couldn't wait for host-task's dependencies")));
@@ -913,8 +922,12 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   else {
     MEvent->setEnqueued();
     // The command has read its dependencies and passed them to the backend, so
-    // they are no longer pending inside the runtime on its behalf.
-    releaseUnenqueuedDeps();
+    // they are no longer pending inside the runtime on its behalf. A host task
+    // is the exception: enqueueing it only hands the job to the thread pool,
+    // and the dependencies are read later, on that thread - see
+    // DispatchHostTask, which releases them there instead.
+    if (!isHostTask())
+      releaseUnenqueuedDeps();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();

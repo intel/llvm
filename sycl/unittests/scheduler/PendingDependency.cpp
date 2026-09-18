@@ -57,6 +57,21 @@ private:
 
 detail::event_impl &imp(const event &E) { return *detail::getSyclObjImpl(E); }
 
+// Set just before the host task is submitted, read on the host task thread.
+std::atomic<detail::event_impl *> WatchedEvent{nullptr};
+std::atomic<uint32_t> CountDuringDepRead{0};
+std::atomic<bool> DepReadObserved{false};
+
+// Runs on the host task thread, from DispatchHostTask::waitForEvents, i.e. at
+// the exact point where the host task reads its dependencies. Records once, so
+// that later waits do not overwrite the observation.
+ur_result_t recordCountOnUrEventWait(void *) {
+  if (detail::event_impl *E = WatchedEvent.load())
+    if (!DepReadObserved.exchange(true))
+      CountDuringDepRead.store(E->getUnenqueuedDependentCount());
+  return UR_RESULT_SUCCESS;
+}
+
 // Submits a host task that blocks on Gate, so that everything submitted to the
 // in-order queue after it stays inside the runtime.
 event blockQueue(queue &Q, HostTaskGate &Gate) {
@@ -181,6 +196,38 @@ TEST_F(PendingDependencyTest, CommandBehindHostAccessorHoldsItsDependency) {
 
   Q.wait();
 
+  EXPECT_FALSE(imp(Producer).hasUnenqueuedDependents());
+}
+
+// A host task reads its dependencies on the host task thread when it runs, in
+// DispatchHostTask::waitForEvents, not when it is enqueued - enqueueing one
+// only hands the job to the thread pool. So it has to keep them counted until
+// then, which is observed here from inside the read itself.
+TEST_F(PendingDependencyTest, HostTaskHoldsItsDependencyUntilItReadsIt) {
+  mock::getCallbacks().set_replace_callback("urEventWait",
+                                            &recordCountOnUrEventWait);
+
+  queue Q{platform().get_devices()[0]};
+
+  event Producer = Q.single_task<TestKernel>([] {});
+  ASSERT_NE(imp(Producer).getHandle(), nullptr)
+      << "the host task must have a backend event to wait for";
+
+  CountDuringDepRead.store(0);
+  DepReadObserved.store(false);
+  WatchedEvent.store(&imp(Producer));
+
+  Q.submit([&](handler &CGH) {
+    CGH.depends_on(Producer);
+    CGH.host_task([] {});
+  });
+
+  Q.wait();
+  WatchedEvent.store(nullptr);
+
+  ASSERT_TRUE(DepReadObserved.load())
+      << "the host task was expected to wait for its dependency";
+  EXPECT_EQ(CountDuringDepRead.load(), 1u);
   EXPECT_FALSE(imp(Producer).hasUnenqueuedDependents());
 }
 
