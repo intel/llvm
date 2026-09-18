@@ -426,26 +426,40 @@ for newly introduced kernels in the final link stage (step 3).
 #### Device Link during compilation
 
 The `-fno-sycl-rdc` flag can be used in combination with the `-c` option
-when generating fat objects. This option combination informs the compiler to
-perform a full device link stage against the device object, creating a fat
-object that contains the corresponding host object and a fully compiled device
-binary. It is expected that usage of `-fno-sycl-rdc` coincide with
-ahead of time compiling.
+when generating objects. This option combination informs the compiler to
+perform a full device link stage against the device object, including the
+offload wrapping, and to merge the result into the host object with a partial
+link (`ld -r`). The produced object is therefore *not* a fat object: it is an
+ordinary relocatable object which already carries the device image and the
+`__sycl_register_lib` constructor registering it with the SYCL runtime.
 
-When using the generated fat object in this case, the compiler will recognize
-the fat object that contains the fully linked device binary. The device binary
-will be unbundled and linked during the final host link and will not be sent
-through any additional device linking steps.
+1. Generation of the object: a.cpp -> a.o (contains the host object and the
+fully compiled device image)
+2. Linking: a.o -> executable
 
-1. Generation of fat object: a.cpp -> a_fat.o (contains host object and full
-device image)
-2. Linking: a_fat.o -> executable
+Because nothing is left for the link step to do with the device code, such an
+object can be linked with any host linker, e.g. `g++` or `ld` directly, and not
+just with `clang++ -fsycl`. This mirrors the non-relocatable device code model
+of CUDA and HIP.
+
+This is supported for the SPIR-V targets, both JIT (`spir64`) and AOT
+(`spir64_gen`, `spir64_x86_64`). The NVPTX, AMDGCN and Native CPU targets still
+need their device link to happen as part of the final host link, so for those
+`-fno-sycl-rdc` only restricts the scope of the device code linking and the
+object stays a fat object. A Windows target keeps producing a fat object as
+well, since the MSVC linker has no relocatable link mode.
 
 The generation of the full device image during the compilation (-c) step of
 creating the object allows for library creation that does not require full
 device linking steps which can be a burden to the user.  Providing these early
 device linking steps give the provider of the archives/objects a better user
 experience.
+
+Objects and archives produced this way by earlier versions of the compiler
+carry the finalized device image in an offload bundle whose target name has an
+`_image` suffix, e.g. `sycl-spir64_gen_image-unknown-unknown`. The driver still
+recognizes those: the device binary is unbundled and linked during the final
+host link and is not sent through any additional device linking steps.
 
 #### Device code post-link step
 

@@ -42,6 +42,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-bundler";
   case OffloadUnbundlingJobClass:
     return "clang-offload-unbundler";
+  case PartialLinkJobClass:
+    return "partial-linker";
   case OffloadWrapperJobClass:
     return "clang-offload-wrapper";
   case OffloadPackagerJobClass:
@@ -468,6 +470,11 @@ void OffloadBundlingJobAction::anchor() {}
 
 OffloadBundlingJobAction::OffloadBundlingJobAction(ActionList &Inputs)
     : JobAction(OffloadBundlingJobClass, Inputs, Inputs.back()->getType()) {}
+
+void PartialLinkJobAction::anchor() {}
+
+PartialLinkJobAction::PartialLinkJobAction(ActionList &Inputs, types::ID Type)
+    : JobAction(PartialLinkJobClass, Inputs, Type) {}
 
 void OffloadUnbundlingJobAction::anchor() {}
 

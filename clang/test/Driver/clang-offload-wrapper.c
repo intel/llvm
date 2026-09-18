@@ -204,12 +204,20 @@
 // CHECK-IR3: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__tgt_device_image] [%__tgt_device_image { {{.*}}, ptr @__sycl_offload_entries_arr, ptr getelementptr ([2 x %__tgt_offload_entry], ptr @__sycl_offload_entries_arr, i64 0, i64 2), ptr null, ptr null }]
 
 // -------
-// Check that device image can be extracted from the wrapper object by the clang-offload-bundler tool.
+// Check that the device image is placed into a section named after the offload
+// bundle naming convention, so that clang-offload-extract can locate it. Unlike
+// a bundle created by clang-offload-bundler the section is a regular allocated
+// one - it holds data the host program needs - and therefore the wrapper object
+// must not be taken for a fat object by clang-offload-bundler.
 //
 // RUN: clang-offload-wrapper -o %t.wrapper.bc -host=x86_64-pc-linux-gnu -kind=sycl -target=spir64-unknown-linux %t1.tgt
 // RUN: %clang -target x86_64-pc-linux-gnu -c %t.wrapper.bc -o %t.wrapper.o
-// RUN: clang-offload-bundler --type=o -input=%t.wrapper.o --targets=sycl-spir64-unknown-linux -output=%t1.out --unbundle
-// RUN: diff %t1.out %t1.tgt
+// RUN: llvm-readobj --section-headers %t.wrapper.o | FileCheck %s --check-prefix CHECK-IMAGE-SECTION
+// RUN: not clang-offload-bundler --type=o -input=%t.wrapper.o --targets=sycl-spir64-unknown-linux -output=%t1.out --unbundle 2>&1 | FileCheck %s --check-prefix CHECK-NOT-A-BUNDLE
+// CHECK-IMAGE-SECTION: Name: __CLANG_OFFLOAD_BUNDLE__sycl-spir64-unknown-linux
+// CHECK-IMAGE-SECTION-NOT: SHF_EXCLUDE
+// CHECK-IMAGE-SECTION: SHF_ALLOC
+// CHECK-NOT-A-BUNDLE: error: Can't find bundles for sycl-spir64-unknown-linux
 
 // Check that clang-offload-wrapper adds LLVMOMPOFFLOAD notes
 // into the ELF offload images:

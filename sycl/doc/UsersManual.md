@@ -27,7 +27,7 @@ and not recommended to use in production environment.
     which case the AOT compiled device binaries are embedded within the
     application’s fat executable.  However, this option may also be used in
     combination with '-c' and '-fno-sycl-rdc' when compiling a source file.
-    In this case, the AOT compiled device binaries are embedded within the fat
+    In this case, the AOT compiled device binaries are embedded within the
     object file.
 
     The following triples are supported by default:
@@ -351,6 +351,14 @@ and not recommended to use in production environment.
     '-fno-sycl-rdc' used along with '-fsycl-max-parallel-link-jobs' will enable
     additional device linking parallism for fat static archives.
     Relocatable device code is enabled by default.
+
+    When '-fno-sycl-rdc' is used together with '-c' and a SPIR-V target, the
+    whole device compilation is performed at compile time and the resulting
+    device image is merged into the object file. Such an object is
+    self-contained: it can be linked into an application with any host linker,
+    e.g. 'g++' or 'ld', and does not require 'clang++ -fsycl' for the link step.
+    This does not apply to the NVPTX, AMDGCN and Native CPU targets, nor to
+    Windows targets, whose linker has no relocatable link mode.
 
 ## Other options
 
