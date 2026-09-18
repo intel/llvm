@@ -147,6 +147,12 @@ if config.llvm_examples:
 if "libdevice" in config.enable_projects:
     config.available_features.add("libdevice")
 
+for offload_tool in ("spirv-to-ir-wrapper", "sycl-post-link", "file-table-tform"):
+    if lit.util.which(offload_tool, config.clang_tools_dir) or lit.util.which(
+        offload_tool, config.llvm_tools_dir
+    ):
+        config.available_features.add(offload_tool)
+
 def have_host_out_of_process_jit_feature_support():
     clang_repl_exe = lit.util.which("clang-repl", config.clang_tools_dir)
 
