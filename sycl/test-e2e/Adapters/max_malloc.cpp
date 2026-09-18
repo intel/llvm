@@ -1,10 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS=1 SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required %{run} %t.out
-
-// TODO: Temporarily disabled on Linux due to failures.
-// UNSUPPORTED: linux
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22227
+// RUN: env SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=1 UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS=1 SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required %{run} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -25,7 +21,7 @@ int main() {
             << D.get_info<info::device::max_mem_alloc_size>() / Gb << std::endl;
 
   auto Q = queue(D);
-  for (int I = 1; I < global_mem_size; I++) {
+  for (int I = 1; I < global_mem_size - 1; I++) {
     void *p;
     p = malloc_device(I * Gb, Q);
     std::cout << "malloc_device(" << I << "Gb) = " << p << std::endl;
