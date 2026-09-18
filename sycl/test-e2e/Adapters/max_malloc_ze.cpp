@@ -12,7 +12,19 @@
 // "out of device memory" failure near the device's memory ceiling (see
 // https://github.com/intel/llvm/issues/22227) apart from any other,
 // unexpected allocation failure.
+//
+// This test also explicitly calls zeContextMakeMemoryResident() after each
+// zeMemAllocDevice(), mirroring what the UR Level Zero adapter's
+// malloc_device() implementation does by default (see
+// USMAllocationMakeResident() in
+// unified-runtime/source/adapters/level_zero/usm.cpp), and times that call
+// with std::chrono. This lets this raw-L0 test be used to independently
+// verify whether zeContextMakeMemoryResident()'s per-call latency grows as
+// more allocations accumulate over the course of the test, which is a
+// suspected root cause of the max_malloc.cpp timeouts (see
+// https://github.com/intel/llvm/issues/22405).
 
+#include <chrono>
 #include <iostream>
 #include <level_zero/ze_api.h>
 #include <sycl/detail/core.hpp>
@@ -89,6 +101,27 @@ int main() {
       std::cout << "FAILED" << std::endl;
       return -1;
     }
+
+    // Mirror what the UR Level Zero adapter's malloc_device() does by
+    // default: force the allocation resident on its device right away (see
+    // USMAllocationMakeResident() in
+    // unified-runtime/source/adapters/level_zero/usm.cpp). Time the call
+    // in-process with std::chrono to get a reliable per-call latency,
+    // independent of any stdout-buffering artifacts in the CI logs.
+    auto MakeResidentStart = std::chrono::steady_clock::now();
+    Res = zeContextMakeMemoryResident(ZeContext, ZeDevice, p, I * Gb);
+    auto MakeResidentEnd = std::chrono::steady_clock::now();
+    auto MakeResidentMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              MakeResidentEnd - MakeResidentStart)
+                              .count();
+    std::cout << "zeContextMakeMemoryResident(" << I
+              << "Gb) result = " << std::hex << Res << std::dec << ", took "
+              << MakeResidentMs << " ms" << std::endl;
+    if (Res != ZE_RESULT_SUCCESS) {
+      std::cout << "FAILED (zeContextMakeMemoryResident)" << std::endl;
+      return -1;
+    }
+
     zeMemFree(ZeContext, p);
 
     ze_host_mem_alloc_desc_t HostDesc = {};
