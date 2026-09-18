@@ -169,6 +169,19 @@ int main(int argc, char **argv) {
               << "Maximal number of lanes (virtual SIMD size) per HW thread = "
               << numMaxLanesPerHWThread << std::endl;
         }
+        if (SYCL_EXT_INTEL_DEVICE_INFO >= 10 &&
+            dev.has(aspect::ext_intel_device_info_ip_version)) {
+          uint32_t ipVersion =
+              dev.get_info<ext::intel::info::device::ip_version>();
+          std::cout << "Device IP version = " << ipVersion << std::endl;
+          if (dev.is_gpu()) {
+            std::cout << "Device IP version (major.minor.revision) = "
+                      << ext::intel::get_gpu_ip_version_major(ipVersion) << "."
+                      << ext::intel::get_gpu_ip_version_minor(ipVersion) << "."
+                      << ext::intel::get_gpu_ip_version_revision(ipVersion)
+                      << std::endl;
+          }
+        }
       } // SYCL_EXT_INTEL_DEVICE_INFO
       std::cout << std::endl;
     }
