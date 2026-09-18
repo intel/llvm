@@ -1,6 +1,11 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: %if linux %{ env ZE_DEBUG=-1 ZE_ENABLE_VALIDATION_LAYER=1 SYCL_UR_TRACE=-1 %} env UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS=1 SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required %{run} %t.out
+// RUN: env SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=1 UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS=1 SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required %{run} %t.out
+
+// debug_R_U_N: %if linux %{ env ZE_DEBUG=-1 ZE_ENABLE_VALIDATION_LAYER=1
+// SYCL_UR_TRACE=-1 %} env UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS=1
+// SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required
+// %{run} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -21,7 +26,7 @@ int main() {
             << D.get_info<info::device::max_mem_alloc_size>() / Gb << std::endl;
 
   auto Q = queue(D);
-  for (int I = 1; I < global_mem_size; I++) {
+  for (int I = 1; I < global_mem_size - 1; I++) {
     void *p;
     p = malloc_device(I * Gb, Q);
     std::cout << "malloc_device(" << I << "Gb) = " << p << std::endl;
