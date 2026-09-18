@@ -128,10 +128,10 @@ event make_event(const context &ctxt, PropertyListT props = {});
 
 _Constraints:_
 
-* `PropertyListT` is one of the properties listed below in section "New property
+* `PropertyListT` is one of the properties listed below in section "New properties
   for creating an event"; or
 * `is_property_list_v<PropertyListT>` is `true` and contains no properties other
-  than those listed below in section "New property for creating an event".
+  than those listed below in section "New properties for creating an event".
 
 _Returns:_ An event that is associated with context `ctxt`. The event has
 `info::event_command_status::complete` status.
@@ -155,10 +155,10 @@ event make_event(PropertyListT props = {});
 
 _Constraints:_
 
-* `PropertyListT` is one of the properties listed below in section "New property
+* `PropertyListT` is one of the properties listed below in section "New properties
   for creating an event"; or
 * `is_property_list_v<PropertyListT>` is `true` and contains no properties other
-  than those listed below in section "New property for creating an event".
+  than those listed below in section "New properties for creating an event".
 
 _Effects:_ Equivalent to:
 

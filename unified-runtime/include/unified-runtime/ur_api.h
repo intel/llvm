@@ -14042,9 +14042,7 @@ typedef struct ur_exp_event_desc_t {
 typedef uint32_t ur_exp_event_sync_mode_flags_t;
 typedef enum ur_exp_event_sync_mode_flag_t {
   /// When enabled, the driver optimizes event host synchronization calls,
-  /// such as zeEventHostSynchronize, to use CPU threads more efficiently.
-  /// For example, instead of actively polling a memory location, it may use
-  /// operating system mechanisms to put the CPU thread to sleep.
+  /// to use CPU threads more efficiently.
   UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT = UR_BIT(0),
   /// @cond
   UR_EXP_EVENT_SYNC_MODE_FLAG_FORCE_UINT32 = 0x7fffffff
