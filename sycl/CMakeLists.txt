@@ -584,20 +584,19 @@ if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
 
-include(CheckEnabledLLVMRuntime)
-is_llvm_runtime_enabled(libclc libclc_enabled)
+include(GetTargetsBuildingLLVMRuntime)
+get_targets_building_llvm_runtime(libclc libclc_targets)
 
-if(libclc_enabled)
-  add_dependencies(sycl-toolchain libclc)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
-endif()
+foreach(target IN LISTS libclc_targets)
+  add_dependencies(sycl-toolchain libclc-${target})
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS runtimes-${target}::libspirv-builtins)
+endforeach()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  if(NOT libclc_enabled)
-    message(FATAL_ERROR
-      "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
-  endif()
+  if(NOT ("nvptx64-nvidia-cuda" IN_LIST libclc_targets))
+    message(FATAL_ERROR "CUDA support requires building \"libclc\" for the NVPTX target")
+  endif() # INTEL
 
   add_dependencies(sycl-toolchain ur_adapter_cuda)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_cuda)
@@ -605,9 +604,8 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  if(NOT libclc_enabled)
-    message(FATAL_ERROR
-      "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  if(NOT ("amdgcn-amd-amdhsa" IN_LIST libclc_targets))
+    message(FATAL_ERROR "HIP support requires building \"libclc\" for the AMDGCN target")
   endif()
 
   if(NOT TARGET lld AND "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "AMD")
@@ -657,13 +655,11 @@ endfunction()
 
 foreach(component IN LISTS SYCL_TOOLCHAIN_DEPLOY_COMPONENTS)
   message(STATUS "Adding component ${component} to deploy")
-  if("${component}" MATCHES "libspirv-builtins")
-    foreach(tgt IN LISTS LLVM_RUNTIME_TARGETS)
-      if("libclc" IN_LIST RUNTIMES_${tgt}_LLVM_ENABLE_RUNTIMES)
-        set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc/cmake_install.cmake")
-        sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "libclc")
-      endif()
-    endforeach()
+  if("${component}" MATCHES "^runtimes-(.*)::(.*)")
+    set(tgt "${CMAKE_MATCH_1}")
+    set(component "${CMAKE_MATCH_2}")
+    set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc/cmake_install.cmake")
+    sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "libclc-${tgt}")
   else()
     set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
     set(COMPONENT_DEPS "")
