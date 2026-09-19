@@ -196,6 +196,24 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr::property {
+namespace key {
+struct enable_profiling : detail::runtime_property_key {};
+struct in_order : detail::runtime_property_key {};
+} // namespace key
+
+struct enable_profiling : detail::runtime_property<key::enable_profiling> {
+  constexpr enable_profiling(bool v = true) : value{v} {}
+  bool value;
+};
+struct in_order : detail::runtime_property<key::in_order> {
+  constexpr in_order(bool v = true) : value{v} {}
+  bool value;
+};
+} // namespace khr::property
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
 /// A SYCL queue can be used to submit command groups to be executed by the SYCL
@@ -4239,6 +4257,16 @@ auto submit_kernel_direct_single_task(const queue &Queue,
       CodeLoc);
 }
 } // namespace detail
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr {
+template <>
+struct is_property_key_for<property::key::enable_profiling, queue>
+    : std::true_type {};
+template <>
+struct is_property_key_for<property::key::in_order, queue> : std::true_type {};
+} // namespace khr
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 } // namespace _V1
 } // namespace sycl
