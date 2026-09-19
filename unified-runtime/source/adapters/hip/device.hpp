@@ -13,6 +13,9 @@
 
 #include <ur/ur.hpp>
 
+#include <cerrno>
+#include <cstdlib>
+
 /// UR device mapping to a hipDevice_t.
 /// Includes an observer pointer to the platform,
 /// and implements the reference counting semantics since
@@ -91,6 +94,25 @@ public:
       // Cap chosen local mem size to device capacity, kernel enqueue will fail
       // if it actually needs more.
       MaxChosenLocalMem = std::min(MaxChosenLocalMem, MaxCapacityLocalMem);
+    }
+
+    // Set the per-thread stack size limit if the env var is present. This maps
+    // to HIP's hipLimitStackSize (the equivalent of cudaLimitStackSize) and is
+    // useful for kernels with deep recursion or large per-thread private data
+    // that would otherwise overflow the small default stack. This device is
+    // already current here (hipSetDevice is called before construction in
+    // platform.cpp), so hipDeviceSetLimit applies to it.
+    if (const char *StackSizePtr = std::getenv("UR_HIP_STACK_SIZE")) {
+      errno = 0;
+      char *End = nullptr;
+      const unsigned long long Parsed = std::strtoull(StackSizePtr, &End, 10);
+      if (errno != 0 || End == StackSizePtr || *End != '\0' || Parsed == 0) {
+        setErrorMessage("Invalid value specified for UR_HIP_STACK_SIZE",
+                        UR_RESULT_ERROR_INVALID_VALUE);
+        throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      UR_CHECK_ERROR(
+          hipDeviceSetLimit(hipLimitStackSize, static_cast<size_t>(Parsed)));
     }
   }
 
