@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_optnone -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_EXT_optnone -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_optnone %t.bc -o %t.spv
+; RUN: llvm-spirv --spirv-ext=+SPV_EXT_optnone %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -12,13 +12,12 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NO-EXT
 
-; CHECK-SPIRV: Capability OptNoneINTEL
-; CHECK-SPIRV: Extension "SPV_INTEL_optnone"
+; CHECK-SPIRV: Capability OptNoneEXT
+; CHECK-SPIRV: Extension "SPV_EXT_optnone"
 
 ; Per SPIR-V spec:
 ; FunctionControlDontInlineMask = 0x2 (2)
-; Per SPIR-V spec extension SPV_INTEL_optnone:
-; FunctionControlOptNoneINTELMask = 0x10000 (65536)
+; FunctionControlOptNoneMask = 0x10000 (65536)
 ; CHECK-SPIRV: Function {{[0-9]+}} {{[0-9]+}} 65538
 ; CHECK-SPIRV-NO-EXT: Function {{[0-9]+}} {{[0-9]+}} 2
 
