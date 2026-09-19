@@ -82,6 +82,9 @@ StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 StringRef getGenGRFFlag(StringRef GRFMode);
 
+// Returns the rightmost "-device <arch>" value in Tokens, or empty if none.
+StringRef getEmbeddedDeviceArch(ArrayRef<const char *> Tokens);
+
 // Returns the full path of the ocloc tool to be used for AOT compilation and
 // for emitting the ocloc help information.  A user provided --ocloc-path= is
 // honored above all other lookup locations.  If not found, the tool (ocloc) is

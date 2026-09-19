@@ -11065,10 +11065,15 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
                                        *HostTC, Arch.ArchName);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      // Filter per-arch only when this image is bound to a single arch;
+      // legacy "-device pvc,bdw" buckets should keep all opts.
+      StringRef PerArch = Archs.size() == 1 ? Arch.ArchName : StringRef();
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                        PerArch);
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                       PerArch);
       createArgString("link-opts=");
     }
 
@@ -12392,14 +12397,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-suppress-undefined-func-warnings"));
 
-    // Pass backend compiler, linker, sycl-post-link,
-    // llvm-spirv, and spirv-to-ir-wrapper options specified at link
-    // time to clang-linker-wrapper, using the following mapping:
     // -Xsycl-target-backend  -> --device-compiler
-    // -Xsycl-target-linker -> --device-linker
-    // -Xdevice-post-link -> --sycl-post-link-options
-    // -Xspirv-translator -> --llvm-spirv-options
-    // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
+    // -Xsycl-target-linker   -> --device-linker
+    // -Xdevice-post-link     -> --sycl-post-link-options
+    // -Xspirv-translator     -> --llvm-spirv-options
+    // -Xspirv-to-ir-wrapper  -> --spirv-to-ir-wrapper-options
+    // For spir64_gen with multiple bound archs, --device-compiler/
+    // --device-linker are qualified with /<arch> and emitted per arch so
+    // per-arch tokens don't leak between archs on the wrapper side.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
@@ -12407,20 +12412,39 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
-      ArgStringList BuildArgs;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        CmdArgs.push_back(
-            Args.MakeArgString("--device-compiler=" +
-                               Action::GetOffloadKindName(Action::OFK_SYCL) +
-                               ":" + TC->getTripleString() + "=" + A));
 
-      BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
-            ":" + TC->getTripleString() + "=" + A));
+      SmallVector<StringRef, 4> Devices;
+      if (TC->getTriple().isSPIR() &&
+          TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        for (BoundArch BA : C.getDriver().getOffloadArchs(
+                 C, C.getArgs(), Action::OFK_SYCL, *TC))
+          if (!BA.ArchName.empty())
+            Devices.push_back(BA.ArchName);
+      }
+      if (Devices.size() < 2)
+        Devices.assign(1, StringRef());
+
+      StringRef KindPrefix = Action::GetOffloadKindName(Action::OFK_SYCL);
+      ArgStringList BuildArgs;
+      for (StringRef Device : Devices) {
+        SmallString<64> Key(TC->getTripleString());
+        if (!Device.empty()) {
+          Key += '/';
+          Key += Device;
+        }
+        BuildArgs.clear();
+        SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                          Device);
+        for (const char *T : BuildArgs)
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-compiler=" + KindPrefix + ":" + Key + "=" + T));
+        BuildArgs.clear();
+        SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                         Device);
+        for (const char *T : BuildArgs)
+          CmdArgs.push_back(Args.MakeArgString("--device-linker=" + KindPrefix +
+                                               ":" + Key + "=" + T));
+      }
 
       BuildArgs.clear();
       SYCLTC.TranslateTargetOpt(
