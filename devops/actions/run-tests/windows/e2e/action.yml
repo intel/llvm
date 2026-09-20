@@ -88,9 +88,28 @@ runs:
       $process = Start-Process -FilePath cmd.exe `
         -ArgumentList '/d', '/s', '/c', $buildCommand `
         -PassThru
-      $processInfo = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($process.Id)"
-      Set-Content -Path e2e_root_pid.txt -Value "$($process.Id)|$($processInfo.Name)|$($processInfo.CreationDate)"
       $process.WaitForExit()
+      $processInfo = @{}
+      Get-CimInstance -ClassName Win32_Process | ForEach-Object {
+        $processInfo[[int]$_.ProcessId] = $_
+      }
+      $lingeringProcesses = [System.Collections.Generic.List[string]]::new()
+      foreach ($candidateProcess in $processInfo.Values) {
+        $candidateProcessId = [int]$candidateProcess.ProcessId
+        while ($processInfo.ContainsKey($candidateProcessId)) {
+          $parentProcessId = [int]$processInfo[$candidateProcessId].ParentProcessId
+          if ($parentProcessId -eq $process.Id) {
+            $lingeringProcesses.Add(
+              "$($candidateProcess.ProcessId)|$($candidateProcess.Name)|$($candidateProcess.CreationDate)")
+            break
+          }
+          if ($parentProcessId -le 0 -or $parentProcessId -eq $candidateProcessId) {
+            break
+          }
+          $candidateProcessId = $parentProcessId
+        }
+      }
+      Set-Content -Path e2e_processes.txt -Value $lingeringProcesses
       exit $process.ExitCode
   # Two steps below are duplicated between Lin/Win actions, updates must change both
   - name: E2E logs
@@ -152,62 +171,38 @@ runs:
         [System.IO.Path]::DirectorySeparatorChar,
         [System.IO.Path]::AltDirectorySeparatorChar) +
         [System.IO.Path]::DirectorySeparatorChar
-      if (-not (Test-Path e2e_root_pid.txt)) {
+      if (-not (Test-Path e2e_processes.txt)) {
         return
       }
-      $e2eRootMetadata = Get-Content e2e_root_pid.txt | Select-Object -First 1
-      $e2eRootPid, $e2eRootName, $e2eRootCreationDate = $e2eRootMetadata -split '\|', 3
-      $e2eRootPid = [int]$e2eRootPid
-      if ($e2eRootPid -le 0) {
-        return
-      }
+      $recordedProcesses = Get-Content e2e_processes.txt
       $processInfo = @{}
       Get-CimInstance -ClassName Win32_Process | ForEach-Object {
         $processInfo[[int]$_.ProcessId] = @{
-          ParentProcessId = [int]$_.ParentProcessId
           Name = $_.Name
           CreationDate = $_.CreationDate
         }
       }
-      if ($processInfo.ContainsKey($e2eRootPid)) {
-        $rootProcessInfo = $processInfo[$e2eRootPid]
-        if ($rootProcessInfo.Name -ne $e2eRootName -or
-            $rootProcessInfo.CreationDate -ne $e2eRootCreationDate) {
-          return
+      foreach ($recordedProcess in $recordedProcesses) {
+        $candidateProcessId, $candidateProcessName, $candidateProcessCreationDate = $recordedProcess -split '\|', 3
+        $candidateProcessId = [int]$candidateProcessId
+        if (-not $processInfo.ContainsKey($candidateProcessId)) {
+          continue
         }
-      }
-      Get-Process | Where-Object {
+        $currentProcessInfo = $processInfo[$candidateProcessId]
+        if ($currentProcessInfo.Name -ne $candidateProcessName -or
+            $currentProcessInfo.CreationDate -ne $candidateProcessCreationDate) {
+          continue
+        }
         try {
-          $processPath = [System.IO.Path]::GetFullPath($_.Path)
+          $processPath = [System.IO.Path]::GetFullPath((Get-Process -Id $candidateProcessId).Path)
         } catch {
-          return $false
+          continue
         }
-        if (-not $processPath) {
-          return $false
+        if ($processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $processPath -match '[\\\\/](output|bin)[\\\\/]') {
+          Write-Host "Stopping leftover E2E process $processPath"
+          Stop-Process -Id $candidateProcessId -Force
         }
-        $candidateProcessId = [int]$_.Id
-        while ($true) {
-          if ($candidateProcessId -eq $e2eRootPid) {
-            return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
-              $processPath -match '[\\\\/](output|bin)[\\\\/]'
-          }
-          if (-not $processInfo.ContainsKey($candidateProcessId)) {
-            break
-          }
-          $parentProcessId = $processInfo[$candidateProcessId].ParentProcessId
-          if ($parentProcessId -eq $e2eRootPid) {
-            return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
-              $processPath -match '[\\\\/](output|bin)[\\\\/]'
-          }
-          if ($parentProcessId -le 0 -or $parentProcessId -eq $candidateProcessId) {
-            break
-          }
-          $candidateProcessId = $parentProcessId
-        }
-        return $false
-      } | ForEach-Object {
-        Write-Host "Stopping leftover E2E process $($_.Path)"
-        Stop-Process -Id $_.Id -Force
       }
   - name: Cleanup E2E tests
     if: ${{ always() }}
