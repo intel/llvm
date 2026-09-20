@@ -141,6 +141,9 @@ runs:
       Get-ChildItem -Path $buildDir -Filter '*.tmp.out*' -Recurse -File -ErrorAction SilentlyContinue |
         ForEach-Object {
           $null = $testExecutables.Add($_.FullName)
+          if (-not $_.FullName.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+            $null = $testExecutables.Add("$($_.FullName).exe")
+          }
         }
       Get-Process | Where-Object {
         try {
