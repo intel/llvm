@@ -79,11 +79,17 @@ runs:
   - name: Run End-to-End tests
     id: run_e2e
     continue-on-error: true
-    shell: bash
+    shell: powershell
     env:
+      BUILD_DIR: ${{ steps.build_dir.outputs.path }}
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
-      cmake --build ${{ steps.build_dir.outputs.path }} --target check-sycl-e2e > e2e.log 2>&1
+      $process = Start-Process -FilePath cmd.exe `
+        -ArgumentList '/d', '/s', '/c', "cmake --build $env:BUILD_DIR --target check-sycl-e2e > e2e.log 2>&1" `
+        -PassThru
+      Set-Content -Path e2e_root_pid.txt -Value $process.Id
+      $process.WaitForExit()
+      exit $process.ExitCode
   # Two steps below are duplicated between Lin/Win actions, updates must change both
   - name: E2E logs
     if: ${{ always() }}
@@ -144,22 +150,16 @@ runs:
         [System.IO.Path]::DirectorySeparatorChar,
         [System.IO.Path]::AltDirectorySeparatorChar) +
         [System.IO.Path]::DirectorySeparatorChar
+      if (-not (Test-Path e2e_root_pid.txt)) {
+        return
+      }
+      $e2eRootPid = [int](Get-Content e2e_root_pid.txt | Select-Object -First 1)
+      if ($e2eRootPid -le 0) {
+        return
+      }
       $processParents = @{}
       Get-CimInstance -ClassName Win32_Process | ForEach-Object {
         $processParents[[int]$_.ProcessId] = [int]$_.ParentProcessId
-      }
-      $currentProcessTree = [System.Collections.Generic.HashSet[int]]::new()
-      $currentProcessId = $PID
-      while ($true) {
-        $null = $currentProcessTree.Add([int]$currentProcessId)
-        if (-not $processParents.ContainsKey([int]$currentProcessId)) {
-          break
-        }
-        $parentProcessId = $processParents[[int]$currentProcessId]
-        if ($parentProcessId -le 0 -or $parentProcessId -eq $currentProcessId) {
-          break
-        }
-        $currentProcessId = $parentProcessId
       }
       Get-Process | Where-Object {
         try {
@@ -172,7 +172,7 @@ runs:
         }
         $candidateProcessId = [int]$_.Id
         while ($true) {
-          if ($currentProcessTree.Contains($candidateProcessId)) {
+          if ($candidateProcessId -eq $e2eRootPid) {
             return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
               $processPath -match '[\\\\/]output[\\\\/]'
           }
@@ -180,6 +180,10 @@ runs:
             break
           }
           $parentProcessId = $processParents[$candidateProcessId]
+          if ($parentProcessId -eq $e2eRootPid) {
+            return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
+              $processPath -match '[\\\\/]output[\\\\/]'
+          }
           if ($parentProcessId -le 0 -or $parentProcessId -eq $candidateProcessId) {
             break
           }
