@@ -111,7 +111,9 @@ runs:
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
-      for FILE in $(cat e2econf_files.txt); do rm -r ${{ steps.build_dir.outputs.path }}/$FILE; done
+      while IFS= read -r FILE; do
+        rm -r "${{ steps.build_dir.outputs.path }}/$FILE"
+      done < e2econf_files.txt
       rm e2econf_files.txt
 
   - name: Pack E2E test binaries
@@ -152,11 +154,16 @@ runs:
       BUILD_DIR: ${{ steps.build_dir.outputs.path }}
       JOB_CANCELLED: ${{ cancelled() }}
     run: |
+      $lastError = $null
       for ($attempt = 0; $attempt -lt 5; ++$attempt) {
         if (-not (Test-Path $env:BUILD_DIR)) {
           return
         }
-        Remove-Item -Path $env:BUILD_DIR -Recurse -Force -ErrorAction SilentlyContinue
+        try {
+          Remove-Item -Path $env:BUILD_DIR -Recurse -Force -ErrorAction Stop
+        } catch {
+          $lastError = $_
+        }
         if (-not (Test-Path $env:BUILD_DIR)) {
           return
         }
@@ -167,5 +174,9 @@ runs:
         return
       }
 
-      Write-Error "Failed to remove $env:BUILD_DIR"
+      if ($lastError) {
+        Write-Error "Failed to remove $env:BUILD_DIR: $($lastError.Exception.Message)"
+      } else {
+        Write-Error "Failed to remove $env:BUILD_DIR"
+      }
       exit 1
