@@ -122,7 +122,7 @@ runs:
       path: e2e_bin.tar.gz
       retention-days: ${{ inputs.retention-days }}
   - name: Terminate leftover E2E test processes
-    if: ${{ !cancelled() }}
+    if: ${{ always() }}
     shell: powershell
     run: |
       $buildDir = (Join-Path $env:GITHUB_WORKSPACE "build-e2e") +
@@ -139,7 +139,7 @@ runs:
         Stop-Process -Id $_.Id -Force
       }
   - name: Cleanup E2E tests
-    if: ${{ !cancelled() }}
+    if: ${{ always() }}
     shell: powershell
     run: |
       for ($attempt = 0; $attempt -lt 5; ++$attempt) {
