@@ -88,7 +88,8 @@ runs:
       $process = Start-Process -FilePath cmd.exe `
         -ArgumentList '/d', '/s', '/c', $buildCommand `
         -PassThru
-      Set-Content -Path e2e_root_pid.txt -Value $process.Id
+      $processInfo = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($process.Id)"
+      Set-Content -Path e2e_root_pid.txt -Value "$($process.Id)|$($processInfo.Name)|$($processInfo.CreationDate)"
       $process.WaitForExit()
       exit $process.ExitCode
   # Two steps below are duplicated between Lin/Win actions, updates must change both
@@ -154,13 +155,26 @@ runs:
       if (-not (Test-Path e2e_root_pid.txt)) {
         return
       }
-      $e2eRootPid = [int](Get-Content e2e_root_pid.txt | Select-Object -First 1)
+      $e2eRootMetadata = Get-Content e2e_root_pid.txt | Select-Object -First 1
+      $e2eRootPid, $e2eRootName, $e2eRootCreationDate = $e2eRootMetadata -split '\|', 3
+      $e2eRootPid = [int]$e2eRootPid
       if ($e2eRootPid -le 0) {
         return
       }
-      $processParents = @{}
+      $processInfo = @{}
       Get-CimInstance -ClassName Win32_Process | ForEach-Object {
-        $processParents[[int]$_.ProcessId] = [int]$_.ParentProcessId
+        $processInfo[[int]$_.ProcessId] = @{
+          ParentProcessId = [int]$_.ParentProcessId
+          Name = $_.Name
+          CreationDate = $_.CreationDate
+        }
+      }
+      if ($processInfo.ContainsKey($e2eRootPid)) {
+        $rootProcessInfo = $processInfo[$e2eRootPid]
+        if ($rootProcessInfo.Name -ne $e2eRootName -or
+            $rootProcessInfo.CreationDate -ne $e2eRootCreationDate) {
+          return
+        }
       }
       Get-Process | Where-Object {
         try {
@@ -177,10 +191,10 @@ runs:
             return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
               $processPath -match '[\\\\/](output|bin)[\\\\/]'
           }
-          if (-not $processParents.ContainsKey($candidateProcessId)) {
+          if (-not $processInfo.ContainsKey($candidateProcessId)) {
             break
           }
-          $parentProcessId = $processParents[$candidateProcessId]
+          $parentProcessId = $processInfo[$candidateProcessId].ParentProcessId
           if ($parentProcessId -eq $e2eRootPid) {
             return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
               $processPath -match '[\\\\/](output|bin)[\\\\/]'
