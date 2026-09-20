@@ -136,6 +136,12 @@ runs:
     run: |
       $buildDir = (Join-Path $env:GITHUB_WORKSPACE $env:BUILD_DIR) +
         [System.IO.Path]::DirectorySeparatorChar
+      $testExecutables = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+      Get-ChildItem -Path $buildDir -Filter '*.tmp.out*' -Recurse -File -ErrorAction SilentlyContinue |
+        ForEach-Object {
+          $null = $testExecutables.Add($_.FullName)
+        }
       Get-Process | Where-Object {
         try {
           $processPath = $_.Path
@@ -145,9 +151,7 @@ runs:
         if (-not $processPath) {
           return $false
         }
-        $processName = Split-Path $processPath -Leaf
-        $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
-          $processName -like '*.tmp.out*'
+        $testExecutables.Contains($processPath)
       } | ForEach-Object {
         Write-Host "Stopping leftover E2E process $($_.Path)"
         Stop-Process -Id $_.Id -Force
