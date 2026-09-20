@@ -141,6 +141,8 @@ runs:
   - name: Cleanup E2E tests
     if: ${{ always() }}
     shell: powershell
+    env:
+      JOB_CANCELLED: ${{ cancelled() }}
     run: |
       for ($attempt = 0; $attempt -lt 5; ++$attempt) {
         if (-not (Test-Path build-e2e)) {
@@ -151,6 +153,10 @@ runs:
           exit 0
         }
         Start-Sleep -Seconds 2
+      }
+
+      if ($env:JOB_CANCELLED -eq 'true') {
+        exit 0
       }
 
       Write-Error "Failed to remove build-e2e"
