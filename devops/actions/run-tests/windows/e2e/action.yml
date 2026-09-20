@@ -99,8 +99,14 @@ runs:
         while ($processInfo.ContainsKey($candidateProcessId)) {
           $parentProcessId = [int]$processInfo[$candidateProcessId].ParentProcessId
           if ($parentProcessId -eq $process.Id) {
+            try {
+              $candidateProcessPath = [System.IO.Path]::GetFullPath(
+                (Get-Process -Id $candidateProcess.ProcessId).Path)
+            } catch {
+              $candidateProcessPath = ''
+            }
             $lingeringProcesses.Add(
-              "$($candidateProcess.ProcessId)|$($candidateProcess.Name)|$($candidateProcess.CreationDate)")
+              "$($candidateProcess.ProcessId)|$($candidateProcess.Name)|$($candidateProcess.CreationDate)|$candidateProcessPath")
             break
           }
           if ($parentProcessId -le 0 -or $parentProcessId -eq $candidateProcessId) {
@@ -183,7 +189,7 @@ runs:
         }
       }
       foreach ($recordedProcess in $recordedProcesses) {
-        $candidateProcessId, $candidateProcessName, $candidateProcessCreationDate = $recordedProcess -split '\|', 3
+        $candidateProcessId, $candidateProcessName, $candidateProcessCreationDate, $candidateProcessPath = $recordedProcess -split '\|', 4
         $candidateProcessId = [int]$candidateProcessId
         if (-not $processInfo.ContainsKey($candidateProcessId)) {
           continue
@@ -198,8 +204,9 @@ runs:
         } catch {
           continue
         }
-        if ($processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
-            $processPath -match '[\\\\/](output|bin)[\\\\/]') {
+        if ($candidateProcessPath -and
+            $processPath -eq $candidateProcessPath -and
+            $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase)) {
           Write-Host "Stopping leftover E2E process $processPath"
           Stop-Process -Id $candidateProcessId -Force
         }
