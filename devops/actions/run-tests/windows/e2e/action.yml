@@ -217,6 +217,7 @@ runs:
         if (-not (Test-Path $buildDirPath)) {
           return
         }
+        $lastError = $null
         try {
           Remove-Item -Path $buildDirPath -Recurse -Force -ErrorAction Stop
         } catch {
