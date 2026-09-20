@@ -125,7 +125,8 @@ runs:
     if: ${{ !cancelled() }}
     shell: powershell
     run: |
-      $buildDir = Join-Path $env:GITHUB_WORKSPACE "build-e2e"
+      $buildDir = (Join-Path $env:GITHUB_WORKSPACE "build-e2e") +
+        [System.IO.Path]::DirectorySeparatorChar
       Get-Process | Where-Object {
         $_.Path -and $_.Path.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase)
       } | ForEach-Object {
