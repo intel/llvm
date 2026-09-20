@@ -140,7 +140,7 @@ runs:
     env:
       BUILD_DIR: ${{ steps.build_dir.outputs.path }}
     run: |
-      if (-not $IsWindows) {
+      if ([System.Environment]::OSVersion.Platform -ne 'Win32NT') {
         return
       }
 
