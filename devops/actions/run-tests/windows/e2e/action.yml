@@ -128,7 +128,12 @@ runs:
       $buildDir = (Join-Path $env:GITHUB_WORKSPACE "build-e2e") +
         [System.IO.Path]::DirectorySeparatorChar
       Get-Process | Where-Object {
-        $_.Path -and $_.Path.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase)
+        try {
+          $processPath = $_.Path
+        } catch {
+          return $false
+        }
+        $processPath -and $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase)
       } | ForEach-Object {
         Write-Host "Stopping leftover E2E process $($_.Path)"
         Stop-Process -Id $_.Id -Force
