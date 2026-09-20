@@ -154,17 +154,17 @@ runs:
     run: |
       for ($attempt = 0; $attempt -lt 5; ++$attempt) {
         if (-not (Test-Path $env:BUILD_DIR)) {
-          exit 0
+          return
         }
         Remove-Item -Path $env:BUILD_DIR -Recurse -Force -ErrorAction SilentlyContinue
         if (-not (Test-Path $env:BUILD_DIR)) {
-          exit 0
+          return
         }
         Start-Sleep -Seconds 2
       }
 
       if ($env:JOB_CANCELLED -eq 'true') {
-        exit 0
+        return
       }
 
       Write-Error "Failed to remove $env:BUILD_DIR"
