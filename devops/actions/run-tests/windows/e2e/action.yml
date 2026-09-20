@@ -152,7 +152,7 @@ runs:
         $processName = Split-Path $processPath -Leaf
         $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
           $processPath -match '[\\\\/]output[\\\\/]' -and
-          ($processName -like '*.exe' -or $processName -like '*.tmp.out*')
+          $processName -like '*.tmp.*'
       } | ForEach-Object {
         Write-Host "Stopping leftover E2E process $($_.Path)"
         Stop-Process -Id $_.Id -Force
