@@ -37,6 +37,8 @@
 ; RUN: FileCheck %s -input-file=%t-none_0.prop --check-prefix CHECK-PROP-NO-SPLIT
 
 ; CHECK-PROP-NO-SPLIT: [SYCL/device requirements]
+; The value here (16) is KernelA's: the first value seen wins on
+; disagreement; see SYCLDeviceRequirements.cpp.
 ; CHECK-PROP-NO-SPLIT: reqd_sub_group_size=1|16
 
 ; ModuleID = 'foo.cpp'
