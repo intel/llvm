@@ -121,7 +121,31 @@ runs:
       name: ${{ inputs.binaries_artifact }}
       path: e2e_bin.tar.gz
       retention-days: ${{ inputs.retention-days }}
+  - name: Terminate leftover E2E test processes
+    if: ${{ !cancelled() }}
+    shell: powershell
+    run: |
+      $buildDir = Join-Path $env:GITHUB_WORKSPACE "build-e2e"
+      Get-Process | Where-Object {
+        $_.Path -and $_.Path.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase)
+      } | ForEach-Object {
+        Write-Host "Stopping leftover E2E process $($_.Path)"
+        Stop-Process -Id $_.Id -Force
+      }
   - name: Cleanup E2E tests
     if: ${{ !cancelled() }}
-    shell: bash
-    run: rm -rf build-e2e
+    shell: powershell
+    run: |
+      for ($attempt = 0; $attempt -lt 5; ++$attempt) {
+        if (-not (Test-Path build-e2e)) {
+          exit 0
+        }
+        Remove-Item -Path build-e2e -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path build-e2e)) {
+          exit 0
+        }
+        Start-Sleep -Seconds 2
+      }
+
+      Write-Error "Failed to remove build-e2e"
+      exit 1
