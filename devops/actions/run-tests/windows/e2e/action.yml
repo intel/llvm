@@ -144,15 +144,22 @@ runs:
         [System.IO.Path]::DirectorySeparatorChar,
         [System.IO.Path]::AltDirectorySeparatorChar) +
         [System.IO.Path]::DirectorySeparatorChar
+      $processParents = @{}
+      Get-CimInstance -ClassName Win32_Process | ForEach-Object {
+        $processParents[[int]$_.ProcessId] = [int]$_.ParentProcessId
+      }
       $currentProcessTree = [System.Collections.Generic.HashSet[int]]::new()
-      $currentProcess = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $PID"
-      while ($currentProcess) {
-        $null = $currentProcessTree.Add([int]$currentProcess.ProcessId)
-        if ($currentProcess.ParentProcessId -le 0 -or
-            $currentProcess.ParentProcessId -eq $currentProcess.ProcessId) {
+      $currentProcessId = $PID
+      while ($true) {
+        $null = $currentProcessTree.Add([int]$currentProcessId)
+        if (-not $processParents.ContainsKey([int]$currentProcessId)) {
           break
         }
-        $currentProcess = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($currentProcess.ParentProcessId)" -ErrorAction SilentlyContinue
+        $parentProcessId = $processParents[[int]$currentProcessId]
+        if ($parentProcessId -le 0 -or $parentProcessId -eq $currentProcessId) {
+          break
+        }
+        $currentProcessId = $parentProcessId
       }
       Get-Process | Where-Object {
         try {
@@ -163,17 +170,20 @@ runs:
         if (-not $processPath) {
           return $false
         }
-        $candidateProcess = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue
-        while ($candidateProcess) {
-          if ($currentProcessTree.Contains([int]$candidateProcess.ProcessId)) {
+        $candidateProcessId = [int]$_.Id
+        while ($true) {
+          if ($currentProcessTree.Contains($candidateProcessId)) {
             return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
               $processPath -match '[\\\\/]output[\\\\/]'
           }
-          if ($candidateProcess.ParentProcessId -le 0 -or
-              $candidateProcess.ParentProcessId -eq $candidateProcess.ProcessId) {
+          if (-not $processParents.ContainsKey($candidateProcessId)) {
             break
           }
-          $candidateProcess = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($candidateProcess.ParentProcessId)" -ErrorAction SilentlyContinue
+          $parentProcessId = $processParents[$candidateProcessId]
+          if ($parentProcessId -le 0 -or $parentProcessId -eq $candidateProcessId) {
+            break
+          }
+          $candidateProcessId = $parentProcessId
         }
         return $false
       } | ForEach-Object {
