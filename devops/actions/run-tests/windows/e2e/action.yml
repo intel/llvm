@@ -175,7 +175,7 @@ runs:
         while ($true) {
           if ($candidateProcessId -eq $e2eRootPid) {
             return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
-              $processPath -match '[\\\\/]output[\\\\/]'
+              $processPath -match '[\\\\/](output|bin)[\\\\/]'
           }
           if (-not $processParents.ContainsKey($candidateProcessId)) {
             break
@@ -183,7 +183,7 @@ runs:
           $parentProcessId = $processParents[$candidateProcessId]
           if ($parentProcessId -eq $e2eRootPid) {
             return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
-              $processPath -match '[\\\\/]output[\\\\/]'
+              $processPath -match '[\\\\/](output|bin)[\\\\/]'
           }
           if ($parentProcessId -le 0 -or $parentProcessId -eq $candidateProcessId) {
             break
