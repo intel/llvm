@@ -69,7 +69,7 @@ void hip_matrix_copy() {
                     sub_c_copy;
                 joint_matrix<sub_group, InType, use::b, K, N, layout::row_major>
                     sub_b, sub_b_copy;
-                joint_matrix<sub_group, InType, use::a, M, K, layout::col_major>
+                joint_matrix<sub_group, InType, use::a, M, K, layout::row_major>
                     sub_a, sub_a_copy;
 
                 joint_matrix_load(
