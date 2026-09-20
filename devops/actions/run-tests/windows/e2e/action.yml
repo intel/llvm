@@ -38,12 +38,17 @@ runs:
     uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
     with:
       name: ${{ inputs.binaries_artifact }}
+  - name: Deduce E2E build directory
+    id: build_dir
+    shell: bash
+    run: |
+      echo "path=build-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> $GITHUB_OUTPUT
   - name: Extract E2E Binaries
     if: inputs.testing_mode == 'run-only'
     shell: bash
     run: |
-      mkdir build-e2e
-      tar -xf e2e_bin.tar.gz -C build-e2e
+      mkdir ${{ steps.build_dir.outputs.path }}
+      tar -xf e2e_bin.tar.gz -C ${{ steps.build_dir.outputs.path }}
 
   - name: Deduce E2E CMake options
     id: cmake_opts
@@ -59,17 +64,17 @@ runs:
     if: inputs.testing_mode != 'run-only'
     shell: bash
     run: |
-      mkdir build-e2e
+      mkdir ${{ steps.build_dir.outputs.path }}
 
   - name: Configure E2E tests
     shell: bash
     run: |
-      cmake -GNinja -B build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which dpclang++).exe' }}" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py" ${{ steps.cmake_opts.outputs.opts }}
+      cmake -GNinja -B ${{ steps.build_dir.outputs.path }} -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which dpclang++).exe' }}" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py" ${{ steps.cmake_opts.outputs.opts }}
 
   - name: Keep track of files after configuring E2E step
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
-    run: ls build-e2e > e2econf_files.txt
+    run: ls ${{ steps.build_dir.outputs.path }} > e2econf_files.txt
 
   - name: Run End-to-End tests
     id: run_e2e
@@ -78,7 +83,7 @@ runs:
     env:
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
-      cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
+      cmake --build ${{ steps.build_dir.outputs.path }} --target check-sycl-e2e > e2e.log 2>&1
   # Two steps below are duplicated between Lin/Win actions, updates must change both
   - name: E2E logs
     if: ${{ always() }}
@@ -106,14 +111,14 @@ runs:
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
-      for FILE in $(cat e2econf_files.txt); do rm -r build-e2e/$FILE; done
+      for FILE in $(cat e2econf_files.txt); do rm -r ${{ steps.build_dir.outputs.path }}/$FILE; done
       rm e2econf_files.txt
 
   - name: Pack E2E test binaries
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
-      tar -czf e2e_bin.tar.gz -C build-e2e .
+      tar -czf e2e_bin.tar.gz -C ${{ steps.build_dir.outputs.path }} .
   - name: Upload E2E test binaries
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -124,8 +129,10 @@ runs:
   - name: Terminate leftover E2E test processes
     if: ${{ always() }}
     shell: powershell
+    env:
+      BUILD_DIR: ${{ steps.build_dir.outputs.path }}
     run: |
-      $buildDir = (Join-Path $env:GITHUB_WORKSPACE "build-e2e") +
+      $buildDir = (Join-Path $env:GITHUB_WORKSPACE $env:BUILD_DIR) +
         [System.IO.Path]::DirectorySeparatorChar
       Get-Process | Where-Object {
         try {
@@ -142,14 +149,15 @@ runs:
     if: ${{ always() }}
     shell: powershell
     env:
+      BUILD_DIR: ${{ steps.build_dir.outputs.path }}
       JOB_CANCELLED: ${{ cancelled() }}
     run: |
       for ($attempt = 0; $attempt -lt 5; ++$attempt) {
-        if (-not (Test-Path build-e2e)) {
+        if (-not (Test-Path $env:BUILD_DIR)) {
           exit 0
         }
-        Remove-Item -Path build-e2e -Recurse -Force -ErrorAction SilentlyContinue
-        if (-not (Test-Path build-e2e)) {
+        Remove-Item -Path $env:BUILD_DIR -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path $env:BUILD_DIR)) {
           exit 0
         }
         Start-Sleep -Seconds 2
@@ -159,5 +167,5 @@ runs:
         exit 0
       }
 
-      Write-Error "Failed to remove build-e2e"
+      Write-Error "Failed to remove $env:BUILD_DIR"
       exit 1
