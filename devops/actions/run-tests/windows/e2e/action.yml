@@ -134,11 +134,15 @@ runs:
     env:
       BUILD_DIR: ${{ steps.build_dir.outputs.path }}
     run: |
-      $buildDir = (Join-Path $env:GITHUB_WORKSPACE $env:BUILD_DIR) +
+      $buildDirPath = [System.IO.Path]::GetFullPath(
+        (Join-Path $env:GITHUB_WORKSPACE $env:BUILD_DIR))
+      $buildDir = $buildDirPath.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar) +
         [System.IO.Path]::DirectorySeparatorChar
       Get-Process | Where-Object {
         try {
-          $processPath = $_.Path
+          $processPath = [System.IO.Path]::GetFullPath($_.Path)
         } catch {
           return $false
         }
