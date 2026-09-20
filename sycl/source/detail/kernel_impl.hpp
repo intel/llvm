@@ -329,10 +329,12 @@ inline typename Param::return_type kernel_impl::get_info() const {
   return get_kernel_info<Param>(this->getHandleRef(), getAdapter());
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // NOTE: the global_work_size and spill_memory_size pre-query checks below are
 // mirrored in validateDeviceSpecificQuery (get_kernel_info_impl.cpp), which

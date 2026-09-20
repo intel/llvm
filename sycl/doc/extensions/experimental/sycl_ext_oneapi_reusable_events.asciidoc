@@ -471,7 +471,14 @@ commands.
 
 === Implementation limitations
 
-This extension has been implemented with the following limitations:
+This extension has been implemented with the following limitations. A program
+must avoid them in order to work correctly, but a violation is only diagnosed
+in some cases. The implementation throws an `exception` with the `errc::invalid`
+error code if, at the point of the call, the command which the "event signal" or
+"event wait" operation depends on is still pending inside the SYCL runtime. If
+that command has already been submitted to the backend by then, the operation
+succeeds instead. Since an application cannot generally observe which of the
+two is the case, it must not rely on either outcome.
 
 * The `evt` passed to the `enqueue_wait_event` function and all events in
   `evts` passed to the `enqueue_wait_events` function need to have the same
@@ -485,6 +492,17 @@ This extension has been implemented with the following limitations:
   `sycl::ext::oneapi::experimental::host_task` function from the
   link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions] extension is supported.
+* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
+  functions cannot be dependent on a command which accesses a memory object
+  while a host accessor for that memory object exists (`enqueue_wait_event` and
+  `enqueue_wait_events` cannot take an event produced by such a command as an
+  argument and all those functions cannot be enqueued behind such a command on
+  an in-order queue). This applies to `host_accessor`,
+  `buffer::get_host_access`, `host_unsampled_image_accessor` and
+  `host_sampled_image_accessor`. Unlike a host task, which completes on its own,
+  such a command is held until the host accessor is destroyed, which happens
+  when the last copy of the host accessor is destroyed, so the application
+  controls how long this limitation lasts.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
   functions cannot be dependent on any commands which use cross-context
   event dependencies.
@@ -500,3 +518,17 @@ This extension has been implemented with the following limitations:
   `queue::ext_oneapi_memset2d`, `handler::ext_oneapi_fill2d`,
   `handler::ext_oneapi_memset2d`, if the backend does not support 2D fill or
   the target memory is on host.
+* When an event is passed to the `enqueue_signal_event` function and is also
+  used as a dependency of a command (via `handler::depends_on`, one of the
+  `queue` member functions which take event dependencies, or any other API
+  which establishes an event dependency), the same limitations apply as those
+  described above for the `enqueue_wait_event` and `enqueue_wait_events`
+  functions. This includes the restriction that the event needs to have the
+  same context as the queue to which the dependent command is submitted, which
+  temporarily restricts the behavior described in the section "Interaction with
+  other event APIs". These limitations apply regardless of whether the
+  dependent command is submitted before or after the call to
+  `enqueue_signal_event`. If any of these limitations is violated, the behavior
+  is undefined. This case is never diagnosed, because the implementation does
+  not currently differentiate between events enqueued for signaling using
+  `enqueue_signal_event` and regular events produced during command submission.

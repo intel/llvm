@@ -2499,8 +2499,12 @@ ur_buffer::ur_buffer(ur_context_handle_t Context, size_t Size,
 
 ur_buffer::~ur_buffer() {
   if (isSubBuffer())
-    ur::level_zero::v1::urMemRelease(
-        reinterpret_cast<::ur_mem_handle_t>(SubBuffer->Parent));
+    try {
+      ur::level_zero::v1::urMemRelease(
+          reinterpret_cast<::ur_mem_handle_t>(SubBuffer->Parent));
+    } catch (...) {
+      UR_LOG_SAFE(ERR, "UR buffer destructor: Error releasing parent buffer");
+    }
 }
 
 ur_result_t ur::level_zero::v1::ur_mem_handle_t_::getZeHandle(

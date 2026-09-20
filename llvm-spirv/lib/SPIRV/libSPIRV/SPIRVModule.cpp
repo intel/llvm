@@ -94,6 +94,7 @@ public:
   SPIRVModuleImpl(const SPIRV::TranslatorOpts &Opts) : SPIRVModuleImpl() {
     TranslationOpts = Opts;
     MaxVersion = Opts.getMaxVersion();
+    ErrLog.setErrorHandlingKind(Opts.getErrorHandlingKind());
   }
 
   ~SPIRVModuleImpl() override;
@@ -2559,7 +2560,7 @@ std::istream &SPIRVModuleImpl::parseSPT(std::istream &I) {
     SPIRVDBG(spvdbgs() << "Read word: W = " << W << " V = 0\n");
     return W;
   };
-  SPIRVErrorLog ErrorLog = MI.getErrorLog();
+  SPIRVErrorLog &ErrorLog = MI.getErrorLog();
   SPIRVWord Magic = ReadSPIRVWord(I);
 
   if (!ErrorLog.checkError(!I.eof(), SPIRVEC_InvalidModule,

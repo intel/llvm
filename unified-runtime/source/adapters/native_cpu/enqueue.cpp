@@ -96,6 +96,40 @@ static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
   return resized_state;
 }
 
+template <class T>
+static inline ur_result_t
+withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
+                uint32_t numEventsInWaitList,
+                const ur_event_handle_t *phEventWaitList,
+                ur_event_handle_t *phEvent, T &&f, bool blocking = true) {
+  if (phEvent) {
+    ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
+    *phEvent = event;
+    event->tick_start();
+    if (blocking || hQueue->isInOrder()) {
+      urEventWait(numEventsInWaitList, phEventWaitList);
+      ur_result_t result = f();
+      event->tick_end();
+      return result;
+    }
+    auto &tp = hQueue->getDevice()->tp;
+    auto Tasks = native_cpu::getScheduler(tp);
+    auto InEvents =
+        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
+    Tasks.schedule([f, InEvents](size_t) {
+      InEvents.wait();
+      f();
+    });
+    event->set_tasksinfo(Tasks.getMovedTaskInfo());
+    event->set_callback(
+        [event, InEvents = InEvents.getUniquePtr()]() { event->tick_end(); });
+    return UR_RESULT_SUCCESS;
+  }
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  ur_result_t result = f();
+  return result;
+}
+
 static ur_result_t urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -126,8 +160,12 @@ static ur_result_t urEnqueueKernelLaunch(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  if (*pGlobalWorkSize == 0) {
-    DIE_NO_IMPLEMENTATION;
+  if (pGlobalWorkSize[0] == 0 || (workDim > 1 && pGlobalWorkSize[1] == 0) ||
+      (workDim > 2 && pGlobalWorkSize[2] == 0)) {
+    hKernel->_localArgInfo.clear();
+    return withTimingEvent(UR_COMMAND_KERNEL_LAUNCH, hQueue,
+                           numEventsInWaitList, phEventWaitList, phEvent,
+                           []() { return UR_RESULT_SUCCESS; });
   }
 
   // Check reqd_work_group_size and other kernel constraints
@@ -249,40 +287,6 @@ static ur_result_t urEnqueueKernelLaunch(
   }
 
   return UR_RESULT_SUCCESS;
-}
-
-template <class T>
-static inline ur_result_t
-withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
-                uint32_t numEventsInWaitList,
-                const ur_event_handle_t *phEventWaitList,
-                ur_event_handle_t *phEvent, T &&f, bool blocking = true) {
-  if (phEvent) {
-    ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
-    *phEvent = event;
-    event->tick_start();
-    if (blocking || hQueue->isInOrder()) {
-      urEventWait(numEventsInWaitList, phEventWaitList);
-      ur_result_t result = f();
-      event->tick_end();
-      return result;
-    }
-    auto &tp = hQueue->getDevice()->tp;
-    auto Tasks = native_cpu::getScheduler(tp);
-    auto InEvents =
-        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
-    Tasks.schedule([f, InEvents](size_t) {
-      InEvents.wait();
-      f();
-    });
-    event->set_tasksinfo(Tasks.getMovedTaskInfo());
-    event->set_callback(
-        [event, InEvents = InEvents.getUniquePtr()]() { event->tick_end(); });
-    return UR_RESULT_SUCCESS;
-  }
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_result_t result = f();
-  return result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(

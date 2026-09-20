@@ -29,13 +29,8 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
-set(libclc_enabled FALSE)
-foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
-  if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
-    set(libclc_enabled TRUE)
-    break()
-  endif()
-endforeach()
+include(CheckEnabledLLVMRuntime)
+is_llvm_runtime_enabled(libclc libclc_enabled)
 
 if (libclc_enabled)
   # If some targets required `libclc` then we should embed it for the
@@ -239,6 +234,19 @@ target_link_libraries(sycl-jit
   SYCLJITPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )
+
+# In LLVM_LINK_LLVM_DYLIB builds sycl-jit links libLLVM.so rather than the LLVM
+# component libraries, so it does not inherit their INTERFACE properties:
+#  - LLVMSPIRVLib is not part of libLLVM.so, so the SPIRVLib component listed
+#    above resolves to the dylib (which lacks its symbols); link it explicitly.
+#  - rtc/ESIMD.cpp includes a vc-intrinsics header (GenXSPIRVWriterAdaptor.h),
+#    so add the LLVMGenXIntrinsics INTERFACE include directories explicitly.
+# The first mirrors llvm-spirv; the second mirrors sycl-post-link.
+if (LLVM_LINK_LLVM_DYLIB)
+  target_link_libraries(sycl-jit PRIVATE LLVMSPIRVLib)
+  target_include_directories(sycl-jit PRIVATE
+    $<TARGET_PROPERTY:LLVMGenXIntrinsics,INTERFACE_INCLUDE_DIRECTORIES>)
+endif()
 
 add_dependencies(sycl-jit sycl-headers)
 
