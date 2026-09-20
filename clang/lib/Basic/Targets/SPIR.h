@@ -190,7 +190,9 @@ public:
             // Permit CC_X86RegCall which is used to mark external functions
             // with explicit simd or structure type arguments to pass them via
             // registers.
-            CC == CC_X86RegCall)
+            CC == CC_X86RegCall ||
+            // Permit CC_X86VectorCall which is used in Microsoft headers.
+            CC == CC_X86VectorCall)
                ? CCCR_OK
                : CCCR_Warning;
   }
@@ -313,76 +315,18 @@ public:
   virtual size_t getMaxBitIntWidth() const override { return 4096; }
 };
 
-// x86-32 SPIR Windows target
-class LLVM_LIBRARY_VISIBILITY WindowsX86_32SPIRTargetInfo
-    : public WindowsTargetInfo<SPIR32TargetInfo> {
-public:
-  WindowsX86_32SPIRTargetInfo(const llvm::Triple &Triple,
-                              const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIR32TargetInfo>(Triple, Opts) {}
-
-  BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::CharPtrBuiltinVaList;
-  }
-
-  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    if (CC == CC_X86VectorCall)
-      // Permit CC_X86VectorCall which is used in Microsoft headers
-      return CCCR_OK;
-    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
-  }
-};
-
 // x86-64 SPIR64 Windows target
 class LLVM_LIBRARY_VISIBILITY WindowsX86_64_SPIR64TargetInfo
     : public WindowsTargetInfo<SPIR64TargetInfo> {
 public:
   WindowsX86_64_SPIR64TargetInfo(const llvm::Triple &Triple,
                                  const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {
-    SizeType = UnsignedLongLong;
-    PtrDiffType = SignedLongLong;
-    IntPtrType = SignedLongLong;
-  }
-
-  BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::CharPtrBuiltinVaList;
-  }
-
-  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    if (CC == CC_X86VectorCall || CC == CC_X86RegCall)
-      // Permit CC_X86VectorCall which is used in Microsoft headers
-      // Permit CC_X86RegCall which is used to mark external functions with
-      // explicit simd or structure type arguments to pass them via registers.
-      return CCCR_OK;
-    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
-  }
+      : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {}
 
   bool
   initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
                  StringRef CPU,
                  const std::vector<std::string> &FeaturesVec) const override;
-};
-
-// ARM64 SPIR64 Windows target
-class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIR64TargetInfo
-    : public WindowsTargetInfo<SPIR64TargetInfo> {
-public:
-  WindowsARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
-                                const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {
-    SizeType = UnsignedLongLong;
-    PtrDiffType = SignedLongLong;
-    IntPtrType = SignedLongLong;
-  }
-
-  BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::CharPtrBuiltinVaList;
-  }
-
-  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
-  }
 };
 
 class LLVM_LIBRARY_VISIBILITY BaseSPIRVTargetInfo : public BaseSPIRTargetInfo {
@@ -529,73 +473,6 @@ public:
 private:
   // opencl_global will map to CrossWorkgroup in SPIR-V
   LangAS ConstantAS = LangAS::opencl_global;
-};
-
-// x86-32 SPIRV32 Windows target
-class LLVM_LIBRARY_VISIBILITY WindowsX86_32SPIRV32TargetInfo
-    : public WindowsTargetInfo<SPIRV32TargetInfo> {
-public:
-  WindowsX86_32SPIRV32TargetInfo(const llvm::Triple &Triple,
-                                 const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIRV32TargetInfo>(Triple, Opts) {}
-
-  BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::CharPtrBuiltinVaList;
-  }
-
-  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    if (CC == CC_X86VectorCall)
-      // Permit CC_X86VectorCall which is used in Microsoft headers
-      return CCCR_OK;
-    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
-  }
-};
-
-// x86-64 SPIRV64 Windows target
-class LLVM_LIBRARY_VISIBILITY WindowsX86_64_SPIRV64TargetInfo
-    : public WindowsTargetInfo<SPIRV64TargetInfo> {
-public:
-  WindowsX86_64_SPIRV64TargetInfo(const llvm::Triple &Triple,
-                                  const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIRV64TargetInfo>(Triple, Opts) {
-    SizeType = UnsignedLongLong;
-    PtrDiffType = SignedLongLong;
-    IntPtrType = SignedLongLong;
-  }
-
-  BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::CharPtrBuiltinVaList;
-  }
-
-  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    if (CC == CC_X86VectorCall || CC == CC_X86RegCall)
-      // Permit CC_X86VectorCall which is used in Microsoft headers
-      // Permit CC_X86RegCall which is used to mark external functions with
-      // explicit simd or structure type arguments to pass them via registers.
-      return CCCR_OK;
-    return (CC == CC_C || CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
-  }
-};
-
-// ARM64 SPIRV64 Windows target
-class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIRV64TargetInfo
-    : public WindowsTargetInfo<SPIRV64TargetInfo> {
-public:
-  WindowsARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
-                                 const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIRV64TargetInfo>(Triple, Opts) {
-    SizeType = UnsignedLongLong;
-    PtrDiffType = SignedLongLong;
-    IntPtrType = SignedLongLong;
-  }
-
-  BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::CharPtrBuiltinVaList;
-  }
-
-  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_DeviceKernel) ? CCCR_OK : CCCR_Warning;
-  }
 };
 
 class LLVM_LIBRARY_VISIBILITY SPIRV64AMDGCNTargetInfo final

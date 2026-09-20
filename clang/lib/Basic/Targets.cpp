@@ -707,7 +707,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::Win32:
       assert(HT.getArch() == llvm::Triple::x86 &&
              "Unsupported host architecture");
-      return std::make_unique<WindowsX86_32SPIRTargetInfo>(Triple, Opts);
+      return std::make_unique<WindowsTargetInfo<SPIR32TargetInfo>>(Triple, Opts);
     case llvm::Triple::Linux:
       return std::make_unique<LinuxTargetInfo<SPIR32TargetInfo>>(Triple, Opts);
     default:
@@ -723,7 +723,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::Win32:
       switch (HT.getArch()) {
       case llvm::Triple::aarch64:
-        return std::make_unique<WindowsARM64_SPIR64TargetInfo>(Triple, Opts);
+        return std::make_unique<WindowsTargetInfo<SPIR64TargetInfo>>(Triple, Opts);
       case llvm::Triple::x86_64:
         return std::make_unique<WindowsX86_64_SPIR64TargetInfo>(Triple, Opts);
       default:
@@ -753,7 +753,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::Win32:
       assert(HT.getArch() == llvm::Triple::x86 &&
              "Unsupported host architecture");
-      return std::make_unique<WindowsX86_32SPIRV32TargetInfo>(Triple, Opts);
+      return std::make_unique<WindowsTargetInfo<SPIRV32TargetInfo>>(Triple, Opts);
     default:
       return std::make_unique<SPIRV32TargetInfo>(Triple, Opts);
     }
@@ -772,9 +772,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::Win32:
       switch (HT.getArch()) {
       case llvm::Triple::aarch64:
-        return std::make_unique<WindowsARM64_SPIRV64TargetInfo>(Triple, Opts);
+        return std::make_unique<WindowsTargetInfo<SPIRV64TargetInfo>>(Triple, Opts);
       case llvm::Triple::x86_64:
-        return std::make_unique<WindowsX86_64_SPIRV64TargetInfo>(Triple, Opts);
+        return std::make_unique<WindowsTargetInfo<SPIRV64TargetInfo>>(Triple, Opts);
       default:
         llvm::report_fatal_error(
             "Unsupported host architecture (not x86_64 or aarch64)");
