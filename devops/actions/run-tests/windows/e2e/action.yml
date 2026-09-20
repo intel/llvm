@@ -84,8 +84,9 @@ runs:
       BUILD_DIR: ${{ steps.build_dir.outputs.path }}
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
+      $buildCommand = "cmake --build ""$env:BUILD_DIR"" --target check-sycl-e2e > e2e.log 2>&1"
       $process = Start-Process -FilePath cmd.exe `
-        -ArgumentList '/d', '/s', '/c', "cmake --build $env:BUILD_DIR --target check-sycl-e2e > e2e.log 2>&1" `
+        -ArgumentList '/d', '/s', '/c', $buildCommand `
         -PassThru
       Set-Content -Path e2e_root_pid.txt -Value $process.Id
       $process.WaitForExit()
