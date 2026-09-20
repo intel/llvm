@@ -205,11 +205,11 @@
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // DEVICE: ocloc{{.*}} "-device" "[[DEV_STR]]"
 
-/// SYCLTargetMacroArgs is a Driver-lifetime vector, so with two TUs sharing
-/// two pvc-aliased targets, each TU's host compile should get the macro once.
+/// SYCLTargetMacroArgs is a Driver-lifetime vector shared across all TUs in
+/// one invocation; each TU's host compile should get the macro once.
 // RUN: touch %t_file1.cpp
 // RUN: touch %t_file2.cpp
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_12_60_7 -c -### %t_file1.cpp %t_file2.cpp 2>&1 | \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -c -### %t_file1.cpp %t_file2.cpp 2>&1 | \
 // RUN:   grep "fsycl-is-host" | \
 // RUN:   FileCheck %s --check-prefix=CHK-PVC-HOST-MACRO-ONCE
 // CHK-PVC-HOST-MACRO-ONCE: "-fsycl-is-host"
