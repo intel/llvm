@@ -142,7 +142,12 @@ runs:
         } catch {
           return $false
         }
-        $processPath -and $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase)
+        if (-not $processPath) {
+          return $false
+        }
+        $processName = Split-Path $processPath -Leaf
+        $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
+          $processName -like '*.tmp.out*'
       } | ForEach-Object {
         Write-Host "Stopping leftover E2E process $($_.Path)"
         Stop-Process -Id $_.Id -Force
