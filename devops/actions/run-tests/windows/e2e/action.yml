@@ -154,17 +154,18 @@ runs:
       BUILD_DIR: ${{ steps.build_dir.outputs.path }}
       JOB_CANCELLED: ${{ cancelled() }}
     run: |
+      $buildDirPath = Join-Path $env:GITHUB_WORKSPACE $env:BUILD_DIR
       $lastError = $null
       for ($attempt = 0; $attempt -lt 5; ++$attempt) {
-        if (-not (Test-Path $env:BUILD_DIR)) {
+        if (-not (Test-Path $buildDirPath)) {
           return
         }
         try {
-          Remove-Item -Path $env:BUILD_DIR -Recurse -Force -ErrorAction Stop
+          Remove-Item -Path $buildDirPath -Recurse -Force -ErrorAction Stop
         } catch {
           $lastError = $_
         }
-        if (-not (Test-Path $env:BUILD_DIR)) {
+        if (-not (Test-Path $buildDirPath)) {
           return
         }
         Start-Sleep -Seconds 2
@@ -175,8 +176,8 @@ runs:
       }
 
       if ($lastError) {
-        Write-Error "Failed to remove $env:BUILD_DIR: $($lastError.Exception.Message)"
+        Write-Error "Failed to remove ${buildDirPath}: $($lastError.Exception.Message)"
       } else {
-        Write-Error "Failed to remove $env:BUILD_DIR"
+        Write-Error "Failed to remove ${buildDirPath}"
       }
       exit 1
