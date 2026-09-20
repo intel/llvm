@@ -134,12 +134,26 @@ runs:
     env:
       BUILD_DIR: ${{ steps.build_dir.outputs.path }}
     run: |
+      if (-not $IsWindows) {
+        return
+      }
+
       $buildDirPath = [System.IO.Path]::GetFullPath(
         (Join-Path $env:GITHUB_WORKSPACE $env:BUILD_DIR))
       $buildDir = $buildDirPath.TrimEnd(
         [System.IO.Path]::DirectorySeparatorChar,
         [System.IO.Path]::AltDirectorySeparatorChar) +
         [System.IO.Path]::DirectorySeparatorChar
+      $currentProcessTree = [System.Collections.Generic.HashSet[int]]::new()
+      $currentProcess = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $PID"
+      while ($currentProcess) {
+        $null = $currentProcessTree.Add([int]$currentProcess.ProcessId)
+        if ($currentProcess.ParentProcessId -le 0 -or
+            $currentProcess.ParentProcessId -eq $currentProcess.ProcessId) {
+          break
+        }
+        $currentProcess = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($currentProcess.ParentProcessId)" -ErrorAction SilentlyContinue
+      }
       Get-Process | Where-Object {
         try {
           $processPath = [System.IO.Path]::GetFullPath($_.Path)
@@ -149,10 +163,19 @@ runs:
         if (-not $processPath) {
           return $false
         }
-        $processName = Split-Path $processPath -Leaf
-        $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
-          $processPath -match '[\\\\/]output[\\\\/]' -and
-          $processName -like '*.tmp.*'
+        $candidateProcess = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue
+        while ($candidateProcess) {
+          if ($currentProcessTree.Contains([int]$candidateProcess.ProcessId)) {
+            return $processPath.StartsWith($buildDir, [System.StringComparison]::OrdinalIgnoreCase) -and
+              $processPath -match '[\\\\/]output[\\\\/]'
+          }
+          if ($candidateProcess.ParentProcessId -le 0 -or
+              $candidateProcess.ParentProcessId -eq $candidateProcess.ProcessId) {
+            break
+          }
+          $candidateProcess = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($candidateProcess.ParentProcessId)" -ErrorAction SilentlyContinue
+        }
+        return $false
       } | ForEach-Object {
         Write-Host "Stopping leftover E2E process $($_.Path)"
         Stop-Process -Id $_.Id -Force
