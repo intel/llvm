@@ -90,29 +90,41 @@ runs:
         -PassThru
       $process.WaitForExit()
       $processInfo = @{}
+      $processChildren = @{}
       Get-CimInstance -ClassName Win32_Process | ForEach-Object {
-        $processInfo[[int]$_.ProcessId] = $_
+        $processId = [int]$_.ProcessId
+        $parentProcessId = [int]$_.ParentProcessId
+        $processInfo[$processId] = $_
+        if (-not $processChildren.ContainsKey($parentProcessId)) {
+          $processChildren[$parentProcessId] = [System.Collections.Generic.List[int]]::new()
+        }
+        $processChildren[$parentProcessId].Add($processId)
       }
       $lingeringProcesses = [System.Collections.Generic.List[string]]::new()
-      foreach ($candidateProcess in $processInfo.Values) {
-        $candidateProcessId = [int]$candidateProcess.ProcessId
-        while ($processInfo.ContainsKey($candidateProcessId)) {
-          $parentProcessId = [int]$processInfo[$candidateProcessId].ParentProcessId
-          if ($parentProcessId -eq $process.Id) {
-            try {
-              $candidateProcessPath = [System.IO.Path]::GetFullPath(
-                (Get-Process -Id $candidateProcess.ProcessId).Path)
-            } catch {
-              $candidateProcessPath = ''
-            }
-            $lingeringProcesses.Add(
-              "$($candidateProcess.ProcessId)|$($candidateProcess.Name)|$($candidateProcess.CreationDate)|$candidateProcessPath")
-            break
+      $pendingProcessIds = [System.Collections.Generic.Queue[int]]::new()
+      if ($processChildren.ContainsKey($process.Id)) {
+        foreach ($childProcessId in $processChildren[$process.Id]) {
+          $pendingProcessIds.Enqueue($childProcessId)
+        }
+      }
+      while ($pendingProcessIds.Count -gt 0) {
+        $candidateProcessId = $pendingProcessIds.Dequeue()
+        if (-not $processInfo.ContainsKey($candidateProcessId)) {
+          continue
+        }
+        $candidateProcess = $processInfo[$candidateProcessId]
+        try {
+          $candidateProcessPath = [System.IO.Path]::GetFullPath(
+            (Get-Process -Id $candidateProcess.ProcessId).Path)
+        } catch {
+          $candidateProcessPath = ''
+        }
+        $lingeringProcesses.Add(
+          "$($candidateProcess.ProcessId)|$($candidateProcess.Name)|$($candidateProcess.CreationDate)|$candidateProcessPath")
+        if ($processChildren.ContainsKey($candidateProcessId)) {
+          foreach ($childProcessId in $processChildren[$candidateProcessId]) {
+            $pendingProcessIds.Enqueue($childProcessId)
           }
-          if ($parentProcessId -le 0 -or $parentProcessId -eq $candidateProcessId) {
-            break
-          }
-          $candidateProcessId = $parentProcessId
         }
       }
       Set-Content -Path e2e_processes.txt -Value $lingeringProcesses
