@@ -7,7 +7,7 @@
 // image_properties.cpp.)
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-#include <sycl/sycl.hpp>
+#include <sycl/buffer.hpp>
 
 #include <mutex>
 #include <vector>
@@ -25,13 +25,17 @@ static_assert(is_property_v<kp::use_host_ptr> && is_property_v<kp::use_mutex> &&
 static_assert(is_property_key_v<kp::key::use_host_ptr> &&
               is_property_key_v<kp::key::use_mutex> &&
               is_property_key_v<kp::key::context_bound>);
-static_assert(!is_property_key_compile_time_v<kp::key::use_mutex>);
+static_assert(!is_property_key_compile_time_v<kp::key::use_host_ptr> &&
+              !is_property_key_compile_time_v<kp::key::use_mutex> &&
+              !is_property_key_compile_time_v<kp::key::context_bound>);
 
 // Registered for buffer, not for arbitrary classes.
 static_assert(is_property_for_v<kp::use_host_ptr, buf> &&
               is_property_for_v<kp::use_mutex, buf> &&
               is_property_for_v<kp::context_bound, buf>);
-static_assert(!is_property_for_v<kp::use_host_ptr, OtherClass>);
+static_assert(!is_property_for_v<kp::use_host_ptr, OtherClass> &&
+              !is_property_for_v<kp::use_mutex, OtherClass> &&
+              !is_property_for_v<kp::context_bound, OtherClass>);
 
 void ctors(std::mutex &m, sycl::context ctx) {
   sycl::range<1> r{4};

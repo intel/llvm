@@ -7,7 +7,7 @@
 // themselves are covered in buffer_properties.cpp.)
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-#include <sycl/sycl.hpp>
+#include <sycl/image.hpp>
 
 #include <mutex>
 
@@ -24,7 +24,9 @@ static_assert(is_property_for_v<kp::use_host_ptr, uimg> &&
 static_assert(is_property_for_v<kp::use_host_ptr, simg> &&
               is_property_for_v<kp::use_mutex, simg> &&
               is_property_for_v<kp::context_bound, simg>);
-static_assert(is_property_for_v<kp::use_host_ptr, sycl::unsampled_image<2>>);
+static_assert(is_property_for_v<kp::use_host_ptr, sycl::unsampled_image<2>> &&
+              is_property_for_v<kp::use_mutex, sycl::unsampled_image<2>> &&
+              is_property_for_v<kp::context_bound, sycl::unsampled_image<2>>);
 
 void ctors(std::mutex &m, sycl::context ctx) {
   sycl::range<1> r{4};
