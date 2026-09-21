@@ -1960,6 +1960,15 @@ void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                      options::OPT_Xsycl_linker_EQ, Device);
 }
 
+const SYCLToolChain &toolchains::getSYCLToolChain(
+    const Driver &D, const ToolChain &TC, const ToolChain &HostTC,
+    const llvm::opt::ArgList &Args, std::unique_ptr<SYCLToolChain> &SYCLTC) {
+  if (TC.getTriple().isSPIROrSPIRV() || TC.getTriple().isNativeCPU())
+    return static_cast<const SYCLToolChain &>(TC);
+  SYCLTC = std::make_unique<SYCLToolChain>(D, TC.getTriple(), HostTC, Args);
+  return *SYCLTC;
+}
+
 Tool *SYCLToolChain::buildBackendCompiler() const {
   if (getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
     return new tools::SYCL::gen::BackendCompiler(*this);
