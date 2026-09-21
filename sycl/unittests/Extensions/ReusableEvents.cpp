@@ -619,6 +619,52 @@ TEST_F(ReusableEventsTest, EnqueueWaitEventBehindHostTask) {
   Queue.wait();
 }
 
+// The event of a host task has no backend event, so it cannot be given to a
+// backend barrier. The "event wait" operation waits for it inside the SYCL
+// runtime instead: the barrier command is held until the host task completes
+// and is submitted to the backend only then. Such an event has no context
+// either, so the context of the queue does not matter.
+TEST_F(ReusableEventsTest, EnqueueWaitEventForHostTaskEvent) {
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue HostTaskQueue{Ctx, Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  // The runtime enqueues operations of its own here, and their events come from
+  // the default mock, so the released handles are not only DummyEventHandle.
+  CheckUrEventReleaseHandle = false;
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  sycl::event HostTaskEvent = HostTaskQueue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, HostTaskEvent); });
+  EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, {HostTaskEvent}); });
+
+  // Both barriers are held in the runtime while the host task runs.
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  Queue.wait();
+  HostTaskQueue.wait();
+
+  // They reached the backend once the host task completed.
+  EXPECT_GT(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+}
+
 // A barrier recorded into a graph becomes a node which depends on the leaves
 // recorded so far instead of the events passed to it, so the "event wait"
 // operation cannot be expressed while a graph is being recorded.

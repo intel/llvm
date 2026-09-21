@@ -435,8 +435,8 @@ void Command::waitForPreparedHostEvents() const {
 }
 
 void Command::countUnenqueuedDep(const EventImplPtr &DepEvent) {
-  DepEvent->addUnenqueuedDependent();
   MUnenqueuedDeps.push_back(DepEvent);
+  DepEvent->addUnenqueuedDependent();
 }
 
 void Command::releaseUnenqueuedDeps() {
@@ -3784,7 +3784,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
-                UrEvents.data(), Event);
+                UrEvents.empty() ? nullptr : UrEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 

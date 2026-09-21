@@ -56,22 +56,41 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   return RetEvent;
 }
 
-static void CheckEventAndThrow(detail::event_impl &EventImpl,
-                               detail::context_impl &ContextImpl) {
-  if (EventImpl.isHost()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "Host events cannot be enqueued for waiting.");
-  }
-
-  // Current limitation:
-  // The queue and the event need to be in the same context. A cross-context
-  // dependency is resolved by the runtime with a host task, which the barrier
-  // used here cannot express: the barrier passes the event handles it is given
-  // straight to the backend, without translating them to the queue's context.
+// Current limitation:
+// The queue and the event need to be in the same context. A cross-context
+// dependency is resolved by the runtime with a host task, which the barrier
+// used here cannot express: the barrier passes the event handles it is given
+// straight to the backend, without translating them to the queue's context.
+static void CheckEventContextAndThrow(detail::event_impl &EventImpl,
+                                      detail::context_impl &ContextImpl) {
   if (&EventImpl.getContextImpl() != &ContextImpl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Event context must match the queue context.");
   }
+}
+
+// A host event has no backend event and no context. The barrier cannot be given
+// one, so the operation waits for it on the host instead: the event is
+// registered as a dependency of the barrier command, which the runtime holds
+// until the host event completes. There is nothing to check for such an event.
+static void CheckWaitEventAndThrow(detail::event_impl &EventImpl,
+                                   detail::context_impl &ContextImpl) {
+  if (EventImpl.isHost())
+    return;
+
+  CheckEventContextAndThrow(EventImpl, ContextImpl);
+}
+
+static void CheckSignalEventAndThrow(detail::event_impl &EventImpl,
+                                     detail::context_impl &ContextImpl) {
+  // A host event cannot be re-associated with a new command, because it has no
+  // backend event to signal.
+  if (EventImpl.isHost()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Host events cannot be enqueued for signaling.");
+  }
+
+  CheckEventContextAndThrow(EventImpl, ContextImpl);
 }
 
 // The "event wait" operation is a barrier with a wait list. A barrier recorded
@@ -92,7 +111,7 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
   detail::CheckQueueForWaitAndThrow(QueueImpl);
-  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
+  detail::CheckWaitEventAndThrow(EventImpl, QueueImpl.getContextImpl());
 
   QueueImpl.submit_barrier_direct_without_event(
       sycl::span<const event>(&evt, 1), detail::CGType::BarrierWaitlist,
@@ -106,8 +125,8 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
   detail::CheckQueueForWaitAndThrow(QueueImpl);
 
   for (const sycl::event &evt : evts) {
-    detail::CheckEventAndThrow(*sycl::detail::getSyclObjImpl(evt),
-                               QueueImpl.getContextImpl());
+    detail::CheckWaitEventAndThrow(*sycl::detail::getSyclObjImpl(evt),
+                                   QueueImpl.getContextImpl());
   }
 
   QueueImpl.submit_barrier_direct_without_event(
@@ -130,7 +149,7 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
                           "on a queue which is recording a graph.");
   }
 
-  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
+  detail::CheckSignalEventAndThrow(EventImpl, QueueImpl.getContextImpl());
 
   // An IPC event cannot be signaled on a profiling-enabled queue.
   if (EventImpl.isIPCEnabled() && QueueImpl.MIsProfilingEnabled) {
