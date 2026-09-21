@@ -23,6 +23,7 @@
 // clang-format on
 
 #include "d3d12_setup.hpp"
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <sycl/detail/core.hpp>
@@ -42,6 +43,22 @@ struct D3D12NamedFence {
   HANDLE keepAliveHandle = nullptr;
 };
 
+// wcout on Windows depends on console code page + CRT mode and fails silently
+// on codepoints the console can't render, corrupting subsequent stream state.
+// Print via narrow stdout instead: ASCII as-is, non-ASCII as \uXXXX escapes.
+static void printWideName(const wchar_t *name) {
+  for (const wchar_t *p = name; *p; ++p) {
+    if (*p >= 0x20 && *p < 0x7F) {
+      std::cout << static_cast<char>(*p);
+    } else {
+      char buf[8];
+      std::snprintf(buf, sizeof(buf), "\\u%04X",
+                    static_cast<unsigned>(*p) & 0xFFFFu);
+      std::cout << buf;
+    }
+  }
+}
+
 static D3D12NamedFence createNamedExportableFence(D3D12Context &ctx,
                                                   const wchar_t *name) {
   D3D12NamedFence result;
@@ -55,7 +72,9 @@ static D3D12NamedFence createNamedExportableFence(D3D12Context &ctx,
                                                &result.keepAliveHandle),
                 "Failed to export named fence handle");
 
-  std::wcout << L"[D3D12] Created named fence: " << name << std::endl;
+  std::cout << "[D3D12] Created named fence: ";
+  printWideName(name);
+  std::cout << std::endl;
   return result;
 }
 
