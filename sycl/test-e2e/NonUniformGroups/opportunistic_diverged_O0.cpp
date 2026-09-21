@@ -12,8 +12,12 @@
 // RUN: %{build} -O0 -o %t.out
 // RUN: %{run} %t.out
 //
-// REQUIRES: cpu || gpu
+// The kernels request a sub-group size of 16.
+// REQUIRES: sg-16
 // REQUIRES: aspect-ext_oneapi_fragment
+//
+// UNSUPPORTED: cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-78365
 
 #include <algorithm>
 #include <cassert>
