@@ -287,11 +287,23 @@ void GlobalHandler::unloadAdapters() {
   getAdapters().clear();
 }
 
-void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
-#ifndef _WIN32
-  if (Blocking)
-    drainThreadPool();
+void GlobalHandler::prepareSchedulerToRelease(bool Blocking, bool IsShutdown) {
+  // Draining is what makes this "prepare to release": a host task that is still
+  // running holds the last reference to its queue_impl, and queue_impl only
+  // keeps a reference to its device_impl. Dropping that reference after the
+  // platform cache (which owns device_impl) is gone leaves ~queue_impl reading
+  // freed memory in device_impl::unregisterQueue.
+  //
+  // The one exception is Windows shutdown, where the OS may already have
+  // terminated the host task threads, leaving jobs that never complete and a
+  // drain that never finishes.
+#ifdef _WIN32
+  constexpr bool DrainUnsafeAtShutdown = true;
+#else
+  constexpr bool DrainUnsafeAtShutdown = false;
 #endif
+  if (Blocking && !(IsShutdown && DrainUnsafeAtShutdown))
+    drainThreadPool();
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
                                                : BlockingT::NON_BLOCKING);
@@ -351,7 +363,8 @@ void shutdown_early(bool CanJoinThreads = true) {
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(true);
+  GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(
+      true, /*IsShutdown=*/true);
 
   // Do not cleanup thread pool on windows during application shutdown.
   // Let OS do the cleanup.
