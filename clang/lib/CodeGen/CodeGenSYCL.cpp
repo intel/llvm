@@ -123,3 +123,39 @@ llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
   }
   return RegistrationFunc;
 }
+
+llvm::Function *CodeGenModule::createSYCLRegisterLibFunc() {
+  // Compute an MD5 hash of the module identifier and build the symbol name.
+  llvm::MD5 Hasher;
+  llvm::MD5::MD5Result Result;
+  // Use the module identifer as the hash function input, it's just the
+  // path to the input file. Should be unique enough, we do the same in
+  // addSYCLModuleIdAttr.
+  StringRef Identifier = getModule().getModuleIdentifier();
+  assert(!Identifier.empty() && "Unexpected module identifier");
+  const TargetInfo *AuxT = getContext().getAuxTargetInfo();
+  if (AuxT)
+    Hasher.update(AuxT->getTriple().str());
+  Hasher.update(Identifier);
+  Hasher.final(Result);
+  SmallString<32> HashStr;
+  llvm::MD5::stringifyResult(Result, HashStr);
+  std::string RegisterFuncName = ("__sycl_registerlib_" + HashStr).str();
+
+  llvm::FunctionType *RegisterFTy =
+      llvm::FunctionType::get(VoidTy, /*isVarArg=*/false);
+
+  // Declare the symbol and emit a global constructor that calls it.
+  llvm::FunctionCallee RegisterFunc =
+      getModule().getOrInsertFunction(RegisterFuncName, RegisterFTy);
+
+  llvm::Function *SYCLRegisterLibCtor = CreateGlobalInitOrCleanUpFunction(
+      RegisterFTy, "__sycl_registerlib_ctor",
+      getTypes().arrangeNullaryFunction(), SourceLocation());
+  llvm::BasicBlock *Entry =
+      llvm::BasicBlock::Create(getLLVMContext(), "entry", SYCLRegisterLibCtor);
+  llvm::IRBuilder<> Builder(Entry);
+  Builder.CreateCall(RegisterFunc);
+  Builder.CreateRetVoid();
+  return SYCLRegisterLibCtor;
+}

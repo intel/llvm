@@ -50,9 +50,9 @@
 #include "clang/CodeGen/BackendUtil.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaSYCL.h"
-#include "clang/Lex/Preprocessor.h"
 #include "llvm/ABI/IRTypeMapper.h"
 #include "llvm/ABI/TargetInfo.h"
 #include "llvm/ADT/APFloat.h"
@@ -1284,6 +1284,8 @@ void CodeGenModule::Release() {
       // be registered before any of them run, hence a priority.
       AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
   }
+  if (LangOpts.SYCLIsHost && LangOpts.OffloadingNewDriver)
+    AddGlobalCtor(createSYCLRegisterLibFunc());
   if (OpenMPRuntime) {
     OpenMPRuntime->createOffloadEntriesAndInfoMetadata();
     OpenMPRuntime->clear();
