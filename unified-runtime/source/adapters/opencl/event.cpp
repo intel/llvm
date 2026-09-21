@@ -317,6 +317,9 @@ ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
 ur_result_t urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool Blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  if (phEvent == nullptr)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
   // OpenCL has no native "record device timestamp" primitive. Some drivers
   // (notably the Intel GPU driver) timestamp synchronization-only commands
   // (barriers/markers) at the point they are inserted into the pipeline rather
@@ -340,7 +343,7 @@ ur_result_t urEnqueueTimestampRecordingExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   cl_mem Buffer = nullptr;
-  UR_RETURN_ON_FAILURE(Queue->Context->getTimestampRecordingBuffer(&Buffer));
+  UR_RETURN_ON_FAILURE(Queue->getTimestampRecordingBuffer(&Buffer));
 
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   for (uint32_t I = 0; I < numEventsInWaitList; I++)
@@ -352,8 +355,7 @@ ur_result_t urEnqueueTimestampRecordingExp(
   cl_event Event = nullptr;
   CL_RETURN_ON_FAILURE(clEnqueueFillBuffer(
       Queue->CLQueue, Buffer, &Pattern, sizeof(Pattern), /*offset=*/0,
-      /*size=*/sizeof(Pattern), numEventsInWaitList, CLWaitList,
-      ifUrEvent(phEvent, Event)));
+      /*size=*/sizeof(Pattern), numEventsInWaitList, CLWaitList, &Event));
 
   UR_RETURN_ON_FAILURE(createUREvent(Event, cast(Queue->Context), cast(Queue),
                                      phEvent,

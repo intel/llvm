@@ -13,7 +13,6 @@
 #include "common/ur_ref_count.hpp"
 #include "device.hpp"
 
-#include <mutex>
 #include <vector>
 
 namespace ur::opencl {
@@ -25,15 +24,6 @@ struct ur_context_handle_t_ : handle_base {
   uint32_t DeviceCount;
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
-
-  // Small device buffer used to emulate a timestamp recording via a real,
-  // profilable command (see urEnqueueTimestampRecordingExp). Some OpenCL
-  // drivers timestamp synchronization-only commands (barriers/markers) at the
-  // point they are inserted into the pipeline rather than when the preceding
-  // work actually completes, which breaks profiling-tag orderings
-  // (see https://github.com/intel/llvm/issues/22229). Created lazily.
-  std::mutex TimestampRecordingBufferMutex;
-  cl_mem TimestampRecordingBuffer = nullptr;
 
   ur_context_handle_t_(const ur_context_handle_t_ &) = delete;
   ur_context_handle_t_ &operator=(const ur_context_handle_t_ &) = delete;
@@ -51,20 +41,6 @@ struct ur_context_handle_t_ : handle_base {
                                     const ur_device_handle_t *phDevices,
                                     ur_context_handle_t &Context);
 
-  // Returns the small internal buffer used by urEnqueueTimestampRecordingExp,
-  // creating it on first use. Thread-safe.
-  ur_result_t getTimestampRecordingBuffer(cl_mem *OutBuffer) {
-    std::lock_guard<std::mutex> Lock(TimestampRecordingBufferMutex);
-    if (!TimestampRecordingBuffer) {
-      cl_int CLErr = CL_SUCCESS;
-      TimestampRecordingBuffer = clCreateBuffer(
-          CLContext, CL_MEM_READ_WRITE, sizeof(cl_uint), nullptr, &CLErr);
-      CL_RETURN_ON_FAILURE(CLErr);
-    }
-    *OutBuffer = TimestampRecordingBuffer;
-    return UR_RESULT_SUCCESS;
-  }
-
   ~ur_context_handle_t_() noexcept {
     // If we're reasonably sure this context is about to be destroyed we should
     // clear the ext function pointer cache. This isn't foolproof sadly but it
@@ -78,13 +54,6 @@ struct ur_context_handle_t_ : handle_base {
 
     for (uint32_t i = 0; i < DeviceCount; i++) {
       ur::opencl::urDeviceRelease(cast(Devices[i]));
-    }
-    {
-      std::lock_guard<std::mutex> Lock(TimestampRecordingBufferMutex);
-      if (TimestampRecordingBuffer) {
-        clReleaseMemObject(TimestampRecordingBuffer);
-        TimestampRecordingBuffer = nullptr;
-      }
     }
     if (IsNativeHandleOwned) {
       clReleaseContext(CLContext);
