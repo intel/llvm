@@ -3621,8 +3621,20 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
     std::vector<ur_event_handle_t> UrEvents =
         getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
+
+    adapter_impl &Adapter = MQueue->getAdapter();
     if (UrEvents.empty()) {
-      // If Events is empty, then the barrier has no effect.
+      // The barrier itself has no effect, but we still have to produce a native
+      // event for it. Returning without one leaves MEvent handle-less, which
+      // makes get_info<command_execution_status>() report 'submitted' forever.
+      // Explicit depends_on() dependencies still have to be honored here.
+      if (auto Result = Adapter.call_nocheck<UrApiKind::urEnqueueEventsWait>(
+              MQueue->getHandleRef(), RawEvents.size(),
+              RawEvents.empty() ? nullptr : RawEvents.data(), Event);
+          Result != UR_RESULT_SUCCESS)
+        return Result;
+
+      SetEventHandleOrDiscard();
       return UR_RESULT_SUCCESS;
     }
 
@@ -3635,7 +3647,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ext::oneapi::experimental::event_mode_enum::low_power)
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
-    adapter_impl &Adapter = MQueue->getAdapter();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. Adding
     // them to the barrier wait list since barrier w/ wait list waits only for
