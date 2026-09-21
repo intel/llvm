@@ -16,6 +16,7 @@
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 
+#include <cctype>
 #include <cerrno>
 #include <cstdlib>
 
@@ -95,10 +96,15 @@ public:
     // default stack. The primary context is already current here (see
     // ScopedContext in platform.cpp), so cuCtxSetLimit applies to it.
     if (const char *StackSizePtr = std::getenv("UR_CUDA_STACK_SIZE")) {
+      const char *NumberStart = StackSizePtr;
+      while (std::isspace(static_cast<unsigned char>(*NumberStart)))
+        ++NumberStart;
+
       errno = 0;
       char *End = nullptr;
       const unsigned long long Parsed = std::strtoull(StackSizePtr, &End, 10);
-      if (errno != 0 || End == StackSizePtr || *End != '\0' || Parsed == 0) {
+      if (*NumberStart == '-' || errno != 0 || End == StackSizePtr ||
+          *End != '\0' || Parsed == 0) {
         setErrorMessage("Invalid value specified for UR_CUDA_STACK_SIZE",
                         UR_RESULT_ERROR_INVALID_VALUE);
         throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;

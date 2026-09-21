@@ -2,6 +2,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %if cuda %{UR_CUDA_STACK_SIZE%} %else %{UR_HIP_STACK_SIZE%}=0 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-INVALID %s
+// RUN: %{run} %if cuda %{UR_CUDA_STACK_SIZE%} %else %{UR_HIP_STACK_SIZE%}=-5 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-INVALID %s
 // RUN: %{run} %if cuda %{UR_CUDA_STACK_SIZE%} %else %{UR_HIP_STACK_SIZE%}=abc %t.out 2>&1 | FileCheck --check-prefixes=CHECK-INVALID %s
 // RUN: %{run} %if cuda %{UR_CUDA_STACK_SIZE%} %else %{UR_HIP_STACK_SIZE%}=16384 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-VALID %s
 
