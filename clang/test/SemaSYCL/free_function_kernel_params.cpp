@@ -14,8 +14,8 @@ void ff_2(int *ptr, int start, int end) {
   for (int i = start; i <= end; i++)
     ptr[i] = start;
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void (__global int *, int, int) __attribute__((device_kernel))'
-// CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void ({{\[\[clang::sycl_global\]\]}} int *, int, int) __attribute__((device_kernel))'
+// CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '{{\[\[clang::sycl_global\]\]}} int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'
 // CHECK-NEXT: CompoundStmt
@@ -23,8 +23,8 @@ void ff_2(int *ptr, int start, int end) {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(int *, int, int)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int)' lvalue Function {{.*}} 'ff_2' 'void (int *, int, int)'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '__arg_ptr' '__global int *'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue ParmVar {{.*}} '__arg_ptr' '{{\[\[clang::sycl_global\]\]}} int *'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '__arg_start' 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
@@ -43,8 +43,8 @@ __attribute__((sycl_device))
 // Explicit instantiation with "int*"
 template void ff_3(int* ptr, int start, int end);
 
-// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void (__global int *, int, int) __attribute__((device_kernel))'
-// CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void ({{\[\[clang::sycl_global\]\]}} int *, int, int) __attribute__((device_kernel))'
+// CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '{{\[\[clang::sycl_global\]\]}} int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'
 // CHECK-NEXT: CompoundStmt
@@ -52,8 +52,8 @@ template void ff_3(int* ptr, int start, int end);
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(int *, int, int)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int)' lvalue Function {{.*}} 'ff_3' 'void (int *, int, int)'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '__arg_ptr' '__global int *'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue ParmVar {{.*}} '__arg_ptr' '{{\[\[clang::sycl_global\]\]}} int *'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '__arg_start' 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
