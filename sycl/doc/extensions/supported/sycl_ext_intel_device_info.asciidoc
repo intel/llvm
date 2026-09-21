@@ -1496,13 +1496,13 @@ these components.
 
 [source,c++]
 ----
-namespace sycl::ext::intel {
+namespace sycl::ext::intel::info {
 
 inline uint32_t get_gpu_ip_version_major(uint32_t ipVersion);
 inline uint32_t get_gpu_ip_version_minor(uint32_t ipVersion);
 inline uint32_t get_gpu_ip_version_revision(uint32_t ipVersion);
 
-} // namespace sycl::ext::intel
+} // namespace sycl::ext::intel::info
 ----
 
 _Preconditions:_ `ipVersion` is a value returned by the `ip_version`
@@ -1519,9 +1519,9 @@ respectively.
 if (dev.has(aspect::ext_intel_device_info_ip_version)) {
   auto ipVersion = dev.get_info<ext::intel::info::device::ip_version>();
   if (dev.is_gpu()) {
-    std::cout << ext::intel::get_gpu_ip_version_major(ipVersion) << "."
-              << ext::intel::get_gpu_ip_version_minor(ipVersion) << "."
-              << ext::intel::get_gpu_ip_version_revision(ipVersion)
+    std::cout << ext::intel::info::get_gpu_ip_version_major(ipVersion) << "."
+              << ext::intel::info::get_gpu_ip_version_minor(ipVersion) << "."
+              << ext::intel::info::get_gpu_ip_version_revision(ipVersion)
               << std::endl;
   }
 }

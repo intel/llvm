@@ -23,6 +23,7 @@
 #include <iostream>
 
 using namespace sycl;
+namespace intel_info = ext::intel::info;
 
 int main(int argc, char **argv) {
 
@@ -176,9 +177,9 @@ int main(int argc, char **argv) {
           std::cout << "Device IP version = " << ipVersion << std::endl;
           if (dev.is_gpu()) {
             std::cout << "Device IP version (major.minor.revision) = "
-                      << ext::intel::get_gpu_ip_version_major(ipVersion) << "."
-                      << ext::intel::get_gpu_ip_version_minor(ipVersion) << "."
-                      << ext::intel::get_gpu_ip_version_revision(ipVersion)
+                      << intel_info::get_gpu_ip_version_major(ipVersion) << "."
+                      << intel_info::get_gpu_ip_version_minor(ipVersion) << "."
+                      << intel_info::get_gpu_ip_version_revision(ipVersion)
                       << std::endl;
           }
         }

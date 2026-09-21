@@ -30,7 +30,9 @@ enum class throttle_reason {
   other
 };
 
-namespace info::device {
+namespace info {
+
+namespace device {
 
 template <ur_device_info_t UrCode>
 using device_traits =
@@ -132,16 +134,7 @@ struct node_mask : device_runtime_traits {
   using return_type = uint32_t;
 };
 
-} // namespace info::device
-
-namespace esimd::info::device {
-struct has_2d_block_io_support
-    : sycl::detail::ur_traits_base<
-          sycl::detail::info_class::device,
-          UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP> {
-  using return_type = bool;
-};
-} // namespace esimd::info::device
+} // namespace device
 
 // The IP version of a GPU device, as returned by the `ip_version` information
 // descriptor, packs three components, from the most significant bit down:
@@ -164,6 +157,17 @@ inline uint32_t get_gpu_ip_version_revision(uint32_t IPVersion) {
   // 0x3f is 0b111111, the 6 bits the revision component occupies.
   return IPVersion & 0x3f;
 }
+
+} // namespace info
+
+namespace esimd::info::device {
+struct has_2d_block_io_support
+    : sycl::detail::ur_traits_base<
+          sycl::detail::info_class::device,
+          UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP> {
+  using return_type = bool;
+};
+} // namespace esimd::info::device
 
 } // namespace ext::intel
 } // namespace _V1
