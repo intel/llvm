@@ -602,7 +602,7 @@ TEST_F(ReusableEventsTest, EmptyEventVectorWait) {
   Queue.wait();
 }
 
-TEST_F(ReusableEventsTest, LowPowerPropertyChainsSyncModeDesc) {
+TEST_F(ReusableEventsTest, LowPowerEventModeChainsSyncModeDesc) {
   mock::getCallbacks().set_replace_callback(
       "urEnqueueEventsWaitWithBarrierExt",
       &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
@@ -611,7 +611,8 @@ TEST_F(ReusableEventsTest, LowPowerPropertyChainsSyncModeDesc) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
-  syclex::properties PropList{syclex::low_power{true}};
+  syclex::properties PropList{
+      syclex::event_mode{syclex::event_mode_enum::low_power}};
   auto event = syclex::make_event(Ctx, PropList);
 
   syclex::enqueue_signal_event(Queue, event);
@@ -622,7 +623,7 @@ TEST_F(ReusableEventsTest, LowPowerPropertyChainsSyncModeDesc) {
   Queue.wait();
 }
 
-TEST_F(ReusableEventsTest, LowPowerFalseDoesNotChainSyncModeDesc) {
+TEST_F(ReusableEventsTest, NoneEventModeDoesNotChainSyncModeDesc) {
   mock::getCallbacks().set_replace_callback(
       "urEnqueueEventsWaitWithBarrierExt",
       &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
@@ -631,7 +632,8 @@ TEST_F(ReusableEventsTest, LowPowerFalseDoesNotChainSyncModeDesc) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
-  syclex::properties PropList{syclex::low_power{false}};
+  syclex::properties PropList{
+      syclex::event_mode{syclex::event_mode_enum::none}};
   auto event = syclex::make_event(Ctx, PropList);
   syclex::enqueue_signal_event(Queue, event);
 

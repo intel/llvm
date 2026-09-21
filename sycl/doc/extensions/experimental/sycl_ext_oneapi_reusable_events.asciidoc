@@ -201,21 +201,26 @@ indicating whether the event captures profiling timestamp information.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-struct low_power {
-  low_power(bool enable = true);  (1)
+enum class event_mode_enum { none, low_power };
+
+struct event_mode {
+  event_mode(event_mode_enum mode);  (1)
 };
-using low_power_key = low_power;
+using event_mode_key = event_mode;
 
 } // namespace sycl::ext::oneapi::experimental
 ----
 
-This property is a hint to the driver to optimize event host
-synchronization calls to use the CPU more efficiently. For example, the
-driver may sleep the waiting thread instead of polling. Using this hint
-may impact completion latency.
+This property is a hint for the driver to optimize event host synchronization.
+Passing `event_mode_enum::low_power` requests that the driver conserve CPU
+resources by sleeping the waiting thread instead of polling, which may increase
+completion latency.
 
-_Effects_ (1): Creates a new `low_power` property with a boolean value
-indicating whether the event uses the low-power flag.
+`event_mode_enum::none` requests no specific mode and is equivalent to not
+passing the property. Backends that do not support the requested mode will
+silently ignore this hint.
+
+_Effects_ (1): Creates a new `event_mode` property with the given mode.
 
 '''
 

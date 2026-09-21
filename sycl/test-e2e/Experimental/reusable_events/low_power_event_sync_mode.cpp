@@ -15,7 +15,8 @@ int main() {
   constexpr size_t numElements = 1024;
   sycl::queue syclQueue;
   auto event = syclex::make_event(syclQueue.get_context(),
-                                  syclex::properties{syclex::low_power{true}});
+                                  syclex::properties{syclex::event_mode{
+                                      syclex::event_mode_enum::low_power}});
 
   int *data = sycl::malloc_shared<int>(numElements, syclQueue);
 
