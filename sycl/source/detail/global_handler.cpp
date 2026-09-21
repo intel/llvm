@@ -288,15 +288,11 @@ void GlobalHandler::unloadAdapters() {
 }
 
 void GlobalHandler::prepareSchedulerToRelease(bool Blocking, bool IsShutdown) {
-  // Draining is what makes this "prepare to release": a host task that is still
-  // running holds the last reference to its queue_impl, and queue_impl only
-  // keeps a reference to its device_impl. Dropping that reference after the
-  // platform cache (which owns device_impl) is gone leaves ~queue_impl reading
-  // freed memory in device_impl::unregisterQueue.
+  // 'IsShutdown' is `true` during application shutdown, but `false` during
+  // mock shutdown (when running SYCL unittests).
   //
-  // The one exception is Windows shutdown, where the OS may already have
-  // terminated the host task threads, leaving jobs that never complete and a
-  // drain that never finishes.
+  // On Windows, let OS reclaim abandoned host tasks and cleanup
+  // resources, except for mock shutdown when running SYCL unittests.
 #ifdef _WIN32
   constexpr bool DrainUnsafeAtShutdown = true;
 #else
