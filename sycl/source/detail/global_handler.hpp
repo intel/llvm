@@ -78,8 +78,7 @@ public:
   /// Waits for in-flight host tasks and releases the scheduler's resources.
   ///
   /// \param IsShutdown must be set when called during library unload or process
-  /// termination. On Windows the host task threads may already have been
-  /// terminated by then, so waiting for their jobs would never return.
+  /// termination.
   void prepareSchedulerToRelease(bool Blocking, bool IsShutdown = false);
 
   void TraceEventXPTI(const char *Message);
