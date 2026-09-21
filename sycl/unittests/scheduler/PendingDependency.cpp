@@ -281,9 +281,8 @@ TEST_F(PendingDependencyTest, BarrierWaitListIsCountedIncludingUnsignaled) {
   HostTaskGate Gate;
   event Blocker = blockQueue(Q, Gate);
 
-  Q.submit([&](handler &CGH) {
-    CGH.ext_oneapi_barrier({Signaled, Unsignaled});
-  });
+  Q.submit(
+      [&](handler &CGH) { CGH.ext_oneapi_barrier({Signaled, Unsignaled}); });
 
   EXPECT_TRUE(imp(Signaled).hasUnenqueuedDependents());
   EXPECT_TRUE(imp(Unsignaled).hasUnenqueuedDependents());
