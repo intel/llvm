@@ -108,12 +108,15 @@ PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps,
                                      bool AllowDeviceImageDependencies,
-                                     int IdQueriesRange) {
+                                     int IdQueriesRange,
+                                     bool AllowSubGroupSizeDisagreement) {
 
   PropSetRegTy PropSet;
   {
-    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
-                computeDeviceRequirements(M, EntryPoints).asMap());
+    PropSet.add(
+        PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
+        computeDeviceRequirements(M, EntryPoints, AllowSubGroupSizeDisagreement)
+            .asMap());
   }
 
   // extract spec constant maps per each module
