@@ -44,9 +44,13 @@ namespace ur_validation_layer
         # the application signals later. Timestamp recording does enqueue work,
         # but takes its own `blocking` parameter, and blocking it would make
         # SYCL's profiling tag synchronous only where this native path is taken.
+        # A host task runs on the host, so it cannot fault on the device: a
+        # drain there only serializes, and hangs on a host task that waits on
+        # something the submitting thread does once the submission returns.
         launch_blocking_excluded = [x + suffix for suffix in [
             "EnqueueEventsWait", "EnqueueEventsWaitWithBarrier",
-            "EnqueueEventsWaitWithBarrierExt", "EnqueueTimestampRecordingExp"]]
+            "EnqueueEventsWaitWithBarrierExt", "EnqueueTimestampRecordingExp",
+            "EnqueueHostTaskExp"]]
         # Commands outside the Enqueue tables that submit work to a queue.
         # WaitExternalSemaphoreExp is not one: it waits for an external signal.
         launch_blocking_extra = [x + suffix for suffix in [

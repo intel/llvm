@@ -11671,10 +11671,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
-  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
-    result = getContext()->blockOnQueue(hQueue);
-  }
-
   return result;
 }
 

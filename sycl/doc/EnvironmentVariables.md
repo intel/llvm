@@ -128,10 +128,11 @@ only complete through host progress that happens after the submission returns \-
 for example a kernel spinning on a host-written flag.
 
 Commands that enqueue no device work of their own are not made synchronous:
-markers and barriers, timestamp recording, host tasks, and any command recorded
-into a graph instead of executed. A command whose dependencies are not yet
-satisfied is enqueued later, by the runtime thread that satisfies them, so it is
-that enqueue that blocks and not the submission that returned earlier.
+markers and barriers, timestamp recording, host tasks (including Level Zero 
+native host tasks) and any command recorded into a graph instead of executed.
+A command whose dependencies are not yet satisfied is enqueued later, by the
+runtime thread that satisfies them, so it is that enqueue that blocks and not
+the submission that returned earlier.
 
 ## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
 

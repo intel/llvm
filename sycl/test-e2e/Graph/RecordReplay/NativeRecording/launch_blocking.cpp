@@ -1,4 +1,5 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_LAUNCH_BLOCKING=1 %{run} %t.out
@@ -20,7 +21,8 @@ int main() {
       {exp_ext::property::graph::enable_native_recording{}}};
 
   const size_t N = 1024;
-  int *Data = malloc_device<int>(N, Queue);
+  int *Data = malloc_shared<int>(N, Queue);
+  std::fill(Data, Data + N, -1);
 
   Graph.begin_recording(Queue);
   Queue.submit([&](handler &CGH) {
@@ -32,10 +34,8 @@ int main() {
   auto ExecutableGraph = Graph.finalize();
   Queue.ext_oneapi_graph(ExecutableGraph);
 
-  std::vector<int> Host(N, -1);
-  Queue.memcpy(Host.data(), Data, N * sizeof(int));
   for (size_t I = 0; I < N; ++I)
-    assert(check_value(I, static_cast<int>(I), Host[I], "Host"));
+    assert(check_value(I, static_cast<int>(I), Data[I], "Data"));
 
   sycl::free(Data, Queue);
   return 0;
