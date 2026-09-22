@@ -504,8 +504,6 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   // We can skip the barrier UR call only if both the barrier wait list
   // and the list of barrier command dependencies are empty (after filtering
   // the UR events).
-  // TODO Currently the scheduler path will only check the barrier wait
-  // list.
   if (BarrierType == CGType::BarrierWaitlist && RawBarrierDepEvents.empty() &&
       RawDepEvents.empty()) {
     ResEvent->setComplete();
