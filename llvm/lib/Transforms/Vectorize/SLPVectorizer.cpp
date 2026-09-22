@@ -25143,6 +25143,12 @@ bool BoUpSLP::canVersionForRuntimeChecks() {
     if (TS.isScalable())
       return false;
     Type *IntTy = DL->getAddressType(Base->getType());
+    // All bounds are computed and compared in a single address type, so an
+    // access that reaches its base object through an addrspacecast between
+    // differently-sized address spaces cannot be bounded and the block
+    // cannot be versioned.
+    if (DL->getAddressType(Ptr->getType()) != IntTy)
+      return false;
     const SCEV *PtrSC = SE->getPtrToAddrExpr(SE->getSCEV(Ptr));
     const SCEV *BaseSC = SE->getPtrToAddrExpr(SE->getSCEV(Base));
     if (isa<SCEVCouldNotCompute>(PtrSC) || isa<SCEVCouldNotCompute>(BaseSC))
@@ -33913,7 +33919,11 @@ private:
       SmallVector<Constant *> Vals;
       for (const auto [Idx, V] : enumerate(VL)) {
         unsigned Cnt = SameValuesCounter.lookup(TrackedToOrig[Idx]);
-        Vals.push_back(ConstantInt::get(V->getType(), Cnt, /*IsSigned=*/false));
+        // The repeat count may not fit the element type (e.g. i1); the
+        // modular reduction arithmetic keeps the truncated count equivalent.
+        Vals.push_back(ConstantInt::get(
+            V->getType(), APInt(V->getType()->getIntegerBitWidth(), Cnt,
+                                /*isSigned=*/false, /*implicitTrunc=*/true)));
       }
       auto *Scale = ConstantVector::get(Vals);
       LLVM_DEBUG(dbgs() << "SLP: Add (to-mul) " << Scale << "of "
