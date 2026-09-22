@@ -673,8 +673,8 @@ public:
 
   /// Put this queue into recording mode for \p Graph, acquiring both the
   /// submission mutex and graph mutex.
-  void beginRecordingGraph(
-      ext::oneapi::experimental::detail::graph_impl &Graph);
+  void
+  beginRecordingGraph(ext::oneapi::experimental::detail::graph_impl &Graph);
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {

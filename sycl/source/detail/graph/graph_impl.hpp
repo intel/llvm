@@ -483,8 +483,8 @@ public:
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
-  /// Does not take any lock and assumes that the caller holds both the graph mutex
-  /// and the queue's submission mutex.
+  /// Does not take any lock and assumes that the caller holds both the graph
+  /// mutex and the queue's submission mutex.
   ///
   /// @param[in] Queue The queue to be recorded from.
   void beginRecordingLocked(sycl::detail::queue_impl &Queue);
