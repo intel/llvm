@@ -926,6 +926,12 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     // is the exception: enqueueing it only hands the job to the thread pool,
     // and the dependencies are read later, on that thread - see
     // DispatchHostTask, which releases them there instead.
+    //
+    // A command group releases its counts earlier, in
+    // ExecCGCommand::enqueueImpQueue, where the dependencies are actually read
+    // and where this can still be ordered before its event handle is published.
+    // This call is the catch-all for the remaining command types, and is
+    // harmless after an earlier one, because releasing is idempotent.
     if (!isHostTask())
       releaseUnenqueuedDeps();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
@@ -3324,6 +3330,19 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
+  // The dependencies have been read into RawEvents, so their pending-dependent
+  // counts can be given back right here - which has to happen before this
+  // command's own event handle becomes visible. A thread waiting for that event
+  // takes the fast path in event_impl::wait as soon as the handle appears, so a
+  // count released after the handle is published could still be observed by an
+  // enqueue_signal_event which runs once that wait has returned.
+  //
+  // Two command types read their dependencies later and release the counts
+  // where they do: a host task, on the thread pool in DispatchHostTask, and a
+  // barrier with a wait list, further down in this function.
+  if (!isHostTask() && MCommandGroup->getType() != CGType::BarrierWaitlist)
+    releaseUnenqueuedDeps();
+
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = !MEventNeeded ? nullptr : &UREvent;
   detail::event_impl *EventImpl = !MEventNeeded ? nullptr : MEvent.get();
@@ -3750,6 +3769,11 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
     std::vector<ur_event_handle_t> UrEvents =
         getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
+    // The wait list has been read now, so the counts taken for it - and for the
+    // dependencies of this command - are given back here, before the event
+    // handle of the barrier becomes visible. See the comment on the other
+    // release at the top of this function.
+    releaseUnenqueuedDeps();
     if (UrEvents.empty()) {
       // If Events is empty, then the barrier has no effect. It can only be
       // skipped when no event is needed: a command which returns without
