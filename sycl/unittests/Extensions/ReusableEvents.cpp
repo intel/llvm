@@ -643,6 +643,24 @@ TEST_F(ReusableEventsTest, NoneEventModeDoesNotChainSyncModeDesc) {
   Queue.wait();
 }
 
+TEST_F(ReusableEventsTest, MakeEventLowPowerWithoutPropertiesList) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  auto event = syclex::make_event(
+      Ctx, syclex::event_mode{syclex::event_mode_enum::low_power});
+  syclex::enqueue_signal_event(Queue, event);
+
+  EXPECT_EQ(UrEventCreateExp_counter, 1);
+  EXPECT_TRUE(LastCreateHadLowPowerSyncDesc);
+  Queue.wait();
+}
+
 // Queue with enable_profiling property
 TEST_F(ReusableEventsTest, QueueWithProfilingProperty) {
   sycl::platform Plt = sycl::platform();
