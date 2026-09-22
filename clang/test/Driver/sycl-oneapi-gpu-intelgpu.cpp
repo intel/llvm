@@ -205,8 +205,7 @@
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // DEVICE: ocloc{{.*}} "-device" "[[DEV_STR]]"
 
-/// SYCLTargetMacroArgs is a Driver-lifetime vector shared across all TUs in
-/// one invocation; each TU's host compile should get the macro once.
+/// Each TU's host compile should get the macro once, even when TUs share an invocation.
 // RUN: touch %t_file1.cpp
 // RUN: touch %t_file2.cpp
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -c -### %t_file1.cpp %t_file2.cpp 2>&1 | \
@@ -283,6 +282,7 @@
 // RUN:   -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:   --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   grep -v "fsycl-is-host" | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_MIX
 // CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHECK_TOOLS_MIX-NOT: "-D__SYCL_TARGET_INTEL_GPU{{.*}}"

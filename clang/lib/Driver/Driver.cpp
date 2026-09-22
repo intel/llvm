@@ -1843,13 +1843,6 @@ bool Driver::loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx) {
   return false;
 }
 
-void Driver::addSYCLTargetMacroArg(const llvm::opt::ArgList &Args,
-                                   StringRef Macro) const {
-  StringRef MacroStr = Args.MakeArgString(Macro);
-  if (!llvm::is_contained(SYCLTargetMacroArgs, MacroStr))
-    SYCLTargetMacroArgs.push_back(MacroStr);
-}
-
 Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   llvm::PrettyStackTraceString CrashInfo("Compilation construction");
 
@@ -6571,6 +6564,15 @@ class OffloadingActionBuilder final {
         TCAndArchs.push_back(TCAndArch);
       }
       tools::SYCL::populateSYCLDeviceTraitsMacrosArgs(C, Args, TCAndArchs);
+
+      // Compute the -D__SYCL_TARGET_*__ macros the host compilation needs
+      // from the invocation-wide, already-deduplicated SYCL target list.
+      for (auto &TargetInfo : SYCLTargetInfoList) {
+        SmallString<64> Macro = gen::getSYCLTargetMacro(
+            TargetInfo.TC->getTriple(), TargetInfo.BoundArch.ArchName);
+        if (!Macro.empty())
+          C.getDriver().addSYCLTargetMacroArg(Args, Macro);
+      }
 
       DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
       return false;
