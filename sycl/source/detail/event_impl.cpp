@@ -423,6 +423,15 @@ event_impl::get_info<info::event::command_execution_status>() {
     if (Handle)
       return get_event_info<info::event::command_execution_status>(
           Handle, this->getAdapter());
+    // Some commands complete without ever producing a native event (e.g. a
+    // barrier whose wait list turned out to be empty). Command::enqueue() marks
+    // such an event complete once it has been successfully enqueued, so trust
+    // that over the MCommand check below, which would otherwise keep reporting
+    // 'submitted' for an already finished command. A command that is still
+    // pending has not been completed that way and is still HES_NotComplete
+    // (makeEvent() sets that up), so this cannot mask unfinished work.
+    else if (MState.load() == HES_Complete)
+      return info::event_command_status::complete;
     // Command is blocked and not enqueued, UrEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;

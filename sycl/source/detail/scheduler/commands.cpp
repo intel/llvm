@@ -3622,19 +3622,17 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     std::vector<ur_event_handle_t> UrEvents =
         getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
 
-    adapter_impl &Adapter = MQueue->getAdapter();
-    if (UrEvents.empty()) {
-      // The barrier itself has no effect, but we still have to produce a native
-      // event for it. Returning without one leaves MEvent handle-less, which
-      // makes get_info<command_execution_status>() report 'submitted' forever.
-      // Explicit depends_on() dependencies still have to be honored here.
-      if (auto Result = Adapter.call_nocheck<UrApiKind::urEnqueueEventsWait>(
-              MQueue->getHandleRef(), RawEvents.size(),
-              RawEvents.empty() ? nullptr : RawEvents.data(), Event);
-          Result != UR_RESULT_SUCCESS)
-        return Result;
-
-      SetEventHandleOrDiscard();
+    if (UrEvents.empty() && RawEvents.empty()) {
+      // Nothing to synchronize with: the barrier wait list is empty and no
+      // explicit depends_on() dependency contributed a native event, so the
+      // barrier has no effect. Note that we must not enqueue anything here -
+      // a barrier or an events-wait with an empty wait list acts as a full
+      // queue barrier (see the CGType::None case below), which an empty
+      // barrier wait list must not do.
+      //
+      // No native event is produced for this command. Command::enqueue() marks
+      // the event complete for exactly that case, so the status is reported
+      // correctly without one.
       return UR_RESULT_SUCCESS;
     }
 
@@ -3647,16 +3645,20 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ext::oneapi::experimental::event_mode_enum::low_power)
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
+    adapter_impl &Adapter = MQueue->getAdapter();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. Adding
     // them to the barrier wait list since barrier w/ wait list waits only for
     // the events provided in wait list and we can just extend the list.
+    // A barrier with a wait list waits only for the listed events, so when the
+    // barrier's own wait list is empty this ends up waiting exactly for the
+    // depends_on() dependencies.
     UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
 
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
-                &UrEvents[0], Event);
+                UrEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
