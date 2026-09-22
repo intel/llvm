@@ -1,7 +1,7 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 // UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: get_kernel_bundle<bundle_state::input> needs a JIT-capable image.
+// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
 
 // -- End-to-end round-trip test for ext_oneapi_get_content() preserving
 // -- user-set specialization constant values.

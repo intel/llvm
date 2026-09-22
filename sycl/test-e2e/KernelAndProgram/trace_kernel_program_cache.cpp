@@ -1,7 +1,7 @@
 // Tests tracing of in-memory kernel and program cache.
 
 // UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: The in-memory program/kernel cache is only populated by the JIT flow.
+// UNSUPPORTED-INTENDED: The in-memory program/kernel cache needs the JIT flow.
 
 // RUN: %{build} -o %t.out
 

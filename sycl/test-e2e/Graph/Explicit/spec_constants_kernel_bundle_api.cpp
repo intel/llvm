@@ -10,7 +10,7 @@
 // `SpecConstants/2020/kernel-bundle-api.cpp`
 
 // UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: get_kernel_bundle<bundle_state::input> needs a JIT-capable image.
+// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
 
 #define GRAPH_E2E_EXPLICIT
 

@@ -1,7 +1,7 @@
 // Test -fsycl-allow-device-image-dependencies with objects.
 
 // UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: get_kernel_bundle<bundle_state::input> needs a JIT-capable image.
+// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
 
 // RUN: %clangxx -fsycl %S/Inputs/a.cpp -I %S/Inputs -c -o %t_a.o
 // RUN: %clangxx -fsycl %S/Inputs/b.cpp -I %S/Inputs -c -o %t_b.o

@@ -3,7 +3,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 // UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: Relies on the online compile/link flow (JIT-capable image).
+// UNSUPPORTED-INTENDED: Needs online compile/link (JIT-capable image).
 
 // UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556

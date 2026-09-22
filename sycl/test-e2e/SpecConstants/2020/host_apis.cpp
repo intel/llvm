@@ -1,5 +1,5 @@
 // UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: get_kernel_bundle<bundle_state::input> needs a JIT-capable image.
+// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
 
 // RUN: %{build} -Wno-error=unused-command-line-argument -o %t.out -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
