@@ -1,13 +1,15 @@
 // SYCL_LAUNCH_BLOCKING must not change what a graph computes: adding a node
 // does not execute it, so it must not drain the queue, while submitting a
-// finalized graph is a regular, blocking submission. Every node accumulates
-// into the same allocation, so a dropped or repeated node is detected.
+// finalized graph is a regular, blocking submission.
 
 #include "../graph_common.hpp"
 
-int main() {
-  queue Queue{};
-
+// A host task node splits the graph into partitions that are all
+// enqueued in one call, while the executable graph's write lock is held.
+// Host tasks require internal synchronization to enqueue the next partition,
+// so the host task case tests that SYCL_LAUNCH_BLOCKING does not deadlock
+// with the internal synchronization.
+static void runGraph(queue &Queue, bool WithHostTask) {
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   int *Ptr = malloc_shared<int>(Size, Queue);
@@ -19,23 +21,23 @@ int main() {
     CGH.parallel_for(range<1>(Size), [=](item<1> id) { Ptr[id] += 1; });
   });
 
-  // A graph containing a host task takes a different submission path, since
-  // host task dependencies cannot be expressed natively.
-  auto NodeB = add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        depends_on_helper(CGH, NodeA);
-        CGH.host_task([&]() { ++HostTaskRuns; });
-      },
-      NodeA);
+  auto Dep = NodeA;
+  if (WithHostTask)
+    Dep = add_node(
+        Graph, Queue,
+        [&](handler &CGH) {
+          depends_on_helper(CGH, NodeA);
+          CGH.host_task([&]() { ++HostTaskRuns; });
+        },
+        NodeA);
 
   add_node(
       Graph, Queue,
       [&](handler &CGH) {
-        depends_on_helper(CGH, NodeB);
+        depends_on_helper(CGH, Dep);
         CGH.parallel_for(range<1>(Size), [=](item<1> id) { Ptr[id] += 1; });
       },
-      NodeB);
+      Dep);
 
   auto GraphExec = Graph.finalize();
 
@@ -45,16 +47,23 @@ int main() {
     Queue.ext_oneapi_graph(GraphExec);
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
-  // Needed despite blocking: the host task node splits the graph into pieces
-  // submitted around it, and host tasks are not made synchronous.
-  Queue.wait_and_throw();
+
+  // Host tasks are not made synchronous, so we have to explicitly wait.
+  if (WithHostTask)
+    Queue.wait_and_throw();
 
   const int Reference = 2 * 2 * Iterations;
   for (size_t i = 0; i < Size; i++) {
     assert(check_value(i, Reference, Ptr[i], "Ptr"));
   }
-  assert(HostTaskRuns == 2 * Iterations);
+  assert(HostTaskRuns == (WithHostTask ? 2 * Iterations : 0));
 
   free(Ptr, Queue);
+}
+
+int main() {
+  queue Queue;
+  runGraph(Queue, /*WithHostTask=*/false);
+  runGraph(Queue, /*WithHostTask=*/true);
   return 0;
 }

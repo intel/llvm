@@ -125,8 +125,13 @@ Default is `0`.
 
 The wait has no deadline, so a program hangs under it if the work it enqueued can
 only complete through host progress that happens after the submission returns \-
-for example a kernel spinning on a host-written flag. Host tasks, barriers and
-graph recording are not made synchronous.
+for example a kernel spinning on a host-written flag.
+
+Commands that enqueue no device work of their own are not made synchronous:
+markers and barriers, timestamp recording, host tasks, and any command recorded
+into a graph instead of executed. A command whose dependencies are not yet
+satisfied is enqueued later, by the runtime thread that satisfies them, so it is
+that enqueue that blocks and not the submission that returned earlier.
 
 ## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
 
