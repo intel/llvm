@@ -1542,7 +1542,7 @@ the device implements.
 An IGCA is identified by a numeric level (for example, 20 for PVC) and by the
 features the device implements for that level. The "render" feature is
 implemented by client GPUs, while the "compute" feature is implemented by
-datacenter GPUs. A device implements exactly one of these two features.
+datacenter GPUs.
 
 ==== New device aspect
 
@@ -1560,6 +1560,47 @@ enum class aspect {
 
 `ext_intel_igca`: Indicates that the device supports the `igca` information
 descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct igca {
+  using return_type = info::igca_info;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ An `info::igca_info` describing the IGCA supported by the device and
+the set of IGCA features the device implements.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_igca`.
+
+==== IGCA info type
+
+[source,c++]
+----
+namespace sycl::ext::intel::info {
+
+struct igca_info {
+  int level;
+  uint64_t features;
+};
+
+} // namespace sycl::ext::intel::info
+----
+
+[%header,cols="1,5"]
+|===
+| Member | Description
+| `level` | The numeric IGCA supported by the device, e.g. 20 for PVC.
+| `features` | Bitmask of the IGCA features the device implements, formed from
+the `igca_feature_*` constants below.
+|===
 
 ==== IGCA features
 
@@ -1581,49 +1622,6 @@ i.e. it is a client GPU.
 | `igca_feature_compute` | The device implements the "c" feature set of its
 IGCA, i.e. it is a datacenter GPU.
 |===
-
-Future versions of this extension may define additional feature bits.
-
-==== IGCA type
-
-[source,c++]
-----
-namespace sycl::ext::intel::info {
-
-struct igca {
-  int level;
-  uint64_t features;  // Bitmask of features
-};
-
-} // namespace sycl::ext::intel::info
-----
-
-[%header,cols="1,5"]
-|===
-| Member | Description
-| `level` | The numeric IGCA supported by the device, e.g. 20 for PVC.
-| `features` | Bitmask of the IGCA features the device implements, formed from
-the `igca_feature_*` constants above.
-|===
-
-==== New device information descriptor
-
-[source,c++]
-----
-namespace sycl::ext::intel::info::device {
-struct igca {
-  using return_type = info::igca;
-};
-} // namespace sycl::ext::intel::info::device
-----
-
-_Remarks:_ Template parameter to `device::get_info`.
-
-_Returns:_ The IGCA supported by the device and the set of IGCA features the
-device implements.
-
-_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-the device does not have `aspect::ext_intel_igca`.
 
 ==== Example Usage
 
