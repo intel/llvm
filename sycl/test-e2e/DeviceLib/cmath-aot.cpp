@@ -1,4 +1,3 @@
-
 // TODO: Remove 'UNSUPPORTED' below once
 // https://github.com/llvm/llvm-project/pull/218528 lands and cherry-picked to
 // intel/llvm.

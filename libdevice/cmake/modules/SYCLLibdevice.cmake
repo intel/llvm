@@ -442,8 +442,11 @@ add_devicelibs(libsycl-crt
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
 
-# Applying no-fast-math, clang will emit __mulsc3/__muldc3/__divsc3/__divdc3
-# when doing complex number multiplication and division
+# Implementation of complex math functions such as cpow and catanh depend on
+# complex number div/mul operation covering underflow/overflow, compiler-rt
+# builtin library provides __mulsc3/__muldc3/__divsc3/__divdc3 which meet this
+# requirement. Clang will emit these builtin calls when seeing complex number
+# mul/div expression with '-fno-fast-math' applied.
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
