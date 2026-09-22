@@ -1,3 +1,6 @@
+// UNSUPPORTED: aot-only
+// UNSUPPORTED-INTENDED: get_kernel_bundle<bundle_state::input> needs a JIT-capable image.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG

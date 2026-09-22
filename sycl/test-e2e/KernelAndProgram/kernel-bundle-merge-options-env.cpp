@@ -1,4 +1,7 @@
 // REQUIRES: gpu
+// UNSUPPORTED: aot-only
+// UNSUPPORTED-INTENDED: Uses online-compile/link options that need a JIT-capable image.
+
 // Disable fallback assert here so, that build process isn't affected
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t1.out %debug_option
 // RUN: env SYCL_UR_TRACE=2 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS SYCL_PROGRAM_APPEND_COMPILE_OPTIONS=-DENV_APPEND_COMPILE_OPTS SYCL_PROGRAM_APPEND_LINK_OPTIONS=-DENV_APPEND_LINK_OPTS %{run} %t1.out | FileCheck %s

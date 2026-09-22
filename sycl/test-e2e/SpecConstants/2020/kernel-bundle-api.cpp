@@ -12,6 +12,9 @@
 //
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
+//
+// UNSUPPORTED: aot-only
+// UNSUPPORTED-INTENDED: get_kernel_bundle<bundle_state::input> needs a JIT-capable image.
 
 #include <cstdlib>
 #include <iostream>
