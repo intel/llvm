@@ -4,7 +4,7 @@
 // REQUIRES: arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31
 // UNSUPPORTED: windows
 // UNSUPPORTED-INTENDED: Cross-process IPC test relies on POSIX semantics.
-// XFAIL: linux && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31)
+// XFAIL: linux && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31) && !spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/23243
 
 // RUN: %{build} -o %t.out
