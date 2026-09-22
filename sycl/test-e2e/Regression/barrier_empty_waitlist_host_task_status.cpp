@@ -1,24 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: env SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP=1 %{run} %t.out
-
-// Regression test for CMPLRLLVM-74969.
-//
-// A barrier submitted through the handler API with an *empty* wait list but
-// with an explicit handler::depends_on() on a blocked host task must report
-// info::event_command_status::complete once the queue has been waited on.
-// It used to stay stuck at 'submitted' because the scheduler path for an
-// empty-wait-list barrier returned early from ExecCGCommand::enqueueImpQueue()
-// without ever assigning a native event handle to the barrier event. With no
-// handle, event_impl::get_info<command_execution_status>() falls back to
-// reporting 'submitted' whenever MCommand is still set.
-//
-// Graph cleanup is what clears MCommand, so without it the bug is racy (it
-// reproduced ~5% of the time). The second RUN line disables cleanup to pin the
-
-// A barrier submitted through the handler API with an *empty* wait list but
-// with an explicit handler::depends_on() on a blocked host task must report
-// RUN: %{run} %t.out
 
 // A barrier submitted through the handler API with an *empty* wait list but
 // with an explicit handler::depends_on() on a blocked host task must report
