@@ -18,6 +18,10 @@
 
 // A barrier submitted through the handler API with an *empty* wait list but
 // with an explicit handler::depends_on() on a blocked host task must report
+// RUN: %{run} %t.out
+
+// A barrier submitted through the handler API with an *empty* wait list but
+// with an explicit handler::depends_on() on a blocked host task must report
 // info::event_command_status::complete once the queue has been waited on.
 
 #include <sycl/detail/core.hpp>
