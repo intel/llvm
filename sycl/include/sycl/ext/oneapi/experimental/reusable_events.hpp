@@ -81,7 +81,8 @@ uint32_t getMakeEventFlags(const PropertyListT &props) {
 } // namespace detail
 
 template <typename PropertyListT = empty_properties_t>
-inline std::enable_if_t<is_property_list_v<PropertyListT>, sycl::event>
+inline std::enable_if_t<
+    detail::all_are_properties_of_v<sycl::event, PropertyListT>, sycl::event>
 make_event(const sycl::context &ctxt, PropertyListT props = {}) {
   return detail::make_event(ctxt, detail::getMakeEventFlags(props));
 }
@@ -94,7 +95,8 @@ make_event(const sycl::context &ctxt, PropertyT prop) {
 }
 
 template <typename PropertyListT = empty_properties_t>
-inline std::enable_if_t<is_property_list_v<PropertyListT>, sycl::event>
+inline std::enable_if_t<
+    detail::all_are_properties_of_v<sycl::event, PropertyListT>, sycl::event>
 make_event(PropertyListT props = {}) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
