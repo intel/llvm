@@ -116,6 +116,20 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
 
   const VkExtent3D imgExtent = {imgWidth, imgHeight, 1};
 
+  const VkImageUsageFlags imgUsage = VK_IMAGE_USAGE_STORAGE_BIT |
+                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                     VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+  // Depth formats are not required by the Vulkan spec to support storage
+  // usage or external memory export/import; some drivers (e.g. Windows Level
+  // Zero) reject this combination, so skip rather than fail the test.
+  if (!isExternalImageFormatSupported(vkCtx, imgInFormat, imgType,
+                                      VK_IMAGE_TILING_OPTIMAL, imgUsage)) {
+    log_info("Depth format with storage + external memory usage is not "
+             "supported on this platform. Skipping test.");
+    return true;
+  }
+
   ImageResources inputImage;
   ImageResources outputImage;
 
@@ -133,10 +147,8 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
   {
     // STORAGE_BIT: SYCL reads/writes this as a storage image; without it the
     // layout is transfer-only and imported reads land at the wrong offset.
-    inputImage = createExportableImage(
-        vkCtx, imgExtent, imgInFormat, imgType, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    inputImage = createExportableImage(vkCtx, imgExtent, imgInFormat, imgType,
+                                       VK_IMAGE_TILING_OPTIMAL, imgUsage);
     VkMemoryRequirements memRequirements;
     vkGetImageMemoryRequirements(vkCtx.device, inputImage.image,
                                  &memRequirements);
@@ -145,10 +157,8 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
 
     // STORAGE_BIT: same as input image; the kernel writes it as a storage
     // image.
-    outputImage = createExportableImage(
-        vkCtx, imgExtent, imgOutFormat, imgType, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    outputImage = createExportableImage(vkCtx, imgExtent, imgOutFormat, imgType,
+                                        VK_IMAGE_TILING_OPTIMAL, imgUsage);
   }
 
   // Transition image layouts.
