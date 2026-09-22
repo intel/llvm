@@ -483,6 +483,14 @@ public:
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
+  /// Does not take any lock and assumes that the caller holds both the graph mutex
+  /// and the queue's submission mutex.
+  ///
+  /// @param[in] Queue The queue to be recorded from.
+  void beginRecordingLocked(sycl::detail::queue_impl &Queue);
+
+  /// Sets the Queue state to queue_state::recording. Adds the queue to the list
+  /// of recording queues associated with this graph.
   /// @param[in] Queue The queue to be recorded from.
   void beginRecording(sycl::detail::queue_impl &Queue);
 
@@ -560,13 +568,6 @@ public:
   addNativeHostTaskCallback(std::unique_ptr<detail::EnqueueHostTaskData> Data);
 
 private:
-  /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
-  /// @param[in] Queue The queue to be recorded from.
-  /// @param[in] AcquireQueueLock Whether to acquire the queue lock when setting
-  /// command graph.
-  void beginRecordingImpl(sycl::detail::queue_impl &Queue,
-                          bool AcquireQueueLock);
-
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
         std::make_shared<node_impl>(std::forward<Ts>(Args)...));

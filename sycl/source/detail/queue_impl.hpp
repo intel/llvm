@@ -32,6 +32,7 @@
 #include <sycl/queue.hpp>
 
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -669,6 +670,11 @@ public:
     std::lock_guard<std::mutex> Lock(MMutex);
     setCommandGraphUnlocked(Graph);
   }
+
+  /// Put this queue into recording mode for \p Graph, acquiring both the
+  /// submission mutex and graph mutex.
+  void beginRecordingGraph(
+      ext::oneapi::experimental::detail::graph_impl &Graph);
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {

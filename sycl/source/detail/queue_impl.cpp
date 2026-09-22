@@ -687,6 +687,13 @@ queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph, bool LockQueue) {
   return BeginResult;
 }
 
+void queue_impl::beginRecordingGraph(
+    ext::oneapi::experimental::detail::graph_impl &Graph) {
+  // Recording requires both mutexes
+  std::scoped_lock Lock(MMutex, Graph.MMutex);
+  Graph.beginRecordingLocked(*this);
+}
+
 queue_impl::NativeRecordingResult queue_impl::endNativeRecording() {
   std::lock_guard<std::mutex> Lock(MMutex);
   NativeRecordingResult EndResult;
