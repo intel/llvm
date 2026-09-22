@@ -26,7 +26,6 @@
 #include "queue.hpp"
 #include "usm.hpp"
 
-#include "common/event_sync_modes.hpp"
 #include "common/ur_ref_count.hpp"
 #include <umf_helpers.hpp>
 

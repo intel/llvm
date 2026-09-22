@@ -16,7 +16,6 @@
 #include "loader/ze_loader.h"
 
 #include "../common/device.hpp"
-#include "../common/event_sync_modes.hpp"
 #include "../common/platform.hpp"
 
 namespace ur::level_zero::v2 {
@@ -70,11 +69,9 @@ raii::cache_borrowed_event provider_counter::allocate() {
     desc.flags = createZeFlags(queueType, flags);
     desc.signalScope = ZE_EVENT_SCOPE_FLAG_HOST;
 
-    ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
-        ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
+    ZeStruct<ze_event_sync_mode_desc_t> eventSyncMode;
     if (flags & EVENT_FLAGS_LOW_POWER) {
-      eventSyncMode.syncModeFlags =
-          ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT;
+      eventSyncMode.syncModeFlags = ZE_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
       eventSyncMode.pNext = desc.pNext;
       desc.pNext = &eventSyncMode;
     }
