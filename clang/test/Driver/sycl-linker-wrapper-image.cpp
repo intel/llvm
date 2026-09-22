@@ -1,4 +1,4 @@
-// REQUIRES: system-linux
+// REQUIRES: system-linux, spirv-to-ir-wrapper, sycl-post-link
 // This test check wrapping of SYCL binaries in clang-linker-wrapper.
 //
 // Generate .o file as linker wrapper input.
