@@ -24,6 +24,8 @@
 #include <sycl/event.hpp>                             // for event
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
+#include <sycl/khr/properties.hpp>                    // for khr properties
+#include <sycl/properties/image_properties.hpp>       // for property::image
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
@@ -709,6 +711,34 @@ private:
   friend class detail::image_accessor;
 };
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace detail {
+template <typename PropertyOrList>
+inline property_list khrImageToPropertyList(const PropertyOrList &Props) {
+  if constexpr (khr::is_property_v<PropertyOrList>) {
+    return khrImageToPropertyList(khr::properties{Props});
+  } else {
+    PropertyListBuilder Builder;
+    if constexpr (PropertyOrList::template has_property<
+                      khr::property::key::use_host_ptr>())
+      if (Props.template get_property<khr::property::key::use_host_ptr>().value)
+        Builder.template add<property::image::use_host_ptr>();
+    if constexpr (PropertyOrList::template has_property<
+                      khr::property::key::use_mutex>())
+      Builder.add(std::make_shared<property::image::use_mutex>(
+          *Props.template get_property<khr::property::key::use_mutex>()
+               .get_mutex_ptr()));
+    if constexpr (PropertyOrList::template has_property<
+                      khr::property::key::context_bound>())
+      Builder.add(std::make_shared<property::image::context_bound>(
+          Props.template get_property<khr::property::key::context_bound>()
+              .get_context()));
+    return Builder.finalize();
+  }
+}
+} // namespace detail
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 template <int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
 class unsampled_image
     : public detail::unsampled_image_common<Dimensions, AllocatorT>,
@@ -720,6 +750,13 @@ private:
 
   unsampled_image(const std::shared_ptr<detail::image_impl> &Impl)
       : common_base{Impl} {}
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  template <typename PropertyOrList>
+  static constexpr bool KhrPropsForImage =
+      khr::is_property_for_v<PropertyOrList, unsampled_image> ||
+      khr::is_property_list_for_v<PropertyOrList, unsampled_image>;
+#endif
 
 public:
   unsampled_image(
@@ -931,6 +968,132 @@ public:
         detail::rangeToArray(Range).data(), Format);
   }
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      image_format Format, const range<Dimensions> &Range, PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(Format, Range, detail::khrImageToPropertyList(props),
+                        CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      image_format Format, const range<Dimensions> &Range, AllocatorT Allocator,
+      PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(Format, Range, Allocator,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <bool IsMultiDim = (Dimensions > 1),
+            typename = std::enable_if_t<IsMultiDim>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      image_format Format, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(Format, Range, Pitch,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <bool IsMultiDim = (Dimensions > 1),
+            typename = std::enable_if_t<IsMultiDim>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      image_format Format, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, AllocatorT Allocator,
+      PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(Format, Range, Pitch, Allocator,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      void *HostPointer, image_format Format, const range<Dimensions> &Range,
+      PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(HostPointer, Format, Range,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      void *HostPointer, image_format Format, const range<Dimensions> &Range,
+      AllocatorT Allocator, PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(HostPointer, Format, Range, Allocator,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <bool IsMultiDim = (Dimensions > 1),
+            typename = std::enable_if_t<IsMultiDim>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      void *HostPointer, image_format Format, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(HostPointer, Format, Range, Pitch,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <bool IsMultiDim = (Dimensions > 1),
+            typename = std::enable_if_t<IsMultiDim>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      void *HostPointer, image_format Format, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, AllocatorT Allocator,
+      PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(HostPointer, Format, Range, Pitch, Allocator,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      std::shared_ptr<void> &HostPointer, image_format Format,
+      const range<Dimensions> &Range, PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(HostPointer, Format, Range,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      std::shared_ptr<void> &HostPointer, image_format Format,
+      const range<Dimensions> &Range, AllocatorT Allocator,
+      PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(HostPointer, Format, Range, Allocator,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <bool IsMultiDim = (Dimensions > 1),
+            typename = std::enable_if_t<IsMultiDim>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      std::shared_ptr<void> &HostPointer, image_format Format,
+      const range<Dimensions> &Range, const range<Dimensions - 1> &Pitch,
+      PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(HostPointer, Format, Range, Pitch,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <bool IsMultiDim = (Dimensions > 1),
+            typename = std::enable_if_t<IsMultiDim>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  unsampled_image(
+      std::shared_ptr<void> &HostPointer, image_format Format,
+      const range<Dimensions> &Range, const range<Dimensions - 1> &Pitch,
+      AllocatorT Allocator, PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : unsampled_image(HostPointer, Format, Range, Pitch, Allocator,
+                        detail::khrImageToPropertyList(props), CodeLoc) {}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
   /* -- common interface members -- */
 
   unsampled_image(const unsampled_image &rhs) = default;
@@ -1002,6 +1165,13 @@ private:
   sampled_image(const std::shared_ptr<detail::image_impl> &Impl)
       : common_base{Impl} {}
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  template <typename PropertyOrList>
+  static constexpr bool KhrPropsForImage =
+      khr::is_property_for_v<PropertyOrList, sampled_image> ||
+      khr::is_property_list_for_v<PropertyOrList, sampled_image>;
+#endif
+
 public:
   sampled_image(
       const void *HostPointer, image_format Format, image_sampler Sampler,
@@ -1072,6 +1242,51 @@ public:
         detail::rangeToArray(Range).data(), Format, Sampler);
   }
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  sampled_image(
+      const void *HostPointer, image_format Format, image_sampler Sampler,
+      const range<Dimensions> &Range, PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : sampled_image(HostPointer, Format, Sampler, Range,
+                      detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <bool IsMultiDim = (Dimensions > 1),
+            typename = std::enable_if_t<IsMultiDim>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  sampled_image(
+      const void *HostPointer, image_format Format, image_sampler Sampler,
+      const range<Dimensions> &Range, const range<Dimensions - 1> &Pitch,
+      PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : sampled_image(HostPointer, Format, Sampler, Range, Pitch,
+                      detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  sampled_image(
+      std::shared_ptr<const void> &HostPointer, image_format Format,
+      image_sampler Sampler, const range<Dimensions> &Range,
+      PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : sampled_image(HostPointer, Format, Sampler, Range,
+                      detail::khrImageToPropertyList(props), CodeLoc) {}
+
+  template <bool IsMultiDim = (Dimensions > 1),
+            typename = std::enable_if_t<IsMultiDim>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForImage<PropertyOrList>>>
+  sampled_image(
+      std::shared_ptr<const void> &HostPointer, image_format Format,
+      image_sampler Sampler, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, PropertyOrList props,
+      const detail::code_location CodeLoc = detail::code_location::current())
+      : sampled_image(HostPointer, Format, Sampler, Range, Pitch,
+                      detail::khrImageToPropertyList(props), CodeLoc) {}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
   /* -- common interface members -- */
 
   sampled_image(const sampled_image &rhs) = default;
@@ -1118,6 +1333,35 @@ private:
   template <typename DataT, int Dims, image_target AccessTarget>
   friend class sampled_image_accessor;
 };
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr {
+template <int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::use_host_ptr,
+                           unsampled_image<Dimensions, AllocatorT>>
+    : std::true_type {};
+template <int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::use_mutex,
+                           unsampled_image<Dimensions, AllocatorT>>
+    : std::true_type {};
+template <int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::context_bound,
+                           unsampled_image<Dimensions, AllocatorT>>
+    : std::true_type {};
+template <int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::use_host_ptr,
+                           sampled_image<Dimensions, AllocatorT>>
+    : std::true_type {};
+template <int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::use_mutex,
+                           sampled_image<Dimensions, AllocatorT>>
+    : std::true_type {};
+template <int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::context_bound,
+                           sampled_image<Dimensions, AllocatorT>>
+    : std::true_type {};
+} // namespace khr
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 } // namespace _V1
 } // namespace sycl
