@@ -20,6 +20,11 @@
 #include "memory.hpp"
 
 struct ur_kernel_handle_t_ : RefCounted {
+  explicit ur_kernel_handle_t_(ur_program_handle_t Program) : Program(Program) {
+    urProgramRetain(Program);
+  }
+
+  ~ur_kernel_handle_t_() { urProgramRelease(Program); }
 
   // Simplified version of the CUDA adapter's argument implementation
   struct OffloadKernelArguments {
@@ -90,7 +95,7 @@ struct ur_kernel_handle_t_ : RefCounted {
     }
   };
 
-  ol_symbol_handle_t OffloadKernel;
+  ol_symbol_handle_t OffloadKernel = nullptr;
   ur_program_handle_t Program;
   OffloadKernelArguments Args{};
   std::string Name;

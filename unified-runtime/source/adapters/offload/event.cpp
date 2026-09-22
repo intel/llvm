@@ -14,6 +14,19 @@
 #include "queue.hpp"
 #include "ur2offload.hpp"
 
+ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
+                                       ur_queue_handle_t Queue)
+    : OffloadEvent(nullptr), Type(Type), UrQueue(Queue),
+      UrContext(Queue->UrContext) {
+  urQueueRetain(UrQueue);
+  urContextRetain(UrContext);
+}
+
+ur_event_handle_t_::~ur_event_handle_t_() {
+  urQueueRelease(UrQueue);
+  urContextRelease(UrContext);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    ur_event_info_t propName,
                                                    size_t propSize,
@@ -71,7 +84,8 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
                    ur_event_callback_t pfnNotify, void *pUserData) {
   // Liboffload only supports a transition from SUBMITTED to COMPLETE
   ol_queue_handle_t Queue;
-  OL_RETURN_ON_ERR(olCreateQueue(hEvent->UrQueue->OffloadDevice, &Queue));
+  OL_RETURN_ON_ERR(olCreateQueue(hEvent->UrContext->OffloadContext,
+                                 hEvent->UrQueue->OffloadDevice, &Queue));
   OL_RETURN_ON_ERR(olWaitEvents(Queue, &hEvent->OffloadEvent, 1));
   auto CallbackData =
       new callback_data_t{pfnNotify, hEvent, execStatus, pUserData};
