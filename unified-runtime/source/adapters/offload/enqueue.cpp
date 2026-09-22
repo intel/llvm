@@ -274,6 +274,34 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
 
   return UR_RESULT_SUCCESS;
 }
+
+ol_result_t getPointerDevice(ur_queue_handle_t Queue, const void *Ptr,
+                             ol_device_handle_t &Device) {
+  auto Result = olGetMemInfo(Queue->UrContext->OffloadContext, Ptr,
+                             OL_MEM_INFO_DEVICE, sizeof(Device), &Device);
+  if (Result && (Result->Code == OL_ERRC_NOT_FOUND ||
+                 Result->Code == OL_ERRC_INVALID_ARGUMENT)) {
+    // Ordinary host pointers are not tracked by liboffload, while tracked host
+    // allocations deliberately have no associated device.
+    Device = Adapter->HostDevice;
+    return OL_SUCCESS;
+  }
+  return Result;
+}
+
+ur_result_t doRoutedMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
+                           void *DestPtr, const void *SrcPtr, size_t Size,
+                           bool Blocking, uint32_t NumEventsInWaitList,
+                           const ur_event_handle_t *EventWaitList,
+                           ur_event_handle_t *Event) {
+  ol_device_handle_t DestDevice;
+  OL_RETURN_ON_ERR(getPointerDevice(hQueue, DestPtr, DestDevice));
+  ol_device_handle_t SrcDevice;
+  OL_RETURN_ON_ERR(getPointerDevice(hQueue, SrcPtr, SrcDevice));
+
+  return doMemcpy(Command, hQueue, DestPtr, DestDevice, SrcPtr, SrcDevice, Size,
+                  Blocking, NumEventsInWaitList, EventWaitList, Event);
+}
 } // namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
@@ -283,9 +311,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   char *DevPtr =
       reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
 
-  return doMemcpy(UR_COMMAND_MEM_BUFFER_READ, hQueue, pDst, Adapter->HostDevice,
-                  DevPtr + offset, hQueue->OffloadDevice, size, blockingRead,
-                  numEventsInWaitList, phEventWaitList, phEvent);
+  return doRoutedMemcpy(UR_COMMAND_MEM_BUFFER_READ, hQueue, pDst,
+                        DevPtr + offset, size, blockingRead,
+                        numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
@@ -295,9 +323,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   char *DevPtr =
       reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
 
-  return doMemcpy(UR_COMMAND_MEM_BUFFER_WRITE, hQueue, DevPtr + offset,
-                  hQueue->OffloadDevice, pSrc, Adapter->HostDevice, size,
-                  blockingWrite, numEventsInWaitList, phEventWaitList, phEvent);
+  return doRoutedMemcpy(UR_COMMAND_MEM_BUFFER_WRITE, hQueue, DevPtr + offset,
+                        pSrc, size, blockingWrite, numEventsInWaitList,
+                        phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
@@ -310,10 +338,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   char *DevPtrDst =
       reinterpret_cast<char *>(std::get<BufferMem>(hBufferDst->Mem).Ptr);
 
-  return doMemcpy(UR_COMMAND_MEM_BUFFER_COPY, hQueue, DevPtrDst + dstOffset,
-                  hQueue->OffloadDevice, DevPtrSrc + srcOffset,
-                  hQueue->OffloadDevice, size, false, numEventsInWaitList,
-                  phEventWaitList, phEvent);
+  return doRoutedMemcpy(UR_COMMAND_MEM_BUFFER_COPY, hQueue,
+                        DevPtrDst + dstOffset, DevPtrSrc + srcOffset, size,
+                        false, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
@@ -446,19 +473,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  auto GetDevice = [&](const void *Ptr) {
-    auto Res = hQueue->UrContext->getAllocType(Ptr);
-    if (!Res)
-      return Adapter->HostDevice;
-    return Res->Type == OL_ALLOC_TYPE_HOST ? Adapter->HostDevice
-                                           : hQueue->OffloadDevice;
-  };
-
-  return doMemcpy(UR_COMMAND_USM_MEMCPY, hQueue, pDst, GetDevice(pDst), pSrc,
-                  GetDevice(pSrc), size, blocking, numEventsInWaitList,
-                  phEventWaitList, phEvent);
-
-  return UR_RESULT_SUCCESS;
+  return doRoutedMemcpy(UR_COMMAND_USM_MEMCPY, hQueue, pDst, pSrc, size,
+                        blocking, numEventsInWaitList, phEventWaitList,
+                        phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
