@@ -3,7 +3,7 @@
 set -x
 set -e
 set -o pipefail
-VULKAN_VER="1.4.335.0"
+VULKAN_VER="1.4.357.0"
 wget https://sdk.lunarg.com/sdk/download/$VULKAN_VER/linux/vulkansdk-linux-x86_64-$VULKAN_VER.tar.xz -O vulkan.tar.xz
 tar xf vulkan.tar.xz
 mv $VULKAN_VER vulkan
