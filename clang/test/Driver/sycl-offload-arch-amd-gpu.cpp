@@ -118,7 +118,7 @@
 /// translation, which must not downcast the AMDGPUToolChain to SYCLToolChain.
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx900 -nogpulib -fno-sycl-libspirv -g %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CLANG-OFFLOAD-PACKAGER-AMD-OPTS
-// CLANG-OFFLOAD-PACKAGER-AMD-OPTS: llvm-offload-binary{{.*}} "--image={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx900,kind=sycl,compile-opts=-g"
+// CLANG-OFFLOAD-PACKAGER-AMD-OPTS: llvm-offload-binary{{.*}} "--image={{.*}}triple=amdgpu9.00-amd-amdhsa,arch=gfx900,kind=sycl,compile-opts=-g"
 
 // Tests for handling an invalid architecture.
 //
