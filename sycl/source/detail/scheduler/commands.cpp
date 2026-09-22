@@ -3625,14 +3625,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (UrEvents.empty() && RawEvents.empty()) {
       // Nothing to synchronize with: the barrier wait list is empty and no
       // explicit depends_on() dependency contributed a native event, so the
-      // barrier has no effect. Note that we must not enqueue anything here -
-      // a barrier or an events-wait with an empty wait list acts as a full
-      // queue barrier (see the CGType::None case below), which an empty
-      // barrier wait list must not do.
-      //
-      // No native event is produced for this command. Command::enqueue() marks
-      // the event complete for exactly that case, so the status is reported
-      // correctly without one.
+      // barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
 
@@ -3650,9 +3643,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // honor here. It is very important for cross queue dependencies. Adding
     // them to the barrier wait list since barrier w/ wait list waits only for
     // the events provided in wait list and we can just extend the list.
-    // A barrier with a wait list waits only for the listed events, so when the
-    // barrier's own wait list is empty this ends up waiting exactly for the
-    // depends_on() dependencies.
     UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
 
     if (auto Result =
