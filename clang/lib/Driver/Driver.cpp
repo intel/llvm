@@ -6042,8 +6042,11 @@ class OffloadingActionBuilder final {
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
-      const toolchains::SYCLToolChain &SYCLTC =
-          static_cast<const toolchains::SYCLToolChain &>(*TC);
+      // NVPTX/AMDGCN reuse CudaToolChain/AMDGPUToolChain, not SYCLToolChain.
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
+      const toolchains::SYCLToolChain &SYCLTC = toolchains::getSYCLToolChain(
+          C.getDriver(), *TC, *HostTC, Args, ScratchTC);
       SmallVector<ToolChain::BitCodeLibraryInfo, 8> DeviceLibraries;
       // TODO: Use the getDeviceLibs for each toolchain instead of using the
       // specific libs and doing a separate directory search.  Each toolchain

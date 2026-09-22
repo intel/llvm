@@ -278,9 +278,6 @@ Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
   std::string PrefixStr = clang::sanitizeTargetIDInFileName(Prefix.str());
 
   if (SaveTemps) {
-    // Generate a unique path name without creating a file
-    sys::fs::createUniquePath(Prefix + "-%%%%%%." + Extension, OutputFile,
-                              /*MakeAbsolute=*/false);
     (PrefixStr + "." + Extension).toNullTerminatedStringRef(OutputFile);
   } else {
     if (std::error_code EC = sys::fs::createTemporaryFile(
