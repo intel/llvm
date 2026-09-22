@@ -12,6 +12,7 @@
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
 #include <condition_variable>
@@ -342,6 +343,384 @@ TEST_F(ReusableEventsTest, EnqueueSignalEventReusableEventsNotSupported) {
 
   EXPECT_EQ(UrEventCreateExp_counter, 0);
   EXPECT_EQ(UrEventRelease_counter, 2);
+
+  Queue.wait();
+}
+
+// enqueue_signal_event is refused while a command which depends on the event is
+// still held inside the SYCL runtime. Such a command reads the event when it is
+// finally enqueued, so it would capture the new signal instead of the one it
+// was submitted with.
+TEST_F(ReusableEventsTest, EnqueueSignalEventWithPendingDependency) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"TestKernel"});
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+
+  // The runtime enqueues operations of its own here, and their events come from
+  // the default mock, so the released handles are not only DummyEventHandle.
+  CheckUrEventReleaseHandle = false;
+
+  auto event = syclex::make_event(Ctx);
+
+  // The first signal is submitted to the backend.
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+
+  // A host task which blocks the queue until the test releases it.
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  // The kernel depends on the event and is queued behind the host task, so the
+  // dependency is still pending in the runtime. Its wait list stays empty even
+  // once it is enqueued, because the event was signaled on this same in-order
+  // queue and getUrEvents drops such a dependency as redundant.
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(event);
+    CGH.single_task<TestKernel>([]() {});
+  });
+
+  bool exception = false;
+  try {
+    syclex::enqueue_signal_event(Queue, event);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+  }
+  EXPECT_TRUE(exception);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+
+  // Release the host task, which lets the kernel reach the backend.
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  Queue.wait();
+
+  // The dependency is no longer pending, so the event can be signaled again.
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
+
+  Queue.wait();
+}
+
+// The same, with the dependent command blocked by a live host accessor instead
+// of a host task.
+TEST_F(ReusableEventsTest,
+       EnqueueSignalEventWithPendingDependencyHostAccessor) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  // The buffer operations use events created by the default mock, so the
+  // released handles are not only DummyEventHandle.
+  CheckUrEventReleaseHandle = false;
+
+  auto event = syclex::make_event(Ctx);
+
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  sycl::buffer<int, 1> Buf{sycl::range<1>{1}};
+  {
+    auto HostAcc = Buf.get_host_access();
+
+    Queue.submit([&](sycl::handler &CGH) {
+      CGH.depends_on(event);
+      sycl::accessor Acc{Buf, CGH, sycl::write_only};
+      CGH.fill(Acc, 0);
+    });
+
+    bool exception = false;
+    try {
+      syclex::enqueue_signal_event(Queue, event);
+    } catch (sycl::exception const &e) {
+      exception = true;
+      EXPECT_EQ(e.code(), sycl::errc::invalid);
+    }
+    EXPECT_TRUE(exception);
+  }
+
+  Queue.wait();
+
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  Queue.wait();
+}
+
+// An event which has not been signaled yet is a pending dependency too, once a
+// command which depends on it is held in the runtime. Such an event has no
+// backend event, so the dependency is resolved on the host when the command is
+// enqueued - and by then the event may have acquired a backend event.
+TEST_F(ReusableEventsTest, EnqueueSignalEventWithPendingUnsignaledDependency) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"TestKernel"});
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+
+  // See the comment in EnqueueSignalEventWithPendingDependency.
+  CheckUrEventReleaseHandle = false;
+
+  auto event = syclex::make_event(Ctx);
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(event);
+    CGH.single_task<TestKernel>([]() {});
+  });
+
+  bool exception = false;
+  try {
+    syclex::enqueue_signal_event(Queue, event);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+  }
+  EXPECT_TRUE(exception);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 0);
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  Queue.wait();
+}
+
+// A dependent command which reached the backend does not prevent a new signal -
+// the backend has captured its dependency, so re-associating the event is safe.
+TEST_F(ReusableEventsTest, EnqueueSignalEventAfterDependencyReachedBackend) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"TestKernel"});
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+
+  auto event = syclex::make_event(Ctx);
+
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(event);
+    CGH.single_task<TestKernel>([]() {});
+  });
+
+  // Nothing is held in the runtime, so the event can be re-associated.
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
+
+  Queue.wait();
+}
+
+// The "event wait" operation may be handled by the scheduler. It only reads the
+// events it waits for, which happens when the barrier command is enqueued, so
+// it can be queued behind a host task instead of being refused.
+TEST_F(ReusableEventsTest, EnqueueWaitEventBehindHostTask) {
+  // The wait barriers are enqueued with an empty wait list here, because the
+  // event they wait for was signaled on this very in-order queue, so waiting
+  // for it again is redundant. The callback which reports an output event is
+  // used for them and for the signal barriers alike.
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal_create_event);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  // The runtime enqueues operations of its own here, and their events come from
+  // the default mock, so the released handles are not only DummyEventHandle.
+  CheckUrEventReleaseHandle = false;
+
+  auto event = syclex::make_event(Ctx);
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  // Queued behind the host task in the runtime rather than refused.
+  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
+  EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, {event}); });
+
+  // While the barrier commands are held, the event is a pending dependency, so
+  // it cannot be enqueued for signaling again.
+  bool exception = false;
+  try {
+    syclex::enqueue_signal_event(Queue, event);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+  }
+  EXPECT_TRUE(exception);
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  Queue.wait();
+
+  // The barrier commands have read the event, so signaling is allowed again.
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  Queue.wait();
+}
+
+// The event of a host task has no backend event, so it cannot be given to a
+// backend barrier. The "event wait" operation waits for it inside the SYCL
+// runtime instead: the barrier command is held until the host task completes
+// and is submitted to the backend only then. Such an event has no context
+// either, so the context of the queue does not matter.
+TEST_F(ReusableEventsTest, EnqueueWaitEventForHostTaskEvent) {
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue HostTaskQueue{Ctx, Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  // The runtime enqueues operations of its own here, and their events come from
+  // the default mock, so the released handles are not only DummyEventHandle.
+  CheckUrEventReleaseHandle = false;
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  sycl::event HostTaskEvent = HostTaskQueue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, HostTaskEvent); });
+  EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, {HostTaskEvent}); });
+
+  // Both barriers are held in the runtime while the host task runs.
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  Queue.wait();
+  HostTaskQueue.wait();
+
+  // They reached the backend once the host task completed.
+  EXPECT_GT(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
+}
+
+// A barrier recorded into a graph becomes a node which depends on the leaves
+// recorded so far instead of the events passed to it, so the "event wait"
+// operation cannot be expressed while a graph is being recorded.
+TEST_F(ReusableEventsTest, EnqueueWaitEventOnRecordingQueue) {
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  auto event = syclex::make_event(Ctx);
+  EXPECT_NO_THROW({ syclex::enqueue_signal_event(Queue, event); });
+
+  auto expectThrow = [](sycl::errc Expected, auto &&Operation) {
+    std::error_code Code = sycl::make_error_code(sycl::errc::success);
+    try {
+      Operation();
+    } catch (sycl::exception const &e) {
+      Code = e.code();
+    }
+    EXPECT_EQ(Code, Expected);
+  };
+
+  syclex::command_graph<syclex::graph_state::modifiable> Graph{Ctx, Dev};
+  Graph.begin_recording(Queue);
+
+  expectThrow(sycl::errc::invalid,
+              [&] { syclex::enqueue_wait_event(Queue, event); });
+  expectThrow(sycl::errc::invalid,
+              [&] { syclex::enqueue_wait_events(Queue, {event}); });
+
+  // An empty wait list is refused as well. This is the case which the graph
+  // builder would not catch on its own: with a non-empty one it reports the
+  // event as a dependency which does not correspond to a node of the graph,
+  // while an empty one would simply be recorded as a barrier node.
+  std::vector<sycl::event> NoEvents;
+  expectThrow(sycl::errc::invalid,
+              [&] { syclex::enqueue_wait_events(Queue, NoEvents); });
+
+  // The "event signal" operation is refused for a reason of its own - a
+  // recorded node cannot adopt the event as its output event - and reports it
+  // with a different error code.
+  expectThrow(sycl::errc::runtime,
+              [&] { syclex::enqueue_signal_event(Queue, event); });
+
+  Graph.end_recording();
+
+  // Once the recording is over, the operations are accepted again and reach the
+  // backend, so the event is waited for.
+  const int BarriersBefore =
+      RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter;
+  ExpectedNumEventsInWaitList = 1;
+
+  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue, event); });
+  EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, {event}); });
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter,
+            BarriersBefore + 2);
 
   Queue.wait();
 }

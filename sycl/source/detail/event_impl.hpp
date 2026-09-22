@@ -326,6 +326,35 @@ public:
   /// \return true if command passed enqueue
   bool isEnqueued() const noexcept { return MIsEnqueued; };
 
+  /// Registers a command which depends on this event and has not been enqueued
+  /// to the backend yet. Called when the dependency is recorded, under the
+  /// scheduler graph write lock.
+  void addUnenqueuedDependent() noexcept { ++MUnenqueuedDependents; }
+
+  /// Unregisters such a command - either because it has been enqueued and has
+  /// therefore read this event already, or because it was destroyed without
+  /// being enqueued.
+  void removeUnenqueuedDependent() noexcept {
+    [[maybe_unused]] uint32_t Previous =
+        MUnenqueuedDependents.fetch_sub(1, std::memory_order_acq_rel);
+    assert(Previous > 0 && "unbalanced unenqueued dependent count");
+  }
+
+  /// Number of commands which depend on this event and are still held inside
+  /// the SYCL runtime.
+  uint32_t getUnenqueuedDependentCount() const noexcept {
+    return MUnenqueuedDependents.load(std::memory_order_acquire);
+  }
+
+  /// True if this event is a dependency of at least one command that the SYCL
+  /// runtime has not submitted to the backend yet. Such a command reads this
+  /// event again when it is finally enqueued, so re-associating the event
+  /// before that happens would retarget the dependency - see
+  /// sycl_ext_oneapi_reusable_events.
+  bool hasUnenqueuedDependents() const noexcept {
+    return getUnenqueuedDependentCount() != 0;
+  }
+
   void attachEventToComplete(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MPostCompleteEvents.push_back(Event);
@@ -518,6 +547,9 @@ protected:
   bool MProfilingTagEvent = false;
 
   std::atomic_bool MIsEnqueued{false};
+  /// Commands which depend on this event and have not been enqueued to the
+  /// backend yet, see hasUnenqueuedDependents().
+  std::atomic<uint32_t> MUnenqueuedDependents{0};
 
   // Events constructed without a context will lazily use the default context
   // when needed.

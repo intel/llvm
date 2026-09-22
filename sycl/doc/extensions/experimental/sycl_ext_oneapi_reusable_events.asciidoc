@@ -474,43 +474,43 @@ commands.
 This extension has been implemented with the following limitations. A program
 must avoid them in order to work correctly, but a violation is only diagnosed
 in some cases. The implementation throws an `exception` with the `errc::invalid`
-error code if, at the point of the call, the command which the "event signal" or
-"event wait" operation depends on is still pending inside the SYCL runtime. If
-that command has already been submitted to the backend by then, the operation
-succeeds instead. Since an application cannot generally observe which of the
-two is the case, it must not rely on either outcome.
+error code if, at the point of the call, the command which the "event signal"
+operation depends on is still pending inside the SYCL runtime. If that command
+has already been submitted to the backend by then, the operation succeeds
+instead. Since an application cannot generally observe which of the two is the
+case, it must not rely on either outcome.
+
+The limitations below apply to the "event signal" operation, which the
+`enqueue_signal_event` call has to submit to the backend itself. They do not
+apply to the "event wait" operation, which may be left pending inside the SYCL
+runtime: it can be enqueued behind any of the commands listed below, and it can
+wait for an event of such a command. In the latter case the wait may block the
+thread it is executed on (the application thread or a host task thread) and may
+lead to deadlocks.
 
 * The `evt` passed to the `enqueue_wait_event` function and all events in
   `evts` passed to the `enqueue_wait_events` function need to have the same
-  context as `q`.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  functions cannot be dependent on a host task (`enqueue_wait_event` and
-  `enqueue_wait_events` cannot take an event produced by a host task submission
-  as an argument and all those functions cannot be enqueued behind a host task
-  on an in-order queue), which has been submitted using the
-  `handler::host_task` function. Submitting host tasks using the
-  `sycl::ext::oneapi::experimental::host_task` function from the
+  context as `q`. This does not apply to the events of host tasks submitted
+  using the `handler::host_task` function, which are waited for by the SYCL
+  runtime rather than by the backend.
+* The `enqueue_signal_event` function cannot be dependent on a host task, which
+  has been submitted using the `handler::host_task` function. Submitting host
+  tasks using the `sycl::ext::oneapi::experimental::host_task` function from the
   link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions] extension is supported.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  functions cannot be dependent on a command which accesses a memory object
-  while a host accessor for that memory object exists (`enqueue_wait_event` and
-  `enqueue_wait_events` cannot take an event produced by such a command as an
-  argument and all those functions cannot be enqueued behind such a command on
-  an in-order queue). This applies to `host_accessor`,
-  `buffer::get_host_access`, `host_unsampled_image_accessor` and
-  `host_sampled_image_accessor`. Unlike a host task, which completes on its own,
-  such a command is held until the host accessor is destroyed, which happens
-  when the last copy of the host accessor is destroyed, so the application
-  controls how long this limitation lasts.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  functions cannot be dependent on any commands which use cross-context
-  event dependencies.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  functions cannot be dependent on any commands using `sycl::stream`.
-* The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
-  functions cannot be dependent on the following methods from the
-  link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[
+* The `enqueue_signal_event` function cannot be dependent on a command which
+  accesses a memory object while a host accessor for that memory object exists.
+  This applies to `host_accessor`, `buffer::get_host_access`,
+  `host_unsampled_image_accessor` and `host_sampled_image_accessor`. Unlike a
+  host task, which completes on its own, such a command is held until the host
+  accessor is destroyed, which happens when the last copy of the host accessor
+  is destroyed, so the application controls how long this limitation lasts.
+* The `enqueue_signal_event` function cannot be dependent on any commands which
+  use cross-context event dependencies.
+* The `enqueue_signal_event` function cannot be dependent on any commands using
+  `sycl::stream`.
+* The `enqueue_signal_event` function cannot be dependent on the following
+  methods from the link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[
   sycl_ext_oneapi_memcpy2d] extension: `queue::ext_oneapi_memcpy2d`,
   `queue::ext_oneapi_copy2d`, `handler::ext_oneapi_memcpy2d`,
   `handler::ext_oneapi_copy2d`, if the copy is a host-to-host data copy,
@@ -521,14 +521,21 @@ two is the case, it must not rely on either outcome.
 * When an event is passed to the `enqueue_signal_event` function and is also
   used as a dependency of a command (via `handler::depends_on`, one of the
   `queue` member functions which take event dependencies, or any other API
-  which establishes an event dependency), the same limitations apply as those
-  described above for the `enqueue_wait_event` and `enqueue_wait_events`
-  functions. This includes the restriction that the event needs to have the
-  same context as the queue to which the dependent command is submitted, which
-  temporarily restricts the behavior described in the section "Interaction with
-  other event APIs". These limitations apply regardless of whether the
-  dependent command is submitted before or after the call to
+  which establishes an event dependency), that command must be submitted to the
+  backend before the event is enqueued for signaling again. It is not submitted
+  to the backend while it is pending inside the SYCL runtime for any of the
+  reasons listed above: it is queued behind a host task, it is blocked by a host
+  accessor, or it uses a cross-context event dependency. The event also needs to
+  have the same context as the queue to which the dependent command is
+  submitted, which temporarily restricts the behavior described in the section
+  "Interaction with other event APIs". These limitations apply regardless of
+  whether the dependent command is submitted before or after the call to
   `enqueue_signal_event`. If any of these limitations is violated, the behavior
-  is undefined. This case is never diagnosed, because the implementation does
-  not currently differentiate between events enqueued for signaling using
-  `enqueue_signal_event` and regular events produced during command submission.
+  is undefined.
+
+The `enqueue_signal_event` function diagnoses the most important case of this:
+it throws an `exception` with the `errc::invalid` error code if, at the point of
+the call, a command which depends on `evt` has not been submitted to the backend
+yet. Note that this includes the case where `evt` is used as a dependency before
+it has ever been enqueued for signaling, because such a dependency is resolved
+on the host once the dependent command is enqueued.

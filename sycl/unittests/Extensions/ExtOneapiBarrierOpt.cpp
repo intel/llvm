@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/event_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
@@ -55,4 +57,33 @@ TEST_F(ExtOneapiBarrierOptTest, EmptyEventTest) {
   NumEventsInWaitList = 100;
   q1.ext_oneapi_submit_barrier({E1});
   ASSERT_EQ(100u, NumEventsInWaitList);
+}
+
+// A barrier with a wait list which is filtered out as redundant still has to
+// reach the backend when its event is needed. An in-order queue keeps that
+// event as the dependency of the commands submitted after it, and an event
+// without a backend handle is read as a command which has not been submitted to
+// the backend yet, see Scheduler::areEventsSafeForSchedulerBypass.
+TEST_F(ExtOneapiBarrierOptTest, RedundantWaitListStillProducesEvent) {
+  sycl::queue q{{sycl::property::queue::in_order()}};
+
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
+
+  // A command on this very queue. A barrier submitted to an in-order queue does
+  // not have to wait for its event again, so the wait list comes out empty.
+  sycl::event E = q.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+
+  // The handler based barrier is always handled by the scheduler.
+  NumEventsInWaitList = 100;
+  sycl::event Barrier =
+      q.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_barrier({E}); });
+
+  detail::event_impl &BarrierImpl = *detail::getSyclObjImpl(Barrier);
+  EXPECT_EQ(0u, NumEventsInWaitList);
+  EXPECT_NE(BarrierImpl.getHandle(), nullptr);
+
+  q.wait();
 }

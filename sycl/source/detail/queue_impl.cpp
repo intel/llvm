@@ -621,20 +621,20 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
               /*SchedulerBypass*/ true};
     }
 
-    if (EventForReuse || !CallerNeedsEvent) {
-      // Current limitation: reusable events require scheduler bypass so that
-      // the barrier can be submitted directly to the backend with the reusable
-      // event's handle as the output event. Scheduler bypass is not possible
-      // when dependencies include host tasks or cross-context dependencies.
+    if (EventForReuse) {
+      // Current limitation: enqueue_signal_event requires scheduler bypass, so
+      // that the barrier can be submitted directly to the backend with the
+      // reusable event's handle as the output event. The scheduler has no way
+      // to adopt a caller-supplied event as the output event of a command it
+      // builds.
       //
-      // This limitation applies to both: enqueue_signal_event and
-      // enqueue_wait_event(s).
-      //
-      // The !CallerNeedsEvent condition is used to detect the
-      // enqueue_wait_event(s) function calls.
+      // The "event wait" operation has no such requirement: it only reads the
+      // events it waits for, which enqueueImp does with getUrEventsBlocking
+      // when the barrier command is enqueued. Those events are counted as
+      // pending dependencies until then, see ExecCGCommand's constructor.
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
-          "An event cannot be enqueued for signaling or waiting "
+          "An event cannot be enqueued for signaling "
           "behind a command which is not enqueued in the backend.");
     }
 

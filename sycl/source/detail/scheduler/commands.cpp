@@ -328,7 +328,16 @@ public:
     }
 #endif
 
-    if (!waitForEvents()) {
+    const bool DepsSatisfied = waitForEvents();
+
+    // The dependencies have been read now, on this thread, so they are no
+    // longer pending inside the runtime on this command's behalf.
+    // Command::enqueue cannot do this for a host task, because enqueueing one
+    // only hands the job to the thread pool - the handles are read here
+    // instead.
+    MThisCmd->releaseUnenqueuedDeps();
+
+    if (!DepsSatisfied) {
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::exception(
           make_error_code(errc::runtime),
           std::string("Couldn't wait for host-task's dependencies")));
@@ -423,6 +432,17 @@ public:
 void Command::waitForPreparedHostEvents() const {
   for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
     HostEvent->waitInternal();
+}
+
+void Command::countUnenqueuedDep(const EventImplPtr &DepEvent) {
+  MUnenqueuedDeps.push_back(DepEvent);
+  DepEvent->addUnenqueuedDependent();
+}
+
+void Command::releaseUnenqueuedDeps() {
+  for (const EventImplPtr &DepEvent : MUnenqueuedDeps)
+    DepEvent->removeUnenqueuedDependent();
+  MUnenqueuedDeps.clear();
 }
 
 void Command::waitForEvents(queue_impl *Queue,
@@ -737,6 +757,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   if (!UrEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
+    countUnenqueuedDep(DepEvent);
     MPreparedHostDepsEvents.push_back(DepEvent);
     return nullptr;
   }
@@ -749,8 +770,10 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   if (&DepEventContext != WorkerContext && WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
-  } else
+  } else {
+    countUnenqueuedDep(DepEvent);
     MPreparedDepsEvents.push_back(std::move(DepEvent));
+  }
 
   return ConnectionCmd;
 }
@@ -913,6 +936,19 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     WakeWaitersOnFailure();
   } else {
     MEvent->setEnqueued();
+    // The command has read its dependencies and passed them to the backend, so
+    // they are no longer pending inside the runtime on its behalf. A host task
+    // is the exception: enqueueing it only hands the job to the thread pool,
+    // and the dependencies are read later, on that thread - see
+    // DispatchHostTask, which releases them there instead.
+    //
+    // A command group releases its counts earlier, in
+    // ExecCGCommand::enqueueImpQueue, where the dependencies are actually read
+    // and where this can still be ordered before its event handle is published.
+    // This call is the catch-all for the remaining command types, and is
+    // harmless after an earlier one, because releasing is idempotent.
+    if (!isHostTask())
+      releaseUnenqueuedDeps();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();
@@ -1969,6 +2005,26 @@ ExecCGCommand::ExecCGCommand(
     : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
               CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
+  // A barrier with a wait list keeps those events outside of the dependency
+  // lists that processDepEvent fills: enqueueImp resolves them with
+  // getUrEventsBlocking when the command is enqueued. That is a deferred read
+  // just like any other, so the events have to be counted here instead.
+  //
+  // Every event is counted, including the ones getUrEventsBlocking is going to
+  // skip. An event which has no backend event now may well have one by the time
+  // the barrier is enqueued - that is precisely what enqueue_signal_event does
+  // to an event which was never signaled before - and the barrier would then
+  // wait for that later signal instead of doing nothing. Host events are the
+  // exception: they cannot be given to a barrier at all, and the ones which
+  // reach it through handler::ext_oneapi_barrier are turned into command group
+  // dependencies, where processDepEvent counts them.
+  if (MCommandGroup->getType() == CGType::BarrierWaitlist) {
+    for (const EventImplPtr &DepEvent :
+         static_cast<CGBarrier &>(*MCommandGroup).MEventsWaitWithBarrier)
+      if (!DepEvent->isHost())
+        countUnenqueuedDep(DepEvent);
+  }
+
   emitInstrumentationDataProxy();
 }
 
@@ -3289,6 +3345,19 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
+  // The dependencies have been read into RawEvents, so their pending-dependent
+  // counts can be given back right here - which has to happen before this
+  // command's own event handle becomes visible. A thread waiting for that event
+  // takes the fast path in event_impl::wait as soon as the handle appears, so a
+  // count released after the handle is published could still be observed by an
+  // enqueue_signal_event which runs once that wait has returned.
+  //
+  // Two command types read their dependencies later and release the counts
+  // where they do: a host task, on the thread pool in DispatchHostTask, and a
+  // barrier with a wait list, further down in this function.
+  if (!isHostTask() && MCommandGroup->getType() != CGType::BarrierWaitlist)
+    releaseUnenqueuedDeps();
+
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = !MEventNeeded ? nullptr : &UREvent;
   detail::event_impl *EventImpl = !MEventNeeded ? nullptr : MEvent.get();
@@ -3715,9 +3784,24 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
     std::vector<ur_event_handle_t> UrEvents =
         getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
+    // The wait list has been read now, so the counts taken for it - and for the
+    // dependencies of this command - are given back here, before the event
+    // handle of the barrier becomes visible. See the comment on the other
+    // release at the top of this function.
+    releaseUnenqueuedDeps();
     if (UrEvents.empty()) {
-      // If Events is empty, then the barrier has no effect.
-      return UR_RESULT_SUCCESS;
+      // If Events is empty, then the barrier has no effect. It can only be
+      // skipped when no event is needed: a command which returns without
+      // producing a backend event leaves its own event without a handle, and a
+      // handle-less event is read as a command which has not reached the
+      // backend yet, see Scheduler::areEventsSafeForSchedulerBypass. An
+      // in-order queue keeps such an event as the dependency of the commands
+      // which follow, so a barrier with nothing to wait for is enqueued there
+      // anyway - waiting for all of the preceding commands is what the queue
+      // guarantees regardless. An out-of-order queue does not order the
+      // following commands after it, so there the event is harmless.
+      if (!Event || !MQueue->isInOrder())
+        return UR_RESULT_SUCCESS;
     }
 
     // Create properties for the barrier.
@@ -3739,7 +3823,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
-                &UrEvents[0], Event);
+                UrEvents.empty() ? nullptr : UrEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
