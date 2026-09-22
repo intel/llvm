@@ -11011,8 +11011,12 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
                                        *HostTC, Arch.ArchName);
-      // Filter per-arch only when this image is bound to a single arch;
-      // legacy "-device pvc,bdw" buckets should keep all opts.
+      // Filter -Xsycl-target-backend tokens by arch when this image is
+      // bound to a single arch. Archs.size() > 1 happens on the legacy
+      // syntax where a single -fsycl-targets=spir64_gen entry names
+      // multiple archs via a comma-joined "-device pvc,bdw"; that image
+      // holds all of them and its compile-opts= must keep every token
+      // (no per-arch filtering possible for a merged image).
       StringRef PerArch = Archs.size() == 1 ? Arch.ArchName : StringRef();
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
                                         PerArch);
@@ -12342,6 +12346,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-suppress-undefined-func-warnings"));
 
+    // Pass backend compiler, linker, sycl-post-link,
+    // llvm-spirv, and spirv-to-ir-wrapper options specified at link
+    // time to clang-linker-wrapper, using the following mapping:
     // -Xsycl-target-backend  -> --device-compiler
     // -Xsycl-target-linker   -> --device-linker
     // -Xdevice-post-link     -> --sycl-post-link-options
@@ -12358,6 +12365,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
 
+      // Collect the bound archs for this toolchain. Only spir64_gen dedupes
+      // multiple intel_gpu_* aliases onto a single toolchain instance, so
+      // it's the only case where we need per-arch keying to disambiguate.
       SmallVector<StringRef, 4> Devices;
       if (TC->getTriple().isSPIR() &&
           TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
@@ -12366,6 +12376,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           if (!BA.ArchName.empty())
             Devices.push_back(BA.ArchName);
       }
+      // For 0 or 1 bound archs no /<arch> qualifier is needed: 0 archs
+      // means no per-arch splitting is possible, and 1 arch means every
+      // token for this triple applies to that arch anyway. Keep the
+      // unqualified emission so triple-scoped -Xsycl-target-backend opts
+      // (which the per-arch filter drops in TranslateBackendTargetArgs)
+      // still flow through in the single-arch case.
       if (Devices.size() < 2)
         Devices.assign(1, StringRef());
 

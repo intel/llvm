@@ -7920,8 +7920,8 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
                                            C.getInputArgs(), TargetArgs);
       // Use the rightmost embedded "-device <arch>" as the arch bound to
       // the raw spir64_gen entry.
-      if (StringRef Arch = tools::SYCL::gen::getEmbeddedDeviceArch(TargetArgs);
-          !Arch.empty())
+      StringRef Arch = tools::SYCL::gen::getEmbeddedDeviceArch(TargetArgs);
+      if (!Arch.empty())
         Archs.insert(Arch);
     }
   }
