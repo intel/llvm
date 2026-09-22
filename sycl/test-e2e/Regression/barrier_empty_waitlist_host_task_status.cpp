@@ -15,7 +15,10 @@
 //
 // Graph cleanup is what clears MCommand, so without it the bug is racy (it
 // reproduced ~5% of the time). The second RUN line disables cleanup to pin the
-// event's MCommand in place and make the check deterministic.
+
+// A barrier submitted through the handler API with an *empty* wait list but
+// with an explicit handler::depends_on() on a blocked host task must report
+// info::event_command_status::complete once the queue has been waited on.
 
 #include <sycl/detail/core.hpp>
 
