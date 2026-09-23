@@ -93,12 +93,6 @@ existing queue shortcuts. A future version of this extension may adjust this
 overload set to include functions compatible with future C++ concepts (e.g,
 by accepting a scheduler and returning a sender).
 
-The arguments of a `sycl::kernel` can be passed either as a parameter pack or as
-a sequence, for an application that only learns its argument list at run time and
-would otherwise have to instantiate a parameter pack overload for each number of
-arguments it may encounter. The sequence is a `std::span`, so those overloads
-require C++20.
-
 
 === Usage example
 
