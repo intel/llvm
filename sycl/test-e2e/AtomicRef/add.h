@@ -14,7 +14,9 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -428,7 +430,9 @@ void add_test(queue q, size_t N) {
         add_plus_equal_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space,
                                        T, Difference, order, scope>(q, N);
       }
-      if constexpr (!std::is_floating_point_v<T>) {
+      if constexpr (!std::is_floating_point_v<T> &&
+                    !std::is_same_v<T, sycl::half> &&
+                    !std::is_same_v<T, sycl::ext::oneapi::bfloat16>) {
         add_pre_inc_test<::sycl::ext::oneapi::atomic_ref, space, T, Difference,
                          order, scope>(q, N);
         add_post_inc_test<::sycl::ext::oneapi::atomic_ref, space, T, Difference,
@@ -452,7 +456,9 @@ void add_test(queue q, size_t N) {
       add_plus_equal_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
                                      order, scope>(q, N);
     }
-    if constexpr (!std::is_floating_point_v<T>) {
+    if constexpr (!std::is_floating_point_v<T> &&
+                  !std::is_same_v<T, sycl::half> &&
+                  !std::is_same_v<T, sycl::ext::oneapi::bfloat16>) {
       add_pre_inc_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
           q, N);
       add_post_inc_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
@@ -540,7 +546,10 @@ template <access::address_space space> void add_test_all() {
     return;
   }
 
+  add_test_orders_scopes<space, short>(q, N);
+  add_test_orders_scopes<space, unsigned short>(q, N);
   add_test_orders_scopes<space, sycl::half>(q, N);
+  add_test_orders_scopes<space, sycl::ext::oneapi::bfloat16>(q, N);
 #endif
   std::cout << "Test passed." << std::endl;
 }

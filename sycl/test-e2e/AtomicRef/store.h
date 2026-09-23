@@ -13,7 +13,9 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -216,7 +218,10 @@ template <access::address_space space> void store_test_all() {
     return;
   }
 
+  store_test_orders_scopes<space, short>(q, N);
+  store_test_orders_scopes<space, unsigned short>(q, N);
   store_test_orders_scopes<space, sycl::half>(q, N);
+  store_test_orders_scopes<space, sycl::ext::oneapi::bfloat16>(q, N);
 #endif
 
   std::cout << "Test passed." << std::endl;

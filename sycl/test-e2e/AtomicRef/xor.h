@@ -24,7 +24,7 @@ template <template <typename, memory_order, memory_scope, access::address_space>
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
 void xor_local_test(queue q) {
-  const size_t N = 32;
+  const size_t N = std::min<size_t>(32, sizeof(T) * 8);
   T cum = 0;
   std::vector<T> output(N);
   std::fill(output.begin(), output.end(), T(123456));
@@ -68,7 +68,7 @@ template <template <typename, memory_order, memory_scope, access::address_space>
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
 void xor_global_test(queue q) {
-  const size_t N = 32;
+  const size_t N = std::min<size_t>(32, sizeof(T) * 8);
   const T initial = 0;
   T cum = initial;
   std::vector<T> output(N);
@@ -106,7 +106,7 @@ template <template <typename, memory_order, memory_scope, access::address_space>
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
 void xor_global_test_usm_shared(queue q) {
-  const size_t N = 32;
+  const size_t N = std::min<size_t>(32, sizeof(T) * 8);
   const T initial = 0;
   T *cum = malloc_shared<T>(1, q);
   cum[0] = initial;
@@ -235,6 +235,16 @@ template <access::address_space space> void xor_test_all() {
     xor_test_orders_scopes<space, long>(q);
     xor_test_orders_scopes<space, unsigned long>(q);
   }
+#endif
+
+#ifdef FULL_ATOMIC16_COVERAGE
+  if (!q.get_device().has(aspect::ext_oneapi_atomic16)) {
+    std::cout << "Skipping ext_oneapi_atomic16 tests\n";
+    return;
+  }
+
+  xor_test_orders_scopes<space, short>(q);
+  xor_test_orders_scopes<space, unsigned short>(q);
 #endif
 
   std::cout << "Test passed." << std::endl;

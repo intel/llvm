@@ -265,5 +265,15 @@ template <access::address_space space> void compare_exchange_test_all() {
   }
 #endif
 
+#ifdef FULL_ATOMIC16_COVERAGE
+  if (!q.get_device().has(aspect::ext_oneapi_atomic16)) {
+    std::cout << "Skipping ext_oneapi_atomic16 tests\n";
+    return;
+  }
+
+  compare_exchange_test_orders_scopes<space, short>(q, N);
+  compare_exchange_test_orders_scopes<space, unsigned short>(q, N);
+#endif
+
   std::cout << "Test passed." << std::endl;
 }

@@ -13,7 +13,9 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -95,7 +97,7 @@ void load_global_test_usm_shared(queue q, size_t N) {
   ld[0] = initial;
   T *output = malloc_shared<T>(N, q);
   T *output_begin = &output[0], *output_end = &output[N];
-  std::fill(output_begin, output_end, 0);
+  std::fill(output_begin, output_end, T(0));
   {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
@@ -226,7 +228,10 @@ template <access::address_space space> void load_test_all() {
     return;
   }
 
+  load_test_orders_scopes<space, short>(q, N);
+  load_test_orders_scopes<space, unsigned short>(q, N);
   load_test_orders_scopes<space, sycl::half>(q, N);
+  load_test_orders_scopes<space, sycl::ext::oneapi::bfloat16>(q, N);
 #endif
 
   std::cout << "Test passed." << std::endl;
