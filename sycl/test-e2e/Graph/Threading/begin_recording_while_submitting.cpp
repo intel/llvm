@@ -4,7 +4,6 @@
 // Regression test for an AB-BA deadlock between the graph mutex and the queue's
 // submission mutex
 
-
 #include "../graph_common.hpp"
 
 #include <atomic>
@@ -25,7 +24,8 @@ int main() {
 
   constexpr int MaxIterations = 20000;
 
-  // how many consecutive no-progress one-second samples before we declare a deadlock
+  // how many consecutive no-progress one-second samples before we declare a
+  // deadlock
   constexpr int StallLimit = 10;
 
   // so we don't spin forever

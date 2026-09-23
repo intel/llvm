@@ -908,7 +908,8 @@ void graph_impl::beginRecordingBothLocksHeld(sycl::detail::queue_impl &Queue) {
 }
 
 void graph_impl::beginRecordingQueueLockHeld(sycl::detail::queue_impl &Queue) {
-  // The caller should be inside the queue's submission path and already holding the queue's mutex
+  // The caller should be inside the queue's submission path and already holding
+  // the queue's mutex
   WriteLock Lock(MMutex);
   beginRecordingBothLocksHeld(Queue);
 }
