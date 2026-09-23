@@ -3243,7 +3243,19 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       auto *BI = static_cast<SPIRVInstruction *>(BV);
       Value *Inst = nullptr;
-      if (BI->hasFPRoundingMode() || BI->isSaturatedConversion()) {
+      auto IsMiniFloatOrInt4 = [](SPIRVType *Ty) {
+        return Ty->isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
+               Ty->isTypeFloat(8, FPEncodingFloat8E5M2EXT) ||
+               Ty->isTypeFloat(4, FPEncodingFloat4E2M1EXT) ||
+               Ty->isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL) ||
+               Ty->isTypeInt(4);
+      };
+      // Check both sides: the encoding may be on the source (e.g. an upcast
+      // out of Float4E2M1) rather than the result.
+      if ((BI->hasFPRoundingMode() || BI->isSaturatedConversion()) &&
+          !IsMiniFloatOrInt4(BI->getType()) &&
+          !IsMiniFloatOrInt4(
+              static_cast<SPIRVUnary *>(BI)->getOperand(0)->getType())) {
         Inst = transSPIRVBuiltinFromInst(BI, BB);
       } else if (BI->getType()->isTypeCooperativeMatrixKHR()) {
         // For cooperative matrix conversions generate __builtin_spirv

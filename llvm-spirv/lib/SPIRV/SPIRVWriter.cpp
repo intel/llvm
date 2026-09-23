@@ -6077,6 +6077,12 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
         Conv->addDecorate(new SPIRVDecorate(
             DecorationSaturatedToLargestFloat8NormalConversionEXT, Conv));
 
+      // Target the conversion itself, not the bitcast possibly added below.
+      if (auto *IDecoMD = CI->getMetadata(SPIRV_MD_DECORATIONS)) {
+        transMetadataDecorations(IDecoMD, Conv);
+        CI->setMetadata(SPIRV_MD_DECORATIONS, nullptr);
+      }
+
       // Representable in LLVM FP types: bitcast is not needed.
       if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
           FPDesc.DstEncoding == FPEncodingWrap::BF16)
