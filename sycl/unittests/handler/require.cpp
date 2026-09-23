@@ -251,7 +251,8 @@ TEST(Require, RequireWithDuplicateAssociationIsNoOp) {
     MockCGH.require(acc);
     MockCGH.require(acc);
 
-    // Check that adding the same accessor twice does not create duplicate entries
+    // Check that adding the same accessor twice does not create duplicate
+    // entries
     EXPECT_EQ(MockCGH.getAccStorage().size(), 1u);
     EXPECT_EQ(MockCGH.getRequirements().size(), 1u);
   }
