@@ -152,10 +152,11 @@ protected:
 };
 
 template <typename ParentGroup>
-inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group> ||
-                            sycl::detail::is_chunk_v<ParentGroup> ||
-                            sycl::detail::is_fragment_v<ParentGroup>,
-                        fragment<ParentGroup>>
+__SYCL_ALWAYS_INLINE inline std::enable_if_t<
+    std::is_same_v<ParentGroup, sycl::sub_group> ||
+        sycl::detail::is_chunk_v<ParentGroup> ||
+        sycl::detail::is_fragment_v<ParentGroup>,
+    fragment<ParentGroup>>
 binary_partition([[maybe_unused]] ParentGroup parent,
                  [[maybe_unused]] bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -180,7 +181,8 @@ binary_partition([[maybe_unused]] ParentGroup parent,
 
 namespace this_work_item {
 
-inline fragment<sycl::sub_group> get_opportunistic_group() {
+__SYCL_ALWAYS_INLINE inline fragment<sycl::sub_group>
+get_opportunistic_group() {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__) || defined(__SPIRV__)
   sycl::sub_group sg = sycl::ext::oneapi::experimental::this_sub_group();
