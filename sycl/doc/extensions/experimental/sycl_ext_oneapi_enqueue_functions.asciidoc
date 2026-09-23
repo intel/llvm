@@ -815,25 +815,45 @@ _Effects_: Submits an executable command graph to the `sycl::queue` or `sycl::ha
 
 |====
 
-== Examples
+== Example
 
-An argument list that is only known at run time is held in a container and passed
-as the sequence of arguments: a `std::vector<raw_kernel_arg>`, a `std::array` of
-them and a `std::span` of them all convert to `std::span<const raw_kernel_arg>`.
-These overloads require C++20.
+The following example launches a kernel whose argument list is assembled at run
+time, as a launcher for kernels that are not known at compile time would do, so
+the arguments are passed as a sequence rather than as a parameter pack.  A
+`std::vector<raw_kernel_arg>`, a `std::array` of them and a `std::span` of them
+all convert to `std::span<const raw_kernel_arg>`.
 
 [source,c++]
 ----
+#include <sycl/sycl.hpp>
+#include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
-int count = 1024;
-float *data = sycl::malloc_device<float>(count, q);
+static constexpr size_t N = 1024;
 
-std::vector<syclex::raw_kernel_arg> args;
-args.emplace_back(&data, syclex::pointer_arg);
-args.emplace_back(&count, sizeof(count));
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+void scale(float *data, int factor) { /* kernel body */ }
 
-syclex::nd_launch(q, sycl::nd_range<1>{count, 256}, k, args);
+int main() {
+  sycl::queue q;
+
+  auto bundle =
+      syclex::get_kernel_bundle<scale, sycl::bundle_state::executable>(
+          q.get_context());
+  sycl::kernel k = bundle.ext_oneapi_get_kernel<scale>();
+
+  float *data = sycl::malloc_device<float>(N, q);
+  int factor = 2;
+
+  std::vector<syclex::raw_kernel_arg> args;
+  args.emplace_back(&data, syclex::pointer_arg);
+  args.emplace_back(&factor, sizeof(factor));
+
+  syclex::nd_launch(q, sycl::nd_range<1>{{N}, {256}}, k, args);
+  q.wait();
+
+  sycl::free(data, q);
+}
 ----
 
 == Issues
