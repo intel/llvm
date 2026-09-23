@@ -428,11 +428,12 @@ ur_result_t urEventCreateExp(::ur_context_handle_t hContextOpque,
   auto hDevice = common_cast(hDeviceOpque);
   auto phEvent = v2_cast(phEventOpque);
 
-  const auto *SyncDesc =
+  const auto *syncDesc =
       find_stype_node<ur_exp_event_sync_mode_desc_t>(pEventDesc);
   const bool lowPower =
-      SyncDesc &&
-      (SyncDesc->flags & UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT);
+      syncDesc &&
+      (syncDesc->flags & UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT) &&
+      hDevice->Platform->ZeEventSyncModeSupported;
 
   const v2::event_flags_t flags =
       v2::EVENT_FLAGS_COUNTER |
