@@ -3019,6 +3019,15 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // Remove 'convergent' if requested.
     if (TargetDecl->hasAttr<NoConvergentAttr>())
       FuncAttrs.removeAttribute(llvm::Attribute::Convergent);
+    // Mark speculatable builtins as 'speculatable' and drop the default
+    // 'convergent', unless they are declared 'convergent'. Call sites do not
+    // get 'speculatable', since a definition linked in later may not have it.
+    if (TargetDecl->hasAttr<SpeculatableAttr>() &&
+        !TargetDecl->hasAttr<ConvergentAttr>()) {
+      FuncAttrs.removeAttribute(llvm::Attribute::Convergent);
+      if (!AttrOnCallSite)
+        FuncAttrs.addAttribute(llvm::Attribute::Speculatable);
+    }
   }
 
   // Add "sample-profile-suffix-elision-policy" attribute for internal linkage

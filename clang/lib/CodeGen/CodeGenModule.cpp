@@ -3377,6 +3377,16 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
     return;
   }
 
+  // A definition of a speculatable builtin inherits SpeculatableAttr, but its
+  // body may not be safe to speculate, so undo what ConstructAttributeList
+  // did for it.
+  if (D->hasAttr<SpeculatableAttr>()) {
+    F->removeFnAttr(llvm::Attribute::Speculatable);
+    if (LangOpts.assumeFunctionsAreConvergent() &&
+        !D->hasAttr<NoConvergentAttr>())
+      F->addFnAttr(llvm::Attribute::Convergent);
+  }
+
   // Handle SME attributes that apply to function definitions,
   // rather than to function prototypes.
   if (D->hasAttr<ArmLocallyStreamingAttr>())

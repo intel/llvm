@@ -1063,6 +1063,12 @@ def InferredNoReturn : InheritableAttr {
   let Documentation = [InternalOnly];
 }
 
+def Speculatable : InheritableAttr {
+  let Spellings = [];
+  let SemaHandler = 0;
+  let Documentation = [InternalOnly];
+}
+
 def Annotate : InheritableParamOrStmtAttr {
   let Spellings = [Clang<"annotate">];
   let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
