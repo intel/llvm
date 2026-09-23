@@ -487,6 +487,10 @@ etors:
       desc: "[uint32_t][optional-query] return Intel GPU number of execution engines (EUs) per XE Core"
     - name: MAX_LANES_PER_HW_THREAD
       desc: "[uint32_t][optional-query] return Intel GPU maximal number of lanes (virtual SIMD size) per hardware thread"
+    - name: IGCA_LEVEL
+      desc: "[uint32_t][optional-query] return the Intel GPU IGCA (Intel Graphics Compute Architecture) level"
+    - name: IGCA_FEATURE_SET
+      desc: "[$x_device_igca_feature_flags_t][optional-query] return the IGCA features the Intel GPU implements"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -996,6 +1000,18 @@ etors:
     - name: OTHER
       desc: "The clock frequency is throttled due to other reason."
       value: "$X_BIT(6)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "IGCA (Intel Graphics Compute Architecture) features a device may implement."
+class: $xDevice
+name: $x_device_igca_feature_flags_t
+etors:
+    - name: RENDER
+      desc: "The device implements IGCA render features, typically a client GPU."
+      value: "$X_BIT(0)"
+    - name: COMPUTE
+      desc: "The device implements IGCA compute features, typically a datacenter GPU."
+      value: "$X_BIT(1)"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Kernel launch properties support"

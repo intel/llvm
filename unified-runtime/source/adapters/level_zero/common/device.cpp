@@ -1604,6 +1604,13 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     return ReturnValue(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
+  // TODO: Level Zero does not report IGCA yet. Return dummy values until an
+  // extension to zeDeviceGetProperties exposes it. Level 0 and an empty feature
+  // set are both invalid, so they can't be mistaken for real values.
+  case UR_DEVICE_INFO_IGCA_LEVEL:
+    return ReturnValue(uint32_t{0});
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
+    return ReturnValue(ur_device_igca_feature_flags_t{0});
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
