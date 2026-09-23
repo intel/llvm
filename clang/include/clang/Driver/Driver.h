@@ -866,7 +866,7 @@ private:
   /// Vector of Macros that need to be added to the Host compilation in a
   /// SYCL based offloading scenario.  These macros are gathered during
   /// construction of the device compilations.
-  mutable std::vector<std::string> SYCLTargetMacroArgs;
+  mutable llvm::SmallVector<StringRef, 4> SYCLTargetMacroArgs;
 
   /// Vector of Macros related to Device Traits that need to be added to the
   /// device compilation in a SYCL based offloading scenario.  These macros are
@@ -948,7 +948,7 @@ public:
     SYCLTargetMacroArgs.push_back(Args.MakeArgString(Macro));
   }
   /// getSYCLTargetMacroArgs - return the previously gathered macro target args.
-  llvm::ArrayRef<std::string> getSYCLTargetMacroArgs() const {
+  llvm::ArrayRef<StringRef> getSYCLTargetMacroArgs() const {
     return SYCLTargetMacroArgs;
   }
 
