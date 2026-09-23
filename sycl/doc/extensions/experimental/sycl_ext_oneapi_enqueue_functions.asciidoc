@@ -558,9 +558,8 @@ the kernel argument list and the effects are those of the overload taking a
 
 [_Note:_ An element that represents a pointer argument has to be constructed
 with the `pointer_arg` overload of `raw_kernel_arg`, as described in
-link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg],
-since a `raw_kernel_arg` holding the bytes of a pointer is only guaranteed to
-bind that pointer on the Level Zero backend. _end note_]
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+_end note_]
 
 a|
 [frame=all,grid=none]
