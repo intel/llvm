@@ -176,8 +176,7 @@ kernel argument, such as a pointer to memory allocated by one of the USM
 allocation functions.
 
 _Effects_: Constructs a `raw_kernel_arg` representing a view of the pointer
-stored at `pointer_location`, to be bound as a pointer argument rather than as
-the `sizeof(T*)` bytes it is made of. Since the `raw_kernel_arg` object is only
+stored at `pointer_location`, to be bound as a pointer argument. Since the `raw_kernel_arg` object is only
 a view, the caller must ensure that the lifetime of the pointer object at
 `pointer_location` lasts at least as long as the lifetime of the
 `raw_kernel_arg` object.
