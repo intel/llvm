@@ -521,6 +521,9 @@ void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
 }
 ----
 !====
+_Constraints_: `sizeof...(Args)` is not one, or the single argument in `args` is
+not convertible to `std::span<const raw_kernel_arg>`.
+
 _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
 as a basic kernel, using the number of work-items specified by a
 `sycl::nd_range`. The arguments in `args` are passed to the kernel in the same
@@ -550,11 +553,6 @@ as a basic kernel, using the number of work-items specified by a
 `sycl::nd_range`. The element `args[i]` is passed to the kernel as the argument
 at index `i`, as if it had been passed to `set_arg`. The sequence referenced by
 `args` need only remain valid until the function returns.
-
-If one of the parameter pack overloads above is called with a single argument
-whose type is convertible to `std::span<const raw_kernel_arg>`, that argument is
-the kernel argument list and the effects are those of the overload taking a
-`std::span`.
 
 [_Note:_ An element that represents a pointer argument has to be constructed
 with the `pointer_arg` overload of `raw_kernel_arg`, as described in
