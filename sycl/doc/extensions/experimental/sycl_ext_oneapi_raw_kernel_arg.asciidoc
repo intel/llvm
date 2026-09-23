@@ -158,8 +158,7 @@ raw_kernel_arg(const void* bytes, size_t count);
 ----
 _Preconditions_: `bytes` must point to an array of at least `count` bytes,
 which is the byte representation of a kernel argument that is trivially
-copyable.  If the argument is a pointer, only the Level Zero backend is
-guaranteed to bind it; see _Backend support status_ above.
+copyable.  The `bytes` must not be a pointer argument.
 
 _Effects_: Constructs a `raw_kernel_arg` representing a view of the `count`
 bytes starting at the address specified by `bytes`. Since the `raw_kernel_arg`
