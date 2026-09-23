@@ -1404,16 +1404,18 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
 
 SmallString<64> SYCL::gen::getSYCLTargetMacro(const llvm::Triple &TT,
                                               StringRef Device) {
-  SmallString<64> Macro;
   if ((TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
       TT.isNVPTX() || TT.isAMDGCN()) {
-    if (!Device.empty() && !getGenDeviceMacro(Device).empty()) {
-      Macro = "-D";
-      Macro += getGenDeviceMacro(Device);
-    }
-  } else if (TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-    Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
-  return Macro;
+    SmallString<64> DeviceMacro = getGenDeviceMacro(Device);
+    if (DeviceMacro.empty())
+      return {};
+    SmallString<64> Macro("-D");
+    Macro += DeviceMacro;
+    return Macro;
+  }
+  if (TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    return SmallString<64>("-D__SYCL_TARGET_INTEL_X86_64__");
+  return {};
 }
 
 void SYCL::x86_64::BackendCompiler::ConstructJob(
