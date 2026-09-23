@@ -1375,7 +1375,20 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
           delete externalMemoryData;
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
-        importWin32->name = Win32Name->name;
+#ifdef _WIN32
+        externalMemoryData->utf8NameStorage =
+            wideToUtf8(static_cast<const wchar_t *>(Win32Name->name));
+        if (externalMemoryData->utf8NameStorage.empty()) {
+          delete importWin32;
+          delete externalMemoryData;
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        importWin32->name = externalMemoryData->utf8NameStorage.c_str();
+#else
+        delete importWin32;
+        delete externalMemoryData;
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
       }
 
       switch (memHandleType) {
@@ -1546,8 +1559,9 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
         if (Win32Name->name == nullptr) {
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
-        // OPAQUE_WIN32 names live in driver-private namespaces the DXGK sync
-        // namespace cannot open; callers must resolve to HANDLE externally.
+        // OPAQUE_WIN32 by name is a design non-goal: the export HANDLE is a
+        // file mapping wrapping a driver-private sync-object name; callers
+        // must resolve via HANDLE externally.
         if (semHandleType == UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT) {
           return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
         }
