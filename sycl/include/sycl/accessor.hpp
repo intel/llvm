@@ -18,6 +18,7 @@
 #include <sycl/detail/fwd/buffer.hpp>                 // for buffer (fwd)
 #include <sycl/detail/generic_type_traits.hpp>        // for is_genint, Try...
 #include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
+#include <sycl/detail/is_device_copyable.hpp>         // for is_device_copyable
 #include <sycl/detail/loop.hpp>                       // for loop
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
@@ -2825,6 +2826,21 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
               Type5) -> host_accessor<DataT, Dimensions,
                                       detail::deduceAccessMode<Type4, Type5>()>;
+
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_device_copyable<accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                                   IsPlaceholder, PropertyListT>>
+    : std::false_type {};
+
+template <typename DataT, int Dimensions>
+struct is_device_copyable<local_accessor<DataT, Dimensions>> : std::false_type {
+};
+
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct is_device_copyable<host_accessor<DataT, Dimensions, AccessMode>>
+    : std::false_type {};
 
 } // namespace _V1
 } // namespace sycl
