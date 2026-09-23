@@ -1220,6 +1220,13 @@ public:
                         "ext_intel_max_lanes_per_hw_thread aspect");
       return get_info_impl<UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD>();
     }
+    CASE(ext::intel::info::device::ip_version) {
+      if (!has(aspect::ext_intel_device_info_ip_version))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_device_info_ip_version aspect");
+      return get_info_impl<UR_DEVICE_INFO_IP_VERSION>();
+    }
 
     // khr device traits (defined under sycl/khr/...).
 
@@ -1404,6 +1411,9 @@ public:
     }
     CASE(ext_intel_max_lanes_per_hw_thread) {
       return has_info_desc(UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
+    }
+    CASE(ext_intel_device_info_ip_version) {
+      return has_info_desc(UR_DEVICE_INFO_IP_VERSION);
     }
     CASE(ext_oneapi_srgb) { return get_info<info::device::ext_oneapi_srgb>(); }
     CASE(ext_oneapi_native_assert) {
