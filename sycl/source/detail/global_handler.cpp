@@ -287,11 +287,19 @@ void GlobalHandler::unloadAdapters() {
   getAdapters().clear();
 }
 
-void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
-#ifndef _WIN32
-  if (Blocking)
-    drainThreadPool();
+void GlobalHandler::prepareSchedulerToRelease(bool Blocking, bool IsShutdown) {
+  // 'IsShutdown' is `true` during application shutdown, but `false` during
+  // mock shutdown (when running SYCL unittests).
+  //
+  // On Windows, let OS reclaim abandoned host tasks and cleanup
+  // resources, except for mock shutdown when running SYCL unittests.
+#ifdef _WIN32
+  constexpr bool DrainUnsafeAtShutdown = true;
+#else
+  constexpr bool DrainUnsafeAtShutdown = false;
 #endif
+  if (Blocking && !(IsShutdown && DrainUnsafeAtShutdown))
+    drainThreadPool();
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
                                                : BlockingT::NON_BLOCKING);
@@ -351,7 +359,8 @@ void shutdown_early(bool CanJoinThreads = true) {
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(true);
+  GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(
+      true, /*IsShutdown=*/true);
 
   // Do not cleanup thread pool on windows during application shutdown.
   // Let OS do the cleanup.

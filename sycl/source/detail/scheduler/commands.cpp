@@ -3715,8 +3715,11 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
     std::vector<ur_event_handle_t> UrEvents =
         getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
-    if (UrEvents.empty()) {
-      // If Events is empty, then the barrier has no effect.
+
+    if (UrEvents.empty() && RawEvents.empty()) {
+      // Nothing to synchronize with: the barrier wait list is empty and no
+      // explicit depends_on() dependency contributed a native event, so the
+      // barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
 
@@ -3739,7 +3742,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
-                &UrEvents[0], Event);
+                UrEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
