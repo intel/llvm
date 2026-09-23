@@ -6565,15 +6565,6 @@ class OffloadingActionBuilder final {
       }
       tools::SYCL::populateSYCLDeviceTraitsMacrosArgs(C, Args, TCAndArchs);
 
-      // Compute the -D__SYCL_TARGET_*__ macros the host compilation needs
-      // from the invocation-wide, already-deduplicated SYCL target list.
-      for (auto &TargetInfo : SYCLTargetInfoList) {
-        SmallString<64> Macro = gen::getSYCLTargetMacro(
-            TargetInfo.TC->getTriple(), TargetInfo.BoundArch.ArchName);
-        if (!Macro.empty())
-          C.getDriver().addSYCLTargetMacroArg(Args, Macro);
-      }
-
       DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
       return false;
     }

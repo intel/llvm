@@ -719,6 +719,7 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
   if (Targets.empty())
     return;
 
+  const Driver &D = C.getDriver();
   const auto &TargetTable = DeviceConfigFile::TargetTable;
   std::map<StringRef, unsigned int> AllDevicesHave;
   std::map<StringRef, bool> AnyDeviceHas;
@@ -731,6 +732,11 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
     auto TargetIt = TargetTable.end();
     const llvm::Triple &TargetTriple = TC->getTriple();
     const StringRef TargetArch{BoundArch};
+
+    SmallString<64> TargetMacro = getSYCLTargetMacro(TargetTriple, TargetArch);
+    if (!TargetMacro.empty())
+      D.addSYCLTargetMacroArg(Args, TargetMacro);
+
     if (!TargetArch.empty()) {
       TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
         using namespace tools::SYCL;
@@ -780,7 +786,6 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
   if (ValidTargets == 0)
     AnyDeviceHasAnyAspect = true;
 
-  const Driver &D = C.getDriver();
   if (AnyDeviceHasAnyAspect) {
     // There exists some target that supports any given aspect.
     constexpr static StringRef MacroAnyDeviceAnyAspect{
@@ -1402,11 +1407,11 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
   return Macro;
 }
 
-SmallString<64> SYCL::gen::getSYCLTargetMacro(const llvm::Triple &TT,
-                                              StringRef Device) {
+SmallString<64> SYCL::getSYCLTargetMacro(const llvm::Triple &TT,
+                                         StringRef Device) {
   if ((TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
       TT.isNVPTX() || TT.isAMDGCN()) {
-    SmallString<64> DeviceMacro = getGenDeviceMacro(Device);
+    SmallString<64> DeviceMacro = gen::getGenDeviceMacro(Device);
     if (DeviceMacro.empty())
       return {};
     SmallString<64> Macro("-D");

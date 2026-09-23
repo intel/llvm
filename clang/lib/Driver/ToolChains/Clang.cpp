@@ -5953,7 +5953,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Add any predefined macros associated with intel_gpu* type targets
       // passed in with -fsycl-targets.
       auto addTargetMacros = [&](const llvm::Triple &Triple) {
-        SmallString<64> Macro = SYCL::gen::getSYCLTargetMacro(
+        SmallString<64> Macro = SYCL::getSYCLTargetMacro(
             Triple, JA.getOffloadingArch().ArchName);
         if (!Macro.empty())
           CmdArgs.push_back(Args.MakeArgString(Macro));
