@@ -82,12 +82,14 @@ for which there is no equivalent type defined on the host).
 
 [source,c++]
 ----
+namespace syclex = sycl::ext::oneapi::experimental;
+
 int a;
 char* opaque_type;
 int nbytes;
 ...
 h.set_arg(0, a);
-h.set_arg(1, sycl::ext::oneapi::experimental::raw_kernel_arg(opaque_type, nbytes));
+h.set_arg(1, syclex::raw_kernel_arg(opaque_type, nbytes));
 h.parallel_for(range, kernel);
 ----
 
@@ -96,8 +98,6 @@ through a different entry point than a sequence of bytes:
 
 [source,c++]
 ----
-namespace syclex = sycl::ext::oneapi::experimental;
-
 int* ptr = sycl::malloc_device<int>(n, q);
 ...
 h.set_arg(0, syclex::raw_kernel_arg(&ptr, syclex::pointer_arg));
