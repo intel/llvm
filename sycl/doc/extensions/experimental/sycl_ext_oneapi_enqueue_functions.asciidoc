@@ -175,9 +175,7 @@ implementation supports.
 
 |2
 |Adds the `nd_launch` overloads that take the arguments of a `sycl::kernel` as
- a `std::span` of `raw_kernel_arg`, which require C++20, and specifies that a
- parameter pack overload handed such a sequence as its only argument passes it
- on as the argument list.
+ a `std::span` of `raw_kernel_arg`.
 |===
 
 
