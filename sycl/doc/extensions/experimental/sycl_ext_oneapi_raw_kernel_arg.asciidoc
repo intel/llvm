@@ -59,13 +59,6 @@ CUDA and Native CPU backends.  Attempting to use this extension on other
 backends may result in undefined behavior.  Be aware that the compiler is not
 able to issue a diagnostic to warn you if this happens.
 
-A kernel argument that is a pointer must be constructed with the `pointer_arg`
-overload described below.  Passing the byte representation of a pointer to the
-byte overload is only guaranteed to bind that pointer on the Level Zero backend,
-because a backend may take a pointer argument through a different entry point
-than the one that takes plain bytes, and it cannot tell the two apart from the
-bytes alone.
-
 
 == Overview
 
@@ -93,8 +86,10 @@ h.set_arg(1, syclex::raw_kernel_arg(opaque_type, nbytes));
 h.parallel_for(range, kernel);
 ----
 
-An argument that is a pointer says so, since a backend may bind a pointer
-through a different entry point than a sequence of bytes:
+A kernel argument that is a pointer must be constructed with the `pointer_arg`
+overload described below, because a backend may take a pointer argument through a
+different entry point than the one that takes plain bytes, and it cannot tell the
+two apart from the bytes alone:
 
 [source,c++]
 ----
