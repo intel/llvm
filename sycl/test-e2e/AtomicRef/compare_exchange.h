@@ -18,8 +18,8 @@
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -43,11 +43,12 @@ void compare_exchange_local_test(queue q, size_t N) {
          if (gid == 0)
            loc[0] = initial;
          group_barrier(it.get_group());
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (loc[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(loc[0]);
          T result = T(N); // Avoid copying pointer
          bool success = atm.compare_exchange_strong(result, (T)gid, order);
          if (success) {
@@ -71,8 +72,8 @@ void compare_exchange_local_test(queue q, size_t N) {
   }
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -92,11 +93,12 @@ void compare_exchange_global_test(queue q, size_t N) {
        auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          size_t gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (exc[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(exc[0]);
          T result = T(N); // Avoid copying pointer
          bool success = atm.compare_exchange_strong(result, (T)gid, order);
          if (success) {
@@ -117,8 +119,8 @@ void compare_exchange_global_test(queue q, size_t N) {
   }
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -133,11 +135,12 @@ void compare_exchange_global_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          size_t gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (exc[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(exc[0]);
          T result = initial; // Avoid copying pointer
          bool success = atm.compare_exchange_strong(result, (T)gid, order);
          if (success) {

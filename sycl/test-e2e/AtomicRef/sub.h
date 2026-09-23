@@ -21,8 +21,8 @@
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -43,11 +43,12 @@ void sub_fetch_local_test(queue q, size_t N) {
          if (gid == 0)
            loc[0] = T(N);
          group_barrier(it.get_group());
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (loc[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(loc[0]);
          out[gid] = atm.fetch_sub(Difference(1), order);
          group_barrier(it.get_group());
          if (gid == 0)
@@ -69,8 +70,8 @@ void sub_fetch_local_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -87,11 +88,12 @@ void sub_fetch_test(queue q, size_t N) {
       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (val[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(val[0]);
         out[gid] = atm.fetch_sub(Difference(1), order);
       });
     });
@@ -110,8 +112,8 @@ void sub_fetch_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -125,11 +127,12 @@ void sub_fetch_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (val[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(val[0]);
          output[gid] = atm.fetch_sub(Difference(1), order);
        });
      }).wait_and_throw();
@@ -151,8 +154,8 @@ void sub_fetch_test_usm_shared(queue q, size_t N) {
   free(output, q);
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -169,11 +172,12 @@ void sub_minus_equal_test(queue q, size_t N) {
       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (val[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(val[0]);
         out[gid] = atm -= Difference(1);
       });
     });
@@ -192,8 +196,8 @@ void sub_minus_equal_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -207,11 +211,12 @@ void sub_minus_equal_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (val[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(val[0]);
          output[gid] = atm -= Difference(1);
        });
      }).wait_and_throw();
@@ -233,8 +238,8 @@ void sub_minus_equal_test_usm_shared(queue q, size_t N) {
   free(output, q);
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -251,11 +256,12 @@ void sub_pre_dec_test(queue q, size_t N) {
       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (val[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(val[0]);
         out[gid] = --atm;
       });
     });
@@ -274,8 +280,8 @@ void sub_pre_dec_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -289,11 +295,12 @@ void sub_pre_dec_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (val[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(val[0]);
          output[gid] = --atm;
        });
      }).wait_and_throw();
@@ -315,8 +322,8 @@ void sub_pre_dec_test_usm_shared(queue q, size_t N) {
   free(output, q);
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -333,11 +340,12 @@ void sub_post_dec_test(queue q, size_t N) {
       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (val[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(val[0]);
         out[gid] = atm--;
       });
     });
@@ -356,8 +364,8 @@ void sub_post_dec_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -371,11 +379,12 @@ void sub_post_dec_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (val[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(val[0]);
          output[gid] = atm--;
        });
      }).wait_and_throw();

@@ -20,8 +20,8 @@
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -46,8 +46,8 @@ void store_global_test(queue q, size_t N) {
   assert(store >= T(0) && store <= T(N - 1));
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -73,8 +73,8 @@ void store_global_test_usm_shared(queue q, size_t N) {
   free(st, q);
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>

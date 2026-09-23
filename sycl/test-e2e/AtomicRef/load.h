@@ -20,8 +20,8 @@
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -55,8 +55,8 @@ void load_local_test(queue q, size_t N) {
                      [&](T x) { return (x == initial); }));
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -86,8 +86,8 @@ void load_global_test(queue q, size_t N) {
                      [&](T x) { return (x == initial); }));
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>

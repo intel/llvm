@@ -20,8 +20,8 @@
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -43,11 +43,12 @@ void max_local_test(queue q, size_t N) {
          if (gid == 0)
            loc[0] = initial;
          group_barrier(it.get_group());
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (loc[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(loc[0]);
          out[gid] =
              atm.fetch_max(T(gid) + std::numeric_limits<T>::max() / 2, order);
          group_barrier(it.get_group());
@@ -69,8 +70,8 @@ void max_local_test(queue q, size_t N) {
   }
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -88,11 +89,12 @@ void max_global_test(queue q, size_t N) {
       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (val[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(val[0]);
 
         // +max/2 to ensure correct signed/unsigned operation is applied
         out[gid] =
@@ -113,8 +115,8 @@ void max_global_test(queue q, size_t N) {
   }
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -129,11 +131,12 @@ void max_global_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (val[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(val[0]);
 
          // +max/2 to ensure correct signed/unsigned operation is applied
          output[gid] =

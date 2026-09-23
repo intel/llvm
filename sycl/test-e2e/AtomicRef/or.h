@@ -18,8 +18,8 @@
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -41,11 +41,12 @@ void or_local_test(queue q) {
          if (gid == 0)
            loc[0] = 0;
          group_barrier(it.get_group());
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (loc[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(loc[0]);
          out[gid] = atm.fetch_or(T(1ll << gid), order);
          group_barrier(it.get_group());
          if (gid == 0)
@@ -62,8 +63,8 @@ void or_local_test(queue q) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -82,11 +83,12 @@ void or_global_test(queue q) {
       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (cum[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(cum[0]);
         out[gid] = atm.fetch_or(T(1ll << gid), order);
       });
     });
@@ -100,8 +102,8 @@ void or_global_test(queue q) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -117,11 +119,12 @@ void or_global_test_usm_shared(queue q) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          size_t gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (cum[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(cum[0]);
          output[gid] = atm.fetch_or(T(1ll << gid), order);
        });
      }).wait_and_throw();
