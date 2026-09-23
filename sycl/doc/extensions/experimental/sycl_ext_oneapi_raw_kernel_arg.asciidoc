@@ -176,10 +176,10 @@ kernel argument, such as a pointer to memory allocated by one of the USM
 allocation functions.
 
 _Effects_: Constructs a `raw_kernel_arg` representing a view of the pointer
-stored at `pointer_location`, to be bound as a pointer argument. Since the `raw_kernel_arg` object is only
-a view, the caller must ensure that the lifetime of the pointer object at
-`pointer_location` lasts at least as long as the lifetime of the
-`raw_kernel_arg` object.
+stored at `pointer_location`, to be bound as a pointer argument. Since the
+`raw_kernel_arg` object is only a view, the caller must ensure that the lifetime
+of the pointer object at `pointer_location` lasts at least as long as the
+lifetime of the `raw_kernel_arg` object.
 
 [_Note:_ The constructor takes the address of the pointer, in keeping with the
 byte overload taking the address of the bytes, so that passing the pointer
