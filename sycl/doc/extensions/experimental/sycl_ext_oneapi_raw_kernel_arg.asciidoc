@@ -86,8 +86,8 @@ h.set_arg(1, syclex::raw_kernel_arg(opaque_type, nbytes));
 h.parallel_for(range, kernel);
 ----
 
-A kernel argument that is a pointer must be constructed with the `pointer_arg`
-overload described below, because a backend may take a pointer argument through a
+When a kernel argument is a pointer, a special overload must be used to indicate
+that the argument is a pointer.  A backend may take a pointer argument through a
 different entry point than the one that takes plain bytes, and it cannot tell the
 two apart from the bytes alone:
 
