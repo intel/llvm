@@ -54,10 +54,10 @@ specification.*
 
 == Backend support status
 
-This extension is currently implemented in {dpcpp} for the Level Zero, OpenCL,
-CUDA and Native CPU backends.  Attempting to use this extension on other
-backends may result in undefined behavior.  Be aware that the compiler is not
-able to issue a diagnostic to warn you if this happens.
+This extension is currently implemented in {dpcpp} for the Level Zero and OpenCL
+backends.  Attempting to use this extension on other backends may result in
+undefined behavior.  Be aware that the compiler is not able to issue a
+diagnostic to warn you if this happens.
 
 
 == Overview
@@ -88,8 +88,8 @@ h.parallel_for(range, kernel);
 
 When a kernel argument is a pointer, a special overload must be used to indicate
 that the argument is a pointer.  A backend may take a pointer argument through a
-different entry point than the one that takes plain bytes, and it cannot tell the
-two apart from the bytes alone:
+different entry point than the one that takes plain bytes, and it cannot tell
+the two apart from the bytes alone:
 
 [source,c++]
 ----
