@@ -589,6 +589,13 @@ get_targets_building_llvm_runtime(libclc libclc_targets)
 
 foreach(target IN LISTS libclc_targets)
   add_dependencies(sycl-toolchain libclc-${target})
+  # libspirv is built in a sub invocation of cmake (called the runtimes build) for each target
+  # separately.
+  # We need a special component name to refer to the sub-directory where we need to take
+  # the just-built libspir-v builtins from.
+  # The first part of the name comes from the directory name where the runtime build occurs:
+  # build/runtimes/runtimes-<target>, then separated by "::" is the component name to install
+  # from that sub-directory.
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS runtimes-${target}::libspirv-builtins)
 endforeach()
 

@@ -35,6 +35,8 @@ get_targets_building_llvm_runtime(libclc libclc_targets)
 foreach(tgt IN LISTS libclc_targets)
   # If some targets required `libclc` then we should embed it for the
   # `sycl-jit`.
+  # We need a special component name to refer to libspirv, see the comment in sycl/CMakeLists.txt
+  # for an explanation on the format and the reason behind it.
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS "runtimes-${tgt}::libspirv-builtins")
 endforeach()
 
