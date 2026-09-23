@@ -871,7 +871,7 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
-void graph_impl::beginRecordingLocked(sycl::detail::queue_impl &Queue) {
+void graph_impl::beginRecordingBothLocksHeld(sycl::detail::queue_impl &Queue) {
   // Native recording limitation: single queue at a time
   if (MNativeGraphHandle && !MRecordingQueues.empty()) {
     throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -893,8 +893,7 @@ void graph_impl::beginRecordingLocked(sycl::detail::queue_impl &Queue) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "Queue is already in native graph capture mode");
       }
-      auto BeginResult =
-          Queue.beginNativeRecording(MNativeGraphHandle, /*LockQueue*/ false);
+      auto BeginResult = Queue.beginNativeRecording(MNativeGraphHandle);
       if (BeginResult.RecordingActive) {
         addQueue(Queue);
       }
@@ -908,14 +907,14 @@ void graph_impl::beginRecordingLocked(sycl::detail::queue_impl &Queue) {
   }
 }
 
-void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
+void graph_impl::beginRecordingQueueLockHeld(sycl::detail::queue_impl &Queue) {
+  // The caller should be inside the queue's submission path and already holding the queue's mutex
   WriteLock Lock(MMutex);
-  beginRecordingLocked(Queue);
+  beginRecordingBothLocksHeld(Queue);
 }
 
 void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
-  // defer to the queue since we need to lock both its mutex and our mutex
-  // at the same time
+  // Ask the queue to grab both its lock and our lock before we begin
   Queue.beginRecordingGraph(*this);
 }
 

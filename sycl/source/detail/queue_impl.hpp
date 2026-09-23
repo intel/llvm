@@ -672,7 +672,7 @@ public:
   }
 
   /// Put this queue into recording mode for \p Graph, acquiring both the
-  /// submission mutex and graph mutex.
+  /// submission mutex and the graph mutex.
   void
   beginRecordingGraph(ext::oneapi::experimental::detail::graph_impl &Graph);
 
@@ -691,8 +691,9 @@ public:
     ur_result_t Result = UR_RESULT_SUCCESS;
   };
 
-  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph,
-                                             bool LockQueue);
+  /// Start native graph capture on this queue. The caller must
+  /// already hold the submission mutex.
+  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph);
 
   NativeRecordingResult endNativeRecording();
 
