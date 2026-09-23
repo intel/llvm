@@ -1539,10 +1539,10 @@ which allow an application to query the Intel Graphics Compute Architecture
 (IGCA) supported by an Intel GPU, together with the set of IGCA features that
 the device implements.
 
-An IGCA is identified by a numeric level (for example, 20 for PVC) and by the
-features the device implements for that level. The "render" feature is
-implemented by client GPUs, while the "compute" feature is implemented by
-datacenter GPUs.
+An IGCA is identified by a numeric level and by the features the device
+implements for that level. The "render" feature is typically implemented by
+client GPU devices while the "compute" feature is typically implemented by
+datacenter GPU devices.
 
 ==== New device aspect
 
@@ -1597,7 +1597,7 @@ struct igca_info {
 [%header,cols="1,5"]
 |===
 | Member | Description
-| `level` | The numeric IGCA supported by the device, e.g. 20 for PVC.
+| `level` | The numeric IGCA supported by the device.
 | `features` | Bitmask of the IGCA features the device implements, formed from
 the `igca_feature_*` constants below.
 |===
@@ -1618,9 +1618,9 @@ constexpr uint64_t igca_feature_compute = (1 << 1);
 |===
 | Feature | Description
 | `igca_feature_render` | The device implements the "r" feature set of its IGCA,
-i.e. it is a client GPU.
+typically a client GPU.
 | `igca_feature_compute` | The device implements the "c" feature set of its
-IGCA, i.e. it is a datacenter GPU.
+IGCA, typically a datacenter GPU.
 |===
 
 ==== Example Usage
@@ -1631,8 +1631,9 @@ if (dev.has(aspect::ext_intel_igca)) {
   auto IGCA = dev.get_info<ext::intel::info::device::igca>();
 
   int Level = IGCA.level;
-  bool IsClientGPU = IGCA.features & ext::intel::info::igca_feature_render;
-  bool IsDatacenterGPU = IGCA.features & ext::intel::info::igca_feature_compute;
+  bool render = IGCA.features & ext::intel::info::igca_feature_render;
+  bool compute = IGCA.features & ext::intel::info::igca_feature_compute;
+  std::cout << "IGCA" << Level << (render ? "r" : "") << (compute ? "c" : "") << "\n";
 }
 ----
 
