@@ -862,8 +862,7 @@ private:
   mutable llvm::StringMap<StringRef> SYCLUniqueIDList;
 
   /// Vector of Macros that need to be added to the Host compilation in a
-  /// SYCL based offloading scenario.  These macros are gathered during
-  /// construction of the device compilations.
+  /// SYCL based offloading scenario.
   mutable std::vector<std::string> SYCLTargetMacroArgs;
 
   /// Vector of Macros related to Device Traits that need to be added to the

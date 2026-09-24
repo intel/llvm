@@ -38,6 +38,10 @@ void populateSYCLDeviceTraitsMacrosArgs(
     Compilation &C, const llvm::opt::ArgList &Args,
     const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets);
 
+// Returns the -D__SYCL_TARGET_*__ macro (if any) for a SYCL device target
+// triple, given the device name bound to it.
+SmallString<64> getSYCLTargetMacro(const llvm::Triple &TT, StringRef Device);
+
 bool shouldDoPerObjectFileLinking(const Compilation &C);
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with

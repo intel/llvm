@@ -808,6 +808,9 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeCopyOffloadListFlagSupported =
       this->isDriverVersionNewerOrSimilar(1, 15, 0);
 
+  // ze_event_sync_mode_desc_t is supported since L0 v1.15.0
+  ZeEventSyncModeSupported = this->isDriverVersionNewerOrSimilar(1, 15, 0);
+
   ZE_CALL_NOCHECK(
       zeDriverGetExtensionFunctionAddress,
       (ZeDriver, "zeDeviceGetVectorWidthPropertiesExt",
