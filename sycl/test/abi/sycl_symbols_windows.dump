@@ -119,7 +119,7 @@
 ??$get_info_impl@Uhalf_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Uhas_2d_block_io_support@device@info@esimd@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uhost_unified_memory@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
-??$get_info_impl@Uigca@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AUigca_info@info@intel@ext@12@XZ
+??$get_info_impl@Uigca@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AUigca@info@intel@ext@12@XZ
 ??$get_info_impl@Uimage2d_max_height@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uimage2d_max_width@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uimage3d_max_depth@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ

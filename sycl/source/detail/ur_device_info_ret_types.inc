@@ -167,7 +167,7 @@ MAP(UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION, uint32_t)
 MAP(UR_DEVICE_INFO_XE_CORES_PER_CLUSTER, uint32_t)
 MAP(UR_DEVICE_INFO_EUS_PER_XE_CORE, uint32_t)
 MAP(UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD, uint32_t)
-MAP(UR_DEVICE_INFO_IGCA_LEVEL, uint32_t)
+MAP(UR_DEVICE_INFO_IGCA_TARGET, uint32_t)
 MAP(UR_DEVICE_INFO_IGCA_FEATURE_SET, ur_device_igca_feature_flags_t)
 
 // These aren't present in the specification, extracted from ur_api.h

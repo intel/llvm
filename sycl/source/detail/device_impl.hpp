@@ -1234,15 +1234,15 @@ public:
 
       ur_device_igca_feature_flags_t Flags =
           get_info_impl<UR_DEVICE_INFO_IGCA_FEATURE_SET>();
-      uint64_t Features = 0;
+      uint64_t FeatureSets = 0;
       if (Flags & UR_DEVICE_IGCA_FEATURE_FLAG_RENDER)
-        Features |= ext::intel::info::igca_feature_render;
+        FeatureSets |= ext::intel::info::igca_feature_set_render;
       if (Flags & UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE)
-        Features |= ext::intel::info::igca_feature_compute;
+        FeatureSets |= ext::intel::info::igca_feature_set_compute;
 
-      return ext::intel::info::igca_info{
-          static_cast<int>(get_info_impl<UR_DEVICE_INFO_IGCA_LEVEL>()),
-          Features};
+      return ext::intel::info::igca{
+          static_cast<int>(get_info_impl<UR_DEVICE_INFO_IGCA_TARGET>()),
+          FeatureSets};
     }
 
     // khr device traits (defined under sycl/khr/...).
@@ -1433,7 +1433,7 @@ public:
       return has_info_desc(UR_DEVICE_INFO_IP_VERSION);
     }
     CASE(ext_intel_igca) {
-      return has_info_desc(UR_DEVICE_INFO_IGCA_LEVEL) &&
+      return has_info_desc(UR_DEVICE_INFO_IGCA_TARGET) &&
              has_info_desc(UR_DEVICE_INFO_IGCA_FEATURE_SET);
     }
     CASE(ext_oneapi_srgb) { return get_info<info::device::ext_oneapi_srgb>(); }

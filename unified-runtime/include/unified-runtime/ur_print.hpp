@@ -3301,8 +3301,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     os << "UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD";
     break;
-  case UR_DEVICE_INFO_IGCA_LEVEL:
-    os << "UR_DEVICE_INFO_IGCA_LEVEL";
+  case UR_DEVICE_INFO_IGCA_TARGET:
+    os << "UR_DEVICE_INFO_IGCA_TARGET";
     break;
   case UR_DEVICE_INFO_IGCA_FEATURE_SET:
     os << "UR_DEVICE_INFO_IGCA_FEATURE_SET";
@@ -5250,7 +5250,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_IGCA_LEVEL: {
+  case UR_DEVICE_INFO_IGCA_TARGET: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)

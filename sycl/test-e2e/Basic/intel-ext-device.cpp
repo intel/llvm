@@ -185,12 +185,13 @@ int main(int argc, char **argv) {
         }
         if (SYCL_EXT_INTEL_DEVICE_INFO >= 11 &&
             dev.has(aspect::ext_intel_igca)) {
-          intel_info::igca_info igca =
+          intel_info::igca igca =
               dev.get_info<ext::intel::info::device::igca>();
-          bool render = igca.features & intel_info::igca_feature_render;
-          bool compute = igca.features & intel_info::igca_feature_compute;
-          std::cout << "Device IGCA = IGCA" << igca.level << (render ? "r" : "")
-                    << (compute ? "c" : "") << std::endl;
+          bool render = igca.feature_sets & intel_info::igca_feature_set_render;
+          bool compute =
+              igca.feature_sets & intel_info::igca_feature_set_compute;
+          std::cout << "Device IGCA = IGCA" << igca.target
+                    << (render ? "r" : "") << (compute ? "c" : "") << std::endl;
         }
       } // SYCL_EXT_INTEL_DEVICE_INFO
       std::cout << std::endl;

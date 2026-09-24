@@ -1605,9 +1605,9 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   // TODO: Level Zero does not report IGCA yet. Return dummy values until an
-  // extension to zeDeviceGetProperties exposes it. Level 0 and an empty feature
-  // set are both invalid, so they can't be mistaken for real values.
-  case UR_DEVICE_INFO_IGCA_LEVEL:
+  // extension to zeDeviceGetProperties exposes it. Target 0 and an empty set of
+  // feature sets are both invalid, so they can't be mistaken for real values.
+  case UR_DEVICE_INFO_IGCA_TARGET:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_IGCA_FEATURE_SET:
     return ReturnValue(ur_device_igca_feature_flags_t{0});

@@ -54,12 +54,12 @@ inline uint32_t get_gpu_ip_version_revision(uint32_t IPVersion) {
   return IPVersion & 0x3f;
 }
 
-constexpr uint64_t igca_feature_render = (1 << 0);
-constexpr uint64_t igca_feature_compute = (1 << 1);
+constexpr uint64_t igca_feature_set_render = (1 << 0);
+constexpr uint64_t igca_feature_set_compute = (1 << 1);
 
-struct igca_info {
-  int level;
-  uint64_t features;
+struct igca {
+  int target;
+  uint64_t feature_sets;
 };
 
 namespace device {
@@ -154,8 +154,8 @@ struct max_lanes_per_hw_thread
 struct ip_version : device_traits<UR_DEVICE_INFO_IP_VERSION> {
   using return_type = uint32_t;
 };
-struct igca : device_traits<UR_DEVICE_INFO_IGCA_LEVEL> {
-  using return_type = igca_info;
+struct igca : device_traits<UR_DEVICE_INFO_IGCA_TARGET> {
+  using return_type = info::igca;
 };
 
 // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.

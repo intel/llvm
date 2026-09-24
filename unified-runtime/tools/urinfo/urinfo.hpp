@@ -370,7 +370,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
   std::cout << prefix;
-  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_IGCA_LEVEL);
+  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_IGCA_TARGET);
   std::cout << prefix;
   printDeviceInfo<ur_device_igca_feature_flags_t>(
       hDevice, UR_DEVICE_INFO_IGCA_FEATURE_SET);
