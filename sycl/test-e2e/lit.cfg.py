@@ -30,6 +30,7 @@ config.target_to_triple = {
     "target-nvidia": "nvptx64-nvidia-cuda",
     "target-amd": "amdgcn-amd-amdhsa",
     "target-native_cpu": "native_cpu",
+    "target-spir_gen": "spir64_gen",
 }
 config.triple_to_target = {v: k for k, v in config.target_to_triple.items()}
 config.backend_to_triple = {
