@@ -5951,30 +5951,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fsycl-optimize-non-user-code");
       }
       // Add any predefined macros associated with intel_gpu* type targets
-      // passed in with -fsycl-targets
-      // TODO: Macros are populated during device compilations and saved for
-      // addition to the host compilation. There is no dependence connection
-      // between device and host where we should be able to use the offloading
-      // arch to add the macro to the host compile.
+      // passed in with -fsycl-targets.
       auto addTargetMacros = [&](const llvm::Triple &Triple) {
-        if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
-          return;
-        SmallString<64> Macro;
-        if ((Triple.isSPIR() &&
-             Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
-            Triple.isNVPTX() || Triple.isAMDGCN()) {
-          StringRef Device = JA.getOffloadingArch().ArchName;
-          if (!Device.empty() &&
-              !SYCL::gen::getGenDeviceMacro(Device).empty()) {
-            Macro = "-D";
-            Macro += SYCL::gen::getGenDeviceMacro(Device);
-          }
-        } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-          Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
-        if (Macro.size()) {
+        SmallString<64> Macro =
+            SYCL::getSYCLTargetMacro(Triple, JA.getOffloadingArch().ArchName);
+        if (!Macro.empty())
           CmdArgs.push_back(Args.MakeArgString(Macro));
-          D.addSYCLTargetMacroArg(Args, Macro);
-        }
       };
       addTargetMacros(RawTriple);
     } else {
