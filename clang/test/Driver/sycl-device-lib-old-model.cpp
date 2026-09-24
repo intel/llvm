@@ -25,6 +25,7 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB: {{.*}}clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB-NOT: libsycl-cmath.bc
+// SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB-NOT: libsycl-imf.bc
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB-NOT: libclang_rt.builtins.bc
 
 /// ###########################################################################
