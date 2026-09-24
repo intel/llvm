@@ -1536,12 +1536,12 @@ Missing before version 11 of this extension.
 
 This extension adds the following device aspect and information descriptor,
 which allow an application to query the Intel Graphics Compute Architecture
-(IGCA) supported by an Intel GPU, together with the set of IGCA features that
-the device implements.
+(IGCA) target supported by an Intel GPU, together with the IGCA feature sets
+that the device implements.
 
-An IGCA is identified by a numeric level and by the features the device
-implements for that level. The "render" feature is typically implemented by
-client GPU devices while the "compute" feature is typically implemented by
+An IGCA target is identified by a numeric value and by the feature sets the
+device implements. The "render" feature set is typically implemented by client
+GPU devices while the "compute" feature set is typically implemented by
 datacenter GPU devices.
 
 ==== New device aspect
@@ -1567,28 +1567,28 @@ descriptor.
 ----
 namespace sycl::ext::intel::info::device {
 struct igca {
-  using return_type = info::igca_info;
+  using return_type = info::igca;
 };
 } // namespace sycl::ext::intel::info::device
 ----
 
 _Remarks:_ Template parameter to `device::get_info`.
 
-_Returns:_ An `info::igca_info` describing the IGCA supported by the device and
-the set of IGCA features the device implements.
+_Returns:_ An `info::igca` describing the IGCA target supported by the device
+and the IGCA feature sets the device implements.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 the device does not have `aspect::ext_intel_igca`.
 
-==== IGCA info type
+==== IGCA type
 
 [source,c++]
 ----
 namespace sycl::ext::intel::info {
 
-struct igca_info {
-  int level;
-  uint64_t features;
+struct igca {
+  int target;
+  uint64_t feature_sets;
 };
 
 } // namespace sycl::ext::intel::info
@@ -1597,30 +1597,30 @@ struct igca_info {
 [%header,cols="1,5"]
 |===
 | Member | Description
-| `level` | The numeric IGCA supported by the device.
-| `features` | Bitmask of the IGCA features the device implements, formed from
-the `igca_feature_*` constants below.
+| `target` | The numeric IGCA target supported by the device.
+| `feature_sets` | Bitmask of the IGCA feature sets the device implements, formed
+from the `igca_feature_set_*` constants below.
 |===
 
-==== IGCA features
+==== IGCA feature sets
 
 [source,c++]
 ----
 namespace sycl::ext::intel::info {
 
-constexpr uint64_t igca_feature_render  = (1 << 0);
-constexpr uint64_t igca_feature_compute = (1 << 1);
+constexpr uint64_t igca_feature_set_render  = (1 << 0);
+constexpr uint64_t igca_feature_set_compute = (1 << 1);
 
 } // namespace sycl::ext::intel::info
 ----
 
 [%header,cols="1,5"]
 |===
-| Feature | Description
-| `igca_feature_render` | The device implements the "r" feature set of its IGCA,
-typically a client GPU.
-| `igca_feature_compute` | The device implements the "c" feature set of its
-IGCA, typically a datacenter GPU.
+| Feature set | Description
+| `igca_feature_set_render` | The device implements the "r" feature set of its
+IGCA target, typically a client GPU.
+| `igca_feature_set_compute` | The device implements the "c" feature set of its
+IGCA target, typically a datacenter GPU.
 |===
 
 ==== Example Usage
@@ -1630,10 +1630,13 @@ IGCA, typically a datacenter GPU.
 if (dev.has(aspect::ext_intel_igca)) {
   auto IGCA = dev.get_info<ext::intel::info::device::igca>();
 
-  int Level = IGCA.level;
-  bool render = IGCA.features & ext::intel::info::igca_feature_render;
-  bool compute = IGCA.features & ext::intel::info::igca_feature_compute;
-  std::cout << "IGCA" << Level << (render ? "r" : "") << (compute ? "c" : "") << "\n";
+  int Target = IGCA.target;
+  bool Render =
+      IGCA.feature_sets & ext::intel::info::igca_feature_set_render;
+  bool Compute =
+      IGCA.feature_sets & ext::intel::info::igca_feature_set_compute;
+  std::cout << "IGCA" << Target << (Render ? "r" : "") << (Compute ? "c" : "")
+            << "\n";
 }
 ----
 
