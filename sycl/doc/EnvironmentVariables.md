@@ -126,7 +126,7 @@ Default is `0`.
 
 The wait has no deadline, so a program hangs with this option enabled if the work
 it enqueued can only complete through host progress that happens after the submission
-returns, \- for example a kernel spinning on a host-written flag.
+returns, for example a kernel spinning on a host-written flag.
 
 Commands that enqueue no device work of their own are not made synchronous:
 markers and barriers, timestamp recording, host tasks (including Level Zero 
