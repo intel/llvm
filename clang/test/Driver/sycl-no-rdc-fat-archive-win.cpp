@@ -23,7 +23,7 @@
 // CHECK: 3: spirv-to-ir-wrapper, {2}, tempfilelist, (device-sycl)
 // CHECK: 4: input, "{{.*}}libsycl-crt{{.*}}", ir, (device-sycl)
 // CHECK: 11: input, "{{.*}}libclang_rt.builtins{{.*}}", ir, (device-sycl)
-// CHECK: 12: linker, {4, {{.*}}}, ir, (device-sycl)
+// CHECK: 12: linker, {4, {{.*}}, 11}, ir, (device-sycl)
 // CHECK: 13: linker, {3, 12}, ir, (device-sycl)
 // CHECK: 14: foreach, {3, 13}, ir, (device-sycl)
 // CHECK: 15: file-table-tform, {3, 14}, tempfilelist, (device-sycl)
