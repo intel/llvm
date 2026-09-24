@@ -15,7 +15,7 @@
 
 // REQUIRES: arch-intel_gpu_bmg_g21
 
-// XFAIL: run-mode
+// XFAIL: windows && run-mode
 // XFAIL-TRACKER: GSD-4149
 
 // UNSUPPORTED: spirv-backend
