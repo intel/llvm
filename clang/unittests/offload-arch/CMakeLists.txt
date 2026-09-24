@@ -17,4 +17,5 @@ add_distinct_clang_unittest(OffloadArchTests
     LLVMTestingSupport
   LLVM_COMPONENTS
     Support
+    TargetParser
   )

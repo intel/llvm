@@ -1640,11 +1640,6 @@ parseStructuralHashPrinterPassOptions(StringRef Params) {
       inconvertibleErrorCode());
 }
 
-Expected<bool> parseWinEHPrepareOptions(StringRef Params) {
-  return PassBuilder::parseSinglePassOption(Params, "demote-catchswitch-only",
-                                            "WinEHPreparePass");
-}
-
 Expected<GlobalMergeOptions> parseGlobalMergeOptions(StringRef Params) {
   GlobalMergeOptions Result;
   while (!Params.empty()) {
