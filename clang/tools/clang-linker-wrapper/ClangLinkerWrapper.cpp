@@ -13,12 +13,12 @@
 // device linking job to create a final device image.
 //
 //===----------------------------------------------------------------------===//
-
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
@@ -26,10 +26,12 @@
 #include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/Frontend/Offloading/Utility.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/IRObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
@@ -155,6 +157,11 @@ static bool OutputSYCLBIN = false;
 static SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
 
 static SmallString<128> OffloadImageDumpDir;
+
+/// The __sycl_registerlib_<hash> symbols referenced by the SYCL host codegen,
+/// collected from the host object inputs. The SYCL device-image wrapper object
+/// defines these so the host references resolve without a separate link.
+static SmallSet<std::string, 4> SYCLRegisterLibSymbols;
 
 /// Whether or not to look through symlinks when resolving binaries.
 static bool CanonicalPrefixes = true;
@@ -287,6 +294,117 @@ Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
 
   TempFiles.emplace_back(std::move(OutputFile));
   return TempFiles.back();
+}
+
+/// Prefix of the per-TU symbols emitted by the SYCL host codegen to force
+/// linking of the corresponding device static-library member. The host emits an
+/// undefined reference to __sycl_registerlib_<hash> from a global constructor;
+/// the SYCL device-image wrapper object must define the matching symbol.
+static constexpr StringRef SYCLRegisterLibPrefix = "__sycl_registerlib_";
+
+/// Record any undefined symbols named __sycl_registerlib_<hash> found in the
+/// object described by \p Buffer into the global SYCLRegisterLibSymbols.
+static Error collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer) {
+  Expected<std::unique_ptr<ObjectFile>> ObjOrErr =
+      ObjectFile::createObjectFile(Buffer);
+  if (!ObjOrErr) {
+    // Not something we can read symbols from; ignore it.
+    consumeError(ObjOrErr.takeError());
+    return Error::success();
+  }
+  for (const SymbolRef &Sym : (*ObjOrErr)->symbols()) {
+    Expected<uint32_t> FlagsOrErr = Sym.getFlags();
+    if (!FlagsOrErr)
+      return FlagsOrErr.takeError();
+    if (!(*FlagsOrErr & SymbolRef::SF_Undefined))
+      continue;
+    Expected<StringRef> NameOrErr = Sym.getName();
+    if (!NameOrErr)
+      return NameOrErr.takeError();
+    if (!NameOrErr->starts_with(SYCLRegisterLibPrefix))
+      continue;
+    SYCLRegisterLibSymbols.insert(NameOrErr->str());
+  }
+  return Error::success();
+}
+
+/// Scan the host object inputs (the regular OPT_INPUT link inputs) for
+/// undefined symbols named __sycl_registerlib_<hash> and record them in the
+/// global SYCLRegisterLibSymbols. Each such reference is satisfied by defining
+/// the symbol in the generated SYCL device-image wrapper object. The references
+/// may live in bare object inputs or in members of a static archive (the latter
+/// is how the objects appear when linking against a static library).
+static Error collectSYCLRegisterLibSymbols(const ArgList &Args) {
+  for (const opt::Arg *Arg : Args.filtered(OPT_INPUT)) {
+    StringRef Filename = Arg->getValue();
+    file_magic Magic;
+    if (identify_magic(Filename, Magic))
+      continue;
+
+    ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
+        MemoryBuffer::getFile(Filename);
+    if (std::error_code EC = BufferOrErr.getError())
+      return createFileError(Filename, EC);
+    MemoryBufferRef Buffer = (*BufferOrErr)->getMemBufferRef();
+
+    switch (Magic) {
+    case file_magic::elf_relocatable:
+    case file_magic::elf_shared_object:
+    case file_magic::elf_executable:
+    case file_magic::coff_object:
+    case file_magic::macho_object:
+      if (Error Err = collectSYCLRegisterLibSymbolsFromObject(Buffer))
+        return Err;
+      break;
+    case file_magic::archive: {
+      // The undefined references live in the archive members, so look through
+      // each member for them.
+      Expected<std::unique_ptr<object::Archive>> ArOrErr =
+          object::Archive::create(Buffer);
+      if (!ArOrErr)
+        return ArOrErr.takeError();
+      Error Err = Error::success();
+      for (const object::Archive::Child &Child : (*ArOrErr)->children(Err)) {
+        Expected<MemoryBufferRef> ChildBufOrErr = Child.getMemoryBufferRef();
+        if (!ChildBufOrErr)
+          return ChildBufOrErr.takeError();
+        if (Error E = collectSYCLRegisterLibSymbolsFromObject(*ChildBufOrErr))
+          return E;
+      }
+      if (Err)
+        return Err;
+      break;
+    }
+    default:
+      break;
+    }
+  }
+  return Error::success();
+}
+
+/// Define each collected __sycl_registerlib_<hash> symbol in \p M as an empty
+/// function returning void. \p M is the SYCL device-image wrapper module (host
+/// triple), so these definitions end up in the wrapper object and satisfy the
+/// host-side references without a separate link.
+static void defineSYCLRegisterLibSymbols(Module &M) {
+  llvm::FunctionType *FTy = llvm::FunctionType::get(
+      llvm::Type::getVoidTy(M.getContext()), /*isVarArg=*/false);
+  for (std::string Name : SYCLRegisterLibSymbols) {
+    // Skip if the wrapper already defines/declares this symbol as a definition.
+    if (auto *Existing = M.getFunction(Name))
+      if (!Existing->isDeclaration())
+        continue;
+    // Use weak linkage so that multiple SYCL targets (each producing their own
+    // wrapper object linked into the same output) don't cause duplicate-symbol
+    // errors.
+    auto *Fn = llvm::Function::Create(FTy, llvm::GlobalValue::WeakAnyLinkage,
+                                      Name, &M);
+    llvm::BasicBlock *Entry =
+        llvm::BasicBlock::Create(M.getContext(), "entry", Fn);
+    llvm::IRBuilder<> Builder(Entry);
+    Builder.CreateRetVoid();
+  }
+  SYCLRegisterLibSymbols.clear();
 }
 
 /// Execute the command \p ExecutablePath with the arguments \p Args.
@@ -1282,6 +1400,11 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
   if (Error E = offloading::wrapSYCLBinaries(M, Images,
                                              offloading::SYCLWrappingOptions()))
     return E;
+
+  // Define the __sycl_registerlib_<hash> symbols referenced by the host side so
+  // that this wrapper object satisfies them (and, when placed in a static
+  // library, is pulled in to do so).
+  defineSYCLRegisterLibSymbols(M);
 
   if (Args.hasArg(OPT_print_wrapped_module))
     errs() << "Wrapped Module\n" << M;
@@ -3385,6 +3508,12 @@ int main(int Argc, char **Argv) {
     auto DeviceInputFiles = getDeviceInput(Args);
     if (!DeviceInputFiles)
       reportError(DeviceInputFiles.takeError());
+
+    // Collect the __sycl_registerlib_<hash> references emitted by the SYCL host
+    // codegen. These are satisfied by defining them in the SYCL device-image
+    // wrapper object (see defineSYCLRegisterLibSymbols).
+    if (Error Err = collectSYCLRegisterLibSymbols(Args))
+      reportError(std::move(Err));
 
     // Check if we should emit fat binary directly without wrapping or host
     // linking.
