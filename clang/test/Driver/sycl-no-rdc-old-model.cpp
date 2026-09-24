@@ -16,6 +16,7 @@
 // CHECK: 12: preprocessor, {11}, c++-cpp-output, (device-sycl)
 // CHECK: 13: compiler, {12}, ir, (device-sycl)
 // CHECK: 18: input, "{{.*}}libsycl-crt.bc", ir, (device-sycl)
+// CHECK: 24: input, "{{.*}}libclang_rt.builtins.bc", ir, (device-sycl)
 // CHECK: 25: linker, {18, {{.*}}}, ir, (device-sycl)
 // CHECK: 26: linker, {4, 25}, ir, (device-sycl)
 // CHECK: 27: sycl-post-link, {26}, tempfiletable, (device-sycl)

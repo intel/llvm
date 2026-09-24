@@ -17,6 +17,7 @@
 // CHECK: 2: clang-offload-unbundler, {1}, tempfilelist
 // CHECK: 3: spirv-to-ir-wrapper, {2}, tempfilelist, (device-sycl)
 // CHECK: 4: input, "{{.*}}libsycl-crt.bc", ir, (device-sycl)
+// CHECK: 10: input, "{{.*}}libclang_rt.builtins.bc", ir, (device-sycl)
 // CHECK: 11: linker, {4, {{.*}}}, ir, (device-sycl)
 // CHECK: 12: linker, {3, 11}, ir, (device-sycl)
 // CHECK: 13: foreach, {3, 12}, ir, (device-sycl)
