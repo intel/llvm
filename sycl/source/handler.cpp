@@ -887,10 +887,10 @@ void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                           "Accessors to buffers which have write_back enabled "
                           "are not allowed to be used in command graphs.");
   }
-  // Check if the accessor is already associated
-  if (auto exists = std::find(impl->CGData.MAccStorage.begin(),
+  // Check if the accessor is already associated.
+  if (auto Exists = std::find(impl->CGData.MAccStorage.begin(),
                               impl->CGData.MAccStorage.end(), AccImpl);
-      exists != impl->CGData.MAccStorage.end()) {
+      Exists != impl->CGData.MAccStorage.end()) {
     // No need to repeat the association.
     return;
   }
