@@ -445,8 +445,9 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (isProfilingTagEvent()) {
-    // Tag events report command_submit through the adapter.
-    return get_event_profiling_info<info::event_profiling::command_submit>(
+    // The empty tag command uses its completion timestamp for all three
+    // queries.
+    return get_event_profiling_info<info::event_profiling::command_end>(
         this->getHandle(), this->getAdapter());
   }
 
@@ -482,6 +483,9 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   if (!MIsHostEvent) {
     auto Handle = getHandle();
     if (Handle) {
+      if (isProfilingTagEvent())
+        return get_event_profiling_info<info::event_profiling::command_end>(
+            Handle, this->getAdapter());
       return get_event_profiling_info<info::event_profiling::command_start>(
           Handle, this->getAdapter());
     }
