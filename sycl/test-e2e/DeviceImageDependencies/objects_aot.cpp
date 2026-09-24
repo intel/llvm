@@ -1,6 +1,6 @@
 // Test -fsycl-allow-device-image-dependencies with objects and AOT.
 
-// REQUIRES: ocloc, gpu, target-spir
+// REQUIRES: ocloc, gpu
 
 // DEFINE: %{aot_options} = -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -DUSE_AOT
 
