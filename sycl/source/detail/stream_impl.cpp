@@ -77,7 +77,7 @@ void stream_impl::generateFlushCommand(handler &cgh) {
   host_accessor<char, 1, access::mode::read_write> BufHostAcc(
       Buf_, cgh, range<1>(BufferSize_), id<1>(OffsetSize));
 
-  cgh.host_task([=] {
+  cgh.host_task_from_enqueue_function_impl([=] {
     if (!BufHostAcc.empty()) {
       // SYCL 2020, 4.16:
       // > If the totalBufferSize or workItemBufferSize limits are exceeded,
