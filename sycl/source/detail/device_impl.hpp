@@ -26,6 +26,7 @@
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 #include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/khr/max_work_group_queries.hpp>
 #include <sycl/platform.hpp>
 
 #include <memory>
@@ -1219,6 +1220,36 @@ public:
                         "ext_intel_max_lanes_per_hw_thread aspect");
       return get_info_impl<UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD>();
     }
+    CASE(ext::intel::info::device::ip_version) {
+      if (!has(aspect::ext_intel_device_info_ip_version))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_device_info_ip_version aspect");
+      return get_info_impl<UR_DEVICE_INFO_IP_VERSION>();
+    }
+
+    // khr device traits (defined under sycl/khr/...).
+
+    CASE(khr::info::device::max_work_group_range_size) {
+      return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
+    }
+    CASE(khr::info::device::max_work_group_range<3>) {
+      size_t result[3] = {};
+      getAdapter().call<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
+          &result, nullptr);
+      return range<3>(result[2], result[1], result[0]);
+    }
+    CASE(khr::info::device::max_work_group_range<2>) {
+      range<3> max_3d = get_info<khr::info::device::max_work_group_range<3>,
+                                 DependentFalse>();
+      return range<2>{max_3d[1], max_3d[2]};
+    }
+    CASE(khr::info::device::max_work_group_range<1>) {
+      range<3> max_3d = get_info<khr::info::device::max_work_group_range<3>,
+                                 DependentFalse>();
+      return range<1>{max_3d[2]};
+    }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
       return static_cast<typename Param::return_type>(get_info_impl<Desc>());
@@ -1380,6 +1411,9 @@ public:
     }
     CASE(ext_intel_max_lanes_per_hw_thread) {
       return has_info_desc(UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
+    }
+    CASE(ext_intel_device_info_ip_version) {
+      return has_info_desc(UR_DEVICE_INFO_IP_VERSION);
     }
     CASE(ext_oneapi_srgb) { return get_info<info::device::ext_oneapi_srgb>(); }
     CASE(ext_oneapi_native_assert) {

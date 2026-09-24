@@ -22,6 +22,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/ur_utils.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
@@ -891,12 +892,27 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
-  ur_result_t Res = enqueueImp();
 
-  if (UR_RESULT_SUCCESS != Res)
+  // Wake any thread parked in event_impl::waitInternal's deferred cv.wait.
+  // Otherwise if enqueueImp fails the deferred waiter could sleep forever.
+  auto WakeWaitersOnFailure = [this] {
+    if (!MEvent->isDiscarded() &&
+        (MEvent->isHost() || MEvent->getHandle() == nullptr))
+      MEvent->setComplete();
+  };
+  ur_result_t Res;
+  try {
+    Res = enqueueImp();
+  } catch (...) {
+    WakeWaitersOnFailure();
+    throw;
+  }
+
+  if (UR_RESULT_SUCCESS != Res) {
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
-  else {
+    WakeWaitersOnFailure();
+  } else {
     MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
@@ -2289,12 +2305,16 @@ std::string_view ExecCGCommand::getTypeString() const {
 // for users who need more control.
 static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
-  if (NDR.NumWorkGroups[0] == 0)
-    return; // Not parallel_for_work_group -- nothing to fill in.
-  // In pfwg mode NumWorkGroups is the only field the user sets; GlobalSize
-  // and LocalSize must both be zero (see NDRDescT contract in
-  // ndrange_desc.hpp).
-  assert(NDR.GlobalSize[0] == 0 && NDR.LocalSize[0] == 0);
+  if (NDR.GlobalSize[0] != 0)
+    return; // GlobalSize is set - no need to adjust
+  if (NDR.LocalSize[0] != 0)
+    return; // User set LocalSize but GlobalSize is zero (e.g. nd_range with
+            // zero global, non-zero local). Per SYCL 2020 the kernel is not
+            // executed; leave the range as-is.
+  // Zero global and zero local: either parallel_for_work_group (NumWorkGroups
+  // is set) or plain parallel_for with an empty range. Fill in WGSize so that
+  // downstream layers (in particular DeviceASAN's preLaunchKernel) always see
+  // a non-zero local work size even when the launch is a no-op.
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
@@ -2919,12 +2939,20 @@ void enqueueImpKernel(
       NDRDesc, static_cast<uint64_t>(std::numeric_limits<int>::max()));
   if (isRangeGreaterThanIntMax) {
     uint32_t IdQueryRangeProp = 0;
-
     // Get device image of kernel and retrieve the id queries range property.
-    if (MSyclKernel != nullptr && !MSyclKernel->isInteropOrSourceBased()) {
-      DeviceImageImpl = &MSyclKernel->getDeviceImage();
-      IdQueryRangeProp =
-          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    if (MSyclKernel != nullptr) {
+      // Interop kernels and kernels built from a non-SYCL source language
+      // (OpenCL C, SPIR-V) carry no SYCL metadata, so there is no id queries
+      // range property to read; their id queries are size_t by definition.
+      // Kernels built from SYCL source do have a device image with the
+      // property, so they must still be checked.
+      if (!MSyclKernel->hasSYCLMetadata()) {
+        IdQueryRangeProp = 2; // size_t range
+      } else {
+        DeviceImageImpl = &MSyclKernel->getDeviceImage();
+        IdQueryRangeProp =
+            DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+      }
     } else if (DeviceImageImpl != nullptr) {
       IdQueryRangeProp =
           DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
@@ -3688,8 +3716,11 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
     std::vector<ur_event_handle_t> UrEvents =
         getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
-    if (UrEvents.empty()) {
-      // If Events is empty, then the barrier has no effect.
+
+    if (UrEvents.empty() && RawEvents.empty()) {
+      // Nothing to synchronize with: the barrier wait list is empty and no
+      // explicit depends_on() dependency contributed a native event, so the
+      // barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
 
@@ -3712,7 +3743,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
-                &UrEvents[0], Event);
+                UrEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3723,17 +3754,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Profiling tag requires a valid queue");
     adapter_impl &Adapter = MQueue->getAdapter();
 
-    bool IsInOrderQueue = MQueue->isInOrder();
-    ur_event_handle_t *TimestampDeps = nullptr;
-    size_t NumTimestampDeps = 0;
-
-    // TO DO - once the following WA removed: to change call to call_nocheck and
-    // return operation result to Command::enqueue (see other CG types). Set
-    // UREvent to EventImpl only for successful case.
+    const bool IsInOrderQueue = MQueue->isInOrder();
 
     // If the queue is not in-order, the implementation will need to first
     // insert a marker event that the timestamp waits for.
     ur_event_handle_t PreTimestampMarkerEvent{};
+    std::optional<OwnedUrEvent> OwnedPreTimestampMarkerEvent;
+    ur_event_handle_t *TimestampDeps = nullptr;
+    size_t NumTimestampDeps = 0;
     if (!IsInOrderQueue) {
       // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
       //        Use that instead once it has been fixed.
@@ -3742,29 +3770,57 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
           /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
+      OwnedPreTimestampMarkerEvent.emplace(PreTimestampMarkerEvent, Adapter,
+                                           /*TakeOwnership=*/true);
       TimestampDeps = &PreTimestampMarkerEvent;
       NumTimestampDeps = 1;
     }
 
-    Adapter.call<UrApiKind::urEnqueueTimestampRecordingExp>(
-        MQueue->getHandleRef(),
-        /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
+    // Try to record a device timestamp natively. Not every backend can do so:
+    // the OpenCL backend can only record a reliable timestamp on a
+    // profiling-enabled queue (see intel/llvm#22229). When the recording is
+    // unsupported we fall back to a plain barrier, whose event still carries
+    // (best-effort) profiling information and provides the same ordering.
+    ur_result_t TimestampResult =
+        Adapter.call_nocheck<UrApiKind::urEnqueueTimestampRecordingExp>(
+            MQueue->getHandleRef(),
+            /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
 
-    // If the queue is not in-order, we need to insert a barrier. This barrier
-    // does not need output events as it will implicitly enforce the following
-    // enqueue is blocked until it finishes.
-    if (!IsInOrderQueue) {
-      // We also need to release the timestamp event from the marker.
-      Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
-      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
-      //        not pass an output event to the UR call. Once that is fixed,
-      //        this immediately-deleted event can be removed.
-      ur_event_handle_t PostTimestampBarrierEvent{};
-      Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-          MQueue->getHandleRef(),
-          /*num_events_in_wait_list=*/0,
-          /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
-      Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+    if (TimestampResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      if (!IsInOrderQueue) {
+        // The pre-timestamp barrier already provides the required ordering and
+        // profiling information, so reuse its event instead of submitting a
+        // second barrier.
+        if (Event)
+          *Event = OwnedPreTimestampMarkerEvent->TransferOwnership();
+      } else {
+        // An in-order queue has no pre-timestamp barrier to reuse.
+        if (auto Result =
+                Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+                    MQueue->getHandleRef(),
+                    /*num_events_in_wait_list=*/0,
+                    /*event_wait_list=*/nullptr, Event);
+            Result != UR_RESULT_SUCCESS)
+          return Result;
+      }
+    } else {
+      if (TimestampResult != UR_RESULT_SUCCESS)
+        return TimestampResult;
+
+      // If the queue is not in-order, we need to insert a barrier. This barrier
+      // does not need output events as it will implicitly enforce the following
+      // enqueue is blocked until it finishes.
+      if (!IsInOrderQueue) {
+        // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we
+        //        do not pass an output event to the UR call. Once that is
+        //        fixed, this immediately-deleted event can be removed.
+        ur_event_handle_t PostTimestampBarrierEvent{};
+        Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+            MQueue->getHandleRef(),
+            /*num_events_in_wait_list=*/0,
+            /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
+        Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+      }
     }
 
     SetEventHandleOrDiscard();

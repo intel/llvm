@@ -3,7 +3,7 @@
 /// both GPU and CPU.
 ///
 
-// REQUIRES: opencl-aot, ocloc, any-device-is-cpu, (!gpu-intel-gen12)
+// REQUIRES: opencl-aot, ocloc, any-device-is-cpu, (!gpu-intel-gen12), target-spir
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -o %t.out
 // RUN: %{run} %t.out

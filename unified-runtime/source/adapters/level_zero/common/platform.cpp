@@ -271,15 +271,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeDriverEuCountExtensionFound = true;
       }
     }
-    if (strncmp(extension.name,
-                ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME,
-                strlen(ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME) +
-                    1) == 0) {
-      if (extension.version ==
-          ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_VERSION_1_0) {
-        ZeCopyOffloadExtensionSupported = true;
-      }
-    }
     if (strncmp(extension.name, ZE_BINDLESS_IMAGE_EXP_NAME,
                 strlen(ZE_BINDLESS_IMAGE_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_BINDLESS_IMAGE_EXP_VERSION_1_0) {
@@ -816,6 +807,9 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // ZE_COMMAND_LIST_FLAG_COPY_OFFLOAD_HINT flag is support since L0 v1.15.0
   ZeCopyOffloadListFlagSupported =
       this->isDriverVersionNewerOrSimilar(1, 15, 0);
+
+  // ze_event_sync_mode_desc_t is supported since L0 v1.15.0
+  ZeEventSyncModeSupported = this->isDriverVersionNewerOrSimilar(1, 15, 0);
 
   ZE_CALL_NOCHECK(
       zeDriverGetExtensionFunctionAddress,

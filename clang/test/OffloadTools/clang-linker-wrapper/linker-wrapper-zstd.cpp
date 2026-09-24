@@ -1,4 +1,4 @@
-// REQUIRES: zstd && system-linux && x86-registered-target
+// REQUIRES: zstd && system-linux && x86-registered-target && spirv-to-ir-wrapper && sycl-post-link
 
 // clang-linker-wrapper compression test: checks that the wrapper compresses
 // SYCL device images when --compress is set, tags them with

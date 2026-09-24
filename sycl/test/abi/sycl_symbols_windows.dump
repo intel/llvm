@@ -48,6 +48,9 @@
 ??$get_info@Ureference_count@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBAIXZ
 ??$get_info@Uspill_memory_size@kernel_device_specific@info@intel@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVdevice@12@@Z
 ??$get_info@Uwork_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVdevice@12@@Z
+??$get_info_impl@U?$max_work_group_range@$00@device@info@khr@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$range@$00@12@XZ
+??$get_info_impl@U?$max_work_group_range@$01@device@info@khr@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$range@$01@12@XZ
+??$get_info_impl@U?$max_work_group_range@$02@device@info@khr@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$range@$02@12@XZ
 ??$get_info_impl@U?$max_work_groups@$00@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$00@12@XZ
 ??$get_info_impl@U?$max_work_groups@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$01@12@XZ
 ??$get_info_impl@U?$max_work_groups@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$02@12@XZ
@@ -125,6 +128,7 @@
 ??$get_info_impl@Uimage_max_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uimage_row_pitch_align@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uimage_support@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
+??$get_info_impl@Uip_version@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uis_available@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uis_compiler_available@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uis_endian_little@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
@@ -151,6 +155,7 @@
 ??$get_info_impl@Umax_read_image_args@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umax_registers_per_work_group@device@info@experimental@codeplay@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umax_samplers@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Umax_work_group_range_size@device@info@khr@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_work_group_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_work_item_dimensions@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umax_write_image_args@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
@@ -4213,6 +4218,7 @@
 ?khr_empty@queue@_V1@sycl@@QEBA_NXZ
 ?khr_flush@queue@_V1@sycl@@QEBAXXZ
 ?khr_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
+?khr_is_profiling_enabled@queue@_V1@sycl@@QEBA_NXZ
 ?lgamma_r_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@PEAH@Z
 ?lgamma_r_impl@detail@_V1@sycl@@YAMMPEAH@Z
 ?lgamma_r_impl@detail@_V1@sycl@@YANNPEAH@Z
@@ -4352,6 +4358,7 @@
 ?setDevice@HostProfilingInfo@detail@_V1@sycl@@QEAAXPEAVdevice_impl@234@@Z
 ?setDeviceKernelInfo@handler@_V1@sycl@@AEAAX$$QEAVkernel@23@@Z
 ?setDeviceKernelInfoPtr@handler@_V1@sycl@@AEAAXPEAVDeviceKernelInfo@detail@23@@Z
+?setFreeFunctionKernelInfoRT@handler@_V1@sycl@@AEAAXPEAVDeviceKernelInfo@detail@23@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelFunc@handler@_V1@sycl@@AEAAXPEAX@Z
 ?setKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
@@ -4378,6 +4385,7 @@
 ?sincos_impl@detail@_V1@sycl@@YAMMPEAM@Z
 ?sincos_impl@detail@_V1@sycl@@YANNPEAN@Z
 ?single_task@handler@_V1@sycl@@QEAAXVkernel@23@@Z
+?single_task_free_function@handler@_V1@sycl@@QEAAXPEAVDeviceKernelInfo@detail@23@@Z
 ?size@exception_list@_V1@sycl@@QEBA_KXZ
 ?size@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?size@stream@_V1@sycl@@QEBA_KXZ
@@ -4388,6 +4396,7 @@
 ?submit_graph_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEAV?$command_graph@$00@experimental@oneapi@ext@12@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBUcode_location@detail@12@@Z
 ?submit_kernel_direct_with_event_impl@_V1@sycl@@YA?AVevent@12@AEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEAVHostKernelRefBase@712@PEAVDeviceKernelInfo@712@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@712@AEBUcode_location@712@_N@Z
 ?submit_kernel_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEAVHostKernelRefBase@612@PEAVDeviceKernelInfo@612@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@612@AEBUcode_location@612@_N@Z
+?submit_kernel_obj_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEBVkernel@12@V?$span@$$CBUKernelArgView@kernel_arg_view_v1@detail@_V1@sycl@@$0?0@12@AEBUcode_location@612@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEBA?AVevent@23@AEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@2623@AEBUcode_location@623@_N@Z
 ?submit_without_event_impl@queue@_V1@sycl@@AEBAXAEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@2523@AEBUcode_location@523@_N@Z
 ?supportsUSMFill2D@handler@_V1@sycl@@AEAA_NXZ

@@ -33,11 +33,24 @@ int UrEventCreateExp_counter = 0;
 int UrEventRelease_counter = 0;
 int RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter = 0;
 int RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter = 0;
+bool LastCreateHadLowPowerSyncDesc = false;
 
 ur_result_t redefinedUrEventCreateExp(void *pParams) {
   auto params = *static_cast<ur_event_create_exp_params_t *>(pParams);
   **params.pphEvent = DummyEventHandle;
   EXPECT_EQ(*params.phContext, DummyContextHandle);
+
+  const ur_exp_event_desc_t *desc = *params.ppEventDesc;
+  for (const auto *base = static_cast<const ur_base_desc_t *>(desc->pNext);
+       base; base = static_cast<const ur_base_desc_t *>(base->pNext)) {
+    if (base->stype == UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC) {
+      const auto *sync =
+          reinterpret_cast<const ur_exp_event_sync_mode_desc_t *>(base);
+      if (sync->flags & UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT)
+        LastCreateHadLowPowerSyncDesc = true;
+      break;
+    }
+  }
 
   UrEventCreateExp_counter++;
 
@@ -198,6 +211,7 @@ protected:
     ExpectedNumEventsInWaitListKernelLaunch = 0;
     CheckUrEventReleaseHandle = true;
     ReusableEventsSupported = true;
+    LastCreateHadLowPowerSyncDesc = false;
 
     mock::getCallbacks().set_replace_callback("urEventCreateExp",
                                               &redefinedUrEventCreateExp);
@@ -585,6 +599,65 @@ TEST_F(ReusableEventsTest, EmptyEventVectorWait) {
 
   EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
 
+  Queue.wait();
+}
+
+TEST_F(ReusableEventsTest, LowPowerEventModeChainsSyncModeDesc) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  syclex::properties PropList{
+      syclex::event_mode{syclex::event_mode_enum::low_power}};
+  auto event = syclex::make_event(Ctx, PropList);
+
+  syclex::enqueue_signal_event(Queue, event);
+
+  EXPECT_EQ(UrEventCreateExp_counter, 1);
+  EXPECT_TRUE(LastCreateHadLowPowerSyncDesc);
+
+  Queue.wait();
+}
+
+TEST_F(ReusableEventsTest, NoneEventModeDoesNotChainSyncModeDesc) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  syclex::properties PropList{
+      syclex::event_mode{syclex::event_mode_enum::none}};
+  auto event = syclex::make_event(Ctx, PropList);
+  syclex::enqueue_signal_event(Queue, event);
+
+  EXPECT_EQ(UrEventCreateExp_counter, 1);
+  EXPECT_FALSE(LastCreateHadLowPowerSyncDesc);
+
+  Queue.wait();
+}
+
+TEST_F(ReusableEventsTest, MakeEventLowPowerWithoutPropertiesList) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  auto event = syclex::make_event(
+      Ctx, syclex::event_mode{syclex::event_mode_enum::low_power});
+  syclex::enqueue_signal_event(Queue, event);
+
+  EXPECT_EQ(UrEventCreateExp_counter, 1);
+  EXPECT_TRUE(LastCreateHadLowPowerSyncDesc);
   Queue.wait();
 }
 

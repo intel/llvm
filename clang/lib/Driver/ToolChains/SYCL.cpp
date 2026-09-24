@@ -719,6 +719,7 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
   if (Targets.empty())
     return;
 
+  const Driver &D = C.getDriver();
   const auto &TargetTable = DeviceConfigFile::TargetTable;
   std::map<StringRef, unsigned int> AllDevicesHave;
   std::map<StringRef, bool> AnyDeviceHas;
@@ -731,6 +732,11 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
     auto TargetIt = TargetTable.end();
     const llvm::Triple &TargetTriple = TC->getTriple();
     const StringRef TargetArch{BoundArch};
+
+    SmallString<64> TargetMacro = getSYCLTargetMacro(TargetTriple, TargetArch);
+    if (!TargetMacro.empty())
+      D.addSYCLTargetMacroArg(Args, TargetMacro);
+
     if (!TargetArch.empty()) {
       TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
         using namespace tools::SYCL;
@@ -780,7 +786,6 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
   if (ValidTargets == 0)
     AnyDeviceHasAnyAspect = true;
 
-  const Driver &D = C.getDriver();
   if (AnyDeviceHasAnyAspect) {
     // There exists some target that supports any given aspect.
     constexpr static StringRef MacroAnyDeviceAnyAspect{
@@ -1402,6 +1407,22 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
   return Macro;
 }
 
+SmallString<64> SYCL::getSYCLTargetMacro(const llvm::Triple &TT,
+                                         StringRef Device) {
+  if ((TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
+      TT.isNVPTX() || TT.isAMDGCN()) {
+    SmallString<64> DeviceMacro = gen::getGenDeviceMacro(Device);
+    if (DeviceMacro.empty())
+      return {};
+    SmallString<64> Macro("-D");
+    Macro += DeviceMacro;
+    return Macro;
+  }
+  if (TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    return SmallString<64>("-D__SYCL_TARGET_INTEL_X86_64__");
+  return {};
+}
+
 void SYCL::x86_64::BackendCompiler::ConstructJob(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Inputs, const ArgList &Args,
@@ -1960,6 +1981,15 @@ void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                      options::OPT_Xsycl_linker_EQ, Device);
 }
 
+const SYCLToolChain &toolchains::getSYCLToolChain(
+    const Driver &D, const ToolChain &TC, const ToolChain &HostTC,
+    const llvm::opt::ArgList &Args, std::unique_ptr<SYCLToolChain> &SYCLTC) {
+  if (TC.getTriple().isSPIROrSPIRV() || TC.getTriple().isNativeCPU())
+    return static_cast<const SYCLToolChain &>(TC);
+  SYCLTC = std::make_unique<SYCLToolChain>(D, TC.getTriple(), HostTC, Args);
+  return *SYCLTC;
+}
+
 Tool *SYCLToolChain::buildBackendCompiler() const {
   if (getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
     return new tools::SYCL::gen::BackendCompiler(*this);
@@ -2036,4 +2066,9 @@ SanitizerMask SYCLToolChain::getSupportedSanitizers(
     BoundArch /*BA*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
 
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
+}
+
+VersionTuple SYCLToolChain::computeMSVCVersion(const Driver *D,
+                                               const ArgList &Args) const {
+  return HostTC.computeMSVCVersion(D, Args);
 }

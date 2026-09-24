@@ -54,7 +54,23 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal(bool *Success) {
+  if (MState == HES_Discarded)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "waitInternal method cannot be used for a discarded event.");
+
   auto Handle = this->getHandle();
+  if (!MIsHostEvent && !Handle && MState != HES_Complete) {
+    // Enqueue deferred. Sleep until either the native handle appears (set by
+    // the eventual Cmd->enqueue via setHandle, which notifies cv) or the event
+    // is marked complete on its own.
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] {
+      return MState == HES_Complete || this->getHandle() != nullptr;
+    });
+    Handle = this->getHandle();
+  }
+
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
     ur_result_t Err =
@@ -71,11 +87,6 @@ void event_impl::waitInternal(bool *Success) {
       if (Success != nullptr)
         *Success = true;
     }
-  } else if (MState == HES_Discarded) {
-    // Waiting for the discarded event is invalid
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "waitInternal method cannot be used for a discarded event.");
   } else if (MState != HES_Complete) {
     // Wait for the host event
     std::unique_lock<std::mutex> lock(MMutex);
@@ -201,6 +212,13 @@ ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
     Desc.flags |= UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
   if (MIPCEnabled)
     Desc.flags |= UR_EXP_EVENT_FLAG_IPC_EXP;
+
+  ur_exp_event_sync_mode_desc_t SyncDesc = {};
+  if (MLowPower) {
+    SyncDesc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC;
+    SyncDesc.flags = UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+    Desc.pNext = &SyncDesc;
+  }
 
   ur_result_t Result =
       getAdapter().call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
@@ -427,8 +445,9 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (isProfilingTagEvent()) {
-    // Tag events report command_submit through the adapter.
-    return get_event_profiling_info<info::event_profiling::command_submit>(
+    // The empty tag command uses its completion timestamp for all three
+    // queries.
+    return get_event_profiling_info<info::event_profiling::command_end>(
         this->getHandle(), this->getAdapter());
   }
 
@@ -464,6 +483,9 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   if (!MIsHostEvent) {
     auto Handle = getHandle();
     if (Handle) {
+      if (isProfilingTagEvent())
+        return get_event_profiling_info<info::event_profiling::command_end>(
+            Handle, this->getAdapter());
       return get_event_profiling_info<info::event_profiling::command_start>(
           Handle, this->getAdapter());
     }
@@ -525,6 +547,15 @@ event_impl::get_info<info::event::command_execution_status>() {
     if (Handle)
       return get_event_info<info::event::command_execution_status>(
           Handle, this->getAdapter());
+    // Some commands complete without ever producing a native event (e.g. a
+    // barrier whose wait list turned out to be empty). Command::enqueue() marks
+    // such an event complete once it has been successfully enqueued, so trust
+    // that over the MCommand check below, which would otherwise keep reporting
+    // 'submitted' for an already finished command. A command that is still
+    // pending has not been completed that way and is still HES_NotComplete
+    // (makeEvent() sets that up), so this cannot mask unfinished work.
+    else if (MState.load() == HES_Complete)
+      return info::event_command_status::complete;
     // Command is blocked and not enqueued, UrEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;

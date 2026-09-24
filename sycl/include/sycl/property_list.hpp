@@ -26,6 +26,7 @@ template <typename... PropsT> class accessor_property_list;
 namespace detail {
 class PropertyValidator;
 class SYCLMemObjT;
+class PropertyListBuilder;
 } // namespace detail
 
 /// Objects of the property_list class are containers for the SYCL properties
@@ -71,6 +72,7 @@ private:
   friend class ext::oneapi::accessor_property_list;
   friend class detail::PropertyValidator;
   friend class detail::SYCLMemObjT;
+  friend class detail::PropertyListBuilder;
 };
 
 namespace detail {
@@ -81,6 +83,24 @@ public:
                                  std::function<bool(int)> FunctionForData) {
     PropList.checkPropsAndThrow(std::move(FunctionForDataless),
                                 std::move(FunctionForData));
+  }
+};
+
+// Builds a property_list at runtime. Used to translate runtime-valued
+// sycl_khr_properties into an old-style property_list.
+class PropertyListBuilder {
+  std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;
+  std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
+
+public:
+  template <typename DataLessPropT> void add() {
+    MDataLessProps.set(DataLessPropT::getKind());
+  }
+  void add(std::shared_ptr<PropertyWithDataBase> Prop) {
+    MPropsWithData.push_back(std::move(Prop));
+  }
+  property_list finalize() {
+    return property_list(MDataLessProps, MPropsWithData);
   }
 };
 } // namespace detail

@@ -296,6 +296,10 @@ template <>
 inline ur_result_t printFlag<ur_exp_event_flag_t>(std::ostream &os,
                                                   uint32_t flag);
 
+template <>
+inline ur_result_t printFlag<ur_exp_event_sync_mode_flag_t>(std::ostream &os,
+                                                            uint32_t flag);
+
 } // namespace ur::details
 
 inline std::ostream &operator<<(std::ostream &os,
@@ -667,6 +671,11 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_event_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_event_sync_mode_flag_t value);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_event_sync_mode_desc_t params);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_function_t type
@@ -1624,6 +1633,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_EXP_EVENT_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_EVENT_DESC";
     break;
+  case UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC:
+    os << "UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1990,6 +2002,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
   case UR_STRUCTURE_TYPE_EXP_EVENT_DESC: {
     const ur_exp_event_desc_t *pstruct = (const ur_exp_event_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC: {
+    const ur_exp_event_sync_mode_desc_t *pstruct =
+        (const ur_exp_event_sync_mode_desc_t *)ptr;
     printPtr(os, pstruct);
   } break;
   default:
@@ -13602,6 +13620,80 @@ inline std::ostream &operator<<(std::ostream &os,
   os << ".flags = ";
 
   ur::details::printFlag<ur_exp_event_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_event_sync_mode_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_event_sync_mode_flag_t value) {
+  switch (value) {
+  case UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT:
+    os << "UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_sync_mode_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_event_sync_mode_flag_t>(std::ostream &os,
+                                                            uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT) ==
+      (uint32_t)UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT) {
+    val ^= (uint32_t)UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_event_sync_mode_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_event_sync_mode_desc_t params) {
+  os << "(struct ur_exp_event_sync_mode_desc_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_event_sync_mode_flag_t>(os, (params.flags));
 
   os << "}";
   return os;

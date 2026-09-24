@@ -287,11 +287,19 @@ void GlobalHandler::unloadAdapters() {
   getAdapters().clear();
 }
 
-void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
-#ifndef _WIN32
-  if (Blocking)
-    drainThreadPool();
+void GlobalHandler::prepareSchedulerToRelease(bool Blocking, bool IsShutdown) {
+  // 'IsShutdown' is `true` during application shutdown, but `false` during
+  // mock shutdown (when running SYCL unittests).
+  //
+  // On Windows, let OS reclaim abandoned host tasks and cleanup
+  // resources, except for mock shutdown when running SYCL unittests.
+#ifdef _WIN32
+  constexpr bool DrainUnsafeAtShutdown = true;
+#else
+  constexpr bool DrainUnsafeAtShutdown = false;
 #endif
+  if (Blocking && !(IsShutdown && DrainUnsafeAtShutdown))
+    drainThreadPool();
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
                                                : BlockingT::NON_BLOCKING);
@@ -321,9 +329,19 @@ void shutdown_early(bool CanJoinThreads = true) {
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(true);
+  GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(
+      true, /*IsShutdown=*/true);
 
-  if (GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst) {
+  // Do not cleanup thread pool on windows during application shutdown.
+  // Let OS do the cleanup.
+  bool doThreadPoolCleanup =
+      GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.get() !=
+      nullptr;
+#ifdef _WIN32
+  doThreadPoolCleanup &= !CanJoinThreads;
+#endif
+
+  if (doThreadPoolCleanup) {
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst->finishAndWait(
         CanJoinThreads);
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
@@ -373,8 +391,13 @@ void shutdown_late() {
 
   GlobalHandler::RTGlobalObjHandler->MXPTIRegistry.Inst.reset(nullptr);
 
-  // Release the rest of global resources.
+#ifndef _WIN32
+  // Release the rest of global resources. Do not release GlobalHandler
+  // on Windows and let OS reclaim leaked memory. Releasing GlobalHandler
+  // on Windows can seg fault if application uses host tasks, as there
+  // can be a race between host tasks and shutdown.
   delete GlobalHandler::RTGlobalObjHandler;
+#endif
   GlobalHandler::RTGlobalObjHandler = nullptr;
 }
 

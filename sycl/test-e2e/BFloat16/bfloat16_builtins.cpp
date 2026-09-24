@@ -13,8 +13,11 @@
 // UNSUPPORTED: spirv-backend && cpu
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
-// XFAIL: linux && (gpu-intel-gen12 || gpu-intel-dg2 || arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21 || arch-intel_gpu_mtl_u)
+// XFAIL: linux && arch-intel_gpu_mtl_u
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/22054
+
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23251
 
 #include "bfloat16_builtins.hpp"
 
