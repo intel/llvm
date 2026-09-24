@@ -9,7 +9,7 @@
 
 // RUN: mkdir -p %t.dir && %{build} -o %t.dir/exec.out
 // RUN: env IGC_DumpToCustomDir=%t.dir NEO_CACHE_PERSISTENT=0 IGC_ShaderDumpEnable=1 %{run} %t.dir/exec.out
-// RUN: %{run-aux} python3 %S/instruction_count.py %t.dir 2798 ZTSZZN11BitonicSort5SolveEPjS0_jENKUlRN4sycl3_V17handlerEE0_clES4_E5Merge.asm
-// RUN: %{run-aux} echo "Baseline from driver version 1.13.35563"
+// RUN: %{run-aux} python3 %S/instruction_count.py %t.dir 2139 ZTSZZN11BitonicSort5SolveEPjS0_jENKUlRN4sycl3_V17handlerEE0_clES4_E5Merge.asm
+// RUN: %{run-aux} echo "Baseline from driver version 1.17.39758"
 
 #include "../BitonicSortKv2.cpp"

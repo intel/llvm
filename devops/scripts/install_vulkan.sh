@@ -9,7 +9,7 @@ tar xf vulkan.tar.xz
 mv $VULKAN_VER vulkan
 cd vulkan
 sudo bash -c 'echo -e "APT::Get::Assume-Yes \"true\";\nAPT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90forceyes'
-sudo DEBIAN_FRONTEND=noninteractive ./vulkansdk --maxjobs
+sudo DEBIAN_FRONTEND=noninteractive ./vulkansdk --maxjobs vulkan-loader vulkan-validationlayers vulkan-extensionlayer spirv-tools glslang vul lunarg-tools
 # Delete huge directory of unneeded build artifacts
 sudo rm -r source
 cd ..
