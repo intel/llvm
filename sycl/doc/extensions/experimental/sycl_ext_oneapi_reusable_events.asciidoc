@@ -214,11 +214,10 @@ using event_mode_key = event_mode;
 This property is a hint for the driver to optimize event host synchronization.
 Passing `event_mode_enum::low_power` requests that the driver conserve CPU
 resources by sleeping the waiting thread instead of polling, which may increase
-completion latency. `event_mode_enum::none` requests no specific mode and is 
-equivalent to not passing the property. 
+completion latency. `event_mode_enum::none` requests no specific mode and is
+equivalent to not passing the property.
 
-Backends that do not support the requested mode will
-silently ignore this hint.
+Backends that do not support the requested mode will silently ignore this hint.
 
 _Effects_ (1): Creates a new `event_mode` property with the given mode.
 
