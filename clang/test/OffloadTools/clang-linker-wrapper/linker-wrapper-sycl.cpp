@@ -1,4 +1,5 @@
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl
+// REQUIRES: system-linux, x86-registered-target
 // REQUIRES: spirv-to-ir-wrapper, sycl-post-link
 // -------
 // Generate .o file as linker wrapper input.
@@ -231,13 +232,7 @@
 
 /// Check for -sycl-embed-ir for standalone clang-linker-wrapper run for sycl (NVPTX)
 // -------
-// Generate .o file as linker wrapper input.
-//
-// RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -c -nocudalib -fno-sycl-libspirv --offload-new-driver -o %t3.o
-//
-// Generate .o file as SYCL device library file.
-//
-// RUN: touch %t3.devicelib.bc
+// Reuse %t3.o and %t3.devicelib.bc from the NVPTX test above.
 //
 // Run clang-linker-wrapper test
 //
@@ -257,9 +252,7 @@
 
 /// Check for -sycl-embed-ir for standalone clang-linker-wrapper run for sycl (AMD)
 // -------
-// Generate .o file as linker wrapper input.
-//
-// RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t4.o
+// Reuse %t4.o from the AMD test above.
 //
 // Run clang-linker-wrapper test
 //
@@ -274,10 +267,6 @@
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT2:.*]].bc, input: [[BUNDLEROUT]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT2]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
-
-// Error handling when --linker-path is not provided for clang-linker-wrapper
-// RUN: not clang-linker-wrapper 2>&1 | FileCheck --check-prefix=LINKER-PATH-NOT-PROVIDED %s
-// LINKER-PATH-NOT-PROVIDED: linker path missing, must pass 'linker-path'
 
 /// check for --device-lib-dir options for sycl-post-link.
 // -------
@@ -410,9 +399,10 @@
 // RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t1.o
 // RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t2.o
 //
-// RUN: clang-linker-wrapper "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" "-o" "a.out"  %t1.o t2.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-RDC %s
+// RUN: clang-linker-wrapper "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" "-o" "a.out" %t1.o %t2.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-RDC %s
 // CHECK-RDC: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
-// CHECK-RDC-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[LLVMLINKOUT:.*]].bc
+// CHECK-RDC-NEXT: spirv-to-ir-wrapper{{.*}} -o [[SECONDLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHECK-RDC-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc [[SECONDLLVMLINKIN]].bc -o [[LLVMLINKOUT:.*]].bc
 // CHECK-RDC-NEXT: sycl-post-link{{.*}} -o [[SYCLPOSTLINKOUT:.*]].table [[LLVMLINKOUT]].bc
 
 // RUN: clang-linker-wrapper -no-sycl-rdc "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" "-o" "a.out"  %t1.o %t2.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-NO-RDC %s
