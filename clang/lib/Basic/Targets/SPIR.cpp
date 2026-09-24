@@ -84,15 +84,20 @@ void SPIR64TargetInfo::getTargetDefines(const LangOptions &Opts,
   DefineStd(Builder, "SPIR64", Opts);
 }
 
-bool WindowsX86_64_SPIR64TargetInfo::initFeatureMap(
+bool BaseSPIRTargetInfo::initFeatureMap(
     llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
     const std::vector<std::string> &FeaturesVec) const {
-  // Mirror X86TargetInfo's "x86_64 always has SSE2" baseline: the matching
-  // _M_X64 macro makes MSVC STL headers take the x86 intrinsics path, whose
-  // _mm_* intrinsics require sse/sse2 in the target feature set.
-  Features["sse"] = true;
-  Features["sse2"] = true;
-  return SPIR64TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
+  // When the host predefines _M_X64, MSVC STL headers use always_inline _mm_*
+  // intrinsics, which require sse/sse2 in the device feature set.
+  if (const TargetInfo *Host = getHostTarget()) {
+    const llvm::Triple &HT = Host->getTriple();
+    if (HT.isWindowsMSVCEnvironment() &&
+        (HT.getArch() == llvm::Triple::x86_64 || HT.isWindowsArm64EC())) {
+      Features["sse"] = true;
+      Features["sse2"] = true;
+    }
+  }
+  return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
 }
 
 void BaseSPIRVTargetInfo::getTargetDefines(const LangOptions &Opts,

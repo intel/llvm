@@ -724,10 +724,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::Win32:
       switch (HT.getArch()) {
       case llvm::Triple::aarch64:
+      case llvm::Triple::x86_64:
         return std::make_unique<WindowsTargetInfo<SPIR64TargetInfo>>(Triple,
                                                                      Opts);
-      case llvm::Triple::x86_64:
-        return std::make_unique<WindowsX86_64_SPIR64TargetInfo>(Triple, Opts);
       default:
         llvm::report_fatal_error(
             "Unsupported host architecture (not x86_64 or aarch64)");

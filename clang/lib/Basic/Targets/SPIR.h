@@ -197,6 +197,11 @@ public:
                : CCCR_Warning;
   }
 
+  bool
+  initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
+                 StringRef CPU,
+                 const std::vector<std::string> &FeaturesVec) const override;
+
   void setAddressSpaceMap(bool DefaultIsGeneric) {
     AddrSpaceMap = DefaultIsGeneric ? &SPIRDefIsGenMap : &SPIRDefIsPrivMap;
   }
@@ -313,20 +318,6 @@ public:
   SPIR64FPGATargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : SPIR64TargetInfo(Triple, Opts) {}
   virtual size_t getMaxBitIntWidth() const override { return 4096; }
-};
-
-// x86-64 SPIR64 Windows target
-class LLVM_LIBRARY_VISIBILITY WindowsX86_64_SPIR64TargetInfo
-    : public WindowsTargetInfo<SPIR64TargetInfo> {
-public:
-  WindowsX86_64_SPIR64TargetInfo(const llvm::Triple &Triple,
-                                 const TargetOptions &Opts)
-      : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {}
-
-  bool
-  initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
-                 StringRef CPU,
-                 const std::vector<std::string> &FeaturesVec) const override;
 };
 
 class LLVM_LIBRARY_VISIBILITY BaseSPIRVTargetInfo : public BaseSPIRTargetInfo {
