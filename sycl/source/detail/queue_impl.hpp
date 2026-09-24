@@ -32,6 +32,7 @@
 #include <sycl/queue.hpp>
 
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -670,6 +671,11 @@ public:
     setCommandGraphUnlocked(Graph);
   }
 
+  /// Put this queue into recording mode for \p Graph, acquiring both the
+  /// submission mutex and the graph mutex.
+  void
+  beginRecordingGraph(ext::oneapi::experimental::detail::graph_impl &Graph);
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {
     return MGraph.lock();
@@ -685,8 +691,9 @@ public:
     ur_result_t Result = UR_RESULT_SUCCESS;
   };
 
-  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph,
-                                             bool LockQueue);
+  /// Start native graph capture on this queue. The caller must
+  /// already hold the submission mutex.
+  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph);
 
   NativeRecordingResult endNativeRecording();
 
