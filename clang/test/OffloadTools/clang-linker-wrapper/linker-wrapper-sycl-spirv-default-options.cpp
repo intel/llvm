@@ -1,10 +1,14 @@
-// REQUIRES: system-linux, x86-registered-target
+// REQUIRES: system-linux, x86-registered-target, spirv-to-ir-wrapper, sycl-post-link
 
 // Test for default llvm-spirv options
 
-// RUN: touch %t.o
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -emit-llvm-bc -o %t.device.bc %s
+// RUN: llvm-offload-binary -o %t.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o \
+// RUN:   -fembed-offload-object=%t.fat %s
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
-// RUN:   -- -o /dev/null %t.o --dry-run 2>&1 | FileCheck %s
+// RUN:   --dry-run -- -o /dev/null %t.o 2>&1 | FileCheck %s
 
 // CHECK: llvm-spirv{{.*}}-spirv-debug-info-version=nonsemantic-shader-200
 // CHECK-SAME:-spirv-ext=-all
@@ -26,6 +30,7 @@
 // CHECK-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
 // CHECK-SAME:,+SPV_INTEL_long_composites
 // CHECK-SAME:,+SPV_INTEL_arithmetic_fence
+// CHECK-SAME:,+SPV_INTEL_global_variable_decorations
 // CHECK-SAME:,+SPV_INTEL_cache_controls
 // CHECK-SAME:,+SPV_INTEL_fpga_buffer_location
 // CHECK-SAME:,+SPV_INTEL_fpga_argument_interfaces
