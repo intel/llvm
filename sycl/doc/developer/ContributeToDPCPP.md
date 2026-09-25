@@ -37,18 +37,6 @@ For any DPC++-related commit, the `[SYCL]` tag should be present in the
 commit message title. To a reasonable extent, additional tags can be used
 to signify the component changed, e.g.: `[UR]`, `[CUDA]`, `[Doc]`.
 
-## Commit e-mail address
-
-Please make sure that the e-mail address recorded in your commits is a real one
-and not a GitHub `noreply` address: turn off the
-[Keep my email addresses private](https://github.com/settings/emails) setting in
-your GitHub account and check that your local `git config user.email` matches one
-of the verified addresses of that account. Pull requests authored with a private
-e-mail address are automatically flagged with a warning comment. See
-[LLVM Developer Policy](https://llvm.org/docs/DeveloperPolicy.html#email-addresses)
-and this [LLVM Discourse thread](https://discourse.llvm.org/t/hidden-emails-on-github-should-we-do-something-about-it)
-for more information.
-
 ## Release notes
 
 You are encouraged to record your change into
