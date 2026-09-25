@@ -24,6 +24,19 @@ __attribute__((visibility("protected"), used)) int x;
 
 // NVPTX-LINK: clang{{.*}} -o {{.*}}.img -dumpdir a.out.nvptx64.sm_70.img. --target=nvptx64-nvidia-cuda -march=sm_70 {{.*}}.o {{.*}}.o
 
+// Kind selectors must keep SYCL options out of OpenMP and allow OpenMP
+// options through to clang, even when both kinds are present in the binary.
+// RUN: llvm-offload-binary -o %t.mixed.out \
+// RUN:   --image=file=%t.elf.o,kind=openmp,triple=nvptx64-nvidia-cuda,arch=sm_70 \
+// RUN:   --image=file=%t.spirv.bc,kind=sycl,triple=spirv64-unknown-unknown,arch=generic
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.mixed.o -fembed-offload-object=%t.mixed.out
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --device-compiler=sycl:nvptx64=--jit-compiler-options=-gSYCL \
+// RUN:   --device-compiler=openmp:nvptx64-nvidia-cuda=-gOMP \
+// RUN:   --linker-path=/usr/bin/ld %t.mixed.o -o a.out 2>&1 | FileCheck %s --check-prefix=MIXED-KINDS
+// MIXED-KINDS: clang{{.*}} --target=nvptx64-nvidia-cuda -march=sm_70{{.*}} -gOMP
+// MIXED-KINDS-NOT: -gSYCL
+
 // RUN: llvm-offload-binary -o %t.out \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=nvptx64-nvidia-cuda,arch=sm_70 \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=nvptx64-nvidia-cuda,arch=sm_70

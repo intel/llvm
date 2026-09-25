@@ -105,6 +105,22 @@
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-UNUSED %s
 // CHK-SPLIT-UNUSED: warning: argument unused during compilation: '-fsycl-device-image-split=kernel'
 
+/// CUDA/ROCm device-compiler paths must not be forwarded unscoped to SPIR.
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl --cuda-path=/tmp/cuda --rocm-path=/tmp/rocm %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FOREIGN-PATHS %s
+// CHK-NO-FOREIGN-PATHS: clang-linker-wrapper
+// CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=--cuda-path=
+// CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=--rocm-path=
+// CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=spir64-unknown-unknown=--cuda-path=
+// CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=spir64-unknown-unknown=--rocm-path=
+
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fno-sycl-libspirv %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SCOPED-CUDA-PATH %s
+// CHK-SCOPED-CUDA-PATH: clang-linker-wrapper{{.*}}"--device-compiler=nvptx64-nvidia-cuda=--cuda-path={{[^"]+}}"
+// CHK-SCOPED-CUDA-PATH-NOT: "--device-compiler=nvptx64-nvidia-cuda=--cuda-path=
+// CHK-SCOPED-CUDA-PATH-NOT: --device-compiler=--cuda-path=
+// CHK-SCOPED-CUDA-PATH-NOT: --device-compiler=spir64-unknown-unknown=--cuda-path=
+
 /// Check for option incompatibility with -fsycl
 // RUN: not %clang -### -fsycl -ffreestanding %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
