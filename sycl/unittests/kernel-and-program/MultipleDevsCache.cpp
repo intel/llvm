@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 #include "detail/context_impl.hpp"
+#include "detail/device_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
+#include "detail/program_manager/program_manager.hpp"
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
@@ -195,3 +197,60 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(std::array<size_t, NumDevices>{0, 1, 2},
                     std::array<size_t, NumDevices>{1, 0, 2},
                     std::array<size_t, NumDevices>{2, 1, 0}));
+
+class MultipleDeviceFastCacheTest : public ::testing::Test {
+public:
+  MultipleDeviceFastCacheTest() : Mock{}, Plt{sycl::platform()} {}
+
+protected:
+  void SetUp() override {
+    mock::getCallbacks().set_after_callback("urDeviceGet",
+                                            &redefinedDeviceGetAfter);
+    mock::getCallbacks().set_before_callback("urDeviceGetInfo",
+                                             &redefinedDeviceGetInfo);
+  }
+
+protected:
+  unittest::UrMock<> Mock;
+  platform Plt;
+};
+
+// Launching the same kernel on several devices of one context must leave one
+// fast kernel cache entry per device, so that every later launch hits the fast
+// cache. saveKernel used to build a FastKernelSubcacheWrapper temporary for
+// try_emplace; when the kernel name was already registered the temporary was
+// not inserted and its destructor erased the entries of the context, so
+// launches alternating between two devices missed the fast cache every time
+// and appended to MProgramToFastKernelCacheKeyMap without bound.
+TEST_F(MultipleDeviceFastCacheTest, EntriesKeptForAllDevices) {
+  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
+  ASSERT_EQ(Devices.size(), NumDevices);
+  sycl::context Context(Devices);
+  sycl::queue Queue0(Context, Devices[0]);
+  sycl::queue Queue1(Context, Devices[1]);
+
+  for (int I = 0; I < 3; ++I) {
+    Queue0.submit([&](sycl::handler &cgh) {
+      cgh.single_task<MultipleDevsCacheTestKernel>([]() {});
+    });
+    Queue1.submit([&](sycl::handler &cgh) {
+      cgh.single_task<MultipleDevsCacheTestKernel>([]() {});
+    });
+  }
+
+  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Context);
+  detail::KernelProgramCache &Cache = CtxImpl.getKernelProgramCache();
+  std::string_view KernelName =
+      detail::KernelInfo<MultipleDevsCacheTestKernel>::getName();
+  detail::FastKernelSubcacheT &Subcache = detail::ProgramManager::getInstance()
+                                              .getDeviceKernelInfo(KernelName)
+                                              .getKernelSubcache();
+
+  EXPECT_EQ(Subcache.Entries.size(), size_t{2})
+      << "Expect one fast cache entry per device that launched the kernel";
+  for (size_t I : {size_t{0}, size_t{1}}) {
+    ur_device_handle_t Dev = detail::getSyclObjImpl(Devices[I])->getHandleRef();
+    EXPECT_TRUE(Cache.tryToGetKernelFast(KernelName, Dev, Subcache) != nullptr)
+        << "Expect a fast cache hit for device " << I;
+  }
+}
