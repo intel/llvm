@@ -1,3 +1,6 @@
+// UNSUPPORTED: aot-only
+// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
+
 // RUN: %{build} -o %t.out
 // RUN: %if cuda %{ %{run} %t.out %}
 // RUN: %if level_zero %{env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s --implicit-check-not=LEAK %}

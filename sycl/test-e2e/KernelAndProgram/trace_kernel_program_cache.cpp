@@ -1,5 +1,8 @@
 // Tests tracing of in-memory kernel and program cache.
 
+// UNSUPPORTED: aot-only
+// UNSUPPORTED-INTENDED: The in-memory program/kernel cache needs the JIT flow.
+
 // RUN: %{build} -o %t.out
 
 // There should be no tracing output when SYCL_CACHE_IN_MEM is not set

@@ -1,6 +1,9 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
+// UNSUPPORTED: aot-only
+// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
+
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel -o %t_per_kernel.out
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_source -o %t_per_source.out
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=off -o %t_off.out
