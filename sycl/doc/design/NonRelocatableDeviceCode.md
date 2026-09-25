@@ -19,6 +19,15 @@ will not link all device code into one large module. Instead, it will link
 device code on a per-translation-unit basis,
 which may improve runtime and memory usage of the compiler.
 
+Note that when `-fno-sycl-rdc` is combined with `-c` and a SPIR-V target, the
+device code is not just linked per translation unit but fully finalized and
+wrapped at compile time, and the result is merged into the host object. The
+object produced that way needs no device linking at all and is not covered by
+the flows below - see the "Device Link during compilation" section of
+[Compiler And Runtime Design](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CompilerAndRuntimeDesign.md).
+The flows below describe what happens for the remaining cases, i.e. when the
+device link is part of the final host link.
+
 ## Device code linking with source files
 Let's take an example where the device linker has two input files:
 a.o and b.o, both containing device code. In this case,

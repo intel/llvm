@@ -75,6 +75,7 @@ public:
     VerifyPCHJobClass,
     OffloadBundlingJobClass,
     OffloadUnbundlingJobClass,
+    PartialLinkJobClass,
     OffloadWrapperJobClass,
     OffloadPackagerJobClass,
     OffloadPackagerExtractJobClass,
@@ -596,6 +597,21 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadBundlingJobClass;
+  }
+};
+
+/// Partially links (ld -r) a set of relocatable objects into a single
+/// relocatable object.  Used to merge a finalized device image into the host
+/// object it belongs to, making the resulting object self-contained: it can be
+/// linked by any host linker, with no offloading-aware step involved.
+class PartialLinkJobAction final : public JobAction {
+  void anchor() override;
+
+public:
+  PartialLinkJobAction(ActionList &Inputs, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == PartialLinkJobClass;
   }
 };
 

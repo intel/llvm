@@ -43,6 +43,22 @@ void populateSYCLDeviceTraitsMacrosArgs(
 SmallString<64> getSYCLTargetMacro(const llvm::Triple &TT, StringRef Device);
 
 bool shouldDoPerObjectFileLinking(const Compilation &C);
+
+// Returns true when the device code compiled for TargetTriple is turned into a
+// fully finalized (wrapped) device image already at compile time, instead of
+// being left as device IR for the final link to process.  This is the case for
+// the SPIR-V targets in non-RDC mode, and it is what allows the resulting
+// object to be self-contained, i.e. linkable by any host linker.
+bool hasFinalDeviceImage(const Compilation &C,
+                         const llvm::Triple &TargetTriple);
+
+// Returns the SYCL device architecture names that can appear in the '_image'
+// suffixed bundle target name of a fat object holding a finalized device image,
+// i.e. the targets accepted by hasFinalDeviceImage().  Objects like that are
+// produced when the finalized image cannot be merged into the host object, and
+// by earlier versions of the compiler, which always bundled it.
+ArrayRef<StringRef> getFinalDeviceImageArchNames();
+
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
 // offloading information. Finally compiles to object using llc

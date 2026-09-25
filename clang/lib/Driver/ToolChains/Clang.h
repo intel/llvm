@@ -166,6 +166,20 @@ public:
                                    const char *LinkingOutput) const override;
 };
 
+/// Partial linker: merges several relocatable objects into one, using the host
+/// linker in relocatable mode (`ld -r`).
+class LLVM_LIBRARY_VISIBILITY PartialLink final : public Tool {
+public:
+  PartialLink(const ToolChain &TC)
+      : Tool("partial linker", "partial-linker", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 /// Offload wrapper tool.
 class LLVM_LIBRARY_VISIBILITY OffloadWrapper final : public Tool {
 public:

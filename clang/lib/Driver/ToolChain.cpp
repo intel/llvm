@@ -832,6 +832,12 @@ Tool *ToolChain::getSpirvToIrWrapper() const {
   return SpirvToIrWrapper.get();
 }
 
+Tool *ToolChain::getPartialLinker() const {
+  if (!PartialLinker)
+    PartialLinker.reset(new tools::PartialLink(*this));
+  return PartialLinker.get();
+}
+
 Tool *ToolChain::getLinkerWrapper() const {
   if (!LinkerWrapper)
     LinkerWrapper.reset(new tools::LinkerWrapper(*this, getLink()));
@@ -876,6 +882,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::OffloadBundlingJobClass:
   case Action::OffloadUnbundlingJobClass:
     return getOffloadBundler();
+
+  case Action::PartialLinkJobClass:
+    return getPartialLinker();
 
   case Action::OffloadWrapperJobClass:
     return getOffloadWrapper();
