@@ -78,6 +78,9 @@ struct ur_ze_external_memory_data {
   void *importExtensionDesc;
   enum ur_ze_external_memory_desc_type type;
   size_t size;
+  // Backing storage for UTF-8 name in the WIN32-import-by-name path;
+  // must outlive the deferred L0 consumer (zeImageCreate/zeMemAllocDevice).
+  std::string utf8NameStorage;
 };
 
 struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
