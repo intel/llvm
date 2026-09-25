@@ -1,0 +1,377 @@
+/// Check for list of commands for standalone clang-linker-wrapper run for sycl
+// REQUIRES: system-linux, x86-registered-target
+// REQUIRES: spirv-to-ir-wrapper, sycl-post-link
+// -------
+// Generate .o file as linker wrapper input.
+//
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code  -o %t_aot_cpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.o
+// RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
+// RUN: %clang %s -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t_native_cpu.o
+//
+// Generate .bc file as SYCL device library file.
+//
+// RUN: touch %t.devicelib.bc
+
+// Basic SYCL test.
+//
+// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS %s
+// CHK-CMDS: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-CMDS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
+// CHK-CMDS-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// CHK-CMDS-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
+// CHK-CMDS-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
+// CHK-CMDS-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]].bc
+// CHK-CMDS-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Check sycl-module-split-mode command line option.
+// This option uses SYCLPostLink library instead of sycl-post-link tool.
+// RUN: clang-linker-wrapper -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPLIT-CMDS %s
+// CHK-SPLIT-CMDS: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-SPLIT-CMDS-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-SPLIT-CMDS-NEXT: sycl-post-link-library: input: [[FIRSTLLVMLINKOUT]].bc, output: [[SYCLMODULESPLITOUT:.*]].bc, {{.*}} SplitMode: auto
+// CHK-SPLIT-CMDS-NEXT: llvm-spirv{{.*}} -o [[SPIRVOUT:.*]].spv [[SYCLMODULESPLITOUT]].bc
+// LLVM-SPIRV is not called in dry-run
+// CHK-SPLIT-CMDS-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[SPIRVOUT]].spv
+// CHK-SPLIT-CMDS-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]].bc
+// CHK-SPLIT-CMDS-NEXT: "{{.*}}/ld" -o /dev/null [[LLCOUT]] {{.*}}.o
+
+// Check errors with -[no-]use-sycl-post-link-tool.
+// RUN: not clang-linker-wrapper -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-TOOL-ERROR %s
+// CHK-SYCL-POST-LINK-TOOL-ERROR: error: -sycl-module-split-mode should be used with the -no-use-sycl-post-link-tool command line option.
+
+// RUN: not clang-linker-wrapper -use-sycl-post-link-tool -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-TOOL-ERROR2 %s
+// CHK-SYCL-POST-LINK-TOOL-ERROR2: error: -use-sycl-post-link-tool and -no-use-sycl-post-link-tool options can't be used together.
+
+// Check sycl_add_default_spec_consts_image command line option.
+// RUN: clang-linker-wrapper %t_aot_gpu.o -sycl-add-default-spec-consts-image -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-ADD-DEFAULT-SPEC-CONSTS-IMAGE-TRUE %s
+
+// RUN: clang-linker-wrapper %t_aot_cpu.o -sycl-add-default-spec-consts-image -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-ADD-DEFAULT-SPEC-CONSTS-IMAGE-TRUE %s
+
+// RUN: clang-linker-wrapper %t_nvptx.o -sycl-add-default-spec-consts-image -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-ADD-DEFAULT-SPEC-CONSTS-IMAGE-TRUE %s
+
+// CHK-SYCL-ADD-DEFAULT-SPEC-CONSTS-IMAGE-TRUE: sycl-post-link-library:{{.*}} GenerateModuleWithDefaultSpecConstValues: true
+
+// Check cases when generation of module with default spec constants is not enabled.
+// Target spir64-unknown-unknown doesn't enable generating of module with default spec constant values
+// because this is JIT case for which there is no sense to generate module.
+// RUN: clang-linker-wrapper -sycl-add-default-spec-consts-image -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-ADD-DEFAULT-SPEC-CONSTS-IMAGE-FALSE %s
+// RUN: clang-linker-wrapper -no-sycl-add-default-spec-consts-image -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-ADD-DEFAULT-SPEC-CONSTS-IMAGE-FALSE %s
+
+// CHK-SYCL-ADD-DEFAULT-SPEC-CONSTS-IMAGE-FALSE: sycl-post-link-library:{{.*}} GenerateModuleWithDefaultSpecConstValues: false
+
+// Check specialization constants mode enabling depending on the target.
+// RUN: clang-linker-wrapper %t_aot_gpu.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPEC-CONST-MODE-EMULATION %s
+// RUN: clang-linker-wrapper %t_aot_cpu.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPEC-CONST-MODE-EMULATION %s
+// RUN: clang-linker-wrapper %t_nvptx.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPEC-CONST-MODE-EMULATION %s
+// RUN: clang-linker-wrapper %t_amdgcn.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPEC-CONST-MODE-EMULATION %s
+// RUN: clang-linker-wrapper %t_native_cpu.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPEC-CONST-MODE-EMULATION %s
+
+// CHK-SPEC-CONST-MODE-EMULATION: sycl-post-link-library:{{.*}} SpecializationConstantMode: emulation
+
+// Check how --sycl-suppress-undefined-func-warnings maps to
+// PostLinkSettings.SuppressUndefinedFuncWarnings for the in-process library
+// path.
+// RUN: clang-linker-wrapper --sycl-suppress-undefined-func-warnings -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SUPPRESS-UNDEF-TRUE %s
+// RUN: clang-linker-wrapper -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SUPPRESS-UNDEF-FALSE %s
+
+// CHK-SUPPRESS-UNDEF-TRUE: sycl-post-link-library:{{.*}} SuppressUndefinedFuncWarnings: true
+// CHK-SUPPRESS-UNDEF-TRUE-SAME: esimd.SuppressUndefinedFuncWarnings: true
+// CHK-SUPPRESS-UNDEF-FALSE: sycl-post-link-library:{{.*}} SuppressUndefinedFuncWarnings: false
+// CHK-SUPPRESS-UNDEF-FALSE-SAME: esimd.SuppressUndefinedFuncWarnings: false
+
+// Check how clang-linker-wrapper constructs the settings for SYCLPostLink step for
+// the following fsycl-targets: intel_gpu_pvc, spir64_x86_64, nvptx64-nvidia-cuda, amdgcn-amd-amdhsa, native_cpu.
+
+// RUN: clang-linker-wrapper %t_aot_gpu.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-SETTINGS-INTEL-GPU %s
+// CHK-SYCL-POST-LINK-SETTINGS-INTEL-GPU: sycl-post-link-library:{{.*}} SplitMode: auto, SpecializationConstantMode: emulation, GenerateModuleWithDefaultSpecConstValues: false, EmitOnlyKernelsAsEntryPoints: true, EmitParamInfo: true, EmitProgramMetadata: false, EmitKernelNames: false, EmitExportedSymbols: true, EmitImportedSymbols: true, SuppressUndefinedFuncWarnings: false, esimd.split_mode: auto, esimd.EmitOnlyKernelsAsEntryPoints: false, esimd.AllowDeviceImageDependencies: false, esimd.SuppressUndefinedFuncWarnings: false, esimd.LowerESIMD: true, esimd.SplitESIMD: true, esimd.OptLevel: 0, esimd.ForceDisableESIMDOpt: false
+
+// RUN: clang-linker-wrapper %t_aot_cpu.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-SETTINGS-INTEL-CPU %s
+// CHK-SYCL-POST-LINK-SETTINGS-INTEL-CPU: sycl-post-link-library:{{.*}} SplitMode: auto, SpecializationConstantMode: emulation, GenerateModuleWithDefaultSpecConstValues: false, EmitOnlyKernelsAsEntryPoints: true, EmitParamInfo: true, EmitProgramMetadata: false, EmitKernelNames: false, EmitExportedSymbols: true, EmitImportedSymbols: true, SuppressUndefinedFuncWarnings: false, esimd.split_mode: auto, esimd.EmitOnlyKernelsAsEntryPoints: false, esimd.AllowDeviceImageDependencies: false, esimd.SuppressUndefinedFuncWarnings: false, esimd.LowerESIMD: true, esimd.SplitESIMD: true, esimd.OptLevel: 0, esimd.ForceDisableESIMDOpt: false
+
+// RUN: clang-linker-wrapper %t_nvptx.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-SETTINGS-NVPTX %s
+// CHK-SYCL-POST-LINK-SETTINGS-NVPTX: sycl-post-link-library:{{.*}} SplitMode: auto, SpecializationConstantMode: emulation, GenerateModuleWithDefaultSpecConstValues: false, EmitOnlyKernelsAsEntryPoints: false, EmitParamInfo: true, EmitProgramMetadata: true, EmitKernelNames: false, EmitExportedSymbols: true, EmitImportedSymbols: true, SuppressUndefinedFuncWarnings: false, esimd.split_mode: auto, esimd.EmitOnlyKernelsAsEntryPoints: false, esimd.AllowDeviceImageDependencies: false, esimd.SuppressUndefinedFuncWarnings: false, esimd.LowerESIMD: true, esimd.SplitESIMD: false, esimd.OptLevel: 0, esimd.ForceDisableESIMDOpt: false
+
+// RUN: clang-linker-wrapper %t_amdgcn.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-SETTINGS-AMDGCN %s
+// CHK-SYCL-POST-LINK-SETTINGS-AMDGCN: sycl-post-link-library:{{.*}} SplitMode: auto, SpecializationConstantMode: emulation, GenerateModuleWithDefaultSpecConstValues: false, EmitOnlyKernelsAsEntryPoints: false, EmitParamInfo: false, EmitProgramMetadata: true, EmitKernelNames: false, EmitExportedSymbols: true, EmitImportedSymbols: true, SuppressUndefinedFuncWarnings: false, esimd.split_mode: auto, esimd.EmitOnlyKernelsAsEntryPoints: false, esimd.AllowDeviceImageDependencies: false, esimd.SuppressUndefinedFuncWarnings: false, esimd.LowerESIMD: true, esimd.SplitESIMD: false, esimd.OptLevel: 0, esimd.ForceDisableESIMDOpt: false
+
+// RUN: clang-linker-wrapper %t_native_cpu.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-SETTINGS-NATIVE-CPU %s
+// CHK-SYCL-POST-LINK-SETTINGS-NATIVE-CPU: sycl-post-link-library:{{.*}} SplitMode: auto, SpecializationConstantMode: emulation, GenerateModuleWithDefaultSpecConstValues: false, EmitOnlyKernelsAsEntryPoints: true, EmitParamInfo: true, EmitProgramMetadata: true, EmitKernelNames: false, EmitExportedSymbols: true, EmitImportedSymbols: true, SuppressUndefinedFuncWarnings: false, esimd.split_mode: auto, esimd.EmitOnlyKernelsAsEntryPoints: false, esimd.AllowDeviceImageDependencies: false, esimd.SuppressUndefinedFuncWarnings: false, esimd.LowerESIMD: true, esimd.SplitESIMD: false, esimd.OptLevel: 0, esimd.ForceDisableESIMDOpt: false
+
+// RUN: clang-linker-wrapper -no-use-sycl-post-link-tool -sycl-module-split-mode=auto --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPEC-CONST-MODE-NATIVE %s
+// CHK-SPEC-CONST-MODE-NATIVE: sycl-post-link-library:{{.*}} SplitMode: auto, SpecializationConstantMode: native, GenerateModuleWithDefaultSpecConstValues: false, EmitOnlyKernelsAsEntryPoints: true, EmitParamInfo: true, EmitProgramMetadata: false, EmitKernelNames: false, EmitExportedSymbols: true, EmitImportedSymbols: true, SuppressUndefinedFuncWarnings: false, esimd.split_mode: auto, esimd.EmitOnlyKernelsAsEntryPoints: false, esimd.AllowDeviceImageDependencies: false, esimd.SuppressUndefinedFuncWarnings: false, esimd.LowerESIMD: true, esimd.SplitESIMD: true, esimd.OptLevel: 0, esimd.ForceDisableESIMDOpt: false
+
+/// check for PIC for device wrap compilation when using -shared
+// RUN: clang-linker-wrapper --linker-path=/usr/bin/ld -shared -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SHARED %s
+// CHK-SHARED: clang{{.*}} -fPIC
+
+/// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel GPU)
+//
+// Run clang-linker-wrapper test (with and without -sycl-embed-ir). -sycl-embed-ir should have no effect for Intel targets.
+//
+// RUN: clang-linker-wrapper --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-GEN %s
+// RUN: clang-linker-wrapper -sycl-embed-ir --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-GEN %s
+// CHK-CMDS-AOT-GEN: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-AOT-GEN-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-GEN-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
+// Check that target specified by -fsycl-targets is passed to sycl-post-link for filtering.
+// CHK-CMDS-AOT-GEN-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o intel_gpu_pvc,[[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// CHK-CMDS-AOT-GEN-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
+// CHK-CMDS-AOT-GEN-NEXT: ocloc{{.*}} -output_no_suffix -spirv_input -device pvc{{.*}} -output {{.*}} -file {{.*}}
+// CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}, compile-opts: , link-opts:
+// CHK-CMDS-AOT-GEN-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
+// CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Check that a "-device pvc" specification split across two separate
+// --device-linker= arguments (each --device-compiler=/--device-linker= CLI
+// occurrence becomes exactly one ocloc argv entry, so a multi-token value
+// must be supplied as separate occurrences) is reconstructed correctly in
+// the ocloc invocation.
+// RUN: clang-linker-wrapper --device-linker=spir64_gen-unknown-unknown=-device --device-linker=spir64_gen-unknown-unknown=pvc --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN-LINKERARG %s
+// Check that the device supplied via '--device-linker=' is correctly detected.
+// This prevents the target from being redundantly passed to sycl-post-link
+// for filtering, which would add an 'intel_gpu_pvc,' prefix to the -o argument.
+// CHK-NO-CMDS-AOT-GEN-LINKERARG: sycl-post-link"{{.*}} -o {{[^,]*}}.table {{.*}}.bc
+// CHK-NO-CMDS-AOT-GEN-LINKERARG: ocloc{{.*}} -device pvc -output
+
+// Check that --ocloc-path= provides the location of the ocloc tool.
+// RUN: clang-linker-wrapper --ocloc-path=/my/ocloc/dir --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH %s
+// CHK-OCLOC-PATH: "/my/ocloc/dir{{[/\\]+}}ocloc" -output_no_suffix
+// Check that --ocloc-path= is not forwarded on to the host linker.
+// CHK-OCLOC-PATH-NOT: ld{{.*}} --ocloc-path=
+
+// Check the diagnostic emitted when ocloc cannot be found in the given
+// directory.
+// RUN: not clang-linker-wrapper --ocloc-path=%t.no-ocloc-here --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH-ERR %s
+// CHK-OCLOC-PATH-ERR: unable to find 'ocloc' in '{{.*}}no-ocloc-here'
+
+// Check that an empty --ocloc-path= is rejected.
+// RUN: not clang-linker-wrapper --ocloc-path= --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH-NOARG %s
+// CHK-OCLOC-PATH-NOARG: no directory given for '--ocloc-path='
+
+/// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
+//
+// Run clang-linker-wrapper test
+//
+// RUN: clang-linker-wrapper --bitcode-library=spir64_x86_64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_aot_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-CPU %s
+// CHK-CMDS-AOT-CPU: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-AOT-CPU-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-CPU-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-CPU-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// CHK-CMDS-AOT-CPU-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
+// CHK-CMDS-AOT-CPU-NEXT: opencl-aot{{.*}} --device=cpu -o {{.*}}
+// CHK-CMDS-AOT-CPU-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
+// CHK-CMDS-AOT-CPU-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
+// CHK-CMDS-AOT-CPU-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+/// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for NVPTX)
+//
+// Run clang-linker-wrapper test
+//
+// RUN: clang-linker-wrapper --bitcode-library=nvptx64-nvidia-cuda=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_nvptx.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-NV %s
+// CHK-CMDS-AOT-NV: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-AOT-NV-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-NV-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-NV-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// CHK-CMDS-AOT-NV-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir /dev/null.nvptx64.sm_50.img. --target=nvptx64-nvidia-cuda -march={{.*}}
+// CHK-CMDS-AOT-NV-NEXT: ptxas{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
+// CHK-CMDS-AOT-NV-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image3=kind=ptx,sm=50,file=[[CLANGOUT]] --image3=kind=elf,sm=50,file=[[PTXASOUT]]
+// CHK-CMDS-AOT-NV-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[FATBINOUT]]
+// CHK-CMDS-AOT-NV-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
+// CHK-CMDS-AOT-NV-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+/// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for AMD)
+//
+// Run clang-linker-wrapper test
+//
+// RUN: clang-linker-wrapper -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_amdgcn.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-AMD %s
+// CHK-CMDS-AOT-AMD: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-AOT-AMD-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+<<<<<<< HEAD:clang/test/Driver/clang-linker-wrapper.cpp
+// CHK-CMDS-AOT-AMD-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
+// CHK-CMDS-AOT-AMD-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.amdgpu8.03.gfx803.img. --target=amdgpu8.03-amd-amdhsa -mcpu={{.*}}
+=======
+// CHK-CMDS-AOT-AMD-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
+// CHK-CMDS-AOT-AMD-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir /dev/null.amdgcn.gfx803.img. --target=amdgcn-amd-amdhsa -mcpu={{.*}}
+>>>>>>> 615a49f52077c83360977936553473f50a12e499:clang/test/OffloadTools/clang-linker-wrapper/linker-wrapper-sycl.cpp
+// CHK-CMDS-AOT-AMD-NEXT: clang-offload-bundler{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
+// CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[BUNDLEROUT]]
+// CHK-CMDS-AOT-AMD-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
+// CHK-CMDS-AOT-AMD-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+/// Check for -sycl-embed-ir for standalone clang-linker-wrapper run for sycl (NVPTX)
+// -------
+//
+// Run clang-linker-wrapper test
+//
+// RUN: clang-linker-wrapper --bitcode-library=nvptx64-nvidia-cuda=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS -sycl-embed-ir --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_nvptx.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-NV-EMBED-IR %s
+// CHK-CMDS-AOT-NV-EMBED-IR: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT1:.*]].bc, input: {{.*}}.bc
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir /dev/null.nvptx64.sm_50.img. --target=nvptx64-nvidia-cuda -march={{.*}}
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: ptxas{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image3=kind=ptx,sm=50,file=[[CLANGOUT]] --image3=kind=elf,sm=50,file=[[PTXASOUT]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[FATBINOUT]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+/// Check for -sycl-embed-ir for standalone clang-linker-wrapper run for sycl (AMD)
+// -------
+//
+// Run clang-linker-wrapper test
+//
+// RUN: clang-linker-wrapper -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS -sycl-embed-ir --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_amdgcn.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-AMD-EMBED-IR %s
+// CHK-CMDS-AOT-AMD-EMBED-IR: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT1:.*]].bc, input: {{.*}}.bc
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]]
+<<<<<<< HEAD:clang/test/Driver/clang-linker-wrapper.cpp
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.amdgpu8.03.gfx803.img. --target=amdgpu8.03-amd-amdhsa -mcpu={{.*}}
+=======
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir /dev/null.amdgcn.gfx803.img. --target=amdgcn-amd-amdhsa -mcpu={{.*}}
+>>>>>>> 615a49f52077c83360977936553473f50a12e499:clang/test/OffloadTools/clang-linker-wrapper/linker-wrapper-sycl.cpp
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang-offload-bundler{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT2:.*]].bc, input: [[BUNDLEROUT]]
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT2]]
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+/// Check for --device-lib-dir options for sycl-post-link.
+//
+// RUN: clang-linker-wrapper -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t.o --bitcode-library=spir64-unknown-unknown=%S/Inputs/SYCL/lib/libsycl-crt.bc -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEVICE-LIB-DIR %s
+// CHK-CMDS-DEVICE-LIB-DIR: spirv-to-ir-wrapper{{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: llvm-link{{.*}} --suppress-warnings
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: sycl-post-link"{{.*}} --device-lib-dir={{.*}}/Inputs/SYCL/lib {{.*}} SYCL_POST_LINK_OPTIONS {{.*}}
+
+/// Check for libsycl-nativecpu_utils.bc getting linked in for Native CPU.
+//
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu -sycl-device-library-location=%S/Inputs/native_cpu --sycl-post-link-options=SYCL_POST_LINK_OPTIONS --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null %t_native_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-NATIVE-CPU %s
+// CHK-CMDS-NATIVE-CPU: spirv-to-ir-wrapper{{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-NATIVE-CPU-NEXT: llvm-link{{.*}} --suppress-warnings
+// CHK-CMDS-NATIVE-CPU-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS
+// CHK-CMDS-NATIVE-CPU-NEXT: clang{{.*}} --no-default-config -o [[OUT1:.*\.img]] -dumpdir /dev/null.native_cpu..img. --target=x86_64-unknown-linux-gnu -Wno-override-module -mllvm -sycl-native-cpu-backend -c {{.*}} -Xclang -mlink-bitcode-file -Xclang {{.*}}libsycl-nativecpu_utils.bc
+// CHK-CMDS-NATIVE-CPU-NEXT:  offload-wrapper: output: [[OUT2:.*\.bc]], input: [[OUT1]]
+// CHK-CMDS-NATIVE-CPU-NEXT: clang{{.*}} --target=x86_64-unknown-linux-gnu -c -o [[OUT3:.*\.o]] [[OUT2]]
+// CHK-CMDS-NATIVE-CPU-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[OUT1]] [[OUT3]] {{.*\.o}}
+
+// Verify that host linker is not called when --sycl-device-link is passed to clang-linker-wrapper
+// RUN: clang-linker-wrapper --sycl-device-link --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEVLINK-CMDS %s
+// CHK-DEVLINK-CMDS: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-DEVLINK-CMDS-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-DEVLINK-CMDS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
+// CHK-DEVLINK-CMDS-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// CHK-DEVLINK-CMDS-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
+// CHK-DEVLINK-CMDS-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
+// CHK-DEVLINK-CMDS-NEXT: clang{{.*}} -c -o [[CLANGOUT:.*]] [[WRAPPEROUT]].bc
+// CHK-DEVLINK-CMDS-NEXT: "{{.*cp|copy}}" [[CLANGOUT]] /dev/null
+// CHK-DEVLINK-CMDS-NOT: "{{.*}}/ld"
+
+// Verify list of commands when syclbin is used
+// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run -syclbin=executable 2>&1 | FileCheck --check-prefix CHK-SYCLBIN-CMDS %s
+// CHK-SYCLBIN-CMDS:      spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-SYCLBIN-CMDS-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-SYCLBIN-CMDS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
+// CHK-SYCLBIN-CMDS-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// CHK-SYCLBIN-CMDS-NEXT: llvm-spirv{{.*}} -o {{.*}}
+// CHK-SYCLBIN-CMDS-NOT:  offload-wrapper: output
+// CHK-SYCLBIN-CMDS-NOT:  clang
+// CHK-SYCLBIN-CMDS-NEXT: "{{.*cp|copy}}" {{.*}}.syclbin /dev/null
+// CHK-SYCLBIN-CMDS-NOT: "{{.*}}/ld"
+
+// Check that clang-linker-wrapper errors out in case when it observes different compilation options encoded in images with the same triple and arch.
+// This case tests the case of multi-step compilation.
+// RUN: llvm-offload-binary -o %t.packaged_1.fat --image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa,link-opts=bbb
+// RUN: llvm-offload-binary -o %t.packaged_2.fat --image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=ccc,link-opts=ddd
+//
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.embeded.o -fembed-offload-object=%t.packaged_1.fat -fembed-offload-object=%t.packaged_2.fat
+//
+// RUN: not clang-linker-wrapper -host-triple=x86_64-unknown-linux-gnu --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:                      %t.embeded.o -o %t.out 2>&1 --linker-path=/usr/bin/ld | FileCheck %s --check-prefix=COMPILE-LINK-OPTIONS-DO-NOT-MATCH
+
+// COMPILE-LINK-OPTIONS-DO-NOT-MATCH: error: compile and link options passed to the backend of the target device compiler must be identical for device images of the same target. Mismatched options:
+// COMPILE-LINK-OPTIONS-DO-NOT-MATCH-NEXT: Input[0]: compile_options: aaa, link_options: bbb
+// COMPILE-LINK-OPTIONS-DO-NOT-MATCH-NEXT: Input[1]: compile_options: ccc, link_options: ddd
+
+// Check that clang-linker-wrapper recognizes compile/link options and passes them
+// over into offload wrapper and ocloc.
+// RUN: llvm-offload-binary -o %t.packaged_jit.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa aaa,link-opts=bbb bbb"
+// RUN: llvm-offload-binary -o %t.packaged_aot.fat "--image=file=%t.o,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts=ccc ccc,link-opts=ddd ddd"
+//
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.jit.o -fembed-offload-object=%t.packaged_jit.fat
+// RUN: clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:                      %t.jit.o -o %t.out 2>&1 --linker-path=/usr/bin/ld | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-JIT-WITH-ARGS
+//
+// CHECK-COMPILE-LINK-OPTS-JIT-WITH-ARGS: offload-wrapper: {{.*}} compile-opts: aaa aaa, link-opts: bbb bbb
+
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.aot.o -fembed-offload-object=%t.packaged_aot.fat
+// RUN: clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc \
+// RUN:                      %t.aot.o -o %t.out 2>&1 --linker-path=/usr/bin/ld | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-AOT
+//
+// Check that in AOT case backend and linker options are passed to ocloc and
+// are not passed to offload wrapper because SYCL runtime can't make any use of
+// it in AOT case.
+// CHECK-COMPILE-LINK-OPTS-AOT: ocloc{{.*}} -device pvc ccc ccc ddd ddd -output
+// CHECK-COMPILE-LINK-OPTS-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
+
+// TODO: The following check is turned off because clang-linker-wrapper doesn't support
+//       processing of different targets at the moment.
+// rUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.jit_and_aot.o -fembed-offload-object=%t.packaged_jit.fat -fembed-offload-object=%t.packaged_aot.fat
+// Check that clang-linker-wrapper processes compilation and linking options independently for each input target.
+// rUN: clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// rUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc \
+// rUN:                      %t.jit_and_aot.o -o %t.out 2>&1 --linker-path=/usr/bin/ld | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-JIT-AND-AOT
+
+// cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: aaa aaa, link-opts: bbb bbb
+// cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: ocloc{{.*}} -device pvc ccc ccc ddd ddd
+// cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
+
+// Check that missed triple in image causes an error.
+// RUN: llvm-offload-binary -o %t.without_triple.fat --image=file=%t.o,triple=,arch=pvc,kind=sycl
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.without_triple.o -fembed-offload-object=%t.without_triple.fat
+// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc \
+// RUN:                      %t.without_triple.o -o %t.out 2>&1 --linker-path=/usr/bin/ld | FileCheck %s --check-prefix=CHECK-ERROR-WITH-NO-TRIPLE
+
+// CHECK-ERROR-WITH-NO-TRIPLE: can't compile a SYCL device code. target is unknown
+
+// Check that unsupported triple in image causes an error.
+// RUN: llvm-offload-binary -o %t.wrong_triple.fat --image=file=%t.o,triple=x86_64,arch=pvc,kind=sycl
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.wrong_triple.o -fembed-offload-object=%t.wrong_triple.fat
+// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc \
+// RUN:                      %t.wrong_triple.o -o %t.out 2>&1 --linker-path=/usr/bin/ld | FileCheck %s --check-prefix=CHECK-ERROR-WITH-WRONG-TRIPLE
+
+// CHECK-ERROR-WITH-WRONG-TRIPLE: SYCL compilation for x86_64 is not supported
+
+// Check that unsupported spirv subarch in image causes an error.
+// RUN: llvm-offload-binary -o %t.wrong_spirv_subarch.fat --image=file=%t.o,triple=spirv64v1.0,kind=sycl
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.wrong_spirv_subarch.o -fembed-offload-object=%t.wrong_spirv_subarch.fat
+// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc \
+// RUN:                      %t.wrong_spirv_subarch.o -o %t.out 2>&1 --linker-path=/usr/bin/ld | FileCheck %s --check-prefix=CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH
+
+// CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH: SYCL device compilation is not supported for the target: spirv64v1.0
+
+// Check -no-sycl-rdc
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_rdc.o
+//
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- -o /dev/null %t.o %t_rdc.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-RDC %s
+// CHECK-RDC: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHECK-RDC-NEXT: spirv-to-ir-wrapper{{.*}} -o [[SECONDLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHECK-RDC-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc [[SECONDLLVMLINKIN]].bc -o [[LLVMLINKOUT:.*]].bc
+// CHECK-RDC-NEXT: sycl-post-link"{{.*}} -o [[SYCLPOSTLINKOUT:.*]].table [[LLVMLINKOUT]].bc
+
+// RUN: clang-linker-wrapper -no-sycl-rdc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- -o /dev/null %t.o %t_rdc.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-NO-RDC %s
+// CHECK-NO-RDC-NOT: llvm-link
+// CHECK-NO-RDC: llvm-spirv{{.*}} -o [[FIRST_SPIRV_OUTPUT:.*]].spv
+// CHECK-NO-RDC: llvm-spirv{{.*}} -o [[SECOND_SPIRV_OUTPUT:.*]].spv
+// CHECK-NO-RDC: offload-wrapper:{{.*}} input: [[FIRST_SPIRV_OUTPUT]].spv, {{.*}} input: [[SECOND_SPIRV_OUTPUT]].spv
