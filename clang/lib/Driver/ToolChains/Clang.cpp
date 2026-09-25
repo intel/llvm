@@ -12158,12 +12158,18 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
       // Forward the LTO mode for this toolchain.
       auto DeviceLTOMode = TC->getLTOMode(ToolChainArgs, Kind);
-      if (DeviceLTOMode == LTOK_Full)
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" + TC->getTripleString() + "=-flto=full"));
-      else if (DeviceLTOMode == LTOK_Thin) {
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" + TC->getTripleString() + "=-flto=thin"));
+      // AOT backends (ocloc, opencl-aot) do not accept -flto. -foffload-lto=
+      // reaches this LTO-mode-derived push even for AOT, bypassing the
+      // fixed-ABI handling used for BaseCompilerArgs/CompilerArgs above.
+      bool IsAOTBackend = TC->getTriple().isSPIRAOT();
+      if (DeviceLTOMode == LTOK_Full) {
+        if (!IsAOTBackend)
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-compiler=" + TC->getTripleString() + "=-flto=full"));
+      } else if (DeviceLTOMode == LTOK_Thin) {
+        if (!IsAOTBackend)
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-compiler=" + TC->getTripleString() + "=-flto=thin"));
         if (TC->getTriple().isAMDGPU()) {
           CmdArgs.push_back(
               Args.MakeArgString("--device-linker=" + TC->getTripleString() +
