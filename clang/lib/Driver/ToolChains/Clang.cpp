@@ -966,57 +966,77 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_MP);
   Args.AddLastArg(CmdArgs, options::OPT_MV);
 
-  // Add offload include arguments specific for CUDA/HIP/SYCL. This must happen
-  // before we -I or -include anything else, because we must pick up the
-  // CUDA/HIP/SYCL headers from the particular CUDA/ROCm/SYCL installation,
-  // rather than from e.g. /usr/local/include.
-  if (JA.isOffloading(Action::OFK_Cuda))
-    getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
-  if (JA.isOffloading(Action::OFK_HIP))
-    getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
-  if (JA.isOffloading(Action::OFK_SYCL))
-    getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
+  bool UsesLLVMOffloading = Args.hasFlag(
+      options::OPT_foffload_via_llvm, options::OPT_fno_offload_via_llvm, false);
+  bool UsesOffloadInclude =
+      Args.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc, true);
+  bool NoBuiltinInc = Args.hasArg(options::OPT_nobuiltininc);
 
-  if (JA.isOffloading(Action::OFK_SYCL)) {
-    getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
-    if (Inputs[0].getType() == types::TY_CUDA ||
-        isSYCLCudaCompatEnabled(Args)) {
-      // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
+  // Add offload include arguments for CUDA/HIP when using LLVM offloading. We
+  // want to pull in our wrappers instead of the vendor headers.
+  if (UsesLLVMOffloading) {
+    if (UsesOffloadInclude && !NoBuiltinInc) {
+      auto AddOffloadHeadersInclude = [&](StringRef IncludeSubdir,
+                                          StringRef RuntimeHeader) {
+        SmallString<128> OffloadInclude(D.Dir);
+        llvm::sys::path::append(OffloadInclude, "..", "include", "offload");
+        if (!IncludeSubdir.empty())
+          llvm::sys::path::append(OffloadInclude, IncludeSubdir);
+        CmdArgs.append({"-internal-isystem", Args.MakeArgString(OffloadInclude),
+                        "-include", Args.MakeArgString(RuntimeHeader)});
+      };
+      auto AddForcedInclude = [&](StringRef Header) {
+        CmdArgs.push_back("-include");
+        CmdArgs.push_back(Args.MakeArgString(Header));
+      };
+      AddForcedInclude("__clang_gpu_runtime_wrapper.h");
+      AddForcedInclude("__clang_gpu_builtin_vars.h");
+      AddForcedInclude("__clang_gpu_device_functions.h");
+      AddForcedInclude("__clang_gpu_intrinsics.h");
+      if (JA.isOffloading(Action::OFK_Cuda))
+        AddOffloadHeadersInclude("cuda", "cuda_runtime.h");
+      if (JA.isOffloading(Action::OFK_HIP) &&
+          !Args.hasArg(options::OPT_nohipwrapperinc)) {
+        // HIP code commonly includes this as "hip/hip_runtime.h".
+        AddOffloadHeadersInclude("", "hip/hip_runtime.h");
+      }
+    }
+  } else {
+    // Add offload include arguments specific for CUDA/HIP/SYCL. This must
+    // happen before we -I or -include anything else, because we must pick up
+    // the CUDA/HIP/SYCL headers from the particular CUDA/ROCm/SYCL
+    // installation, rather than from e.g. /usr/local/include.
+    if (JA.isOffloading(Action::OFK_Cuda))
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
-    }
-  }
-
-  // If we are offloading to a target via OpenMP we need to include the
-  // openmp_wrappers folder which contains alternative system headers.
-  if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
-      !Args.hasArg(options::OPT_nostdinc) &&
-      Args.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc,
-                   true) &&
-      getToolChain().getTriple().isGPU()) {
-    if (!Args.hasArg(options::OPT_nobuiltininc)) {
-      // Add openmp_wrappers/* to our system include path.  This lets us wrap
-      // standard library headers.
-      SmallString<128> P(D.ResourceDir);
-      llvm::sys::path::append(P, "include");
-      llvm::sys::path::append(P, "openmp_wrappers");
-      CmdArgs.push_back("-internal-isystem");
-      CmdArgs.push_back(Args.MakeArgString(P));
+    if (JA.isOffloading(Action::OFK_HIP))
+      getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
+    if (JA.isOffloading(Action::OFK_SYCL)) {
+      getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
+      if (Inputs[0].getType() == types::TY_CUDA ||
+          isSYCLCudaCompatEnabled(Args)) {
+        // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
+        getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
+      }
     }
 
-    CmdArgs.push_back("-include");
-    CmdArgs.push_back("__clang_openmp_device_functions.h");
-  }
+    // If we are offloading to a target via OpenMP we need to include the
+    // openmp_wrappers folder which contains alternative system headers.
+    if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
+        !Args.hasArg(options::OPT_nostdinc) && UsesOffloadInclude &&
+        getToolChain().getTriple().isGPU()) {
+      if (!NoBuiltinInc) {
+        // Add openmp_wrappers/* to our system include path.  This lets us
+        // wrap standard library headers.
+        SmallString<128> P(D.ResourceDir);
+        llvm::sys::path::append(P, "include");
+        llvm::sys::path::append(P, "openmp_wrappers");
+        CmdArgs.push_back("-internal-isystem");
+        CmdArgs.push_back(Args.MakeArgString(P));
+      }
 
-  if (Args.hasArg(options::OPT_foffload_via_llvm)) {
-    // Add llvm_wrappers/* to our system include path.  This lets us wrap
-    // standard library headers and other headers.
-    SmallString<128> P(D.ResourceDir);
-    llvm::sys::path::append(P, "include", "llvm_offload_wrappers");
-    CmdArgs.append({"-internal-isystem", Args.MakeArgString(P), "-include"});
-    if (JA.isDeviceOffloading(Action::OFK_OpenMP))
-      CmdArgs.push_back("__llvm_offload_device.h");
-    else
-      CmdArgs.push_back("__llvm_offload_host.h");
+      CmdArgs.push_back("-include");
+      CmdArgs.push_back("__clang_openmp_device_functions.h");
+    }
   }
 
   // Add -i* options, and automatically translate to
@@ -1217,17 +1237,19 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         });
   }
 
-  // If we are compiling for a GPU target we want to override the system headers
-  // with ones created by the 'libc' project if present.
+  // If we are compiling for a GPU target with the LLVM environment we want to
+  // override the system headers with ones created by the 'libc' project if
+  // present.
   // TODO: This should be moved to `AddClangSystemIncludeArgs` by passing the
   //       OffloadKind as an argument.
+  bool OffloadUsesLLVMLibc =
+      C.getActiveOffloadKinds() == Action::OFK_OpenMP ||
+      (C.getActiveOffloadKinds() != Action::OFK_None &&
+       getToolChain().getTriple().getEnvironment() == llvm::Triple::LLVM);
   if (!Args.hasArg(options::OPT_nostdinc) &&
       Args.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc,
                    true) &&
-      !Args.hasArg(options::OPT_nobuiltininc) &&
-      (C.getActiveOffloadKinds() == Action::OFK_OpenMP)) {
-    // TODO: CUDA / HIP include their own headers for some common functions
-    // implemented here. We'll need to clean those up so they do not conflict.
+      !Args.hasArg(options::OPT_nobuiltininc) && OffloadUsesLLVMLibc) {
     SmallString<128> P(D.ResourceDir);
     llvm::sys::path::append(P, "include");
     llvm::sys::path::append(P, "llvm_libc_wrappers");
@@ -1800,6 +1822,9 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
         CmdArgs, options::OPT_fptrauth_vtable_pointer_type_discrimination,
         options::OPT_fno_ptrauth_vtable_pointer_type_discrimination);
     Args.addOptInFlag(
+        CmdArgs, options::OPT_fptrauth_vtt_vtable_pointer_discrimination,
+        options::OPT_fno_ptrauth_vtt_vtable_pointer_discrimination);
+    Args.addOptInFlag(
         CmdArgs, options::OPT_fptrauth_type_info_vtable_pointer_discrimination,
         options::OPT_fno_ptrauth_type_info_vtable_pointer_discrimination);
     Args.addOptInFlag(
@@ -2116,12 +2141,9 @@ void Clang::AddRISCVTargetArgs(const ArgList &Args,
     return;
   if (!TuneCPU->empty()) {
     CmdArgs.push_back("-tune-cpu");
-    if (*TuneCPU == "native")
-      CmdArgs.push_back(Args.MakeArgString(llvm::sys::getHostCPUName()));
-    else
-      // TuneCPU might or might not be the original -mtune string, so we
-      // have to create a new copy here.
-      CmdArgs.push_back(Args.MakeArgString(*TuneCPU));
+    // TuneCPU might or might not be the original -mtune string, so we
+    // have to create a new copy here.
+    CmdArgs.push_back(Args.MakeArgString(*TuneCPU));
   }
 
   // Handle -mrvv-vector-bits=<bits>
@@ -4813,7 +4835,7 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
                    const ArgList &Args, types::ID InputType,
                    ArgStringList &CmdArgs, const InputInfo &Output,
                    llvm::codegenoptions::DebugInfoKind &DebugInfoKind,
-                   DwarfFissionKind &DwarfFission) {
+                   DwarfFissionKind &DwarfFission, bool IsUsingLTO) {
   bool IRInput = isLLVMIR(InputType);
   bool PlainCOrCXX = isDerivedFromC(InputType) && !isCuda(InputType) &&
                      !isHIP(InputType) && !isObjC(InputType) &&
@@ -5037,6 +5059,36 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
   if (!Args.hasFlag(options::OPT_gstructor_decl_linkage_names,
                     options::OPT_gno_structor_decl_linkage_names, true))
     CmdArgs.push_back("-gno-structor-decl-linkage-names");
+
+  if (Args.hasFlag(options::OPT_fdynamic_debugging,
+                   options::OPT_fno_dynamic_debugging, false)) {
+    // As this is an experimental feature we can afford to be strict about
+    // supported configurations.
+    // NOTE on adding target support, consider adding "tail-pad-to-size"
+    // support in `llvm::prepareForDynamicDebugging`.
+    if (!TC.getTriple().isX86())
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << Args.getLastArg(options::OPT_fdynamic_debugging)->getAsString(Args)
+          << T.getTriple();
+    if (IsUsingLTO)
+      D.Diag(diag::err_drv_dyndbg_lto);
+    if (DwarfFission != DwarfFissionKind::None)
+      D.Diag(diag::err_drv_dyndbg_incompatible)
+          << Args.getLastArg(options::OPT_gsplit_dwarf)->getAsString(Args);
+    // There's no fundamental reason why IR input should be incompatible, but
+    // it would add some complexity, and reducing the test matrix is valuable.
+    if (IRInput)
+      D.Diag(diag::err_drv_dyndbg_ir);
+
+    // Disable composition with sanitizers for now.
+    if (auto *San = Args.getLastArg(options::OPT_fsanitize_EQ))
+      D.Diag(diag::err_drv_dyndbg_incompatible) << San->getAsString(Args);
+
+    if (!EmitDwarf)
+      D.Diag(diag::warn_drv_dyndbg_req_debug);
+    else
+      CmdArgs.push_back("-fdynamic-debugging");
+  }
 
   if (EmitCodeView) {
     CmdArgs.push_back("-gcodeview");
@@ -5600,6 +5652,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsSYCLDevice = JA.isDeviceOffloading(Action::OFK_SYCL);
   bool IsOpenMPDevice = JA.isDeviceOffloading(Action::OFK_OpenMP);
   bool IsExtractAPI = isa<ExtractAPIJobAction>(JA);
+  bool UsesLLVMOffloading = Args.hasFlag(
+      options::OPT_foffload_via_llvm, options::OPT_fno_offload_via_llvm, false);
   bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
                                  JA.isDeviceOffloading(Action::OFK_Host));
   bool IsHostOffloadingAction =
@@ -5745,7 +5799,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool SkipO =
       Args.hasArg(options::OPT_fsycl_link_EQ) && ContainsWrapperAction(&JA);
   const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
-  if (IsCuda && !IsCudaDevice) {
+  if (IsCuda && !IsCudaDevice && !UsesLLVMOffloading) {
     // We need to figure out which CUDA version we're compiling for, as that
     // determines how we load and launch GPU kernels.
     auto *CTC = static_cast<const toolchains::CudaToolChain *>(
@@ -5897,30 +5951,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fsycl-optimize-non-user-code");
       }
       // Add any predefined macros associated with intel_gpu* type targets
-      // passed in with -fsycl-targets
-      // TODO: Macros are populated during device compilations and saved for
-      // addition to the host compilation. There is no dependence connection
-      // between device and host where we should be able to use the offloading
-      // arch to add the macro to the host compile.
+      // passed in with -fsycl-targets.
       auto addTargetMacros = [&](const llvm::Triple &Triple) {
-        if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
-          return;
-        SmallString<64> Macro;
-        if ((Triple.isSPIR() &&
-             Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
-            Triple.isNVPTX() || Triple.isAMDGCN()) {
-          StringRef Device = JA.getOffloadingArch().ArchName;
-          if (!Device.empty() &&
-              !SYCL::gen::getGenDeviceMacro(Device).empty()) {
-            Macro = "-D";
-            Macro += SYCL::gen::getGenDeviceMacro(Device);
-          }
-        } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-          Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
-        if (Macro.size()) {
+        SmallString<64> Macro =
+            SYCL::getSYCLTargetMacro(Triple, JA.getOffloadingArch().ArchName);
+        if (!Macro.empty())
           CmdArgs.push_back(Args.MakeArgString(Macro));
-          D.addSYCLTargetMacroArg(Args, Macro);
-        }
       };
       addTargetMacros(RawTriple);
     } else {
@@ -6092,7 +6128,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (Args.hasArg(options::OPT_fclangir))
+  if (Args.hasFlag(options::OPT_fclangir, options::OPT_fno_clangir, false))
     CmdArgs.push_back("-fclangir");
 
   if (IsOpenMPDevice) {
@@ -6360,6 +6396,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.getLastArg(options::OPT_save_temps_EQ))
     Args.AddLastArg(CmdArgs, options::OPT_save_temps_EQ);
+
+  if (Args.getLastArg(options::OPT_save_dynamic_debugging_temps))
+    Args.AddLastArg(CmdArgs, options::OPT_save_dynamic_debugging_temps);
 
   auto *MemProfArg = Args.getLastArg(options::OPT_fmemory_profile,
                                      options::OPT_fmemory_profile_EQ,
@@ -7269,7 +7308,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       llvm::codegenoptions::NoDebugInfo;
   DwarfFissionKind DwarfFission = DwarfFissionKind::None;
   renderDebugOptions(TC, D, RawTriple, Args, InputType, CmdArgs, Output,
-                     DebugInfoKind, DwarfFission);
+                     DebugInfoKind, DwarfFission, IsUsingLTO);
 
   // Add the split debug info name to the command lines here so we
   // can propagate it to the backend.
@@ -7415,17 +7454,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addOptInFlag(CmdArgs, options::OPT_funique_basic_block_section_names,
                     options::OPT_fno_unique_basic_block_section_names);
 
-  if (Arg *A = Args.getLastArg(options::OPT_fsplit_machine_functions,
-                               options::OPT_fno_split_machine_functions)) {
-    if (!A->getOption().matches(options::OPT_fno_split_machine_functions)) {
-      // This codegen pass is only available on x86 and AArch64 ELF targets.
-      if ((Triple.isX86() || Triple.isAArch64()) && Triple.isOSBinFormatELF())
-        A->render(Args, CmdArgs);
-      else
-        D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << A->getAsString(Args) << TripleStr;
-    }
-  }
+  addSplitMachineFunctionsArgs(D, Args, CmdArgs, Triple);
 
   if (Arg *A =
           Args.getLastArg(options::OPT_fpartition_static_data_sections,
@@ -9152,14 +9181,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Host-side offloading compilation receives all device-side outputs. Include
   // them in the host compilation depending on the target. If the host inputs
   // are not empty we use the new-driver scheme, otherwise use the old scheme.
-  if ((IsCuda || IsHIP) && CudaDeviceInput) {
-    CmdArgs.push_back("-fcuda-include-gpubinary");
+  if ((IsCuda || IsHIP) && !UsesLLVMOffloading && CudaDeviceInput) {
+    CmdArgs.push_back("-foffload-include-binary");
     CmdArgs.push_back(CudaDeviceInput->getFilename());
   } else if (!HostOffloadingInputs.empty()) {
     if ((IsCuda || IsHIP) &&
-        (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi))) {
+        (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi)) &&
+        !UsesLLVMOffloading) {
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
-      CmdArgs.push_back("-fcuda-include-gpubinary");
+      CmdArgs.push_back("-foffload-include-binary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
     } else {
       for (const InputInfo Input : HostOffloadingInputs)
@@ -9168,11 +9198,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  // Propagate -fcuda-short-ptr if compiling CUDA or SYCL for NVPTX
-  if (IsCuda || (IsSYCLDevice && Triple.isNVPTX())) {
+  // Propagate -fcuda-short-ptr if compiling SYCL for NVPTX; CUDA's own
+  // handling of -fcuda-short-ptr lives in CudaToolChain::addClangTargetOptions.
+  if (IsSYCLDevice && Triple.isNVPTX()) {
     if (Args.hasFlag(options::OPT_fcuda_short_ptr,
-                     options::OPT_fno_cuda_short_ptr, false))
-      CmdArgs.push_back("-fcuda-short-ptr");
+                     options::OPT_fno_cuda_short_ptr, false)) {
+      CmdArgs.push_back("-target-abi");
+      CmdArgs.push_back("shortptr");
+    }
+  }
+
+  if (IsCuda) {
     if (Args.hasArg(options::OPT_cuda_emit_nvcc_abi))
       CmdArgs.push_back("--cuda-emit-nvcc-abi");
   }
@@ -11007,8 +11043,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       const ArgList &Args =
           C.getArgsForToolChain(nullptr, BoundArch{}, Action::OFK_SYCL);
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      const toolchains::SYCLToolChain &SYCLTC =
-          static_cast<const toolchains::SYCLToolChain &>(*TC);
+      // NVPTX/AMDGCN reuse CudaToolChain/AMDGPUToolChain, not SYCLToolChain.
+      std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
+      const toolchains::SYCLToolChain &SYCLTC = toolchains::getSYCLToolChain(
+          C.getDriver(), *TC, *HostTC, Args, ScratchTC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
                                        *HostTC, Arch.ArchName);
       // Filter -Xsycl-target-backend tokens by arch when this image is
@@ -11933,6 +11971,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_R_Group,
       OPT_Xcuda_ptxas,
       OPT_ftarget_register_alloc_mode_EQ,
+      OPT_ptxas_path_EQ,
       OPT_ftime_report,
       OPT_ftime_trace,
       OPT_ftime_trace_EQ,
@@ -12210,13 +12249,17 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &[Kind, TC] :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       llvm::Triple TargetTriple = TC->getTriple();
-      const toolchains::SYCLToolChain &SYCLTC =
-          static_cast<const toolchains::SYCLToolChain &>(*TC);
       SmallVector<ToolChain::BitCodeLibraryInfo, 8> SYCLDeviceLibs;
       // SPIR or SPIR-V device libraries are compiled into the device compile
-      // step.
-      if (!TargetTriple.isSPIROrSPIRV())
+      // step. Non-SPIR here means NVPTX/AMDGCN (CudaToolChain/AMDGPUToolChain).
+      if (!TargetTriple.isSPIROrSPIRV()) {
+        const ToolChain *HostTC =
+            C.getSingleOffloadToolChain<Action::OFK_Host>();
+        std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
+        const toolchains::SYCLToolChain &SYCLTC =
+            toolchains::getSYCLToolChain(D, *TC, *HostTC, Args, ScratchTC);
         SYCLDeviceLibs.append(SYCLTC.getDeviceLibNames(D, Args, TargetTriple));
+      }
       for (const auto &AddLib : SYCLDeviceLibs) {
         if (llvm::sys::path::extension(AddLib.Path) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
@@ -12359,11 +12402,24 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // per-arch tokens don't leak between archs on the wrapper side.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+
+
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
+
+      // TC is a real SYCLToolChain: OFK_SYCL range + SPIR/SPIR-V triple.
+      const toolchains::SYCLToolChain &SYCLTC =
+          static_cast<const toolchains::SYCLToolChain &>(*TC);
+      ArgStringList BuildArgs;
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      for (const auto &A : BuildArgs)
+        CmdArgs.push_back(
+            Args.MakeArgString("--device-compiler=" +
+                               Action::GetOffloadKindName(Action::OFK_SYCL) +
+                               ":" + TC->getTripleString() + "=" + A));
 
       // Collect the bound archs for this toolchain. Only spir64_gen dedupes
       // multiple intel_gpu_* aliases onto a single toolchain instance, so

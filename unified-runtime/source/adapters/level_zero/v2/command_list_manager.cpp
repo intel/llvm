@@ -1377,8 +1377,7 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   if (!checkGraphExtensionSupport(hContextInternal)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  if (!hContextInternal->getPlatform()
-           ->ZeGraphExt.zeCommandListEndGraphCaptureExp) {
+  if (!hContextInternal->getPlatform()->ZeGraphExt.hasEndGraphCapture()) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

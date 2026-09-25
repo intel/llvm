@@ -118,9 +118,9 @@ For example `--filter "graph_api_*"`
 
 When a build using local source or offload options finishes successfully, a JSON build-complete marker (`benchmark_build_complete.json`) is written into the project's build directory. It records the source contents and relevant build configuration. On subsequent runs the build is skipped when both still match, so editing source files or changing build options triggers a rebuild automatically. If `--compute-benchmarks-source-dir` points at a directory that is **not** a git repository, the benchmarks are always rebuilt.
 
-`--offload-prefix <dir>` - LLVM install prefix providing liboffload. The library is read from `<dir>/lib` (passed as `OFFLOAD_INSTALL_DIR`) and headers from `<dir>/include/offload` (passed as `OFFLOAD_INCLUDE_DIR`). When set, the OFFLOAD (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled.
+`--offload-prefix <dir>` - LLVM install prefix providing liboffload. The directory containing `libLLVMOffload.so` under `<dir>/lib` is passed as `LIBOFFLOAD_LIBRARY_DIR`, and `<dir>/include` is passed as `LIBOFFLOAD_INCLUDE_DIR`. When set, the OFFLOAD (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled.
 
-`--force-offload-plugin <name>` - backend name (`level_zero`, `cuda`, `amdgpu`, or `host`) exported as the `FORCE_OFFLOAD_PLUGIN` environment variable for the benchmark executable process. The OFFLOAD benchmark uses it to select the offload device by backend.
+The OL benchmark selects the first device reported by `olIterateDevices`. Control device visibility with `ZE_AFFINITY_MASK`, as for the UR benchmarks.
 
 ## Running in CI
 

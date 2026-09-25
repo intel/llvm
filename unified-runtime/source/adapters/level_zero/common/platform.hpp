@@ -74,6 +74,7 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   bool ZeBindlessImagesExtensionSupported{false};
   bool ZeExternalMemoryMappingExtensionSupported{false};
   bool ZeLUIDSupported{false};
+  bool ZeEventSyncModeSupported{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;
@@ -251,6 +252,12 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
                                              hGraph, phExecutableGraph, pNext)
                                        : zeCommandListInstantiateGraphExp(
                                              hGraph, pNext, phExecutableGraph);
+    }
+
+    bool hasEndGraphCapture() const {
+      return UsesLegacyExperimentalApi
+                 ? zeCommandListEndGraphCaptureExpLegacy != nullptr
+                 : zeCommandListEndGraphCaptureExp != nullptr;
     }
 
     // Legacy experimental query results use different bit patterns than the

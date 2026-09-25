@@ -18,6 +18,7 @@
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 
 #include <cstring>
+#include <shared_mutex>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -528,8 +529,6 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   // We can skip the barrier UR call only if both the barrier wait list
   // and the list of barrier command dependencies are empty (after filtering
   // the UR events).
-  // TODO Currently the scheduler path will only check the barrier wait
-  // list.
   if (BarrierType == CGType::BarrierWaitlist && RawBarrierDepEvents.empty() &&
       RawDepEvents.empty()) {
     if (!DiscardEvent) {
@@ -674,10 +673,7 @@ bool queue_impl::isNativeRecording() const {
 }
 
 queue_impl::NativeRecordingResult
-queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph, bool LockQueue) {
-  std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
-  if (LockQueue)
-    Lock.lock();
+queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph) {
   NativeRecordingResult BeginResult;
   BeginResult.Result =
       getAdapter().call_nocheck<UrApiKind::urQueueBeginCaptureIntoGraphExp>(
@@ -687,6 +683,12 @@ queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph, bool LockQueue) {
     getContextImpl().nativeRecordingBegan();
   }
   return BeginResult;
+}
+
+void queue_impl::beginRecordingGraph(
+    ext::oneapi::experimental::detail::graph_impl &Graph) {
+  std::scoped_lock<std::mutex, std::shared_mutex> Lock{MMutex, Graph.MMutex};
+  Graph.beginRecordingBothLocksHeld(*this);
 }
 
 queue_impl::NativeRecordingResult queue_impl::endNativeRecording() {

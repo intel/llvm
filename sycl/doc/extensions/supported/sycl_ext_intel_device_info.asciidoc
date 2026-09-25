@@ -77,6 +77,8 @@ supports.
 | 7     | Throttle reasons, fan speed and power limits queries are supported
 | 8     | Device LUID and device node mask is supported
 | 9     | XE device properties are supported
+| 10    | Device IP version is supported
+| 11    | The IGCA query is supported
 |===
 
 === PCI Address
@@ -1425,6 +1427,216 @@ the device does not have `aspect::ext_intel_max_lanes_per_hw_thread`.
 ----
 if (dev.has(aspect::ext_intel_max_lanes_per_hw_thread)) {
   auto numMaxLanesPerHWThread = dev.get_info<ext::intel::info::device::max_lanes_per_hw_thread>();
+}
+----
+
+'''
+
+=== Device IP Version
+
+Missing before version 10 of this extension.
+
+This extension adds the following device aspect, information descriptor and
+free functions, which allow an application to query the IP version of the
+device and to decompose the IP version of a GPU device into its components.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_device_info_ip_version
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_device_info_ip_version`: Indicates that the device supports the
+`ip_version` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct ip_version {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The IP version of the device. For a GPU device, refer to the
+`PRODUCT_CONFIG` enumeration in
+https://github.com/intel/compute-runtime/blob/master/third_party/aot_config_headers/platforms.h[this header]
+for a mapping between IP versions and device names. The meaning of the IP
+version of other devices is implementation-defined, but newer devices should
+have a higher version than older devices.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_device_info_ip_version`.
+
+==== New free functions
+
+The IP version of a GPU device packs three components, from the most
+significant bit down:
+
+[%header,cols="^10,^8,^8,^6"]
+|===
+| 31:22   | 21:14   | 13:6     | 5:0
+| `major` | `minor` | reserved | `revision`
+| 10 bits | 8 bits  | 8 bits   | 6 bits
+|===
+
+The reserved bits carry no information. The following free functions extract
+these components.
+
+[source,c++]
+----
+namespace sycl::ext::intel::info {
+
+inline uint32_t get_gpu_ip_version_major(uint32_t ipVersion);
+inline uint32_t get_gpu_ip_version_minor(uint32_t ipVersion);
+inline uint32_t get_gpu_ip_version_revision(uint32_t ipVersion);
+
+} // namespace sycl::ext::intel::info
+----
+
+_Preconditions:_ `ipVersion` is a value returned by the `ip_version`
+information descriptor of a GPU device. The value returned by these functions
+is unspecified for any other device.
+
+_Returns:_ The major, the minor or the revision component of `ipVersion`,
+respectively.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_device_info_ip_version)) {
+  auto ipVersion = dev.get_info<ext::intel::info::device::ip_version>();
+  if (dev.is_gpu()) {
+    std::cout << ext::intel::info::get_gpu_ip_version_major(ipVersion) << "."
+              << ext::intel::info::get_gpu_ip_version_minor(ipVersion) << "."
+              << ext::intel::info::get_gpu_ip_version_revision(ipVersion)
+              << std::endl;
+  }
+}
+----
+
+'''
+
+=== Intel GPU IGCA
+
+Missing before version 11 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the Intel Graphics Compute Architecture
+(IGCA) target supported by an Intel GPU, together with the IGCA feature sets
+that the device implements.
+
+An IGCA target is identified by a numeric value and by the feature sets the
+device implements. The "render" feature set is typically implemented by client
+GPU devices while the "compute" feature set is typically implemented by
+datacenter GPU devices.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_igca
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_igca`: Indicates that the device supports the `igca` information
+descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct igca {
+  using return_type = info::igca;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ An `info::igca` describing the IGCA target supported by the device
+and the IGCA feature sets the device implements.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_igca`.
+
+==== IGCA type
+
+[source,c++]
+----
+namespace sycl::ext::intel::info {
+
+struct igca {
+  int target;
+  uint64_t feature_sets;
+};
+
+} // namespace sycl::ext::intel::info
+----
+
+[%header,cols="1,5"]
+|===
+| Member | Description
+| `target` | The numeric IGCA target supported by the device.
+| `feature_sets` | Bitmask of the IGCA feature sets the device implements, formed
+from the `igca_feature_set_*` constants below.
+|===
+
+==== IGCA feature sets
+
+[source,c++]
+----
+namespace sycl::ext::intel::info {
+
+constexpr uint64_t igca_feature_set_render  = (1 << 0);
+constexpr uint64_t igca_feature_set_compute = (1 << 1);
+
+} // namespace sycl::ext::intel::info
+----
+
+[%header,cols="1,5"]
+|===
+| Feature set | Description
+| `igca_feature_set_render` | The device implements the "r" feature set of its
+IGCA target, typically a client GPU.
+| `igca_feature_set_compute` | The device implements the "c" feature set of its
+IGCA target, typically a datacenter GPU.
+|===
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_igca)) {
+  auto IGCA = dev.get_info<ext::intel::info::device::igca>();
+
+  int Target = IGCA.target;
+  bool Render =
+      IGCA.feature_sets & ext::intel::info::igca_feature_set_render;
+  bool Compute =
+      IGCA.feature_sets & ext::intel::info::igca_feature_set_compute;
+  std::cout << "IGCA" << Target << (Render ? "r" : "") << (Compute ? "c" : "")
+            << "\n";
 }
 ----
 

@@ -12,6 +12,7 @@
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/experimental/detail/ipc_common.hpp>
+#include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/queue.hpp>
@@ -47,10 +48,14 @@ struct is_property_key_of<enable_profiling_key, sycl::event> : std::true_type {
 template <>
 struct is_property_key_of<enable_ipc_key, sycl::event> : std::true_type {};
 
+template <>
+struct is_property_key_of<event_mode_key, sycl::event> : std::true_type {};
+
 namespace detail {
 enum make_event_flags : uint32_t {
   make_event_flag_enable_profiling = 1u << 0,
   make_event_flag_enable_ipc = 1u << 1,
+  make_event_flag_low_power = 1u << 2,
 };
 
 __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt, uint32_t Flags);
@@ -66,24 +71,43 @@ uint32_t getMakeEventFlags(const PropertyListT &props) {
     if (props.template get_property<enable_ipc_key>().value)
       Flags |= make_event_flag_enable_ipc;
   }
+  if constexpr (PropertyListT::template has_property<event_mode_key>()) {
+    if (props.template get_property<event_mode_key>().value ==
+        event_mode_enum::low_power)
+      Flags |= make_event_flag_low_power;
+  }
   return Flags;
 }
 } // namespace detail
 
 template <typename PropertyListT = empty_properties_t>
-inline sycl::event make_event(const sycl::context &ctxt,
-                              PropertyListT props = {}) {
-  static_assert(is_property_list_v<PropertyListT>,
-                "Props must be a sycl::ext::oneapi::experimental::properties");
-
+inline std::enable_if_t<
+    detail::all_are_properties_of_v<sycl::event, PropertyListT>, sycl::event>
+make_event(const sycl::context &ctxt, PropertyListT props = {}) {
   return detail::make_event(ctxt, detail::getMakeEventFlags(props));
 }
 
+template <typename PropertyT>
+inline std::enable_if_t<is_property_key_of<PropertyT, sycl::event>::value,
+                        sycl::event>
+make_event(const sycl::context &ctxt, PropertyT prop) {
+  return make_event(ctxt, properties{prop});
+}
+
 template <typename PropertyListT = empty_properties_t>
-inline sycl::event make_event(PropertyListT props = {}) {
+inline std::enable_if_t<
+    detail::all_are_properties_of_v<sycl::event, PropertyListT>, sycl::event>
+make_event(PropertyListT props = {}) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return make_event(Ctx, props);
+}
+
+template <typename PropertyT>
+inline std::enable_if_t<is_property_key_of<PropertyT, sycl::event>::value,
+                        sycl::event>
+make_event(PropertyT prop) {
+  return make_event(properties{prop});
 }
 
 __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt);

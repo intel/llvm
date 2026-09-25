@@ -665,6 +665,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES = 0x7000,
   /// ::ur_exp_event_desc_t
   UR_STRUCTURE_TYPE_EXP_EVENT_DESC = 0x8000,
+  /// ::ur_exp_event_sync_mode_desc_t
+  UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC = 0x8001,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -14034,6 +14036,37 @@ typedef struct ur_exp_event_desc_t {
   ur_exp_event_flags_t flags;
 
 } ur_exp_event_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Synchronization flags for events.
+typedef uint32_t ur_exp_event_sync_mode_flags_t;
+typedef enum ur_exp_event_sync_mode_flag_t {
+  /// When enabled, the driver optimizes event host synchronization calls,
+  /// to use CPU threads more efficiently.
+  UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT = UR_BIT(0),
+  /// @cond
+  UR_EXP_EVENT_SYNC_MODE_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_event_sync_mode_flag_t;
+/// @brief Bit Mask for validating ur_exp_event_sync_mode_flags_t
+#define UR_EXP_EVENT_SYNC_MODE_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Optional extension descriptor for reusable event synchronization
+///        behavior. Chain this off ::ur_exp_event_desc_t::pNext when creating a
+///        reusable event to request a specific synchronization mode. Adapters
+///        that cannot honor the requested mode may ignore this structure.
+typedef struct ur_exp_event_sync_mode_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] combination of ::ur_exp_event_sync_mode_flags_t values.
+  ur_exp_event_sync_mode_flags_t flags;
+
+} ur_exp_event_sync_mode_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a reusable event object that can be passed to

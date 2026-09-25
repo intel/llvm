@@ -26,13 +26,15 @@ enum event_flag_t {
   EVENT_FLAGS_PROFILING_ENABLED = UR_BIT(1),
   // IPC-shareable producer event.
   EVENT_FLAGS_IPC = UR_BIT(2),
+  // Event created for low power usage.
+  EVENT_FLAGS_LOW_POWER = UR_BIT(3),
   // Event opened from an IPC handle.
-  EVENT_FLAGS_IPC_IMPORTED = UR_BIT(3),
+  EVENT_FLAGS_IPC_IMPORTED = UR_BIT(4),
 };
 // Number of flag bits that index into event_pool_cache.
 // EVENT_FLAGS_IPC_IMPORTED is excluded because imported events are created
 // directly.
-static constexpr size_t EVENT_FLAGS_USED_BITS = 3;
+static constexpr size_t EVENT_FLAGS_USED_BITS = 4;
 
 enum queue_type {
   QUEUE_REGULAR,

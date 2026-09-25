@@ -176,6 +176,13 @@ struct SpecConstInfoTy {
 bool getSpecConstInfo(std::istream &IS,
                       std::vector<SpecConstInfoTy> &SpecConstInfo);
 
+/// \brief Partially load SPIR-V from the stream and decode only instructions
+/// needed to get information about specialization constants, using the
+/// specified options.
+/// \returns true if succeeds.
+bool getSpecConstInfo(std::istream &IS, const SPIRV::TranslatorOpts &Opts,
+                      std::vector<SpecConstInfoTy> &SpecConstInfo);
+
 /// \brief Convert a SPIRVModule into LLVM IR.
 /// \returns null on failure.
 std::unique_ptr<Module>

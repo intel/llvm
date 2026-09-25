@@ -128,6 +128,7 @@
 ??$get_info_impl@Uimage_max_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uimage_row_pitch_align@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uimage_support@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
+??$get_info_impl@Uip_version@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uis_available@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uis_compiler_available@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uis_endian_little@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
@@ -4217,6 +4218,7 @@
 ?khr_empty@queue@_V1@sycl@@QEBA_NXZ
 ?khr_flush@queue@_V1@sycl@@QEBAXXZ
 ?khr_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
+?khr_is_profiling_enabled@queue@_V1@sycl@@QEBA_NXZ
 ?lgamma_r_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@PEAH@Z
 ?lgamma_r_impl@detail@_V1@sycl@@YAMMPEAH@Z
 ?lgamma_r_impl@detail@_V1@sycl@@YANNPEAH@Z
@@ -4356,6 +4358,7 @@
 ?setDevice@HostProfilingInfo@detail@_V1@sycl@@QEAAXPEAVdevice_impl@234@@Z
 ?setDeviceKernelInfo@handler@_V1@sycl@@AEAAX$$QEAVkernel@23@@Z
 ?setDeviceKernelInfoPtr@handler@_V1@sycl@@AEAAXPEAVDeviceKernelInfo@detail@23@@Z
+?setFreeFunctionKernelInfoRT@handler@_V1@sycl@@AEAAXPEAVDeviceKernelInfo@detail@23@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelFunc@handler@_V1@sycl@@AEAAXPEAX@Z
 ?setKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
@@ -4382,6 +4385,7 @@
 ?sincos_impl@detail@_V1@sycl@@YAMMPEAM@Z
 ?sincos_impl@detail@_V1@sycl@@YANNPEAN@Z
 ?single_task@handler@_V1@sycl@@QEAAXVkernel@23@@Z
+?single_task_free_function@handler@_V1@sycl@@QEAAXPEAVDeviceKernelInfo@detail@23@@Z
 ?size@exception_list@_V1@sycl@@QEBA_KXZ
 ?size@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?size@stream@_V1@sycl@@QEBA_KXZ
