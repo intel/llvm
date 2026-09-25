@@ -1738,11 +1738,15 @@ ur_result_t appendProfilingQueries(ur_exp_command_buffer_handle_t CommandBuffer,
   // before completing the command-buffer execution, and then attach this
   // memory to the event returned to users to allow the profiling
   // engine to recover these timestamps.
-  command_buffer_profiling_t *Profiling = new command_buffer_profiling_t();
+  // Both allocations are owned locally until the query has been appended
+  // successfully, at which point ownership is transferred to ProfilingEvent,
+  // which frees them on release.
+  auto Profiling = std::make_unique<command_buffer_profiling_t>();
 
   Profiling->NumEvents = CommandBuffer->ZeEventsList.size();
-  Profiling->Timestamps =
-      new ze_kernel_timestamp_result_t[Profiling->NumEvents];
+  auto Timestamps =
+      std::make_unique<ze_kernel_timestamp_result_t[]>(Profiling->NumEvents);
+  Profiling->Timestamps = Timestamps.get();
 
   uint32_t NumWaitEvents = WaitEvent ? 1 : 0;
   ze_event_handle_t *ZeWaitEventList =
@@ -1754,7 +1758,8 @@ ur_result_t appendProfilingQueries(ur_exp_command_buffer_handle_t CommandBuffer,
               CommandBuffer->ZeEventsList.data(), (void *)Profiling->Timestamps,
               0, ZeSignalEvent, NumWaitEvents, ZeWaitEventList));
 
-  ProfilingEvent->CommandData = static_cast<void *>(Profiling);
+  Timestamps.release();
+  ProfilingEvent->CommandData = static_cast<void *>(Profiling.release());
 
   return UR_RESULT_SUCCESS;
 }
