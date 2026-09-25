@@ -13,6 +13,7 @@
 #include <unified-runtime/ur_api.h>
 
 #include "common.hpp"
+#include "context.hpp"
 #include "event.hpp"
 
 constexpr size_t OOO_QUEUE_POOL_SIZE = 32;
@@ -24,7 +25,11 @@ struct ur_queue_handle_t_ : RefCounted {
                           ? OOO_QUEUE_POOL_SIZE
                           : 1),
         QueueOffset(0), Barrier(nullptr), OffloadDevice(Device),
-        UrContext(UrContext), Flags(Flags) {}
+        UrContext(UrContext), Flags(Flags) {
+    urContextRetain(UrContext);
+  }
+
+  ~ur_queue_handle_t_() { urContextRelease(UrContext); }
 
   // In-order queues only have one element here, while out of order queues have
   // a bank of queues to use. We rotate through them round robin instead of
@@ -69,7 +74,8 @@ struct ur_queue_handle_t_ : RefCounted {
     auto &Slot = OffloadQueues[(QueueOffset++) % OffloadQueues.size()];
 
     if (!Slot) {
-      if (auto Res = olCreateQueue(OffloadDevice, &Slot)) {
+      if (auto Res =
+              olCreateQueue(UrContext->OffloadContext, OffloadDevice, &Slot)) {
         return Res;
       }
 
