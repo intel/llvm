@@ -55,6 +55,8 @@ constexpr std::array optional_ur_device_info_t = {
     UR_DEVICE_INFO_XE_CORES_PER_CLUSTER,
     UR_DEVICE_INFO_EUS_PER_XE_CORE,
     UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD,
+    UR_DEVICE_INFO_IGCA_TARGET,
+    UR_DEVICE_INFO_IGCA_FEATURE_SET,
 };
 
 template <> inline bool isQueryOptional(ur_device_info_t query) {
