@@ -371,33 +371,33 @@
 // RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   --sycl-post-link-options="-O2 -device-globals -O0" \
-// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_POSTLINK_JIT_NEW %s
+// RUN:   --linker-path=/usr/bin/ld %t.o -o /dev/null 2>&1 | FileCheck --check-prefix OPTIONS_POSTLINK_JIT_NEW %s
 // OPTIONS_POSTLINK_JIT_NEW: sycl-post-link{{.*}} -spec-const=native -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -O0
 
 // RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   -syclbin=executable --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   --sycl-post-link-options="-O2 -device-globals -O0" \
-// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_POSTLINK_JIT_NEW_SYCLBIN %s
+// RUN:   --linker-path=/usr/bin/ld %t.o -o /dev/null 2>&1 | FileCheck --check-prefix OPTIONS_POSTLINK_JIT_NEW_SYCLBIN %s
 // OPTIONS_POSTLINK_JIT_NEW_SYCLBIN: sycl-post-link{{.*}} -spec-const=native -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-kernel-names -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -O0
 
 // Check that disabling these options omits the corresponding post-link flags.
 // RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   -no-sycl-remove-unused-external-funcs \
-// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_NO_EMIT_ONLY_KERNELS %s
+// RUN:   --linker-path=/usr/bin/ld %t.o -o /dev/null 2>&1 | FileCheck --check-prefix OPTIONS_NO_EMIT_ONLY_KERNELS %s
 // OPTIONS_NO_EMIT_ONLY_KERNELS: sycl-post-link{{.*}} -spec-const=native -properties -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd
 
 // RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   -no-sycl-device-code-split-esimd \
-// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_NO_SPLIT_ESIMD %s
+// RUN:   --linker-path=/usr/bin/ld %t.o -o /dev/null 2>&1 | FileCheck --check-prefix OPTIONS_NO_SPLIT_ESIMD %s
 // OPTIONS_NO_SPLIT_ESIMD: sycl-post-link{{.*}} -spec-const=native -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -lower-esimd
 
 // Check default specialization constants image generation for AOT.
 // RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc \
 // RUN:   -sycl-add-default-spec-consts-image \
-// RUN:   --linker-path=/usr/bin/ld %t_aot_gpu.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_DEFAULT_SPEC_CONSTS %s
+// RUN:   --linker-path=/usr/bin/ld %t_aot_gpu.o -o /dev/null 2>&1 | FileCheck --check-prefix OPTIONS_DEFAULT_SPEC_CONSTS %s
 // OPTIONS_DEFAULT_SPEC_CONSTS: sycl-post-link{{.*}} -spec-const=emulation -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -generate-device-image-default-spec-consts
 
 // Check that bitcode libraries for NVPTX and AMD are linked for the matching target.
@@ -407,12 +407,12 @@
 // RUN: clang-linker-wrapper --bitcode-library=nvptx64-nvidia-cuda=%t.nvptx.devicelib.bc \
 // RUN:   --bitcode-library=nvptx64-nvidia-cuda=%t.nvptx.libdummy.bc \
 // RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
-// RUN:   --linker-path=/usr/bin/ld %t_nvptx.o -o a.out 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-NVPTX %s
+// RUN:   --linker-path=/usr/bin/ld %t_nvptx.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-NVPTX %s
 // CHECK-WRAPPER-NVPTX: llvm-link{{.*}} {{.*}}.nvptx.devicelib.bc {{.*}}.nvptx.libdummy.bc
 
 // RUN: clang-linker-wrapper --bitcode-library=amdgcn-amd-amdhsa=%t.amd.devicelib.bc \
 // RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
-// RUN:   --linker-path=/usr/bin/ld %t_amdgcn.o -o a.out 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-AMD %s
+// RUN:   --linker-path=/usr/bin/ld %t_amdgcn.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-AMD %s
 // CHECK-WRAPPER-AMD: llvm-link{{.*}} {{.*}}.amd.devicelib.bc
 
 // Check that each target uses only its own libraries with multi-target input.
@@ -424,6 +424,6 @@
 // RUN:   --bitcode-library=nvptx64-nvidia-cuda=%t.nvptx.devicelib.bc \
 // RUN:   --bitcode-library=nvptx64-nvidia-cuda=%t.nvptx.libdummy.bc \
 // RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
-// RUN:   --linker-path=/usr/bin/ld %t_multi.o -o a.out 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-MULTI %s
+// RUN:   --linker-path=/usr/bin/ld %t_multi.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-MULTI %s
 // CHECK-WRAPPER-MULTI: llvm-link{{.*}} {{.*}}.amd.devicelib.bc
 // CHECK-WRAPPER-MULTI: llvm-link{{.*}} {{.*}}.nvptx.devicelib.bc {{.*}}.nvptx.libdummy.bc
