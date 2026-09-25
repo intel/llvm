@@ -19,3 +19,22 @@
 // CHECK-SUPPORTED-NEXT: file-table-tform{{.*}}
 // CHECK-SUPPORTED-NEXT: llvm-offload-binary{{.*}} "-o" "{{.*}}" "--image=file=@{{.*}}"
 // CHECK-SUPPORTED: clang-linker-wrapper{{.*}} "-sycl-thin-lto"
+
+// Verify that for AOT (ocloc/opencl-aot) targets the LTO mode is still used
+// for the actual device compile, but is not forwarded to clang-linker-wrapper
+// via --device-compiler=/--device-linker=, since ocloc/opencl-aot do not
+// accept -flto= as a raw command line option.
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen,spir64_x86_64 -foffload-lto=thin %s -### 2>&1 | \
+// RUN: FileCheck -check-prefix=CHECK-AOT-THIN %s
+// CHECK-AOT-THIN: clang{{.*}} "-cc1" "-triple" "spir64_gen-unknown-unknown" {{.*}} "-flto=thin" "-flto-unit"
+// CHECK-AOT-THIN: clang{{.*}} "-cc1" "-triple" "spir64_x86_64-unknown-unknown" {{.*}} "-flto=thin" "-flto-unit"
+// CHECK-AOT-THIN: clang-linker-wrapper
+// CHECK-AOT-THIN-NOT: "--device-compiler={{.*}}=-flto=
+// CHECK-AOT-THIN-NOT: "--device-linker={{.*}}=-flto=
+
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -foffload-lto=full %s -### 2>&1 | \
+// RUN: FileCheck -check-prefix=CHECK-AOT-FULL %s
+// CHECK-AOT-FULL: clang{{.*}} "-cc1" "-triple" "spir64_gen-unknown-unknown" {{.*}} "-flto=full"
+// CHECK-AOT-FULL: clang-linker-wrapper
+// CHECK-AOT-FULL-NOT: "--device-compiler={{.*}}=-flto=
+// CHECK-AOT-FULL-NOT: "--device-linker={{.*}}=-flto=
