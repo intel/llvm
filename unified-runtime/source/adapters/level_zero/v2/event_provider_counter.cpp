@@ -55,8 +55,10 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
 
 static ze_event_counter_based_flags_t createZeFlags(queue_type queueType,
                                                     event_flags_t flags) {
+  // Always set non immediate flag for compatibility with graph record & replay
   ze_event_counter_based_flags_t zeFlags =
-      ZE_EVENT_COUNTER_BASED_FLAG_HOST_VISIBLE;
+      ZE_EVENT_COUNTER_BASED_FLAG_HOST_VISIBLE |
+      ZE_EVENT_COUNTER_BASED_FLAG_NON_IMMEDIATE;
   if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
     zeFlags |= ZE_EVENT_COUNTER_BASED_FLAG_DEVICE_TIMESTAMP;
   }
@@ -68,8 +70,6 @@ static ze_event_counter_based_flags_t createZeFlags(queue_type queueType,
   if (queueType == QUEUE_IMMEDIATE) {
     zeFlags |= ZE_EVENT_COUNTER_BASED_FLAG_IMMEDIATE;
   }
-  // Always set non immediate flag for compatibility with graph record & replay
-  zeFlags |= ZE_EVENT_COUNTER_BASED_FLAG_NON_IMMEDIATE;
 
   return zeFlags;
 }
