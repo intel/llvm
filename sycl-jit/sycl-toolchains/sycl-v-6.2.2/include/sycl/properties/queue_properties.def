@@ -1,0 +1,35 @@
+// --*- c++ -*---
+#ifndef __SYCL_DATA_LESS_PROP
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#endif
+#ifndef __SYCL_MANUALLY_DEFINED_PROP
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#endif
+
+__SYCL_DATA_LESS_PROP(property::queue, in_order, InOrder)
+__SYCL_DATA_LESS_PROP(property::queue, enable_profiling, QueueEnableProfiling)
+
+__SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, discard_events,
+                      DiscardEvents)
+__SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, priority_normal,
+                      QueuePriorityNormal)
+__SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, priority_low,
+                      QueuePriorityLow)
+__SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, priority_high,
+                      QueuePriorityHigh)
+__SYCL_DATA_LESS_PROP(ext::intel::property::queue, no_immediate_command_list,
+                      QueueSubmissionBatched)
+__SYCL_DATA_LESS_PROP(ext::intel::property::queue, immediate_command_list,
+                      QueueSubmissionImmediate)
+
+__SYCL_DATA_LESS_PROP(ext::oneapi::cuda::property::queue, use_default_stream,
+                      UseDefaultStream)
+
+// Deprecated alias for ext::oneapi::cuda::property::queue.
+__SYCL_MANUALLY_DEFINED_PROP(property::queue::cuda, use_default_stream)
+
+// Contains data field, defined explicitly.
+__SYCL_MANUALLY_DEFINED_PROP(ext::intel::property::queue, compute_index)
+
+#undef __SYCL_DATA_LESS_PROP
+#undef __SYCL_MANUALLY_DEFINED_PROP

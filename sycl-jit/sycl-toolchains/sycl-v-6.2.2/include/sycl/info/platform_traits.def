@@ -1,0 +1,5 @@
+__SYCL_PARAM_TRAITS_SPEC(platform, profile, std::string, UR_PLATFORM_INFO_PROFILE)
+__SYCL_PARAM_TRAITS_SPEC(platform, version, std::string, UR_PLATFORM_INFO_VERSION)
+__SYCL_PARAM_TRAITS_SPEC(platform, name, std::string, UR_PLATFORM_INFO_NAME)
+__SYCL_PARAM_TRAITS_SPEC(platform, vendor, std::string, UR_PLATFORM_INFO_VENDOR_NAME)
+__SYCL_PARAM_TRAITS_SPEC(platform, extensions, std::vector<std::string>, UR_PLATFORM_INFO_EXTENSIONS)
