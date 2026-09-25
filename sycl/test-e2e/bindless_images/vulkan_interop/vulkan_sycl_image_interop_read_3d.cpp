@@ -2,9 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: linux || windows
-// UNSUPPORTED-TRACKER: VSRI-6896
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // clang-format off

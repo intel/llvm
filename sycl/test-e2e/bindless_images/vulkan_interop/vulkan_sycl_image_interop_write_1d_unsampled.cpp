@@ -3,16 +3,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-73525
-
-// UNSUPPORTED: cuda-ge-13
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
-
-// Sporadic failures observed on Linux across all Intel platforms.
-// UNSUPPORTED: linux && level_zero
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22858
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 /*
