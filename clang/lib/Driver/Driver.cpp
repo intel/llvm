@@ -7596,7 +7596,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // Check if this Linker Job should emit a static library.
     if (ShouldEmitStaticLibrary(Args)) {
       LA = C.MakeAction<StaticLibJobAction>(LinkerInputs, types::TY_Image);
-    } else if (C.getActiveOffloadKinds() != Action::OFK_None ||
+    } else if (UseNewOffloadingDriver ||
                Args.hasArg(options::OPT_offload_link)) {
       LA = C.MakeAction<LinkerWrapperJobAction>(
           LinkerInputs,
@@ -7613,6 +7613,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                                                             : types::TY_Image;
       LA = C.MakeAction<LinkJobAction>(LinkerInputs, LT);
     }
+    if (!UseNewOffloadingDriver)
+      LA = OffloadBuilder->processHostLinkAction(LA);
     Actions.push_back(LA);
   }
 
