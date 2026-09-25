@@ -43,6 +43,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_float_controls2
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_vector_compute
+// CHECK-DEFAULT-SAME:,+SPV_EXT_long_vector
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
