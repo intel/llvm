@@ -11,7 +11,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple nvptx-nvidia-cuda -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-NVPTX %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple nvptx64-nvidia-cuda -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-NVPTX %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple spir64-unknown-unknown -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-SPIR,CHECK-SPIRNV,CHECK-SPIR-SSE2 %s
-// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple spirv64-unknown-unknown -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-SPIR,CHECK-SPIRV,CHECK-SPIR-NO-SSE2 %s
+// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple spirv64-unknown-unknown -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-SPIR,CHECK-SPIRV,CHECK-SPIR-SSE2 %s
 // RUN: %clang_cc1 -fsycl-is-host -emit-llvm -triple x86_64-uefi -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-HOST,CHECK-HOST-WINDOWS %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-uefi -triple amdgpu-amd-amdhsa -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-AMDGCN %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-uefi -triple nvptx-nvidia-cuda -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-NVPTX %s
@@ -704,9 +704,9 @@ int main() {
 // CHECK-NVPTX: #[[NVPTX_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}kernel-caller-entry-point.cpp" "sycl-optlevel"="0" }
 // CHECK-NVPTX: #[[NVPTX_ATTR1]] = { convergent nounwind "uniform-work-group-size" }
 //
-// WindowsX86_64_SPIR64TargetInfo::initFeatureMap adds +sse/+sse2 to the
-// device-target feature baseline; every other SPIR/SPIRV target class used by
-// the RUN lines above leaves it empty.
+// BaseSPIRTargetInfo::initFeatureMap adds +sse/+sse2 to the device-target
+// feature baseline when the host predefines _M_X64; the RUN lines above whose
+// host does not (Linux, UEFI) leave it empty.
 // CHECK-SPIR-NO-SSE2: #[[SPIR_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}kernel-caller-entry-point.cpp" "sycl-optlevel"="0" }
 // CHECK-SPIR-SSE2:    #[[SPIR_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}kernel-caller-entry-point.cpp" "sycl-optlevel"="0" "target-features"="+sse,+sse2" }
 // CHECK-SPIR: #[[SPIR_ATTR1]] = { convergent nounwind "uniform-work-group-size" }

@@ -15,6 +15,8 @@ void bar() {
   printf("hello\n");
 }
 
+void __attribute__((vectorcall)) vcall(float a, float b) {}
+
 // Check some weird calling convention that is not supported even by x86_64 aux.
 // expected-warning@+1 {{'__swiftasynccall__' calling convention is not supported for this target}}
 void __attribute__((__swiftasynccall__)) g(void) {}
