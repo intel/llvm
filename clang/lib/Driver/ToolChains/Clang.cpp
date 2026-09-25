@@ -5661,10 +5661,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       options::OPT_foffload_via_llvm, options::OPT_fno_offload_via_llvm, false);
   bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
                                  JA.isDeviceOffloading(Action::OFK_Host));
+  // The old SYCL offloading model delivers the device code to the host via a
+  // separate clang-offload-wrapper job, so the host compilation must not embed
+  // the (unpackaged) device IR into a .llvm.offloading section.
   bool IsHostOffloadingAction =
       JA.isHostOffloading(Action::OFK_OpenMP) ||
-      JA.isHostOffloading(Action::OFK_SYCL) ||
-      (JA.isHostOffloading(C.getActiveOffloadKinds()));
+      ((JA.isHostOffloading(Action::OFK_SYCL) ||
+        JA.isHostOffloading(C.getActiveOffloadKinds())) &&
+       Args.hasFlag(options::OPT_offload_new_driver,
+                    options::OPT_no_offload_new_driver,
+                    (C.getActiveOffloadKinds() != Action::OFK_None &&
+                     C.getActiveOffloadKinds() != Action::OFK_SYCL)));
 
   // SYCL defaults to RDC; CUDA/HIP default to non-RDC.
   bool IsRDCMode = Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
