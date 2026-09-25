@@ -576,6 +576,44 @@ inline ImageResources createExportableImage(
   return res;
 }
 
+// Query whether the driver supports importing/exporting external memory for
+// the given format/type/tiling/usage combination. Some formats (notably
+// depth formats) are not required by the Vulkan spec to support
+// VK_IMAGE_USAGE_STORAGE_BIT or external memory handle types, and support
+// varies across platforms and drivers.
+inline bool isExternalImageFormatSupported(
+    VulkanContext &ctx, VkFormat format, VkImageType type, VkImageTiling tiling,
+    VkImageUsageFlags usage,
+    VkExternalMemoryHandleTypeFlagBits handleType = PLATFORM_MEM_HANDLE_TYPE) {
+  VkPhysicalDeviceExternalImageFormatInfo extFormatInfo{};
+  extFormatInfo.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO;
+  extFormatInfo.handleType = handleType;
+
+  VkPhysicalDeviceImageFormatInfo2 formatInfo{};
+  formatInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
+  formatInfo.pNext = &extFormatInfo;
+  formatInfo.format = format;
+  formatInfo.type = type;
+  formatInfo.tiling = tiling;
+  formatInfo.usage = usage;
+
+  VkExternalImageFormatProperties extFormatProps{};
+  extFormatProps.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES;
+
+  VkImageFormatProperties2 formatProps{};
+  formatProps.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2;
+  formatProps.pNext = &extFormatProps;
+
+  VkResult res = vkGetPhysicalDeviceImageFormatProperties2(
+      ctx.physicalDevice, &formatInfo, &formatProps);
+  if (res != VK_SUCCESS)
+    return false;
+
+  return (extFormatProps.externalMemoryProperties.compatibleHandleTypes &
+          handleType) != 0;
+}
+
 inline VkSemaphore createExportableSemaphore(VulkanContext &ctx) {
   VkExportSemaphoreCreateInfo exportInfo{};
   exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
