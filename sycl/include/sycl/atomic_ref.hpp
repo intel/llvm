@@ -32,7 +32,13 @@ inline namespace _V1 {
 namespace detail::half_impl {
 class half;
 }
+
+namespace ext::oneapi {
+class bfloat16;
+}
+
 using half = detail::half_impl::half;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 namespace detail {
 
@@ -41,11 +47,13 @@ using memory_scope = sycl::memory_scope;
 
 template <typename T> struct IsValidAtomicRefType {
   static constexpr bool value =
-      (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
+      (std::is_same_v<T, int> || std::is_same_v<T, short> ||
+       std::is_same_v<T, unsigned int> || std::is_same_v<T, unsigned short> ||
        std::is_same_v<T, long> || std::is_same_v<T, unsigned long> ||
        std::is_same_v<T, long long> || std::is_same_v<T, unsigned long long> ||
        std::is_same_v<T, float> || std::is_same_v<T, double> ||
-       std::is_pointer_v<T> || std::is_same_v<T, sycl::half>);
+       std::is_pointer_v<T> || std::is_same_v<T, sycl::half> ||
+       std::is_same_v<T, bfloat16>);
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
@@ -122,8 +130,10 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
 class atomic_ref_base {
   static_assert(
       detail::IsValidAtomicRefType<T>::value,
-      "Invalid atomic type.  Valid types are int, unsigned int, long, "
-      "unsigned long, long long, unsigned long long, sycl::half, float, double "
+      "Invalid atomic type.  Valid types are int, unsigned int, short, "
+      "unisgned short, long, "
+      "unsigned long, long long, unsigned long long, sycl::half, bfloat16, "
+      "float, double "
       "and pointer types");
   static_assert(detail::IsValidAtomicRefAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
@@ -442,7 +452,8 @@ template <typename T, size_t SizeOfT, memory_order DefaultOrder,
           memory_scope DefaultScope, access::address_space AddressSpace>
 class atomic_ref_impl<T, SizeOfT, DefaultOrder, DefaultScope, AddressSpace,
                       typename std::enable_if_t<std::is_floating_point_v<T> ||
-                                                std::is_same_v<T, sycl::half>>>
+                                                std::is_same_v<T, sycl::half> ||
+                                                std::is_same_v<T, bfloat16>>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:
@@ -568,7 +579,8 @@ class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
 #endif
     T, /*SizeOfT = */ 8, DefaultOrder, DefaultScope, AddressSpace,
     typename std::enable_if_t<std::is_floating_point_v<T> ||
-                              std::is_same_v<T, sycl::half>>>
+                              std::is_same_v<T, sycl::half> ||
+                              std::is_same_v<T, bfloat16>>>
     : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                              AddressSpace> {
 public:
@@ -585,12 +597,34 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
 #ifndef __SYCL_DEVICE_ONLY__
 class atomic_ref_impl<
 #else
-class
-    [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]] atomic_ref_impl<
+class [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]]
+atomic_ref_impl<
 #endif
     T, /*SizeOfT = */ 2, DefaultOrder, DefaultScope, AddressSpace,
     typename std::enable_if_t<std::is_floating_point_v<T> ||
-                              std::is_same_v<T, sycl::half>>>
+                              std::is_same_v<T, sycl::half> ||
+                              std::is_same_v<T, bfloat16>>>
+    : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                             AddressSpace> {
+public:
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl;
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl::operator=;
+};
+
+// Partial specialization for 16-bit integral types needed for optional
+// kernel features
+template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
+          access::address_space AddressSpace>
+#ifndef __SYCL_DEVICE_ONLY__
+class atomic_ref_impl<
+#else
+class [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]]
+atomic_ref_impl<
+#endif
+    T, /*SizeOfT = */ 2, DefaultOrder, DefaultScope, AddressSpace,
+    typename std::enable_if_t<std::is_integral_v<T>>>
     : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                              AddressSpace> {
 public:

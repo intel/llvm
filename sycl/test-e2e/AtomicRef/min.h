@@ -13,13 +13,15 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -41,11 +43,12 @@ void min_local_test(queue q, size_t N) {
          if (gid == 0)
            loc[0] = initial;
          group_barrier(it.get_group());
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (loc[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(loc[0]);
          out[gid] = atm.fetch_min(T(gid), order);
          group_barrier(it.get_group());
          if (gid == 0)
@@ -67,8 +70,8 @@ void min_local_test(queue q, size_t N) {
   }
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -86,11 +89,12 @@ void min_global_test(queue q, size_t N) {
       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (val[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(val[0]);
         out[gid] = atm.fetch_min(T(gid), order);
       });
     });
@@ -109,8 +113,8 @@ void min_global_test(queue q, size_t N) {
   }
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -125,11 +129,12 @@ void min_global_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (val[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(val[0]);
          output[gid] = atm.fetch_min(T(gid), order);
        });
      }).wait_and_throw();
@@ -259,7 +264,10 @@ template <access::address_space space> void min_test_all() {
     return;
   }
 
+  min_test_orders_scopes<space, short>(q, N);
+  min_test_orders_scopes<space, unsigned short>(q, N);
   min_test_orders_scopes<space, sycl::half>(q, N);
+  min_test_orders_scopes<space, sycl::ext::oneapi::bfloat16>(q, N);
 #endif
 
   std::cout << "Test passed." << std::endl;
