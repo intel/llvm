@@ -68,9 +68,9 @@ int main() {
   constexpr int Sum = 1 + 20 + 300 + 4;
 
   // The argument list is built at run time, which is the case these overloads
-  // exist for. The pointer says that it is one, so that it is bound as a
-  // pointer rather than as the bytes it is made of, which only the Level Zero
-  // backend binds as a pointer.
+  // exist for. A pointer argument has to say that it is one, since the byte
+  // form of a pointer must not be passed to the byte overload of
+  // raw_kernel_arg.
   std::vector<oneapiext::raw_kernel_arg> Args;
   Args.emplace_back(&Memory, oneapiext::pointer_arg);
   Args.emplace_back(&A, sizeof(A));
