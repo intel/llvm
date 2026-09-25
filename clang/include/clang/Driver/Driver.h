@@ -843,6 +843,21 @@ private:
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
 
+  /// SYCLBIN files are being linked into a single SYCLBIN file.
+  bool SYCLBINLinkSeen = false;
+
+  void setSYCLBINLinkSeen() { SYCLBINLinkSeen = true; }
+
+  /// Diagnoses the SYCLBIN files given as inputs and returns true if they
+  /// should be linked into a single SYCLBIN file in executable state.
+  bool checkForSYCLBINLink(llvm::opt::DerivedArgList &Args,
+                           const InputList &Inputs) const;
+
+  /// Returns true if \p JA produces the final SYCLBIN file of the compilation,
+  /// either because of '-fsyclbin' or because SYCLBIN files are being linked
+  /// together.
+  bool isSYCLBINOutput(const Compilation &C, const JobAction &JA) const;
+
   /// Checks for any mismatch of targets and provided input binaries.
   void checkForOffloadMismatch(Compilation &C,
                                llvm::opt::DerivedArgList &Args) const;
@@ -899,6 +914,10 @@ public:
   static bool getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
+
+  /// getSYCLBINLinkSeen - whether the current compilation links SYCLBIN files
+  /// into a single SYCLBIN file in executable state.
+  bool getSYCLBINLinkSeen() const { return SYCLBINLinkSeen; };
 
   /// getUseNewOffloadingDriver - whether the new offload driver is in use
   /// for the current compilation (OpenMP, CUDA, HIP, or -foffload-via-llvm).
