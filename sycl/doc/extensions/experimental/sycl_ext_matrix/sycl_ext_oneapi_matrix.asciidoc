@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:mxfp_paper_url: https://arxiv.org/pdf/2310.10537
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -157,11 +158,7 @@ registers.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
-enum class use {
-  a,
-  b,
-  accumulator
-};
+enum class use { a, b, accumulator, scale };
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -590,6 +587,21 @@ of the matrix, which is not necessarily the way the matrix is layed
 out in memory. Thus, these template parameters have the same meaning
 in `joint_matrix_prefetch` as they do for `joint_matrix_load`.
 
+=== `joint_matrix` Element Indexing
+A particular element at row index `row` and column index `col` of
+matrix `m` is returned using `joint_matrix_element`.
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          use Use, layout Layout>
+T joint_matrix_element(joint_matrix<Group, T, Use, Rows, Cols, Layout> &m,
+                       size_t row, size_t col);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
 === Support for Machine Learning Types
 Some devices support special matrix element types that are commonly
 used in machine learning algorithms.
@@ -708,6 +720,40 @@ float round_to_tf32(float elem);
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
+==== Joint Matrix With 4 bits Data Types
+`joint_matrix` type and functions may be used on 4 bits data types only
+on a device that supports the corresponding `matrix_type`. If the type
+is `fp4_e2m1_x`, the application must check that the device reports a
+combination using `matrix_type::fp4_e2m1` in the
+`info::device::matrix_combinations` query.
+These checks must be done before submitting a kernel using any of the
+`joint_matrix` APIs in this extension.
+
+Note that only 8 bits packing is supported for `fp4_e2m1_x`, so
+`fp4_e2m1_x<2>` is the only usable form.
+Also, the matrix number of rows `Rows` and
+columns  `Cols` represents the number of 4bits elements, which includes
+the packing factor 2.
+
+In the case of element-wise operations, `joint_matrix_apply` performs
+operations and returns elements of the packed type
+`sycl::ext::oneapi::experimental::fp4_e2m1_x<2>`.
+
+In the following example, every element of the matrix `A` of type
+`sycl::ext::oneapi::experimental::fp4_e2m1_x<2>` is converted to
+an `marray` of 2 `sycl::half` elements before it is multiplied by
+`alpha`. Then, the result is converted back to the FP4 packed type
+using `assign` API.
+
+```c++
+joint_matrix_apply(sg, A,
+[=](sycl::ext::oneapi::experimental::fp4_e2m1_x<2> &x) {
+  marray<sycl::half, 2> mval = (marray<sycl::half, 2>)x;
+  mval *= alpha;
+  x.assign(mval);
+});
+```
+
 === Example using `int8_t` type
 ```c++
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -746,6 +792,221 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    joint_matrix_store(sg, tC, pC + sg_startx * tM * N + sg_starty/SG_SIZE*tN,
                       N, layout::row_major);
 }).wait();
+```
+
+=== MXFP Matrix Support
+The APIs `joint_matrix_bmad`, `joint_matrix_max_reduction_rows`,
+`joint_matrix_max_reduction_cols`, and `joint_matrix_convert` defined in
+this section may be used only on a device that supports the
+corresponding `matrix_type`. If the input or output type is
+`fp4_e2m1_x`, the application must check that the device reports a
+combination using `matrix_type::fp4_e2m1` in the
+`info::device::matrix_combinations` query.
+These checks must be done before submitting a kernel using any of the
+APIs in this section.
+
+==== Multiply and Add With Block Scaling
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
+          std::size_t M, std::size_t K, std::size_t N,
+          layout LayoutA, layout LayoutB, layout LayoutAs, layout LayoutBs>
+void joint_matrix_bmad(Group g,
+    joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic> &D,
+    const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
+    const joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
+    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
+          use::scale, M, K/32, LayoutAs> &Ascale,
+    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
+          use::scale, K/32, N, LayoutBs> &Bscale,
+    const joint_matrix<Group, Tc, use::accumulator, M, N, layout::dynamic> &C);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+The matrix multiply and add with block scaling function is similar to
+`joint_matrix_mad` but has two additional input arguments `Ascale` and
+`Bscale`.
+
+These scaling factors `Ascale` and `Bscale` are matrices of type
+`sycl::ext::oneapi::experimental::fp8_e8m0_x<1>` which is an 8-bits
+floating-point type that represents the exponent of an FP32 floating
+point normal number. The number of rows of `Ascale` is `M` and number
+of columns of `Bscale` is `N`. The number of columns of `Ascale` and
+the number of rows of `Bscale` is `K` divided by the scaling block
+size which is equal to 32. The scaling block size represents the of
+number of elements needed along the K dimension to calculate one scale value.
+
+`joint_matrix_bmad` performs the multiply operation on the matrices
+`A` and `B` in {mxfp_paper_url}[MXFP] format, multiplies the result
+with `Ascale` and `Bscale`, then it accumulates the result with `C`
+and returns the result into the matrix `D`.
+
+Each device supports only certain combinations of types for the `A`,
+`B`, `Ascale`, `Bscale`, and `C` matrices. The application must use
+the query operations to ensure that the combination of types and
+scales is supported on the device where the kernel calling
+`joint_matrix_bmad` runs.
+
+==== Max Reduction
+For the calculation of scales `Ascale`, `Bscale`, we introduce two new
+APIs `joint_matrix_max_reduction_rows` to compute the max reduction
+along a block of rows in a joint matrix, and
+`joint_matrix_max_reduction_cols` to compute the max reduction along a
+block of columns in a joint matrix. In
+`joint_matrix_max_reduction_rows`, the input matrix has `RowsxCols` elements
+and the output has `Rows` rows and `Cols/32` columns. In
+`joint_matrix_max_reduction_cols`, the input matrix has `RowsxCols` elements
+and the output has `Rows/32` rows and `Cols` columns. Each
+element of the output matrix of `use::scale` is a max value for a
+group of 32 elements in the corresponding row or column in the input matrix.
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, typename T, std::size_t Rows, std::size_t Cols,
+          use Use, layout Layout>
+joint_matrix<Group, T, use::scale, Rows, Cols/32, Layout>
+  joint_matrix_max_reduction_rows(Group g,
+    const joint_matrix<Group, T, Use, Rows, Cols, Layout> &A);
+
+template <typename Group, typename T, std::size_t Rows, std::size_t Cols,
+          use Use, layout Layout>
+joint_matrix<Group, T, use::scale, Rows/32, Cols, Layout>
+  joint_matrix_max_reduction_cols(Group g,
+    const joint_matrix<Group, T, Use, Rows, Cols, Layout> &B);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+==== 4 bits Data Types Conversions
+This API `joint_matrix_convert` extends the existing 4 bits scalar
+conversions to directly work on `joint_matrix` data types. In
+this extension, only 8 bits packing is supported for `fp4_e2m1_x`, so
+`fp4_e2m1_x<2>` is the only usable form.
+There are two definitions for this
+API: with and without seed that is used for stochastic rounding. A
+regular conversion is performed in the first API while a stochastic
+rounding conversion is performed in the second API. In the second API,
+besides the returned converted matrix `dst`, a new seed value is
+generated in `seed`. The two APIs follow the same rounding behavior
+described in
+link:../../proposed/sycl_ext_oneapi_fp4.asciidoc[sycl_ext_oneapi_fp4]
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, typename From, typename To, std::size_t Rows,
+std::size_t Cols, use Use, layout Layout>
+void joint_matrix_convert(Group g,
+                const joint_matrix<Group, From, Use, Rows, Cols, Layout> &src,
+                joint_matrix<Group, To, Use, Rows, Cols, Layout> &dest);
+
+template <typename Group, typename From, typename To, std::size_t Rows,
+std::size_t Cols, use Use, layout Layout>
+void joint_matrix_convert(Group g,
+                const joint_matrix<Group, From, Use, Rows, Cols, Layout> &src,
+                joint_matrix<Group, To, Use, Rows, Cols, Layout> &dest,
+                uint32_t &seed);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+`joint_matrix_convert` does not support all possible combinations of
+conversions. The table below lists the combinations of `From` and `To`
+that are supported: up conversions and down conversions with and without seed
+used for stochastic rounding.
+
+[frame="none",options="header"]
+|======================
+|Description| From | To
+.4+|FP4 E2M1 Upconversions |
+sycl::ext::oneapi::experimental::fp4_e2m1_x<2> | bfloat16
+| sycl::ext::oneapi::experimental::fp4_e2m1_x<2> | sycl::half
+| sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+| sycl::ext::oneapi::experimental::fp8_e4m3_x<1>
+| sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+| sycl::ext::oneapi::experimental::fp8_e5m2_x<1>
+
+
+.2+|FP4 E2M1 Down conversions
+| bfloat16 |sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+| sycl::half | sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+
+.2+|FP4 E2M1 Down conversions with stochastic rounding
+| bfloat16 |sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+| sycl::half | sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+
+
+|======================
+
+==== Example
+In this example, A and B data type is already in FP4 and in
+memory. The quantization is a post-processing step to down convert
+the result of GEMM `joint_matrix_bmad` from bfloat to FP4 to be used
+for the next layer of compute.
+The quantizations of matrix C consists of three steps:
+
+. `compute_scale` user function making a pipeline that feeds directly
+the scales to `joint_matrix_bmad`. Here, N size is 32. This is because
+32 elements of C along the N dimension share the same scale. So
+`compute_scale` takes C matrix with N size is 32. For `compute_scale`,
+`joint_matrix_max_reduction_rows` is used to calculate the max
+reduction along the rows where the input matrix `C` has 32x32 elements
+and the output `CscaleTemp` has 32x1 elements. Then, a conversion to
+`sycl::ext::oneapi::experimental::fp8_e8m0_x<1>` is performed to return
+`Cscale`.
+
+. Each row of Matrix C of type `bfloat16` is divided by `Cscale` row
+element.
+
+.  C is converted to FP4 before it is stored in memory for the
+next layer of GEMM.
+
+//tK/block_scaling_size is not always 1 as we will support bigger
+// combinations to fill up the GRFs (K=64)
+
+```c++
+// FP4 matrices and their scales are already in memory
+joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp4_e2m1_x<2>,
+             use::a, 32, 64, layout::row_major> As;
+joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp4_e2m1_x<2>,
+             use::b, 64, 32, layout::row_major> Bs;
+joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
+             use::scale, 32, 2, layout::row_major> Ascale;
+joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
+             use::scale, 2, 32, layout::row_major> Bscale;
+
+joint_matrix<sub_group, bfloat16, use::accumulator, 32, 32> C;
+joint_matrix_fill(sg, C, 0);
+for (int k = 0; k < K; k += 64) {
+   joint_matrix_load(sg, As, memA + offsetA, K);
+   joint_matrix_load(sg, Bs, memB + offsetB, N);
+   joint_matrix_load(sg, Ascale, memAscale + offsetA, K);
+   joint_matrix_load(sg, Bscale, memBscale + offsetB, K);
+   joint_matrix_bmad(sg, C, As, Bs, Ascale, Bscale, C);
+}
+// C quantization to be used for the next layer
+joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp4_e2m1_x<2>,
+             use::accumulator, 32, 32> Cs;
+joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
+             use::scale, 32, 1, layout::row_major> Cscale;
+// compute_scale(C, &Cscale)
+joint_matrix<sub_group, bfloat16, use::scale, 32, 1,
+             layout::row_major> CscaleTemp;
+CscaleTemp = joint_matrix_max_reduction_rows(C);
+// Conversion and change of use
+joint_matrix_copy(Cscale, CscaleTemp);
+
+joint_matrix_apply(sg, C, [&](T &x, size_t row, size_t col) {
+            x = x / joint_matrix_element(Cscale, row, col/32);
+});
+// Conversion from bfloat16 C to FP4 Cs
+joint_matrix_convert(sg, C, Cs);
+//Store in memory to be used by the next layer
+joint_matrix_store(sg, Cs, memC + offsetC, N, layout::row_major);
+joint_matrix_store(sg, Cscale, memCscale + offsetC, N);
 ```
 
 === Query Interface
@@ -986,7 +1247,10 @@ enum class matrix_type {
   uint8,
   uint16,
   uint32,
-  uint64
+  uint64,
+  fp8_e5m2,
+  fp8_e4m3,
+  fp4_e2m1
 };
 struct combination {
   size_t max_msize;
@@ -1039,7 +1303,10 @@ the `T` template parameter as follows: +
 `uint8`: `uint8_t` +
 `uint16`: `uint16_t` +
 `uint32`: `uint32_t` +
-`uint64`: `uint64_t`
+`uint64`: `uint64_t` +
+`fp8_e5m2`: `sycl::ext::oneapi::experimental::fp8_e5m2_x<1>` +
+`fp8_e4m3`: `sycl::ext::oneapi::experimental::fp8_e4m3_x<1>` +
+`fp4_e2m1`: `sycl::ext::oneapi::experimental::fp4_e2m1_x<2>` +
 |======================
 
 ===== Runtime Query Example:
@@ -1259,6 +1526,26 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_wcl`, `architecture::intel_gpu_nvl_s`,
 `architecture::intel_gpu_nvl_u`, `architecture::intel_gpu_nvl_p`,
 `architecture::intel_gpu_cri`
+|  `matrix_type::fp8_e5m2`       |  `matrix_type::fp8_e5m2`   |
+`matrix_type::fp32`, `matrix_type::bf16` |
+`matrix_type::fp32` , `matrix_type::bf16` |  +<=+ 8 |  16   |  32 |
+`architecture::intel_gpu_cri`
+|  `matrix_type::fp8_e5m2`       |  `matrix_type::fp8_e4m3`   |
+`matrix_type::fp32`, `matrix_type::bf16`|
+`matrix_type::fp32`, `matrix_type::bf16` |  +<=+ 8 |  16   |  32 |
+`architecture::intel_gpu_cri`
+|  `matrix_type::fp8_e4m3`       |  `matrix_type::fp8_e5m2`   |
+`matrix_type::fp32` , `matrix_type::bf16`|
+`matrix_type::fp32`, `matrix_type::bf16`   |  +<=+ 8 |  16   |  32 |
+`architecture::intel_gpu_cri`
+|  `matrix_type::fp8_e4m3`       |  `matrix_type::fp8_e4m3`   |
+`matrix_type::fp32`, `matrix_type::bf16`|
+`matrix_type::fp32`, `matrix_type::bf16`   |  +<=+ 8 |  16   |  32 |
+`architecture::intel_gpu_cri`
+.1+| `matrix_type::fp4_e2m1`  .1+| `matrix_type::fp4_e2m1` .1+|
+`matrix_type::fp32`, `matrix_type::bf16` |
+`matrix_type::fp32`, `matrix_type::bf16`  .1+| 8 |  16 .1+|  32 |
+`architecture::intel_gpu_cri`
 |======================
 
 ===== Restrictions on `architecture::intel_gpu_pvc`,
@@ -1408,4 +1695,8 @@ load/store overloads
 |11  |2024-04-29 |Yury Plyakhin | Add 1x64x16 supported combination for
 Intel XMX (intel_gpu_pvc)
 |12  |2024-06-14 |Jack Kirk | Add note on sm version device matching issue.
+|13  |2026-09-02 |Dounia Khaldi | Add fp8 (`fp8_e5m2_x`, `fp8_e4m3_x`) and
+fp4 (`fp4_e2m1_x`) support: `matrix_type` enumerators, `joint_matrix_convert`
+combinations, and Intel XMX supported combinations for
+`architecture::intel_gpu_cri`
 |======================
