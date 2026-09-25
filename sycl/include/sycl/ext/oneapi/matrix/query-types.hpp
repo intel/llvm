@@ -12,10 +12,20 @@
 #include <sycl/ext/oneapi/bfloat16.hpp>     // for bfloat16
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for tf32
 
+#include <cstddef> // for size_t
 #include <vector>
 
 namespace sycl {
 inline namespace _V1 {
+namespace ext::oneapi::experimental {
+// Forward declarations of the fp8 (E4M3) / bf8 (E5M2) types so this header
+// stays lightweight (the full definitions live in float_8bit/types.hpp).
+template <size_t N> class fp8_e4m3_x;
+template <size_t N> class fp8_e5m2_x;
+using fp8_e4m3 = fp8_e4m3_x<1>;
+using fp8_e5m2 = fp8_e5m2_x<1>;
+} // namespace ext::oneapi::experimental
+
 namespace ext::oneapi::experimental::matrix {
 
 enum class matrix_type {
@@ -31,7 +41,9 @@ enum class matrix_type {
   uint8,
   uint16,
   uint32,
-  uint64
+  uint64,
+  fp8_e4m3,
+  fp8_e5m2
 };
 
 struct combination {
@@ -108,6 +120,16 @@ template <> constexpr const char *convertTypeToMatrixTypeString<uint32_t>() {
 }
 template <> constexpr const char *convertTypeToMatrixTypeString<uint64_t>() {
   return "matrix_type::uint64";
+}
+template <>
+constexpr const char *
+convertTypeToMatrixTypeString<sycl::ext::oneapi::experimental::fp8_e4m3>() {
+  return "matrix_type::fp8_e4m3";
+}
+template <>
+constexpr const char *
+convertTypeToMatrixTypeString<sycl::ext::oneapi::experimental::fp8_e5m2>() {
+  return "matrix_type::fp8_e5m2";
 }
 } // namespace detail
 } // namespace _V1
