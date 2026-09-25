@@ -114,7 +114,6 @@ public:
     wasm64,         // WebAssembly with 64-bit pointers
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
-    fpga,           // Intel FPGA
     native_cpu,     // Native CPU
     ve,             // NEC SX-Aurora Vector Engine
     LastArchType = ve
@@ -170,8 +169,6 @@ public:
 
     MipsSubArch_r6,
 
-    SPIRSubArch_fpga,
-    SPIRSubArch_fpga_image,
     SPIRSubArch_gen,
     SPIRSubArch_gen_image,
     SPIRSubArch_x86_64,
@@ -980,8 +977,7 @@ public:
 
   /// Tests whether the target is SPIR and AOT related.
   bool isSPIRAOT() const {
-    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_fpga ||
-                        getSubArch() == Triple::SPIRSubArch_gen ||
+    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_gen ||
                         getSubArch() == Triple::SPIRSubArch_x86_64);
   }
 
