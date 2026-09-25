@@ -306,6 +306,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
 
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
+        if "target-spir_gen" in build_targets:
+            sycl_target_opts += " -Xsycl-target-backend=spir64_gen {}".format(
+                test.config.gpu_aot_target_opts
+            )
         if "target-amd" in build_targets:
             hip_arch_opts = (
                 " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(
