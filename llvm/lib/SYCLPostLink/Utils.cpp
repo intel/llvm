@@ -67,7 +67,10 @@ Error llvm::sycl_post_link::saveModuleIR(Module &M, const StringRef Filename,
   PassBuilder PB;
   PB.registerModuleAnalyses(MAM);
   if (OutputAssembly)
-    MPM.addPass(PrintModulePass(Out));
+    MPM.addPass(PrintModulePass(Out, /*Banner=*/"",
+                                /*ShouldPreserveUseListOrder=*/false,
+                                /*EmitSummaryIndex=*/false,
+                                /*ShouldRenumberMetadata=*/true));
   else
     MPM.addPass(BitcodeWriterPass(Out));
   MPM.run(M, MAM);
