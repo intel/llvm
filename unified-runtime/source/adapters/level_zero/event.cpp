@@ -20,6 +20,7 @@
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
+#include "ur_util.hpp"
 
 namespace ur::level_zero::v1 {
 
@@ -1610,6 +1611,15 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
         auto CurQueueDevice = CurQueue->Device;
         std::optional<std::unique_lock<ur_shared_mutex>> QueueLock =
             std::nullopt;
+        bool CurQueueUnlocked = false;
+        // Restore the caller's lock even on early returns or exceptions, but
+        // only after releasing the event lock and the other queue's lock.
+        OnScopeExit RestoreQueueLock([&] {
+          if (CurQueueUnlocked) {
+            QueueLock.reset();
+            CurQueue->Mutex.lock();
+          }
+        });
         // The caller of createAndRetainUrZeEventList must already hold
         // a lock of the CurQueue. However, if the CurQueue is different
         // then the Event's Queue, we need to drop that lock and
@@ -1622,6 +1632,7 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
         // of this scope.
         if (Queue && Queue != CurQueue) {
           CurQueue->Mutex.unlock();
+          CurQueueUnlocked = true;
           QueueLock = std::unique_lock<ur_shared_mutex>(Queue->Mutex);
         }
 
@@ -1727,10 +1738,6 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
           this->UrEventList[TmpListLength]->RefCount.retain();
         }
 
-        if (QueueLock.has_value()) {
-          QueueLock.reset();
-          CurQueue->Mutex.lock();
-        }
         TmpListLength += 1;
       }
     }
