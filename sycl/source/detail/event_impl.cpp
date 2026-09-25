@@ -405,6 +405,21 @@ void event_impl::wait(bool *Success) {
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
+  // Opportunistically release any resources (completed commands, USM/mem
+  // objects and other auxiliary allocations, e.g. internal scratch buffers
+  // used by some reduction strategies) that were only being kept alive
+  // because their release is normally deferred for batching/performance
+  // reasons (see GlobalHandler::isOkToDefer()). Without this, such
+  // resources -- and the queue/context they keep alive -- are not actually
+  // released until global runtime shutdown, even though the event they were
+  // attached to has already completed here. On Windows, deferring this
+  // release until shutdown can race with library unloading and be
+  // misreported as a resource leak by validation tooling (see
+  // https://github.com/intel/llvm/issues/22233). This call is
+  // non-blocking: it only erases/releases entries that are already safe to
+  // release.
+  detail::Scheduler::getInstance().releaseResources(BlockingT::NON_BLOCKING);
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
