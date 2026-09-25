@@ -2,8 +2,8 @@
 // REQUIRES: target-spir
 // REQUIRES: vulkan
 
-// XFAIL: windows && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21125
+// Fix for Windows SYCL to Vulkan memory export interop, landed in driver 39758.
+// REQUIRES-INTEL-DRIVER: lin: 39758
 
 // clang-format off
 
