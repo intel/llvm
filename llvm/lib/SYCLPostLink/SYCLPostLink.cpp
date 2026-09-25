@@ -35,7 +35,10 @@ Error saveModuleIRInFile(Module &M, StringRef FilePath, bool OutputAssembly) {
   ModuleAnalysisManager MAM;
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   if (OutputAssembly)
-    MPM.addPass(PrintModulePass(OS));
+    MPM.addPass(PrintModulePass(OS, /*Banner=*/"",
+                                /*ShouldPreserveUseListOrder=*/false,
+                                /*EmitSummaryIndex=*/false,
+                                /*ShouldRenumberMetadata=*/true));
   else
     MPM.addPass(BitcodeWriterPass(OS));
 
