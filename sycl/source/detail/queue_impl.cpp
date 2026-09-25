@@ -1161,6 +1161,8 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
         ResEventImpl->setSubmissionTime();
+        ResEventImpl->setPotentiallyNativeRecorded(
+            getContextImpl().isNativeRecordingActive());
         MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...,
                   getUrEvents(ExpandedDepEvents), &UREvent);
         ResEventImpl->setHandle(UREvent);

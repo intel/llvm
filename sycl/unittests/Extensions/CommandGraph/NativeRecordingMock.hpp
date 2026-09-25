@@ -27,6 +27,8 @@ namespace NativeRecordingMock {
 struct TraceEntry {
   std::string EntryPoint;
   const void *Handle;
+  // The call's UR event wait list (relevant for enqueue ops)
+  std::optional<std::vector<ur_event_handle_t>> WaitList;
 };
 
 // Unique per-graph state
@@ -54,7 +56,9 @@ struct MockState {
 MockState &state();
 
 // Records a call to EntryPoint, optionally against the object it was about.
-void trace(std::string EntryPoint, const void *Handle = nullptr);
+void trace(
+    std::string EntryPoint, const void *Handle = nullptr,
+    std::optional<std::vector<ur_event_handle_t>> WaitList = std::nullopt);
 
 // Fails EntryPoint before its mock implementation runs while still tracing the
 // call
@@ -107,6 +111,11 @@ size_t traceCount(std::string_view EntryPoint, const void *Handle);
 // Position of the first call to EntryPoint, so that comparing two positions
 // orders two calls. Fails the test and returns npos if it was never called.
 size_t traceIndex(std::string_view EntryPoint);
+
+using UrWaitLists = std::vector<std::vector<ur_event_handle_t>>;
+
+// Event wait list seen by each call to EntryPoint, in call order.
+UrWaitLists getUrWaitLists(std::string_view EntryPoint);
 
 // Resets the mock state and registers the callbacks. Must run after the UrMock
 // constructor. The default callbacks are meant to
