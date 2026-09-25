@@ -84,22 +84,6 @@ void SPIR64TargetInfo::getTargetDefines(const LangOptions &Opts,
   DefineStd(Builder, "SPIR64", Opts);
 }
 
-bool BaseSPIRTargetInfo::initFeatureMap(
-    llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
-    const std::vector<std::string> &FeaturesVec) const {
-  // When the host predefines _M_X64, MSVC STL headers use always_inline _mm_*
-  // intrinsics, which require sse/sse2 in the device feature set.
-  if (const TargetInfo *Host = getHostTarget()) {
-    const llvm::Triple &HT = Host->getTriple();
-    if (HT.isWindowsMSVCEnvironment() &&
-        (HT.getArch() == llvm::Triple::x86_64 || HT.isWindowsArm64EC())) {
-      Features["sse"] = true;
-      Features["sse2"] = true;
-    }
-  }
-  return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
-}
-
 void BaseSPIRVTargetInfo::getTargetDefines(const LangOptions &Opts,
                                            MacroBuilder &Builder) const {
   DefineStd(Builder, "SPIRV", Opts);
@@ -124,6 +108,22 @@ void SPIRV64TargetInfo::getTargetDefines(const LangOptions &Opts,
                                          MacroBuilder &Builder) const {
   BaseSPIRVTargetInfo::getTargetDefines(Opts, Builder);
   DefineStd(Builder, "SPIRV64", Opts);
+}
+
+bool BaseSPIRTargetInfo::initFeatureMap(
+    llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
+    const std::vector<std::string> &FeaturesVec) const {
+  // When the host predefines _M_X64, MSVC STL headers use always_inline _mm_*
+  // intrinsics, which require sse/sse2 in the device feature set.
+  if (const TargetInfo *Host = getHostTarget()) {
+    const llvm::Triple &HT = Host->getTriple();
+    if (HT.isWindowsMSVCEnvironment() &&
+        (HT.getArch() == llvm::Triple::x86_64 || HT.isWindowsArm64EC())) {
+      Features["sse"] = true;
+      Features["sse2"] = true;
+    }
+  }
+  return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
 }
 
 static const AMDGPUTargetInfo
