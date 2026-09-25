@@ -18,7 +18,6 @@
 #include <sycl/detail/fwd/buffer.hpp>                 // for buffer (fwd)
 #include <sycl/detail/generic_type_traits.hpp>        // for is_genint, Try...
 #include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
-#include <sycl/detail/is_device_copyable.hpp>         // for is_device_copyable
 #include <sycl/detail/loop.hpp>                       // for loop
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
@@ -758,6 +757,10 @@ public:
       : impl({}, detail::InitializedVal<AdjustedDim, range>::template get<0>(),
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
@@ -821,6 +824,10 @@ public:
             /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
             /*IsPlaceH=*/false,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   template <typename, int, access_mode> friend class host_accessor;
 
@@ -2417,6 +2424,10 @@ public:
                                              range>::template get<0>();
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~local_accessor() {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
   local_accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
 #endif
@@ -2583,6 +2594,9 @@ protected:
 
 public:
   host_accessor() : AccessorT() {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~host_accessor() {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // The list of host_accessor constructors with their arguments
   // -------+---------+-------+----+----------+--------------
@@ -2827,20 +2841,6 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
               Type5) -> host_accessor<DataT, Dimensions,
                                       detail::deduceAccessMode<Type4, Type5>()>;
 
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-struct is_device_copyable<accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                                   IsPlaceholder, PropertyListT>>
-    : std::false_type {};
-
-template <typename DataT, int Dimensions>
-struct is_device_copyable<local_accessor<DataT, Dimensions>> : std::false_type {
-};
-
-template <typename DataT, int Dimensions, access_mode AccessMode>
-struct is_device_copyable<host_accessor<DataT, Dimensions, AccessMode>>
-    : std::false_type {};
 
 } // namespace _V1
 } // namespace sycl
