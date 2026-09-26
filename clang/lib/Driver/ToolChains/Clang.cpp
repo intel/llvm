@@ -12442,7 +12442,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         Devices.assign(1, StringRef());
 
       StringRef KindPrefix = Action::GetOffloadKindName(Action::OFK_SYCL);
-      ArgStringList BuildArgs;
       for (StringRef Device : Devices) {
         SmallString<64> Key(TC->getTripleString());
         if (!Device.empty()) {
