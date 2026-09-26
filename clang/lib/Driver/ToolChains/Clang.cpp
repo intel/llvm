@@ -41,6 +41,7 @@
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Frontend/Debug/Options.h"
+#include "llvm/Frontend/Offloading/SYCLBackendOptions.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/ProfileData/InstrProfReader.h"
@@ -10688,9 +10689,8 @@ static void addRunTimeWrapperOpts(Compilation &C,
   // token containing an embedded space is corrupted by this round trip
   // unless it happens to fall inside the pre-existing "-options \"...\""
   // wrapper convention. Forwarding these as individual tokens instead of a
-  // joined string (as is already done for the CLI-supplied
-  // --device-compiler=/--device-linker= counterpart via AOTDeviceArgs) would
-  // avoid this.
+  // joined string (as done for the mapped CLI-supplied AOT options in
+  // AOTDeviceArgs) would avoid this.
   auto createArgString = [&](const char *Opt) {
     if (BuildArgs.empty())
       return;
@@ -11016,10 +11016,9 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       // individual token containing an embedded space (e.g. from
       // -Xsycl-target-backend "-abc 'multi word'") is corrupted by this
       // round trip unless it happens to fall inside the pre-existing
-      // "-options \"...\"" wrapper convention. The CLI-supplied counterpart
-      // of these options (--device-compiler=/--device-linker=) avoids this
-      // by forwarding individual tokens (AOTDeviceArgs); the image-embedded
-      // path here still does not.
+      // "-options \"...\"" wrapper convention. Mapped CLI-supplied AOT
+      // options sent via --device-linker= avoid this by forwarding individual
+      // tokens (AOTDeviceArgs); the image-embedded path still does not.
       auto createArgString = [&](const char *Opt) {
         if (BuildArgs.empty())
           return;
@@ -11943,6 +11942,22 @@ static bool requiresUBSanRT(unsigned ID) {
   }
 }
 
+/// Render \p Value as a clang-linker-wrapper option for the SYCL SPIR backend
+/// of \p TC. JIT options are routed to the runtime compiler or linker. AOT
+/// tools (ocloc/opencl-aot) have a single option namespace, so all AOT options
+/// go through --device-linker=.
+static const char *renderSYCLBackendOption(const ArgList &Args,
+                                           const ToolChain &TC, bool IsLink,
+                                           StringRef Value) {
+  StringRef Prefix =
+      llvm::offloading::getSYCLBackendOptionPrefix(TC.getTriple(), IsLink);
+  StringRef WrapperOption = IsLink || TC.getTriple().isSPIRAOT()
+                                ? "--device-linker=sycl:"
+                                : "--device-compiler=sycl:";
+  return Args.MakeArgString(WrapperOption + TC.getTripleString() + "=" +
+                            Prefix + Value);
+}
+
 void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                  const InputInfo &Output,
                                  const InputInfoList &Inputs,
@@ -12044,12 +12059,30 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   const Driver &D = getToolChain().getDriver();
   const llvm::Triple TheTriple = getToolChain().getTriple();
+  const bool HasSYCL = C.hasOffloadToolChain<Action::OFK_SYCL>();
   ArgStringList CmdArgs;
+  Arg *CUDAPath = Args.getLastArg(OPT_cuda_path_EQ);
+  Arg *ROCmPath = Args.getLastArg(OPT_rocm_path_EQ);
+  // Different offload kinds may use the same device triple.
+  llvm::SmallSet<StringRef, 4> PathTriples;
   for (Action::OffloadKind Kind : {Action::OFK_Cuda, Action::OFK_OpenMP,
                                    Action::OFK_HIP, Action::OFK_SYCL}) {
     auto TCRange = C.getOffloadToolChains(Kind);
     for (auto &I : llvm::make_range(TCRange)) {
       const ToolChain *TC = I.second;
+
+      // Scope compiler paths to their device targets when SYCL is present.
+      // Otherwise preserve the unscoped forwarding below.
+      bool IsNVPTX = TC->getTriple().isNVPTX();
+      Arg *DevicePath = IsNVPTX                      ? CUDAPath
+                        : TC->getTriple().isAMDGPU() ? ROCmPath
+                                                     : nullptr;
+      if (HasSYCL && DevicePath &&
+          PathTriples.insert(TC->getTripleString()).second)
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-compiler=" + TC->getTripleString() + "=" +
+            (IsNVPTX ? "--cuda-path=" : "--rocm-path=") +
+            DevicePath->getValue()));
 
       // We do not use a bound architecture here so options passed only to a
       // specific architecture via -Xarch_<cpu> will not be forwarded.
@@ -12070,14 +12103,21 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
 
-      if (Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV()) {
+      const bool IsSYCLSPIR =
+          Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV();
+      if (IsSYCLSPIR) {
         // For SYCL offloading with SPIR-V targets, add implied backend compiler
         // arguments depending on the target device and compilation mode.
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
-        SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
+        // Implied settings also depend on SYCL-specific flags that are not
+        // device-compiler flags (e.g. fp64 emulation), so inspect the full
+        // target argument list rather than BaseCompilerArgs.
+        // TODO: A one-step compile+link also embeds these settings in the
+        // device image, so the wrapper sees both copies.
+        SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), ToolChainArgs,
                                          CompilerArgs, JA, *HostTC);
       } else {
         // For non-SPIR-V SYCL targets or other offload kinds (CUDA, OpenMP,
@@ -12130,10 +12170,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
 
-      // Forward all of these to the appropriate toolchain.
+      // For SYCL SPIR, CompilerArgs holds the implied native backend options,
+      // which use the same mapping as explicit backend options.
       for (StringRef Arg : CompilerArgs)
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" + TC->getTripleString() + "=" + Arg));
+        CmdArgs.push_back(
+            IsSYCLSPIR
+                ? renderSYCLBackendOption(Args, *TC, /*IsLink=*/false, Arg)
+                : Args.MakeArgString("--device-compiler=" +
+                                     TC->getTripleString() + "=" + Arg));
       for (StringRef Arg : LinkerArgs)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-linker=" + TC->getTripleString() + "=" + Arg));
@@ -12175,19 +12219,22 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.hasArg(options::OPT_v) && !SuppressHIPNoRDCVerbose)
     CmdArgs.push_back("--wrapper-verbose");
-  if (Arg *A = Args.getLastArg(options::OPT_cuda_path_EQ)) {
+  if (CUDAPath)
     CmdArgs.push_back(
-        Args.MakeArgString(Twine("--cuda-path=") + A->getValue()));
-    CmdArgs.push_back(Args.MakeArgString(
-        Twine("--device-compiler=--cuda-path=") + A->getValue()));
-  }
-  if (Arg *A = Args.getLastArg(options::OPT_rocm_path_EQ)) {
-    CmdArgs.push_back(Args.MakeArgString(
-        Twine("--device-compiler=--rocm-path=") + A->getValue()));
+        Args.MakeArgString(Twine("--cuda-path=") + CUDAPath->getValue()));
+
+  // Non-SYCL invocations retain the unscoped device compiler paths.
+  if (!HasSYCL) {
+    if (CUDAPath)
+      CmdArgs.push_back(Args.MakeArgString("--device-compiler=--cuda-path=" +
+                                           StringRef(CUDAPath->getValue())));
+    if (ROCmPath)
+      CmdArgs.push_back(Args.MakeArgString("--device-compiler=--rocm-path=" +
+                                           StringRef(ROCmPath->getValue())));
   }
 
   // Add any SYCL offloading specific options to the clang-linker-wrapper
-  if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+  if (HasSYCL) {
 
     // Forward the user provided location for ocloc.
     if (Arg *A = Args.getLastArg(options::OPT_ocloc_path_EQ))
@@ -12380,11 +12427,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-suppress-undefined-func-warnings"));
 
-    // Pass backend compiler, linker, sycl-post-link,
-    // llvm-spirv, and spirv-to-ir-wrapper options specified at link
-    // time to clang-linker-wrapper, using the following mapping:
-    // -Xsycl-target-backend  -> --device-compiler
-    // -Xsycl-target-linker -> --device-linker
+    // Pass backend compiler, linker, sycl-post-link, llvm-spirv, and
+    // spirv-to-ir-wrapper options to clang-linker-wrapper:
+    // -Xsycl-target-backend/-Xsycl-target-linker -> mapped backend options
+    //   (see renderSYCLBackendOption), so generic clang options such as
+    //   -flto cannot leak into the SYCL backends.
     // -Xdevice-post-link -> --sycl-post-link-options
     // -Xspirv-translator -> --llvm-spirv-options
     // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
@@ -12398,18 +12445,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       ArgStringList BuildArgs;
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
+      for (StringRef A : BuildArgs)
         CmdArgs.push_back(
-            Args.MakeArgString("--device-compiler=" +
-                               Action::GetOffloadKindName(Action::OFK_SYCL) +
-                               ":" + TC->getTripleString() + "=" + A));
+            renderSYCLBackendOption(Args, *TC, /*IsLink=*/false, A));
 
       BuildArgs.clear();
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
-            ":" + TC->getTripleString() + "=" + A));
+      for (StringRef A : BuildArgs)
+        CmdArgs.push_back(
+            renderSYCLBackendOption(Args, *TC, /*IsLink=*/true, A));
 
       BuildArgs.clear();
       SYCLTC.TranslateTargetOpt(

@@ -15,6 +15,46 @@
 //
 // RUN: touch %t.devicelib.bc
 
+// A mixed target group (same triple and arch) needs separate kind-scoped
+// arguments for SYCL post-link and the OpenMP clang backend.
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.openmp.o
+// RUN: llvm-offload-binary -o %t.mixed.bin --image=file=%t.openmp.o,kind=openmp,triple=nvptx64-nvidia-cuda,arch=sm_50
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.mixed.o -fembed-offload-object=%t.mixed.bin
+// RUN: clang-linker-wrapper --dry-run --linker-path=/usr/bin/ld -o /dev/null %t_nvptx.o %t.mixed.o --device-compiler=sycl:nvptx64=-gSYCL --device-compiler=openmp:nvptx64-nvidia-cuda=-gOMP 2>&1 | FileCheck -check-prefix=CHK-MIXED-KIND %s
+// CHK-MIXED-KIND: clang{{.*}} --target=nvptx64-nvidia-cuda -march=sm_50{{.*}} -gSYCL
+// CHK-MIXED-KIND-NOT: -gOMP
+// CHK-MIXED-KIND: clang{{.*}} --target=nvptx64-nvidia-cuda -march=sm_50{{.*}} -gOMP
+// CHK-MIXED-KIND-NOT: -gSYCL
+
+// JIT image options must be explicitly mapped. Generic clang options,
+// including -flto, must not be stored as runtime compiler/linker options.
+// RUN: clang-linker-wrapper --device-compiler=spir64-unknown-unknown=-flto=full --device-linker=sycl:spir64-unknown-unknown=-clang-link-opt --device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-jit-compile1 --device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-jit-compile2 --device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-jit-link --device-compiler=sycl:spir64-unknown-unknown=--jit-linker-options=-wrong-kind --device-linker=sycl:spir64-unknown-unknown=--jit-compiler-options=-wrong-kind --device-compiler=sycl:spir64_gen-unknown-unknown=--jit-compiler-options=-wrong-triple --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | grep 'offload-wrapper:' | FileCheck -check-prefix=CHK-MAPPED-JIT %s
+// CHK-MAPPED-JIT-NOT: -flto
+// CHK-MAPPED-JIT-NOT: -clang-link-opt
+// CHK-MAPPED-JIT-NOT: -wrong-kind
+// CHK-MAPPED-JIT-NOT: -wrong-triple
+// CHK-MAPPED-JIT: offload-wrapper: output: {{.*}}, input: {{.*}}, compile-opts: {{.*}}-jit-compile1 -jit-compile2, link-opts: -jit-link{{ *$}}
+// CHK-MAPPED-JIT-NOT: -flto
+// CHK-MAPPED-JIT-NOT: -clang-link-opt
+// CHK-MAPPED-JIT-NOT: -wrong-kind
+// CHK-MAPPED-JIT-NOT: -wrong-triple
+
+// Colons in unscoped option values must not be parsed as offload kinds.
+// RUN: clang-linker-wrapper --device-compiler=spir64=--jit-compiler-options=-foo:bar --device-compiler=spir64=-plain:x --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-COLON-JIT %s
+// CHK-COLON-JIT: offload-wrapper: {{.*}}compile-opts: {{.*}}-foo:bar, link-opts:
+
+// Unscoped CUDA/ROCm paths reach SYCL SPIR targets too. They are ignored
+// and do not become JIT options.
+// RUN: clang-linker-wrapper --device-compiler=--cuda-path=/tmp/cuda --device-compiler=--rocm-path=/tmp/rocm --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-OTHER-TOOLCHAIN %s
+// CHK-OTHER-TOOLCHAIN: offload-wrapper: output:
+// CHK-OTHER-TOOLCHAIN-NOT: --cuda-path=
+// CHK-OTHER-TOOLCHAIN-NOT: --rocm-path=
+
+// Explicitly scoped sycl-post-link options reach sycl-post-link.
+// RUN: clang-linker-wrapper --sycl-post-link-options=sycl:spir64-unknown-unknown=-split=kernel --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-POST-LINK-SPLIT %s
+// CHK-POST-LINK-SPLIT: sycl-post-link{{.*}} -split=kernel
+
+
 // Basic SYCL test.
 //
 // RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS %s
@@ -125,17 +165,40 @@
 // CHK-CMDS-AOT-GEN-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
-// Check that a "-device pvc" specification split across two separate
-// --device-linker= arguments (each --device-compiler=/--device-linker= CLI
-// occurrence becomes exactly one ocloc argv entry, so a multi-token value
-// must be supplied as separate occurrences) is reconstructed correctly in
-// the ocloc invocation.
-// RUN: clang-linker-wrapper --device-linker=spir64_gen-unknown-unknown=-device --device-linker=spir64_gen-unknown-unknown=pvc --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN-LINKERARG %s
+// Check that mapped "-device pvc" tokens in separate --device-linker=
+// occurrences are detected and forwarded to ocloc.
+// RUN: clang-linker-wrapper --device-linker=spir64_gen-unknown-unknown=--ocloc-options=-device --device-linker=spir64_gen-unknown-unknown=--ocloc-options=pvc --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN-LINKERARG %s
 // Check that the device supplied via '--device-linker=' is correctly detected.
 // This prevents the target from being redundantly passed to sycl-post-link
 // for filtering, which would add an 'intel_gpu_pvc,' prefix to the -o argument.
 // CHK-NO-CMDS-AOT-GEN-LINKERARG: sycl-post-link"{{.*}} -o {{[^,]*}}.table {{.*}}.bc
 // CHK-NO-CMDS-AOT-GEN-LINKERARG: ocloc{{.*}} -device pvc -output
+
+// Both wrapper options accept explicitly mapped AOT tokens, though the
+// driver emits --device-linker= for both backend and linker options.
+// RUN: clang-linker-wrapper --device-compiler=sycl:spir64_gen-unknown-unknown=--ocloc-options=-from-compiler --device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-from-linker --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-AOT-BOTH %s
+// CHK-AOT-BOTH: ocloc{{.*}} -from-compiler -from-linker -output
+
+// Only mapped options reach ocloc. Unmapped clang flags (including LTO),
+// options for the other AOT tool, and options for another triple are ignored.
+// Each mapped value remains a distinct argv entry, even with embedded spaces.
+// RUN: clang-linker-wrapper --device-compiler=spir64_gen-unknown-unknown=-flto=full --device-linker=spir64_gen-unknown-unknown=-bad-link-opt --device-linker=spir64_gen-unknown-unknown=--opencl-aot-options=-wrong-tool --device-linker=spir64_x86_64-unknown-unknown=--ocloc-options=-wrong-triple --device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-first --device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-second --device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options='-options=two words' --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | grep ' -output_no_suffix ' | FileCheck -check-prefix=CHK-MAPPED-GPU %s
+// CHK-MAPPED-GPU-NOT: -flto
+// CHK-MAPPED-GPU-NOT: -bad-link-opt
+// CHK-MAPPED-GPU-NOT: -wrong-tool
+// CHK-MAPPED-GPU-NOT: -wrong-triple
+// CHK-MAPPED-GPU: ocloc{{.*}} -first -second -options=two words -output
+// CHK-MAPPED-GPU-NOT: -flto
+// CHK-MAPPED-GPU-NOT: -bad-link-opt
+// CHK-MAPPED-GPU-NOT: -wrong-tool
+// CHK-MAPPED-GPU-NOT: -wrong-triple
+
+// RUN: clang-linker-wrapper --device-compiler=spir64_x86_64-unknown-unknown=-flto=thin --device-linker=spir64_x86_64-unknown-unknown=--ocloc-options=-wrong-tool --device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-g --device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=-cpu-opt --linker-path=/usr/bin/ld -o /dev/null %t_aot_cpu.o --dry-run 2>&1 | grep ' --device=cpu ' | FileCheck -check-prefix=CHK-MAPPED-CPU %s
+// CHK-MAPPED-CPU-NOT: -flto
+// CHK-MAPPED-CPU-NOT: -wrong-tool
+// CHK-MAPPED-CPU: opencl-aot{{.*}} --device=cpu --bo=-g -cpu-opt -o
+// CHK-MAPPED-CPU-NOT: -flto
+// CHK-MAPPED-CPU-NOT: -wrong-tool
 
 // Check that --ocloc-path= provides the location of the ocloc tool.
 // RUN: clang-linker-wrapper --ocloc-path=/my/ocloc/dir --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-OCLOC-PATH %s

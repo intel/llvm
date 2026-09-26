@@ -26,7 +26,9 @@ USAGE: clang-linker-wrapper [options] -- <options to pass to the linker>
 OPTIONS:
   --cuda-path=<dir>      Set the system CUDA path
   --device-debug         Use debugging
-  --device-linker=<value> or <triple>=<value>
+  --device-compiler=[<kind>:][<triple>=]<value>
+                         Arguments to pass to the device compiler invocation
+  --device-linker=[<kind>:][<triple>=]<value>
                          Arguments to pass to the device linker invocation
   --dry-run              Print program arguments without running
   --help-hidden          Display all available options
@@ -57,6 +59,15 @@ OPTIONS:
   --version              Display the version number and exit
   --                     The separator for the wrapped linker arguments
 ```
+
+For SYCL SPIR targets, device compiler/linker values must carry a
+tool-specific prefix; other values are ignored:
+- JIT: `--device-compiler=sycl:<triple>=--jit-compiler-options=<arg>` and
+  `--device-linker=sycl:<triple>=--jit-linker-options=<arg>`.
+- AOT: `--ocloc-options=<arg>` (Intel GPU) or `--opencl-aot-options=<arg>`
+  (Intel CPU), via either option. The Clang driver uses `--device-linker=`.
+
+An architecture name such as `spir64_gen` can replace the full SYCL triple.
 
 The linker wrapper will generate the appropriate runtime calls to register the
 generated device binary with the offloading runtime. To do this step manually we

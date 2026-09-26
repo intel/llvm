@@ -30,6 +30,13 @@
 
 ### Changes that are effective immediately
 
+- With `--offload-new-driver`, unprefixed `-Xoffload-compiler` and
+  `-Xoffload-linker[-<triple>]` options (and direct unprefixed
+  `--device-compiler`/`--device-linker` wrapper options) no longer reach SYCL
+  SPIR JIT, `ocloc`, or `opencl-aot`; the wrapper ignores them.
+  Use `-Xsycl-target-backend`/`-Xsycl-target-linker` or the mapped wrapper
+  forms described in `clang/docs/ClangLinkerWrapper.md` instead.
+
 - Removed ... intel/llvm#pr
 
 ### Deprecations
@@ -48,6 +55,13 @@ in the next ABI-breaking release:
 - Removed ... intel/llvm#pr
 
 ## Known Issues
+
+- In a one-step SYCL AOT compile-and-link, implied backend settings can be
+  supplied both in the embedded device image and on the linker-wrapper command
+  line. This can pass `-options` to `ocloc` twice. `ocloc` concatenates the two
+  option values in command-line order; it does not reject the duplicate or
+  discard the first value. This duplication predates the tool-specific option
+  mapping.
 
 - ...
 

@@ -23,6 +23,7 @@
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
+#include "llvm/Frontend/Offloading/SYCLBackendOptions.h"
 #include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/Frontend/Offloading/Utility.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -1029,11 +1030,9 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// any of them.
 /// \p BackendOptions is a string containing backend compilation options
 /// extracted from the device image (e.g. "-options -cl-opt-disable").
-/// \p AOTDeviceArgs are additional options supplied on the clang-linker-
-/// wrapper command line via --device-compiler=/--device-linker=; each is
-/// already an individual token and is appended to \p CmdArgs verbatim,
-/// without being merged into \p BackendOptions and re-split, so that tokens
-/// containing embedded spaces are preserved intact.
+/// \p AOTDeviceArgs are mapped tool options supplied via --device-linker=;
+/// each is an individual token appended to \p CmdArgs verbatim, preserving
+/// embedded spaces.
 // FIXME: This literal-substring split on "-options " is inherently fragile
 // (e.g. link-opts appended after a compile-opts "-options ..." blob get
 // silently absorbed into the -options value). The root issue is that
@@ -1145,9 +1144,7 @@ runAOTCompileIntelGPU(StringRef InputFile, const ArgList &Args,
 /// code.
 /// \p BackendOptions is a string containing backend compilation options
 /// extracted from the device image. For example, "-options -cl-opt-disable".
-/// \p AOTDeviceArgs are additional individual option tokens supplied on the
-/// clang-linker-wrapper command line via --device-compiler=/
-/// --device-linker=.
+/// \p AOTDeviceArgs are mapped tool options supplied via --device-linker=.
 static Expected<StringRef> runAOTCompile(StringRef InputFile,
                                          const ArgList &Args,
                                          StringRef BackendOptions,
@@ -2074,13 +2071,11 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
 
   // AOT tools (ocloc/opencl-aot) don't distinguish compile vs. link options,
-  // so combine both here regardless of whether an option arrived via
-  // --device-compiler= or --device-linker=. CompileLinkOptions holds only
-  // the options extracted from the image for AOT triples (a flat, already
-  // space-joined string); options supplied on the CLI for this invocation
-  // live separately in AOTDeviceArgs, as individual tokens, and are appended
-  // later (in runAOTCompileIntelGPU/CPU) without being folded into this
-  // string, so that values with embedded spaces survive intact.
+  // so combine both here for image-embedded options. CLI options for AOT
+  // are accepted only with the matching tool-specific mapping prefix.
+  // CompileLinkOptions holds image-embedded options as flat strings; mapped
+  // CLI options live separately in AOTDeviceArgs and are appended without
+  // re-splitting, preserving values with embedded spaces.
   // FIXME: Concatenating compile-opts and link-opts into one flat string
   // here means any "-options ..." wrapper already present in compile-opts
   // (see SYCLToolChain::AddSPIRVImpliedTargetArgs) will swallow the
@@ -2094,7 +2089,7 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   // in linkAndWrapDeviceFiles() above, which decides whether CLI-supplied
   // options for this triple go into AOTDeviceArgs (token vector) or get
   // folded into CompileLinkOptions (flat string). Nothing enforces
-  // agreement between the two; see the TODO there for the suggested fix.
+  // agreement between the two.
   if (Triple.isSPIRAOT()) {
     AOTOptions = CompileLinkOptions.first;
     if (!CompileLinkOptions.second.empty()) {
@@ -2558,7 +2553,7 @@ bundleLinkedOutput(ArrayRef<OffloadingImage> Images, const ArgList &Args,
 /// Returns a new ArgList containing arguments used for the device linking
 /// phase.
 DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
-                             const InputArgList &Args) {
+                             const InputArgList &Args, OffloadKind ImageKind) {
   DerivedArgList DAL(Args);
   for (Arg *A : Args)
     DAL.append(A);
@@ -2591,18 +2586,26 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
     for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
       size_t ColonPos = DeviceArgValue.find(':');
       if (ColonPos != StringRef::npos) {
-        StringRef Kind = DeviceArgValue.take_front(ColonPos);
-        if (getOffloadKind(Kind) != OFK_SYCL)
-          continue;
-        DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
+        OffloadKind Kind = getOffloadKind(DeviceArgValue.take_front(ColonPos));
+        // Only a recognized kind is a selector. Colons in option values
+        // (including values after a target triple) are not selectors.
+        if (Kind != OFK_None) {
+          if (Kind != ImageKind)
+            continue;
+          DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
+        }
       }
       size_t EqPos = DeviceArgValue.find('=');
       if (EqPos != StringRef::npos) {
         StringRef ArgTargetTripleStr = DeviceArgValue.take_front(EqPos);
         llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
         // If this isn't a recognized triple then it's an `arg=value` option.
+        // Short architecture selectors are supported for SYCL images only;
+        // do not extend this driver-specific spelling to other offload kinds.
         if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
-          if (ArgTargetTripleStr != TripleStr)
+          if (llvm::Triple::normalize(ArgTargetTripleStr) !=
+                  llvm::Triple::normalize(TripleStr) &&
+              !(ImageKind == OFK_SYCL && ArgTargetTripleStr == T.getArchName()))
             continue;
           DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
         }
@@ -2723,16 +2726,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         Tbl.parseArgs(Argc, Argv, OPT_INVALID, Saver, [](StringRef Err) {
           reportError(createStringError(Err));
         });
-    auto LinkerArgs = getLinkerArgs(Input, BaseArgs);
     bool HasSYCLOffloadKind = false;
-    bool HasNonSYCLOffloadKinds = false;
+    // First non-SYCL kind in this target group, if any.
+    OffloadKind NonSYCLKind = OFK_None;
     uint16_t ActiveOffloadKindMask = 0u;
     for (const auto &File : Input) {
-      ActiveOffloadKindMask |= File.getBinary()->getOffloadKind();
-      if (File.getBinary()->getOffloadKind() == OFK_SYCL)
+      OffloadKind Kind = File.getBinary()->getOffloadKind();
+      ActiveOffloadKindMask |= Kind;
+      if (Kind == OFK_SYCL)
         HasSYCLOffloadKind = true;
-      else
-        HasNonSYCLOffloadKinds = true;
+      else if (NonSYCLKind == OFK_None)
+        NonSYCLKind = Kind;
     }
 
     auto AppendImageToWrapperOutput = [&WrappedOutput,
@@ -2741,7 +2745,10 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       WrappedOutput.push_back(ImagePath);
     };
 
+    // A target group may contain several offload kinds, so kind-scoped
+    // options are selected separately for the SYCL and non-SYCL links.
     if (HasSYCLOffloadKind) {
+      auto LinkerArgs = getLinkerArgs(Input, BaseArgs, OFK_SYCL);
       Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
           extractSYCLCompileLinkOptions(Input);
       if (!CompileLinkOptionsOrErr)
@@ -2750,59 +2757,37 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       std::pair<std::string, std::string> &CompileLinkOptions =
           *CompileLinkOptionsOrErr;
 
-      // Append device compiler and linker options passed via
-      // --device-compiler= and --device-linker= to clang-linker-wrapper.
-      // Each occurrence of --device-compiler=/--device-linker= that matched
-      // this triple/kind was forwarded as its own compiler-arg=/linker-arg=
-      // by getLinkerArgs().
-      //
-      // JIT targets: the SYCL runtime consumes these as flat strings, so
-      // join them (after the options already extracted from the image) into
-      // CompileLinkOptions.
-      //
-      // AOT targets (ocloc/opencl-aot): keep the CLI-supplied tokens as a
-      // separate list (AOTDeviceArgs) rather than folding them into
-      // CompileLinkOptions, so that a token containing an embedded space
-      // isn't re-split downstream. They are appended to the AOT tool's argv
-      // as individual entries, alongside the image-embedded options (which
-      // remain a flat, space-tokenized string, unrelated to this list).
+      // AOT and SPIR JIT tools do not accept clang compiler/linker flags, so
+      // forward only options carrying the tool-specific prefix and discard
+      // the rest (e.g. -flto). Other targets use clang as the device backend
+      // and take all options. AOT options are kept as individual argv tokens;
+      // the others are joined into the compile/link option strings.
+      // TODO: The isSPIRAOT() check must stay in sync with the equivalent
+      // check in runSYCLOffloadingPipeline().
       const llvm::Triple TargetTriple(
           LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      const bool IsAOT = TargetTriple.isSPIRAOT();
       std::vector<std::string> AOTDeviceArgs;
-      // TODO: This isSPIRAOT() check must stay in sync with the equivalent
-      // check in runSYCLOffloadingPipeline() below, which decides whether to
-      // fold CompileLinkOptions into AOTOptions for the same triple. Nothing
-      // enforces agreement between the two; consider unifying the option
-      // representation (e.g. making CompileLinkOptions itself a token
-      // vector) so both AOT option origins share one code path instead of
-      // two independently-maintained branches.
-      if (TargetTriple.isSPIRAOT()) {
-        for (std::string &DeviceCompilerArg :
-             LinkerArgs.getAllArgValues(OPT_compiler_arg_EQ))
-          if (!DeviceCompilerArg.empty())
-            AOTDeviceArgs.push_back(std::move(DeviceCompilerArg));
-        for (std::string &DeviceLinkerArg :
-             LinkerArgs.getAllArgValues(OPT_linker_arg_EQ))
-          if (!DeviceLinkerArg.empty())
-            AOTDeviceArgs.push_back(std::move(DeviceLinkerArg));
-      } else {
-        for (const std::string &DeviceCompilerArg :
-             LinkerArgs.getAllArgValues(OPT_compiler_arg_EQ)) {
-          if (DeviceCompilerArg.empty())
+      auto AddDeviceOptions = [&](opt::OptSpecifier OptID, bool IsLink,
+                                  std::string &Joined) {
+        StringRef Prefix =
+            llvm::offloading::getSYCLBackendOptionPrefix(TargetTriple, IsLink);
+        for (StringRef Value : LinkerArgs.getAllArgValues(OptID)) {
+          if (!Value.consume_front(Prefix) || Value.empty())
             continue;
-          if (!CompileLinkOptions.first.empty())
-            CompileLinkOptions.first += " ";
-          CompileLinkOptions.first += DeviceCompilerArg;
-        }
-        for (const std::string &DeviceLinkerArg :
-             LinkerArgs.getAllArgValues(OPT_linker_arg_EQ)) {
-          if (DeviceLinkerArg.empty())
+          if (IsAOT) {
+            AOTDeviceArgs.push_back(Value.str());
             continue;
-          if (!CompileLinkOptions.second.empty())
-            CompileLinkOptions.second += " ";
-          CompileLinkOptions.second += DeviceLinkerArg;
+          }
+          if (!Joined.empty())
+            Joined += " ";
+          Joined += Value;
         }
-      }
+      };
+      AddDeviceOptions(OPT_compiler_arg_EQ, /*IsLink=*/false,
+                       CompileLinkOptions.first);
+      AddDeviceOptions(OPT_linker_arg_EQ, /*IsLink=*/true,
+                       CompileLinkOptions.second);
 
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
@@ -2844,7 +2829,11 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         AppendImageToWrapperOutput(*OutputFile);
       }
     }
-    if (HasNonSYCLOffloadKinds) {
+    if (NonSYCLKind != OFK_None) {
+      // Non-SYCL kinds sharing a triple/arch are linked by one Clang
+      // invocation, so only the first kind's scoped options are selected.
+      // TODO: link and wrap each kind separately.
+      auto LinkerArgs = getLinkerArgs(Input, BaseArgs, NonSYCLKind);
       // Write any remaining device inputs to an output file.
       SmallVector<StringRef> InputFiles;
       for (const OffloadFile &File : Input) {
