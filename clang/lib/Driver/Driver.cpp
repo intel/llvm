@@ -6000,6 +6000,13 @@ class OffloadingActionBuilder final {
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
+      if (TC->getTriple().isSPIROrSPIRV()) {
+        SmallString<128> SPIRVCompilerRTPath(TC->getCompilerRTPath());
+        llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
+        if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
+          LibLocCandidates.emplace_back(SPIRVCompilerRTPath);
+      }
+
       // NVPTX/AMDGCN reuse CudaToolChain/AMDGPUToolChain, not SYCLToolChain.
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
@@ -6011,6 +6018,19 @@ class OffloadingActionBuilder final {
       // has their own getDeviceLibs that we can potentially use.
       DeviceLibraries =
           SYCLTC.getDeviceLibNames(C.getDriver(), Args, TC->getTriple());
+      // There is some work in upstream to enable compiler-rt builtins for
+      // SYCL: https://github.com/llvm/llvm-project/pull/218528, we will
+      // cherry-pick it to intel/llvm once it is merged. Before it happens,
+      // we need to enable compiler-rt builtins for SYCL in intel/llvm in
+      // advance, so enable it in old model for now.
+      // TODO: when upstream PR lands into intel/llvm, remove the special
+      // handling for compiler-rt builtins here.
+      bool NoOffloadLib = !Args.hasFlag(options::OPT_offloadlib,
+                                        options::OPT_no_offloadlib, true);
+      if (!NoOffloadLib) {
+        ToolChain::BitCodeLibraryInfo RTBuiltinInfo("libclang_rt.builtins.bc");
+        DeviceLibraries.emplace_back(RTBuiltinInfo);
+      }
 
       for (const auto &DeviceLib : DeviceLibraries) {
         for (const auto &LLCandidate : LibLocCandidates) {
