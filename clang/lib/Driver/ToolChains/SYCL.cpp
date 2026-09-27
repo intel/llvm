@@ -126,11 +126,26 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   }
 
   const SmallString<64> Basename = getLibSpirvBasename(HostTriple);
-  SmallString<256> LibclcPath(D.ResourceDir);
-  llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME,
-                          DeviceTriple.getTriple(), Basename);
-  if (D.getVFS().exists(LibclcPath))
-    return Args.MakeArgString(LibclcPath);
+  auto TryTriple = [&](const llvm::Triple &T) -> const char * {
+    SmallString<256> LibclcPath(D.ResourceDir);
+    llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME,
+                            T.getTriple(), Basename);
+    if (D.getVFS().exists(LibclcPath))
+      return Args.MakeArgString(LibclcPath);
+    return nullptr;
+  };
+
+  if (const char *Path = TryTriple(DeviceTriple))
+    return Path;
+
+  // Resource-dir libspirv libraries are laid out per architecture family,
+  // not per subarch. Fall back to the subarch-stripped triple.
+  if (DeviceTriple.isAMDGCN() &&
+      DeviceTriple.getSubArch() != llvm::Triple::NoSubArch) {
+    llvm::Triple Family(DeviceTriple);
+    Family.setArch(llvm::Triple::amdgpu);
+    return TryTriple(Family);
+  }
 
   return nullptr;
 }

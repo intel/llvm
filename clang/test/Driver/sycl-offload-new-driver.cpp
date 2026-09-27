@@ -86,7 +86,7 @@
 // RUN:          -fno-sycl-libspirv -fsycl-targets=amd_gpu_gfx900 \
 // RUN:          -nogpulib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
-// RUN:              -DTRIPLE=amdgcn-amd-amdhsa -DARCH=gfx900 %s
+// RUN:              -DTRIPLE=amdgpu9.00-amd-amdhsa -DARCH=gfx900 %s
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:          -fno-sycl-libspirv -fsycl-targets=nvidia_gpu_sm_75 \
 // RUN:          -nogpulib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
@@ -173,7 +173,7 @@
 // RUN:          -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx600 \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix AMD_ARCH %s
-// AMD_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=amdgcn-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
+// AMD_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=amdgpu6.00-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
 
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
@@ -239,8 +239,8 @@
 // RUN:  -Xsycl-target-backend=spir64_gen "-device pvc,bdw" \
 // RUN:  -Xsycl-target-linker=spir64_gen "-DFOO,BAR" \
 // RUN:  -nogpulib %s 2>&1 | FileCheck -check-prefix=MULTI_ARCH2 %s
-// MULTI_ARCH2: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx1010,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
-// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx908,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
+// MULTI_ARCH2: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=amdgpu10.10-amd-amdhsa,arch=gfx1010,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
+// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=amdgpu9.08-amd-amdhsa,arch=gfx908,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_86,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_87,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_89,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"

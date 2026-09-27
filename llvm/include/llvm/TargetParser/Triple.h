@@ -277,6 +277,7 @@ public:
     AMDGPUSubArch1201,
 
     AMDGPUSubArch12_5,
+    AMDGPUSubArch1250S,
     AMDGPUSubArch1250,
     AMDGPUSubArch1251,
 
