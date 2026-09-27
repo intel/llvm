@@ -36,5 +36,6 @@ unsigned __attribute__((overloadable)) __spirv_ocl_s_abs(int x) { return x < 0 ?
 // CHECK-NOT: speculatable
 // CHECK-SAME: }
 // CHECK: attributes #[[CALL]] = {
+// CHECK-NOT: convergent
 // CHECK-NOT: speculatable
 // CHECK-SAME: }
