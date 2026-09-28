@@ -139,6 +139,7 @@ _Returns:_ An event that is associated with context `ctxt`. The event has
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 `PropertyListT` contains an `enable_profiling` property that enables profiling
 timestamps and not all devices in `ctxt` have
+timestamps and devices in `ctxt` do not have
 `aspect::ext_oneapi_per_event_profiling`.
 
 '''
