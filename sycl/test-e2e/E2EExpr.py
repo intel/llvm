@@ -14,7 +14,7 @@ class E2EExpr(BooleanExpression):
         "any-target-is-nvidia",
         "any-target-is-amd",
         "any-target-is-native_cpu",
-        "aot-only",
+        "jit",
         "opencl-cpu-rt",
         "spirv-backend",
         "linux",

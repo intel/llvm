@@ -9,8 +9,7 @@
 // Sycl-Graph but comes from the orignal test :
 // `SpecConstants/2020/kernel-bundle-api.cpp`
 
-// UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
+// REQUIRES: jit
 
 #define GRAPH_E2E_EXPLICIT
 

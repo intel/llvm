@@ -1045,12 +1045,12 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
 
-# "aot-only" means none of the built targets provide a JIT-capable device image.
-if config.sycl_build_targets and not any(
+# "jit" means at least one of the built targets provides a JIT-capable image.
+if any(
     config.target_to_triple.get(t) in JIT_CAPABLE_TRIPLES
     for t in config.sycl_build_targets
 ):
-    config.available_features.add("aot-only")
+    config.available_features.add("jit")
 
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")

@@ -1,6 +1,4 @@
-// REQUIRES: gpu
-// UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: Uses online-compile/link options (JIT-capable image).
+// REQUIRES: gpu, jit
 
 // Disable fallback assert here so, that build process isn't affected
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t1.out %debug_option

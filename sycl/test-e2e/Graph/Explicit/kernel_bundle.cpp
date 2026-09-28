@@ -1,5 +1,4 @@
-// UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
+// REQUIRES: jit
 
 // RUN: %{build} -o %t.out
 // RUN: %if cuda %{ %{run} %t.out %}

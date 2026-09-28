@@ -5,8 +5,7 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
-// UNSUPPORTED: aot-only
-// UNSUPPORTED-INTENDED: get_kernel_bundle<input> needs a JIT-capable image.
+// REQUIRES: jit
 
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-INTENDED: This test uses interop that has the ownership on a
