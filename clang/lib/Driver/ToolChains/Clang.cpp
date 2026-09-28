@@ -6347,8 +6347,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                           options::OPT_foffload_lto_EQ);
       bool IsDeviceCodeSplitDisabled =
           SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
-      if (Triple.isNVPTX() && !IsRDCMode &&
-          JA.isDeviceOffloading(Action::OFK_Cuda)) {
+      if (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsUsingOffloadNewDriver &&
+          LTOArg) {
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << LTOArg->getAsString(Args) << Triple.getTriple();
+      } else if (Triple.isNVPTX() && !IsRDCMode &&
+                 JA.isDeviceOffloading(Action::OFK_Cuda)) {
         D.Diag(diag::err_drv_unsupported_opt_for_language_mode)
             << (LTOArg ? LTOArg->getAsString(Args) : "-foffload-lto")
             << "-fno-gpu-rdc";

@@ -1556,10 +1556,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
     // Non-RDC SYCL device code is finalized by a clang-linker-wrapper job
     // bound to one device toolchain, so only one SYCL target can be requested
-    // for now. This restriction might be relaxed in future updates.
+    // for now. This restriction might be relaxed in future updates. The old
+    // offloading model supports multiple targets in non-RDC mode.
     const Arg *RDCArg = C.getInputArgs().getLastArg(options::OPT_fgpu_rdc,
                                                     options::OPT_fno_gpu_rdc);
-    if (RDCArg && RDCArg->getOption().matches(options::OPT_fno_gpu_rdc)) {
+    if (getUseNewOffloadingDriver() && RDCArg &&
+        RDCArg->getOption().matches(options::OPT_fno_gpu_rdc)) {
       auto TCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
       if (std::distance(TCRange.first, TCRange.second) > 1)
         Diag(clang::diag::err_drv_sycl_no_rdc_multiple_targets)
@@ -7431,6 +7433,15 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
   }
 
+  // The legacy LLVM offloading driver has been removed for non-SYCL
+  // offloading. SYCL still supports the old offloading model through
+  // --no-offload-new-driver, so only warn when SYCL is not in use.
+  if (!C.isOffloadingHostKind(Action::OFK_SYCL))
+    if (Arg *A = Args.getLastArg(options::OPT_no_offload_new_driver))
+      Diag(clang::diag::warn_drv_deprecated_custom)
+          << A->getAsString(Args)
+          << "the legacy offloading driver has been removed";
+
   bool UseNewOffloadingDriver = getUseNewOffloadingDriver();
   bool HIPRDCDeviceOnlyFatBin =
       UseNewOffloadingDriver && C.isOffloadingHostKind(Action::OFK_HIP) &&
@@ -7623,7 +7634,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // Check if this Linker Job should emit a static library.
     if (ShouldEmitStaticLibrary(Args)) {
       LA = C.MakeAction<StaticLibJobAction>(LinkerInputs, types::TY_Image);
-    } else if (C.getActiveOffloadKinds() != Action::OFK_None ||
+    } else if (UseNewOffloadingDriver ||
                Args.hasArg(options::OPT_offload_link)) {
       LA = C.MakeAction<LinkerWrapperJobAction>(
           LinkerInputs,
@@ -7640,6 +7651,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                                                             : types::TY_Image;
       LA = C.MakeAction<LinkJobAction>(LinkerInputs, LT);
     }
+    if (!UseNewOffloadingDriver)
+      LA = OffloadBuilder->processHostLinkAction(LA);
     Actions.push_back(LA);
   }
 
