@@ -37,7 +37,8 @@ static llvm::StringRef ExtractStringFromMDNodeOperand(const MDNode *N,
 
 SYCLDeviceRequirements
 llvm::computeDeviceRequirements(const Module &M,
-                                const SetVector<Function *> &EntryPoints) {
+                                const SetVector<Function *> &EntryPoints,
+                                bool AllowSubGroupSizeDisagreement) {
   SYCLDeviceRequirements Reqs;
   // Process all functions in the module
   for (const Function &F : M) {
@@ -108,9 +109,11 @@ llvm::computeDeviceRequirements(const Module &M,
           MDN->getNumOperands() == 1 &&
           "intel_reqd_sub_group_size metadata expects exactly one argument!");
       auto MDValue = ExtractUnsignedIntegerFromMDNodeOperand(MDN, 0);
+      // On disagreement, the first entry point processed wins; later
+      // disagreeing values are silently dropped.
       if (!Reqs.SubGroupSize)
         Reqs.SubGroupSize = MDValue;
-      else
+      else if (!AllowSubGroupSizeDisagreement)
         assert(*Reqs.SubGroupSize == static_cast<uint32_t>(MDValue));
     }
   }

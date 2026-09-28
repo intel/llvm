@@ -772,12 +772,9 @@ public:
         SYCLBIN->getBestCompatibleImages(Devs, State);
     MDeviceImages.reserve(BestImages.size());
     auto &PM = ProgramManager::getInstance();
-    // Reconcile an image's intrinsic classification with the state the SYCLBIN
-    // was loaded in. An export-only native AOT library classifies as
-    // executable but is surfaced for an object-state load so it can act as the
-    // provider side of a cross-library link; such an image must not be
-    // presented as already-linked. Only downgrade executable -> object for an
-    // object-state load; leave every other combination at the intrinsic state.
+    // Reconcile an image's intrinsic classification with the requested state:
+    // downgrade executable -> object for object-state loads so export-only
+    // AOT libraries aren't mistaken for already-linked.
     auto ReconcileState = [](bundle_state ImageState,
                              bundle_state RequestedState) {
       if (ImageState == bundle_state::executable &&

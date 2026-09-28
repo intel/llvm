@@ -1,10 +1,7 @@
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-TRACKER: GSD-11997
+
 // REQUIRES: aspect-usm_shared_allocations
-//
-// VTables are global variables with possibly external linkage and that causes
-// them to be copied into every module we produce during device code split
-// which in turn leads to multiple definitions error at runtime.
-// XFAIL: run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15069
 //
 // This test covers a scenario where virtual functions defintion and their uses
 // are split into different translation units. In particular:
@@ -14,6 +11,11 @@
 //
 // RUN: %{build} %S/Inputs/call.cpp -o %t.out %helper-includes
 // RUN: %{run} %t.out
+//
+// Vtable emission for classes with 'indirectly_callable' virtual functions
+// depends on the optimization level, so check -O0 explicitly as well.
+// RUN: %{build} %O0 %S/Inputs/call.cpp -o %t-O0.out %helper-includes
+// RUN: %{run} %t-O0.out
 
 #include "Inputs/declarations.hpp"
 

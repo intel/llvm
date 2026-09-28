@@ -374,6 +374,8 @@ EXPORTS
 	urPrintExpEnqueueNativeCommandProperties
 	urPrintExpEventDesc
 	urPrintExpEventFlags
+	urPrintExpEventSyncModeDesc
+	urPrintExpEventSyncModeFlags
 	urPrintExpExternalMemDesc
 	urPrintExpExternalMemType
 	urPrintExpExternalSemaphoreDesc

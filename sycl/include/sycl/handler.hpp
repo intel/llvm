@@ -364,14 +364,22 @@ private:
     setType(detail::CGType::Kernel);
   }
 
-  // Sets up this handler to launch the free function kernel `Func` directly,
-  // resolving its DeviceKernelInfo by name (cached in a function-local static
-  // by getDeviceKernelInfo<Func>, so no per-launch kernel bundle is built).
-  // The arguments must have been provided beforehand via set_arg(s) and the
-  // range/nd-range set by the caller.
-  template <auto *Func> void setFreeFunctionKernelInfo() {
-    MKernelName = detail::FreeFunctionInfoData<Func>::getFunctionName();
-    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<Func>());
+  // Sets up this handler to launch a free function kernel that the caller has
+  // already resolved to its DeviceKernelInfo via getDeviceKernelInfo<Func>().
+  // Deliberately *not* templated on `Func`: threading the resolved (opaque)
+  // DeviceKernelInfo* instead of the kernel function pointer keeps the kernel's
+  // (potentially huge) mangled signature out of the host symbols on the launch
+  // path, which is the dominant host object size cost of free function kernels
+  // on MSVC. See CMPLRLLVM-77222.
+  //
+  // Kept header-inline (adds no new libsycl ABI symbol): we do not copy the
+  // kernel name into MKernelName here, so the (source-only) DeviceKernelInfo
+  // definition is not needed. finalize() reads the name directly from the
+  // DeviceKernelInfo pointer set below (KernelData::getKernelName()); the
+  // handler's MKernelName is only consulted when that pointer is absent, which
+  // is not the case on this path.
+  void setFreeFunctionKernelInfoRT(detail::DeviceKernelInfo *KI) {
+    setDeviceKernelInfoPtr(KI);
     setType(detail::CGType::Kernel);
   }
 
@@ -1168,7 +1176,7 @@ public:
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<OpenCLMemT, T>::value      // Interop
         || is_same_type<stream, T>::value          // Stream
-        || sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
+        || detail::check_if_device_copyable_v<remove_cv_ref_t<T>>;
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1436,19 +1444,25 @@ public:
   // The kernel is resolved by name through the cached getDeviceKernelInfo<Func>
   // and enqueued via the fast (scheduler-bypass-capable) path in finalize().
   // Kernel arguments must have been set beforehand via set_arg(s).
-  template <auto *Func> void single_task_free_function() {
+  // `KI` is the free function kernel's DeviceKernelInfo, resolved by the caller
+  // via getDeviceKernelInfo<Func>(). Neither this method nor
+  // nd_launch_free_function is templated on `Func`, so the kernel's mangled
+  // signature is not re-spelled here (or in the submit closure that reaches
+  // them). See CMPLRLLVM-77222.
+  void single_task_free_function(detail::DeviceKernelInfo *KI) {
     throwIfActionIsCreated();
     convertToRangeViewAndSetDescriptor(range<1>{1});
-    setFreeFunctionKernelInfo<Func>();
+    setFreeFunctionKernelInfoRT(KI);
     extractFreeFunctionArgsAndReqs();
   }
 
-  template <auto *Func, int Dims, typename PropertiesT>
-  void nd_launch_free_function(nd_range<Dims> NDRange, PropertiesT Props) {
+  template <int Dims, typename PropertiesT>
+  void nd_launch_free_function(detail::DeviceKernelInfo *KI,
+                               nd_range<Dims> NDRange, PropertiesT Props) {
     throwIfActionIsCreated();
     convertToRangeViewAndSetDescriptor(std::move(NDRange));
     setKernelLaunchProperties(detail::extractKernelProperties(Props));
-    setFreeFunctionKernelInfo<Func>();
+    setFreeFunctionKernelInfoRT(KI);
     extractFreeFunctionArgsAndReqs();
   }
 
@@ -2016,7 +2030,7 @@ public:
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
     setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
-    static_assert(is_device_copyable<T>::value,
+    static_assert(detail::check_if_device_copyable_v<T>,
                   "Pattern must be device copyable");
     if (getDeviceBackend() == backend::ext_oneapi_level_zero) {
       parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {

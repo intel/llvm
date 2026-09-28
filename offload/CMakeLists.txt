@@ -346,6 +346,7 @@ if(BUILD_LIBOMPTARGET)
 endif()
 
 add_subdirectory(liboffload)
+add_subdirectory(languages)
 
 # Add tests.
 if(OFFLOAD_INCLUDE_TESTS)

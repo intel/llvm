@@ -84,14 +84,36 @@ struct is_device_copyable<T[N]> : is_device_copyable<T> {};
 template <typename T>
 inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
 namespace detail {
+
+/// The predicate that all the device copyability requirements enforced by the
+/// implementation are written in terms of. It is is_device_copyable, except
+/// that SYCL_DISABLE_DEVICE_COPYABLE_CHECKS makes it true for every type. See
+/// sycl/doc/PreprocessorMacros.md.
+///
+/// The checks consult this instead of is_device_copyable directly so that the
+/// macro does not change the value the user facing trait reports: code outside
+/// of the implementation specializes and queries is_device_copyable, and it
+/// must keep seeing the answer the SYCL specification gives.
+#ifdef SYCL_DISABLE_DEVICE_COPYABLE_CHECKS
+template <typename T> struct check_if_device_copyable : std::true_type {};
+#else
+template <typename T>
+struct check_if_device_copyable : is_device_copyable<T> {};
+#endif
+
+template <typename T>
+inline constexpr bool check_if_device_copyable_v =
+    check_if_device_copyable<T>::value;
+
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T, typename> struct CheckFieldsAreDeviceCopyable;
 template <typename T, typename> struct CheckBasesAreDeviceCopyable;
 
 template <typename T>
 inline constexpr bool is_deprecated_device_copyable_v =
-    is_device_copyable_v<T> || (std::is_trivially_copy_constructible_v<T> &&
-                                std::is_trivially_destructible_v<T>);
+    check_if_device_copyable_v<T> ||
+    (std::is_trivially_copy_constructible_v<T> &&
+     std::is_trivially_destructible_v<T>);
 
 template <typename T, unsigned... FieldIds>
 struct CheckFieldsAreDeviceCopyable<T, std::index_sequence<FieldIds...>> {

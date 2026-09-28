@@ -37,7 +37,8 @@ computeModulePropertiesHelper(const module_split::ModuleDesc &MD,
   if (!MD.isSYCLDeviceLib())
     PropSet = sycl::computeModuleProperties(
         MD.getModule(), MD.entries(), GlobProps, AllowDeviceImageDependencies,
-        IdQueriesRange);
+        IdQueriesRange, /*AllowSubGroupSizeDisagreement=*/SplitMode ==
+                            module_split::SPLIT_NONE);
   else
     PropSet = sycl::computeDeviceLibProperties(MD.getModule(), MD.Name);
 

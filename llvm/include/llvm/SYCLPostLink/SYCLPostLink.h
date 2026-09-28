@@ -78,6 +78,7 @@ struct PostLinkSettings {
   bool EmitKernelNames = false;
   bool EmitExportedSymbols = false;
   bool EmitImportedSymbols = false;
+  bool SuppressUndefinedFuncWarnings = false;
   llvm::sycl_post_link::ESIMDProcessingOptions ESIMDOptions;
 };
 

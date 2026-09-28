@@ -895,32 +895,18 @@ SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
       continue;
     }
 
-    // No JIT binary available. Native AOT images carry their own notion of
-    // state: an AOT image with imported symbols is in object state (link
-    // still pending) and an AOT image without imports is already in
-    // executable state. Accept the native candidate iff its intrinsic
-    // state, as classified by ProgramManager::getBinImageState, matches
-    // the requested state. The previous selector skipped this case for
-    // non-executable requests, which made AOT-only object SYCLBINs
-    // (produced via -fsyclbin=object with an AOT target) load as an empty
-    // kernel_bundle and broke any subsequent sycl::link.
-    //
-    // Additionally, a native AOT image that only exports symbols (and imports
-    // none) classifies as executable, but it is still a library meant to be
-    // linked into: it must be loadable in object state so it can act as the
-    // provider side of a cross-library sycl::link. Surface such an image for
-    // an object-state request as well. The importing side still resolves its
-    // exported symbols via CreateLinkGraph, which reads the exported-symbol
-    // metadata directly and is independent of the image's classified state.
+    // No JIT binary available; the native candidate is this module's only
+    // representation. Accept it when its intrinsic state (from
+    // getBinImageState) matches the requested state, or unconditionally for
+    // object-state requests — the caller already validated against the
+    // SYCLBIN's recorded state, so the native image IS the object-state
+    // content regardless of classification. State reconciliation happens
+    // where device images are created (see ReconcileState in
+    // kernel_bundle_impl).
     if (const RTDeviceBinaryImage *Native =
             FindCompatible(AMDesc.NativeBinaries, AMDesc.NumNativeBinaries)) {
-      const bool StateMatches =
-          ProgramManager::getBinImageState(Native) == State;
-      const bool ExportOnlyLibForObject =
-          State == bundle_state::object &&
-          !Native->getExportedSymbols().empty() &&
-          Native->getImportedSymbols().empty();
-      if (StateMatches || ExportOnlyLibForObject)
+      if (ProgramManager::getBinImageState(Native) == State ||
+          State == bundle_state::object)
         Images.push_back(Native);
     }
   }

@@ -1387,8 +1387,8 @@ private:
                              sizeof(uint32_t), &ipVersion, nullptr);
                          return ipVersion;
                        });
-        return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
-                                                Options, LogPtr);
+        return syclex::detail::OpenCLC_to_IL(SourceStr, IPVersionVec, Options,
+                                             LogPtr);
       }
       case syclex::source_language::spirv: {
         const auto &SourceBytes = std::get<std::vector<std::byte>>(MBinImage);

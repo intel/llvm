@@ -133,10 +133,10 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
   if (F.hasAddressTaken())
     return false;
 
-  // Don't touch naked functions. The assembly might be using an argument, or
-  // otherwise rely on the frame layout in a way that this analysis will not
-  // see.
-  if (F.hasFnAttribute(Attribute::Naked)) {
+  // Don't touch functions whose ABI must be preserved. For naked functions the
+  // assembly might be using an argument, or otherwise rely on the frame layout
+  // in a way that this analysis will not see.
+  if (!F.canChangeSignature()) {
     return false;
   }
 
@@ -281,10 +281,10 @@ bool DeadArgumentEliminationPass::removeDeadArgumentsFromCallers(Function &F) {
       !F.getFunctionType()->isVarArg())
     return false;
 
-  // Don't touch naked functions. The assembly might be using an argument, or
-  // otherwise rely on the frame layout in a way that this analysis will not
-  // see.
-  if (F.hasFnAttribute(Attribute::Naked))
+  // Don't touch functions whose ABI must be preserved. For naked functions the
+  // assembly might be using an argument, or otherwise rely on the frame layout
+  // in a way that this analysis will not see.
+  if (!F.canChangeSignature())
     return false;
 
   if (F.use_empty())
@@ -508,10 +508,10 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
     return;
   }
 
-  // Don't touch naked functions. The assembly might be using an argument, or
-  // otherwise rely on the frame layout in a way that this analysis will not
-  // see.
-  if (F.hasFnAttribute(Attribute::Naked)) {
+  // Don't touch functions whose ABI must be preserved. For naked functions the
+  // assembly might be using an argument, or otherwise rely on the frame layout
+  // in a way that this analysis will not see.
+  if (!F.canChangeSignature()) {
     markFrozen(F);
     return;
   }

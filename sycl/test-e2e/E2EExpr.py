@@ -14,6 +14,7 @@ class E2EExpr(BooleanExpression):
         "any-target-is-nvidia",
         "any-target-is-amd",
         "any-target-is-native_cpu",
+        "jit",
         "opencl-cpu-rt",
         "spirv-backend",
         "linux",
@@ -50,6 +51,9 @@ class E2EExpr(BooleanExpression):
         "ze_debug",
         "device-config-file",
         "new-offload-model",
+        "sg-8",
+        "sg-16",
+        "sg-32",
     }
 
     # Prefixes for build-environment features that are parametrized by a

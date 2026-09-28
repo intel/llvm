@@ -100,7 +100,7 @@ void registerEventDependency(
       if constexpr (LockQueue) {
         EventGraph->beginRecording(*QueueImpl);
       } else {
-        EventGraph->beginRecordingUnlockedQueue(*QueueImpl);
+        EventGraph->beginRecordingQueueLockHeld(*QueueImpl);
       }
     }
   }
