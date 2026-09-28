@@ -474,17 +474,26 @@ public:
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
-  /// Does not take the queue submission lock.
+  /// Takes the graph mutex, and requires that the caller already holds the
+  /// queue's submission mutex.
   ///
   /// Required for the cases, when the recording is started directly
   /// from within the kernel submission flow.
   /// @param[in] Queue The queue to be recorded from.
-  void beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue);
+  void beginRecordingQueueLockHeld(sycl::detail::queue_impl &Queue);
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
+  /// Takes both the queue's submission mutex and the graph mutex
   /// @param[in] Queue The queue to be recorded from.
   void beginRecording(sycl::detail::queue_impl &Queue);
+
+  /// Sets the Queue state to queue_state::recording. Adds the queue to the list
+  /// of recording queues associated with this graph.
+  /// Assumes the caller must already hold both the graph mutex and the
+  /// queue's submission mutex.
+  /// @param[in] Queue The queue to be recorded from.
+  void beginRecordingBothLocksHeld(sycl::detail::queue_impl &Queue);
 
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.
@@ -560,13 +569,6 @@ public:
   addNativeHostTaskCallback(std::unique_ptr<detail::EnqueueHostTaskData> Data);
 
 private:
-  /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
-  /// @param[in] Queue The queue to be recorded from.
-  /// @param[in] AcquireQueueLock Whether to acquire the queue lock when setting
-  /// command graph.
-  void beginRecordingImpl(sycl::detail::queue_impl &Queue,
-                          bool AcquireQueueLock);
-
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
         std::make_shared<node_impl>(std::forward<Ts>(Args)...));

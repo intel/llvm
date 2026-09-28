@@ -25,9 +25,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-// Forward declarations of the SYCL classes that the named properties below
-// register against (via is_property_key_for). Only incomplete types are needed.
-class queue;
 
 namespace khr {
 
@@ -260,31 +257,10 @@ properties(Properties... props) -> properties<Properties...>;
 
 using empty_properties_t = decltype(properties{});
 
-// Named properties. Each registers its supported classes via
-// is_property_key_for; constructor support lives in the object headers (e.g.
-// queue.hpp).
-namespace property {
-namespace key {
-struct enable_profiling : detail::runtime_property_key {};
-struct in_order : detail::runtime_property_key {};
-} // namespace key
-
-// Queue properties.
-struct enable_profiling : detail::runtime_property<key::enable_profiling> {
-  constexpr enable_profiling(bool v = true) : value{v} {}
-  bool value;
-};
-struct in_order : detail::runtime_property<key::in_order> {
-  constexpr in_order(bool v = true) : value{v} {}
-  bool value;
-};
-} // namespace property
-
-template <>
-struct is_property_key_for<property::key::enable_profiling, queue>
-    : std::true_type {};
-template <>
-struct is_property_key_for<property::key::in_order, queue> : std::true_type {};
+// The concrete named properties defined by this extension are declared in the
+// SYCL object headers they apply to (queue.hpp, buffer.hpp, image.hpp, ...),
+// which include this engine header. This keeps the engine free of the
+// dependencies those properties may carry.
 
 } // namespace khr
 } // namespace _V1

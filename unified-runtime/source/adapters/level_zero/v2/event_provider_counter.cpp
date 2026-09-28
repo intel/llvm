@@ -69,6 +69,13 @@ raii::cache_borrowed_event provider_counter::allocate() {
     desc.flags = createZeFlags(queueType, flags);
     desc.signalScope = ZE_EVENT_SCOPE_FLAG_HOST;
 
+    ZeStruct<ze_event_sync_mode_desc_t> eventSyncMode;
+    if (flags & EVENT_FLAGS_LOW_POWER) {
+      eventSyncMode.syncModeFlags = ZE_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+      eventSyncMode.pNext = desc.pNext;
+      desc.pNext = &eventSyncMode;
+    }
+
     uint32_t equivalentFlags = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
     if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
       equivalentFlags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;

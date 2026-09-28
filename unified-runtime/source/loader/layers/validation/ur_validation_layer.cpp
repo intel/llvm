@@ -25,6 +25,23 @@ context_t::context_t()
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {}
 
+ur_result_t context_t::blockOnQueue(ur_queue_handle_t hQueue) {
+  // A capturing queue records commands instead of running them.
+  if (auto pfnIsCapturing = urDdiTable.QueueExp.pfnIsGraphCaptureEnabledExp) {
+    bool Capturing = false;
+    if (pfnIsCapturing(hQueue, &Capturing) == UR_RESULT_SUCCESS && Capturing)
+      return UR_RESULT_SUCCESS;
+  }
+
+  // The adapter's own drain: it adds nothing to the queue and handles whatever
+  // it batched. See nameLaunchBlocking for what it cannot do. Its result is the
+  // command's: reporting a fault here is the point of this mode.
+  if (auto pfnFinish = urDdiTable.Queue.pfnFinish)
+    return pfnFinish(hQueue);
+
+  return UR_RESULT_SUCCESS;
+}
+
 // Some adapters don't support all the queries yet, we should be lenient and
 // just not attempt to validate in those cases to preserve functionality.
 #define RETURN_ON_FAILURE(result)                                              \

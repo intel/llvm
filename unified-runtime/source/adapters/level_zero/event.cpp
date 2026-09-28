@@ -1559,9 +1559,32 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
         NextImmCmdList != CurQueue->LastUsedCommandList;
   }
 
-  try {
-    uint32_t TmpListLength = 0;
+  uint32_t TmpListLength = 0;
+  bool CurQueueUnlocked = false;
+  ur_event_handle_t PendingMultiDeviceEvent = nullptr;
+  ur_event_handle_t PendingRetainedEvent = nullptr;
 
+  // On failure leave *this empty: release every event retained so far, free
+  // the arrays and make sure the caller's lock of CurQueue is held again.
+  bool Committed = false;
+  OnScopeExit Rollback([&]() {
+    if (Committed)
+      return;
+    if (CurQueueUnlocked)
+      CurQueue->Mutex.lock();
+    std::list<ur_event_handle_t> EventsToBeReleased;
+    this->Length = TmpListLength;
+    collectEventsForReleaseAndDestroyUrZeEventList(EventsToBeReleased);
+    for (ur_event_handle_t Event :
+         {PendingMultiDeviceEvent, PendingRetainedEvent}) {
+      if (Event)
+        EventsToBeReleased.push_back(Event);
+    }
+    for (ur_event_handle_t Event : EventsToBeReleased)
+      urEventReleaseInternal(Event);
+  });
+
+  try {
     if (IncludeLastCommandEvent) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->UrEventList = new ur_event_handle_t[EventListLength + 1];
@@ -1583,6 +1606,7 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
         WaitListEmptyOrAllEventsFromSameQueue(CurQueue, EventListLength,
                                               EventList)) {
       this->Length = TmpListLength;
+      Committed = true;
       return UR_RESULT_SUCCESS;
     }
 
@@ -1622,6 +1646,7 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
         // of this scope.
         if (Queue && Queue != CurQueue) {
           CurQueue->Mutex.unlock();
+          CurQueueUnlocked = true;
           QueueLock = std::unique_lock<ur_shared_mutex>(Queue->Mutex);
         }
 
@@ -1702,9 +1727,11 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
           UR_CALL(createEventAndAssociateQueue(
               Queue, &MultiDeviceEvent, EventList[I]->CommandType, CommandList,
               IsInternal, IsMultiDevice));
+          PendingMultiDeviceEvent = MultiDeviceEvent;
           MultiDeviceZeEvent = MultiDeviceEvent->ZeEvent;
           const auto &ZeCommandList = CommandList->first;
           EventList[I]->RefCount.retain();
+          PendingRetainedEvent = EventList[I];
 
           // Append a Barrier to wait on the original event while signalling the
           // new multi device event.
@@ -1721,21 +1748,25 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
           this->ZeEventList[TmpListLength] = MultiDeviceZeEvent;
           this->UrEventList[TmpListLength] = MultiDeviceEvent;
           this->UrEventList[TmpListLength]->RefCount.retain();
+          PendingMultiDeviceEvent = nullptr;
+          PendingRetainedEvent = nullptr;
         } else {
           this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
           this->UrEventList[TmpListLength] = EventList[I];
           this->UrEventList[TmpListLength]->RefCount.retain();
         }
+        TmpListLength += 1;
 
         if (QueueLock.has_value()) {
           QueueLock.reset();
           CurQueue->Mutex.lock();
+          CurQueueUnlocked = false;
         }
-        TmpListLength += 1;
       }
     }
 
     this->Length = TmpListLength;
+    Committed = true;
 
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
