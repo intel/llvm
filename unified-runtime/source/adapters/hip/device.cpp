@@ -463,11 +463,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
-    // The mandated minimum capability, plus flags that are accepted and
-    // honored (stored verbatim, no functional rejection) by urQueueCreate:
     ur_queue_flags_t Capability =
+        UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
         UR_QUEUE_FLAG_PROFILING_ENABLE | UR_QUEUE_FLAG_DISCARD_EVENTS |
-        UR_QUEUE_FLAG_SUBMISSION_BATCHED | UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+        UR_QUEUE_FLAG_PRIORITY_HIGH | UR_QUEUE_FLAG_PRIORITY_LOW |
+        UR_QUEUE_FLAG_SUBMISSION_BATCHED | UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE |
+        UR_QUEUE_FLAG_USE_DEFAULT_STREAM |
+        UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {

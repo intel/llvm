@@ -61,10 +61,10 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     int Priority = 0; // Not guaranteed, but, in ROCm 5.0-6.0, 0 is the default
     if (pProps && pProps->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
       URFlags = pProps->flags;
-      if (URFlags == UR_QUEUE_FLAG_USE_DEFAULT_STREAM) {
+      if (URFlags & UR_QUEUE_FLAG_USE_DEFAULT_STREAM) {
         Flags = hipStreamDefault;
-      } else if (URFlags == UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM) {
-        Flags = 0;
+      } else if (URFlags & UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM) {
+        Flags = hipStreamNonBlocking;
       }
 
       if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
