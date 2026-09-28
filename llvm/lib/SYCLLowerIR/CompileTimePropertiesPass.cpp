@@ -16,6 +16,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
@@ -289,6 +290,39 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
   }
 }
 
+/// Checks whether the grf_size / grf_size_automatic usage on a function is
+/// supported, emitting a diagnostic if it is not.
+///
+/// @param F        [in] the LLVM function the property is applied to.
+/// @param PropVal  [in] the sycl-grf-size property value.
+///
+/// @returns \c true if the usage is supported, false otherwise.
+bool diagnoseUnsupportedGrfSizeUsage(const Function &F, uint32_t PropVal) {
+  constexpr uint32_t PROP_VAL_AUTO = 0;
+  bool IsAOT = Triple(F.getParent()->getTargetTriple()).isSPIRAOT();
+  bool IsESIMD = llvm::esimd::isESIMD(F);
+
+  StringRef Reason;
+  if (IsAOT && PropVal == 512)
+    Reason = "grf_size<512> is not supported with ahead-of-time compilation.";
+  else if (IsESIMD && PropVal == 512)
+    Reason = "grf_size<512> is not supported with ESIMD.";
+  else if (IsAOT && IsESIMD && PropVal == 256)
+    Reason = "grf_size<256> is not supported with ESIMD and ahead-of-time "
+             "compilation.";
+  else if (IsAOT && IsESIMD && PropVal == PROP_VAL_AUTO)
+    Reason = "grf_size_automatic is not supported with ESIMD and "
+             "ahead-of-time-compilation.";
+  else
+    return true;
+
+  std::string Msg = (Reason + " Consider using the maximum_registers and "
+                              "maximum_registers_automatic properties.")
+                        .str();
+  F.getContext().diagnose(DiagnosticInfoUnsupported(F, Msg, F.getSubprogram()));
+  return false;
+}
+
 /// Tries to generate a SPIR-V execution mode metadata node from an attribute.
 /// If the attribute is unknown \c None will be returned.
 ///
@@ -482,8 +516,16 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, ClusterMDArgs));
   }
 
-  if ((AttrKindStr == SyclGrfSizeAttr) && !llvm::esimd::isESIMD(F)) {
+  if (AttrKindStr == SyclGrfSizeAttr) {
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
+
+    // Unsupported usages are diagnosed here; don't emit metadata for them.
+    if (!diagnoseUnsupportedGrfSizeUsage(F, PropVal))
+      return std::nullopt;
+
+    if (llvm::esimd::isESIMD(F))
+      return std::nullopt;
+
     // The RegisterAllocMode metadata supports only 0, 128, and 256 for
     // PropVal.
     if (PropVal != 0 && PropVal != 128 && PropVal != 256)
