@@ -28,7 +28,7 @@ set(UR_OFFLOAD_INCLUDE_DIR "" CACHE PATH "Path to the directory containing LLVM 
 if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     include(ExternalProject)
     set(LLVM_PROJECT_SOURCE_DIR  ${CMAKE_BINARY_DIR}/llvm-src-offload)
-    set(LLVM_PROJECT_TAG  c12a0d255928c9376a6e1a6df36d4338b6cfedf8)  # main 2026-09-24
+    set(LLVM_PROJECT_TAG  bc4c516f6e324d147eaeea1bd7d58eb57d03a671)  # main 2026-09-28
     set(OPENMP_INSTALL_DIR ${CMAKE_BINARY_DIR}/openmp-install)
     set(UR_OFFLOAD_INSTALL_DIR ${CMAKE_BINARY_DIR}/offload-install)
     set(UR_OFFLOAD_INCLUDE_DIR ${UR_OFFLOAD_INSTALL_DIR}/include)
