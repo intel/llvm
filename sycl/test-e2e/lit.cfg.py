@@ -1056,6 +1056,18 @@ if any(
 ):
     config.available_features.add("spir-family")
 
+# %aot_options expands to the compiler flags needed to AOT-compile for the
+# active backend family, computed once per lit run since a run only ever
+# targets one backend family.
+if "spir-family" in config.available_features:
+    aot_options = (
+        "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
+        + config.gpu_aot_target_opts
+    )
+else:
+    aot_options = ""
+config.substitutions.append(("%aot_options", aot_options))
+
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")
     config.available_features.add("device-config-file")
