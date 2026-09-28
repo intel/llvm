@@ -34,7 +34,7 @@ namespace utils {
 ///
 /// Runs over all kernels with "kernel" metadata.
 class ReplaceLocalModuleScopeVariablesPass final
-    : public llvm::PassInfoMixin<ReplaceLocalModuleScopeVariablesPass> {
+    : public llvm::OptionalPassInfoMixin<ReplaceLocalModuleScopeVariablesPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
