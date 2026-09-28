@@ -1290,6 +1290,24 @@ ur_result_t urPrintExpEventDesc(const struct ur_exp_event_desc_t params,
 }
 
 ur_result_t
+urPrintExpEventSyncModeFlags(enum ur_exp_event_sync_mode_flag_t value,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintExpEventSyncModeDesc(const struct ur_exp_event_sync_mode_desc_t params,
+                            char *buffer, const size_t buff_size,
+                            size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
 urPrintAdapterGetParams(const struct ur_adapter_get_params_t *params,
                         char *buffer, const size_t buff_size,
                         size_t *out_size) {
