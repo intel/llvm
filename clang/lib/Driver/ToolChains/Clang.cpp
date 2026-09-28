@@ -12403,7 +12403,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
-
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
