@@ -57,12 +57,12 @@ declare ptr @llvm.sycl.alloca.p0.p4.p4.p4.s_my_range(ptr addrspace(4), ptr addrs
 ; CHECK-RT:  !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]]}
 ; CHECK-RT:  !sycl.specialization-constants-default-values = !{![[#DEF0:]], ![[#DEF1:]], ![[#DEF2:]]}
 
-; CHECK-RT:  ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z8size_i64EE", i32 0, i32 0, i32 8}
-; CHECK-RT:  ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z8size_i32EE", i32 1, i32 0, i32 4}
-; CHECK-RT:  ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z8size_i16EE", i32 2, i32 0, i32 2}
-; CHECK-RT:  ![[#DEF0]] = !{i64 10}
-; CHECK-RT:  ![[#DEF1]] = !{i32 120}
-; CHECK-RT:  ![[#DEF2]] = !{i16 1}
+; CHECK-RT-DAG: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z8size_i64EE", i32 0, i32 0, i32 8}
+; CHECK-RT-DAG: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z8size_i32EE", i32 1, i32 0, i32 4}
+; CHECK-RT-DAG: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z8size_i16EE", i32 2, i32 0, i32 2}
+; CHECK-RT-DAG: ![[#DEF0]] = !{i64 10}
+; CHECK-RT-DAG: ![[#DEF1]] = !{i32 120}
+; CHECK-RT-DAG: ![[#DEF2]] = !{i16 1}
 
 ; CHECK-PROPS: [SYCL/specialization constants]
 ; CHECK-PROPS: _ZTS14name_generatorIL_Z8size_i64EE=2|
