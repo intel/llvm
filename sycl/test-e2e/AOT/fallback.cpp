@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: ocloc, gpu
+// REQUIRES: ocloc, gpu, spir-family
 // UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-INTENDED: Remove support for platform used as compile target
 // since AOT image should be not applicable.

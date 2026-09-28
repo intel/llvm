@@ -1,6 +1,6 @@
 // Test early-AOT behaviors with -fsycl -fno-sycl-rdc.  This targets spir64_gen
 
-// REQUIRES: ocloc, gpu
+// REQUIRES: ocloc, gpu, spir-family
 
 // Note: New Offload Model temporarily requires -fno-sycl-rdc to be specified
 // at the linking step. Old Offload Model requires it at the compilation step.

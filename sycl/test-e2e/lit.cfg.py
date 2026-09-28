@@ -1042,6 +1042,20 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
 
+# "spir-family" is true whenever the active build target(s) compile to any
+# SPIR triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant).
+# Unlike target-spir/target-spir_gen individually, this is meant for tests
+# that only care about "is this a SPIR backend" without asserting which
+# specific triple got selected. It is computed the same way in build-only
+# mode (from the requested sycl_build_targets) and run mode (from the
+# backend of the detected devices), so it stays deterministic in both.
+SPIR_FAMILY_TRIPLES = {"spir64", "spir64_gen", "spir64_x86_64"}
+if any(
+    config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
+    for target in config.sycl_build_targets
+):
+    config.available_features.add("spir-family")
+
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")
     config.available_features.add("device-config-file")
