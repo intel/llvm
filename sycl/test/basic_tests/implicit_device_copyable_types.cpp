@@ -97,6 +97,16 @@ int main() {
 #endif
   static_assert(sycl::is_device_copyable_v<const volatile sycl::span<int>>);
 
+  {
+    struct S {
+      int member;
+      void funct(int) {}
+    };
+    // Member pointer types are not device copyable.
+    static_assert(!sycl::is_device_copyable_v<int S::*>);
+    static_assert(!sycl::is_device_copyable_v<void (S::*)(int)>);
+  }
+
   // Extra checks
   static_assert(sycl::is_device_copyable_v<sycl::vec<int, 4>>);
   static_assert(sycl::is_device_copyable_v<sycl::vec<sycl::half, 4>>);

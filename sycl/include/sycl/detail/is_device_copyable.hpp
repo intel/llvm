@@ -81,6 +81,19 @@ struct is_device_copyable<std::variant<Ts...>>
 template <typename T, std::size_t N>
 struct is_device_copyable<T[N]> : is_device_copyable<T> {};
 
+// The SYCL 2020 specification does not currently require the representation,
+// size, or alignment of pointer-to-member types to match across host and device
+// compilation. Implementation experience demonstrates that they currently do
+// not in some situations. For example, the Intel compiler uses the Microsoft
+// ABI for host compilation when targeting Windows but uses the Itanium ABI for
+// device compilation. These two ABIs do not specify compatible representation,
+// size, or alignment for pointer-to-member types and are thus not device
+// copyable in practice. Use of these types as the types of a data member or
+// captured variable likewise renders the enclosing class type or lambda closure
+// as not device copyable.
+template <typename T, typename C>
+struct is_device_copyable<T C::*> : std::false_type {};
+
 template <typename T>
 inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
 namespace detail {
