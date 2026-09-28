@@ -207,6 +207,15 @@ auto memoryProviderMakeUnique(Args &&...args) {
 
   umf_memory_provider_handle_t hProvider = nullptr;
   auto ret = umfMemoryProviderCreate(&ops, &argsTuple, &hProvider);
+  // An older UMF runtime rejects the compile-time newest ops version with
+  // NOT_SUPPORTED. Retry with the baseline (major, 0) version, which every
+  // runtime of the same major accepts. Optional ops are still assigned, so a
+  // matching runtime keeps using them.
+  if (ret == UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    ops.version = UMF_MAKE_VERSION(
+        UMF_MAJOR_VERSION(UMF_PROVIDER_OPS_VERSION_CURRENT), 0);
+    ret = umfMemoryProviderCreate(&ops, &argsTuple, &hProvider);
+  }
   return std::pair<umf_result_t, provider_unique_handle_t>{
       ret, provider_unique_handle_t(hProvider, &umfMemoryProviderDestroy)};
 }
@@ -223,6 +232,14 @@ auto poolMakeUnique(provider_unique_handle_t provider, Args &&...args) {
 
   auto ret = umfPoolCreate(&ops, provider.get(), &argsTuple,
                            UMF_POOL_CREATE_FLAG_OWN_PROVIDER, &hPool);
+  // See memoryProviderMakeUnique(): retry with the baseline (major, 0) ops
+  // version so an older UMF runtime accepts the struct.
+  if (ret == UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    ops.version =
+        UMF_MAKE_VERSION(UMF_MAJOR_VERSION(UMF_POOL_OPS_VERSION_CURRENT), 0);
+    ret = umfPoolCreate(&ops, provider.get(), &argsTuple,
+                        UMF_POOL_CREATE_FLAG_OWN_PROVIDER, &hPool);
+  }
   if (ret == UMF_RESULT_SUCCESS) {
     provider.release(); // pool now owns the provider
   }
