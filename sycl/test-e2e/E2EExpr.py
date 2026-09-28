@@ -18,6 +18,7 @@ class E2EExpr(BooleanExpression):
         "any-target-is-native_cpu",
         "any-target-is-spir_gen",
         "any-target-is-spir_x86_64",
+        "jit",
         "opencl-cpu-rt",
         "spirv-backend",
         "linux",

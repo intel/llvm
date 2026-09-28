@@ -75,7 +75,12 @@ public:
   void unloadAdapters();
   void releaseDefaultContexts();
   void drainThreadPool();
-  void prepareSchedulerToRelease(bool Blocking);
+  /// Waits for in-flight host tasks and releases the scheduler's resources.
+  ///
+  /// \param Blocking determines whether to wait for in-flight host tasks.
+  /// \param IsShutdown must be set when called during library unload or process
+  /// termination.
+  void prepareSchedulerToRelease(bool Blocking, bool IsShutdown = false);
 
   void TraceEventXPTI(const char *Message);
 
@@ -115,10 +120,6 @@ private:
     std::unique_ptr<T> Inst;
     SpinLock Lock;
   };
-
-#ifdef _WIN32
-  static bool winEarlyExitCheck(bool);
-#endif
 
   template <typename T, typename... Types>
   T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);

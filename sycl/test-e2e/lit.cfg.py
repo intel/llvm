@@ -38,6 +38,9 @@ config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
 
+# Triples for which the runtime can build/link a device image from IR at run time.
+JIT_CAPABLE_TRIPLES = {"spir64"}
+
 # The backend set by the user has precedence over backends set during the parsing of the sycl-ls output
 is_offload_preferred_backend_set = config.backend_to_target["offload"] != ""
 
@@ -1043,6 +1046,13 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
+
+# "jit" means at least one of the built targets provides a JIT-capable image.
+if any(
+    config.target_to_triple.get(t) in JIT_CAPABLE_TRIPLES
+    for t in config.sycl_build_targets
+):
+    config.available_features.add("jit")
 
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")
