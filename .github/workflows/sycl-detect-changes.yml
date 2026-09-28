@@ -90,7 +90,7 @@ jobs:
             ur_offload_adapter:
               - 'unified-runtime/include/**'
               - 'unified-runtime/source/adapters/offload/**'
-              - '.github/workflows/ur-build-offload.yml'
+              - '.github/workflows/offload-build.yml'
 
       - name: Set output
         id: result

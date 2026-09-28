@@ -41,6 +41,24 @@ int main() {
       get_native<backend::ext_oneapi_level_zero>(SyclSelectedDevice);
   std::cout << "Using SYCL-selected driver and device\n";
 
+  // Everything below is created with ownership::keep, so this test owns the
+  // Level Zero handles and must destroy them. Declared before the SYCL interop
+  // objects so that it is destroyed last: the SYCL queues and context must
+  // release the handles before the handles themselves go away.
+  struct ZeHandles {
+    ze_context_handle_t Context = nullptr;
+    ze_command_queue_handle_t Queue = nullptr;
+    ze_command_list_handle_t List = nullptr;
+    ~ZeHandles() {
+      if (List)
+        zeCommandListDestroy(List);
+      if (Queue)
+        zeCommandQueueDestroy(Queue);
+      if (Context)
+        zeContextDestroy(Context);
+    }
+  } ZeOwned;
+
   // Create Context
   ze_context_handle_t ZeContext;
   ze_context_desc_t ctxtDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr, 0};
@@ -48,6 +66,7 @@ int main() {
     std::cout << "Context create failed\n";
     return 1;
   }
+  ZeOwned.Context = ZeContext;
 
   // Create Command Queue
   ze_command_queue_desc_t Qdescriptor = {};
@@ -67,6 +86,7 @@ int main() {
     std::cout << "zeCommandQueueCreate failed\n";
     return 1;
   }
+  ZeOwned.Queue = ZeCommand_queue;
   std::cout << "Commandqueue created: " << ZeCommand_queue << std::endl;
 #endif
 
@@ -78,6 +98,7 @@ int main() {
     std::cout << "zeCommandListCreate failed\n";
     return 1;
   }
+  ZeOwned.List = ZeCommand_list;
   std::cout << "Commandlist created: " << ZeCommand_list << std::endl;
 
   // Interop object creation

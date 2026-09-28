@@ -1,7 +1,7 @@
 // See https://github.com/intel/llvm-test-suite/issues/906
 // REQUIRES: gpu, level_zero
 
-// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED: windows && (gpu-intel-gen12 || intel_gpu_acm_g10)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
 // UNSUPPORTED: level_zero_v2_adapter
@@ -9,6 +9,9 @@
 
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
+
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23100
 
 // RUN: %{build} -o %t.out
 

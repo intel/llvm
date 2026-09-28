@@ -28,6 +28,11 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
     urEnqueueTimestampRecordingExpTest);
 
 void common_check(ur_event_handle_t event) {
+  ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
+  ASSERT_SUCCESS(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_TYPE,
+                                sizeof(commandType), &commandType, nullptr));
+  ASSERT_EQ(commandType, UR_COMMAND_TIMESTAMP_RECORDING_EXP);
+
   // All successful runs should return a non-zero profiling results.
   uint64_t queuedTime = 0, submitTime = 0, startTime = 0, endTime = 0;
   ASSERT_SUCCESS(

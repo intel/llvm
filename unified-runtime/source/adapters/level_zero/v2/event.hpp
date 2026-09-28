@@ -44,8 +44,15 @@ struct event_profiling_data_t {
 private:
   ze_event_handle_t hZeEvent;
 
-  uint64_t recordEventEndTimestamp = 0;
-  uint64_t adjustedEventEndTimestamp = 0;
+  // TODO: drop both alignas once GSD-13449 is fixed in the driver.
+  // On some platforms the device's 8-byte write of the recorded timestamp also
+  // rewrites the rest of the aligned 64-byte block around it, with stale
+  // contents. Host writes to members sharing that block are lost - including
+  // timestampRecorded, which then makes a recorded event report
+  // UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE. Keep the timestamp in a block
+  // of its own; both alignas are needed for that.
+  alignas(64) uint64_t recordEventEndTimestamp = 0;
+  alignas(64) uint64_t adjustedEventEndTimestamp = 0;
 
   // Timer resolution in nanoseconds (converted from cycles/sec)
   double zeTimerResolution = 0;

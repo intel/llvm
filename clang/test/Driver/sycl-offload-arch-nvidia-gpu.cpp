@@ -50,3 +50,9 @@
 // MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
 // CLANG-OFFLOAD-PACKAGER-GPU: llvm-offload-binary{{.*}} "--image={{.*}}triple=nvptx64-nvidia-cuda,arch=[[DEV_STR]],kind=sycl"
 
+/// -g forces a non-empty compile-opts= to check the NVPTX backend-arg
+/// translation, which must not downcast the CudaToolChain to SYCLToolChain.
+// RUN: %clangxx --offload-new-driver -fsycl --offload-arch=sm_50 -fno-sycl-libspirv -nocudalib -g -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CLANG-OFFLOAD-PACKAGER-GPU-OPTS
+// CLANG-OFFLOAD-PACKAGER-GPU-OPTS: llvm-offload-binary{{.*}} "--image={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_50,kind=sycl,compile-opts=-g"
+

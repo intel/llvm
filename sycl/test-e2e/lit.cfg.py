@@ -409,6 +409,16 @@ if cl_options:
         + config.level_zero_include
     )
 
+if platform.system() == "Windows":
+    # On Windows, SYCL device compilation parses host-only headers (like L0)
+    # while also defining _WIN32 so that host code compiles correctly. The
+    # device target (spir64) does not support Windows calling conventions, so
+    # attributes like __stdcall inside #if _WIN32 guards in third-party headers
+    # produce -Wignored-attributes warnings that fail the build under -Werror.
+    # The warnings are correct but not actionable: the attributes come from a
+    # third-party header and are silently discarded by the compiler anyway.
+    level_zero_options += " -Wno-ignored-attributes"
+
 config.substitutions.append(("%level_zero_options", level_zero_options))
 
 with test_env():

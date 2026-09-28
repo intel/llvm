@@ -52,7 +52,7 @@ private:
 
   uint32_t getNextCommandListId(const ur_event_handle_t *phWaitEvents = nullptr,
                                 uint32_t numWaitEvents = 0) {
-    bool captureActive;
+    bool captureActive = false;
     auto &cmdListManager =
         (*commandListManagers.get_no_lock())[captureCmdListManagerIdx];
     cmdListManager.queryGraphCaptureActive(&captureActive);

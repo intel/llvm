@@ -417,8 +417,12 @@ void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
   waitForEvents(DepEvents);
   OutEvent = nullptr;
 
+  // A host allocation linked to a device one has no pointer of its own until
+  // it is mapped, so the parent can legitimately be null here and offsetting
+  // it would be UB. Null is a safe result: AllocaSubBufCommand recomputes the
+  // sub-buffer pointer from the parent on every getMemAllocation() query.
   if (!TargetContext)
-    return static_cast<void *>(static_cast<char *>(ParentMemObj) + Offset);
+    return ParentMemObj ? static_cast<char *>(ParentMemObj) + Offset : nullptr;
 
   size_t SizeInBytes = ElemSize;
   for (size_t I = 0; I < 3; ++I)
@@ -1054,22 +1058,14 @@ memcpyToDeviceGlobalUSM(queue_impl &Queue,
   // of this function call.
   OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue.getAdapter());
 
-  // We may need addtional events, so create a non-const dependency events list
-  // to use if we need to modify it.
-  std::vector<ur_event_handle_t> AuxDepEventsStorage;
-  const std::vector<ur_event_handle_t> &ActualDepEvents =
-      ZIEvent ? AuxDepEventsStorage : DepEvents;
+  std::vector<ur_event_handle_t> ActualDepEvents = DepEvents;
 
-  // If there is a zero-initializer event the memory operation should wait for
-  // it.
-  if (ZIEvent) {
-    AuxDepEventsStorage = DepEvents;
-    AuxDepEventsStorage.push_back(ZIEvent.GetEvent());
-  }
+  if (ZIEvent)
+    ActualDepEvents.push_back(ZIEvent.GetEvent());
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
                           reinterpret_cast<char *>(Dest) + Offset,
-                          ActualDepEvents, OutEvent);
+                          std::move(ActualDepEvents), OutEvent);
 }
 
 static void memcpyFromDeviceGlobalUSM(
@@ -1086,21 +1082,13 @@ static void memcpyFromDeviceGlobalUSM(
   // of this function call.
   OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue.getAdapter());
 
-  // We may need addtional events, so create a non-const dependency events list
-  // to use if we need to modify it.
-  std::vector<ur_event_handle_t> AuxDepEventsStorage;
-  const std::vector<ur_event_handle_t> &ActualDepEvents =
-      ZIEvent ? AuxDepEventsStorage : DepEvents;
+  std::vector<ur_event_handle_t> ActualDepEvents = DepEvents;
 
-  // If there is a zero-initializer event the memory operation should wait for
-  // it.
-  if (ZIEvent) {
-    AuxDepEventsStorage = DepEvents;
-    AuxDepEventsStorage.push_back(ZIEvent.GetEvent());
-  }
+  if (ZIEvent)
+    ActualDepEvents.push_back(ZIEvent.GetEvent());
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
-                          NumBytes, Dest, ActualDepEvents, OutEvent);
+                          NumBytes, Dest, std::move(ActualDepEvents), OutEvent);
 }
 
 static ur_program_handle_t

@@ -1272,8 +1272,12 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
   KernelInfo.ArgProps.resize(numArgs);
-  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
-              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+  // A kernel may take no arguments at all, in which case pArgs is null and the
+  // resized vector has not allocated, so both memcpy pointers are null. That is
+  // undefined behaviour even for a zero length.
+  if (numArgs)
+    std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+                numArgs * sizeof(ur_exp_kernel_arg_properties_t));
 
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {

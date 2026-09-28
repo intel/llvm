@@ -457,10 +457,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     return ReturnValue(0);
   }
-  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_PROPERTIES: {
     // The mandated minimum capability:
     ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
+    return ReturnValue(Capability);
+  }
+  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+    // The mandated minimum capability, plus flags that are accepted and
+    // honored (stored verbatim, no functional rejection) by urQueueCreate:
+    ur_queue_flags_t Capability =
+        UR_QUEUE_FLAG_PROFILING_ENABLE | UR_QUEUE_FLAG_DISCARD_EVENTS |
+        UR_QUEUE_FLAG_SUBMISSION_BATCHED | UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
@@ -510,7 +517,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #elif defined(__HIP_PLATFORM_AMD__)
     S << Props.gcnArchName;
 #else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#error ("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
     return ReturnValue(S.str().c_str());
   }
@@ -1216,7 +1223,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 #elif defined(__HIP_PLATFORM_NVIDIA__)
   const char *BinaryType = UR_DEVICE_BINARY_TARGET_NVPTX64;
 #else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#error ("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
   std::optional<uint32_t> FirstBackupCandidate;
 

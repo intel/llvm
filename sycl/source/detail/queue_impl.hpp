@@ -32,6 +32,7 @@
 #include <sycl/queue.hpp>
 
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -378,6 +379,18 @@ public:
                               CodeLoc, IsTopCodeLoc);
   }
 
+  /// Submits an already built kernel with an explicit argument list, without
+  /// creating a handler or a command group object.
+  ///
+  /// \param RangeView is the execution range.
+  /// \param KernelImpl is the kernel to launch.
+  /// \param Args are the kernel arguments, as bytes plus their kind.
+  void submit_kernel_obj_direct_without_event(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const sycl::detail::KernelArgView> Args,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
                                          detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
@@ -658,6 +671,11 @@ public:
     setCommandGraphUnlocked(Graph);
   }
 
+  /// Put this queue into recording mode for \p Graph, acquiring both the
+  /// submission mutex and the graph mutex.
+  void
+  beginRecordingGraph(ext::oneapi::experimental::detail::graph_impl &Graph);
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {
     return MGraph.lock();
@@ -673,8 +691,9 @@ public:
     ur_result_t Result = UR_RESULT_SUCCESS;
   };
 
-  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph,
-                                             bool LockQueue);
+  /// Start native graph capture on this queue. The caller must
+  /// already hold the submission mutex.
+  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph);
 
   NativeRecordingResult endNativeRecording();
 

@@ -26,15 +26,12 @@ using command_list_unique_handle =
 } // namespace raii
 
 struct supported_extensions_descriptor_t {
-  supported_extensions_descriptor_t(bool ZeCopyOffloadExtensionSupported,
-                                    bool ZeMutableCmdListExtentionSupported,
+  supported_extensions_descriptor_t(bool ZeMutableCmdListExtentionSupported,
                                     bool ZeCopyOffloadQueueFlagSupported,
                                     bool ZeCopyOffloadListFlagSupported)
-      : ZeCopyOffloadExtensionSupported(ZeCopyOffloadExtensionSupported),
-        ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported),
+      : ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported),
         ZeCopyOffloadQueueFlagSupported(ZeCopyOffloadQueueFlagSupported),
         ZeCopyOffloadListFlagSupported(ZeCopyOffloadListFlagSupported) {}
-  bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
   bool ZeCopyOffloadQueueFlagSupported;
   bool ZeCopyOffloadListFlagSupported;
@@ -100,7 +97,6 @@ struct command_list_cache_t {
 
 private:
   ze_context_handle_t ZeContext;
-  bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
   bool ZeCopyOffloadQueueFlagSupported;
   bool ZeCopyOffloadListFlagSupported;

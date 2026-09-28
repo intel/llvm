@@ -50,6 +50,9 @@ class E2EExpr(BooleanExpression):
         "ze_debug",
         "device-config-file",
         "new-offload-model",
+        "sg-8",
+        "sg-16",
+        "sg-32",
     }
 
     def __init__(self, string, variables, build_only_mode, final_unknown_value):

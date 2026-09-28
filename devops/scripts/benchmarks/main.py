@@ -533,16 +533,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--offload-prefix",
         type=str,
-        help="LLVM install prefix containing libLLVMOffload in lib and OffloadAPI.h "
-        "in include/offload. Enables the OFFLOAD SubmitKernel benchmark.",
+        help="LLVM install prefix containing libLLVMOffload under lib and "
+        "OffloadAPI.h in include/offload. The resolved paths are passed as "
+        "LIBOFFLOAD_LIBRARY_DIR and LIBOFFLOAD_INCLUDE_DIR.",
         default=options.offload_prefix,
-    )
-    parser.add_argument(
-        "--force-offload-plugin",
-        type=str,
-        help="Backend name (level_zero/cuda/amdgpu/host) exported as FORCE_OFFLOAD_PLUGIN "
-        "for the benchmark executable process.",
-        default=options.force_offload_plugin,
     )
     parser.add_argument(
         "--env",
@@ -807,7 +801,6 @@ if __name__ == "__main__":
     options.redownload = args.redownload
     options.compute_benchmarks_source_dir = args.compute_benchmarks_source_dir
     options.offload_prefix = args.offload_prefix
-    options.force_offload_plugin = args.force_offload_plugin
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
@@ -860,13 +853,20 @@ if __name__ == "__main__":
         )
     if args.offload_prefix is not None:
         offload_prefix = os.path.abspath(args.offload_prefix)
-        if not os.path.isdir(os.path.join(offload_prefix, "lib")):
-            parser.error("Specified --offload-prefix does not contain a lib directory")
         if not os.path.isdir(os.path.join(offload_prefix, "include", "offload")):
             parser.error(
                 "Specified --offload-prefix does not contain an include/offload directory"
             )
+        # libLLVMOffload.so lives in lib/ or, when the LLVM build enabled
+        # LLVM_ENABLE_PER_TARGET_RUNTIME_DIR, in lib/<target-triple>/.
+        candidates = sorted(Path(offload_prefix).glob("lib*/**/libLLVMOffload.so"))
+        if not candidates:
+            parser.error(
+                "Specified --offload-prefix does not contain libLLVMOffload.so"
+            )
         options.offload_prefix = offload_prefix
+        options.offload_lib_dir = str(candidates[0].parent)
+        options.extra_ld_libraries.append(options.offload_lib_dir)
     # Initialize GitHub summary tracking
     execution_stats = {
         "total_tests": 0,

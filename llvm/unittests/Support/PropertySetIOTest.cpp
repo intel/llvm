@@ -69,4 +69,12 @@ TEST(PropertySet, ByteArrayValuesIO) {
   // Check that the original and the serialized version are equal
   ASSERT_EQ(Serialized, Content);
 }
+
+TEST(PropertySet, EmptyByteArrayValue) {
+  // An empty container has a null data pointer, which must not be passed to
+  // memcpy.
+  PropertyValue Prop{std::vector<char>{}};
+  ASSERT_EQ(Prop.getType(), PropertyValue::BYTE_ARRAY);
+  ASSERT_EQ(Prop.getByteArraySize(), 0u);
+}
 } // namespace

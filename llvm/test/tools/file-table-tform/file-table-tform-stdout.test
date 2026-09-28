@@ -1,0 +1,2 @@
+-- Test that Test that stdout (-o -) writing does not close the underlying fd.
+RUN: file-table-tform --extract=A,C,D %S/Inputs/a.txt -o - | diff - %S/Inputs/stdout-gold.txt

@@ -10,11 +10,11 @@ int check_nan_convert(std::initializer_list<double> Inputs,
                       const std::vector<uint16_t> &Outputs) {
   assert(Inputs.size() == Outputs.size());
   size_t Idx = 0;
-  bool Signaling = false;
+  bool Signaling = true;
   for (const double *It = Inputs.begin(); It != Inputs.end(); ++It) {
     uint16_t bf16_bits = Outputs[Idx];
     if (is_bfloat16_nan(bf16_bits, Signaling)) {
-      if (Signaling != is_signaling_nan(*It))
+      if (Signaling)
         return 1;
     } else
       return 1;

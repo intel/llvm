@@ -132,5 +132,6 @@ static_assert(noexcept(std::declval<const Item &>().async_work_group_copy(
     std::declval<DecoratedGlobalIntPtr>(),
     std::declval<DecoratedLocalConstIntPtr>(), std::size_t{})));
 
+static_assert(noexcept(std::declval<sycl::device_event &>().wait()));
 static_assert(noexcept(
     std::declval<const Item &>().wait_for(std::declval<sycl::device_event>())));

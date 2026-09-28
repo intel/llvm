@@ -252,6 +252,10 @@ template <> ze_structure_type_t getZeStructureType<ze_kernel_desc_t>() {
 template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
   return ZE_STRUCTURE_TYPE_EVENT_DESC;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_event_sync_mode_desc_t>() {
+  return ZE_STRUCTURE_TYPE_EVENT_SYNC_MODE_DESC;
+}
 template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
   return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
 }
@@ -296,6 +300,13 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_EXT_PROPERTIES;
 }
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+template <>
+ze_structure_type_t
+getZeStructureType<ze_device_usablemem_size_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_USABLEMEM_SIZE_EXT_PROPERTIES;
+}
+#endif
 template <>
 ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
