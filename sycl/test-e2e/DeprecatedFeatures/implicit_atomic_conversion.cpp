@@ -1,4 +1,4 @@
-// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/atomic.hpp>
