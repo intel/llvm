@@ -242,9 +242,8 @@ enum class aspect {
 ----
 
 When a device has this aspect, it allows events to be created with profiling
-enabled. In order for the `make_event` function to create an event with
-profiling enabled, all of the devices in a context provided to that function
-need to have this aspect.
+enabled. All devices in the same platform return the same information for this
+query.
 
 '''
 
