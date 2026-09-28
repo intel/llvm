@@ -105,6 +105,15 @@ int main() {
     // Member pointer types are not device copyable.
     static_assert(!sycl::is_device_copyable_v<int S::*>);
     static_assert(!sycl::is_device_copyable_v<void (S::*)(int)>);
+
+    static_assert(!sycl::is_device_copyable_v<int S::*const>);
+    static_assert(!sycl::is_device_copyable_v<void (S::*const)(int)>);
+
+    static_assert(!sycl::is_device_copyable_v<int S::*volatile>);
+    static_assert(!sycl::is_device_copyable_v<void (S::*volatile)(int)>);
+
+    static_assert(!sycl::is_device_copyable_v<int S::*const volatile>);
+    static_assert(!sycl::is_device_copyable_v<void (S::*const volatile)(int)>);
   }
 
   // Extra checks
