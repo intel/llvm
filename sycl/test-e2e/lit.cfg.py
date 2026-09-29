@@ -1053,12 +1053,8 @@ if any(
     config.available_features.add("jit")
 
 # "spir-family" is true whenever the active build target(s) compile to any
-# SPIR triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant).
-# Unlike target-spir/target-spir_gen individually, this is meant for tests
-# that only care about "is this a SPIR backend" without asserting which
-# specific triple got selected. It is computed the same way in build-only
-# mode (from the requested sycl_build_targets) and run mode (from the
-# backend of the detected devices), so it stays deterministic in both.
+# SPIR triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant), for
+# tests that only care "is this a SPIR backend" not which triple specifically.
 SPIR_FAMILY_TRIPLES = {"spir64", "spir64_gen", "spir64_x86_64"}
 matched_spir_triple = next(
     (
@@ -1071,9 +1067,8 @@ matched_spir_triple = next(
 if matched_spir_triple is not None:
     config.available_features.add("spir-family")
 
-# %aot_options expands to the compiler flags needed to AOT-compile for the
-# active backend family, computed once per lit run since a run only ever
-# targets one backend family.
+# %aot_options expands to the AOT flags for the matched SPIR triple; empty
+# for spir64_x86_64 until CPU AOT flags are needed.
 if matched_spir_triple in ("spir64", "spir64_gen"):
     aot_options = (
         "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
