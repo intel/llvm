@@ -361,6 +361,19 @@ static ur_result_t urEnqueueKernelLaunch(
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
 
+  // Release the wait list if we return early, before its ownership is
+  // transferred to the event.
+  bool WaitListOwnedByEvent = false;
+  OnScopeExit ReleaseWaitList([&]() {
+    if (WaitListOwnedByEvent)
+      return;
+    std::list<ur_event_handle_t> EventsToBeReleased;
+    TmpWaitList.collectEventsForReleaseAndDestroyUrZeEventList(
+        EventsToBeReleased);
+    for (ur_event_handle_t WaitEvent : EventsToBeReleased)
+      urEventReleaseInternal(WaitEvent);
+  });
+
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
@@ -380,6 +393,7 @@ static ur_result_t urEnqueueKernelLaunch(
                          NumEventsInWaitList, EventWaitListInternal,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  WaitListOwnedByEvent = true;
 
   // Save the kernel in the event, so that when the event is signalled
   // the code can do a urKernelRelease on this kernel.
