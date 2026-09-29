@@ -160,25 +160,35 @@
 // RUN:          -ftarget-register-alloc-mode=pvc:large \
 // RUN:          -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck -check-prefix JIT_LINK_IMPLIED %s
-// JIT_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-g" "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
+// JIT_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-g"
+// JIT_LINK_IMPLIED-SAME: "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
 // RUN:          -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:          -fsycl-fp64-conv-emu -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck -check-prefix GPU_LINK_IMPLIED %s
-// GPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device_options" "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc" "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-opt-large-register-file" "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options" "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-fp64-gen-conv-emu -g -cl-opt-disable"
+// GPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device_options"
+// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
+// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-opt-large-register-file"
+// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options"
+// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-fp64-gen-conv-emu -g -cl-opt-disable"
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
 // RUN:          -g -O0 -Xsycl-target-backend '-device pvc' \
 // RUN:          -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck -check-prefix GPU_LINK_DEFAULT %s
-// GPU_LINK_DEFAULT: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device_options" "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc" "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-intel-enable-auto-large-GRF-mode" "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options" "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-g -cl-opt-disable"
+// GPU_LINK_DEFAULT: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device_options"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-intel-enable-auto-large-GRF-mode"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-g -cl-opt-disable"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 \
 // RUN:          -g -O0 -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck -check-prefix CPU_LINK_IMPLIED %s
-// CPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-g" "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-cl-opt-disable"
+// CPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-g"
+// CPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-cl-opt-disable"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl --offload-new-driver -fsycl-targets=spir64 \
