@@ -16,6 +16,10 @@
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 
+#include <cctype>
+#include <cerrno>
+#include <cstdlib>
+
 struct ur_device_handle_t_ : ur::cuda::handle_base {
 private:
   using native_type = CUdevice;
@@ -83,6 +87,30 @@ public:
       // Cap chosen local mem size to device capacity, kernel enqueue will fail
       // if it actually needs more.
       MaxChosenLocalMem = std::min(MaxChosenLocalMem, MaxCapacityLocalMem);
+    }
+
+    // Set the per-thread stack size limit if the env var is present. This maps
+    // to CUDA's CU_LIMIT_STACK_SIZE (the driver-level equivalent of
+    // cudaLimitStackSize) and is useful for kernels with deep recursion or
+    // large per-thread private data that would otherwise overflow the small
+    // default stack. The primary context is already current here (see
+    // ScopedContext in platform.cpp), so cuCtxSetLimit applies to it.
+    if (const char *StackSizePtr = std::getenv("UR_CUDA_STACK_SIZE")) {
+      const char *NumberStart = StackSizePtr;
+      while (std::isspace(static_cast<unsigned char>(*NumberStart)))
+        ++NumberStart;
+
+      errno = 0;
+      char *End = nullptr;
+      const unsigned long long Parsed = std::strtoull(StackSizePtr, &End, 10);
+      if (*NumberStart == '-' || errno != 0 || End == StackSizePtr ||
+          *End != '\0' || Parsed == 0) {
+        setErrorMessage("Invalid value specified for UR_CUDA_STACK_SIZE",
+                        UR_RESULT_ERROR_INVALID_VALUE);
+        throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      UR_CHECK_ERROR(
+          cuCtxSetLimit(CU_LIMIT_STACK_SIZE, static_cast<size_t>(Parsed)));
     }
 
     // Max size of memory object allocation in bytes.
