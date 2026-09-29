@@ -43,7 +43,10 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
 
   // Given a multi driver scenario, the driver handle must be translated to the
   // internal driver handle to allow calls to driver experimental apis.
-  ze_driver_handle_t ZeDriverHandleExpTranslated;
+  // Populated by initialize() via zelLoaderTranslateHandle(); default-
+  // initialized to nullptr so it is never read uninitialized if a use ever
+  // races ahead of, or occurs despite a failure in, that initialization.
+  ze_driver_handle_t ZeDriverHandleExpTranslated = nullptr;
 
   // Helper wrapper for working with Driver Version String extension in Level
   // Zero.
