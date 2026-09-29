@@ -15,6 +15,7 @@ class UnresolvedDepKernel;
 class MutualDepKernelA;
 class MutualDepKernelB;
 class AOTCaseKernel;
+class MixedAOTDepKernel;
 } // namespace DynamicLinkingTest
 
 const static sycl::specialization_id<int> SpecConst1{1};
@@ -35,6 +36,7 @@ KERNEL_INFO(UnresolvedDepKernel)
 KERNEL_INFO(MutualDepKernelA)
 KERNEL_INFO(MutualDepKernelB)
 KERNEL_INFO(AOTCaseKernel)
+KERNEL_INFO(MixedAOTDepKernel)
 
 #undef KERNEL_INFO
 
@@ -134,6 +136,8 @@ static constexpr unsigned MUTUAL_DEP_PRG_A = 13;
 static constexpr unsigned MUTUAL_DEP_PRG_B = 17;
 static constexpr unsigned AOT_CASE_PRG_NATIVE = 23;
 static constexpr unsigned AOT_CASE_PRG_DEP_NATIVE = 29;
+static constexpr unsigned MIXED_CASE_PRG = 31;
+static constexpr unsigned MIXED_CASE_PRG_DEP_NATIVE = 37;
 
 static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"BasicCaseKernel"}, {}, {"BasicCaseKernelDep"},
@@ -159,10 +163,15 @@ static sycl::unittest::MockDeviceImage Imgs[] = {
                   __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN),
     generateImage({"AOTCaseKernelDep"}, {"AOTCaseKernelDep"}, {},
                   AOT_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN),
+    generateImage({"MixedAOTDepKernel"}, {}, {"MixedAOTDepKernelDep"},
+                  MIXED_CASE_PRG),
+    generateImage({"MixedAOTDepKernelDep"}, {"MixedAOTDepKernelDep"}, {},
+                  MIXED_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE,
                   __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::MockDeviceImageArray<9> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<11> ImgArray{Imgs};
 
 void runCommonBasicCaseChecks() {
   ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
@@ -245,13 +254,42 @@ TEST(DynamicLinking, AheadOfTime) {
 
   Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
   ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateWithBinaryCalls, 2u);
-  // Both programs should be linked together.
-  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+  // Native AOT images cannot go through urProgramLinkExp; they must be
+  // routed through urProgramDynamicLinkExp instead.
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 0u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramDynamicLinkCalls, 1u);
   ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
       {AOT_CASE_PRG_NATIVE, AOT_CASE_PRG_DEP_NATIVE}));
-  // And the linked program should be used to create a kernel.
-  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
-            AOT_CASE_PRG_NATIVE * AOT_CASE_PRG_DEP_NATIVE);
+  // urProgramDynamicLinkExp links existing module handles in place rather
+  // than producing a merged one, so the main image's own program (built
+  // standalone) is what's used to create the kernel.
+  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel, AOT_CASE_PRG_NATIVE);
+}
+
+// Regression test for the implicit kernel-launch path (getBuiltURProgram):
+// a JIT (SPIR-V) main image whose dependency is a native AOT image must
+// still route that dependency through urProgramDynamicLinkExp instead of
+// feeding it to urProgramLinkExp together with the main image.
+TEST(DynamicLinking, MixedAOTDependency) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  Q.single_task<DynamicLinkingTest::MixedAOTDepKernel>([=]() {});
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateWithBinaryCalls, 1u);
+  // The main (SPIR-V) image is statically linked on its own...
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+  // ...while the native AOT dependency is routed through dynamic link.
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramDynamicLinkCalls, 1u);
+  ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
+      {MIXED_CASE_PRG, MIXED_CASE_PRG_DEP_NATIVE}));
+  // The statically-linked main image is what's used to create the kernel.
+  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel, MIXED_CASE_PRG);
 }
 
 static ur_result_t redefined_urProgramCompileExp(void *pParams) {

@@ -359,6 +359,13 @@ public:
   // Dynamically links images in executable state.
   void dynamicLink(device_images_range Imgs);
 
+  // Links a mix of static-linkable and dynamic-link-only images (see
+  // needsDynamicLink) via link() and dynamicLink() respectively. Shared
+  // by the explicit kernel_bundle link path and the implicit build path.
+  std::vector<device_image_plain>
+  linkDeviceImages(std::vector<device_image_plain> Imgs, devices_range Devs,
+                   const property_list &PropList);
+
   // Produces new device image by converting input device image to the
   // executable state. AllowUnresolvedSymbols defers cross-image
   // SYCL_EXTERNAL resolution to a subsequent dynamicLink() call; used for
@@ -406,6 +413,11 @@ public:
   // "is this image native AOT?" should use this helper to keep the answer
   // in one place.
   static bool isAOTBinaryTarget(const char *DeviceTargetSpec);
+
+  // True when BinImage cannot go through urProgramLinkExp and must
+  // instead be routed through urProgramDynamicLinkExp. Currently covers
+  // native AOT binaries (see isAOTBinaryTarget).
+  static bool needsDynamicLink(const RTDeviceBinaryImage *BinImage);
 
 private:
   ProgramManager(ProgramManager const &) = delete;
@@ -482,6 +494,12 @@ protected:
   /// Access must be guarded by the MNativeProgramsMutex mutex.
   std::unordered_map<ur_program_handle_t, DynRTDeviceBinaryImageUPtr>
       m_MergedImages;
+
+  /// Keeps dynamic-link peer images (see needsDynamicLink) alive for
+  /// implicitly-built programs, since urProgramDynamicLinkExp links
+  /// modules in place rather than merging. Guarded by MNativeProgramsMutex.
+  std::unordered_map<ur_program_handle_t, std::vector<device_image_plain>>
+      m_DynamicLinkPeerImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
