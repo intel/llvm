@@ -9177,7 +9177,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         (IsCuda || IsHIP) &&
         (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi)) &&
         !UsesLLVMOffloading;
-    UseOffloadIncludeBinary |= IsSYCL && !IsRDCMode;
+    // The old offloading model, still the default for SYCL, has already
+    // wrapped the device image in clang-offload-wrapper.
+    UseOffloadIncludeBinary |=
+        IsSYCL && !IsRDCMode && D.getUseNewOffloadingDriver();
     if (UseOffloadIncludeBinary) {
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
       CmdArgs.push_back("-foffload-include-binary");
