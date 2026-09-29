@@ -22,6 +22,18 @@
 
 namespace ur::level_zero::v1 {
 
+namespace {
+// Release the events retained by createAndRetainUrZeEventList and free the
+// list's arrays. Used when returning before the list has been handed over to
+// the command's event, which would otherwise release it once completed.
+void releaseWaitList(ur_ze_event_list_t &WaitList) {
+  std::list<ur_event_handle_t> EventsToBeReleased;
+  WaitList.collectEventsForReleaseAndDestroyUrZeEventList(EventsToBeReleased);
+  for (ur_event_handle_t Event : EventsToBeReleased)
+    urEventReleaseInternal(Event);
+}
+} // namespace
+
 ur_result_t urBindlessImagesImageCopyExp(
     ::ur_queue_handle_t hQueueOpque, const void *pSrc, void *pDst,
     const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,
@@ -71,6 +83,11 @@ ur_result_t urBindlessImagesImageCopyExp(
   auto phEventInternal = v1_cast(phEventOpque);
 
   ur_ze_event_list_t TmpWaitList;
+  bool WaitListOwnedByEvent = false;
+  OnScopeExit ReleaseTmpWaitList([&]() {
+    if (!WaitListOwnedByEvent)
+      releaseWaitList(TmpWaitList);
+  });
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitListInternal, hQueue, UseCopyEngine));
 
@@ -95,6 +112,7 @@ ur_result_t urBindlessImagesImageCopyExp(
                          numEventsInWaitList, phEventWaitListInternal,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  WaitListOwnedByEvent = true;
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -138,6 +156,11 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   auto phEventInternal = v1_cast(phEventOpque);
 
   ur_ze_event_list_t TmpWaitList;
+  bool WaitListOwnedByEvent = false;
+  OnScopeExit ReleaseTmpWaitList([&]() {
+    if (!WaitListOwnedByEvent)
+      releaseWaitList(TmpWaitList);
+  });
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitListInternal, hQueue, UseCopyEngine));
 
@@ -159,6 +182,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
                          numEventsInWaitList, phEventWaitListInternal,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  WaitListOwnedByEvent = true;
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -205,6 +229,11 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   auto phEventInternal = v1_cast(phEventOpque);
 
   ur_ze_event_list_t TmpWaitList;
+  bool WaitListOwnedByEvent = false;
+  OnScopeExit ReleaseTmpWaitList([&]() {
+    if (!WaitListOwnedByEvent)
+      releaseWaitList(TmpWaitList);
+  });
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitListInternal, hQueue, UseCopyEngine));
 
@@ -226,6 +255,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
                          numEventsInWaitList, phEventWaitListInternal,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  WaitListOwnedByEvent = true;
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
