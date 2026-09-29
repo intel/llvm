@@ -39,6 +39,28 @@ namespace ur_validation_layer
         sorted_param_checks = sorted(param_checks, key=lambda pair: (0, first_errors.index(pair[0])) if pair[0] in first_errors else (1, 0))
 
         tracked_params = list(filter(lambda p: any(th.subt(n, tags, p['type']) in [hf['handle'], hf['handle'] + "*"] for hf in handle_create_get_retain_release_funcs), obj['params']))
+
+        # Markers: no work of their own, and their wait list may hold an event
+        # the application signals later. Timestamp recording does enqueue work,
+        # but takes its own `blocking` parameter, and blocking it would make
+        # SYCL's profiling tag synchronous only where this native path is taken.
+        # A host task runs on the host, so it cannot fault on the device: a
+        # drain there only serializes, and hangs on a host task that waits on
+        # something the submitting thread does once the submission returns.
+        launch_blocking_excluded = [x + suffix for suffix in [
+            "EnqueueEventsWait", "EnqueueEventsWaitWithBarrier",
+            "EnqueueEventsWaitWithBarrierExt", "EnqueueTimestampRecordingExp",
+            "EnqueueHostTaskExp"]]
+        # Commands outside the Enqueue tables that submit work to a queue.
+        # WaitExternalSemaphoreExp is not one: it waits for an external signal.
+        launch_blocking_extra = [x + suffix for suffix in [
+            "BindlessImagesImageCopyExp",
+            "BindlessImagesSignalExternalSemaphoreExp"]]
+        blocks_on_queue = ((func_name.startswith(x + "Enqueue") or
+                            func_name in launch_blocking_extra) and
+                           func_name not in launch_blocking_excluded and
+                           len(obj['params']) > 0 and
+                           th.subt(n, tags, obj['params'][0]['type']) == x + "_queue_handle_t")
     %>
 %if 'guard' in obj:
 #if ${obj['guard']}
@@ -147,6 +169,13 @@ namespace ur_validation_layer
         %endif
         %endfor
 
+        %if blocks_on_queue:
+        if( getContext()->enableLaunchBlocking && result == ${X}_RESULT_SUCCESS )
+        {
+            result = getContext()->blockOnQueue( ${obj['params'][0]['name']} );
+        }
+        %endif
+
         return result;
     }
     %if 'condition' in obj:
@@ -242,7 +271,13 @@ namespace ur_validation_layer
             }
         }
 
-        if (!enableParameterValidation && !enableLeakChecking && !enableLifetimeValidation) {
+        // Not part of full validation: it changes when commands run.
+        if (enabledLayerNames.count(nameLaunchBlocking)) {
+            enableLaunchBlocking = true;
+        }
+
+        if (!enableParameterValidation && !enableLeakChecking &&
+            !enableLifetimeValidation && !enableLaunchBlocking) {
             return result;
         }
 

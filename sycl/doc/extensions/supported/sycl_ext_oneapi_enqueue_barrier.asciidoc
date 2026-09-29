@@ -300,6 +300,10 @@ Barriers can be created by two members of the `handler` class that force synchro
 |`void ext_oneapi_barrier( const std::vector<event> &waitList` ) | Prevents any commands submitted afterward to this queue from executing until all events in `waitList` have entered the `info::event_command_status::complete` state.  If `waitList` is empty, then the barrier has no effect.
 |========================================
 
+== Implementation limitations
+
+Although this specification places no constraints on the context of events in the `waitList`, the current implementation does not support it. An event which belongs to another context is passed to the backend as it is, without being translated to the context of the queue the barrier is submitted to, so the behavior of such a barrier is undefined. This applies to both `handler::ext_oneapi_barrier` and `queue::ext_oneapi_submit_barrier`. The events of host tasks are not affected, because the SYCL runtime waits for them itself instead of passing them to the backend.
+
 == Issues
 
 None.

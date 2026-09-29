@@ -1605,6 +1605,26 @@ urPrintExpEventDesc(const struct ur_exp_event_desc_t params, char *buffer,
                     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_sync_mode_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEventSyncModeFlags(
+    enum ur_exp_event_sync_mode_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_sync_mode_desc_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEventSyncModeDesc(
+    const struct ur_exp_event_sync_mode_desc_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_loader_config_create_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
