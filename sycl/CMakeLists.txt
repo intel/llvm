@@ -586,6 +586,7 @@ endif()
 
 include(GetTargetsBuildingLLVMRuntime)
 get_targets_building_llvm_runtime(libclc libclc_targets)
+get_targets_building_llvm_runtime(compiler-rt compiler-rt_targets)
 
 foreach(target IN LISTS libclc_targets)
   add_dependencies(sycl-toolchain libclc-${target})
@@ -597,6 +598,12 @@ foreach(target IN LISTS libclc_targets)
   # build/runtimes/runtimes-<target>, then separated by "::" is the component name to install
   # from that sub-directory.
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS runtimes-${target}::libspirv-builtins)
+endforeach()
+
+# Currently, we only enable compiler-rt builtin library for spirv64 targets
+foreach(target IN LISTS compiler-rt_targets)
+  add_dependencies(sycl-toolchain builtins-${target})
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS builtins-${target})
 endforeach()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
