@@ -29,14 +29,22 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   clang-resource-headers
   libsycldevice)
 
-include(CheckEnabledLLVMRuntime)
-is_llvm_runtime_enabled(libclc libclc_enabled)
+include(GetTargetsBuildingLLVMRuntime)
+get_targets_building_llvm_runtime(libclc libclc_targets)
+get_targets_building_llvm_runtime(compiler-rt compiler-rt_targets)
 
-if (libclc_enabled)
+foreach(tgt IN LISTS libclc_targets)
   # If some targets required `libclc` then we should embed it for the
   # `sycl-jit`.
-  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
-endif()
+  # We need a special component name to refer to libspirv, see the comment in sycl/CMakeLists.txt
+  # for an explanation on the format and the reason behind it.
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS "runtimes-${tgt}::libspirv-builtins")
+endforeach()
+
+# We only enable compiler-rt builtin library for spirv64 target.
+foreach(tgt IN LISTS compiler-rt_targets)
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS builtins-${tgt})
+endforeach()
 
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
 
@@ -50,13 +58,14 @@ function(sycl_jit_add_install_command component binary_dir)
 endfunction()
 
 foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
-  if("${component}" STREQUAL "libspirv-builtins")
-    list(APPEND SYCL_JIT_RESOURCE_DEPS libclc)
-    foreach(tgt IN LISTS LLVM_RUNTIME_TARGETS)
-      if("libclc" IN_LIST RUNTIMES_${tgt}_LLVM_ENABLE_RUNTIMES)
-        sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc")
-      endif()
-    endforeach()
+  if("${component}" MATCHES "^runtimes-(.*)::(.*)")
+    set(tgt "${CMAKE_MATCH_1}")
+    set(component "${CMAKE_MATCH_2}")
+    list(APPEND SYCL_JIT_RESOURCE_DEPS runtimes-${tgt})
+    sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc")
+  elseif("${component}" STREQUAL "builtins-spirv64-unknown-unknown")
+    list(APPEND SYCL_JIT_RESOURCE_DEPS builtins-spirv64-unknown-unknown)
+    sycl_jit_add_install_command("clang_rt.builtins-spirv64" "${CMAKE_BINARY_DIR}/runtimes/builtins-spirv64-unknown-unknown-bins/")
   else()
     list(APPEND SYCL_JIT_RESOURCE_DEPS ${component})
     sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}")

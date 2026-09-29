@@ -524,6 +524,9 @@ Command::Command(
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
   MEvent->setCommand(this);
+  if (MQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MQueue->getContextImpl().isNativeRecordingActive());
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
