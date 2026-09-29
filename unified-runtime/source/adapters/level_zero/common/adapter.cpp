@@ -228,6 +228,7 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
     ZeDevices.resize(ZeDeviceCount);
     ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, ZeDevices.data()));
     auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
+    platform->Adapter = adapter;
     // Check if this driver has GPU Devices
     for (uint32_t D = 0; D < ZeDeviceCount; ++D) {
       ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
@@ -645,8 +646,9 @@ ur_result_t urAdapterRelease(::ur_adapter_handle_t hAdapterOpque) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   auto hAdapter = common_cast(hAdapterOpque);
 
-  // NOTE: This does not require guarding with a mutex; the instant the ref
-  // count hits zero, both Get and Retain are UB.
+  // Serialize with urAdapterGet so it cannot retain and hand out the adapter
+  // while it is being torn down and deleted here.
+  std::lock_guard<std::mutex> Lock(GlobalAdapterMutex);
   if (hAdapter->RefCount.release()) {
     auto result = adapterStateTeardown();
 #ifdef UR_STATIC_LEVEL_ZERO
@@ -655,11 +657,8 @@ ur_result_t urAdapterRelease(::ur_adapter_handle_t hAdapterOpque) {
     zelLoaderContextTeardown();
 #endif
 
-    {
-      std::lock_guard<std::mutex> Lock(GlobalAdapterMutex);
-      if (hAdapter == GlobalAdapter)
-        GlobalAdapter = nullptr;
-    }
+    if (hAdapter == GlobalAdapter)
+      GlobalAdapter = nullptr;
     delete hAdapter;
 
     return result;
