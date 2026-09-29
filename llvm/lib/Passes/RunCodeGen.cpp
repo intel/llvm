@@ -35,12 +35,15 @@ static Error
 runCodeGenPipelineLegacy(TargetMachine &TM, Module &M, raw_pwrite_stream &OS,
                          std::unique_ptr<ToolOutputFile> &DwoOS,
                          CodeGenFileType CGFT, bool PrintPipelinePasses,
-                         bool DisableVerify, bool DisableSimplifyLibCalls) {
+                         bool DisableVerify, bool DisableSimplifyLibCalls,
+                         const TargetLibraryInfoImpl *PresetTLII) {
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
       createTargetTransformInfoWrapperPass(TM.getTargetIRAnalysis()));
   // Add LibraryInfo.
   TargetLibraryInfoImpl TLII(TM.getTargetTriple(), TM.Options.VecLib);
+  if (PresetTLII)
+    TLII = *PresetTLII;
   if (DisableSimplifyLibCalls)
     TLII.disableAllFunctions();
   CodeGenPasses.add(new TargetLibraryInfoWrapperPass(TLII));
@@ -61,7 +64,8 @@ static Error runCodeGenPipelineNewPM(TargetMachine &TM, Module &M,
                                      raw_pwrite_stream &OS,
                                      std::unique_ptr<ToolOutputFile> &DwoOS,
                                      CodeGenFileType CGFT, bool DisableVerify,
-                                     IntrusiveRefCntPtr<vfs::FileSystem> VFS) {
+                                     IntrusiveRefCntPtr<vfs::FileSystem> VFS,
+                                     const TargetLibraryInfoImpl *PresetTLII) {
   ModulePassManager MPM;
   MachineFunctionAnalysisManager MFAM;
   LoopAnalysisManager LAM;
@@ -75,6 +79,11 @@ static Error runCodeGenPipelineNewPM(TargetMachine &TM, Module &M,
   PipelineTuningOptions PTOptions;
   TargetMachine *TMPointer = &TM;
   PassBuilder PB(TMPointer, PTOptions, std::nullopt, &PIC, VFS);
+  // Register the frontend's preset TLI before registerFunctionAnalyses() below
+  // installs the default TargetLibraryAnalysis: AnalysisManager::registerPass()
+  // keeps the first registration for a given analysis and ignores later ones.
+  if (PresetTLII)
+    FAM.registerPass([&] { return TargetLibraryAnalysis(*PresetTLII); });
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);
@@ -99,13 +108,15 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
                                std::unique_ptr<ToolOutputFile> &DwoOS,
                                CodeGenFileType CGFT, bool PrintPipelinePasses,
                                bool DisableVerify, bool DisableSimplifyLibCalls,
-                               IntrusiveRefCntPtr<vfs::FileSystem> VFS) {
+                               IntrusiveRefCntPtr<vfs::FileSystem> VFS,
+                               const TargetLibraryInfoImpl *TLII) {
   if (ForceNewPM == cl::boolOrDefault::BOU_TRUE ||
       (TM.shouldDefaultToNewPM() &&
        ForceNewPM != cl::boolOrDefault::BOU_FALSE)) {
-    return runCodeGenPipelineNewPM(TM, M, OS, DwoOS, CGFT, DisableVerify, VFS);
+    return runCodeGenPipelineNewPM(TM, M, OS, DwoOS, CGFT, DisableVerify, VFS,
+                                   TLII);
   }
 
   return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CGFT, PrintPipelinePasses,
-                                  DisableVerify, DisableSimplifyLibCalls);
+                                  DisableVerify, DisableSimplifyLibCalls, TLII);
 }

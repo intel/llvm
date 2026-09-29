@@ -1372,11 +1372,16 @@ void EmitAssemblyHelper::RunCodegenPipeline(
       return;
   }
 
+  // Codegen passes such as FPBuiltinFnSelection need the alternate math library
+  // recorded in CodeGenOpts, which TargetMachine does not carry.
+  std::unique_ptr<TargetLibraryInfoImpl> TLII(
+      createTLII(TargetTriple, CodeGenOpts));
+
   TimeCodegenPasses([&]() {
     Error CodeGenError = runCodeGenPipeline(
         *TM, *TheModule, *OS, DwoOS, CGFT, PrintPipelinePasses.has_value(),
         !CodeGenOpts.VerifyModule, /*DisableSimplifyLibCalls=*/false,
-        CI.getVirtualFileSystemPtr());
+        CI.getVirtualFileSystemPtr(), TLII.get());
     if (CodeGenError)
       Diags.Report(diag::err_fe_unable_to_interface_with_target);
   });
