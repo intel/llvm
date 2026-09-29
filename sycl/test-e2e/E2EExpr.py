@@ -221,7 +221,9 @@ class TestE2EExpr(unittest.TestCase):
             )
         )
         self.assertFalse(
-            UnsupportedBuildEval("level-zero-headers-ge-1.15", {"level-zero-headers-ge-1.14"})
+            UnsupportedBuildEval(
+                "level-zero-headers-ge-1.15", {"level-zero-headers-ge-1.14"}
+            )
         )
 
 

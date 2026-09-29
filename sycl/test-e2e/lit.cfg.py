@@ -383,11 +383,7 @@ config.level_zero_libs_dir = quote_path(
 )
 level_zero_include_unquoted = lit_config.params.get(
     "level_zero_include",
-    (
-        config.level_zero_include
-        if config.level_zero_include
-        else config.sycl_include
-    ),
+    (config.level_zero_include if config.level_zero_include else config.sycl_include),
 )
 config.level_zero_include = quote_path(level_zero_include_unquoted)
 
@@ -396,9 +392,7 @@ config.level_zero_include = quote_path(level_zero_include_unquoted)
 # This is independent of REQUIRES-INTEL-DRIVER, which only checks the
 # runtime driver build and can't catch a test using an L0 API that the
 # headers used to build it don't declare at all.
-ze_api_header = os.path.join(
-    level_zero_include_unquoted, "level_zero", "ze_api.h"
-)
+ze_api_header = os.path.join(level_zero_include_unquoted, "level_zero", "ze_api.h")
 if os.path.exists(ze_api_header):
     with open(ze_api_header, "r") as f:
         ze_api_header_text = f.read()
