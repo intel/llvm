@@ -208,6 +208,14 @@ class TestE2E(unittest.TestCase):
             {"L0"},
         )
 
+    def test_usm_mem_alloc_ur(self):
+        self._checkCase(
+            "api_overhead_benchmark_ur UsmMemoryAllocation usmMemoryPlacement:Device size:256 " \
+            "measureMode:Allocate strategy:Sync disableUsmAllocator:0",
+            "UsmMemoryAllocation, measureMode Allocate, usmMemoryPlacement Device, size 256",
+            {"UR", "latency", "micro", "memory"},
+        )
+
     def test_submit_kernel_ur(self):
         self._checkCase(
             "api_overhead_benchmark_ur SubmitKernel out of order not using events",
