@@ -5,7 +5,8 @@
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 // UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: regular command-list batching is V1-only.
+// UNSUPPORTED-INTENDED: this test validates the Legacy regular-command-list
+// batching implementation and is not directly applicable to L0v2.
 
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
