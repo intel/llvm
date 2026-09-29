@@ -1684,6 +1684,11 @@ static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
   if (isBfloat16DeviceLibImage(RawImg))
     return false;
 
+  // Keep kernel-less images that export symbols so those exports still
+  // get registered in m_ExportedSymbolImages.
+  if (getExportedSymbolPS(RawImg))
+    return false;
+
   // We may extend the logic here other than bfloat16 device library image.
   return true;
 }
