@@ -1067,8 +1067,7 @@ matched_spir_triple = next(
 if matched_spir_triple is not None:
     config.available_features.add("spir-family")
 
-# %aot_options expands to the AOT flags for the matched SPIR triple; empty
-# for spir64_x86_64 until CPU AOT flags are needed.
+# %aot_options expands to the AOT flags for the matched build target.
 if matched_spir_triple in ("spir64", "spir64_gen"):
     aot_options = (
         "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
