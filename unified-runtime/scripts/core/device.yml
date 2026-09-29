@@ -1002,7 +1002,7 @@ etors:
       value: "$X_BIT(6)"
 --- #--------------------------------------------------------------------------
 type: enum
-desc: "IGCA (Intel Graphics Compute Architecture) feature sets a device may implement."
+desc: "IGCA (Intel Graphics Compute Architecture) feature sets a device implements."
 class: $xDevice
 name: $x_device_igca_feature_flags_t
 etors:

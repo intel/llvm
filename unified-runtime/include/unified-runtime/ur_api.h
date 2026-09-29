@@ -3176,8 +3176,8 @@ typedef enum ur_device_throttle_reasons_flag_t {
 #define UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK 0xffffff80
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief IGCA (Intel Graphics Compute Architecture) feature sets a device may
-///        implement.
+/// @brief IGCA (Intel Graphics Compute Architecture) feature sets a device
+///        implements.
 typedef uint32_t ur_device_igca_feature_flags_t;
 typedef enum ur_device_igca_feature_flag_t {
   /// The device implements the IGCA render feature set, typically a client
