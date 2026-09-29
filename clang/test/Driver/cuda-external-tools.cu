@@ -59,7 +59,7 @@
 // Compile with -fintegrated-as.  This should still cause us to invoke ptxas.
 // RUN: %clang -### --target=x86_64-linux-gnu -fintegrated-as -c %s 2>&1 \
 // RUN:   --offload-arch=sm_35 --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
-// RUN: | FileCheck -check-prefixes=CHECK,ARCH64,SM35,OPT0 %s
+// RUN: | FileCheck -check-prefixes=CHECK,ARCH64,SM35,OPT3 %s
 
 // Check -Xcuda-ptxas and -Xcuda-fatbinary
 // RUN: %clang -### --target=x86_64-linux-gnu -c -Xcuda-ptxas -foo1 \

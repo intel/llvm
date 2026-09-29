@@ -1827,12 +1827,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       CmdArgs.push_back("-Wl,--lto-emit-llvm");
   }
 
-  // For linking device code with the SYCL offload kind, special handling is
-  // required. Passing --sycl-link to clang results in a call to
-  // clang-sycl-linker.
-  if (ActiveOffloadKindMask & OFK_SYCL)
-    CmdArgs.push_back("--sycl-link");
-
   for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
     CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
   for (StringRef Arg : Args.getAllArgValues(OPT_compiler_arg_EQ))

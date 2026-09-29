@@ -6349,8 +6349,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                           options::OPT_foffload_lto_EQ);
       bool IsDeviceCodeSplitDisabled =
           SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
-      if (Triple.isNVPTX() && !IsRDCMode &&
-          JA.isDeviceOffloading(Action::OFK_Cuda)) {
+      if (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsUsingOffloadNewDriver &&
+          LTOArg) {
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << LTOArg->getAsString(Args) << Triple.getTriple();
+      } else if (Triple.isNVPTX() && !IsRDCMode &&
+                 JA.isDeviceOffloading(Action::OFK_Cuda)) {
         D.Diag(diag::err_drv_unsupported_opt_for_language_mode)
             << (LTOArg ? LTOArg->getAsString(Args) : "-foffload-lto")
             << "-fno-gpu-rdc";
@@ -9183,7 +9187,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         (IsCuda || IsHIP) &&
         (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi)) &&
         !UsesLLVMOffloading;
-    UseOffloadIncludeBinary |= IsSYCL && !IsRDCMode;
+    // The old offloading model, still the default for SYCL, has already
+    // wrapped the device image in clang-offload-wrapper.
+    UseOffloadIncludeBinary |=
+        IsSYCL && !IsRDCMode && D.getUseNewOffloadingDriver();
     if (UseOffloadIncludeBinary) {
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
       CmdArgs.push_back("-foffload-include-binary");
