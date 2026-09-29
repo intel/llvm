@@ -1060,16 +1060,21 @@ if any(
 # mode (from the requested sycl_build_targets) and run mode (from the
 # backend of the detected devices), so it stays deterministic in both.
 SPIR_FAMILY_TRIPLES = {"spir64", "spir64_gen", "spir64_x86_64"}
-if any(
-    config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
-    for target in config.sycl_build_targets
-):
+matched_spir_triple = next(
+    (
+        config.target_to_triple.get(target)
+        for target in config.sycl_build_targets
+        if config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
+    ),
+    None,
+)
+if matched_spir_triple is not None:
     config.available_features.add("spir-family")
 
 # %aot_options expands to the compiler flags needed to AOT-compile for the
 # active backend family, computed once per lit run since a run only ever
 # targets one backend family.
-if "spir-family" in config.available_features:
+if matched_spir_triple in ("spir64", "spir64_gen"):
     aot_options = (
         "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
         + config.gpu_aot_target_opts
