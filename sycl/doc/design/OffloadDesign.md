@@ -305,10 +305,9 @@ that may be useful for our usage.
 Compilation behaviors involving AOT for GPU involve an additional call to
 the OpenCL Offline compiler (OCLOC).  This call occurs after the post-link
 step performed by `sycl-post-link` and the SPIR-V translation step which is
-done by `llvm-spirv`.  For the `spir64_gen` triple, the `/<arch>` qualifier
-on the wrapper key routes each token to the OCLOC invocation for that arch,
-so per-arch options do not leak between archs; a key with no `/<arch>`
-applies to every arch of the matching triple.
+done by `llvm-spirv`.  Additional options passed by the user through 
+-Xsycl-target-backend will be passed to OCLOC, per-target options are
+supported when using multiple AOT architectures.
 
 *Example:*
 
