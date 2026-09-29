@@ -13,6 +13,7 @@
 
 #include <cstdint>
 
+
 #define RAND_NEXT_LEN 1024
 __attribute__((weak)) DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
 
