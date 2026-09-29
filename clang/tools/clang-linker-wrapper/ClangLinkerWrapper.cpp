@@ -3163,8 +3163,12 @@ getDeviceInput(const ArgList &Args) {
       continue;
     SmallVector<OffloadFile> Binaries;
     size_t OldSize = Binaries.size();
-    if (Error Err = extractOffloadBinaries(Buffer, Binaries))
-      return std::move(Err);
+    if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
+      // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
+      // which is not in OffloadBinary format. Consume the parse error and
+      // fall through to the SYCL bundled objects extraction path.
+      consumeError(std::move(Err));
+    }
     if (Binaries.size() == OldSize) {
       if (Error Err = sycl::extractBundledObjects(*Filename, Args, Binaries))
         return std::move(Err);
