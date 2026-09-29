@@ -208,6 +208,21 @@ class TestE2EExpr(unittest.TestCase):
         with self.assertRaises(ValueError):
             E2EExpr.check_build_features({"build-only", "rt-feature"})
         E2EExpr.check_build_features({"build-mode"})
+        # Versioned build-specific features (e.g. cuda-ge-12,
+        # level-zero-headers-ge-1.14) are matched by prefix, not just exact
+        # entries in `build_specific_features`.
+        E2EExpr.check_build_features({"cuda-ge-12"})
+        E2EExpr.check_build_features({"level-zero-headers-ge-1.14"})
+        self.assertTrue(UnsupportedBuildEval("cuda-ge-12", {"cuda-ge-12"}))
+        self.assertFalse(UnsupportedBuildEval("cuda-ge-13", {"cuda-ge-12"}))
+        self.assertTrue(
+            UnsupportedBuildEval(
+                "level-zero-headers-ge-1.14", {"level-zero-headers-ge-1.14"}
+            )
+        )
+        self.assertFalse(
+            UnsupportedBuildEval("level-zero-headers-ge-1.15", {"level-zero-headers-ge-1.14"})
+        )
 
 
 if __name__ == "__main__":

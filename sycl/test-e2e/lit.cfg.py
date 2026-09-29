@@ -381,16 +381,15 @@ level_zero_win_lib = config.level_zero_libs_dir + "/ze_loader.lib"
 config.level_zero_libs_dir = quote_path(
     lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
-config.level_zero_include = quote_path(
-    lit_config.params.get(
-        "level_zero_include",
-        (
-            config.level_zero_include
-            if config.level_zero_include
-            else config.sycl_include
-        ),
-    )
+level_zero_include_unquoted = lit_config.params.get(
+    "level_zero_include",
+    (
+        config.level_zero_include
+        if config.level_zero_include
+        else config.sycl_include
+    ),
 )
+config.level_zero_include = quote_path(level_zero_include_unquoted)
 
 # Detect the Level Zero *headers* API version and add ge-features for
 # conditional test execution, mirroring the cuda-ge-<N> features above.
@@ -398,7 +397,7 @@ config.level_zero_include = quote_path(
 # runtime driver build and can't catch a test using an L0 API that the
 # headers used to build it don't declare at all.
 ze_api_header = os.path.join(
-    config.level_zero_include.strip('"'), "level_zero", "ze_api.h"
+    level_zero_include_unquoted, "level_zero", "ze_api.h"
 )
 if os.path.exists(ze_api_header):
     with open(ze_api_header, "r") as f:
