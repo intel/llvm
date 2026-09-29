@@ -215,8 +215,7 @@ TEST(DynamicLinking, ExportOnlyDependency) {
   sycl::unittest::UrMock<> Mock;
   setupRuntimeLinkingMock();
 
-  sycl::platform Plt = sycl::platform();
-  sycl::queue Q(Plt.get_devices()[0]);
+  sycl::queue Q;
 
   CapturedLinkingData.clear();
 
