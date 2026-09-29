@@ -532,8 +532,13 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
       Exec, CmdArgs, Inputs, Output));
 }
 
-static bool shouldIncludePTX(const ArgList &Args, StringRef InputArch) {
-  bool includePTX = false;
+static bool shouldIncludePTX(const ArgList &Args, StringRef InputArch,
+                             bool IsSYCL) {
+  // The new driver does not include PTX by default to avoid overhead. The old
+  // offloading model, still the default for SYCL, includes it.
+  bool includePTX = IsSYCL &&
+                    !Args.hasFlag(options::OPT_offload_new_driver,
+                                  options::OPT_no_offload_new_driver, false);
   for (Arg *A : Args.filtered(options::OPT_cuda_include_ptx_EQ,
                               options::OPT_no_cuda_include_ptx_EQ)) {
     A->claim();
@@ -580,7 +585,8 @@ void NVPTX::FatBinary::ConstructJob(Compilation &C, const JobAction &JA,
            "Device action expected to have associated a GPU architecture!");
 
     if (II.getType() == types::TY_PP_Asm &&
-        !shouldIncludePTX(Args, GpuArch.ArchName))
+        !shouldIncludePTX(Args, GpuArch.ArchName,
+                          JA.isDeviceOffloading(Action::OFK_SYCL)))
       continue;
     StringRef Kind = (II.getType() == types::TY_PP_Asm) ? "ptx" : "elf";
     CmdArgs.push_back(Args.MakeArgString(
