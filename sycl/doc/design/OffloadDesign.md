@@ -274,7 +274,7 @@ To supply per-architecture backend options, emit a separate `--device-compiler` 
 --device-compiler=sycl:spir64_gen-unknown-unknown/skl=-cl-unsafe-math-optimizations
 ```
 
-Here is an example of a clang-linker-wrapper invocation where the user wants to create a fat binary with PVC and SKL architectures to run on an x86_64 Linux host. For SKL they want aggressive floating-point relaxation (`-cl-unsafe-math-optimizations`); for PVC they want multiply-and-add fusion (`-cl-mad-enable`). The source binaries are called `host.o` and `kernel.o` and the output should be called `out.exe`.
+Here is an example of a clang-linker-wrapper invocation where the user wants to create a fat binary with PVC and SKL architectures to run on an x86_64 Linux host. For SKL they want aggressive floating-point optimization (`-cl-unsafe-math-optimizations`); for PVC they want multiply-and-add fusion (`-cl-mad-enable`). The source binaries are called `host.o` and `kernel.o` and the output should be called `out.exe`.
 
 ```
 clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu \
@@ -305,14 +305,10 @@ that may be useful for our usage.
 Compilation behaviors involving AOT for GPU involve an additional call to
 the OpenCL Offline compiler (OCLOC).  This call occurs after the post-link
 step performed by `sycl-post-link` and the SPIR-V translation step which is
-done by `llvm-spirv`.  User options from `-Xsycl-target-backend=<triple> <opts>`
-and the implied options for `-fsycl-targets=intel_gpu_<arch>` are forwarded to
-the wrapper as `--device-compiler=[<kind>:][<triple>[/<arch>]=]<value>` (one
-occurrence per token).  For the `spir64_gen` triple, the `/<arch>` qualifier
-routes each token to the OCLOC invocation for that arch, so per-arch options
-do not leak between archs.  A `--device-compiler` occurrence with no
-`/<arch>` (or from a non-gen triple) applies to every arch of the matching
-triple.
+done by `llvm-spirv`.  For the `spir64_gen` triple, the `/<arch>` qualifier
+on the wrapper key routes each token to the OCLOC invocation for that arch,
+so per-arch options do not leak between archs; a key with no `/<arch>`
+applies to every arch of the matching triple.
 
 *Example:*
 

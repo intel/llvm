@@ -12397,28 +12397,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -Xdevice-post-link     -> --sycl-post-link-options
     // -Xspirv-translator     -> --llvm-spirv-options
     // -Xspirv-to-ir-wrapper  -> --spirv-to-ir-wrapper-options
-    // For spir64_gen with multiple bound archs, --device-compiler/
-    // --device-linker are qualified with /<arch> and emitted per arch so
-    // per-arch tokens don't leak between archs on the wrapper side.
-    const toolchains::SYCLToolChain &SYCLTC =
-        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
-
       // TC is a real SYCLToolChain: OFK_SYCL range + SPIR/SPIR-V triple.
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       ArgStringList BuildArgs;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        CmdArgs.push_back(
-            Args.MakeArgString("--device-compiler=" +
-                               Action::GetOffloadKindName(Action::OFK_SYCL) +
-                               ":" + TC->getTripleString() + "=" + A));
 
       // Collect the bound archs for this toolchain. Only spir64_gen dedupes
       // multiple intel_gpu_* aliases onto a single toolchain instance, so
