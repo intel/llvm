@@ -63,6 +63,12 @@ public:
   }
 
   sycl::detail::DeviceGlobalMap &getDeviceGlobals() { return m_DeviceGlobals; }
+
+  std::unordered_map<ur_program_handle_t,
+                     std::vector<sycl::detail::device_image_plain>> &
+  getDynamicLinkPeerImages() {
+    return m_DynamicLinkPeerImages;
+  }
 };
 
 namespace {
@@ -376,6 +382,38 @@ TEST(ImageRemoval, NativePrograms) {
   EXPECT_EQ(PM.getNativePrograms().size(), ImagesToKeepKernelOnly.size());
   EXPECT_TRUE(PM.getNativePrograms().count(ProgramA) > 0);
   EXPECT_TRUE(PM.getNativePrograms().count(ProgramB) > 0);
+}
+
+static std::array<sycl::unittest::MockDeviceImage, 1>
+    ImageSelfContainedAOT = {generateImageKernelOnly("D")};
+
+// Building a self-contained AOT image (no dependencies) must not add a
+// redundant self-reference to m_DynamicLinkPeerImages.
+TEST(ImageRemoval, DynamicLinkNoRedundantSelfPeer) {
+#if defined(_WIN32) && defined(__INTEL_LLVM_COMPILER)
+  // See ImageRemoval.NativePrograms above for why this is disabled on
+  // Windows/icx.
+  GTEST_SKIP() << "Disabled on Windows/icx, see intel/llvm#22367";
+#endif
+  ProgramManagerExposed PM;
+
+  sycl_device_binary_struct NativeImages[ImageSelfContainedAOT.size()];
+  sycl_device_binaries_struct AllBinaries;
+  convertAndAddImages(PM, ImageSelfContainedAOT, NativeImages, AllBinaries);
+
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+  auto Ctx = Queue.get_context();
+
+  std::ignore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
+                                     *sycl::detail::getSyclObjImpl(Dev),
+                                     generateRefName("D", "Kernel"));
+
+  // No genuine peers exist for this self-contained image, so the peer set
+  // must be empty rather than holding a redundant self-reference.
+  EXPECT_TRUE(PM.getDynamicLinkPeerImages().empty());
 }
 
 // Verify that removeImages cleans up device global initializer entries so that

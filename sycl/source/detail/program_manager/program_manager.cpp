@@ -904,12 +904,30 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
     adapter_impl &Adapter = ContextImpl.getAdapter();
     ur_program_handle_t MainProgram =
         getSyclObjImpl(*MainResult)->get_ur_program();
+    const RTDeviceBinaryImage *MainBinImg =
+        getSyclObjImpl(*MainResult)->get_bin_image_ref();
     Adapter.call<UrApiKind::urProgramRetain>(MainProgram);
     Managed<ur_program_handle_t> BuiltProgram(MainProgram, Adapter);
 
+    // MainResult already owns a reference to MainProgram via BuiltProgram,
+    // so drop it from the peer set to avoid holding that handle twice.
+    LinkedResults.erase(LinkedResults.begin() +
+                        (MainResult - LinkedResults.data()));
+
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      m_DynamicLinkPeerImages[BuiltProgram] = std::move(LinkedResults);
+      if (!LinkedResults.empty())
+        m_DynamicLinkPeerImages[BuiltProgram] = std::move(LinkedResults);
+      // Register BuiltProgram against every dependency image so
+      // removeImages() can release the peers kept alive above. Skip
+      // MainBinImg: its own program creation already registered it here.
+      if (&Img != MainBinImg)
+        NativePrograms.insert(
+            {BuiltProgram, {ContextImpl.shared_from_this(), &Img}});
+      for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
+        if (BinImg != MainBinImg)
+          NativePrograms.insert(
+              {BuiltProgram, {ContextImpl.shared_from_this(), BinImg}});
     }
 
     return BuiltProgram;
