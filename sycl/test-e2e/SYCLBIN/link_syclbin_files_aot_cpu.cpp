@@ -6,7 +6,9 @@
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=input %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
-// RUN: %clangxx -fsycl-link --offload-arch=corei7 %t.export.syclbin %t.import.syclbin -o %t.syclbin
+// CPU AOT compilation targets the ISA of the host CPU, so the AOT link is
+// delayed to the run stage to be performed on the system running the test.
+// RUN: %{run-aux} %clangxx -fsycl-link --offload-arch=corei7 %t.export.syclbin %t.import.syclbin -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.syclbin
 
