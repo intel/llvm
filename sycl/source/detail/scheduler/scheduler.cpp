@@ -509,8 +509,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
     }
     {
       std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
-      // update self-event status
-      CmdEvent->setComplete();
+      // update the status of the signal this command produces
+      Cmd->getBinding()->setComplete();
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }

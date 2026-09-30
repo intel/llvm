@@ -108,11 +108,6 @@ public:
   /// \param Queue is a queue to be associated with the event
   void setQueue(queue_impl &Queue);
 
-  /// Converts the event from default constructed to device event.
-  ///
-  /// \param Queue is a queue to be associated with the event
-  void toDeviceEvent(queue_impl &Queue);
-
   /// Lazily creates the backend UR event for a producer IPC event so that
   /// ipc::event::get() works before the first signal. No-op if it already
   /// exists.
@@ -218,12 +213,6 @@ public:
   Command *getCommand() const { return MBinding->MCommand; }
 
   /// Associates this event with the command.
-  ///
-  /// Scheduler mutex must be locked in write mode when this is called.
-  ///
-  /// @param Command is a generic pointer to Command object instance.
-  void setCommand(Command *Cmd);
-
   /// Returns host profiling information.
   ///
   /// @return a pointer to HostProfilingInfo instance.
@@ -515,6 +504,22 @@ capture_dependencies(const std::vector<EventImplPtr> &Events) {
   Result.reserve(Events.size());
   for (const EventImplPtr &Event : Events)
     Result.push_back(capture_dependency(Event));
+  return Result;
+}
+
+/// A dependency on \p Event which does not capture the signal, for the lists a
+/// scheduler-bypass submission keeps for event::get_wait_list only (see
+/// captured_dependency).
+inline captured_dependency uncaptured_dependency(const EventImplPtr &Event) {
+  return {nullptr, Event};
+}
+
+inline std::vector<captured_dependency>
+uncaptured_dependencies(const std::vector<EventImplPtr> &Events) {
+  std::vector<captured_dependency> Result;
+  Result.reserve(Events.size());
+  for (const EventImplPtr &Event : Events)
+    Result.push_back(uncaptured_dependency(Event));
   return Result;
 }
 

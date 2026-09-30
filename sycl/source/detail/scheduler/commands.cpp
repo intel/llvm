@@ -528,7 +528,7 @@ Command::Command(
   MBinding->setWorkerQueue(MWorkerQueue);
   if (Queue)
     MBinding->setSubmittedQueue(Queue);
-  MEvent->setCommand(this);
+  MBinding->MCommand = this;
   if (MQueue) {
     context_impl &Context = MQueue->getContextImpl();
     MEvent->setContextImpl(Context);
@@ -558,7 +558,7 @@ Command::Command(
   MWorkerQueue = MQueue;
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-  MEvent->setCommand(this);
+  MBinding->MCommand = this;
   if (MQueue)
     MBinding->setPotentiallyNativeRecorded(
         MQueue->getContextImpl().isNativeRecordingActive());
@@ -914,12 +914,6 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
-
-  // The event still represents this command: nothing rebinds an event while
-  // its command is pending. To be removed once enqueueing an event for
-  // signaling gives it a new binding.
-  assert(MEvent->getBinding() == MBinding &&
-         "event rebound while its command is pending");
 
   // Exit if the command is already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)

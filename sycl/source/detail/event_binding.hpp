@@ -43,6 +43,13 @@ enum HostEventState : int { HES_NotComplete = 0, HES_Complete, HES_Discarded };
 /// command reaches the backend. The event is kept for what belongs to the
 /// event rather than to the signal (event::get_wait_list, the kind of event,
 /// its context) and to keep it alive as long as the dependency exists.
+///
+/// Binding is never null in the dependency lists of a command or in a barrier
+/// wait list. It is null in the lists a scheduler-bypass submission stores on
+/// its event: those dependencies are in the backend already and the list only
+/// serves event::get_wait_list and dependency cleanup, so capturing the signal
+/// there would keep it alive for no reason (and force a new backend event on
+/// the next enqueue_signal_event, see event_impl::getHandleReusable).
 struct captured_dependency {
   std::shared_ptr<event_binding> Binding;
   std::shared_ptr<event_impl> Event;
@@ -115,6 +122,20 @@ public:
   }
   void setCommandBufferCommand(ur_exp_command_buffer_command_handle_t Command) {
     MCommandBufferCommand = Command;
+  }
+
+  /// Prepares the binding for another signal of the same event, when nothing
+  /// but the event refers to the previous one. Keeps the backend event and the
+  /// adapter; everything else is set again by the submission which follows.
+  void resetForReuse() {
+    assert(!MCommand && "reusing the binding of a pending command");
+    MIsEnqueued = false;
+    MIsFlushed = false;
+    clearDependencies();
+    MSubmitTime = 0;
+    MHostProfilingInfo.reset();
+    MSyncPoint = 0;
+    MCommandBufferCommand = nullptr;
   }
 
   /// Waits for this signal: for the backend event if there is one, otherwise

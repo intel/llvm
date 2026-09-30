@@ -236,19 +236,6 @@ ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
   return EventHandle;
 }
 
-void event_impl::toDeviceEvent(queue_impl &Queue) {
-  assert(MIsDefaultConstructed);
-
-  initContextIfNeeded();
-
-  // get() may have already materialized the handle for an IPC event; reuse it.
-  if (getHandle() == nullptr)
-    setHandle(createDeviceUrEvent(Queue.getDeviceImpl()));
-
-  setQueue(Queue);
-  MIsDefaultConstructed = false;
-}
-
 void event_impl::materializeIPCEvent() {
   assert(MIPCEnabled && "materializeIPCEvent is only valid for IPC events");
 
@@ -279,27 +266,53 @@ std::pair<void *, size_t> event_impl::getOrCreateIPCHandle() {
 
 ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
   initContextIfNeeded();
+  const bool Supported = MContext->supportsReusableEvents();
+  // IPC support implies reusable-event support.
+  assert((Supported || !MIPCEnabled) &&
+         "IPC event on a context without reusable-events support");
 
-  if (MContext->supportsReusableEvents()) {
-    if (MIsDefaultConstructed) {
-      // If the event was constructed (through make_event or a default
-      // constructor), but not enqueued for signaling yet, change the event
-      // state from default constructed to device event.
-      toDeviceEvent(Queue);
+  // Serializes concurrent signals of the same event. Readers of MBinding do
+  // not lock: using an event while another thread enqueues it for signaling
+  // is a race in the application.
+  std::lock_guard<std::mutex> Lock(MMutex);
+
+  if (MBinding.use_count() == 1) {
+    // Nothing but this event refers to the previous signal: no pending
+    // command (it would own the binding), no dependency captured on it, no
+    // command blocked behind it. Nobody can tell the previous signal from the
+    // next one, so the binding is reused in place, backend event included.
+    MBinding->resetForReuse();
+    if (!Supported) {
+      // Without reusable-event support the backend event cannot be signaled
+      // again: release it and let UR create a new one during the submission.
+      if (ur_event_handle_t Handle = getHandle()) {
+        getAdapter().call<UrApiKind::urEventRelease>(Handle);
+        MBinding->setHandle(nullptr);
+      }
     }
   } else {
-    // IPC support implies reusable-event support.
-    assert(!MIPCEnabled &&
-           "IPC event on a context without reusable-events support");
-    // If the context does not support reusable events, then release the
-    // previous event and set the handle to nullptr, so UR can create a new
-    // event during command submission.
-    ur_event_handle_t CurrentHandle = getHandle();
-    if (CurrentHandle != nullptr) {
-      getAdapter().call<UrApiKind::urEventRelease>(CurrentHandle);
-      setHandle(nullptr);
+    // Someone still refers to the previous signal. It stays as it is, and the
+    // event moves on to a new binding; the previous one is released by its
+    // last owner. This is also the path of a first signal on an event which
+    // something already depends on: that dependency is complete and stays so.
+    auto Previous = std::move(MBinding);
+    MBinding = std::make_shared<event_binding>();
+    MBinding->MAdapter = Previous->MAdapter;
+    if (MIPCEnabled) {
+      // The backend event of an IPC event has been exported to another
+      // process, so every signal has to use it.
+      ur_event_handle_t Handle = Previous->getHandle();
+      assert(Handle && "IPC event without a backend event");
+      getAdapter().call<UrApiKind::urEventRetain>(Handle);
+      MBinding->setHandle(Handle);
     }
   }
+
+  if (Supported && !getHandle())
+    setHandle(createDeviceUrEvent(Queue.getDeviceImpl()));
+
+  setQueue(Queue);
+  MIsDefaultConstructed = false;
 
   return getHandle();
 }
@@ -672,10 +685,17 @@ void event_binding::clearDependencies() {
 }
 
 void event_binding::cleanDependenciesThroughOneLevelUnlocked() {
+  // An uncaptured dependency (see captured_dependency) has no binding of its
+  // own; its event's current binding holds the lists to drop.
+  auto Clear = [](const captured_dependency &Dep) {
+    event_binding &Target =
+        Dep.Binding ? *Dep.Binding : *Dep.Event->getBinding();
+    Target.clearDependencies();
+  };
   for (const captured_dependency &Dep : MPreparedDepsEvents)
-    Dep.Binding->clearDependencies();
+    Clear(Dep);
   for (const captured_dependency &Dep : MPreparedHostDepsEvents)
-    Dep.Binding->clearDependencies();
+    Clear(Dep);
 }
 
 void event_binding::cleanDependenciesThroughOneLevel() {
@@ -712,8 +732,6 @@ bool event_impl::isCompleted() {
   return get_info<info::event::command_execution_status>() ==
          info::event_command_status::complete;
 }
-
-void event_impl::setCommand(Command *Cmd) { MBinding->MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1
