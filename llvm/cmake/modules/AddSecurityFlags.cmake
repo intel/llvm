@@ -55,7 +55,6 @@ macro(append_common_extra_security_flags)
   # /Wall, /W4) are intentionally not added here. In intel/llvm we build both
   # linux and win with --ci-defaults, which also enables -Werror or /WX, and the
   # codebase does not build cleanly with these warnings turned into errors.
-  # For the same reason MSVC /sdl and /analyze are not added below.
 
   # Control Flow Integrity
   if(is_gcc
@@ -67,6 +66,7 @@ macro(append_common_extra_security_flags)
   elseif(is_msvc)
     add_link_option_ext("/LTCG" LTCG CMAKE_EXE_LINKER_FLAGS
                         CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+    add_compile_option_ext("/sdl" SDL)
     add_compile_option_ext("/guard:cf" GUARDCF)
     add_link_option_ext("/CETCOMPAT" CETCOMPAT CMAKE_EXE_LINKER_FLAGS
                         CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
@@ -81,6 +81,8 @@ macro(append_common_extra_security_flags)
   elseif(is_icpx)
     add_compile_option_ext("/Wformat" WFORMAT)
     add_compile_option_ext("/Wformat-security" WFORMATSECURITY)
+  elseif(is_msvc)
+    add_compile_option_ext("/analyze" ANALYZE)
   endif()
 
   if(CMAKE_BUILD_TYPE MATCHES "Release")
