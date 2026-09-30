@@ -276,10 +276,12 @@ void test_ewops_ab(const float L = 5.0, const float R = 2.0,
       Tv(L), Tv(L), 1.0, [](auto l, auto r) { return l != r ? l : Tv(1.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_gt>>(
-      Tv(L), Tv(R), 3.0, [](auto l, auto r) { return l > r ? Tv(3.0) : Tv(2.0); });
+      Tv(L), Tv(R), 3.0,
+      [](auto l, auto r) { return l > r ? Tv(3.0) : Tv(2.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_lt>>(
-      Tv(L), Tv(R), 2.0, [](auto l, auto r) { return l < r ? Tv(3.0) : Tv(2.0); });
+      Tv(L), Tv(R), 2.0,
+      [](auto l, auto r) { return l < r ? Tv(3.0) : Tv(2.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_ge>>(
       Tv(L), Tv(R), 3.0,

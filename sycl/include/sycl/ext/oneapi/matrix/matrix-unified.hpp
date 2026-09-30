@@ -34,16 +34,15 @@
 
 #if defined(__SYCL_DEVICE_ONLY__)
 namespace sycl {
+inline namespace _V1 {
 namespace detail {
-// Same aliases as <sycl/ext/oneapi/experimental/float_4bit/types.hpp>. The
-// matrix headers deliberately do not include it (see the forward declarations
-// of fp4_e2m1_x in matrix-unified-utils.hpp), and repeating an alias
-// declaration is well formed as long as it names the same type, so both
-// headers can declare these independently.
+// Same types as the aliases in float_4bit/types.hpp, which is not included
+// here. Inside _V1: a second, non-inline sycl::detail breaks diagnostics.
 using fp4_float16_vec2 = _Float16 __attribute__((ext_vector_type(2)));
 using fp4_bfloat16_vec2 = __bf16 __attribute__((ext_vector_type(2)));
 using fp4_uint8_vec1 = uint8_t __attribute__((ext_vector_type(1)));
 } // namespace detail
+} // namespace _V1
 } // namespace sycl
 
 // Packed pair FP4E2M1 converters, used by joint_matrix_convert to convert a
@@ -58,15 +57,15 @@ using fp4_uint8_vec1 = uint8_t __attribute__((ext_vector_type(1)));
 // type. The pair overloads are the shape both sides agree on: one uint8_t holds
 // two FP4E2M1 values, the first in the low nibble.
 extern __DPCPP_SYCL_EXTERNAL uint8_t __builtin_spirv_ConvertFP16ToE2M1INTEL(
-    ::sycl::detail::fp4_float16_vec2) noexcept;
+    ::sycl::_V1::detail::fp4_float16_vec2) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t __builtin_spirv_ConvertBF16ToE2M1INTEL(
-    ::sycl::detail::fp4_bfloat16_vec2) noexcept;
-extern __DPCPP_SYCL_EXTERNAL ::sycl::detail::fp4_float16_vec2
+    ::sycl::_V1::detail::fp4_bfloat16_vec2) noexcept;
+extern __DPCPP_SYCL_EXTERNAL ::sycl::_V1::detail::fp4_float16_vec2
     __builtin_spirv_ConvertE2M1ToFP16INTEL(
-        ::sycl::detail::fp4_uint8_vec1) noexcept;
-extern __DPCPP_SYCL_EXTERNAL ::sycl::detail::fp4_bfloat16_vec2
+        ::sycl::_V1::detail::fp4_uint8_vec1) noexcept;
+extern __DPCPP_SYCL_EXTERNAL ::sycl::_V1::detail::fp4_bfloat16_vec2
     __builtin_spirv_ConvertE2M1ToBF16INTEL(
-        ::sycl::detail::fp4_uint8_vec1) noexcept;
+        ::sycl::_V1::detail::fp4_uint8_vec1) noexcept;
 #endif // defined(__SYCL_DEVICE_ONLY__)
 
 namespace sycl {
