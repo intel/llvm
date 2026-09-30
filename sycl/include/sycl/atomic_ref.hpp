@@ -148,7 +148,6 @@ class atomic_ref_base {
                 "seq_cst memory order is not supported on AMDGPU");
 #endif
 
-
 public:
   using value_type = T;
   static constexpr size_t required_alignment = sizeof(T);
@@ -725,9 +724,7 @@ public:
     return old;
   }
 
-  T operator|=(T operand) const noexcept {
-    return fetch_or(operand) | operand;
-  }
+  T operator|=(T operand) const noexcept { return fetch_or(operand) | operand; }
 
   T fetch_xor(T operand, memory_order order = DefaultOrder,
               memory_scope scope = DefaultScope) const noexcept {
