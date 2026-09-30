@@ -114,6 +114,12 @@
 // TARGET-TRIPLE-AMD-GPU: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
 // CLANG-OFFLOAD-PACKAGER-AMD: llvm-offload-binary{{.*}} "--image={{.*}}triple=amdgcn-amd-amdhsa,arch=[[DEV_STR]],kind=sycl"
 
+/// -g forces a non-empty compile-opts= to check the AMDGCN backend-arg
+/// translation, which must not downcast the AMDGPUToolChain to SYCLToolChain.
+// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx900 -nogpulib -fno-sycl-libspirv -g %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CLANG-OFFLOAD-PACKAGER-AMD-OPTS
+// CLANG-OFFLOAD-PACKAGER-AMD-OPTS: llvm-offload-binary{{.*}} "--image={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx900,kind=sycl,compile-opts=-g"
+
 // Tests for handling an invalid architecture.
 //
 // RUN: not %clangxx --offload-new-driver -fsycl --offload-arch=gfx10_3_generic %s -### 2>&1 \

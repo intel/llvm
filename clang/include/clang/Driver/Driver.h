@@ -864,9 +864,8 @@ private:
   mutable llvm::StringMap<StringRef> SYCLUniqueIDList;
 
   /// Vector of Macros that need to be added to the Host compilation in a
-  /// SYCL based offloading scenario.  These macros are gathered during
-  /// construction of the device compilations.
-  mutable std::vector<std::string> SYCLTargetMacroArgs;
+  /// SYCL based offloading scenario.
+  mutable llvm::SmallVector<StringRef, 4> SYCLTargetMacroArgs;
 
   /// Vector of Macros related to Device Traits that need to be added to the
   /// device compilation in a SYCL based offloading scenario.  These macros are
@@ -901,7 +900,8 @@ public:
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
 
-  /// getUseNewOffloadingDriver - use the new offload driver for OpenMP.
+  /// getUseNewOffloadingDriver - whether the new offload driver is in use
+  /// for the current compilation (OpenMP, CUDA, HIP, or -foffload-via-llvm).
   bool getUseNewOffloadingDriver() const { return UseNewOffloadingDriver; };
 
   /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
@@ -947,7 +947,7 @@ public:
     SYCLTargetMacroArgs.push_back(Args.MakeArgString(Macro));
   }
   /// getSYCLTargetMacroArgs - return the previously gathered macro target args.
-  llvm::ArrayRef<std::string> getSYCLTargetMacroArgs() const {
+  llvm::ArrayRef<StringRef> getSYCLTargetMacroArgs() const {
     return SYCLTargetMacroArgs;
   }
 

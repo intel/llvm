@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/OffloadBundler.h"
-#include "clang/Basic/Cuda.h"
+#include "clang/Basic/OffloadArch.h"
 #include "clang/Basic/TargetID.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
@@ -97,8 +97,7 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
     auto TargetFeatures = Target.split(':');
     auto TripleOrGPU = TargetFeatures.first.rsplit('-');
 
-    if (clang::StringToOffloadArch(TripleOrGPU.second) !=
-        clang::OffloadArch::Unknown) {
+    if (!clang::StringToOffloadArch(TripleOrGPU.second).isUnknown()) {
       auto KindTriple = TripleOrGPU.first.split('-');
       this->OffloadKind = KindTriple.first;
 
@@ -127,8 +126,7 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
   StringRef TargetIdWithFeature =
       Components.size() == 6 ? Components.back() : "";
   StringRef TargetId = TargetIdWithFeature.split(':').first;
-  if (!TargetId.empty() &&
-      clang::StringToOffloadArch(TargetId) != clang::OffloadArch::Unknown)
+  if (!TargetId.empty() && !clang::StringToOffloadArch(TargetId).isUnknown())
     this->TargetID = TargetIdWithFeature;
   else
     this->TargetID = "";

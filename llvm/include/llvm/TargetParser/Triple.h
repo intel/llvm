@@ -10,6 +10,7 @@
 #define LLVM_TARGETPARSER_TRIPLE_H
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/VersionTuple.h"
 
@@ -113,7 +114,6 @@ public:
     wasm64,         // WebAssembly with 64-bit pointers
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
-    fpga,           // Intel FPGA
     native_cpu,     // Native CPU
     ve,             // NEC SX-Aurora Vector Engine
     LastArchType = ve
@@ -169,8 +169,6 @@ public:
 
     MipsSubArch_r6,
 
-    SPIRSubArch_fpga,
-    SPIRSubArch_fpga_image,
     SPIRSubArch_gen,
     SPIRSubArch_gen_image,
     SPIRSubArch_x86_64,
@@ -979,8 +977,7 @@ public:
 
   /// Tests whether the target is SPIR and AOT related.
   bool isSPIRAOT() const {
-    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_fpga ||
-                        getSubArch() == Triple::SPIRSubArch_gen ||
+    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_gen ||
                         getSubArch() == Triple::SPIRSubArch_x86_64);
   }
 
@@ -1268,13 +1265,16 @@ public:
            Env == Triple::GNUEABIHFT64;
   }
 
-  /// Tests if the target forces hardfloat.
-  bool isHardFloatABI() const {
-    EnvironmentType Env = getEnvironment();
-    return Env == llvm::Triple::GNUEABIHF ||
-           Env == llvm::Triple::GNUEABIHFT64 ||
-           Env == llvm::Triple::MuslEABIHF || Env == llvm::Triple::EABIHF;
-  }
+  /// Returns the default floating-point ABI for this target triple, i.e. the
+  /// ABI the code generator will resolve FloatABI::Default to
+  LLVM_ABI FloatABI::ABIType getDefaultFloatABI() const;
+
+  /// Tests if the target's default floating-point ABI is hard float.
+  bool isHardFloatABI() const { return getDefaultFloatABI() == FloatABI::Hard; }
+
+  /// Returns the default floating-point format for the "long double" type. A
+  /// particular module may override this default.
+  LLVM_ABI LongDoubleFormat getDefaultLongDoubleFormat() const;
 
   /// Tests whether the target supports comdat
   bool supportsCOMDAT() const {

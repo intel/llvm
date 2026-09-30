@@ -666,7 +666,6 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
   auto hKernel = v2_cast(hKernelOpque);
   auto hDevice = common_cast(hDeviceOpque);
-  (void)dynamicSharedMemorySize;
 
   uint32_t wg[3];
   wg[0] = ur_cast<uint32_t>(pLocalWorkSize[0]);
@@ -678,7 +677,12 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
   uint32_t totalGroupCount = 0;
   ZE2UR_CALL(zeKernelSuggestMaxCooperativeGroupCount,
              (hKernel->getZeHandle(hDevice), &totalGroupCount));
-  *pGroupCountRet = totalGroupCount;
+  *pGroupCountRet = getMaxCooperativeGroupCountWithDynamicSharedMemory(
+      totalGroupCount,
+      hDevice->ZeDeviceProperties->numSubslicesPerSlice *
+          hDevice->ZeDeviceProperties->numSlices,
+      hDevice->ZeDeviceComputeProperties->maxSharedLocalMemory,
+      hKernel->getProperties(hDevice).localMemSize, dynamicSharedMemorySize);
   return UR_RESULT_SUCCESS;
 }
 

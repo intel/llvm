@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 #include <helpers/UrMock.hpp>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/IOSandbox.h>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
 
@@ -112,6 +113,14 @@ public:
   bool SYCLCachePersistentChanged = false;
 
   std::string RootSYCLCacheDir;
+
+  // This test makes many calls to llvm::sys::fs calls, which as of RFC
+  // https://discourse.llvm.org/t/rfc-file-system-sandboxing-in-clang-llvm/88791
+  // now errors upon using llvm::sys::fs calls without disabling the sandbox.
+  //
+  // Disable the sandbox for the duration of this test.
+  llvm::sys::sandbox::ScopedSetting BypassSandbox =
+      llvm::sys::sandbox::scopedDisable();
 
   // Caches the initial value of the SYCL_CACHE_PERSISTENT environment variable
   // before overwriting it with the new value.
@@ -282,7 +291,12 @@ protected:
 
 /* Checks that key values with \0 symbols are processed correctly
  */
+#ifdef _WIN32
+// https://github.com/intel/llvm/issues/23137
+TEST_P(PersistentDeviceCodeCache, DISABLED_KeysWithNullTermSymbol) {
+#else
 TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
+#endif
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -354,6 +368,59 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
           << "Corrupted image loaded from persistent cache";
     }
   }
+
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+}
+
+/* Images are not required to have offload entries: images which only provide
+ * virtual functions, device library images and images coming from a SYCLBIN
+ * file have none. Check that such images do not break the cache key and that
+ * the key still does not depend on the order the images are passed in.
+ */
+TEST_P(PersistentDeviceCodeCache, ImagesWithoutEntries) {
+  // Entry-less images are only told apart by their device code, so it must be
+  // distinct. "A" is a prefix of "AB" to also cover that case.
+  auto SetDeviceCode = [](sycl_device_binary_struct &Bin, const char *Code) {
+    Bin.BinaryStart = reinterpret_cast<const unsigned char *>(Code);
+    Bin.BinaryEnd = Bin.BinaryStart + strlen(Code);
+  };
+  _sycl_offload_entry_struct UnnamedEntry{/*addr*/ nullptr, /*name*/ nullptr,
+                                          /*size*/ 0, /*flags*/ 0,
+                                          /*reserved*/ 0};
+
+  // An image with a null entry range, one with an empty (but non-null) entry
+  // range and one whose single entry has no name.
+  sycl_device_binary_struct NullRangeBin = BinStruct, EmptyRangeBin = BinStruct,
+                            UnnamedEntryBin = BinStruct;
+  NullRangeBin.EntriesBegin = NullRangeBin.EntriesEnd = nullptr;
+  EmptyRangeBin.EntriesBegin = EmptyRangeBin.EntriesEnd = &UnnamedEntry;
+  UnnamedEntryBin.EntriesBegin = &UnnamedEntry;
+  UnnamedEntryBin.EntriesEnd = &UnnamedEntry + 1;
+  SetDeviceCode(NullRangeBin, "A");
+  SetDeviceCode(EmptyRangeBin, "AB");
+  SetDeviceCode(UnnamedEntryBin, "C");
+  detail::RTDeviceBinaryImage NullRangeImg{&NullRangeBin},
+      EmptyRangeImg{&EmptyRangeBin}, UnnamedEntryImg{&UnnamedEntryBin};
+
+  std::string BuildOptions{"--images-without-entries"};
+  std::vector<const detail::RTDeviceBinaryImage *> Imgs{
+      &Img, &NullRangeImg, &EmptyRangeImg, &UnnamedEntryImg};
+  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      *detail::getSyclObjImpl(Dev), Imgs, {}, BuildOptions);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, Imgs, {},
+                                                   BuildOptions, NativeProg);
+  EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/0.bin"))
+      << "Failed to store cache item for images without entries";
+
+  // The item must be found again no matter which order the images come in.
+  std::reverse(Imgs.begin(), Imgs.end());
+  EXPECT_NE(detail::PersistentDeviceCodeCache::getItemFromDisc({Dev}, Imgs, {},
+                                                               BuildOptions)
+                .size(),
+            static_cast<size_t>(0))
+      << "Cache key depends on the order of images without entries";
 
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }

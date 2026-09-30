@@ -120,6 +120,7 @@ if(CLANG_ENABLE_CIR)
     cir-translate
     mlir-translate
     )
+  add_subdirectory(CIR/lib)
 endif()
 
 if(CLANG_ENABLE_STATIC_ANALYZER)
@@ -215,7 +216,9 @@ endif()
 if(CLANG_PLUGIN_SUPPORT AND LLVM_ENABLE_PLUGINS AND NOT WIN32)
   list(APPEND CLANG_TEST_DEPS
     SSAFExamplePlugin
+    SSAFTestTransformationPlugin
     )
+  add_subdirectory(Analysis/Scalable/source-edit-generation/Plugins)
 endif()
 
 if (HAVE_CLANG_REPL_SUPPORT)

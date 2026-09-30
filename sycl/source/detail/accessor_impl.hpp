@@ -114,6 +114,15 @@ public:
 
   void *&MData = MAccData.MData;
 
+  // True iff this accessor covers the whole underlying memory object.
+  // discard_* elision of host<->device transfers is only safe when this holds
+  // — for a ranged accessor, no_init applies only to elements within the
+  // accessor's range; elements outside must be preserved (SYCL 2020 §4.7.6.4).
+  bool isFullMemoryAccess() const {
+    return !MIsSubBuffer && MOffset == id<3>{0, 0, 0} &&
+           MAccessRange == MMemoryRange;
+  }
+
   Command *MBlockedCmd = nullptr;
 
   bool PerWI = false;

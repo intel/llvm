@@ -16,6 +16,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
@@ -29,6 +30,7 @@ namespace {
 constexpr StringRef SyclHostAccessAttr = "sycl-host-access";
 constexpr StringRef SyclPipelinedAttr = "sycl-pipelined";
 constexpr StringRef SyclGrfSizeAttr = "sycl-grf-size";
+constexpr StringRef SyclMaximumRegistersAttr = "sycl-maximum-registers";
 
 constexpr StringRef SpirvDecorMdKind = "spirv.Decorations";
 constexpr StringRef SpirvDecorCacheControlMdKind =
@@ -288,6 +290,39 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
   }
 }
 
+/// Checks whether the grf_size / grf_size_automatic usage on a function is
+/// supported, emitting a diagnostic if it is not.
+///
+/// @param F        [in] the LLVM function the property is applied to.
+/// @param PropVal  [in] the sycl-grf-size property value.
+///
+/// @returns \c true if the usage is supported, false otherwise.
+bool diagnoseUnsupportedGrfSizeUsage(const Function &F, uint32_t PropVal) {
+  constexpr uint32_t PROP_VAL_AUTO = 0;
+  bool IsAOT = Triple(F.getParent()->getTargetTriple()).isSPIRAOT();
+  bool IsESIMD = llvm::esimd::isESIMD(F);
+
+  StringRef Reason;
+  if (IsAOT && PropVal == 512)
+    Reason = "grf_size<512> is not supported with ahead-of-time compilation.";
+  else if (IsESIMD && PropVal == 512)
+    Reason = "grf_size<512> is not supported with ESIMD.";
+  else if (IsAOT && IsESIMD && PropVal == 256)
+    Reason = "grf_size<256> is not supported with ESIMD and ahead-of-time "
+             "compilation.";
+  else if (IsAOT && IsESIMD && PropVal == PROP_VAL_AUTO)
+    Reason = "grf_size_automatic is not supported with ESIMD and "
+             "ahead-of-time-compilation.";
+  else
+    return true;
+
+  std::string Msg = (Reason + " Consider using the maximum_registers and "
+                              "maximum_registers_automatic properties.")
+                        .str();
+  F.getContext().diagnose(DiagnosticInfoUnsupported(F, Msg, F.getSubprogram()));
+  return false;
+}
+
 /// Tries to generate a SPIR-V execution mode metadata node from an attribute.
 /// If the attribute is unknown \c None will be returned.
 ///
@@ -428,19 +463,6 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
-  // The sycl-single-task attribute currently only has an effect when targeting
-  // SPIR FPGAs, in which case it will generate a "max_global_work_dim" MD node
-  // with a 0 value, similar to applying [[intel::max_global_work_dim(0)]] to
-  // a SYCL single_target kernel.
-  if (AttrKindStr == "sycl-single-task" &&
-      Triple(M.getTargetTriple()).getSubArch() == Triple::SPIRSubArch_fpga) {
-    IntegerType *Ty = Type::getInt32Ty(Ctx);
-    Metadata *MDVal = ConstantAsMetadata::get(Constant::getNullValue(Ty));
-    SmallVector<Metadata *, 1> MD{MDVal};
-    return std::pair<std::string, MDNode *>("max_global_work_dim",
-                                            MDNode::get(Ctx, MD));
-  }
-
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
     //   !ip_interface !N
@@ -481,8 +503,16 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, ClusterMDArgs));
   }
 
-  if ((AttrKindStr == SyclGrfSizeAttr) && !llvm::esimd::isESIMD(F)) {
+  if (AttrKindStr == SyclGrfSizeAttr) {
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
+
+    // Unsupported usages are diagnosed here; don't emit metadata for them.
+    if (!diagnoseUnsupportedGrfSizeUsage(F, PropVal))
+      return std::nullopt;
+
+    if (llvm::esimd::isESIMD(F))
+      return std::nullopt;
+
     // The RegisterAllocMode metadata supports only 0, 128, and 256 for
     // PropVal.
     if (PropVal != 0 && PropVal != 128 && PropVal != 256)
@@ -498,6 +528,21 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
         Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
     return std::pair<std::string, MDNode *>("RegisterAllocMode",
+                                            MDNode::get(Ctx, AttrMDArgs));
+  }
+
+  if (AttrKindStr == SyclMaximumRegistersAttr) {
+    uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
+    // The property supports only 0, 128, 256 and 512.
+    if (PropVal != 0 && PropVal != 128 && PropVal != 256 && PropVal != 512)
+      return std::nullopt;
+    Metadata *AttrMDArgs[1];
+    if (PropVal == 0)
+      AttrMDArgs[0] = MDString::get(Ctx, "AutoINTEL");
+    else
+      AttrMDArgs[0] = ConstantAsMetadata::get(
+          Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)));
+    return std::pair<std::string, MDNode *>("MaximumRegisters",
                                             MDNode::get(Ctx, AttrMDArgs));
   }
 

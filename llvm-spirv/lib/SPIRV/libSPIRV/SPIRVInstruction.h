@@ -4832,7 +4832,9 @@ public:
   typedef SPIRVInstTemplate<SPIRVFPConversionFtoFINTELInstBase,                \
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
+_SPIRV_OP_FTOF(ClampConvertFToF, true, 4, false)
 _SPIRV_OP_FTOF(StochasticRoundFToF, true, 5, true)
+_SPIRV_OP_FTOF(ClampStochasticRoundFToF, true, 5, true)
 #undef _SPIRV_OP_FTOF
 
 class SPIRVFPConversionFtoSINTELInstBase : public SPIRVInstTemplateBase {

@@ -111,6 +111,10 @@ inline ur_result_t
 printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
+inline ur_result_t printFlag<ur_device_igca_feature_flag_t>(std::ostream &os,
+                                                            uint32_t flag);
+
+template <>
 inline ur_result_t
 printFlag<ur_kernel_launch_properties_flag_t>(std::ostream &os, uint32_t flag);
 
@@ -296,6 +300,10 @@ template <>
 inline ur_result_t printFlag<ur_exp_event_flag_t>(std::ostream &os,
                                                   uint32_t flag);
 
+template <>
+inline ur_result_t printFlag<ur_exp_event_sync_mode_flag_t>(std::ostream &os,
+                                                            uint32_t flag);
+
 } // namespace ur::details
 
 inline std::ostream &operator<<(std::ostream &os,
@@ -366,6 +374,8 @@ inline std::ostream &
 operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_throttle_reasons_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_igca_feature_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_launch_properties_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
@@ -667,6 +677,11 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_event_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_event_sync_mode_flag_t value);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_event_sync_mode_desc_t params);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_function_t type
@@ -1624,6 +1639,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_EXP_EVENT_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_EVENT_DESC";
     break;
+  case UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC:
+    os << "UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1990,6 +2008,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
   case UR_STRUCTURE_TYPE_EXP_EVENT_DESC: {
     const ur_exp_event_desc_t *pstruct = (const ur_exp_event_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC: {
+    const ur_exp_event_sync_mode_desc_t *pstruct =
+        (const ur_exp_event_sync_mode_desc_t *)ptr;
     printPtr(os, pstruct);
   } break;
   default:
@@ -3294,6 +3318,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     os << "UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD";
+    break;
+  case UR_DEVICE_INFO_IGCA_TARGET:
+    os << "UR_DEVICE_INFO_IGCA_TARGET";
+    break;
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
+    os << "UR_DEVICE_INFO_IGCA_FEATURE_SET";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -5238,6 +5268,33 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
+  case UR_DEVICE_INFO_IGCA_TARGET: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
+    const ur_device_igca_feature_flags_t *tptr =
+        (const ur_device_igca_feature_flags_t *)ptr;
+    if (sizeof(ur_device_igca_feature_flags_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_device_igca_feature_flags_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    ur::details::printFlag<ur_device_igca_feature_flag_t>(os, *tptr);
+
+    os << ")";
+  } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
@@ -6871,6 +6928,68 @@ printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag) {
       first = false;
     }
     os << UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_device_igca_feature_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_igca_feature_flag_t value) {
+  switch (value) {
+  case UR_DEVICE_IGCA_FEATURE_FLAG_RENDER:
+    os << "UR_DEVICE_IGCA_FEATURE_FLAG_RENDER";
+    break;
+  case UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE:
+    os << "UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_device_igca_feature_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_device_igca_feature_flag_t>(std::ostream &os,
+                                                            uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_DEVICE_IGCA_FEATURE_FLAG_RENDER) ==
+      (uint32_t)UR_DEVICE_IGCA_FEATURE_FLAG_RENDER) {
+    val ^= (uint32_t)UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+  }
+
+  if ((val & UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE) ==
+      (uint32_t)UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE) {
+    val ^= (uint32_t)UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -13602,6 +13721,80 @@ inline std::ostream &operator<<(std::ostream &os,
   os << ".flags = ";
 
   ur::details::printFlag<ur_exp_event_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_event_sync_mode_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_event_sync_mode_flag_t value) {
+  switch (value) {
+  case UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT:
+    os << "UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_sync_mode_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_event_sync_mode_flag_t>(std::ostream &os,
+                                                            uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT) ==
+      (uint32_t)UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT) {
+    val ^= (uint32_t)UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_event_sync_mode_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_event_sync_mode_desc_t params) {
+  os << "(struct ur_exp_event_sync_mode_desc_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_event_sync_mode_flag_t>(os, (params.flags));
 
   os << "}";
   return os;

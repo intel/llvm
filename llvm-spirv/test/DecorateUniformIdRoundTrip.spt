@@ -1,0 +1,43 @@
+; Check that a UniformId decoration on an OpVariable survives a -r round
+; trip: it must show up as !spirv.Decorations metadata with the resolved
+; scope value (not the SPIR-V id of the scope constant), and translating
+; that metadata back to SPIR-V must produce a valid module again with the
+; Scope operand restored to the correct value.
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv %t.rev.bc -o %t.fwd.spv
+; RUN: spirv-val %t.fwd.spv
+; RUN: llvm-spirv %t.fwd.spv -to-text -o %t.fwd.spt
+; RUN: FileCheck < %t.fwd.spt %s --check-prefix=CHECK-SPIRV
+
+; CHECK-LLVM: global i32 0, !spirv.Decorations ![[DECOS:[0-9]+]]
+; CHECK-LLVM: ![[DECOS]] = !{![[DECO:[0-9]+]]}
+; CHECK-LLVM: ![[DECO]] = !{i32 27, i32 2}
+
+; CHECK-SPIRV: DecorateId {{[0-9]+}} UniformId [[SCOPE:[0-9]+]]
+; CHECK-SPIRV: Constant {{[0-9]+}} [[SCOPE]] 2
+
+119734787 67072 458752 9 0
+
+2 Capability Addresses
+2 Capability Kernel
+2 Capability UniformDecoration
+3 MemoryModel 2 2
+5 EntryPoint 6 1 "test"
+
+4 DecorateId 2 UniformId 3    ; %var UniformId %scope
+
+4 TypeInt 4 32 0              ; %uint = OpTypeInt 32 0
+4 Constant 4 3 2              ; %scope = OpConstant %uint 2
+4 TypePointer 5 5 4           ; %uint_ptr = OpTypePointer CrossWorkgroup %uint
+2 TypeVoid 6                  ; %void = OpTypeVoid
+3 TypeFunction 7 6            ; %1 = OpTypeFunction %void
+4 Variable 5 2 5              ; %var = OpVariable %uint_ptr CrossWorkgroup
+
+5 Function 6 1 0 7            ; %2 = OpFunction %void None %1
+2 Label 8                     ; %3 = OpLabel
+1 Return
+1 FunctionEnd

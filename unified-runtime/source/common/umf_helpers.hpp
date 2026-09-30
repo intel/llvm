@@ -53,7 +53,7 @@ using provider_unique_handle_t =
     std::unique_ptr<umf_memory_provider_t,
                     std::function<void(umf_memory_provider_handle_t)>>;
 
-#define DEFINE_CHECK_OP(op)                                                    \
+#define DEFINE_CHECK_OP(op, default_return)                                    \
   template <typename T> class HAS_OP_##op {                                    \
     typedef char check_success;                                                \
     typedef long check_fail;                                                   \
@@ -67,24 +67,23 @@ using provider_unique_handle_t =
   template <typename T, typename... Args>                                      \
   static inline                                                                \
       typename std::enable_if<HAS_OP_##op<T>::value, umf_result_t>::type       \
-          CALL_OP_##op(T *t, Args &&...args) {                                 \
+      CALL_OP_##op(T *t, Args &&...args) {                                     \
     return t->op(std::forward<Args>(args)...);                                 \
   }                                                                            \
                                                                                \
-  static inline umf_result_t CALL_OP_##op(...) {                               \
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;                                     \
-  }
+  static inline umf_result_t CALL_OP_##op(...) { return default_return; }
 
-DEFINE_CHECK_OP(ext_purge_lazy)
-DEFINE_CHECK_OP(ext_purge_force)
-DEFINE_CHECK_OP(ext_allocation_merge)
-DEFINE_CHECK_OP(ext_allocation_split)
-DEFINE_CHECK_OP(ext_get_ipc_handle_size)
-DEFINE_CHECK_OP(ext_get_ipc_handle)
-DEFINE_CHECK_OP(ext_put_ipc_handle)
-DEFINE_CHECK_OP(ext_open_ipc_handle)
-DEFINE_CHECK_OP(ext_close_ipc_handle)
-DEFINE_CHECK_OP(ext_ctl)
+DEFINE_CHECK_OP(ext_purge_lazy, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_purge_force, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_allocation_merge, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_allocation_split, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_get_ipc_handle_size, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_get_ipc_handle, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_put_ipc_handle, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_open_ipc_handle, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_close_ipc_handle, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_ctl, UMF_RESULT_ERROR_INVALID_CTL_PATH)
+DEFINE_CHECK_OP(get_cache_line_size, UMF_RESULT_ERROR_NOT_SUPPORTED)
 
 #define UMF_ASSIGN_OP(ops, type, func, default_return)                         \
   ops.func = [](void *obj, auto... args) {                                     \
@@ -133,7 +132,7 @@ template <typename T, typename ArgsTuple>
 umf_memory_pool_ops_t poolMakeUniqueOps() {
   umf_memory_pool_ops_t ops = {};
 
-  ops.version = UMF_VERSION_CURRENT;
+  ops.version = UMF_POOL_OPS_VERSION_CURRENT;
   ops.initialize = [](umf_memory_provider_handle_t provider, const void *params,
                       void **obj) {
     try {
@@ -171,7 +170,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
   umf_memory_provider_ops_t ops = {};
   auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
 
-  ops.version = UMF_VERSION_CURRENT;
+  ops.version = UMF_PROVIDER_OPS_VERSION_CURRENT;
   ops.initialize = [](const void *params, void **obj) {
     try {
       *obj = new T;
@@ -192,6 +191,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
   UMF_ASSIGN_OP(ops, T, get_last_native_error, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_recommended_page_size, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_min_page_size, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, get_cache_line_size, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_name, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, free, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP_OPT(ops, T, ext_purge_lazy, UMF_RESULT_ERROR_UNKNOWN);
@@ -203,7 +203,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
   UMF_ASSIGN_OP_OPT(ops, T, ext_put_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP_OPT(ops, T, ext_open_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP_OPT(ops, T, ext_close_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP_OPT(ops, T, ext_ctl, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_ctl, UMF_RESULT_ERROR_INVALID_CTL_PATH);
 
   umf_memory_provider_handle_t hProvider = nullptr;
   auto ret = umfMemoryProviderCreate(&ops, &argsTuple, &hProvider);

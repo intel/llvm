@@ -871,10 +871,7 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
-void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
-                                    bool AcquireQueueLock) {
-  graph_impl::WriteLock Lock(MMutex);
-
+void graph_impl::beginRecordingBothLocksHeld(sycl::detail::queue_impl &Queue) {
   // Native recording limitation: single queue at a time
   if (MNativeGraphHandle && !MRecordingQueues.empty()) {
     throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -896,8 +893,7 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "Queue is already in native graph capture mode");
       }
-      auto BeginResult =
-          Queue.beginNativeRecording(MNativeGraphHandle, AcquireQueueLock);
+      auto BeginResult = Queue.beginNativeRecording(MNativeGraphHandle);
       if (BeginResult.RecordingActive) {
         addQueue(Queue);
       }
@@ -905,22 +901,22 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
           BeginResult.Result, "Failed to begin native UR graph capture");
     } else {
       // Non-native recording path
-      if (AcquireQueueLock) {
-        Queue.setCommandGraph(shared_from_this());
-      } else {
-        Queue.setCommandGraphUnlocked(shared_from_this());
-      }
+      Queue.setCommandGraphUnlocked(shared_from_this());
       addQueue(Queue);
     }
   }
 }
 
-void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
-  beginRecordingImpl(Queue, /*AcquireQueueLock=*/false);
+void graph_impl::beginRecordingQueueLockHeld(sycl::detail::queue_impl &Queue) {
+  // The caller should be inside the queue's submission path and already holding
+  // the queue's mutex
+  WriteLock Lock(MMutex);
+  beginRecordingBothLocksHeld(Queue);
 }
 
 void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
-  beginRecordingImpl(Queue, /*AcquireQueueLock=*/true);
+  // Ask the queue to grab both its lock and our lock before we begin
+  Queue.beginRecordingGraph(*this);
 }
 
 // Check if nodes do not require enqueueing and if so loop back through
@@ -1799,6 +1795,15 @@ void exec_graph_impl::update(nodes_range Nodes) {
   std::vector<sycl::detail::AccessorImplHost *> UpdateRequirements;
   bool NeedScheduledUpdate = needsScheduledUpdate(Nodes, UpdateRequirements);
   if (NeedScheduledUpdate) {
+    if (MContainsHostTask) {
+      // Wait synchronously for prior submits of this exec graph to
+      // GPU-complete before creating the update command. Otherwise a
+      // deferred submit can issue after this update mutates the command
+      // list, running with the wrong state.
+      for (const auto &Event : MSchedulerDependencies) {
+        Event->wait();
+      }
+    }
     cleanupExecutionEvents(MSchedulerDependencies);
 
     // Track the event for the update command since execution may be blocked by

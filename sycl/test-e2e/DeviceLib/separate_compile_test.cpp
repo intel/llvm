@@ -1,8 +1,14 @@
+// TODO: Remove 'UNSUPPORTED' below once
+// https://github.com/llvm/llvm-project/pull/218528 lands and cherry-picked to
+// intel/llvm.
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-78263
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 //
 // UNSUPPORTED: target-nvidia
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22966
 // RUN: %clangxx -fsycl -fsycl-link %S/std_complex_math_test.cpp -o %t_device.o %{mathflags}
 // RUN: %clangxx -fsycl-device-only -Xclang -fsycl-int-header=std_complex_math_test_ihdr.h %S/std_complex_math_test.cpp -Wno-sycl-strict %{mathflags}
 // >> host compilation...

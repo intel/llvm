@@ -43,7 +43,7 @@ void foo() {
 // CHECK-NEXT:   80 |       class std::__shared_ptr_access<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic> (base) (empty)
 // CHECK-NEXT:   80 |       element_type * _M_ptr
 // CHECK-NEXT:   88 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT:   88 |         _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:   88 |         _Sp_counted_base<__gnu_cxx::_S_atomic> * _M_pi
 // CHECK-NEXT:   96 |   void * MSrcPtr
 // CHECK-NEXT:   104 |   void * MDstPtr
 // CHECK-NEXT:   112 |   size_t MLength

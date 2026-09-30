@@ -75,7 +75,12 @@ public:
   void unloadAdapters();
   void releaseDefaultContexts();
   void drainThreadPool();
-  void prepareSchedulerToRelease(bool Blocking);
+  /// Waits for in-flight host tasks and releases the scheduler's resources.
+  ///
+  /// \param Blocking determines whether to wait for in-flight host tasks.
+  /// \param IsShutdown must be set when called during library unload or process
+  /// termination.
+  void prepareSchedulerToRelease(bool Blocking, bool IsShutdown = false);
 
   void TraceEventXPTI(const char *Message);
 
@@ -86,6 +91,17 @@ public:
   static void resetGlobalHandler() {
     RTGlobalObjHandler = new GlobalHandler();
   };
+
+  // Used in SYCL unit tests to simulate runtime teardown; pair with
+  // restoreGlobalHandler().
+  static GlobalHandler *detachGlobalHandler() {
+    GlobalHandler *Old = RTGlobalObjHandler;
+    RTGlobalObjHandler = nullptr;
+    return Old;
+  }
+  static void restoreGlobalHandler(GlobalHandler *Handler) {
+    RTGlobalObjHandler = Handler;
+  }
 
 private:
   // Constructor and destructor are declared out-of-line to allow incomplete

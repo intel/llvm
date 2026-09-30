@@ -21,22 +21,11 @@ if lit.util.pythonize_bool(lit_config.params.get("use_normalized_slashes")):
 # name: The name of this test suite.
 config.name = "Clang"
 
-# TODO: Consolidate the logic for turning on the internal shell by default for all LLVM test suites.
-# See https://github.com/llvm/llvm-project/issues/106636 for more details.
-#
-# We prefer the lit internal shell which provides a better user experience on failures
-# and is faster unless the user explicitly disables it with LIT_USE_INTERNAL_SHELL=0
-# env var.
-use_lit_shell = True
-lit_shell_env = os.environ.get("LIT_USE_INTERNAL_SHELL")
-if lit_shell_env:
-    use_lit_shell = lit.util.pythonize_bool(lit_shell_env)
-
 # testFormat: The test format to use to interpret tests.
 #
 # For now we require '&&' between commands, until they get globally killed and
 # the test runner updated.
-config.test_format = lit.formats.ShTest(execute_external=not use_lit_shell)
+config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = [
@@ -157,6 +146,12 @@ if config.llvm_examples:
     config.available_features.add("llvm-examples")
 if "libdevice" in config.enable_projects:
     config.available_features.add("libdevice")
+
+for offload_tool in ("spirv-to-ir-wrapper", "sycl-post-link", "file-table-tform"):
+    if lit.util.which(offload_tool, config.clang_tools_dir) or lit.util.which(
+        offload_tool, config.llvm_tools_dir
+    ):
+        config.available_features.add(offload_tool)
 
 def have_host_out_of_process_jit_feature_support():
     clang_repl_exe = lit.util.which("clang-repl", config.clang_tools_dir)
@@ -405,7 +400,7 @@ if platform.system() not in ["Windows"]:
     config.available_features.add("can-remove-opened-file")
 
 # Features
-known_arches = ["x86_64", "mips64", "ppc64", "aarch64"]
+known_arches = ["x86_64", "mips64", "ppc64", "aarch64", "s390x"]
 if any(config.target_triple.startswith(x) for x in known_arches):
     config.available_features.add("clang-target-64-bits")
 
@@ -503,11 +498,8 @@ elif platform.system() == "AIX":
 # objects only. In order to not affect most test cases, which expect to support
 # 32-bit and 64-bit objects by default, set the environment variable
 # "OBJECT_MODE" to "any" by default on AIX OS.
-
 if "system-aix" in config.available_features:
-   config.substitutions.append(("llvm-nm", "env OBJECT_MODE=any llvm-nm"))
-   config.substitutions.append(("llvm-ar", "env OBJECT_MODE=any llvm-ar"))
-   config.substitutions.append(("llvm-ranlib", "env OBJECT_MODE=any llvm-ranlib"))
+    config.environment["OBJECT_MODE"] = "any"
 
 # It is not realistically possible to account for all options that could
 # possibly be present in system and user configuration files, so disable

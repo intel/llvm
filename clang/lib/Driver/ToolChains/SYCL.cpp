@@ -41,8 +41,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     // NOTE: Only checks for LLVMSYCL.lib existence (release variant).
     // Debug vs release library selection happens at link time based on CRT
     // flags.
-    if (DriverDir.starts_with(SysRoot) &&
-        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
       SmallString<128> LibDir(DriverDir);
       llvm::sys::path::append(LibDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
 
@@ -62,8 +61,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     SmallString<128> FlatLibPath(DriverDir);
     llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME, "libsycl.so");
 
-    if (DriverDir.starts_with(SysRoot) &&
-        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
       // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
       if (D.getVFS().exists(LibPath))
         llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME, HostTriple.str());
@@ -721,6 +719,7 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
   if (Targets.empty())
     return;
 
+  const Driver &D = C.getDriver();
   const auto &TargetTable = DeviceConfigFile::TargetTable;
   std::map<StringRef, unsigned int> AllDevicesHave;
   std::map<StringRef, bool> AnyDeviceHas;
@@ -733,6 +732,11 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
     auto TargetIt = TargetTable.end();
     const llvm::Triple &TargetTriple = TC->getTriple();
     const StringRef TargetArch{BoundArch};
+
+    SmallString<64> TargetMacro = getSYCLTargetMacro(TargetTriple, TargetArch);
+    if (!TargetMacro.empty())
+      D.addSYCLTargetMacroArg(Args, TargetMacro);
+
     if (!TargetArch.empty()) {
       TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
         using namespace tools::SYCL;
@@ -782,7 +786,6 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
   if (ValidTargets == 0)
     AnyDeviceHasAnyAspect = true;
 
-  const Driver &D = C.getDriver();
   if (AnyDeviceHasAnyAspect) {
     // There exists some target that supports any given aspect.
     constexpr static StringRef MacroAnyDeviceAnyAspect{
@@ -885,6 +888,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (IsNVPTX && (InputFilename.starts_with("devicelib-") ||
                       InputFilename.contains("libspirv") ||
                       InputFilename.contains("libdevice")))
+        return true;
+      if (InputFilename.starts_with("libclang_rt.builtins"))
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
@@ -1046,12 +1051,25 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                            SpirvInputs);
 }
 
-static const char *makeExeName(Compilation &C, StringRef Name) {
+static const char *makeExeName(const Compilation &C, StringRef Name) {
   llvm::SmallString<8> ExeName(Name);
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
   if (HostTC->getTriple().isWindowsMSVCEnvironment())
     ExeName.append(".exe");
   return C.getArgs().MakeArgString(ExeName);
+}
+
+const char *SYCL::gen::getOclocPath(const Compilation &C, const ToolChain &TC,
+                                    const llvm::opt::ArgList &Args) {
+  const char *ExeName = makeExeName(C, "ocloc");
+  // A user provided --ocloc-path= takes precedence over any ocloc that is
+  // found via the program paths or the PATH environment variable.
+  if (Arg *A = Args.getLastArg(options::OPT_ocloc_path_EQ)) {
+    SmallString<128> OclocPath(A->getValue());
+    llvm::sys::path::append(OclocPath, ExeName);
+    return C.getArgs().MakeArgString(OclocPath);
+  }
+  return C.getArgs().MakeArgString(TC.GetProgramPath(ExeName));
 }
 
 // Determine if any of the given arguments contain any PVC based values for
@@ -1086,6 +1104,13 @@ StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
   return GRFModeFlagMap[GRFMode];
 }
 
+StringRef SYCL::gen::getEmbeddedDeviceArch(ArrayRef<const char *> Tokens) {
+  for (int I = static_cast<int>(Tokens.size()) - 2; I >= 0; --I)
+    if (StringRef(Tokens[I]) == "-device")
+      return Tokens[I + 1];
+  return {};
+}
+
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                               const JobAction &JA,
                                               const InputInfo &Output,
@@ -1117,9 +1142,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                 Device);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                Device);
-  SmallString<128> ExecPath(
-      getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
-  const char *Exec = C.getArgs().MakeArgString(ExecPath);
+  const char *Exec = SYCL::gen::getOclocPath(C, getToolChain(), Args);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, ArrayRef<InputInfo>{});
   if (!ForeachInputs.empty()) {
@@ -1391,6 +1414,22 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
     Macro += "__";
   }
   return Macro;
+}
+
+SmallString<64> SYCL::getSYCLTargetMacro(const llvm::Triple &TT,
+                                         StringRef Device) {
+  if ((TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
+      TT.isNVPTX() || TT.isAMDGCN()) {
+    SmallString<64> DeviceMacro = gen::getGenDeviceMacro(Device);
+    if (DeviceMacro.empty())
+      return {};
+    SmallString<64> Macro("-D");
+    Macro += DeviceMacro;
+    return Macro;
+  }
+  if (TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    return SmallString<64>("-D__SYCL_TARGET_INTEL_X86_64__");
+  return {};
 }
 
 void SYCL::x86_64::BackendCompiler::ConstructJob(
@@ -1951,6 +1990,15 @@ void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                      options::OPT_Xsycl_linker_EQ, Device);
 }
 
+const SYCLToolChain &toolchains::getSYCLToolChain(
+    const Driver &D, const ToolChain &TC, const ToolChain &HostTC,
+    const llvm::opt::ArgList &Args, std::unique_ptr<SYCLToolChain> &SYCLTC) {
+  if (TC.getTriple().isSPIROrSPIRV() || TC.getTriple().isNativeCPU())
+    return static_cast<const SYCLToolChain &>(TC);
+  SYCLTC = std::make_unique<SYCLToolChain>(D, TC.getTriple(), HostTC, Args);
+  return *SYCLTC;
+}
+
 Tool *SYCLToolChain::buildBackendCompiler() const {
   if (getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
     return new tools::SYCL::gen::BackendCompiler(*this);
@@ -2027,4 +2075,9 @@ SanitizerMask SYCLToolChain::getSupportedSanitizers(
     BoundArch /*BA*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
 
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
+}
+
+VersionTuple SYCLToolChain::computeMSVCVersion(const Driver *D,
+                                               const ArgList &Args) const {
+  return HostTC.computeMSVCVersion(D, Args);
 }

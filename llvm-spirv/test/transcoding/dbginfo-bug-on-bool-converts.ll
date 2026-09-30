@@ -61,7 +61,7 @@ define spir_func float @sitofp_b(i1 %barg) #0 !dbg !17 {
 }
 
 ; CHECK-LLC-LABEL: define spir_func float @sitofp_b(i1 %barg)
-; CHECK-LLC: select i1 %barg, i32 1, i32 0
+; CHECK-LLC: select i1 %barg, i32 -1, i32 0
 ; CHECK-LLC: sitofp i32 {{.*}} to float
 ; CHECK-LLC: ret float
 

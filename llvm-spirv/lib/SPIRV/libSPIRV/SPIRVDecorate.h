@@ -108,6 +108,12 @@ public:
     case DecorationCounterBuffer:
       return VersionNumber::SPIRV_1_4;
 
+    case DecorationUniform:
+    case DecorationUniformId:
+      if (Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+        return VersionNumber::SPIRV_1_6;
+      return VersionNumber::SPIRV_1_0;
+
     default:
       return VersionNumber::SPIRV_1_0;
     }

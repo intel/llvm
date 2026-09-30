@@ -438,7 +438,7 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     // - create the list of new formal parameter types (the old one, with the
     //   second element removed):
     SmallVector<Type *, 8> NewArgTys;
-    NewArgTys.push_back(PointerType::get(NewHelper->getFunctionType(), AS));
+    NewArgTys.push_back(PointerType::get(NewHelper->getContext(), AS));
     std::copy(std::next(InvokeSimdFTy->param_begin(), 2),
               InvokeSimdFTy->param_end(), std::back_inserter(NewArgTys));
     FunctionType *NewInvokeSimdFTy =

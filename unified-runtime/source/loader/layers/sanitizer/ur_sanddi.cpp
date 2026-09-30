@@ -60,4 +60,19 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t context_t::interceptDdiTable(ur_dditable_t *dditable) {
+  switch (enabledType) {
+  case SanitizerType::AddressSanitizer:
+    return initAsanDDITable(dditable);
+  case SanitizerType::MemorySanitizer:
+    return initMsanDDITable(dditable);
+  case SanitizerType::ThreadSanitizer:
+    return initTsanDDITable(dditable);
+  default:
+    break;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace ur_sanitizer_layer
