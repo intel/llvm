@@ -179,6 +179,7 @@ ur_result_t urQueueGetInfo(ur_queue_handle_t hQueue, ur_queue_info_t propName,
   cl_command_queue_info CLCommandQueueInfo = mapURQueueInfoToCL(propName);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   if (propName == UR_QUEUE_INFO_EMPTY) {
+    std::lock_guard<std::mutex> Lock(Queue->LastEventMutex);
     if (!Queue->LastEvent) {
       // Check the status of the queue under OpenCL backend.
       cl_event Event;

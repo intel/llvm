@@ -655,8 +655,11 @@ ur_result_t urAdapterRelease(::ur_adapter_handle_t hAdapterOpque) {
     zelLoaderContextTeardown();
 #endif
 
-    if (hAdapter == GlobalAdapter)
-      GlobalAdapter = nullptr;
+    {
+      std::lock_guard<std::mutex> Lock(GlobalAdapterMutex);
+      if (hAdapter == GlobalAdapter)
+        GlobalAdapter = nullptr;
+    }
     delete hAdapter;
 
     return result;
