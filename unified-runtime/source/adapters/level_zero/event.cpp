@@ -1835,6 +1835,13 @@ ur_result_t ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
   return UR_RESULT_SUCCESS;
 }
 
+void ur_ze_event_list_t::releaseAndDestroyUrZeEventList() {
+  std::list<ur_event_handle_t> EventsToBeReleased;
+  collectEventsForReleaseAndDestroyUrZeEventList(EventsToBeReleased);
+  for (ur_event_handle_t Event : EventsToBeReleased)
+    urEventReleaseInternal(Event);
+}
+
 // Tells if this event is with profiling capabilities.
 bool ur::level_zero::v1::ur_event_handle_t_::isProfilingEnabled() const {
   return !UrQueue || // tentatively assume user events are profiling enabled
