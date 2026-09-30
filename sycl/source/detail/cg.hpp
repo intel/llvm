@@ -61,7 +61,7 @@ public:
                       std::vector<detail::AccessorImplPtr> AccStorage,
                       std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                       std::vector<AccessorImplHost *> Requirements,
-                      std::vector<detail::EventImplPtr> Events)
+                      std::vector<detail::captured_dependency> Events)
         : MArgsStorage(std::move(ArgsStorage)),
           MAccStorage(std::move(AccStorage)),
           MSharedPtrStorage(std::move(SharedPtrStorage)),
@@ -80,8 +80,10 @@ public:
     /// List of requirements that specify which memory is needed for the command
     /// group to be executed.
     std::vector<AccessorImplHost *> MRequirements;
-    /// List of events that order the execution of this CG
-    std::vector<detail::EventImplPtr> MEvents;
+    /// The events that order the execution of this CG, each captured as the
+    /// signal it represented when the dependency was registered (see
+    /// captured_dependency).
+    std::vector<detail::captured_dependency> MEvents;
   };
 
   CG(CGType Type, StorageInitHelper D, detail::code_location loc = {},
@@ -117,7 +119,9 @@ public:
   std::vector<AccessorImplHost *> &getRequirements() {
     return MData.MRequirements;
   }
-  std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
+  std::vector<detail::captured_dependency> &getEvents() {
+    return MData.MEvents;
+  }
 
   virtual std::vector<std::shared_ptr<const void>>
   getAuxiliaryResources() const {

@@ -289,6 +289,14 @@ void Scheduler::waitForEvent(event_impl &Event, bool *Success) {
   cleanupCommands(ToCleanUp);
 }
 
+void Scheduler::waitForEvent(event_binding &Binding) {
+  ReadLockT Lock = acquireReadLock();
+  std::vector<Command *> ToCleanUp;
+  GraphProcessor::waitForEvent(Binding, Lock, ToCleanUp,
+                               /*LockTheLock=*/false);
+  cleanupCommands(ToCleanUp);
+}
+
 bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
                                    bool StrictLock) {
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
@@ -685,6 +693,33 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
 
   cleanupCommands(ToCleanUp);
   return NewCmdEvent;
+}
+
+bool Scheduler::isSafeForSchedulerBypass(const captured_dependency &Dep,
+                                         context_impl &Context) {
+  event_impl &Event = *Dep.Event;
+  const event_binding &Binding = *Dep.Binding;
+  // Same rules as the events_range overload below; the signal is the captured
+  // one. A NOP signal has neither a command nor a backend event.
+  if (Event.isDefaultConstructed() ||
+      (!Binding.MCommand && !Binding.getHandle()))
+    return true;
+
+  if (Event.isHost())
+    return Binding.isCompleted();
+
+  if (&Event.getContextImpl() != &Context)
+    return false;
+
+  return Binding.getHandle() != nullptr;
+}
+
+bool Scheduler::areEventsSafeForSchedulerBypass(
+    const std::vector<captured_dependency> &Deps, context_impl &Context) {
+  return std::all_of(Deps.begin(), Deps.end(),
+                     [&Context](const captured_dependency &Dep) {
+                       return isSafeForSchedulerBypass(Dep, Context);
+                     });
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(events_range DepEvents,

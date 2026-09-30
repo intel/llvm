@@ -407,6 +407,10 @@ public:
 
   void waitForEvent(event_impl &Event, bool *Success = nullptr);
 
+  /// Waits for a signal: enqueues the command producing it, if there is one
+  /// still pending, and waits for its completion.
+  void waitForEvent(event_binding &Binding);
+
   /// Removes buffer from the graph.
   ///
   /// The lifetime of memory object descriptor begins when the first command
@@ -485,6 +489,14 @@ public:
 
   static bool areEventsSafeForSchedulerBypass(events_range DepEvents,
                                               context_impl &Context);
+
+  /// The same for captured dependencies: what belongs to the signal (backend
+  /// event, command) is read from the captured binding.
+  static bool isSafeForSchedulerBypass(const captured_dependency &Dep,
+                                       context_impl &Context);
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<captured_dependency> &Deps,
+                                  context_impl &Context);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///
@@ -637,7 +649,8 @@ protected:
     /// \returns the connecting command which is to be enqueued
     ///
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
-    Command *connectDepEvent(Command *const Cmd, const EventImplPtr &DepEvent,
+    Command *connectDepEvent(Command *const Cmd,
+                             const captured_dependency &DepEvent,
                              const DepDesc &Dep,
                              std::vector<Command *> &ToCleanUp);
 
@@ -829,6 +842,12 @@ protected:
     static void waitForEvent(event_impl &Event, ReadLockT &GraphReadLock,
                              std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true, bool *Success = nullptr);
+
+    /// Enqueues the command producing \p Binding, if any, and waits for the
+    /// signal. Same locking contract as above.
+    static void waitForEvent(event_binding &Binding, ReadLockT &GraphReadLock,
+                             std::vector<Command *> &ToCleanUp,
+                             bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
     ///

@@ -649,6 +649,15 @@ void event_binding::wait() {
   }
 }
 
+bool event_binding::isCompleted() const {
+  if (ur_event_handle_t Handle = getHandle()) {
+    assert(MAdapter && "backend event without an adapter");
+    return get_event_info<info::event::command_execution_status>(
+               Handle, *MAdapter) == info::event_command_status::complete;
+  }
+  return MState == HES_Complete;
+}
+
 void event_binding::flushIfNeeded(queue_impl *UserQueue) {
   // Some events might not have a native handle underneath even at this point,
   // e.g. those produced by memset with 0 size (no UR call is made).

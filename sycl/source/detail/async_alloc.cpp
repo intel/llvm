@@ -22,20 +22,21 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace {
-std::vector<ur_event_handle_t> getUrEvents(detail::events_range DepEvents) {
+std::vector<ur_event_handle_t>
+getUrEvents(const std::vector<detail::captured_dependency> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (detail::event_impl &Event : DepEvents) {
-    ur_event_handle_t Handle = Event.getHandle();
+  for (const detail::captured_dependency &Dep : DepEvents) {
+    ur_event_handle_t Handle = Dep.Binding->getHandle();
     if (Handle != nullptr)
       RetUrEvents.push_back(Handle);
   }
   return RetUrEvents;
 }
 
-std::vector<detail::node_impl *> getDepGraphNodes(
-    sycl::handler &Handler, detail::queue_impl *Queue,
-    const std::shared_ptr<detail::graph_impl> &Graph,
-    const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
+std::vector<detail::node_impl *>
+getDepGraphNodes(sycl::handler &Handler, detail::queue_impl *Queue,
+                 const std::shared_ptr<detail::graph_impl> &Graph,
+                 const std::vector<detail::captured_dependency> &DepEvents) {
   detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
   // Get dependent graph nodes from any events
   auto DepNodes = Graph->getNodesForEvents(DepEvents);

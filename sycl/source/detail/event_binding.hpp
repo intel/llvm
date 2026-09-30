@@ -53,6 +53,18 @@ enum HostEventState : int { HES_NotComplete = 0, HES_Complete, HES_Discarded };
 struct captured_dependency {
   std::shared_ptr<event_binding> Binding;
   std::shared_ptr<event_impl> Event;
+
+  /// True if this refers to an event at all.
+  explicit operator bool() const { return Event != nullptr; }
+
+  friend bool operator==(const captured_dependency &A,
+                         const captured_dependency &B) {
+    return A.Binding == B.Binding && A.Event == B.Event;
+  }
+  friend bool operator!=(const captured_dependency &A,
+                         const captured_dependency &B) {
+    return !(A == B);
+  }
 };
 
 /// The state of one signal of an event.
@@ -142,6 +154,10 @@ public:
   /// until the signal is marked complete. If the producing command has not
   /// been enqueued yet, sleeps until it is.
   void wait();
+
+  /// Whether the signal has completed: asks the backend if there is a backend
+  /// event, otherwise reports the completion state.
+  bool isCompleted() const;
 
   /// Performs a flush on the queue of this signal if the user queue is
   /// different and the work producing the signal hasn't been submitted to the

@@ -252,7 +252,7 @@ public:
   std::vector<sycl::detail::Requirement *> &getRequirements() {
     return impl->CGData.MRequirements;
   }
-  std::vector<sycl::detail::EventImplPtr> &getEvents() {
+  std::vector<sycl::detail::captured_dependency> &getEvents() {
     return impl->CGData.MEvents;
   }
   std::vector<sycl::detail::ArgDesc> &getArgs() {

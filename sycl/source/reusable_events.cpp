@@ -112,18 +112,6 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
         "Enqueueing an interop event for signaling is not supported.");
   }
 
-  // Current limitation: the queue which produced the event remembers the event
-  // itself, not the signal, for its own bookkeeping (queue::wait, in-order
-  // dependencies). While the producing command is still held in the runtime,
-  // moving the event on to a new signal would make that bookkeeping lose the
-  // command.
-  if (EventImpl.getCommand() && !EventImpl.isEnqueued()) {
-    throw sycl::exception(
-        sycl::make_error_code(errc::invalid),
-        "An event whose command has not been enqueued cannot be enqueued for "
-        "signaling.");
-  }
-
   if (QueueImpl.hasCommandGraph()) {
     throw sycl::exception(sycl::make_error_code(errc::runtime),
                           "Enqueueing an event for signaling is not supported "

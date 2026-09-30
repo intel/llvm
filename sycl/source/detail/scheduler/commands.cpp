@@ -761,38 +761,40 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
+Command *Command::processDepEvent(captured_dependency DepEvent,
+                                  const DepDesc &Dep,
                                   std::vector<Command *> &ToCleanUp) {
+  // The dependency arrives captured: the signal the event represented when the
+  // dependency was registered. This command may be enqueued much later, and
+  // the event may represent another signal by then. See captured_dependency.
+  assert(DepEvent.Binding && "dependency without a captured signal");
+  event_impl &Event = *DepEvent.Event;
 
   // 1. Non-host events can be ignored if they are not fully initialized.
   // 2. Some types of commands do not produce UR events after they are
   // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool UrEventExpected =
-      (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
-  if (auto *DepCmd = DepEvent->getCommand())
+  bool UrEventExpected = (!Event.isHost() && !Event.isDefaultConstructed());
+  if (Command *DepCmd = DepEvent.Binding->MCommand)
     UrEventExpected &= DepCmd->producesUrEvent();
 
-  // The dependency is captured here, as the event is now: this command may be
-  // enqueued much later, and the event may represent another signal by then.
-  // See captured_dependency.
   if (!UrEventExpected) {
     // The wait is in waitForPreparedHostEvents() as it's called from enqueue
     // process functions
-    MPreparedHostDepsEvents.push_back(capture_dependency(DepEvent));
+    MPreparedHostDepsEvents.push_back(std::move(DepEvent));
     return nullptr;
   }
 
   Command *ConnectionCmd = nullptr;
 
-  context_impl &DepEventContext = DepEvent->getContextImpl();
+  context_impl &DepEventContext = DepEvent.Event->getContextImpl();
   context_impl *WorkerContext = getWorkerContext();
   // If contexts don't match we'll connect them using host task
   if (&DepEventContext != WorkerContext && WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
-    MPreparedDepsEvents.push_back(capture_dependency(DepEvent));
+    MPreparedDepsEvents.push_back(std::move(DepEvent));
 
   return ConnectionCmd;
 }
@@ -816,8 +818,12 @@ Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
   Command *ConnectionCmd = nullptr;
 
   if (NewDep.MDepCommand) {
+    // The dependency is on what the command produces, whatever its event may
+    // represent later.
     ConnectionCmd =
-        processDepEvent(NewDep.MDepCommand->getEvent(), NewDep, ToCleanUp);
+        processDepEvent(captured_dependency{NewDep.MDepCommand->getBinding(),
+                                            NewDep.MDepCommand->getEvent()},
+                        NewDep, ToCleanUp);
   }
   // ConnectionCmd insertion builds the following dependency structure:
   // this -> emptyCmd (for ConnectionCmd) -> ConnectionCmd -> NewDep
@@ -848,7 +854,20 @@ Command *Command::addDep(EventImplPtr Event,
   emitEdgeEventForEventDependence(Cmd, UrEventAddr);
 #endif
 
-  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr},
+  return processDepEvent(capture_dependency(Event),
+                         DepDesc{nullptr, nullptr, nullptr}, ToCleanUp);
+}
+
+Command *Command::addDep(captured_dependency Dep,
+                         std::vector<Command *> &ToCleanUp) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // We need this for just the instrumentation, so guarding it will prevent
+  // unused variable warnings when instrumentation is turned off
+  ur_event_handle_t UrEventAddr = Dep.Binding->getHandle();
+  emitEdgeEventForEventDependence(Dep.Binding->MCommand, UrEventAddr);
+#endif
+
+  return processDepEvent(std::move(Dep), DepDesc{nullptr, nullptr, nullptr},
                          ToCleanUp);
 }
 
@@ -2497,7 +2516,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     queue_impl &Queue, std::vector<ArgDesc> &Args,
     device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
     NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
-    detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
+    detail::event_binding *OutBinding, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
@@ -2644,9 +2663,11 @@ static ur_result_t SetKernelParamsAndLaunch(
           (property_list.flags || property_list.pNext) ? &property_list
                                                        : nullptr,
           RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
-          OutEventImpl ? &UREvent : nullptr);
-  if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
-    OutEventImpl->setHandle(UREvent);
+          OutBinding ? &UREvent : nullptr);
+  if (Error == UR_RESULT_SUCCESS && OutBinding) {
+    // Into the signal this launch produces, not into whatever its event may
+    // represent by now.
+    OutBinding->setHandle(UREvent);
   }
 
   return Error;
@@ -2906,7 +2927,8 @@ void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, DeviceKernelInfo &DeviceKernelInfo,
-    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
+    std::vector<ur_event_handle_t> &RawEvents,
+    detail::event_binding *OutBinding,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
@@ -3029,7 +3051,7 @@ void enqueueImpKernel(
 
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
-        OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
+        OutBinding, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, DeviceKernelInfo, KernelFuncPtr);
   }
@@ -3333,7 +3355,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = !MEventNeeded ? nullptr : &UREvent;
-  detail::event_impl *EventImpl = !MEventNeeded ? nullptr : MEvent.get();
 
   auto SetEventHandleOrDiscard = [&]() {
     if (!MEventNeeded) {
@@ -3447,7 +3468,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
     enqueueImpKernel(*MQueue, ExecKernel->MNDRDesc, ExecKernel->MArgs,
                      ExecKernel->getKernelBundle().get(), SyclKernel.get(),
-                     ExecKernel->MDeviceKernelInfo, RawEvents, EventImpl,
+                     ExecKernel->MDeviceKernelInfo, RawEvents,
+                     MEventNeeded ? MBinding.get() : nullptr,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
                      ExecKernel->MKernelUsesClusterLaunch,

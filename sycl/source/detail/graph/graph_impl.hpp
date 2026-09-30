@@ -253,14 +253,14 @@ public:
   /// @param Events Events to find nodes for.
   /// @return A list of node counterparts for each event, in the same order.
   std::vector<node_impl *> getNodesForEvents(
-      const std::vector<std::shared_ptr<sycl::detail::event_impl>> &Events) {
+      const std::vector<sycl::detail::captured_dependency> &Events) {
     std::vector<node_impl *> NodeList{};
     NodeList.reserve(Events.size());
 
     ReadLock Lock(MMutex);
 
     for (const auto &Event : Events) {
-      if (auto NodeFound = MEventsMap.find(Event);
+      if (auto NodeFound = MEventsMap.find(Event.Event);
           NodeFound != std::end(MEventsMap)) {
         NodeList.push_back(NodeFound->second);
       } else {
@@ -916,7 +916,7 @@ private:
   /// the command-buffer. Returns nullptr otherwise.
   EventImplPtr enqueuePartitionDirectly(
       std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
-      std::vector<detail::EventImplPtr> &WaitEvents, bool EventNeeded);
+      std::vector<detail::captured_dependency> &WaitEvents, bool EventNeeded);
 
   /// Enqueues all the partitions in a graph.
   /// @param Queue Command-queue to schedule execution on.

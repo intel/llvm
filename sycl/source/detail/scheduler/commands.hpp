@@ -147,6 +147,12 @@ public:
   [[nodiscard]] Command *addDep(EventImplPtr Event,
                                 std::vector<Command *> &ToCleanUp);
 
+  /// \param Dep dependency to be added, captured by the caller
+  /// \param ToCleanUp container for commands that can be cleaned up.
+  /// \return an optional connection cmd to enqueue
+  [[nodiscard]] Command *addDep(captured_dependency Dep,
+                                std::vector<Command *> &ToCleanUp);
+
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
   /// \return type of the command, e.g. Allocate, MemoryCopy.
@@ -304,7 +310,7 @@ protected:
   /// command. Context of this command is fetched via getWorkerContext().
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
-  [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent,
+  [[nodiscard]] Command *processDepEvent(captured_dependency DepEvent,
                                          const DepDesc &Dep,
                                          std::vector<Command *> &ToCleanUp);
 
@@ -646,7 +652,8 @@ void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, DeviceKernelInfo &DeviceKernelInfo,
-    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
+    std::vector<ur_event_handle_t> &RawEvents,
+    detail::event_binding *OutBinding,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,

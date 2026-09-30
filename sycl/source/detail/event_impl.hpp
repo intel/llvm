@@ -523,6 +523,14 @@ uncaptured_dependencies(const std::vector<EventImplPtr> &Events) {
   return Result;
 }
 
+/// The same dependencies without their bindings (see captured_dependency).
+inline std::vector<captured_dependency>
+uncaptured(std::vector<captured_dependency> Deps) {
+  for (captured_dependency &Dep : Deps)
+    Dep.Binding.reset();
+  return Deps;
+}
+
 using events_iterator =
     variadic_iterator<event,
                       std::vector<std::shared_ptr<event_impl>>::const_iterator,

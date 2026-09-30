@@ -43,6 +43,29 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
     GraphReadLock.lock();
 }
 
+void Scheduler::GraphProcessor::waitForEvent(event_binding &Binding,
+                                             ReadLockT &GraphReadLock,
+                                             std::vector<Command *> &ToCleanUp,
+                                             bool LockTheLock) {
+  // The command is nullptr if the signal has none, or it has been cleaned up
+  // after being enqueued; the signal is then waited for as it is.
+  if (Command *Cmd = Binding.MCommand) {
+    EnqueueResultT Res;
+    bool Enqueued =
+        enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd, BLOCKING);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw exception(make_error_code(errc::runtime),
+                      "Enqueue process failed.");
+    assert(Cmd->getBinding().get() == &Binding);
+  }
+
+  GraphReadLock.unlock();
+  Binding.wait();
+
+  if (LockTheLock)
+    GraphReadLock.lock();
+}
+
 bool Scheduler::GraphProcessor::handleBlockingCmd(
     Command *Cmd, EnqueueResultT &EnqueueResult, Command *RootCommand,
     [[maybe_unused]] BlockingT Blocking) {

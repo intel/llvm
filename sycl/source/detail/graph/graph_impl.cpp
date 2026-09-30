@@ -449,7 +449,8 @@ std::set<node_impl *> graph_impl::getCGEdges(
   // Add any nodes specified by event dependencies into the dependency list
   std::set<node_impl *> UniqueDeps;
   for (auto &Dep : CommandGroup->getEvents()) {
-    if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl == MEventsMap.end()) {
+    if (auto NodeImpl = MEventsMap.find(Dep.Event);
+        NodeImpl == MEventsMap.end()) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Event dependency from handler::depends_on does "
                             "not correspond to a node within the graph");
@@ -1297,7 +1298,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionWithScheduler(
 
 EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
-    std::vector<detail::EventImplPtr> &WaitEvents, bool EventNeeded) {
+    std::vector<detail::captured_dependency> &WaitEvents, bool EventNeeded) {
 
   // Create a list containing all the UR event handles in WaitEvents. WaitEvents
   // is assumed to be safe for scheduler bypass and any host-task events that it
@@ -1305,7 +1306,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
   std::vector<ur_event_handle_t> UrEventHandles{};
   UrEventHandles.reserve(WaitEvents.size());
   for (auto &SyclWaitEvent : WaitEvents) {
-    if (auto URHandle = SyclWaitEvent->getHandle()) {
+    if (auto URHandle = SyclWaitEvent.Binding->getHandle()) {
       UrEventHandles.push_back(URHandle);
     }
   }
@@ -1357,7 +1358,7 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
   // CGData.MEvents gets cleared after every partition enqueue. If we need the
   // original events, a backup needs to be created now. This is only needed when
   // the graph contains more than one root partition.
-  std::vector<detail::EventImplPtr> BackupCGDataEvents;
+  std::vector<detail::captured_dependency> BackupCGDataEvents;
   if (MRootPartitions.size() > 1) {
     BackupCGDataEvents = CGData.MEvents;
   }
@@ -1374,7 +1375,8 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
       // partitions. To enforce this ordering, we need to add these dependencies
       // to CGData.
       for (auto &Predecessor : Partition->MPredecessors) {
-        CGData.MEvents.push_back(Predecessor->MEvent);
+        CGData.MEvents.push_back(
+            detail::capture_dependency(Predecessor->MEvent));
       }
     }
 
@@ -1460,7 +1462,7 @@ exec_graph_impl::enqueueNative(sycl::detail::queue_impl &Queue,
   std::vector<ur_event_handle_t> UrEventHandles{};
   UrEventHandles.reserve(WaitEvents.size());
   for (auto &SyclWaitEvent : WaitEvents) {
-    if (auto URHandle = SyclWaitEvent->getHandle()) {
+    if (auto URHandle = SyclWaitEvent.Binding->getHandle()) {
       UrEventHandles.push_back(URHandle);
     }
   }
@@ -1504,8 +1506,8 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 
   // Command buffer path
   cleanupExecutionEvents(MSchedulerDependencies);
-  CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
-                        MSchedulerDependencies.end());
+  for (const detail::EventImplPtr &Event : MSchedulerDependencies)
+    CGData.MEvents.push_back(detail::capture_dependency(Event));
   bool IsCGDataSafeForSchedulerBypass =
       detail::Scheduler::areEventsSafeForSchedulerBypass(
           CGData.MEvents, Queue.getContextImpl()) &&

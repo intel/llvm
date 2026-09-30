@@ -445,15 +445,16 @@ public:
   ///
   /// \return a SYCL event representing submitted command or nullptr.
   EventImplPtr submit_kernel_scheduler_bypass(
-      KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+      KernelData &KData, std::vector<detail::captured_dependency> &DepEvents,
       bool EventNeeded, detail::kernel_impl *KernelImplPtr,
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   EventImplPtr submit_barrier_scheduler_bypass(
       std::vector<detail::EventImplPtr> &BarrierDepEvents,
-      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
-      bool EventNeeded, const EventImplPtr &EventForReuse);
+      std::vector<detail::captured_dependency> &DepEvents,
+      detail::CGType BarrierType, bool EventNeeded,
+      const EventImplPtr &EventForReuse);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -728,10 +729,20 @@ public:
     return Result;
   }
 
-  const std::vector<event> &
+  /// The dependencies of a memory operation: \p DepEvents captured now, and
+  /// for an in-order queue the external event and the last event of the queue.
+  std::vector<captured_dependency>
   getExtendDependencyList(const std::vector<event> &DepEvents,
-                          std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
+
+  /// Waits for a captured dependency, enqueueing its command first if it is
+  /// still held in the runtime.
+  static void waitForDependency(const captured_dependency &Dep) {
+    if (Dep.Binding->getHandle())
+      Dep.Binding->wait();
+    else
+      Scheduler::getInstance().waitForEvent(*Dep.Binding);
+  }
 
   // Called on host task completion that could block some kernels from enqueue.
   // Approach that tracks almost all tasks to provide barrier sync for both ur
@@ -783,6 +794,16 @@ protected:
     return Queue.insertHelperBarrier();
   }
 
+  /// Adds one of this queue's own recorded dependencies to the command group
+  /// as it was captured. It goes straight into the command group: the checks
+  /// registerEventDependency performs (discarded event, graph membership) hold
+  /// for what this queue produced itself, and the signal must not be captured
+  /// again - the event may represent another signal by now.
+  template <typename HandlerType = handler>
+  void addDependency(HandlerType &Handler, const captured_dependency &Dep) {
+    Handler.impl->CGData.MEvents.push_back(Dep);
+  }
+
   template <typename HandlerType = handler>
   void synchronizeWithExternalEvent(HandlerType &Handler) {
     // If there is an external event set, add it as a dependency and clear it.
@@ -806,13 +827,13 @@ protected:
     if (!MGraph.expired() || !isInOrder())
       return false;
 
-    if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::areEventsSafeForSchedulerBypass(
-            {*MDefaultGraphDeps.LastEventPtr}, *MContext))
+    if (MDefaultGraphDeps.LastEvent &&
+        !Scheduler::isSafeForSchedulerBypass(MDefaultGraphDeps.LastEvent,
+                                             *MContext))
       return false;
 
     MNoLastEventMode.store(true, std::memory_order_relaxed);
-    MDefaultGraphDeps.LastEventPtr = nullptr;
+    MDefaultGraphDeps.LastEvent = {};
     return true;
   }
 
@@ -829,7 +850,7 @@ protected:
 
     if (Event &&
         !Scheduler::areEventsSafeForSchedulerBypass({*Event}, *MContext)) {
-      MDefaultGraphDeps.LastEventPtr = Event;
+      MDefaultGraphDeps.LastEvent = capture_dependency(Event);
       MNoLastEventMode.store(false, std::memory_order_relaxed);
     }
 
@@ -844,19 +865,20 @@ protected:
            (Handler.getType() == CGType::ExecCommandBuffer &&
             getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
-    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                              : MExtGraphDeps.LastEventPtr;
+    captured_dependency &LastEvent = MGraph.expired()
+                                         ? MDefaultGraphDeps.LastEvent
+                                         : MExtGraphDeps.LastEvent;
 
-    if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
+    if (LastEvent && Handler.getType() != CGType::AsyncAlloc) {
       // We are not in no-event mode, so we can use the last event.
       // depends_on after an async alloc is explicitly disallowed. Async alloc
       // handles in order queue dependencies preemptively, so we skip them.
       // Note: This could be improved by moving the handling of dependencies
       // to before calling the CGF.
-      Handler.depends_on(EventToBuildDeps);
+      addDependency(Handler, LastEvent);
     } else if (MNoLastEventMode) {
       // There might be some operations submitted to the queue
-      // but the LastEventPtr is not set. If we are to run a host_task,
+      // but the last event is not set. If we are to run a host_task,
       // we need to insert a barrier to ensure proper synchronization.
       Handler.depends_on(insertHelperBarrier(Handler));
     }
@@ -866,9 +888,10 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    EventToBuildDeps = parseEvent(Handler.finalize());
-    assert(EventToBuildDeps);
-    return EventToBuildDeps;
+    EventImplPtr Event = parseEvent(Handler.finalize());
+    assert(Event);
+    LastEvent = capture_dependency(Event);
+    return Event;
   }
 
   template <typename HandlerType = handler>
@@ -879,25 +902,27 @@ protected:
     assert(!(Handler.getType() == CGType::ExecCommandBuffer &&
              getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
-    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                              : MExtGraphDeps.LastEventPtr;
+    captured_dependency &LastEvent = MGraph.expired()
+                                         ? MDefaultGraphDeps.LastEvent
+                                         : MExtGraphDeps.LastEvent;
 
     // depends_on after an async alloc is explicitly disallowed. Async alloc
     // handles in order queue dependencies preemptively, so we skip them.
     // Note: This could be improved by moving the handling of dependencies
     // to before calling the CGF.
-    if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
+    if (LastEvent && Handler.getType() != CGType::AsyncAlloc) {
       // If we have last event, this means we are no longer in no-event mode.
       assert(!MNoLastEventMode);
-      Handler.depends_on(EventToBuildDeps);
+      addDependency(Handler, LastEvent);
     }
 
     MEmpty = false;
 
     synchronizeWithExternalEvent(Handler);
 
-    EventToBuildDeps = parseEvent(Handler.finalize());
-    if (EventToBuildDeps)
+    EventImplPtr Event = parseEvent(Handler.finalize());
+    LastEvent = Event ? capture_dependency(Event) : captured_dependency{};
+    if (Event)
       MNoLastEventMode = false;
 
     // TODO: if the event is NOP we should be able to discard it.
@@ -905,7 +930,7 @@ protected:
     // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
     // start relying on command buffer in-order property instead.
 
-    return EventToBuildDeps;
+    return Event;
   }
 
   template <typename HandlerType = handler>
@@ -928,20 +953,21 @@ protected:
         });
     auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
     if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
-      Handler.depends_on(Deps.UnenqueuedCmdEvents);
+      for (const captured_dependency &Dep : Deps.UnenqueuedCmdEvents)
+        addDependency(Handler, Dep);
     }
-    if (Deps.LastBarrier &&
-        (Type == CGType::CodeplayHostTask || (!Deps.LastBarrier->isEnqueued())))
-      Handler.depends_on(Deps.LastBarrier);
+    if (Deps.LastBarrier && (Type == CGType::CodeplayHostTask ||
+                             !Deps.LastBarrier.Binding->MIsEnqueued))
+      addDependency(Handler, Deps.LastBarrier);
 
     EventImplPtr EventRetImpl = parseEvent(Handler.finalize());
     if (Type == CGType::CodeplayHostTask)
-      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      Deps.UnenqueuedCmdEvents.push_back(capture_dependency(EventRetImpl));
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = EventRetImpl;
+      Deps.LastBarrier = capture_dependency(EventRetImpl);
       Deps.UnenqueuedCmdEvents.clear();
     } else if (!EventRetImpl->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      Deps.UnenqueuedCmdEvents.push_back(capture_dependency(EventRetImpl));
     }
 
     return EventRetImpl;
@@ -1084,8 +1110,11 @@ protected:
   device_impl &MDevice;
   const std::shared_ptr<context_impl> MContext;
 
-  /// These events are tracked, but not owned, by the queue.
-  std::vector<std::weak_ptr<event_impl>> MEventsWeak;
+  /// The signals of the commands submitted to this queue which were still held
+  /// in the runtime at submission; tracked, but not owned, by the queue. The
+  /// signal rather than the event: the event may be enqueued for signaling
+  /// again while the command is pending.
+  std::vector<std::weak_ptr<event_binding>> MEventsWeak;
 
   const async_handler MAsyncHandler;
   const property_list MPropList;
@@ -1093,19 +1122,22 @@ protected:
   ur_queue_handle_t MQueue;
 
   // Access should be guarded with MMutex
+  // Each item is a dependency captured when it was recorded: it stands for the
+  // work this queue produced then, even if the event has been enqueued for
+  // signaling again since (see captured_dependency).
   struct DependencyTrackingItems {
     // This event is employed for enhanced dependency tracking with in-order
     // queue
-    EventImplPtr LastEventPtr;
+    captured_dependency LastEvent;
     // The following two items are employed for proper out of order enqueue
     // ordering
-    std::vector<EventImplPtr> UnenqueuedCmdEvents;
-    EventImplPtr LastBarrier;
+    std::vector<captured_dependency> UnenqueuedCmdEvents;
+    captured_dependency LastBarrier;
 
     void reset() {
-      LastEventPtr = nullptr;
+      LastEvent = {};
       UnenqueuedCmdEvents.clear();
-      LastBarrier = nullptr;
+      LastBarrier = {};
     }
   } MDefaultGraphDeps, MExtGraphDeps;
 

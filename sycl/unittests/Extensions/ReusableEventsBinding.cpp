@@ -123,6 +123,19 @@ ur_result_t redefinedUrEnqueueKernelLaunchWithArgsExp(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+// A barrier enqueued by the scheduler may express its dependencies through a
+// plain events wait preceding the barrier call; record those too.
+ur_result_t redefinedUrEnqueueEventsWait(void *pParams) {
+  auto params = *static_cast<ur_enqueue_events_wait_params_t *>(pParams);
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  BarrierWaitLists.emplace_back(*params.pphEventWaitList,
+                                *params.pphEventWaitList +
+                                    *params.pnumEventsInWaitList);
+  if (*params.pphEvent && **params.pphEvent == nullptr)
+    **params.pphEvent = newFakeEvent();
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t redefinedUrEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto params =
       *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
@@ -185,7 +198,8 @@ sycl::event blockQueue(sycl::queue &Q, std::shared_ptr<HostTaskGate> Gate) {
       [&Gate](sycl::handler &CGH) { CGH.host_task([Gate] { Gate->wait(); }); });
 }
 
-// The barrier calls which had something to wait for, i.e. not the signals.
+// The barrier (or the events wait preceding it) calls which had something to
+// wait for, i.e. not the signals.
 std::vector<std::vector<ur_event_handle_t>> barriersWithWaitList() {
   std::lock_guard<std::mutex> Lock(BackendMutex);
   std::vector<std::vector<ur_event_handle_t>> Result;
@@ -244,6 +258,8 @@ protected:
     mock::getCallbacks().set_replace_callback(
         "urEnqueueKernelLaunchWithArgsExp",
         &redefinedUrEnqueueKernelLaunchWithArgsExp);
+    mock::getCallbacks().set_replace_callback("urEnqueueEventsWait",
+                                              &redefinedUrEnqueueEventsWait);
     mock::getCallbacks().set_replace_callback(
         "urEnqueueEventsWaitWithBarrierExt",
         &redefinedUrEnqueueEventsWaitWithBarrierExt);
@@ -418,10 +434,10 @@ TEST_F(ReusableEventsBindingTest, UnsignaledDependencyStaysComplete) {
 }
 
 // An event returned by a submission whose command is still held in the runtime
-// cannot be enqueued for signaling: the producing queue remembers the event,
-// not the signal, for queue::wait and its in-order dependencies. Once the
-// command has been enqueued the event can be signaled.
-TEST_F(ReusableEventsBindingTest, PendingProducerCannotBeSignaled) {
+// is enqueued for signaling elsewhere. The command keeps its own binding, and
+// so does the queue's in-order bookkeeping: the next submission to the queue
+// depends on the kernel, not on the signal, and queue::wait covers the kernel.
+TEST_F(ReusableEventsBindingTest, PendingProducerKeepsItsBinding) {
   sycl::queue Q = inOrderQueue();
   sycl::queue SignalQueue = inOrderQueue();
 
@@ -432,29 +448,63 @@ TEST_F(ReusableEventsBindingTest, PendingProducerCannotBeSignaled) {
       [&](sycl::handler &CGH) { CGH.single_task<BindingTestKernel>([]() {}); });
   EXPECT_EQ(handleOf(E), nullptr);
 
-  bool Thrown = false;
-  try {
-    syclex::enqueue_signal_event(SignalQueue, E);
-  } catch (const sycl::exception &Ex) {
-    Thrown = true;
-    EXPECT_EQ(Ex.code(), sycl::errc::invalid);
+  syclex::enqueue_signal_event(SignalQueue, E);
+  ASSERT_EQ(CreatedEvents.size(), 1u);
+  const ur_event_handle_t Signal = CreatedEvents[0];
+  EXPECT_EQ(handleOf(E), Signal);
+
+  // The next command on the queue depends on the kernel, which is still held,
+  // so it is held too. Depending on the signal instead would let it through.
+  Q.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<BindingTestKernel>([]() {}); });
+  {
+    std::lock_guard<std::mutex> Lock(BackendMutex);
+    EXPECT_TRUE(KernelLaunchWaitLists.empty());
   }
-  EXPECT_TRUE(Thrown);
-  EXPECT_EQ(CreatedEvents.size(), 0u);
 
   Gate->open();
-  ASSERT_TRUE(eventually([] { return KernelLaunchWaitLists.size() == 1; }));
   Q.wait();
+  SignalQueue.wait();
+
+  // Both kernels reached the backend, in order, and the kernel's backend event
+  // did not replace the signal's.
+  ASSERT_EQ(KernelEvents.size(), 2u);
+  EXPECT_NE(KernelEvents[0], Signal);
+  EXPECT_EQ(handleOf(E), Signal);
+  EXPECT_EQ(releases(Signal), 0);
+}
+
+// The same for an out-of-order queue: a barrier submitted after the re-signal
+// waits for the held kernel, which the queue remembers as the signal it was.
+TEST_F(ReusableEventsBindingTest, BarrierAfterResignalWaitsForPendingKernel) {
+  sycl::queue Q{Ctx, Dev};
+  sycl::queue SignalQueue = inOrderQueue();
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  sycl::event HostTask = blockQueue(Q, Gate);
+  sycl::event E = Q.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(HostTask);
+    CGH.single_task<BindingTestKernel>([]() {});
+  });
+  EXPECT_EQ(handleOf(E), nullptr);
+
+  syclex::enqueue_signal_event(SignalQueue, E);
+  ASSERT_EQ(CreatedEvents.size(), 1u);
+  const ur_event_handle_t Signal = CreatedEvents[0];
+
+  Q.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_barrier(); });
+
+  Gate->open();
+  Q.wait();
+  SignalQueue.wait();
+
   ASSERT_EQ(KernelEvents.size(), 1u);
   const ur_event_handle_t Kernel = KernelEvents[0];
-  EXPECT_EQ(handleOf(E), Kernel);
-
-  // The command has been enqueued, so the event may be signaled now. Nothing
-  // else refers to the kernel's signal, so its backend event is used again.
-  syclex::enqueue_signal_event(SignalQueue, E);
-  EXPECT_EQ(CreatedEvents.size(), 0u);
-  EXPECT_EQ(handleOf(E), Kernel);
-  SignalQueue.wait();
+  EXPECT_NE(Kernel, Signal);
+  const auto Barriers = barriersWithWaitList();
+  ASSERT_EQ(Barriers.size(), 1u);
+  EXPECT_EQ(Barriers[0], std::vector<ur_event_handle_t>{Kernel});
 }
 
 // event::get_wait_list reports the dependencies of the latest signal. A
