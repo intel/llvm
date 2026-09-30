@@ -475,6 +475,9 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
       std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
       std::swap(DeferredCleanupCommands, MDeferredCleanupCommands);
     }
+    if (!DeferredCleanupCommands.empty())
+      MDeferredResourcesCount.fetch_sub(DeferredCleanupCommands.size(),
+                                        std::memory_order_relaxed);
     for (Command *Cmd : DeferredCleanupCommands) {
       MGraphBuilder.cleanupCommand(Cmd);
     }
@@ -483,6 +486,8 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
                                     Cmds.begin(), Cmds.end());
+    if (!Cmds.empty())
+      MDeferredResourcesCount.fetch_add(Cmds.size(), std::memory_order_relaxed);
   }
 }
 
@@ -524,6 +529,7 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
   }
+  MDeferredResourcesCount.fetch_add(1, std::memory_order_relaxed);
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 }
 
@@ -541,6 +547,9 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       MDeferredMemObjRelease.swap(TempStorage);
     }
+    if (!TempStorage.empty())
+      MDeferredResourcesCount.fetch_sub(TempStorage.size(),
+                                        std::memory_order_relaxed);
     // if any objects in TempStorage exist - it is leaving scope and being
     // deleted
   }
@@ -562,6 +571,7 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
         }
         ObjsReadyToRelease.push_back(*MemObjIt);
         MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
+        MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
       }
     }
   }
@@ -573,6 +583,10 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   }
   if (!ObjsReadyToRelease.empty()) {
     std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+    // Items that failed to release (removeMemoryObject() returned false) are
+    // put back into the deferred storage, so account for them again.
+    MDeferredResourcesCount.fetch_add(ObjsReadyToRelease.size(),
+                                      std::memory_order_relaxed);
     MDeferredMemObjRelease.insert(
         MDeferredMemObjRelease.end(),
         std::make_move_iterator(ObjsReadyToRelease.begin()),
@@ -599,16 +613,26 @@ void Scheduler::takeAuxiliaryResources(const EventImplPtr &Dst,
   if (Iter == MAuxiliaryResources.end()) {
     return;
   }
+  // Src's map entry is removed below; Dst's entry is only a *new* entry (net
+  // +1 offsetting the -1 for Src) if it didn't already exist.
+  bool DstIsNewEntry =
+      MAuxiliaryResources.find(Dst) == MAuxiliaryResources.end();
   registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Dst,
                                    std::move(Iter->second));
   MAuxiliaryResources.erase(Iter);
+  if (!DstIsNewEntry)
+    MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
 }
 
 void Scheduler::registerAuxiliaryResources(
     EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
+  bool IsNewEntry =
+      MAuxiliaryResources.find(Event) == MAuxiliaryResources.end();
   registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Event,
                                    std::move(Resources));
+  if (IsNewEntry)
+    MDeferredResourcesCount.fetch_add(1, std::memory_order_relaxed);
 }
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
@@ -618,9 +642,11 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
     if (Blocking == BlockingT::BLOCKING) {
       It->first->waitInternal();
       It = MAuxiliaryResources.erase(It);
-    } else if (It->first->isCompleted())
+      MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
+    } else if (It->first->isCompleted()) {
       It = MAuxiliaryResources.erase(It);
-    else
+      MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
+    } else
       ++It;
   }
 }

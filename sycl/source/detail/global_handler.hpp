@@ -54,6 +54,13 @@ public:
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
   bool isSchedulerAlive() const;
+  /// \return a pointer to the Scheduler if it has already been created, or
+  /// nullptr otherwise. Unlike getScheduler(), this performs no locking and
+  /// never creates the Scheduler. It's intended for fast, best-effort checks
+  /// on hot paths (e.g. event::wait()) that want to avoid any lock
+  /// acquisition/contention when possible. Mirrors the existing lock-free
+  /// isSchedulerAlive() idiom.
+  Scheduler *getSchedulerIfAlive() const noexcept;
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();

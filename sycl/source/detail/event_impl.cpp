@@ -9,6 +9,7 @@
 #include <detail/adapter_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
@@ -411,6 +412,34 @@ void event_impl::wait(bool *Success) {
     waitInternal(Success);
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(*this, Success);
+
+  // Opportunistically release any resources (completed commands, USM/mem
+  // objects and other auxiliary allocations, e.g. internal scratch buffers
+  // used by some reduction strategies) that were only being kept alive
+  // because their release is normally deferred for batching/performance
+  // reasons (see GlobalHandler::isOkToDefer()). Without this, such
+  // resources -- and the queue/context they keep alive -- are not actually
+  // released until global runtime shutdown, even though the event they were
+  // attached to has already completed here. On Windows, deferring this
+  // release until shutdown can race with library unloading and be
+  // misreported as a resource leak by validation tooling (see
+  // https://github.com/intel/llvm/issues/22233).
+  //
+  // event::wait() is one of the hottest APIs in SYCL, so this is written to
+  // add (essentially) zero cost in the overwhelmingly common case where
+  // there is nothing deferred to release:
+  //  - GlobalHandler::getSchedulerIfAlive() and
+  //    Scheduler::hasDeferredResources() are both lock-free, best-effort
+  //    checks (a raw pointer read and a relaxed atomic load respectively) --
+  //    no mutexes are touched and no containers are walked unless there is
+  //    actually something deferred.
+  //  - Only if that check indicates there might be something to release do
+  //    we call the (non-blocking) releaseResources(), which is the same,
+  //    already-thread-safe entry point used at runtime shutdown.
+  if (detail::Scheduler *Sched =
+          detail::GlobalHandler::instance().getSchedulerIfAlive())
+    if (Sched->hasDeferredResources())
+      Sched->releaseResources(BlockingT::NON_BLOCKING);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);

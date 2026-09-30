@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <detail/cg.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -465,6 +467,23 @@ public:
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
+  /// \return true if there might currently be any deferred resources
+  /// (auxiliary resources, deferred mem objects, or deferred cleanup
+  /// commands) waiting to be released via releaseResources().
+  ///
+  /// This is a fast, lock-free, best-effort heuristic (a single relaxed
+  /// atomic load, no mutexes touched, no containers walked) intended to let
+  /// hot-path callers -- notably event::wait() -- cheaply skip the more
+  /// expensive releaseResources() call in the overwhelmingly common case
+  /// where there is nothing to release, so that they don't pay any lock
+  /// acquisition/contention cost at all in that case. It may occasionally be
+  /// stale by a few instructions (e.g. reporting non-empty right after the
+  /// last item was concurrently removed), which is fine: it only guards an
+  /// opportunistic cleanup, never correctness.
+  bool hasDeferredResources() const noexcept {
+    return MDeferredResourcesCount.load(std::memory_order_relaxed) != 0;
+  }
+
   void enqueueCommandForCG(event_impl &Event,
                            std::vector<Command *> &AuxilaryCmds,
                            BlockingT Blocking = NON_BLOCKING);
@@ -883,6 +902,14 @@ protected:
   std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
       MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
+
+  // Aggregate count of entries currently sitting in
+  // MDeferredCleanupCommands, MDeferredMemObjRelease and MAuxiliaryResources
+  // combined (one unit per command / per mem object / per auxiliary-resources
+  // map entry). Kept in sync (best-effort) with insertions/removals from
+  // those three containers so that hasDeferredResources() can be answered
+  // without acquiring any of the mutexes above. See hasDeferredResources().
+  std::atomic<std::size_t> MDeferredResourcesCount{0};
 
   // Asynchronous exceptions are captured at device-level until flushed, either
   // by queues, events or a synchronization on the device itself.
