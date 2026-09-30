@@ -495,10 +495,15 @@ protected:
   std::unordered_map<ur_program_handle_t, DynRTDeviceBinaryImageUPtr>
       m_MergedImages;
 
-  /// Keeps dynamic-link peer images (see needsDynamicLink) alive for
+  /// Keeps dynamic-link peer programs (see needsDynamicLink) alive for
   /// implicitly-built programs, since urProgramDynamicLinkExp links
-  /// modules in place rather than merging. Guarded by MNativeProgramsMutex.
-  std::unordered_map<ur_program_handle_t, std::vector<device_image_plain>>
+  /// modules in place rather than merging. Only the UR program handles are
+  /// kept (not the owning device_image_plain), so this holds no reference
+  /// to the context and is safe to release at any time, including after
+  /// the originating context has been torn down.
+  /// Guarded by MNativeProgramsMutex.
+  std::unordered_map<ur_program_handle_t,
+                      std::vector<Managed<ur_program_handle_t>>>
       m_DynamicLinkPeerImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.

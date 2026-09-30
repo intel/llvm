@@ -914,10 +914,22 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
     LinkedResults.erase(LinkedResults.begin() +
                         (MainResult - LinkedResults.data()));
 
+    // Keep only the peers' UR program handles alive (via a fresh retain),
+    // not the device_image_plain objects themselves: those also carry a
+    // context reference, which would otherwise keep the context alive for
+    // as long as this program stays registered.
+    std::vector<Managed<ur_program_handle_t>> PeerPrograms;
+    PeerPrograms.reserve(LinkedResults.size());
+    for (device_image_plain &Peer : LinkedResults) {
+      ur_program_handle_t PeerProgram = getSyclObjImpl(Peer)->get_ur_program();
+      Adapter.call<UrApiKind::urProgramRetain>(PeerProgram);
+      PeerPrograms.emplace_back(PeerProgram, Adapter);
+    }
+
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      if (!LinkedResults.empty())
-        m_DynamicLinkPeerImages[BuiltProgram] = std::move(LinkedResults);
+      if (!PeerPrograms.empty())
+        m_DynamicLinkPeerImages[BuiltProgram] = std::move(PeerPrograms);
       // Register BuiltProgram against every dependency image so
       // removeImages() can release the peers kept alive above. Skip
       // MainBinImg: its own program creation already registered it here.

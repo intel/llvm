@@ -64,8 +64,9 @@ public:
 
   sycl::detail::DeviceGlobalMap &getDeviceGlobals() { return m_DeviceGlobals; }
 
-  std::unordered_map<ur_program_handle_t,
-                     std::vector<sycl::detail::device_image_plain>> &
+  std::unordered_map<
+      ur_program_handle_t,
+      std::vector<sycl::detail::Managed<ur_program_handle_t>>> &
   getDynamicLinkPeerImages() {
     return m_DynamicLinkPeerImages;
   }
