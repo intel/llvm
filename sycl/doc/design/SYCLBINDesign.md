@@ -238,7 +238,28 @@ based), this option currently requires `--offload-new-driver` to be set.
 </tr>
 </table>
 
-Additionally, `-fsycl-link` should work with .syclbin files.
+Additionally, `-fsycl-link` can be used to link SYCLBIN files in input or
+object state into a single SYCLBIN file in executable state, e.g.
+
+```
+clang++ -fsycl-link a.syclbin b.syclbin -o ab.syclbin
+```
+
+Linking SYCLBIN files is done by the SYCL offloading toolchain through the
+clang-linker-wrapper, so `-fsycl` and `--offload-new-driver` are implied and do
+not have to be passed.
+
+When all inputs are `.syclbin` files, the driver passes them directly to the
+clang-linker-wrapper together with `--syclbin=executable` and one
+`--syclbin-link-target=<triple>[=<arch>]` flag for each device target. The
+targets are selected with `--offload-arch` (for example `--offload-arch=pvc` or
+`--offload-arch=corei7` to compile the linked device code ahead of time).
+Without `--offload-arch`, the device code is linked for the JIT `spir64`
+target. The output file is named with `-o`, and defaults to `a.syclbin`. The
+following are diagnosed as errors:
+
+* mixing `.syclbin` files with other inputs;
+* explicitly passing `-fno-sycl` or `--no-offload-new-driver`.
 
 ### Linking SYCLBIN files
 
@@ -284,7 +305,29 @@ Additionally, in this case the clang-linker-wrapper will skip the wrapping of
 the device code and the host code linking stage, as there is no host code to
 wrap the device code in and link.
 
-*TODO:* Describe the details of linking SYCLBIN files.
+When linking SYCLBIN files, the clang-linker-wrapper is passed `.syclbin` files
+as inputs together with `--syclbin=executable` and one or more
+`--syclbin-link-target=<triple>[=<arch>]` flags. It unpacks each SYCLBIN file and
+turns every IR module into a device input for each link target whose
+architecture matches the IR module's `target` metadata. From there, the device
+inputs go through the regular SYCL device-linking pipeline:
+
+1. `llvm-link`;
+2. `sycl-post-link`;
+3. `llvm-spirv`;
+4. ahead-of-time compilation for the target architecture, if one was given.
+
+The result is packaged into a SYCLBIN file in executable state.
+
+The clang-linker-wrapper diagnoses the following as errors:
+
+* a SYCLBIN input file in executable state, or one that contains native device
+  code images, since only IR modules can be linked;
+* a link target that none of the input SYCLBIN files can provide device code
+  for;
+* SYCL_EXTERNAL functions that are still undefined after the device code has
+  been linked, since the resulting executable-state SYCLBIN file must be
+  self-contained.
 
 
 ## SYCL runtime library changes

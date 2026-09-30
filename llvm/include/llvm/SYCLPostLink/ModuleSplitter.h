@@ -315,6 +315,11 @@ getDeviceCodeSplitter(std::unique_ptr<ModuleDesc> MD, IRSplitMode Mode,
                       bool AllowDeviceImageDependencies,
                       bool SuppressUndefinedFuncWarnings);
 
+// Collects the functions that are used in \p M but not defined in it,
+// excluding intrinsics and builtins, e.g. undefined SYCL_EXTERNAL functions.
+void collectUndefinedUserFunctions(const Module &M,
+                                   SmallVectorImpl<const Function *> &Funcs);
+
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void dumpEntryPoints(const EntryPointSet &C,
                                       const char *Msg = "", int Tab = 0);

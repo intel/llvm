@@ -463,6 +463,11 @@ def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
   "compatible with offloading; e.g., '-fopenmp=libomp' or '-fopenmp=libiomp5'">;
 def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "'%0' must be used in conjunction with '-fsycl' to enable offloading">;
+def err_drv_syclbin_link_mixed_inputs : Error<
+  "SYCLBIN file '%0' cannot be linked with non-SYCLBIN input '%1' when using "
+  "'-fsycl-link'">;
+def err_drv_syclbin_link_requires_opt : Error<
+  "linking SYCLBIN files with '-fsycl-link' requires '%0'">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<

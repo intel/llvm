@@ -12194,7 +12194,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString(Twine("--ocloc-path=") + A->getValue()));
 
-    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+    // When linking SYCLBIN files, the output is a SYCLBIN file created by
+    // --syclbin rather than a device image wrapped for the host link.
+    if (Args.hasArg(options::OPT_fsycl_link_EQ) && !D.getSYCLBINLinkSeen())
       CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
 
     // Propagate [no-]rdc mode to the linker wrapper for the SYCL case.
@@ -12448,6 +12450,25 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
           Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
+
+    // Linking SYCLBIN files always results in a SYCLBIN file in executable
+    // state. The device code inside the SYCLBIN inputs is not tied to any
+    // target, so tell the clang-linker-wrapper which targets to link for.
+    if (D.getSYCLBINLinkSeen()) {
+      CmdArgs.push_back(Args.MakeArgString("--syclbin=executable"));
+      for (auto &ToolChainMember :
+           llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
+        const ToolChain *TC = ToolChainMember.second;
+        SmallVector<BoundArch> Archs =
+            D.getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, *TC);
+        if (Archs.empty())
+          Archs.emplace_back();
+        for (const BoundArch &Arch : Archs)
+          CmdArgs.push_back(Args.MakeArgString(
+              "--syclbin-link-target=" + TC->getTripleString() +
+              (Arch.empty() ? "" : "=" + Arch.ArchName.str())));
+      }
+    }
   }
 
   // Construct the link job so we can wrap around it.
