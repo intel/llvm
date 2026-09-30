@@ -477,8 +477,8 @@ void Command::waitForEvents(queue_impl *Queue,
 }
 
 /// It is safe to bind MPreparedDepsEvents and MPreparedHostDepsEvents
-/// references to event_impl class members because Command
-/// should not outlive the event connected to it.
+/// references to event_binding members because the Command owns a reference
+/// to the binding (MBinding).
 Command::Command(
     CommandType Type, queue_impl *Queue,
     ur_exp_command_buffer_handle_t CommandBuffer,
@@ -486,8 +486,9 @@ Command::Command(
     : MQueue(Queue ? Queue->shared_from_this() : nullptr),
       MEvent(Queue ? detail::event_impl::create_device_event(*Queue)
                    : detail::event_impl::create_incomplete_host_event()),
-      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MBinding(MEvent->getBinding()),
+      MPreparedDepsEvents(MBinding->MPreparedDepsEvents),
+      MPreparedHostDepsEvents(MBinding->MPreparedHostDepsEvents), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
@@ -516,9 +517,9 @@ Command::Command(
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
     : MQueue(Queue ? Queue->shared_from_this() : nullptr),
-      MEvent(std::move(Event)),
-      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MEvent(std::move(Event)), MBinding(MEvent->getBinding()),
+      MPreparedDepsEvents(MBinding->MPreparedDepsEvents),
+      MPreparedHostDepsEvents(MBinding->MPreparedHostDepsEvents), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
@@ -876,6 +877,12 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
+
+  // The event still represents this command: nothing rebinds an event while
+  // its command is pending. To be removed once enqueueing an event for
+  // signaling gives it a new binding.
+  assert(MEvent->getBinding() == MBinding &&
+         "event rebound while its command is pending");
 
   // Exit if the command is already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)

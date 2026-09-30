@@ -259,6 +259,10 @@ public:
 protected:
   std::shared_ptr<queue_impl> MQueue;
   EventImplPtr MEvent;
+  /// The binding of MEvent this command produces. MPreparedDepsEvents and
+  /// MPreparedHostDepsEvents refer into it, so it has to be declared before
+  /// them.
+  std::shared_ptr<event_binding> MBinding;
   std::shared_ptr<queue_impl> MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <detail/adapter_impl.hpp>
+#include <detail/event_binding.hpp>
 #include <detail/helpers.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -241,18 +242,27 @@ public:
   /// \return a native handle.
   ur_native_handle_t getNative();
 
+  /// Returns the current binding of this event, creating it if the event has
+  /// none yet. To be called by the thread which owns the event, before the
+  /// event is visible to other threads.
+  const std::shared_ptr<event_binding> &getBinding() {
+    if (!MBinding)
+      MBinding = std::make_shared<event_binding>();
+    return MBinding;
+  }
+
   /// Returns vector of event dependencies.
   ///
-  /// @return a reference to MPreparedDepsEvents.
+  /// @return a reference to MPreparedDepsEvents of the current binding.
   std::vector<std::shared_ptr<event_impl>> &getPreparedDepsEvents() {
-    return MPreparedDepsEvents;
+    return getBinding()->MPreparedDepsEvents;
   }
 
   /// Returns vector of host event dependencies.
   ///
-  /// @return a reference to MPreparedHostDepsEvents.
+  /// @return a reference to MPreparedHostDepsEvents of the current binding.
   std::vector<std::shared_ptr<event_impl>> &getPreparedHostDepsEvents() {
-    return MPreparedHostDepsEvents;
+    return getBinding()->MPreparedHostDepsEvents;
   }
 
   /// Returns vector of event_impl that this event_impl depends on.
@@ -443,9 +453,9 @@ protected:
   std::weak_ptr<queue_impl> MSubmittedQueue;
   device_impl *MSubmittedDevice = nullptr;
 
-  /// Dependency events prepared for waiting by backend.
-  std::vector<EventImplPtr> MPreparedDepsEvents;
-  std::vector<EventImplPtr> MPreparedHostDepsEvents;
+  /// The current binding: the state of the signal this event represents. Null
+  /// until something needs it (see getBinding).
+  std::shared_ptr<event_binding> MBinding;
 
   std::vector<EventImplPtr> MPostCompleteEvents;
   // short term WA for stream:

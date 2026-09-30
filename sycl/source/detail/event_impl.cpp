@@ -597,11 +597,14 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
   std::lock_guard<std::mutex> Lock(MMutex);
 
   std::vector<EventImplPtr> Result;
-  Result.reserve(MPreparedDepsEvents.size() + MPreparedHostDepsEvents.size());
-  Result.insert(Result.end(), MPreparedDepsEvents.begin(),
-                MPreparedDepsEvents.end());
-  Result.insert(Result.end(), MPreparedHostDepsEvents.begin(),
-                MPreparedHostDepsEvents.end());
+  if (!MBinding)
+    return Result;
+
+  const std::vector<EventImplPtr> &Deps = MBinding->MPreparedDepsEvents;
+  const std::vector<EventImplPtr> &HostDeps = MBinding->MPreparedHostDepsEvents;
+  Result.reserve(Deps.size() + HostDeps.size());
+  Result.insert(Result.end(), Deps.begin(), Deps.end());
+  Result.insert(Result.end(), HostDeps.begin(), HostDeps.end());
 
   return Result;
 }
@@ -636,15 +639,19 @@ void event_impl::flushIfNeeded(queue_impl *UserQueue) {
 
 void event_impl::cleanupDependencyEvents() {
   std::lock_guard<std::mutex> Lock(MMutex);
-  MPreparedDepsEvents.clear();
-  MPreparedHostDepsEvents.clear();
+  if (!MBinding)
+    return;
+  MBinding->MPreparedDepsEvents.clear();
+  MBinding->MPreparedHostDepsEvents.clear();
 }
 
 void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
-  for (auto &Event : MPreparedDepsEvents) {
+  if (!MBinding)
+    return;
+  for (auto &Event : MBinding->MPreparedDepsEvents) {
     Event->cleanupDependencyEvents();
   }
-  for (auto &Event : MPreparedHostDepsEvents) {
+  for (auto &Event : MBinding->MPreparedHostDepsEvents) {
     Event->cleanupDependencyEvents();
   }
 }
