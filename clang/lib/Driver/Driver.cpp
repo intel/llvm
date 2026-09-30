@@ -1173,10 +1173,11 @@ llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch,
       "spir64_gen", "spirv32", "spirv64",     "nvptx64"};
   // spir64_fpga is not supported. Retain this check as it impacts the command
   // line acceptance of -fsycl-targets=spir64_fpga.  We need to continue to
-  // emit the proper diagnostic informing the user of no support.
+  // emit the proper diagnostic informing the user of no support.  The FPGA
+  // sub-architecture is gone, so match on the spelling instead.
   llvm::Triple TargetTriple(TargetArch);
   if (Arg && !Arg->isClaimed() && TargetTriple.isSPIR() &&
-      TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+      TargetTriple.getArchName().ends_with("_fpga")) {
     SmallString<128> OptStr(Arg->getSpelling());
     if (Arg->getOption().matches(options::OPT_offload_targets_EQ))
       OptStr = "-fsycl-targets=";
@@ -6000,6 +6001,13 @@ class OffloadingActionBuilder final {
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
+      if (TC->getTriple().isSPIROrSPIRV()) {
+        SmallString<128> SPIRVCompilerRTPath(TC->getCompilerRTPath());
+        llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
+        if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
+          LibLocCandidates.emplace_back(SPIRVCompilerRTPath);
+      }
+
       // NVPTX/AMDGCN reuse CudaToolChain/AMDGPUToolChain, not SYCLToolChain.
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
@@ -6011,6 +6019,19 @@ class OffloadingActionBuilder final {
       // has their own getDeviceLibs that we can potentially use.
       DeviceLibraries =
           SYCLTC.getDeviceLibNames(C.getDriver(), Args, TC->getTriple());
+      // There is some work in upstream to enable compiler-rt builtins for
+      // SYCL: https://github.com/llvm/llvm-project/pull/218528, we will
+      // cherry-pick it to intel/llvm once it is merged. Before it happens,
+      // we need to enable compiler-rt builtins for SYCL in intel/llvm in
+      // advance, so enable it in old model for now.
+      // TODO: when upstream PR lands into intel/llvm, remove the special
+      // handling for compiler-rt builtins here.
+      bool NoOffloadLib = !Args.hasFlag(options::OPT_offloadlib,
+                                        options::OPT_no_offloadlib, true);
+      if (!NoOffloadLib) {
+        ToolChain::BitCodeLibraryInfo RTBuiltinInfo("libclang_rt.builtins.bc");
+        DeviceLibraries.emplace_back(RTBuiltinInfo);
+      }
 
       for (const auto &DeviceLib : DeviceLibraries) {
         for (const auto &LLCandidate : LibLocCandidates) {
@@ -7953,18 +7974,11 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       ArgStringList TargetArgs;
       DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
                                            C.getInputArgs(), TargetArgs);
-      // Look for -device <string> and use that as the known
-      // arch to be associated with the current spir64_gen entry. Grab
-      // the right most entry.
-      for (int i = TargetArgs.size() - 2; i >= 0; --i) {
-        if (StringRef(TargetArgs[i]) == "-device") {
-          StringRef Arch;
-          Arch = TargetArgs[i + 1];
-          if (!Arch.empty())
-            Archs.insert(Arch);
-          break;
-        }
-      }
+      // Use the rightmost embedded "-device <arch>" as the arch bound to
+      // the raw spir64_gen entry.
+      StringRef Arch = tools::SYCL::gen::getEmbeddedDeviceArch(TargetArgs);
+      if (!Arch.empty())
+        Archs.insert(Arch);
     }
   }
 

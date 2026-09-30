@@ -889,6 +889,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                       InputFilename.contains("libspirv") ||
                       InputFilename.contains("libdevice")))
         return true;
+      if (InputFilename.starts_with("libclang_rt.builtins"))
+        return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix))
@@ -1100,6 +1102,13 @@ StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
   if (!GRFModeFlagMap.contains(GRFMode))
     return "";
   return GRFModeFlagMap[GRFMode];
+}
+
+StringRef SYCL::gen::getEmbeddedDeviceArch(ArrayRef<const char *> Tokens) {
+  for (int I = static_cast<int>(Tokens.size()) - 2; I >= 0; --I)
+    if (StringRef(Tokens[I]) == "-device")
+      return Tokens[I + 1];
+  return {};
 }
 
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,

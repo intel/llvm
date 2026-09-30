@@ -209,7 +209,8 @@
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-backend-gen-opt"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=-backend-cpu-opt"
 
-/// AOT targets map backend and linker options to the native tool syntax.
+/// AOT targets map backend and linker options to native tool syntax, one
+/// token per occurrence; a "/<arch>" qualifier routes multi-arch GPU options.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl-targets=intel_gpu_pvc \
 // RUN:          -Xsycl-target-backend -opt1 -Xsycl-target-linker -opt2 \
@@ -229,6 +230,20 @@
 // WRAPPER_AOT_LTO-SAME: "--device-compiler=spir64_x86_64-unknown-unknown=-flto=full"
 // WRAPPER_AOT_LTO-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-gpu-link"
 // WRAPPER_AOT_LTO-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=-cpu-link"
+
+/// Two spir64_gen sub-targets on the same triple: each arch's tokens
+/// carry their own "/<arch>" qualifier so options don't cross-contaminate.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=intel_gpu_pvc,intel_gpu_skl \
+// RUN:          -Xsycl-target-backend=intel_gpu_pvc "-options -extraopt_pvc" \
+// RUN:          -Xsycl-target-backend=intel_gpu_skl "-options -extraopt_skl" \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck --implicit-check-not='/pvc=-extraopt_skl' \
+// RUN:               --implicit-check-not='/skl=-extraopt_pvc' \
+// RUN:               -check-prefix WRAPPER_OPTIONS_MULTI_GEN %s
+// WRAPPER_OPTIONS_MULTI_GEN: clang-linker-wrapper
+// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown/pvc=--ocloc-options=-extraopt_pvc"
+// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown/skl=--ocloc-options=-extraopt_skl"
 
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \

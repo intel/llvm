@@ -138,7 +138,7 @@ _Returns:_ An event that is associated with context `ctxt`. The event has
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 `PropertyListT` contains an `enable_profiling` property that enables profiling
-timestamps and not all devices in `ctxt` have
+timestamps and devices in `ctxt` do not have
 `aspect::ext_oneapi_per_event_profiling`.
 
 '''
@@ -241,10 +241,9 @@ enum class aspect {
 } // namespace sycl
 ----
 
-When a device has this aspect, it allows events to be created with profiling
-enabled. In order for the `make_event` function to create an event with
-profiling enabled, all of the devices in a context provided to that function
-need to have this aspect.
+Indicates that the device's platform allows events to be created with profiling
+enabled. All devices in the same platform return the same information for this
+query.
 
 '''
 
@@ -323,10 +322,6 @@ _Throws:_
 
  * An `exception` with the `errc::invalid` error code if `evt` and `q` don't
    have the same context.
- * An `exception` with the `errc::feature_not_supported` error code if `evt`
-   was created with the `enable_profiling` property that enables profiling
-   timestamps and if the device associated with `q` does not have
-   `aspect::ext_oneapi_per_event_profiling`.
 
 === Interaction with other event APIs
 

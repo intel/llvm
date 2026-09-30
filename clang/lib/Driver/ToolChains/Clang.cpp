@@ -11048,10 +11048,19 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           C.getDriver(), *TC, *HostTC, Args, ScratchTC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
                                        *HostTC, Arch.ArchName);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      // Filter -Xsycl-target-backend tokens by arch when this image is
+      // bound to a single arch. Archs.size() > 1 happens on the legacy
+      // syntax where a single -fsycl-targets=spir64_gen entry names
+      // multiple archs via a comma-joined "-device pvc,bdw"; that image
+      // holds all of them and its compile-opts= must keep every token
+      // (no per-arch filtering possible for a merged image).
+      StringRef PerArch = Archs.size() == 1 ? Arch.ArchName : StringRef();
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                        PerArch);
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                       PerArch);
       createArgString("link-opts=");
     }
 
@@ -11945,17 +11954,23 @@ static bool requiresUBSanRT(unsigned ID) {
 /// Render \p Value as a clang-linker-wrapper option for the SYCL SPIR backend
 /// of \p TC. JIT options are routed to the runtime compiler or linker. AOT
 /// tools (ocloc/opencl-aot) have a single option namespace, so all AOT options
-/// go through --device-linker=.
+/// go through --device-linker=. \p Device selects an individual GPU arch when
+/// several architectures share a spir64_gen toolchain.
 static const char *renderSYCLBackendOption(const ArgList &Args,
                                            const ToolChain &TC, bool IsLink,
-                                           StringRef Value) {
+                                           StringRef Value,
+                                           StringRef Device = {}) {
   StringRef Prefix =
       llvm::offloading::getSYCLBackendOptionPrefix(TC.getTriple(), IsLink);
   StringRef WrapperOption = IsLink || TC.getTriple().isSPIRAOT()
                                 ? "--device-linker=sycl:"
                                 : "--device-compiler=sycl:";
-  return Args.MakeArgString(WrapperOption + TC.getTripleString() + "=" +
-                            Prefix + Value);
+  SmallString<64> Key(TC.getTripleString());
+  if (!Device.empty()) {
+    Key += '/';
+    Key += Device;
+  }
+  return Args.MakeArgString(WrapperOption + Key + "=" + Prefix + Value);
 }
 
 void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
@@ -12427,11 +12442,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-suppress-undefined-func-warnings"));
 
-    // Pass backend compiler, linker, sycl-post-link, llvm-spirv, and
-    // spirv-to-ir-wrapper options to clang-linker-wrapper:
-    // -Xsycl-target-backend/-Xsycl-target-linker -> mapped backend options
-    //   (see renderSYCLBackendOption), so generic clang options such as
-    //   -flto cannot leak into the SYCL backends.
+    // Pass backend and linker options through the SYCL SPIR option mapping
+    // (see renderSYCLBackendOption), with per-arch keys when necessary.
+    // This prevents generic clang options such as -flto from reaching ocloc.
     // -Xdevice-post-link -> --sycl-post-link-options
     // -Xspirv-translator -> --llvm-spirv-options
     // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
@@ -12444,16 +12457,37 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       ArgStringList BuildArgs;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (StringRef A : BuildArgs)
-        CmdArgs.push_back(
-            renderSYCLBackendOption(Args, *TC, /*IsLink=*/false, A));
+      // Only spir64_gen dedupes multiple intel_gpu_* aliases onto a single
+      // toolchain. Qualify options by arch in that case so they don't leak
+      // between the separate device images.
+      SmallVector<StringRef, 4> Devices;
+      if (TC->getTriple().isSPIR() &&
+          TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        for (BoundArch BA : C.getDriver().getOffloadArchs(
+                 C, C.getArgs(), Action::OFK_SYCL, *TC))
+          if (!BA.ArchName.empty())
+            Devices.push_back(BA.ArchName);
+      }
+      // With a single arch, leave the key unqualified so triple-scoped
+      // options (including legacy spir64_gen options) still apply.
+      if (Devices.size() < 2)
+        Devices.assign(1, StringRef());
 
-      BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (StringRef A : BuildArgs)
-        CmdArgs.push_back(
-            renderSYCLBackendOption(Args, *TC, /*IsLink=*/true, A));
+      for (StringRef Device : Devices) {
+        BuildArgs.clear();
+        SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                          Device);
+        for (StringRef A : BuildArgs)
+          CmdArgs.push_back(renderSYCLBackendOption(
+              Args, *TC, /*IsLink=*/false, A, Device));
+
+        BuildArgs.clear();
+        SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                         Device);
+        for (StringRef A : BuildArgs)
+          CmdArgs.push_back(renderSYCLBackendOption(
+              Args, *TC, /*IsLink=*/true, A, Device));
+      }
 
       BuildArgs.clear();
       SYCLTC.TranslateTargetOpt(
