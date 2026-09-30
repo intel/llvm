@@ -63,8 +63,6 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
     return "bpfeb";
   case bpfel:
     return "bpfel";
-  case fpga:
-    return "fpga";
   case csky:
     return "csky";
   case dxil:
@@ -363,9 +361,6 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case riscv64be:
     return "riscv";
 
-  case fpga:
-    return "fpga";
-
   case ve:
     return "ve";
   case csky:
@@ -529,7 +524,6 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
       .Case("wasm64", wasm64)
       .Case("renderscript32", renderscript32)
       .Case("renderscript64", renderscript64)
-      .Case("fpga", fpga)
       .Case("ve", ve)
       .Case("csky", csky)
       .Case("loongarch32", loongarch32)
@@ -682,7 +676,6 @@ Triple::ArchType Triple::parseArch(StringRef ArchName) {
           .Case("lanai", Triple::lanai)
           .Case("renderscript32", Triple::renderscript32)
           .Case("renderscript64", Triple::renderscript64)
-          .StartsWith("fpga", Triple::fpga)
           .Case("shave", Triple::shave)
           .Case("ve", Triple::ve)
           .Case("wasm32", Triple::wasm32)
@@ -756,11 +749,7 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
   if (SubArchName.starts_with("spir")) {
     StringRef SA(SubArchName);
     if (SA.consume_front("spir64_") || SA.consume_front("spir_")) {
-      if (SA == "fpga")
-        return Triple::SPIRSubArch_fpga;
-      else if (SA == "fpga_image")
-        return Triple::SPIRSubArch_fpga_image;
-      else if (SA == "gen")
+      if (SA == "gen")
         return Triple::SPIRSubArch_gen;
       else if (SA == "gen_image")
         return Triple::SPIRSubArch_gen_image;
@@ -1005,7 +994,6 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::avr:
   case Triple::bpfeb:
   case Triple::bpfel:
-  case Triple::fpga:
   case Triple::csky:
   case Triple::hexagon:
   case Triple::hsail64:
@@ -1783,7 +1771,6 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::arc:
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
-  case llvm::Triple::fpga:
   case llvm::Triple::csky:
   case llvm::Triple::dxil:
   case llvm::Triple::hexagon:
@@ -1896,7 +1883,6 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::arc:
   case Triple::arm:
   case Triple::armeb:
-  case Triple::fpga:
   case Triple::csky:
   case Triple::dxil:
   case Triple::hexagon:
@@ -1998,7 +1984,6 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::UnknownArch:
   case Triple::arc:
   case Triple::avr:
-  case Triple::fpga:
   case Triple::csky:
   case Triple::dxil:
   case Triple::hexagon:

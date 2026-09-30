@@ -1176,10 +1176,11 @@ llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch,
       "spir64_gen", "spirv32", "spirv64",     "nvptx64"};
   // spir64_fpga is not supported. Retain this check as it impacts the command
   // line acceptance of -fsycl-targets=spir64_fpga.  We need to continue to
-  // emit the proper diagnostic informing the user of no support.
+  // emit the proper diagnostic informing the user of no support.  The FPGA
+  // sub-architecture is gone, so match on the spelling instead.
   llvm::Triple TargetTriple(TargetArch);
   if (Arg && !Arg->isClaimed() && TargetTriple.isSPIR() &&
-      TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+      TargetTriple.getArchName().ends_with("_fpga")) {
     SmallString<128> OptStr(Arg->getSpelling());
     if (Arg->getOption().matches(options::OPT_offload_targets_EQ))
       OptStr = "-fsycl-targets=";
@@ -7995,18 +7996,11 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       ArgStringList TargetArgs;
       DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
                                            C.getInputArgs(), TargetArgs);
-      // Look for -device <string> and use that as the known
-      // arch to be associated with the current spir64_gen entry. Grab
-      // the right most entry.
-      for (int i = TargetArgs.size() - 2; i >= 0; --i) {
-        if (StringRef(TargetArgs[i]) == "-device") {
-          StringRef Arch;
-          Arch = TargetArgs[i + 1];
-          if (!Arch.empty())
-            Archs.insert(Arch);
-          break;
-        }
-      }
+      // Use the rightmost embedded "-device <arch>" as the arch bound to
+      // the raw spir64_gen entry.
+      StringRef Arch = tools::SYCL::gen::getEmbeddedDeviceArch(TargetArgs);
+      if (!Arch.empty())
+        Archs.insert(Arch);
     }
   }
 
