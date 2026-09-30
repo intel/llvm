@@ -2,6 +2,8 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
+// REQUIRES-INTEL-DRIVER: lin: 40130
+
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe
 

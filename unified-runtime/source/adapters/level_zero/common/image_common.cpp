@@ -1407,20 +1407,10 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
           delete externalMemoryData;
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
-#ifdef _WIN32
-        externalMemoryData->utf8NameStorage =
-            wideToUtf8(static_cast<const wchar_t *>(Win32Name->name));
-        if (externalMemoryData->utf8NameStorage.empty()) {
-          delete importWin32;
-          delete externalMemoryData;
-          return UR_RESULT_ERROR_INVALID_VALUE;
-        }
-        importWin32->name = externalMemoryData->utf8NameStorage.c_str();
-#else
-        delete importWin32;
-        delete externalMemoryData;
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
+        // L0's ze_external_memory_import_win32_handle_t::name is const void*
+        // and NEO consumes the wide string (LPCWSTR) as-is. Only the semaphore
+        // path (const char* name) needs the UTF-8 conversion.
+        importWin32->name = Win32Name->name;
       }
 
       switch (memHandleType) {

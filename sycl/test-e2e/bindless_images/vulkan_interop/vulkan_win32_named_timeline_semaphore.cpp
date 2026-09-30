@@ -2,9 +2,6 @@
 // REQUIRES: windows
 // REQUIRES: vulkan
 
-// The driver does not yet support importing Vulkan-created named timeline
-// semaphores by name on Windows. Nor do we yet knjow the driver version where
-// that is coming. But it's best to get this under test now.
 // XFAIL: *
 // XFAIL-TRACKER: GSD-12837
 
