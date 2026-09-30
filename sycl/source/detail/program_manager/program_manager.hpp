@@ -503,7 +503,7 @@ protected:
   /// the originating context has been torn down.
   /// Guarded by MNativeProgramsMutex.
   std::unordered_map<ur_program_handle_t,
-                      std::vector<Managed<ur_program_handle_t>>>
+                     std::vector<Managed<ur_program_handle_t>>>
       m_DynamicLinkPeerImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.

@@ -64,9 +64,8 @@ public:
 
   sycl::detail::DeviceGlobalMap &getDeviceGlobals() { return m_DeviceGlobals; }
 
-  std::unordered_map<
-      ur_program_handle_t,
-      std::vector<sycl::detail::Managed<ur_program_handle_t>>> &
+  std::unordered_map<ur_program_handle_t,
+                     std::vector<sycl::detail::Managed<ur_program_handle_t>>> &
   getDynamicLinkPeerImages() {
     return m_DynamicLinkPeerImages;
   }
@@ -385,8 +384,8 @@ TEST(ImageRemoval, NativePrograms) {
   EXPECT_TRUE(PM.getNativePrograms().count(ProgramB) > 0);
 }
 
-static std::array<sycl::unittest::MockDeviceImage, 1>
-    ImageSelfContainedAOT = {generateImageKernelOnly("D")};
+static std::array<sycl::unittest::MockDeviceImage, 1> ImageSelfContainedAOT = {
+    generateImageKernelOnly("D")};
 
 // Building a self-contained AOT image (no dependencies) must not add a
 // redundant self-reference to m_DynamicLinkPeerImages.
