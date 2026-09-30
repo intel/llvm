@@ -39,34 +39,46 @@ void event_impl::initContextIfNeeded() {
   assert(MContext);
 }
 
+event_binding::~event_binding() {
+  ur_event_handle_t Handle = MHandle.load();
+  if (!Handle)
+    return;
+  assert(MAdapter && "backend event without an adapter");
+  try {
+    MAdapter->call<UrApiKind::urEventRelease>(Handle);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_binding", e);
+  }
+}
+
 event_impl::~event_impl() {
+  // The backend event is released by the binding, which is destroyed after
+  // this body.
   try {
     if (MIPCHandleData) {
       getAdapter().call<UrApiKind::urIPCPutEventHandleExp>(
           MContext->getHandleRef(), MIPCHandleData);
     }
-    auto Handle = this->getHandle();
-    if (Handle)
-      getAdapter().call<UrApiKind::urEventRelease>(Handle);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
 }
 
 void event_impl::waitInternal(bool *Success) {
-  if (MState == HES_Discarded)
+  if (isDiscarded())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
 
+  event_binding &Binding = *MBinding;
   auto Handle = this->getHandle();
-  if (!MIsHostEvent && !Handle && MState != HES_Complete) {
+  if (!MIsHostEvent && !Handle && Binding.MState != HES_Complete) {
     // Enqueue deferred. Sleep until either the native handle appears (set by
-    // the eventual Cmd->enqueue via setHandle, which notifies cv) or the event
+    // the eventual Cmd->enqueue via setHandle, which notifies MCv) or the event
     // is marked complete on its own.
-    std::unique_lock<std::mutex> lock(MMutex);
-    cv.wait(lock, [this] {
-      return MState == HES_Complete || this->getHandle() != nullptr;
+    std::unique_lock<std::mutex> lock(Binding.MMutex);
+    Binding.MCv.wait(lock, [&Binding] {
+      return Binding.MState == HES_Complete || Binding.getHandle() != nullptr;
     });
     Handle = this->getHandle();
   }
@@ -87,10 +99,11 @@ void event_impl::waitInternal(bool *Success) {
       if (Success != nullptr)
         *Success = true;
     }
-  } else if (MState != HES_Complete) {
+  } else if (Binding.MState != HES_Complete) {
     // Wait for the host event
-    std::unique_lock<std::mutex> lock(MMutex);
-    cv.wait(lock, [this] { return MState == HES_Complete; });
+    std::unique_lock<std::mutex> lock(Binding.MMutex);
+    Binding.MCv.wait(lock,
+                     [&Binding] { return Binding.MState == HES_Complete; });
   }
 
   // Wait for connected events(e.g. streams prints)
@@ -105,20 +118,7 @@ void event_impl::waitInternal(bool *Success) {
 
 void event_impl::setComplete() {
   if (MIsHostEvent || !this->getHandle()) {
-    {
-      std::unique_lock<std::mutex> lock(MMutex);
-#ifndef NDEBUG
-      int Expected = HES_NotComplete;
-      int Desired = HES_Complete;
-
-      bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
-
-      assert(Succeeded && "Unexpected state of event");
-#else
-      MState.store(static_cast<int>(HES_Complete));
-#endif
-    }
-    cv.notify_all();
+    MBinding->setComplete();
     return;
   }
 
@@ -157,17 +157,21 @@ adapter_impl &event_impl::getAdapter() {
   return MContext->getAdapter();
 }
 
-void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
+void event_impl::setStateIncomplete() { MBinding->MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(context_impl &Context) {
   MIsHostEvent = false;
   MContext = Context.shared_from_this();
+  MBinding->MAdapter = &Context.getAdapter();
 }
 
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
                        private_tag)
-    : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
-      MIsFlushed(true), MState(HES_Complete) {
+    : MContext(detail::getSyclObjImpl(SyclContext)) {
+  MBinding->MAdapter = &getAdapter();
+  MBinding->MHandle = Event;
+  MBinding->MState = HES_Complete;
+  MBinding->MIsFlushed = true;
 
   ur_context_handle_t TempContext;
   getAdapter().call<UrApiKind::urEventGetInfo>(
@@ -183,20 +187,21 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
 }
 
 event_impl::event_impl(queue_impl &Queue, private_tag)
-    : MQueue{Queue.weak_from_this()},
-      MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
+    : MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
+  MBinding->MQueue = Queue.weak_from_this();
   this->setContextImpl(Queue.getContextImpl());
-  MState.store(HES_Complete);
+  MBinding->MState.store(HES_Complete);
 }
 
-event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
+event_impl::event_impl(HostEventState State, private_tag) {
+  MBinding->MState = State;
   MIsHostEvent = true;
   if (State == HES_Discarded || State == HES_Complete)
-    MIsFlushed = true;
+    MBinding->MIsFlushed = true;
 }
 
 void event_impl::setQueue(queue_impl &Queue) {
-  MQueue = Queue.weak_from_this();
+  MBinding->MQueue = Queue.weak_from_this();
   // Inherit profiling from the queue only if not already enabled per-event,
   // per-event profiling takes precedence over queue-level profiling.
   MIsProfilingEnabled = MIsProfilingEnabled || Queue.MIsProfilingEnabled;
@@ -310,21 +315,25 @@ void event_impl::setHandleReusable(ur_event_handle_t Handle) {
 
 void event_impl::initHostProfilingInfo() {
   assert(isHost() && "This must be a host event");
-  assert(MState == HES_NotComplete &&
+  assert(MBinding->MState == HES_NotComplete &&
          "Host event must be incomplete to initialize profiling info");
 
-  std::shared_ptr<queue_impl> QueuePtr = MSubmittedQueue.lock();
+  std::shared_ptr<queue_impl> QueuePtr = MBinding->MSubmittedQueue.lock();
   assert(QueuePtr && "Queue must be valid to initialize host profiling info");
   assert(QueuePtr->MIsProfilingEnabled && "Queue must have profiling enabled");
 
   MIsProfilingEnabled = true;
-  MHostProfilingInfo = std::make_unique<HostProfilingInfo>();
+  MBinding->MHostProfilingInfo = std::make_unique<HostProfilingInfo>();
   device_impl &Device = QueuePtr->getDeviceImpl();
-  MHostProfilingInfo->setDevice(&Device);
+  MBinding->MHostProfilingInfo->setDevice(&Device);
+}
+
+void event_binding::setSubmittedQueue(queue_impl *SubmittedQueue) {
+  MSubmittedQueue = SubmittedQueue->weak_from_this();
 }
 
 void event_impl::setSubmittedQueue(queue_impl *SubmittedQueue) {
-  MSubmittedQueue = SubmittedQueue->weak_from_this();
+  MBinding->setSubmittedQueue(SubmittedQueue);
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -354,7 +363,7 @@ void *event_impl::instrumentationProlog(std::string &Name,
     // queue is available with the wait events. We check to see if the
     // TraceEvent is available in the Queue object.
     void *TraceEvent = nullptr;
-    if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
+    if (std::shared_ptr<queue_impl> Queue = MBinding->MQueue.lock()) {
       TraceEvent = Queue->getTraceEvent();
       WaitEvent =
           (TraceEvent ? static_cast<xpti_td *>(TraceEvent) : GSYCLGraphEvent);
@@ -386,7 +395,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 void event_impl::wait(bool *Success) {
-  if (MState == HES_Discarded)
+  if (isDiscarded())
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
 
@@ -425,8 +434,8 @@ void event_impl::wait_and_throw() {
 void event_impl::checkProfilingPreconditions() const {
   std::weak_ptr<queue_impl> EmptyPtr;
 
-  if (!MIsHostEvent && !EmptyPtr.owner_before(MQueue) &&
-      !MQueue.owner_before(EmptyPtr)) {
+  if (!MIsHostEvent && !EmptyPtr.owner_before(MBinding->MQueue) &&
+      !MBinding->MQueue.owner_before(EmptyPtr)) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
                           "Profiling information is unavailable as the event "
                           "has no associated queue.");
@@ -455,9 +464,9 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   // can be short. Consequently, the submission time, which is based on
   // an estimated clock and not on the real device clock, may be ahead of the
   // start time, which is based on the actual device clock.
-  // MSubmitTime is set in a critical performance path.
-  // Force reading the device clock when setting MSubmitTime may deteriorate
-  // the performance.
+  // The submit time is set in a critical performance path.
+  // Force reading the device clock when setting the submit time may
+  // deteriorate the performance.
   // Since submit time is an estimated time, we implement this little hack
   // that allows all profiled time to be meaningful.
   // (Note that the observed time deviation between the estimated clock and
@@ -470,10 +479,10 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
     uint64_t StartTime =
         get_event_profiling_info<info::event_profiling::command_start>(
             Handle, this->getAdapter());
-    if (StartTime < MSubmitTime)
-      MSubmitTime = StartTime;
+    if (StartTime < MBinding->MSubmitTime)
+      MBinding->MSubmitTime = StartTime;
   }
-  return MSubmitTime;
+  return MBinding->MSubmitTime;
 }
 
 template <>
@@ -492,14 +501,14 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     // If command is nop (for example, USM operations for 0 bytes) return
     // recorded submission time. If event is created using default constructor,
     // 0 will be returned.
-    return MSubmitTime;
+    return MBinding->MSubmitTime;
   }
-  if (!MHostProfilingInfo)
+  if (!MBinding->MHostProfilingInfo)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
             codeToString(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE));
-  return MHostProfilingInfo->getStartTime();
+  return MBinding->MHostProfilingInfo->getStartTime();
 }
 
 template <>
@@ -514,14 +523,14 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     // If command is nop (for example, USM operations for 0 bytes) return
     // recorded submission time. If event is created using default constructor,
     // 0 will be returned.
-    return MSubmitTime;
+    return MBinding->MSubmitTime;
   }
-  if (!MHostProfilingInfo)
+  if (!MBinding->MHostProfilingInfo)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
             codeToString(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE));
-  return MHostProfilingInfo->getEndTime();
+  return MBinding->MHostProfilingInfo->getEndTime();
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -538,7 +547,7 @@ template <> uint32_t event_impl::get_info<info::event::reference_count>() {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() {
-  if (MState == HES_Discarded)
+  if (isDiscarded())
     return info::event_command_status::ext_oneapi_unknown;
 
   if (!MIsHostEvent) {
@@ -554,14 +563,14 @@ event_impl::get_info<info::event::command_execution_status>() {
     // 'submitted' for an already finished command. A command that is still
     // pending has not been completed that way and is still HES_NotComplete
     // (makeEvent() sets that up), so this cannot mask unfinished work.
-    else if (MState.load() == HES_Complete)
+    else if (MBinding->MState.load() == HES_Complete)
       return info::event_command_status::complete;
     // Command is blocked and not enqueued, UrEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;
   }
 
-  return MIsHostEvent && MState.load() != HES_Complete
+  return MIsHostEvent && MBinding->MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
 }
@@ -594,7 +603,7 @@ ur_native_handle_t event_impl::getNative() {
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
-  std::lock_guard<std::mutex> Lock(MMutex);
+  std::lock_guard<std::mutex> Lock(MBinding->MMutex);
 
   std::vector<EventImplPtr> Result;
   if (!MBinding)
@@ -613,14 +622,14 @@ void event_impl::flushIfNeeded(queue_impl *UserQueue) {
   // Some events might not have a native handle underneath even at this point,
   // e.g. those produced by memset with 0 size (no UR call is made).
   auto Handle = this->getHandle();
-  if (MIsFlushed || !Handle)
+  if (MBinding->MIsFlushed || !Handle)
     return;
 
-  std::shared_ptr<queue_impl> Queue = MQueue.lock();
+  std::shared_ptr<queue_impl> Queue = MBinding->MQueue.lock();
   // If the queue has been released, all of the commands have already been
   // implicitly flushed by urQueueRelease.
   if (!Queue) {
-    MIsFlushed = true;
+    MBinding->MIsFlushed = true;
     return;
   }
   if (Queue.get() == UserQueue)
@@ -634,11 +643,11 @@ void event_impl::flushIfNeeded(queue_impl *UserQueue) {
   if (Status == UR_EVENT_STATUS_QUEUED) {
     getAdapter().call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
   }
-  MIsFlushed = true;
+  MBinding->MIsFlushed = true;
 }
 
 void event_impl::cleanupDependencyEvents() {
-  std::lock_guard<std::mutex> Lock(MMutex);
+  std::lock_guard<std::mutex> Lock(MBinding->MMutex);
   if (!MBinding)
     return;
   MBinding->MPreparedDepsEvents.clear();
@@ -657,7 +666,7 @@ void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
 }
 
 void event_impl::cleanDepEventsThroughOneLevel() {
-  std::lock_guard<std::mutex> Lock(MMutex);
+  std::lock_guard<std::mutex> Lock(MBinding->MMutex);
   cleanDepEventsThroughOneLevelUnlocked();
 }
 
@@ -666,14 +675,15 @@ void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled || MProfilingTagEvent)
     return;
 
-  if (std::shared_ptr<queue_impl> Queue =
-          isHost() ? MSubmittedQueue.lock() : MQueue.lock()) {
+  if (std::shared_ptr<queue_impl> Queue = isHost()
+                                              ? MBinding->MSubmittedQueue.lock()
+                                              : MBinding->MQueue.lock()) {
     device_impl &Device = Queue->getDeviceImpl();
-    MSubmitTime = getTimestamp(&Device);
+    MBinding->MSubmitTime = getTimestamp(&Device);
   }
 }
 
-uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
+uint64_t event_impl::getSubmissionTime() { return MBinding->MSubmitTime; }
 
 bool event_impl::isCompleted() {
   return get_info<info::event::command_execution_status>() ==

@@ -43,18 +43,14 @@ class event_impl {
   };
 
 public:
-  enum HostEventState : int {
-    HES_NotComplete = 0,
-    HES_Complete,
-    HES_Discarded
-  };
+  using HostEventState = detail::HostEventState;
 
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl(private_tag)
-      : MIsFlushed(true), MState(HES_Complete), MIsDefaultConstructed(true),
-        MIsHostEvent(false) {
+  event_impl(private_tag) : MIsDefaultConstructed(true), MIsHostEvent(false) {
+    MBinding->MState = HES_Complete;
+    MBinding->MIsFlushed = true;
     // Need to fail in event() constructor  if there are problems with the
     // ONEAPI_DEVICE_SELECTOR. Deferring may lead to conficts with noexcept
     // event methods. This ::get() call uses static vars to read and parse the
@@ -187,16 +183,12 @@ public:
   void setComplete();
 
   /// Returns raw interoperability event handle.
-  ur_event_handle_t getHandle() const { return MEvent.load(); }
+  ur_event_handle_t getHandle() const { return MBinding->getHandle(); }
 
   /// Set event handle for this event object. Wakes any thread waiting in
   /// waitInternal that entered before a handle was available.
   void setHandle(const ur_event_handle_t &UREvent) {
-    MEvent.store(UREvent);
-    if (UREvent != nullptr) {
-      std::lock_guard<std::mutex> lock(MMutex);
-      cv.notify_all();
-    }
+    MBinding->setHandle(UREvent);
   }
 
   /// Returns context that is associated with this event.
@@ -216,7 +208,7 @@ public:
   void setStateIncomplete();
 
   /// Set state as discarded.
-  void setStateDiscarded() { MState = HES_Discarded; }
+  void setStateDiscarded() { MBinding->MState = HES_Discarded; }
 
   /// Returns command that is associated with the event.
   ///
@@ -235,21 +227,18 @@ public:
   /// Returns host profiling information.
   ///
   /// @return a pointer to HostProfilingInfo instance.
-  HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
+  HostProfilingInfo *getHostProfilingInfo() {
+    return MBinding->MHostProfilingInfo.get();
+  }
 
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.
   ur_native_handle_t getNative();
 
-  /// Returns the current binding of this event, creating it if the event has
-  /// none yet. To be called by the thread which owns the event, before the
-  /// event is visible to other threads.
-  const std::shared_ptr<event_binding> &getBinding() {
-    if (!MBinding)
-      MBinding = std::make_shared<event_binding>();
-    return MBinding;
-  }
+  /// Returns the current binding of this event: the state of the signal the
+  /// event represents.
+  const std::shared_ptr<event_binding> &getBinding() const { return MBinding; }
 
   /// Returns vector of event dependencies.
   ///
@@ -287,21 +276,21 @@ public:
   /// Checks if this event is discarded by SYCL implementation.
   ///
   /// \return true if this event is discarded.
-  bool isDiscarded() const { return MState == HES_Discarded; }
+  bool isDiscarded() const { return MBinding->MState == HES_Discarded; }
 
   /// Returns worker queue for command.
   ///
   /// @return shared_ptr to MWorkerQueue, please be aware it can be empty
   /// pointer
   std::shared_ptr<sycl::detail::queue_impl> getWorkerQueue() {
-    return MWorkerQueue.lock();
+    return MBinding->MWorkerQueue.lock();
   };
 
   /// Sets worker queue for command.
   ///
   /// @return
   void setWorkerQueue(std::weak_ptr<queue_impl> WorkerQueue) {
-    MWorkerQueue = std::move(WorkerQueue);
+    MBinding->MWorkerQueue = std::move(WorkerQueue);
   };
 
   /// Sets original queue and device used for submission.
@@ -323,7 +312,7 @@ public:
   uint64_t getSubmissionTime();
 
   std::shared_ptr<sycl::detail::queue_impl> getSubmittedQueue() const {
-    return MSubmittedQueue.lock();
+    return MBinding->MSubmittedQueue.lock();
   };
 
   /// Checks if this event is complete.
@@ -334,7 +323,7 @@ public:
   /// Checks if associated command is enqueued
   ///
   /// \return true if command passed enqueue
-  bool isEnqueued() const noexcept { return MIsEnqueued; };
+  bool isEnqueued() const noexcept { return MBinding->MIsEnqueued; };
 
   void attachEventToComplete(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
@@ -351,11 +340,13 @@ public:
   // Sets a sync point which is used when this event represents an enqueue to a
   // Command Buffer.
   void setSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint) {
-    MSyncPoint = SyncPoint;
+    MBinding->MSyncPoint = SyncPoint;
   }
 
   // Get the sync point associated with this event.
-  ur_exp_command_buffer_sync_point_t getSyncPoint() const { return MSyncPoint; }
+  ur_exp_command_buffer_sync_point_t getSyncPoint() const {
+    return MBinding->MSyncPoint;
+  }
 
   void setCommandGraph(
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -379,11 +370,11 @@ public:
   }
 
   bool isPotentiallyNativeRecorded() const {
-    return MPotentiallyNativeRecorded;
+    return MBinding->MPotentiallyNativeRecorded;
   }
 
   void setPotentiallyNativeRecorded(bool Value) {
-    MPotentiallyNativeRecorded = Value;
+    MBinding->MPotentiallyNativeRecorded = Value;
   }
 
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
@@ -393,18 +384,18 @@ public:
   // Sets a command-buffer command when this event represents an enqueue to a
   // Command Buffer.
   void setCommandBufferCommand(ur_exp_command_buffer_command_handle_t Command) {
-    MCommandBufferCommand = Command;
+    MBinding->MCommandBufferCommand = Command;
   }
 
   ur_exp_command_buffer_command_handle_t getCommandBufferCommand() const {
-    return MCommandBufferCommand;
+    return MBinding->MCommandBufferCommand;
   }
 
   const std::vector<EventImplPtr> &getPostCompleteEvents() const {
     return MPostCompleteEvents;
   }
 
-  void setEnqueued() { MIsEnqueued = true; }
+  void setEnqueued() { MBinding->MIsEnqueued = true; }
 
   bool isHost() { return MIsHostEvent; }
 
@@ -420,8 +411,8 @@ public:
     // handle was materialized by get(), or an event imported via
     // ipc::event::open) also own a UR handle without a queue/command, but they
     // are not interop events and must remain usable with enqueue_signal_event.
-    return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand &&
-           !MIPCEnabled && !MOpenedFromIpc;
+    return getHandle() && MBinding->MQueue.expired() && !isEnqueued() &&
+           !MCommand && !MIPCEnabled && !MOpenedFromIpc;
   }
 
   // Initializes the host profiling info for the event.
@@ -439,23 +430,16 @@ protected:
 #endif
   void checkProfilingPreconditions() const;
 
-  std::atomic<ur_event_handle_t> MEvent = nullptr;
-  // Stores submission time of command associated with event
-  uint64_t MSubmitTime = 0;
   std::shared_ptr<context_impl> MContext;
-  std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   Command *MCommand = nullptr;
-  std::weak_ptr<queue_impl> MQueue;
   bool MIsProfilingEnabled = false;
   bool MLowPower = false;
 
-  std::weak_ptr<queue_impl> MWorkerQueue;
-  std::weak_ptr<queue_impl> MSubmittedQueue;
   device_impl *MSubmittedDevice = nullptr;
 
-  /// The current binding: the state of the signal this event represents. Null
-  /// until something needs it (see getBinding).
-  std::shared_ptr<event_binding> MBinding;
+  /// The current binding: the state of the signal this event represents. Never
+  /// null.
+  std::shared_ptr<event_binding> MBinding = std::make_shared<event_binding>();
 
   std::vector<EventImplPtr> MPostCompleteEvents;
   // short term WA for stream:
@@ -492,17 +476,10 @@ public:
   std::pair<void *, size_t> getOrCreateIPCHandle();
 
 protected:
-  /// Indicates that the task associated with this event has been submitted by
-  /// the queue to the device.
-  std::atomic<bool> MIsFlushed = false;
-
-  // State of host event. Employed only for host events and event with no
-  // backend's representation (e.g. alloca). Used values are listed in
-  // HostEventState enum.
-  std::atomic<int> MState;
-
+  /// Guards the IPC handle data and the post-complete lists. The state of the
+  /// signal (handle, completion, dependencies) is guarded by the binding's own
+  /// mutex.
   std::mutex MMutex;
-  std::condition_variable cv;
 
   /// Store the command graph associated with this event, if any.
   /// This event is also be stored in the graph so a weak_ptr is used.
@@ -510,27 +487,9 @@ protected:
   /// Indicates that the event results from a command graph submission.
   bool MEventFromSubmittedExecCommandBuffer = false;
 
-  /// Set from the context of the worker queue when the event is created for a
-  /// command submission, marking it as potentially captured if a native graph
-  /// recording was active. Used to preserve in-order dependencies that cross
-  /// the native-recording capture boundary.
-  bool MPotentiallyNativeRecorded = false;
-
-  // If this event represents a submission to a
-  // ur_exp_command_buffer_sync_point_t the sync point for that submission is
-  // stored here.
-  ur_exp_command_buffer_sync_point_t MSyncPoint = 0;
-
-  // If this event represents a submission to a
-  // ur_exp_command_buffer_command_handle_t the command-buffer command
-  // (if any) associated with that submission is stored here.
-  ur_exp_command_buffer_command_handle_t MCommandBufferCommand = nullptr;
-
   // Signifies whether this event is the result of a profiling tag command. This
   // allows for profiling, even if the queue does not have profiling enabled.
   bool MProfilingTagEvent = false;
-
-  std::atomic_bool MIsEnqueued{false};
 
   // Events constructed without a context will lazily use the default context
   // when needed.
@@ -546,7 +505,7 @@ protected:
   // |default|   *          |    *     | false       | true                  |
   // Default constructed event is created with empty ctor in host code, MContext
   // is lazily initialized with default device context on first context query.
-  // MEvent is lazily created in first ur handle query.
+  // The UR handle is lazily created in first ur handle query.
   bool MIsDefaultConstructed = false;
   bool MIsHostEvent = false;
 };

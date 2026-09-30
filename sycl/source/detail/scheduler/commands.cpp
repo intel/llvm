@@ -491,16 +491,16 @@ Command::Command(
       MPreparedHostDepsEvents(MBinding->MPreparedHostDepsEvents), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
+  MBinding->setWorkerQueue(MWorkerQueue);
   if (Queue)
-    MEvent->setSubmittedQueue(Queue);
+    MBinding->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
   if (MQueue) {
     context_impl &Context = MQueue->getContextImpl();
     MEvent->setContextImpl(Context);
-    MEvent->setPotentiallyNativeRecorded(Context.isNativeRecordingActive());
+    MBinding->setPotentiallyNativeRecorded(Context.isNativeRecordingActive());
   }
-  MEvent->setStateIncomplete();
+  MBinding->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -526,7 +526,7 @@ Command::Command(
 
   MEvent->setCommand(this);
   if (MQueue)
-    MEvent->setPotentiallyNativeRecorded(
+    MBinding->setPotentiallyNativeRecorded(
         MQueue->getContextImpl().isNativeRecordingActive());
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -908,7 +908,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   auto WakeWaitersOnFailure = [this] {
     if (!MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
-      MEvent->setComplete();
+      MBinding->setComplete();
   };
   ur_result_t Res;
   try {
@@ -923,10 +923,10 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
     WakeWaitersOnFailure();
   } else {
-    MEvent->setEnqueued();
+    MBinding->setEnqueued();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
-      MEvent->setComplete();
+      MBinding->setComplete();
 
     // Consider the command is successfully enqueued if return code is
     // UR_RESULT_SUCCESS
@@ -1105,7 +1105,7 @@ ur_result_t AllocaCommand::enqueueImp() {
     if (!MQueue) {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue.get(), EventImpls, UREvent);
-      MEvent->setHandle(UREvent);
+      MBinding->setHandle(UREvent);
 
       return UR_RESULT_SUCCESS;
     }
@@ -1120,7 +1120,7 @@ ur_result_t AllocaCommand::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1207,7 +1207,7 @@ ur_result_t AllocaSubBufCommand::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
 
   XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
                                             MMemAllocation);
@@ -1335,7 +1335,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
         Result != UR_RESULT_SUCCESS)
       return Result;
   }
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1405,7 +1405,7 @@ ur_result_t MapMemObject::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1488,7 +1488,7 @@ ur_result_t UnMapMemObject::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1524,11 +1524,11 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
   }
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
+  MBinding->setWorkerQueue(MWorkerQueue);
   // When MQueue is non-null the base Command constructor already set this from
   // MQueue's context.
   if (!MQueue && MWorkerQueue)
-    MEvent->setPotentiallyNativeRecorded(
+    MBinding->setPotentiallyNativeRecorded(
         MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
@@ -1609,7 +1609,7 @@ ur_result_t MemCpyCommand::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1660,7 +1660,7 @@ ur_result_t UpdateHostRequirementCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue.get(), EventImpls, UREvent);
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
 
   assert(MSrcAllocaCmd && "Expected valid alloca command");
   assert(MSrcAllocaCmd->getMemAllocation() && "Expected valid source pointer");
@@ -1706,11 +1706,11 @@ MemCpyCommandHost::MemCpyCommandHost(const Requirement &SrcReq,
   }
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
+  MBinding->setWorkerQueue(MWorkerQueue);
   // When MQueue is non-null the base Command constructor already set this from
   // MQueue's context.
   if (!MQueue && MWorkerQueue)
-    MEvent->setPotentiallyNativeRecorded(
+    MBinding->setPotentiallyNativeRecorded(
         MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
@@ -1782,7 +1782,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1794,7 +1794,7 @@ ur_result_t EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   ur_event_handle_t UREvent = nullptr;
   waitForEvents(MQueue.get(), MPreparedDepsEvents, UREvent);
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -3053,8 +3053,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         MQueue->get_context(), MQueue->getDeviceImpl(), MCommandBuffer,
         *ExecKernel, MSyncPointDeps, &OutSyncPoint, &OutCommand,
         getMemAllocationFunc);
-    MEvent->setSyncPoint(OutSyncPoint);
-    MEvent->setCommandBufferCommand(OutCommand);
+    MBinding->setSyncPoint(OutSyncPoint);
+    MBinding->setCommandBufferCommand(OutCommand);
     return result;
   }
   case CGType::CopyUSM: {
@@ -3066,7 +3066,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToAcc: {
@@ -3089,7 +3089,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToPtr: {
@@ -3109,7 +3109,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyPtrToAcc: {
@@ -3129,7 +3129,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill: {
@@ -3147,7 +3147,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::FillUSM: {
@@ -3160,7 +3160,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::PrefetchUSM: {
@@ -3173,7 +3173,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::AdviseUSM: {
@@ -3186,7 +3186,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::EnqueueNativeCommand: {
@@ -3275,7 +3275,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
       assert(Res == UR_RESULT_SUCCESS);
     }
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
 
@@ -3309,7 +3309,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       assert(MEvent->isDiscarded());
     } else {
       assert(!MEvent->isDiscarded());
-      MEvent->setHandle(*Event);
+      MBinding->setHandle(*Event);
     }
   };
 
@@ -3335,7 +3335,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(UREvent);
+    MBinding->setHandle(UREvent);
 
     return UR_RESULT_SUCCESS;
   }
@@ -3354,7 +3354,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(UREvent);
+    MBinding->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToAcc: {
@@ -3375,7 +3375,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(UREvent);
+    MBinding->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill: {
@@ -3392,7 +3392,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(UREvent);
+    MBinding->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Kernel: {
@@ -3983,7 +3983,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(Event);
+    MBinding->setHandle(Event);
     return UR_RESULT_SUCCESS;
   }
   }
@@ -4020,7 +4020,7 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue.get(), EventImpls, UREvent);
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
 
   auto CheckAndFindAlloca = [](Requirement *Req, const DepDesc &Dep) {
     if (Dep.MDepRequirement == Req) {
