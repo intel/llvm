@@ -44,8 +44,7 @@ int main() {
 
   event Fork1 =
       Queue1.parallel_for(range<1>{N}, [=](item<1> Id) { X[Id] += 1; });
-  event Fork2 =
-      Queue1.ext_oneapi_submit_barrier();
+  event Fork2 = Queue1.ext_oneapi_submit_barrier();
 
   // Fork Queue1 to Queue2 and Queue3
   event Queue2Fork = Queue2.parallel_for(
