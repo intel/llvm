@@ -16,6 +16,7 @@ class MutualDepKernelA;
 class MutualDepKernelB;
 class AOTCaseKernel;
 class MixedAOTDepKernel;
+class StandaloneAOTKernel;
 } // namespace DynamicLinkingTest
 
 const static sycl::specialization_id<int> SpecConst1{1};
@@ -37,6 +38,7 @@ KERNEL_INFO(MutualDepKernelA)
 KERNEL_INFO(MutualDepKernelB)
 KERNEL_INFO(AOTCaseKernel)
 KERNEL_INFO(MixedAOTDepKernel)
+KERNEL_INFO(StandaloneAOTKernel)
 
 #undef KERNEL_INFO
 
@@ -138,6 +140,7 @@ static constexpr unsigned AOT_CASE_PRG_NATIVE = 23;
 static constexpr unsigned AOT_CASE_PRG_DEP_NATIVE = 29;
 static constexpr unsigned MIXED_CASE_PRG = 31;
 static constexpr unsigned MIXED_CASE_PRG_DEP_NATIVE = 37;
+static constexpr unsigned STANDALONE_AOT_PRG_NATIVE = 41;
 
 static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"BasicCaseKernel"}, {}, {"BasicCaseKernelDep"},
@@ -168,10 +171,15 @@ static sycl::unittest::MockDeviceImage Imgs[] = {
                   MIXED_CASE_PRG),
     generateImage({"MixedAOTDepKernelDep"}, {"MixedAOTDepKernelDep"}, {},
                   MIXED_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN),
+    // No exports, no imports: a self-contained native-AOT image with no
+    // dependency images at all, unlike AOTCaseKernel above.
+    generateImage({"StandaloneAOTKernel"}, {}, {}, STANDALONE_AOT_PRG_NATIVE,
+                  SYCL_DEVICE_BINARY_TYPE_NATIVE,
                   __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::MockDeviceImageArray<11> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<12> ImgArray{Imgs};
 
 void runCommonBasicCaseChecks() {
   ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
@@ -636,6 +644,27 @@ TEST(DynamicLinking, AOTObjectBuildNoBuildExp) {
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
   }
+}
+
+// Regression test: a self-contained native-AOT image with no dependency
+// images must not be force-routed through dynamicLink()/
+// AllowUnresolvedSymbols just because its format is native AOT.
+TEST(DynamicLinking, StandaloneAOTNoDeps) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+  mock::getCallbacks().set_replace_callback(
+      "urProgramBuildExp", redefined_urProgramBuildExpUnsupported);
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  Q.single_task<DynamicLinkingTest::StandaloneAOTKernel>([=]() {});
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateWithBinaryCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramDynamicLinkCalls, 0u);
+  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
+            STANDALONE_AOT_PRG_NATIVE);
 }
 
 // Same feature_not_supported guard, but on the link entry point rather than

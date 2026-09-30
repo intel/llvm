@@ -864,9 +864,11 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
     CheckAndDecompressImage(BinImg);
 
   // Native AOT dependency images (see needsDynamicLink) can't go through
-  // urProgramLinkExp and must be routed through dynamicLink() instead.
+  // urProgramLinkExp and must be routed through dynamicLink() instead, but
+  // only if there is actually a dependency to link against.
   // Cheap check; only build device_image_plain below when needed.
-  bool AnyNeedsDynamicLink = needsDynamicLink(&Img);
+  bool AnyNeedsDynamicLink =
+      !DeviceImagesToLink.empty() && needsDynamicLink(&Img);
   for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
     AnyNeedsDynamicLink |= needsDynamicLink(BinImg);
 
