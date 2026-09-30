@@ -70,8 +70,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Intel GEN12 Graphics with Level Zero
-            runner: '["Windows","gen12"]'
+          # TEMPORARY (testing PR for https://github.com/intel/llvm/issues/22287):
+          # only run on the two platforms the test was disabled on, and only
+          # run that one test. Do not merge this matrix restriction upstream.
           - name: Intel Arc Graphics with Level Zero
             runner: '["Windows","arc"]'
           - name: Intel Battlemage Graphics with Level Zero
@@ -84,6 +85,8 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       testing_mode: run-only
       binaries_artifact: sycl_windows_e2ebin
+      # TEMPORARY: restrict to the single re-enabled test, see above.
+      extra_lit_opts: --filter "alloc_pinned_host_memory"
 
   run_prebuilt_e2e_with_new_offload_model_tests:
     needs: build
