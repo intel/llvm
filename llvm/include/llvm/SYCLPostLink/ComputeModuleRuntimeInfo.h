@@ -36,11 +36,11 @@ using EntryPointSet = SetVector<Function *>;
 PropSetRegTy computeDeviceLibProperties(const Module &M,
                                         const std::string &SYCLDeviceLibName);
 
-PropSetRegTy computeModuleProperties(const Module &M,
-                                     const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps,
-                                     bool AllowDeviceImageDependencies,
-                                     int IdQueriesRange);
+PropSetRegTy
+computeModuleProperties(const Module &M, const EntryPointSet &EntryPoints,
+                        const GlobalBinImageProps &GlobProps,
+                        bool AllowDeviceImageDependencies, int IdQueriesRange,
+                        bool AllowSubGroupSizeDisagreement = false);
 
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints);

@@ -320,6 +320,7 @@
 /// '--offload-arch' with '-fsycl' needs no explicit '--offload-new-driver'
 /// when OpenMP in the same invocation already enables it implicitly.
 // RUN: %clangxx -### -fsycl --offload-arch=gfx900 -nogpulib \
+// RUN:          --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:          -fno-sycl-libspirv -fopenmp -fopenmp-targets=spir64 %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHK-OFFLOAD-ARCH-OPENMP-IMPLICIT %s
 // CHK-OFFLOAD-ARCH-OPENMP-IMPLICIT-NOT: error: '--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'

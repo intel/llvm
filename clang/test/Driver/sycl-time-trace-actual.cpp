@@ -2,7 +2,7 @@
 // This test performs actual compilation
 // and verifies that both host and device trace JSON files are created.
 
-// REQUIRES: system-linux
+// REQUIRES: system-linux, spirv-to-ir-wrapper, sycl-post-link
 
 // Setup: Create test directories and input file
 // RUN: rm -rf %t && mkdir -p %t/src %t/traces
@@ -39,7 +39,7 @@
 // In compile+link mode, trace files are named based on source file
 // RUN: rm -rf %t/traces3 && mkdir -p %t/traces3
 // RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
-// RUN:   -fno-sycl-instrument-device-code \
+// RUN:   -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:   -ftime-trace=%t/traces3 %t/src/test.cpp -o %t/myapp
 
 // Frontend traces should still be generated (named after source file)
@@ -80,6 +80,12 @@
 // CHECK-COLLISION-DAG: dir2-test-sycl-spir64-unknown-unknown.json
 
 // Minimal SYCL code for testing
+extern "C" {
+// symbols so that linker finds them and doesn't fail.
+void __sycl_register_lib(void *) {}
+void __sycl_unregister_lib(void *) {}
+}
+
 int main() {
   return 0;
 }

@@ -1,6 +1,8 @@
 // This test will check that --sym-prop-bc-files can be used to supply symbols and properties
 // for creating a wrapped BC file.
 //
+// REQUIRES: file-table-tform
+//
 // This test will generate two wrapped BC files.
 //
 // The first one (%t1.bc) will be generated with code, properties, and symbols coming through a

@@ -128,17 +128,17 @@ event make_event(const context &ctxt, PropertyListT props = {});
 
 _Constraints:_
 
-* `PropertyListT` is one of the properties listed below in section "New property
+* `PropertyListT` is one of the properties listed below in section "New properties
   for creating an event"; or
 * `is_property_list_v<PropertyListT>` is `true` and contains no properties other
-  than those listed below in section "New property for creating an event".
+  than those listed below in section "New properties for creating an event".
 
 _Returns:_ An event that is associated with context `ctxt`. The event has
 `info::event_command_status::complete` status.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 `PropertyListT` contains an `enable_profiling` property that enables profiling
-timestamps and not all devices in `ctxt` have
+timestamps and devices in `ctxt` do not have
 `aspect::ext_oneapi_per_event_profiling`.
 
 '''
@@ -155,10 +155,10 @@ event make_event(PropertyListT props = {});
 
 _Constraints:_
 
-* `PropertyListT` is one of the properties listed below in section "New property
+* `PropertyListT` is one of the properties listed below in section "New properties
   for creating an event"; or
 * `is_property_list_v<PropertyListT>` is `true` and contains no properties other
-  than those listed below in section "New property for creating an event".
+  than those listed below in section "New properties for creating an event".
 
 _Effects:_ Equivalent to:
 
@@ -171,9 +171,10 @@ return sycl::ext::oneapi::experimental::make_event(ctxt, props);
 
 '''
 
-=== New property for creating an event
+=== New properties for creating an event
 
-This extension adds the following property, which can be used with `make_event`:
+This extension adds the following properties, which can be used with
+`make_event`:
 
 '''
 
@@ -196,6 +197,32 @@ indicating whether the event captures profiling timestamp information.
 
 '''
 
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+enum class event_mode_enum { none, low_power };
+
+struct event_mode {
+  event_mode(event_mode_enum mode);  (1)
+};
+using event_mode_key = event_mode;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+This property is a hint for the driver to optimize event host synchronization.
+Passing `event_mode_enum::low_power` requests that the driver conserve CPU
+resources by sleeping the waiting thread instead of polling, which may increase
+completion latency. `event_mode_enum::none` requests no specific mode and is
+equivalent to not passing the property.
+
+Backends that do not support the requested mode will silently ignore this hint.
+
+_Effects_ (1): Creates a new `event_mode` property with the given mode.
+
+'''
+
 === New device aspect
 
 This extension adds the following device aspect.
@@ -214,10 +241,9 @@ enum class aspect {
 } // namespace sycl
 ----
 
-When a device has this aspect, it allows events to be created with profiling
-enabled. In order for the `make_event` function to create an event with
-profiling enabled, all of the devices in a context provided to that function
-need to have this aspect.
+Indicates that the device's platform allows events to be created with profiling
+enabled. All devices in the same platform return the same information for this
+query.
 
 '''
 
@@ -296,10 +322,6 @@ _Throws:_
 
  * An `exception` with the `errc::invalid` error code if `evt` and `q` don't
    have the same context.
- * An `exception` with the `errc::feature_not_supported` error code if `evt`
-   was created with the `enable_profiling` property that enables profiling
-   timestamps and if the device associated with `q` does not have
-   `aspect::ext_oneapi_per_event_profiling`.
 
 === Interaction with other event APIs
 

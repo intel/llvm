@@ -291,7 +291,9 @@ __SYCL_DEVICE_INFO_INST(usm_system_allocations, bool)
 __SYCL_DEVICE_INFO_INST(image_max_array_size, size_t)
 __SYCL_DEVICE_INFO_INST(opencl_c_version, std::string)
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(sub_group_independent_forward_progress, bool)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_oneapi_srgb, bool)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_intel_pci_address, std::string)
@@ -362,6 +364,7 @@ __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_cores_per_cluster,
 __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, eus_per_xe_core, uint32_t)
 __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_lanes_per_hw_thread,
                          uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, ip_version, uint32_t)
 #undef __SYCL_INTEL_DEVICE_INST
 
 #define __SYCL_ONEAPI_DEVICE_INST(NS, NAME, RETURN_T)                          \

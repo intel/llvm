@@ -68,11 +68,21 @@ llvm::sycl_post_link::parseSplitModulesFromFile(StringRef File) {
     return createFileError(File, EntriesMBOrErr.getError());
 
   line_iterator LI(**EntriesMBOrErr);
-  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
+  // Symbols column is absent under -sycl-thin-lto; leave it empty then.
+  bool HasSymbolsColumn;
+  if (LI.is_at_eof())
+    return createStringError(inconvertibleErrorCode(),
+                             "invalid SYCL Table file.");
+  if (*LI == "[Code|Properties|Symbols]")
+    HasSymbolsColumn = true;
+  else if (*LI == "[Code|Properties]")
+    HasSymbolsColumn = false;
+  else
     return createStringError(inconvertibleErrorCode(),
                              "invalid SYCL Table file.");
 
   ++LI;
+  size_t ExpectedParts = HasSymbolsColumn ? 3 : 2;
   std::vector<module_split::SplitModule> Modules;
   while (!LI.is_at_eof()) {
     StringRef Line = *LI;
@@ -82,13 +92,13 @@ llvm::sycl_post_link::parseSplitModulesFromFile(StringRef File) {
 
     SmallVector<StringRef, 3> Parts;
     Line.split(Parts, "|");
-    if (Parts.size() != 3)
+    if (Parts.size() != ExpectedParts)
       return createStringError(inconvertibleErrorCode(),
                                "invalid SYCL Table row.");
 
-    auto [IRFilePath, PropertyFilePath, SymbolsFilePath] =
-        std::tie(Parts[0], Parts[1], Parts[2]);
-    if (PropertyFilePath.empty() || SymbolsFilePath.empty())
+    StringRef IRFilePath = Parts[0];
+    StringRef PropertyFilePath = Parts[1];
+    if (PropertyFilePath.empty())
       return createStringError(inconvertibleErrorCode(),
                                "invalid SYCL Table row.");
 
@@ -102,13 +112,19 @@ llvm::sycl_post_link::parseSplitModulesFromFile(StringRef File) {
       return PropSetOrErr.takeError();
 
     llvm::util::PropertySetRegistry Properties = std::move(**PropSetOrErr);
-    MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
-    if (!MBOrErr)
-      return createFileError(SymbolsFilePath, MBOrErr.getError());
+    std::string Symbols;
+    if (HasSymbolsColumn) {
+      StringRef SymbolsFilePath = Parts[2];
+      if (SymbolsFilePath.empty())
+        return createStringError(inconvertibleErrorCode(),
+                                 "invalid SYCL Table row.");
+      MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
+      if (!MBOrErr)
+        return createFileError(SymbolsFilePath, MBOrErr.getError());
 
-    auto &MB2 = *MBOrErr;
-    std::string Symbols =
-        std::string(MB2->getBufferStart(), MB2->getBufferEnd());
+      auto &MB2 = *MBOrErr;
+      Symbols = std::string(MB2->getBufferStart(), MB2->getBufferEnd());
+    }
     Modules.emplace_back(IRFilePath, std::move(Properties), std::move(Symbols));
     ++LI;
   }

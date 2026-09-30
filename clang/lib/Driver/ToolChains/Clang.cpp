@@ -5951,30 +5951,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fsycl-optimize-non-user-code");
       }
       // Add any predefined macros associated with intel_gpu* type targets
-      // passed in with -fsycl-targets
-      // TODO: Macros are populated during device compilations and saved for
-      // addition to the host compilation. There is no dependence connection
-      // between device and host where we should be able to use the offloading
-      // arch to add the macro to the host compile.
+      // passed in with -fsycl-targets.
       auto addTargetMacros = [&](const llvm::Triple &Triple) {
-        if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
-          return;
-        SmallString<64> Macro;
-        if ((Triple.isSPIR() &&
-             Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
-            Triple.isNVPTX() || Triple.isAMDGCN()) {
-          StringRef Device = JA.getOffloadingArch().ArchName;
-          if (!Device.empty() &&
-              !SYCL::gen::getGenDeviceMacro(Device).empty()) {
-            Macro = "-D";
-            Macro += SYCL::gen::getGenDeviceMacro(Device);
-          }
-        } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-          Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
-        if (Macro.size()) {
+        SmallString<64> Macro =
+            SYCL::getSYCLTargetMacro(Triple, JA.getOffloadingArch().ArchName);
+        if (!Macro.empty())
           CmdArgs.push_back(Args.MakeArgString(Macro));
-          D.addSYCLTargetMacroArg(Args, Macro);
-        }
       };
       addTargetMacros(RawTriple);
     } else {
@@ -11061,8 +11043,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       const ArgList &Args =
           C.getArgsForToolChain(nullptr, BoundArch{}, Action::OFK_SYCL);
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      const toolchains::SYCLToolChain &SYCLTC =
-          static_cast<const toolchains::SYCLToolChain &>(*TC);
+      // NVPTX/AMDGCN reuse CudaToolChain/AMDGPUToolChain, not SYCLToolChain.
+      std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
+      const toolchains::SYCLToolChain &SYCLTC = toolchains::getSYCLToolChain(
+          C.getDriver(), *TC, *HostTC, Args, ScratchTC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
                                        *HostTC, Arch.ArchName);
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
@@ -12256,13 +12240,17 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &[Kind, TC] :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       llvm::Triple TargetTriple = TC->getTriple();
-      const toolchains::SYCLToolChain &SYCLTC =
-          static_cast<const toolchains::SYCLToolChain &>(*TC);
       SmallVector<ToolChain::BitCodeLibraryInfo, 8> SYCLDeviceLibs;
       // SPIR or SPIR-V device libraries are compiled into the device compile
-      // step.
-      if (!TargetTriple.isSPIROrSPIRV())
+      // step. Non-SPIR here means NVPTX/AMDGCN (CudaToolChain/AMDGPUToolChain).
+      if (!TargetTriple.isSPIROrSPIRV()) {
+        const ToolChain *HostTC =
+            C.getSingleOffloadToolChain<Action::OFK_Host>();
+        std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
+        const toolchains::SYCLToolChain &SYCLTC =
+            toolchains::getSYCLToolChain(D, *TC, *HostTC, Args, ScratchTC);
         SYCLDeviceLibs.append(SYCLTC.getDeviceLibNames(D, Args, TargetTriple));
+      }
       for (const auto &AddLib : SYCLDeviceLibs) {
         if (llvm::sys::path::extension(AddLib.Path) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
@@ -12400,13 +12388,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -Xdevice-post-link -> --sycl-post-link-options
     // -Xspirv-translator -> --llvm-spirv-options
     // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
-    const toolchains::SYCLToolChain &SYCLTC =
-        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
+      // TC is a real SYCLToolChain: OFK_SYCL range + SPIR/SPIR-V triple.
+      const toolchains::SYCLToolChain &SYCLTC =
+          static_cast<const toolchains::SYCLToolChain &>(*TC);
       ArgStringList BuildArgs;
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs)

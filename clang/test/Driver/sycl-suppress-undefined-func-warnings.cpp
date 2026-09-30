@@ -41,16 +41,22 @@
 
 // New offload path:
 
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64 %s 2>&1 \
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64 \
+// RUN:   -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=NO-FLAG-NEW %s
-// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 %s 2>&1 \
+// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 \
+// RUN:   -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=NO-FLAG-NEW %s
 // NO-FLAG-NEW: clang-linker-wrapper
 // NO-FLAG-NEW-NOT: "--sycl-suppress-undefined-func-warnings"
 
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image %s 2>&1 \
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64 \
+// RUN:   -fno-sycl-instrument-device-code --no-offloadlib \
+// RUN:   -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WNO-NEW %s
-// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 -Wno-sycl-undefined-func-in-image %s 2>&1 \
+// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 \
+// RUN:   -fno-sycl-instrument-device-code --no-offloadlib \
+// RUN:   -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WNO-NEW %s
 // WNO-NEW: clang-linker-wrapper
 // WNO-NEW-SAME: "--sycl-suppress-undefined-func-warnings"
@@ -58,5 +64,7 @@
 // AOT target (spir64_gen): forwarding is target-independent.
 // RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WNO %s
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Wno-sycl-undefined-func-in-image %s 2>&1 \
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:   -fno-sycl-instrument-device-code --no-offloadlib \
+// RUN:   -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WNO-NEW %s

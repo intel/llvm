@@ -1,3 +1,6 @@
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir
 
 // Range rounding disabled so each lambda kernel yields a single entry point.

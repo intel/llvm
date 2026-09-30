@@ -1,4 +1,6 @@
 // Ensure that --sym-prop-bc-files option works when multiple sym/prop bc files are listed
+//
+// REQUIRES: file-table-tform
 
 // Generate fake AOCX files
 // RUN: echo 'pseudo-aocx-0' > %t0.aocx
