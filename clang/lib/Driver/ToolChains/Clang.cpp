@@ -12478,15 +12478,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
                                           Device);
         for (StringRef A : BuildArgs)
-          CmdArgs.push_back(renderSYCLBackendOption(
-              Args, *TC, /*IsLink=*/false, A, Device));
+          CmdArgs.push_back(
+              renderSYCLBackendOption(Args, *TC, /*IsLink=*/false, A, Device));
 
         BuildArgs.clear();
         SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs,
                                          Device);
         for (StringRef A : BuildArgs)
-          CmdArgs.push_back(renderSYCLBackendOption(
-              Args, *TC, /*IsLink=*/true, A, Device));
+          CmdArgs.push_back(
+              renderSYCLBackendOption(Args, *TC, /*IsLink=*/true, A, Device));
       }
 
       BuildArgs.clear();
