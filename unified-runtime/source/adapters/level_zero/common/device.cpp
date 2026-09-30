@@ -418,6 +418,12 @@ ur_result_t urDeviceGetInfo(
              (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
+    if (Device->Platform->zeDriverExtensionMap.count(
+            ZE_FLOAT_ATOMICS_EXT_NAME))
+      // sycl::aspect::ext_oneapi_atomic16 is detected upstream via this
+      // OpenCL-style extension name (see device_impl.hpp CASE(ext_oneapi_atomic16)).
+      SupportedExtensions += ("cl_ext_float_atomics ");
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
