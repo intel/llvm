@@ -2,7 +2,7 @@ name: 'Run UR Tests'
 
 inputs:
   test_type:
-    description: 'Type of tests to run (adapter-specific or conformance)'
+    description: 'Type of tests to run (adapter-specific, conformance or e2e)'
     required: true
   build_dir:
     required: false
@@ -11,10 +11,25 @@ inputs:
     description: 'Name for uploaded test artifacts (logs, XML)'
     required: false
     default: ''
+  extra_lit_opts:
+    description: 'Extra options appended to LIT_OPTS (e.g. E2E --param/--max-time flags)'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
   steps:
+  # `python3` may not be on PATH on Windows runners; resolve it once for reuse below.
+  - name: Resolve Python interpreter
+    id: python
+    shell: bash
+    run: |
+      if command -v python3 >/dev/null 2>&1; then
+        echo "exe=python3" >> "$GITHUB_OUTPUT"
+      else
+        echo "exe=python" >> "$GITHUB_OUTPUT"
+      fi
+
   - name: Run ${{ inputs.test_type }} tests
     id: run_tests
     continue-on-error: true
@@ -22,14 +37,17 @@ runs:
     env:
       BUILD_DIR: ${{ inputs.build_dir }}
       TEST_TYPE: ${{ inputs.test_type }}
+      EXTRA_LIT_OPTS: ${{ inputs.extra_lit_opts }}
+      PY: ${{ steps.python.outputs.exe }}
     run: |
-      devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE"
+      "$PY" devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE"
 
   - name: Filter test log
     if: ${{ always() && steps.run_tests.outputs['skip-artifacts'] != '1' }}
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
+      PY: ${{ steps.python.outputs.exe }}
     run: |
       if [ -z "$LOG_FILE" ]; then
         echo "::warning::Test log path not provided by runner; skipping log filtering."
@@ -42,7 +60,7 @@ runs:
       fi
 
       echo "::group::Test Log"
-      devops/scripts/ur-test filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
+      "$PY" devops/scripts/ur-test filter-log "$LOG_FILE" || { echo "::error::Filter failed"; head -1000 "$LOG_FILE"; }
       echo "::endgroup::"
 
   - name: Report test failures
@@ -50,13 +68,14 @@ runs:
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
+      PY: ${{ steps.python.outputs.exe }}
     run: |
       if [ -z "$LOG_FILE" ] || [ ! -f "$LOG_FILE" ]; then
         echo "::warning::Test execution failed, but no test log is available."
         exit 1
       fi
 
-      devops/scripts/ur-test extract-errors "$LOG_FILE"
+      "$PY" devops/scripts/ur-test extract-errors "$LOG_FILE"
       exit 1
 
   - name: Test summary
@@ -68,6 +87,7 @@ runs:
       ARTIFACT_NAME: ${{ inputs.artifact_name }}
       TEST_TYPE: ${{ inputs.test_type }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PY: ${{ steps.python.outputs.exe }}
     run: |
       if [ -z "$LOG_FILE" ]; then
         echo "::warning::Test log path not provided by runner; skipping summary."
@@ -84,7 +104,7 @@ runs:
         exit 0
       fi
 
-      devops/scripts/ur-test summary "$LOG_FILE" "${XML_FILE:-}"
+      "$PY" devops/scripts/ur-test summary "$LOG_FILE" "${XML_FILE:-}"
 
       if [ -n "$ARTIFACT_NAME" ]; then
         echo ""
@@ -96,7 +116,7 @@ runs:
 
       if [ -n "$GITHUB_STEP_SUMMARY" ]; then
         echo "### ${TEST_TYPE} tests" >> "$GITHUB_STEP_SUMMARY"
-        devops/scripts/ur-test step-summary "$LOG_FILE" "${XML_FILE:-}" >> "$GITHUB_STEP_SUMMARY"
+        "$PY" devops/scripts/ur-test step-summary "$LOG_FILE" "${XML_FILE:-}" >> "$GITHUB_STEP_SUMMARY"
       fi
 
   - name: Copy artifacts

@@ -152,6 +152,7 @@ jobs:
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
         retention-days: ${{ inputs.artifact_retention_days }}
         cxx: ${{ inputs.cxx }}
+        job_name: ${{ inputs.name }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'

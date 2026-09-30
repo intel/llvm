@@ -13,6 +13,7 @@ from .constants import (
     LIT_CI_OPTIONS,
     TEST_TYPE_ADAPTER_SPECIFIC,
     TEST_TYPE_CONFORMANCE,
+    TEST_TYPE_E2E,
     LIT_FILTER_OUT_ADAPTER_SPECIFIC,
     MAX_LINES_TO_SCAN,
 )
@@ -27,11 +28,21 @@ def get_test_config(test_type: str) -> TestConfig:
             target="check-unified-runtime-adapter",
             log_file="adapter_tests.log",
             lit_filter_out=LIT_FILTER_OUT_ADAPTER_SPECIFIC,
+            lit_timeout=DEFAULT_LIT_TIMEOUT,
+            lit_jobs=DEFAULT_LIT_JOBS,
         )
     elif test_type == TEST_TYPE_CONFORMANCE:
         return TestConfig(
             target="check-unified-runtime-conformance",
             log_file="conformance_tests.log",
+            lit_timeout=DEFAULT_LIT_TIMEOUT,
+            lit_jobs=DEFAULT_LIT_JOBS,
+        )
+    elif test_type == TEST_TYPE_E2E:
+        # Timeout/parallelism come from the caller via extra_lit_opts (e.g. --max-time).
+        return TestConfig(
+            target="check-sycl-e2e",
+            log_file="e2e_tests.log",
         )
     else:
         raise ValueError(f"Invalid test_type: {test_type}")
@@ -81,20 +92,27 @@ class TestRunner:
         return result.returncode
 
     def _setup_environment(self) -> None:
+        config = self.context.config
         lit_opts_parts = [
             *LIT_COMMON_REPORTING_OPTIONS,
             *LIT_CI_OPTIONS,
-            "--timeout",
-            str(DEFAULT_LIT_TIMEOUT),
-            "-j",
-            str(DEFAULT_LIT_JOBS),
-            "--xunit-xml-output",
-            str(self.context.xml_output_path),
         ]
+
+        if config.lit_timeout is not None:
+            lit_opts_parts += ["--timeout", str(config.lit_timeout)]
+
+        if config.lit_jobs is not None:
+            lit_opts_parts += ["-j", str(config.lit_jobs)]
+
+        lit_opts_parts += ["--xunit-xml-output", str(self.context.xml_output_path)]
+
+        if config.extra_lit_opts:
+            lit_opts_parts.append(config.extra_lit_opts)
+
         self.context.env["LIT_OPTS"] = " ".join(lit_opts_parts)
 
-        if self.context.config.lit_filter_out:
-            self.context.env["LIT_FILTER_OUT"] = self.context.config.lit_filter_out
+        if config.lit_filter_out:
+            self.context.env["LIT_FILTER_OUT"] = config.lit_filter_out
 
     def _build_cmake_command(self) -> List[str]:
         return [
