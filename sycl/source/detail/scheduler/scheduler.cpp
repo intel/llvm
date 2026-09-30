@@ -145,7 +145,7 @@ EventImplPtr Scheduler::addCG(
     }
   }
 
-  enqueueCommandForCG(*NewEvent, AuxiliaryCmds);
+  enqueueCommandForCG(*NewEvent->getBinding(), AuxiliaryCmds);
 
   if (!AuxiliaryResources.empty())
     registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
@@ -153,21 +153,21 @@ EventImplPtr Scheduler::addCG(
   return NewEvent;
 }
 
-void Scheduler::enqueueCommandForCG(event_impl &Event,
+void Scheduler::enqueueCommandForCG(event_binding &Binding,
                                     std::vector<Command *> &AuxiliaryCmds,
                                     BlockingT Blocking) {
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
 
-    Command *NewCmd = Event.getCommand();
+    Command *NewCmd = Binding.MCommand;
 
     EnqueueResultT Res;
     bool Enqueued;
 
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        Event.setCommand(nullptr);
+        Binding.MCommand = nullptr;
         delete NewCmd;
       }
       cleanupCommands(ToCleanUp);

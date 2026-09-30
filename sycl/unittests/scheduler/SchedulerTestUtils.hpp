@@ -77,7 +77,9 @@ public:
       sycl::detail::queue_impl *Queue,
       std::vector<std::shared_ptr<sycl::detail::event_impl>> &RawEvents,
       ur_event_handle_t &Event) {
-    Command::waitForEvents(Queue, RawEvents, Event);
+    std::vector<sycl::detail::captured_dependency> Deps =
+        sycl::detail::capture_dependencies(RawEvents);
+    Command::waitForEvents(Queue, Deps, Event);
   }
 
   std::shared_ptr<sycl::detail::event_impl> getEvent() { return MEvent; }

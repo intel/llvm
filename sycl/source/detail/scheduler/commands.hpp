@@ -229,7 +229,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() { MEvent->cleanDepEventsThroughOneLevel(); }
+  virtual ~Command() { MBinding->cleanDependenciesThroughOneLevel(); }
 
   const char *getBlockReason() const;
 
@@ -254,6 +254,15 @@ public:
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand);
 
+  /// The same for captured dependencies: the backend event and the worker
+  /// queue are those of the captured signal.
+  std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<captured_dependency> &Deps) const;
+
+  static std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<captured_dependency> &Deps,
+              queue_impl *CommandQueue, bool IsHostTaskCommand);
+
   /// Returns true iff this command represents a host task. Only ExecCGCommand
   /// can, so the base implementation always returns false: the command type
   /// alone does not imply the dynamic type of the command.
@@ -268,19 +277,19 @@ protected:
   std::shared_ptr<event_binding> MBinding;
   std::shared_ptr<queue_impl> MWorkerQueue;
 
-  /// Dependency events prepared for waiting by backend.
-  /// See processDepEvent for details.
-  std::vector<EventImplPtr> &MPreparedDepsEvents;
-  std::vector<EventImplPtr> &MPreparedHostDepsEvents;
+  /// Dependencies prepared for waiting by backend, and those waited for on the
+  /// host. See processDepEvent for details.
+  std::vector<captured_dependency> &MPreparedDepsEvents;
+  std::vector<captured_dependency> &MPreparedHostDepsEvents;
 
-  void waitForEvents(queue_impl *Queue, std::vector<EventImplPtr> &RawEvents,
+  void waitForEvents(queue_impl *Queue, std::vector<captured_dependency> &Deps,
                      ur_event_handle_t &Event);
 
   void waitForPreparedHostEvents() const;
 
-  void flushCrossQueueDeps(events_range Events) {
-    for (event_impl &Event : Events) {
-      Event.flushIfNeeded(MWorkerQueue.get());
+  void flushCrossQueueDeps(const std::vector<captured_dependency> &Deps) {
+    for (const captured_dependency &Dep : Deps) {
+      Dep.Binding->flushIfNeeded(MWorkerQueue.get());
     }
   }
 
@@ -310,11 +319,11 @@ protected:
   friend class DispatchHostTask;
 
 public:
-  const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
+  const std::vector<captured_dependency> &getPreparedHostDepsEvents() const {
     return MPreparedHostDepsEvents;
   }
 
-  const std::vector<EventImplPtr> &getPreparedDepsEvents() const {
+  const std::vector<captured_dependency> &getPreparedDepsEvents() const {
     return MPreparedDepsEvents;
   }
 

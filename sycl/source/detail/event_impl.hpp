@@ -243,14 +243,14 @@ public:
   /// Returns vector of event dependencies.
   ///
   /// @return a reference to MPreparedDepsEvents of the current binding.
-  std::vector<std::shared_ptr<event_impl>> &getPreparedDepsEvents() {
+  std::vector<captured_dependency> &getPreparedDepsEvents() {
     return getBinding()->MPreparedDepsEvents;
   }
 
   /// Returns vector of host event dependencies.
   ///
   /// @return a reference to MPreparedHostDepsEvents of the current binding.
-  std::vector<std::shared_ptr<event_impl>> &getPreparedHostDepsEvents() {
+  std::vector<captured_dependency> &getPreparedHostDepsEvents() {
     return getBinding()->MPreparedHostDepsEvents;
   }
 
@@ -258,11 +258,6 @@ public:
   ///
   /// @return a vector of "immediate" dependencies for this event_impl.
   std::vector<EventImplPtr> getWaitList();
-
-  /// Performs a flush on the queue associated with this event if the user queue
-  /// is different and the task associated with this event hasn't been submitted
-  /// to the device yet.
-  void flushIfNeeded(queue_impl *UserQueue);
 
   /// Cleans dependencies of this event_impl.
   void cleanupDependencyEvents();
@@ -508,6 +503,20 @@ protected:
   bool MIsDefaultConstructed = false;
   bool MIsHostEvent = false;
 };
+
+/// Captures a dependency on \p Event: the signal the event represents now.
+inline captured_dependency capture_dependency(const EventImplPtr &Event) {
+  return {Event->getBinding(), Event};
+}
+
+inline std::vector<captured_dependency>
+capture_dependencies(const std::vector<EventImplPtr> &Events) {
+  std::vector<captured_dependency> Result;
+  Result.reserve(Events.size());
+  for (const EventImplPtr &Event : Events)
+    Result.push_back(capture_dependency(Event));
+  return Result;
+}
 
 using events_iterator =
     variadic_iterator<event,

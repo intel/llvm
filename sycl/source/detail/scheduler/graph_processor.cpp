@@ -83,8 +83,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
-  for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
-    if (Command *DepCmd = Event->getCommand())
+  for (const captured_dependency &Dep : Cmd->getPreparedDepsEvents()) {
+    if (Command *DepCmd = Dep.Binding->MCommand)
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;
@@ -92,8 +92,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 
   // Recursively enqueue all the implicit + explicit host dependencies and
   // exit immediately if any of the commands cannot be enqueued.
-  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
-    if (Command *DepCmd = Event->getCommand())
+  for (const captured_dependency &Dep : Cmd->getPreparedHostDepsEvents()) {
+    if (Command *DepCmd = Dep.Binding->MCommand)
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;

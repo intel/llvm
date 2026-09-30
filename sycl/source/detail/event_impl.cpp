@@ -604,69 +604,93 @@ ur_native_handle_t event_impl::getNative() {
 std::vector<EventImplPtr> event_impl::getWaitList() {
   std::lock_guard<std::mutex> Lock(MBinding->MMutex);
 
+  const std::vector<captured_dependency> &Deps = MBinding->MPreparedDepsEvents;
+  const std::vector<captured_dependency> &HostDeps =
+      MBinding->MPreparedHostDepsEvents;
   std::vector<EventImplPtr> Result;
-  if (!MBinding)
-    return Result;
-
-  const std::vector<EventImplPtr> &Deps = MBinding->MPreparedDepsEvents;
-  const std::vector<EventImplPtr> &HostDeps = MBinding->MPreparedHostDepsEvents;
   Result.reserve(Deps.size() + HostDeps.size());
-  Result.insert(Result.end(), Deps.begin(), Deps.end());
-  Result.insert(Result.end(), HostDeps.begin(), HostDeps.end());
+  for (const captured_dependency &Dep : Deps)
+    Result.push_back(Dep.Event);
+  for (const captured_dependency &Dep : HostDeps)
+    Result.push_back(Dep.Event);
 
   return Result;
 }
 
-void event_impl::flushIfNeeded(queue_impl *UserQueue) {
+void event_binding::wait() {
+  ur_event_handle_t Handle = getHandle();
+  if (!Handle && MState != HES_Complete) {
+    // Enqueue deferred. Sleep until either the native handle appears (set by
+    // the eventual Cmd->enqueue via setHandle, which notifies MCv) or the
+    // signal is marked complete on its own.
+    std::unique_lock<std::mutex> Lock(MMutex);
+    MCv.wait(Lock, [this] {
+      return MState == HES_Complete || getHandle() != nullptr;
+    });
+    Handle = getHandle();
+  }
+
+  if (Handle) {
+    assert(MAdapter && "backend event without an adapter");
+    MAdapter->call<UrApiKind::urEventWait>(1, &Handle);
+  }
+}
+
+void event_binding::flushIfNeeded(queue_impl *UserQueue) {
   // Some events might not have a native handle underneath even at this point,
   // e.g. those produced by memset with 0 size (no UR call is made).
-  auto Handle = this->getHandle();
-  if (MBinding->MIsFlushed || !Handle)
+  ur_event_handle_t Handle = getHandle();
+  if (MIsFlushed || !Handle)
     return;
 
-  std::shared_ptr<queue_impl> Queue = MBinding->MQueue.lock();
+  std::shared_ptr<queue_impl> Queue = MQueue.lock();
   // If the queue has been released, all of the commands have already been
   // implicitly flushed by urQueueRelease.
   if (!Queue) {
-    MBinding->MIsFlushed = true;
+    MIsFlushed = true;
     return;
   }
   if (Queue.get() == UserQueue)
     return;
 
   // Check if the task for this event has already been submitted.
+  assert(MAdapter && "backend event without an adapter");
   ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
-  getAdapter().call<UrApiKind::urEventGetInfo>(
+  MAdapter->call<UrApiKind::urEventGetInfo>(
       Handle, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(ur_event_status_t),
       &Status, nullptr);
   if (Status == UR_EVENT_STATUS_QUEUED) {
-    getAdapter().call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
+    MAdapter->call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
   }
-  MBinding->MIsFlushed = true;
+  MIsFlushed = true;
 }
 
-void event_impl::cleanupDependencyEvents() {
-  std::lock_guard<std::mutex> Lock(MBinding->MMutex);
-  if (!MBinding)
-    return;
-  MBinding->MPreparedDepsEvents.clear();
-  MBinding->MPreparedHostDepsEvents.clear();
+void event_binding::clearDependencies() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  MPreparedDepsEvents.clear();
+  MPreparedHostDepsEvents.clear();
 }
+
+void event_binding::cleanDependenciesThroughOneLevelUnlocked() {
+  for (const captured_dependency &Dep : MPreparedDepsEvents)
+    Dep.Binding->clearDependencies();
+  for (const captured_dependency &Dep : MPreparedHostDepsEvents)
+    Dep.Binding->clearDependencies();
+}
+
+void event_binding::cleanDependenciesThroughOneLevel() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  cleanDependenciesThroughOneLevelUnlocked();
+}
+
+void event_impl::cleanupDependencyEvents() { MBinding->clearDependencies(); }
 
 void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
-  if (!MBinding)
-    return;
-  for (auto &Event : MBinding->MPreparedDepsEvents) {
-    Event->cleanupDependencyEvents();
-  }
-  for (auto &Event : MBinding->MPreparedHostDepsEvents) {
-    Event->cleanupDependencyEvents();
-  }
+  MBinding->cleanDependenciesThroughOneLevelUnlocked();
 }
 
 void event_impl::cleanDepEventsThroughOneLevel() {
-  std::lock_guard<std::mutex> Lock(MBinding->MMutex);
-  cleanDepEventsThroughOneLevelUnlocked();
+  MBinding->cleanDependenciesThroughOneLevel();
 }
 
 void event_impl::setSubmissionTime() {

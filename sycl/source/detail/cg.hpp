@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/event_impl.hpp>    // for captured_dependency
 #include <sycl/accessor.hpp>        // for AccessorImplHost, AccessorImplPtr
 #include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernelBase
 #include <sycl/detail/common.hpp>   // for code_location
@@ -328,7 +329,10 @@ public:
 
 class CGBarrier : public CG {
 public:
-  std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+  /// The wait list of the barrier, captured at submission (see
+  /// captured_dependency). Kept apart from the command group dependencies and
+  /// resolved when the barrier is enqueued.
+  std::vector<detail::captured_dependency> MEventsWaitWithBarrier;
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 
@@ -337,7 +341,8 @@ public:
             CG::StorageInitHelper CGData, CGType Type,
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
-        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)),
+        MEventsWaitWithBarrier(
+            detail::capture_dependencies(EventsWaitWithBarrier)),
         MEventMode(EventMode) {}
 };
 

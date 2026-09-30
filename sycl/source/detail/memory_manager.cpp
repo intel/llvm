@@ -114,21 +114,24 @@ void emitMemReleaseEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
 #endif
 }
 
-static void waitForEvents(events_range Events) {
+static void waitForEvents(const std::vector<captured_dependency> &Deps) {
   // Assuming all events will be on the same device or
   // devices associated with the same Backend.
-  if (!Events.empty()) {
-    adapter_impl &Adapter = Events.front().getAdapter();
-    std::vector<ur_event_handle_t> UrEvents(Events.size());
-    std::transform(Events.begin(), Events.end(), UrEvents.begin(),
-                   [](event_impl &Event) { return Event.getHandle(); });
+  if (!Deps.empty()) {
+    adapter_impl *Adapter = Deps.front().Binding->MAdapter;
+    std::vector<ur_event_handle_t> UrEvents(Deps.size());
+    std::transform(Deps.begin(), Deps.end(), UrEvents.begin(),
+                   [](const captured_dependency &Dep) {
+                     return Dep.Binding->getHandle();
+                   });
     // TODO: Why this condition??? Added during PI Removal in
     // https://github.com/intel/llvm/pull/14145 with no explanation.
     // Should we just filter out all `nullptr`, not only the one in the first
     // element?
     assert(!UrEvents.empty() && UrEvents[0]);
     if (!UrEvents.empty() && UrEvents[0]) {
-      Adapter.call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
+      assert(Adapter && "backend event without an adapter");
+      Adapter->call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
     }
   }
 }
@@ -251,7 +254,8 @@ void memUnmapHelper(adapter_impl &Adapter, ur_queue_handle_t Queue,
 }
 
 void MemoryManager::release(context_impl *TargetContext, SYCLMemObjI *MemObj,
-                            void *MemAllocation, events_range DepEvents,
+                            void *MemAllocation,
+                            const std::vector<captured_dependency> &DepEvents,
                             ur_event_handle_t &OutEvent) {
   // There is no async API for memory releasing. Explicitly wait for all
   // dependency events and return empty event.
@@ -280,7 +284,7 @@ void MemoryManager::releaseMemObj(context_impl *TargetContext,
 
 void *MemoryManager::allocate(context_impl *TargetContext, SYCLMemObjI *MemObj,
                               bool InitFromUserData, void *HostPtr,
-                              events_range DepEvents,
+                              const std::vector<captured_dependency> &DepEvents,
                               ur_event_handle_t &OutEvent) {
   // There is no async API for memory allocation. Explicitly wait for all
   // dependency events and return empty event.
@@ -409,11 +413,11 @@ void *MemoryManager::allocateMemImage(
                              Format, PropsList);
 }
 
-void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
-                                          void *ParentMemObj, size_t ElemSize,
-                                          size_t Offset, range<3> Range,
-                                          events_range DepEvents,
-                                          ur_event_handle_t &OutEvent) {
+void *MemoryManager::allocateMemSubBuffer(
+    context_impl *TargetContext, void *ParentMemObj, size_t ElemSize,
+    size_t Offset, range<3> Range,
+    const std::vector<captured_dependency> &DepEvents,
+    ur_event_handle_t &OutEvent) {
   waitForEvents(DepEvents);
   OutEvent = nullptr;
 

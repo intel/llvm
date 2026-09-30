@@ -474,7 +474,9 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     ResultEvent->setEnqueued();
     // connect returned event with dependent events
     if (!isInOrder()) {
-      ResultEvent->getPreparedDepsEvents() = DepEvents;
+      // The dependencies are in the backend already; the list is kept for
+      // event::get_wait_list and dependency cleanup.
+      ResultEvent->getPreparedDepsEvents() = capture_dependencies(DepEvents);
       // ResultEvent is local for current thread, no need to lock.
       ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
     }
@@ -572,8 +574,9 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
                        BarrierDepEvents.end());
     }
 
-    // DepEvents is not used anymore, so can move.
-    ResEvent->getPreparedDepsEvents() = std::move(DepEvents);
+    // The dependencies are in the backend already; the list is kept for
+    // event::get_wait_list and dependency cleanup.
+    ResEvent->getPreparedDepsEvents() = capture_dependencies(DepEvents);
     // ResultEvent is local for current thread, no need to lock.
     ResEvent->cleanDepEventsThroughOneLevelUnlocked();
   }
@@ -1169,12 +1172,12 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
         ResEventImpl->setEnqueued();
         // connect returned event with dependent events
         if (!isInOrder()) {
-          std::vector<EventImplPtr> &ExpandedDepEventImplPtrs =
+          std::vector<captured_dependency> &ExpandedDepEventImplPtrs =
               ResEventImpl->getPreparedDepsEvents();
           ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
           for (const event &DepEvent : ExpandedDepEvents)
             ExpandedDepEventImplPtrs.push_back(
-                detail::getSyclObjImpl(DepEvent));
+                capture_dependency(detail::getSyclObjImpl(DepEvent)));
 
           // ResEventImpl is local for current thread, no need to lock.
           ResEventImpl->cleanDepEventsThroughOneLevelUnlocked();

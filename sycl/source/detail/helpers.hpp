@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/event_binding.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/type_traits.hpp>
 
@@ -196,12 +197,12 @@ private:
   }
 };
 
-// Collect UR events from EventImpls and filter out some of them in case of
-// in order queue. Does blocking enqueue if event is expected to produce ur
-// event but has empty native handle.
+// Collect UR events from the captured dependencies and filter out some of them
+// in case of in order queue. Does blocking enqueue if a dependency is expected
+// to produce ur event but has empty native handle.
 std::vector<ur_event_handle_t>
-getUrEventsBlocking(std::vector<EventImplPtr> &Events, bool HasEventMode,
-                    queue_impl &queue, bool isHostTask);
+getUrEventsBlocking(const std::vector<captured_dependency> &Deps,
+                    bool HasEventMode, queue_impl &queue, bool isHostTask);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

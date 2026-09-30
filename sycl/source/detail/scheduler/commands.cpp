@@ -242,6 +242,38 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
   return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
 }
 
+std::vector<ur_event_handle_t>
+Command::getUrEvents(const std::vector<captured_dependency> &Deps,
+                     queue_impl *CommandQueue, bool IsHostTaskCommand) {
+  const bool CanRemoveRedundantEvent =
+      CommandQueue && CommandQueue->isInOrder() && !IsHostTaskCommand &&
+      !CommandQueue->getContextImpl().isNativeRecordingActive();
+
+  std::vector<ur_event_handle_t> RetUrEvents;
+  for (const captured_dependency &Dep : Deps) {
+    const event_binding &Binding = *Dep.Binding;
+    ur_event_handle_t Handle = Binding.getHandle();
+    if (Handle == nullptr)
+      continue;
+
+    // Same redundancy rule as the events_range overload above, applied to the
+    // queue the captured signal was submitted to.
+    if (CanRemoveRedundantEvent &&
+        Binding.MWorkerQueue.lock().get() == CommandQueue &&
+        !Binding.MPotentiallyNativeRecorded)
+      continue;
+
+    RetUrEvents.push_back(Handle);
+  }
+
+  return RetUrEvents;
+}
+
+std::vector<ur_event_handle_t>
+Command::getUrEvents(const std::vector<captured_dependency> &Deps) const {
+  return getUrEvents(Deps, MWorkerQueue.get(), isHostTask());
+}
+
 namespace {
 
 struct EnqueueNativeCommandData {
@@ -262,12 +294,13 @@ class DispatchHostTask {
   std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
-    std::map<adapter_impl *, std::vector<EventImplPtr>>
+    std::map<adapter_impl *, std::vector<captured_dependency>>
         RequiredEventsPerAdapter;
 
-    for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      adapter_impl &Adapter = Event->getAdapter();
-      RequiredEventsPerAdapter[&Adapter].push_back(Event);
+    for (const captured_dependency &Dep : MThisCmd->MPreparedDepsEvents) {
+      adapter_impl *Adapter = Dep.Binding->MAdapter;
+      assert(Adapter && "device dependency without an adapter");
+      RequiredEventsPerAdapter[Adapter].push_back(Dep);
     }
 
     // wait for dependency device events
@@ -298,8 +331,8 @@ class DispatchHostTask {
 
     // Wait for dependency host events.
     // Host events can't throw exceptions so don't try to catch it.
-    for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
-      Event->waitInternal();
+    for (const captured_dependency &Dep : MThisCmd->MPreparedHostDepsEvents) {
+      Dep.Binding->wait();
     }
 
     return true;
@@ -422,16 +455,16 @@ public:
 };
 
 void Command::waitForPreparedHostEvents() const {
-  for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
-    HostEvent->waitInternal();
+  for (const captured_dependency &Dep : MPreparedHostDepsEvents)
+    Dep.Binding->wait();
 }
 
 void Command::waitForEvents(queue_impl *Queue,
-                            std::vector<EventImplPtr> &EventImpls,
+                            std::vector<captured_dependency> &EventImpls,
                             ur_event_handle_t &Event) {
 #ifndef NDEBUG
-  for (const EventImplPtr &Event : EventImpls)
-    assert(!Event->isHost() &&
+  for (const captured_dependency &Dep : EventImpls)
+    assert(!Dep.Event->isHost() &&
            "Only non-host events are expected to be waited for here");
 #endif
   if (!EventImpls.empty()) {
@@ -449,12 +482,13 @@ void Command::waitForEvents(queue_impl *Queue,
       // three events (E1, E2, E3). Now, if urEventWait is called for all
       // three events we'll experience failure with CL_INVALID_CONTEXT 'cause
       // these events refer to different contexts.
-      std::map<context_impl *, std::vector<EventImplPtr>>
+      std::map<context_impl *, std::vector<captured_dependency>>
           RequiredEventsPerContext;
 
-      for (const EventImplPtr &Event : EventImpls) {
-        context_impl &Context = Event->getContextImpl();
-        RequiredEventsPerContext[&Context].push_back(Event);
+      // The context is a property of the event, not of the signal.
+      for (const captured_dependency &Dep : EventImpls) {
+        context_impl &Context = Dep.Event->getContextImpl();
+        RequiredEventsPerContext[&Context].push_back(Dep);
       }
 
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
@@ -739,10 +773,13 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   if (auto *DepCmd = DepEvent->getCommand())
     UrEventExpected &= DepCmd->producesUrEvent();
 
+  // The dependency is captured here, as the event is now: this command may be
+  // enqueued much later, and the event may represent another signal by then.
+  // See captured_dependency.
   if (!UrEventExpected) {
-    // call to waitInternal() is in waitForPreparedHostEvents() as it's called
-    // from enqueue process functions
-    MPreparedHostDepsEvents.push_back(DepEvent);
+    // The wait is in waitForPreparedHostEvents() as it's called from enqueue
+    // process functions
+    MPreparedHostDepsEvents.push_back(capture_dependency(DepEvent));
     return nullptr;
   }
 
@@ -755,7 +792,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
-    MPreparedDepsEvents.push_back(std::move(DepEvent));
+    MPreparedDepsEvents.push_back(capture_dependency(DepEvent));
 
   return ConnectionCmd;
 }
@@ -1095,7 +1132,7 @@ void AllocaCommand::emitInstrumentationData() {
 
 ur_result_t AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
 
   ur_event_handle_t UREvent = nullptr;
 
@@ -1196,7 +1233,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 
 ur_result_t AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
 
   if (auto Result = callMemOpHelperRet(
@@ -1266,7 +1303,7 @@ void ReleaseCommand::emitInstrumentationData() {
 
 ur_result_t ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -1322,7 +1359,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
     UnmapEventImpl->setHandle(UREvent);
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
-    EventImpls.push_back(std::move(UnmapEventImpl));
+    EventImpls.push_back(capture_dependency(UnmapEventImpl));
   }
   ur_event_handle_t UREvent = nullptr;
   if (SkipRelease)
@@ -1392,7 +1429,7 @@ void MapMemObject::emitInstrumentationData() {
 
 ur_result_t MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
@@ -1476,7 +1513,7 @@ bool UnMapMemObject::producesUrEvent() const {
 
 ur_result_t UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
@@ -1592,7 +1629,7 @@ bool MemCpyCommand::producesUrEvent() const {
 
 ur_result_t MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
 
   ur_event_handle_t UREvent = nullptr;
 
@@ -1657,7 +1694,7 @@ void ExecCGCommand::clearAuxiliaryResources() {
 
 ur_result_t UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue.get(), EventImpls, UREvent);
   MBinding->setHandle(UREvent);
@@ -1753,7 +1790,7 @@ context_impl *MemCpyCommandHost::getWorkerContext() const {
 ur_result_t MemCpyCommandHost::enqueueImp() {
   queue_impl *Queue = MWorkerQueue.get();
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
@@ -3030,7 +3067,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   // Any device dependencies need to be waited on here since subsequent
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   flushCrossQueueDeps(EventImpls);
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
@@ -3296,7 +3333,7 @@ ur_result_t ExecCGCommand::enqueueImp() {
 ur_result_t ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CGType::CodeplayHostTask)
     waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
@@ -3721,7 +3758,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::BarrierWaitlist: {
     assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
-    std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
+    std::vector<detail::captured_dependency> Events =
+        Barrier->MEventsWaitWithBarrier;
     bool HasEventMode =
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
     std::vector<ur_event_handle_t> UrEvents =
@@ -4017,7 +4055,7 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
 
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue.get(), EventImpls, UREvent);
   MBinding->setHandle(UREvent);

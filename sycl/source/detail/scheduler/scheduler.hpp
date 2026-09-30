@@ -465,7 +465,8 @@ public:
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
-  void enqueueCommandForCG(event_impl &Event,
+  /// Enqueues the command producing \p Binding, and the auxiliary commands.
+  void enqueueCommandForCG(event_binding &Binding,
                            std::vector<Command *> &AuxilaryCmds,
                            BlockingT Blocking = NON_BLOCKING);
 

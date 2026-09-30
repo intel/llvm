@@ -25,12 +25,28 @@ namespace detail {
 
 class adapter_impl;
 class Command;
+class event_binding;
 class event_impl;
 class queue_impl;
 
 /// Completion state of a signal without a backend event (host events, alloca
 /// and the like).
 enum HostEventState : int { HES_NotComplete = 0, HES_Complete, HES_Discarded };
+
+/// A dependency of a command on an event, captured when the command is
+/// submitted.
+///
+/// The binding is the signal the event represented at submission; everything
+/// which belongs to the signal - backend event, producing command, completion,
+/// worker queue - is read from it, never from the event, so that the dependency
+/// stays the same if the event is enqueued for signaling again before the
+/// command reaches the backend. The event is kept for what belongs to the
+/// event rather than to the signal (event::get_wait_list, the kind of event,
+/// its context) and to keep it alive as long as the dependency exists.
+struct captured_dependency {
+  std::shared_ptr<event_binding> Binding;
+  std::shared_ptr<event_impl> Event;
+};
 
 /// The state of one signal of an event.
 ///
@@ -54,7 +70,8 @@ public:
   ur_event_handle_t getHandle() const { return MHandle.load(); }
 
   /// Sets the backend event handle. Wakes any thread waiting in
-  /// event_impl::waitInternal that entered before a handle was available.
+  /// event_impl::waitInternal or wait() that entered before a handle was
+  /// available.
   void setHandle(ur_event_handle_t Handle) {
     MHandle.store(Handle);
     if (Handle != nullptr) {
@@ -99,6 +116,25 @@ public:
   void setCommandBufferCommand(ur_exp_command_buffer_command_handle_t Command) {
     MCommandBufferCommand = Command;
   }
+
+  /// Waits for this signal: for the backend event if there is one, otherwise
+  /// until the signal is marked complete. If the producing command has not
+  /// been enqueued yet, sleeps until it is.
+  void wait();
+
+  /// Performs a flush on the queue of this signal if the user queue is
+  /// different and the work producing the signal hasn't been submitted to the
+  /// device yet.
+  void flushIfNeeded(queue_impl *UserQueue);
+
+  /// Drops the dependencies of this signal.
+  void clearDependencies();
+
+  /// Drops the dependencies of this signal's dependencies.
+  void cleanDependenciesThroughOneLevel();
+
+  /// Same, without locking MMutex.
+  void cleanDependenciesThroughOneLevelUnlocked();
 
   /// The command producing this signal, or nullptr if there is none or it has
   /// been cleaned up. The scheduler graph lock must be held in read mode to
@@ -151,10 +187,11 @@ public:
   /// command (if any) associated with it.
   ur_exp_command_buffer_command_handle_t MCommandBufferCommand = nullptr;
 
-  /// Dependency events prepared for waiting by backend.
-  /// See Command::processDepEvent for details.
-  std::vector<std::shared_ptr<event_impl>> MPreparedDepsEvents;
-  std::vector<std::shared_ptr<event_impl>> MPreparedHostDepsEvents;
+  /// Dependencies of the work producing this signal, prepared for waiting by
+  /// the backend, and those waited for on the host. Captured when the work is
+  /// submitted. See Command::processDepEvent for details.
+  std::vector<captured_dependency> MPreparedDepsEvents;
+  std::vector<captured_dependency> MPreparedHostDepsEvents;
 };
 
 } // namespace detail
