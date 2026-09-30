@@ -93,14 +93,8 @@ ur_result_t urPlatformGetInfo(
     return ReturnValue(common_cast(PlatformOpque)->ZeDriverApiVersion.c_str());
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_LEVEL_ZERO);
-  case UR_PLATFORM_INFO_ADAPTER: {
-    // Whichever adapter (L0v1 or L0v2) won selection in urAdapterGet is
-    // also the one that stamped this platform's DDI table. GlobalAdapter
-    // can be concurrently written (e.g. cleared to nullptr by
-    // urAdapterRelease), so it must be read under GlobalAdapterMutex.
-    std::lock_guard<std::mutex> Lock(GlobalAdapterMutex);
-    return ReturnValue(common_cast(GlobalAdapter));
-  }
+  case UR_PLATFORM_INFO_ADAPTER:
+    return ReturnValue(common_cast(common_cast(PlatformOpque)->Adapter));
   default:
     UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;

@@ -228,6 +228,7 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
     ZeDevices.resize(ZeDeviceCount);
     ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, ZeDevices.data()));
     auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
+    platform->Adapter = adapter;
     // Check if this driver has GPU Devices
     for (uint32_t D = 0; D < ZeDeviceCount; ++D) {
       ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
