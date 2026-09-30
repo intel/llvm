@@ -1613,11 +1613,19 @@ void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
     }
 }
 
+// Not registered means no device image for this kernel was linked into the
+// program.
+[[noreturn]] static void throwNoKernelNamed(std::string_view KernelName) {
+  throw exception(make_error_code(errc::runtime),
+                  "No kernel named " + std::string(KernelName) + " was found");
+}
+
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(Info.Name));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throwNoKernelNamed(Info.Name);
   It->second.setCompileTimeInfoIfNeeded(Info);
   return It->second;
 }
@@ -1626,7 +1634,8 @@ DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throwNoKernelNamed(KernelName);
   return It->second;
 }
 
