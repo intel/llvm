@@ -30,6 +30,16 @@ runs:
         echo "exe=python" >> "$GITHUB_OUTPUT"
       fi
 
+  - name: Ensure ur-test Python dependencies
+    shell: bash
+    env:
+      PY: ${{ steps.python.outputs.exe }}
+    run: |
+      "$PY" -c "import defusedxml" 2>/dev/null && exit 0
+      # --break-system-packages: nightly images have no venv and broken apt, same as devops/actions/run-tests/benchmark.
+      "$PY" -m pip install --disable-pip-version-check --quiet --user --break-system-packages defusedxml==0.7.1 \
+        || "$PY" -m pip install --disable-pip-version-check --quiet --user defusedxml==0.7.1
+
   - name: Run ${{ inputs.test_type }} tests
     id: run_tests
     continue-on-error: true
