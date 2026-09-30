@@ -414,11 +414,11 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::enqueueUnblockedCommands(events_range ToEnqueue,
-                                         ReadLockT &GraphReadLock,
-                                         std::vector<Command *> &ToCleanUp) {
-  for (event_impl &Event : ToEnqueue) {
-    Command *Cmd = Event.getCommand();
+void Scheduler::enqueueUnblockedCommands(
+    const std::vector<std::shared_ptr<event_binding>> &ToEnqueue,
+    ReadLockT &GraphReadLock, std::vector<Command *> &ToCleanUp) {
+  for (const std::shared_ptr<event_binding> &Binding : ToEnqueue) {
+    Command *Cmd = Binding->MCommand;
     if (!Cmd)
       continue;
     EnqueueResultT Res;

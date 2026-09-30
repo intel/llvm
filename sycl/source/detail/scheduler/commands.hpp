@@ -177,7 +177,7 @@ public:
   // commands depending on it. Regular usage - host task.
   bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
 
-  void addBlockedUserUnique(const EventImplPtr &NewUser) {
+  void addBlockedUserUnique(const std::shared_ptr<event_binding> &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
         MBlockedUsers.end())
       return;
@@ -187,6 +187,9 @@ public:
   queue_impl *getQueue() const { return MQueue.get(); }
 
   const EventImplPtr &getEvent() const { return MEvent; }
+
+  /// The binding of MEvent this command produces.
+  const std::shared_ptr<event_binding> &getBinding() const { return MBinding; }
 
   // Methods needed to support SYCL instrumentation
 
@@ -396,9 +399,13 @@ public:
   /// Contains list of commands that depends on the host command explicitly (by
   /// depends_on). Not involved in the cleanup process since it is one-way link
   /// and does not hold resources.
-  /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
-  /// intersect with command enqueue.
-  std::vector<EventImplPtr> MBlockedUsers;
+  /// The bindings of the commands blocked by this (host task) command. They are
+  /// enqueued when this command completes. A binding is kept rather than the
+  /// command itself since enqueueUnblockedCommands and event.wait may
+  /// intersect with command enqueue, and rather than the event so that the
+  /// blocked command is found even if its event has moved on to another
+  /// signal.
+  std::vector<std::shared_ptr<event_binding>> MBlockedUsers;
   std::mutex MBlockedUsersMutex;
 
 protected:

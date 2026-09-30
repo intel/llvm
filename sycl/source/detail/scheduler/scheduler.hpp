@@ -532,9 +532,9 @@ protected:
                                          ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp);
 
-  static void enqueueUnblockedCommands(events_range ToEnqueue,
-                                       ReadLockT &GraphReadLock,
-                                       std::vector<Command *> &ToCleanUp);
+  static void enqueueUnblockedCommands(
+      const std::vector<std::shared_ptr<event_binding>> &ToEnqueue,
+      ReadLockT &GraphReadLock, std::vector<Command *> &ToCleanUp);
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);

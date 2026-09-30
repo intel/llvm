@@ -54,8 +54,7 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(
     if (Cmd->isBlocking()) {
       // Defer even Blocking=true callers; waitForEvent unlocks the graph and
       // parks on the root's event, avoiding the CMPLRLLVM-77682 deadlock.
-      const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
-      Cmd->addBlockedUserUnique(RootCmdEvent);
+      Cmd->addBlockedUserUnique(RootCommand->getBinding());
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
 
       // Blocked command will be enqueued asynchronously from submission so we

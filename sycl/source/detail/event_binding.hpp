@@ -24,6 +24,7 @@ inline namespace _V1 {
 namespace detail {
 
 class adapter_impl;
+class Command;
 class event_impl;
 class queue_impl;
 
@@ -98,6 +99,11 @@ public:
   void setCommandBufferCommand(ur_exp_command_buffer_command_handle_t Command) {
     MCommandBufferCommand = Command;
   }
+
+  /// The command producing this signal, or nullptr if there is none or it has
+  /// been cleaned up. The scheduler graph lock must be held in read mode to
+  /// read it and in write mode to set it (see event_impl::getCommand).
+  Command *MCommand = nullptr;
 
   /// The backend event of this signal, or nullptr if the signal has no
   /// backend event (yet).

@@ -215,7 +215,7 @@ public:
   /// Scheduler mutex must be locked in read mode when this is called.
   ///
   /// @return a generic pointer to Command object instance.
-  Command *getCommand() { return MCommand; }
+  Command *getCommand() const { return MBinding->MCommand; }
 
   /// Associates this event with the command.
   ///
@@ -302,7 +302,7 @@ public:
   /// have native handle.
   ///
   /// @return true if no associated command and no event handle.
-  bool isNOP() { return !MCommand && !getHandle(); }
+  bool isNOP() { return !getCommand() && !getHandle(); }
 
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
@@ -412,7 +412,7 @@ public:
     // ipc::event::open) also own a UR handle without a queue/command, but they
     // are not interop events and must remain usable with enqueue_signal_event.
     return getHandle() && MBinding->MQueue.expired() && !isEnqueued() &&
-           !MCommand && !MIPCEnabled && !MOpenedFromIpc;
+           !MBinding->MCommand && !MIPCEnabled && !MOpenedFromIpc;
   }
 
   // Initializes the host profiling info for the event.
@@ -431,7 +431,6 @@ protected:
   void checkProfilingPreconditions() const;
 
   std::shared_ptr<context_impl> MContext;
-  Command *MCommand = nullptr;
   bool MIsProfilingEnabled = false;
   bool MLowPower = false;
 

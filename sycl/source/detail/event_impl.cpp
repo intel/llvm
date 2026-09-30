@@ -354,8 +354,7 @@ void *event_impl::instrumentationProlog(std::string &Name,
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
   // the command object, if it exists
-  if (MCommand) {
-    Command *Cmd = (Command *)MCommand;
+  if (Command *Cmd = getCommand()) {
     WaitEvent = Cmd->MTraceEvent ? static_cast<xpti_td *>(Cmd->MTraceEvent)
                                  : GSYCLGraphEvent;
   } else {
@@ -418,7 +417,7 @@ void event_impl::wait(bool *Success) {
     // presence of the native handle means the command has been enqueued, so no
     // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
-  else if (MCommand)
+  else if (getCommand())
     detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -566,7 +565,7 @@ event_impl::get_info<info::event::command_execution_status>() {
     else if (MBinding->MState.load() == HES_Complete)
       return info::event_command_status::complete;
     // Command is blocked and not enqueued, UrEvent is not assigned yet
-    else if (MCommand)
+    else if (getCommand())
       return sycl::info::event_command_status::submitted;
   }
 
@@ -690,7 +689,7 @@ bool event_impl::isCompleted() {
          info::event_command_status::complete;
 }
 
-void event_impl::setCommand(Command *Cmd) { MCommand = Cmd; }
+void event_impl::setCommand(Command *Cmd) { MBinding->MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1
