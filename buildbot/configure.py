@@ -58,6 +58,7 @@ def do_configure(args, passthrough_args):
     llvm_enable_sphinx = "OFF"
     llvm_build_shared_libs = "OFF"
     llvm_enable_lld = "OFF"
+    llvm_link_dylib = "OFF"
     sycl_enabled_backends = ["opencl"]
     sycl_preview_lib = "ON"
 
@@ -126,6 +127,9 @@ def do_configure(args, passthrough_args):
     if args.use_lld:
         llvm_enable_lld = "ON"
 
+    if args.llvm_link_dylib:
+        llvm_link_dylib = "ON"
+
     if args.use_zstd:
         llvm_enable_zstd = "FORCE_ON"
 
@@ -189,6 +193,8 @@ def do_configure(args, passthrough_args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
+        "-DLLVM_LINK_LLVM_DYLIB={}".format(llvm_link_dylib),
+        "-DCLANG_LINK_CLANG_DYLIB={}".format(llvm_link_dylib),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
         "-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS={}".format(spirv_enable_dis),
@@ -199,6 +205,21 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
+
+    if sys.platform != "darwin":
+        llvm_spirv64_runtimes = "compiler-rt"
+        llvm_spirv64_sanitizers = ""
+        runtime_targets += ";spirv64-unknown-unknown"
+        cmake_cmd.extend(
+            [
+                "-DRUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES={}".format(
+                    llvm_spirv64_runtimes
+                ),
+                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
+                    llvm_spirv64_sanitizers
+                ),
+            ]
+        )
 
     if llvm_enable_runtimes:
         cmake_cmd.extend(
@@ -225,19 +246,19 @@ def do_configure(args, passthrough_args):
 
     if libclc_enabled:
         for target in runtime_targets.split(";"):
-            if target == "default":
+            if target == "default" or target == "spirv64-unknown-unknown":
                 continue
             cmake_cmd.extend(
                 [
                     f"-DRUNTIMES_{target}_LLVM_ENABLE_RUNTIMES=libclc",
                 ]
             )
-        cmake_cmd.extend(
-            [
-                "-DLLVM_RUNTIME_TARGETS={}".format(runtime_targets),
-            ]
-        )
 
+    cmake_cmd.extend(
+        [
+            "-DLLVM_RUNTIME_TARGETS={}".format(runtime_targets),
+        ]
+    )
     if args.l0_headers and args.l0_loader:
         cmake_cmd.extend(
             [
@@ -404,6 +425,11 @@ def main():
     parser.add_argument("--use-libcxx", action="store_true", help="build with libcxx")
     parser.add_argument(
         "--use-lld", action="store_true", help="Use LLD linker for build"
+    )
+    parser.add_argument(
+        "--llvm-link-dylib",
+        action="store_true",
+        help="Build/link against the shared libLLVM.so and libclang-cpp.so ",
     )
     parser.add_argument(
         "--llvm-external-projects",

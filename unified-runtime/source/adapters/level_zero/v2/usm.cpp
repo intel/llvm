@@ -273,7 +273,11 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
     ur_usm_type_t type, size_t size, void **ppRetMem) {
   uint32_t alignment = pUSMDesc ? pUSMDesc->align : 0;
 
-  if ((alignment & (alignment - 1)) != 0) {
+  // alignment == 0 means "no specific alignment requested" and is valid.
+  // Guard against it explicitly instead of relying on the (alignment - 1)
+  // unsigned underflow to 0xFFFFFFFF, which is well-defined but trips
+  // static analyzers (e.g. Coverity INTEGER_OVERFLOW) and obscures intent.
+  if (alignment != 0 && (alignment & (alignment - 1)) != 0) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -808,6 +812,9 @@ ur_result_t urUSMGetMemAllocInfo(
       break;
     case ZE_MEMORY_TYPE_SHARED:
       memAllocType = UR_USM_TYPE_SHARED;
+      break;
+    case ZE_MEMORY_TYPE_HOST_IMPORTED:
+      memAllocType = UR_USM_TYPE_HOST;
       break;
     default:
       UR_LOG(ERR, "urUSMGetMemAllocInfo: unexpected usm memory type");

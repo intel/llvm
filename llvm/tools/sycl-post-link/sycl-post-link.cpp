@@ -242,6 +242,12 @@ cl::opt<bool> AllowDeviceImageDependencies{
     cl::desc("Allow dependencies between device images"), cl::cat(PostLinkCat),
     cl::init(false)};
 
+cl::opt<bool> SuppressUndefinedFuncWarnings{
+    "suppress-undefined-func-warnings",
+    cl::desc("Suppress warning about undefined functions "
+             "in a device image."),
+    cl::cat(PostLinkCat), cl::init(false)};
+
 enum class IdQueriesRangeMode { IDQR_INT = 0, IDQR_UINT = 1, IDQR_SIZE_T = 2 };
 
 cl::opt<IdQueriesRangeMode> IdQueriesRange{
@@ -436,7 +442,7 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
       module_split::getDeviceCodeSplitter(
           std::make_unique<module_split::ModuleDesc>(std::move(M)), SplitMode,
           IROutputOnly, EmitOnlyKernelsAsEntryPoints,
-          AllowDeviceImageDependencies);
+          AllowDeviceImageDependencies, SuppressUndefinedFuncWarnings);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -463,6 +469,7 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
         SplitMode,
         EmitOnlyKernelsAsEntryPoints,
         AllowDeviceImageDependencies,
+        SuppressUndefinedFuncWarnings,
         LowerEsimd,
         SplitEsimd,
         getOptLevel(),

@@ -12,7 +12,8 @@
 //
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
-// UNSUPPORTED: native_cpu
+//
+// REQUIRES: jit
 
 #include <cstdlib>
 #include <iostream>

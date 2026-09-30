@@ -62,14 +62,12 @@ private:
 };
 
 class SPIRVLowerLLVMIntrinsicPass
-    : public llvm::PassInfoMixin<SPIRVLowerLLVMIntrinsicPass>,
+    : public llvm::RequiredPassInfoMixin<SPIRVLowerLLVMIntrinsicPass>,
       public SPIRVLowerLLVMIntrinsicBase {
 public:
   SPIRVLowerLLVMIntrinsicPass(const SPIRV::TranslatorOpts &Opts);
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
-
-  static bool isRequired() { return true; }
 };
 
 class SPIRVLowerLLVMIntrinsicLegacy : public llvm::ModulePass,

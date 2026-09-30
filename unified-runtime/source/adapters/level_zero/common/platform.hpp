@@ -43,7 +43,10 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
 
   // Given a multi driver scenario, the driver handle must be translated to the
   // internal driver handle to allow calls to driver experimental apis.
-  ze_driver_handle_t ZeDriverHandleExpTranslated;
+  // Populated by initialize() via zelLoaderTranslateHandle(); default-
+  // initialized to nullptr so it is never read uninitialized if a use ever
+  // races ahead of, or occurs despite a failure in, that initialization.
+  ze_driver_handle_t ZeDriverHandleExpTranslated = nullptr;
 
   // Helper wrapper for working with Driver Version String extension in Level
   // Zero.
@@ -69,12 +72,12 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   bool ZeDriverEventPoolCountingEventsExtensionFound{false};
   bool zeDriverImmediateCommandListAppendFound{false};
   bool ZeDriverEuCountExtensionFound{false};
-  bool ZeCopyOffloadExtensionSupported{false};
   bool ZeCopyOffloadQueueFlagSupported{false};
   bool ZeCopyOffloadListFlagSupported{false};
   bool ZeBindlessImagesExtensionSupported{false};
   bool ZeExternalMemoryMappingExtensionSupported{false};
   bool ZeLUIDSupported{false};
+  bool ZeEventSyncModeSupported{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;
@@ -254,6 +257,12 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
                                              hGraph, pNext, phExecutableGraph);
     }
 
+    bool hasEndGraphCapture() const {
+      return UsesLegacyExperimentalApi
+                 ? zeCommandListEndGraphCaptureExpLegacy != nullptr
+                 : zeCommandListEndGraphCaptureExp != nullptr;
+    }
+
     // Legacy experimental query results use different bit patterns than the
     // stable enumerators of the same name; translate to the stable ones.
     // Applied unconditionally: a known NEO bug makes the stable *Ext query
@@ -275,15 +284,23 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   struct ZeHostTaskExtension {
     bool Supported = false;
     ze_result_t (*zeCommandListAppendHostFunction)(
-        ze_command_list_handle_t hCommandList, void *pHostFunction,
-        void *pUserData, void *pNext, ze_event_handle_t hSignalEvent,
-        uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
+        ze_command_list_handle_t hCommandList,
+        ze_host_function_callback_t pHostFunction, void *pUserData,
+        const void *pNext, ze_event_handle_t hSignalEvent,
+        uint32_t numWaitEvents, _ze_event_handle_t **phWaitEvents);
   } ZeHostTaskExt;
 
   // Flag to indicate whether zeDeviceSynchronize is supported.
   // Some platforms may not support this API due to frozen driver, eg. gen12 on
   // Windows. For details, see https://github.com/intel/llvm/issues/20927.
   bool ZeDeviceSynchronizeSupported{false};
+
+  struct ZeDeviceVectorWidthExtension {
+    bool Supported = false;
+    ze_result_t (*zeDeviceGetVectorWidthPropertiesExt)(
+        ze_device_handle_t, uint32_t *,
+        ze_device_vector_width_properties_ext_t *) = nullptr;
+  } ZeDeviceVectorWidthExt;
 };
 
 } // namespace ur::level_zero

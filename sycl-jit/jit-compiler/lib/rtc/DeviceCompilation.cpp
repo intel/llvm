@@ -179,6 +179,12 @@ std::string getLibPathSuffix() {
                        DPCPP_VERSION_MAJOR);
 #endif
 }
+
+std::string getCompilerRTSuffix() {
+  return llvm::formatv("/{0}/clang/{1}/lib/", CLANG_INSTALL_LIBDIR_BASENAME,
+                       CLANG_VERSION_MAJOR);
+}
+
 class SYCLToolchain {
   static auto &getToolchainFS() {
     // TODO: For some reason, removing `thread_local` results in data races
@@ -799,7 +805,8 @@ static void getDeviceLibraries(const ArgList &Args,
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf"};
+                                             "libsycl-imf",
+                                             "libclang_rt.builtins"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
@@ -846,16 +853,25 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     LibNames.push_back(Libclc);
   }
 
-  std::string TripleName = (Format == BinaryFormat::PTX) ? "nvptx64-nvidia-cuda"
-                                                         : "amdgcn-amd-amdhsa";
-
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
+  std::string TripleName;
+  if (Format == BinaryFormat::PTX)
+    TripleName = "nvptx64-nvidia-cuda";
+  else if (Format == BinaryFormat::AMDGCN)
+    TripleName = "amdgcn-amd-amdhsa";
+  else
+    TripleName = "spirv64-unknown-unknown";
   for (const std::string &LibName : LibNames) {
-    std::string LibPath =
-        (LibName.find("libspirv") != std::string::npos)
-            ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + getLibPathSuffix() + LibName).str();
+    std::string LibPath;
+    if (LibName.find("libspirv") != std::string::npos)
+      LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
+    else if (LibName == "libclang_rt.builtins.bc")
+      LibPath =
+          (TC.getPrefix() + getCompilerRTSuffix() + TripleName + "/" + LibName)
+              .str();
+    else
+      LibPath = (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =
@@ -1018,6 +1034,10 @@ jit_compiler::performPostLink(ModuleUPtr Module,
       options::OPT_fsycl_allow_device_image_dependencies,
       options::OPT_fno_sycl_allow_device_image_dependencies, false);
 
+  const bool SuppressUndefinedFuncWarnings =
+      !UserArgList.hasFlag(options::OPT_Wsycl_undefined_func_in_image,
+                           options::OPT_Wno_sycl_undefined_func_in_image, true);
+
   const int MaxIdRange = getSYCLIdMaxRange(UserArgList);
 
   // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
@@ -1060,7 +1080,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
       std::make_unique<ModuleDesc>(std::move(Module)), SplitMode,
       /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints,
-      AllowDeviceImageDependencies);
+      AllowDeviceImageDependencies, SuppressUndefinedFuncWarnings);
   assert(Splitter->hasMoreSplits());
 
   if (auto Err = Splitter->verifyNoCrossModuleDeviceGlobalUsage()) {
@@ -1082,9 +1102,9 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     // TODO: Call `MDesc.fixupLinkageOfDirectInvokeSimdTargets()` when
     //       `invoke_simd` is supported.
 
-    SmallVector<std::unique_ptr<ModuleDesc>, 2> ESIMDSplits =
-        splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
-                     AllowDeviceImageDependencies);
+    SmallVector<std::unique_ptr<ModuleDesc>, 2> ESIMDSplits = splitByESIMD(
+        std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
+        AllowDeviceImageDependencies, SuppressUndefinedFuncWarnings);
     for (auto &ES : ESIMDSplits) {
       MDesc = std::move(ES);
 

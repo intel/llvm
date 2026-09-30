@@ -4,6 +4,7 @@
 // registered, not just those from the main image.
 
 // REQUIRES-INTEL-DRIVER: lin: 37170
+// REQUIRES: target-spir
 
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-12574

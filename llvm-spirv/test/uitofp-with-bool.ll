@@ -160,14 +160,14 @@ entry:
 ; LLVM-DAG: %[[ufp2_res_llvm:[0-9]+]] = select <2 x i1> %i1v, <2 x i32> splat (i32 1), <2 x i32> zeroinitializer
 ; LLVM-DAG: %ufp2 = uitofp <2 x i32> %[[ufp2_res_llvm]] to <2 x float>
   %ufp2 = uitofp <2 x i1> %i1v to <2 x float>
-; SPV-DAG: Select [[int_32]] [[sfp1_res:[0-9]+]] [[i1s]] [[one_32]] [[zero_32]]
+; SPV-DAG: Select [[int_32]] [[sfp1_res:[0-9]+]] [[i1s]] [[mone_32]] [[zero_32]]
 ; SPV-DAG: ConvertSToF [[float]] [[sfp1]] [[sfp1_res]]
-; LLVM-DAG: %[[sfp1_res_llvm:[0-9]+]] = select i1 %i1s, i32 1, i32 0
+; LLVM-DAG: %[[sfp1_res_llvm:[0-9]+]] = select i1 %i1s, i32 -1, i32 0
 ; LLVM-DAG: %sfp1 = sitofp i32 %[[sfp1_res_llvm:[0-9]+]] to float
   %sfp1 = sitofp i1 %i1s to float
-; SPV-DAG: Select [[vec_32]] [[sfp2_res:[0-9]+]] [[i1v]] [[ones_32]] [[zeros_32]]
+; SPV-DAG: Select [[vec_32]] [[sfp2_res:[0-9]+]] [[i1v]] [[mones_32]] [[zeros_32]]
 ; SPV-DAG: ConvertSToF [[vec_float]] [[sfp2]] [[sfp2_res]]
-; LLVM-DAG: %[[sfp2_res_llvm:[0-9]+]] = select <2 x i1> %i1v, <2 x i32> splat (i32 1), <2 x i32> zeroinitializer
+; LLVM-DAG: %[[sfp2_res_llvm:[0-9]+]] = select <2 x i1> %i1v, <2 x i32> splat (i32 -1), <2 x i32> zeroinitializer
 ; LLVM-DAG: %sfp2 = sitofp <2 x i32> %[[sfp2_res_llvm]] to <2 x float>
   %sfp2 = sitofp <2 x i1> %i1v to <2 x float>
   ret void

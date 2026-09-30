@@ -93,10 +93,14 @@ ur_result_t urPlatformGetInfo(
     return ReturnValue(common_cast(PlatformOpque)->ZeDriverApiVersion.c_str());
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_LEVEL_ZERO);
-  case UR_PLATFORM_INFO_ADAPTER:
+  case UR_PLATFORM_INFO_ADAPTER: {
     // Whichever adapter (L0v1 or L0v2) won selection in urAdapterGet is
-    // also the one that stamped this platform's DDI table.
+    // also the one that stamped this platform's DDI table. GlobalAdapter
+    // can be concurrently written (e.g. cleared to nullptr by
+    // urAdapterRelease), so it must be read under GlobalAdapterMutex.
+    std::lock_guard<std::mutex> Lock(GlobalAdapterMutex);
     return ReturnValue(common_cast(GlobalAdapter));
+  }
   default:
     UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -269,15 +273,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
                 strlen(ZE_EU_COUNT_EXT_NAME) + 1) == 0) {
       if (extension.version == ZE_EU_COUNT_EXT_VERSION_1_0) {
         ZeDriverEuCountExtensionFound = true;
-      }
-    }
-    if (strncmp(extension.name,
-                ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME,
-                strlen(ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME) +
-                    1) == 0) {
-      if (extension.version ==
-          ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_VERSION_1_0) {
-        ZeCopyOffloadExtensionSupported = true;
       }
     }
     if (strncmp(extension.name, ZE_BINDLESS_IMAGE_EXP_NAME,
@@ -796,10 +791,15 @@ ur_result_t ur_platform_handle_t_::initialize() {
       .DisableZeLaunchKernelWithArgs =
       getenv_tobool("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS", false);
 
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeCommandListAppendHostFunction",
-                   reinterpret_cast<void **>(
-                       &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+  if (this->isDriverVersionNewerOrSimilar(1, 17, 0)) {
+    ZeHostTaskExt.zeCommandListAppendHostFunction =
+        zeCommandListAppendHostFunction;
+  } else {
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, "zeCommandListAppendHostFunction",
+                     reinterpret_cast<void **>(
+                         &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+  }
 
   ZeHostTaskExt.Supported =
       ZeHostTaskExt.zeCommandListAppendHostFunction != nullptr;
@@ -812,6 +812,17 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeCopyOffloadListFlagSupported =
       this->isDriverVersionNewerOrSimilar(1, 15, 0);
 
+  // ze_event_sync_mode_desc_t is supported since L0 v1.15.0
+  ZeEventSyncModeSupported = this->isDriverVersionNewerOrSimilar(1, 15, 0);
+
+  ZE_CALL_NOCHECK(
+      zeDriverGetExtensionFunctionAddress,
+      (ZeDriver, "zeDeviceGetVectorWidthPropertiesExt",
+       reinterpret_cast<void **>(
+           &ZeDeviceVectorWidthExt.zeDeviceGetVectorWidthPropertiesExt)));
+
+  ZeDeviceVectorWidthExt.Supported =
+      ZeDeviceVectorWidthExt.zeDeviceGetVectorWidthPropertiesExt != nullptr;
   return UR_RESULT_SUCCESS;
 }
 

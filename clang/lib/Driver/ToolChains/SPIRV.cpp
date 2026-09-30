@@ -186,6 +186,10 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
     if (Args.hasArg(options::OPT_v))
       CmdArgs.push_back("-v");
+    // Forward the user provided location to ocloc.
+    if (Arg *A = Args.getLastArg(options::OPT_ocloc_path_EQ))
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("--ocloc-path=") + A->getValue()));
   } else if (!llvm::sys::fs::can_execute(Linker) &&
              !C.getArgs().hasArg(clang::options::OPT__HASH_HASH_HASH)) {
     C.getDriver().Diag(clang::diag::err_drv_no_spv_tools) << getShortName();

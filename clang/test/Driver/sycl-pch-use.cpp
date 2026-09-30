@@ -13,7 +13,7 @@
 // LX_USE: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
 // LX_USE-SAME: "-include-pch" "[[PCHFILE1]]"{{.*}}
 
-// RUN: %clang --offload-new-driver -fsycl -c -include-pch %t.h.pch %s -### 2>&1 | FileCheck -check-prefix=LX_USE_OND %s
+// RUN: %clang --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -fsycl -c -include-pch %t.h.pch %s -### 2>&1 | FileCheck -check-prefix=LX_USE_OND %s
 // LX_USE_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE:.+\.pch]]"
 // LX_USE_OND-SAME: "--image=file=[[PCHFILE1:.+\.pch]],triple=x86_64{{.*}},arch=generic,kind=host"
 // LX_USE_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE]]"
@@ -33,7 +33,7 @@
 // LX_USE_TARGETS: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
 // LX_USE_TARGETS-SAME: "-include-pch" "[[PCHFILE3]]"{{.*}}
 
-// RUN: %clang --offload-new-driver -fsycl -c -include-pch %t.h.pch -fsycl-targets=spir64,spir64_gen %s -### 2>&1 | FileCheck -check-prefix=LX_USE_TARGETS_OND %s
+// RUN: %clang --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -fsycl -c -include-pch %t.h.pch -fsycl-targets=spir64,spir64_gen %s -### 2>&1 | FileCheck -check-prefix=LX_USE_TARGETS_OND %s
 // LX_USE_TARGETS_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE:.+\.pch]]"
 // LX_USE_TARGETS_OND-SAME: "--image=file=[[PCHFILE1:.+\.pch]],triple=x86_64{{.*}},arch=generic,kind=host"
 // LX_USE_TARGETS_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE:.+\.pch]]"
@@ -56,7 +56,7 @@
 // WS_USE: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
 // WS_USE-SAME: "-include-pch" "[[PCHFILE1]]"{{.*}}
 
-// RUN: %clang_cl --offload-new-driver -fsycl -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE_OND %s
+// RUN: %clang_cl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -fsycl -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE_OND %s
 // WS_USE_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE:.+\.pch]]"
 // WS_USE_OND-SAME: "--image=file=[[PCHFILE1:.+\.pch]],triple=x86_64{{.*}},arch=generic,kind=host"
 // WS_USE_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE]]"
@@ -76,7 +76,7 @@
 // WS_USE_TARGETS: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
 // WS_USE_TARGETS-SAME: "-include-pch" "[[PCHFILE3]]"{{.*}}
 
-// RUN: %clang_cl --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE_TARGETS_OND %s
+// RUN: %clang_cl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -fsycl -fsycl-targets=spir64,spir64_gen -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE_TARGETS_OND %s
 // WS_USE_TARGETS_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE:.+\.pch]]"
 // WS_USE_TARGETS_OND-SAME: "--image=file=[[PCHFILE1:.+\.pch]],triple=x86_64{{.*}},arch=generic,kind=host"
 // WS_USE_TARGETS_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE]]"

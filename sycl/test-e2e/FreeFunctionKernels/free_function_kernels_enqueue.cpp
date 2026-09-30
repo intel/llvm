@@ -47,6 +47,19 @@ void square(int *src, int *dst) {
   dst[Lid] = src[Lid] * src[Lid];
 }
 
+// Kernels with a float parameter, used to check that a double argument is
+// converted to the type of the parameter it is passed to.
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void scale(float factor, float *src, float *dst) {
+  size_t Lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
+  dst[Lid] = factor * src[Lid];
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void scaleFirst(float factor, float *src, float *dst) {
+  dst[0] = factor * src[0];
+}
+
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<2>))
 void square2D(int *src, int *dst) {
   size_t Gid = syclext::this_work_item::get_nd_item<2>().get_global_linear_id();
@@ -127,6 +140,50 @@ int main() {
   syclexp::single_task(Q, syclexp::kernel_function<successor>, Src, Dst);
   Q.wait();
   assert(Dst[0] == Src[0] + 1);
+
+  { // A double argument passed to a float kernel parameter is converted to the
+    // parameter's type, so the kernel gets both the right value and an argument
+    // of the right size.
+    float *SrcFloat = sycl::malloc_shared<float>(SIZE, Q);
+    float *DstFloat = sycl::malloc_shared<float>(SIZE, Q);
+    for (int I = 0; I < SIZE; ++I) {
+      SrcFloat[I] = static_cast<float>(I + 1);
+    }
+
+    syclexp::nd_launch(
+        Q, ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
+        syclexp::kernel_function<scale>, 0.5, SrcFloat, DstFloat);
+    Q.wait();
+
+    for (int I = 0; I < SIZE; I++) {
+      assert(DstFloat[I] == 0.5f * SrcFloat[I]);
+    }
+
+    Q.submit([&](sycl::handler &CGH) {
+       syclexp::nd_launch(
+           CGH,
+           ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
+           syclexp::kernel_function<scale>, 1.5, SrcFloat, DstFloat);
+     }).wait();
+
+    for (int I = 0; I < SIZE; I++) {
+      assert(DstFloat[I] == 1.5f * SrcFloat[I]);
+    }
+
+    syclexp::single_task(Q, syclexp::kernel_function<scaleFirst>, 2.5, SrcFloat,
+                         DstFloat);
+    Q.wait();
+    assert(DstFloat[0] == 2.5f * SrcFloat[0]);
+
+    Q.submit([&](sycl::handler &CGH) {
+       syclexp::single_task(CGH, syclexp::kernel_function<scaleFirst>, 3.5,
+                            SrcFloat, DstFloat);
+     }).wait();
+    assert(DstFloat[0] == 3.5f * SrcFloat[0]);
+
+    sycl::free(SrcFloat, Q);
+    sycl::free(DstFloat, Q);
+  }
 
   int SrcData[SIZE];
   int DstData[SIZE];

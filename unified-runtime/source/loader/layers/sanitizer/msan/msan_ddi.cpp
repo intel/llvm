@@ -1723,8 +1723,12 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
   KernelInfo.ArgProps.resize(numArgs);
-  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
-              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+  // A kernel may take no arguments at all, in which case pArgs is null and the
+  // resized vector has not allocated, so both memcpy pointers are null. That is
+  // undefined behaviour even for a zero length.
+  if (numArgs)
+    std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+                numArgs * sizeof(ur_exp_kernel_arg_properties_t));
 
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {
@@ -2084,8 +2088,6 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
 
 ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   ur_result_t result = UR_RESULT_SUCCESS;
-
-  UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: MSAN");
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::msan::urCheckVersion(UR_API_VERSION_CURRENT);

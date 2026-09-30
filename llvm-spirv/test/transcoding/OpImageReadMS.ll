@@ -11,6 +11,10 @@
 
 ; CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef19ocl_image2d_msaa_roDv2_ii(target("spirv.Image", void, 1, 0, 0, 1, 0, 0, 0)
 
+; CHECK-SPIRV: TypeImage [[#ImgTy:]] {{[0-9]+}} 1 0 0 1 0 0 0
+; CHECK-SPIRV-NOT: ImageQuerySizeLod
+; CHECK-SPIRV: 4 ImageQuerySize {{[0-9]+}} {{[0-9]+}} [[#Img:]]
+; CHECK-SPIRV: 4 ImageQuerySize {{[0-9]+}} {{[0-9]+}} [[#Img]]
 ; CHECK-SPIRV: 7 ImageRead {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 64 {{[0-9]+}}
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

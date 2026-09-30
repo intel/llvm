@@ -13,6 +13,7 @@
 #include "context.hpp"
 #include "device.hpp"
 
+#include <mutex>
 #include <vector>
 
 namespace ur::opencl {
@@ -27,8 +28,15 @@ struct ur_queue_handle_t_ : handle_base {
   bool IsNativeHandleOwned = true;
   // Used to implement UR_QUEUE_INFO_EMPTY query
   bool IsInOrder;
-  ur_event_handle_t_ *LastEvent = nullptr;
+  // Native event of the last command enqueued on an in-order queue.
+  cl_event LastEvent = nullptr;
   ur::RefCount RefCount;
+
+  // Lazily created buffer for the profilable fill in
+  // urEnqueueTimestampRecordingExp. Keep it per queue so independent queues
+  // do not contend on the same memory object.
+  std::mutex TimestampRecordingBufferMutex;
+  cl_mem TimestampRecordingBuffer = nullptr;
 
   ur_queue_handle_t_(const ur_queue_handle_t_ &) = delete;
   ur_queue_handle_t_ &operator=(const ur_queue_handle_t_ &) = delete;
@@ -46,7 +54,28 @@ struct ur_queue_handle_t_ : handle_base {
                                     ur_device_handle_t Device,
                                     ur_queue_handle_t &Queue);
 
+  // Returns the small internal buffer used by urEnqueueTimestampRecordingExp,
+  // creating it on first use. Thread-safe.
+  ur_result_t getTimestampRecordingBuffer(cl_mem *OutBuffer) {
+    std::lock_guard<std::mutex> Lock(TimestampRecordingBufferMutex);
+    if (!TimestampRecordingBuffer) {
+      cl_int CLErr = CL_SUCCESS;
+      TimestampRecordingBuffer =
+          clCreateBuffer(Context->CLContext, CL_MEM_READ_WRITE, sizeof(cl_uint),
+                         nullptr, &CLErr);
+      CL_RETURN_ON_FAILURE(CLErr);
+    }
+    *OutBuffer = TimestampRecordingBuffer;
+    return UR_RESULT_SUCCESS;
+  }
+
   ~ur_queue_handle_t_() {
+    if (TimestampRecordingBuffer) {
+      clReleaseMemObject(TimestampRecordingBuffer);
+    }
+    if (LastEvent) {
+      clReleaseEvent(LastEvent);
+    }
     ur::opencl::urDeviceRelease(cast(Device));
     ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
@@ -59,16 +88,16 @@ struct ur_queue_handle_t_ : handle_base {
 
   // Stores last event for in-order queues. Has no effect if queue is Out Of
   // Order. The last event is used to implement UR_QUEUE_INFO_EMPTY query.
-  ur_result_t storeLastEvent(ur_event_handle_t Event) {
+  ur_result_t storeLastEvent(cl_event Event) {
     if (!IsInOrder) {
       return UR_RESULT_SUCCESS;
     }
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(ur::opencl::urEventRelease(cast(LastEvent)));
+      CL_RETURN_ON_FAILURE(clReleaseEvent(LastEvent));
     }
-    LastEvent = cast(Event);
+    LastEvent = Event;
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(ur::opencl::urEventRetain(cast(LastEvent)));
+      CL_RETURN_ON_FAILURE(clRetainEvent(LastEvent));
     }
     return UR_RESULT_SUCCESS;
   }
