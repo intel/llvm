@@ -728,9 +728,11 @@ public:
                !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
       bool MaybeConstantExpr = false;
       Expr *NonDirectCallee = e->getCallee();
-      if (!NonDirectCallee->isValueDependent())
-        MaybeConstantExpr =
-            NonDirectCallee->isCXX11ConstantExpr(SemaSYCLRef.getASTContext());
+      if (!NonDirectCallee->isValueDependent()) {
+        APValue Result;
+        MaybeConstantExpr = NonDirectCallee->isCXX11ConstantExpr(
+            SemaSYCLRef.getASTContext(), Result);
+      }
       if (!MaybeConstantExpr)
         SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << SemaSYCL::KernelCallFunctionPointer;

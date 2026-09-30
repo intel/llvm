@@ -893,7 +893,7 @@ let Predicates = [hasS2F6X2ConversionSupport] in {
       (ins B32:$src1, B32:$src2, CvtMode:$mode),
       !strconcat("{{ \n\t",
                  ".reg .b8 \t%e2m1x2_out; \n\t",
-                 "cvt${mode:base}.satfinite${mode:relu}.e2m1x2.f32 \t%e2m1x2_out, $src1, $src2; \n\t",
+                 "cvt${mode:base}.satfinite${mode:relu}${mode:pzo}.e2m1x2.f32 \t%e2m1x2_out, $src1, $src2; \n\t",
                  "cvt.u16.u8 \t$dst, %e2m1x2_out; \n\t",
                  "}}"), []>;
 
@@ -925,7 +925,7 @@ let Predicates = [hasS2F6X2ConversionSupport] in {
       (ins B32:$src, CvtMode:$mode),
       "{{ \n\t" #  
       ".reg .b8 \t%e2m1x2_out; \n\t" #
-      "cvt${mode:base}.satfinite${mode:relu}.e2m1x2.f16x2 \t%e2m1x2_out, $src; \n\t" #
+      "cvt${mode:base}.satfinite${mode:relu}${mode:pzo}.e2m1x2.f16x2 \t%e2m1x2_out, $src; \n\t" #
       "cvt.u16.u8 \t$dst, %e2m1x2_out; \n\t" #
       "}}", []>,
       Requires<[hasFP16X2ToNarrowFPConversionSupport]>;
@@ -934,7 +934,7 @@ let Predicates = [hasS2F6X2ConversionSupport] in {
       (ins B32:$src, CvtMode:$mode),
       "{{ \n\t" #  
       ".reg .b8 \t%e2m1x2_out; \n\t" #
-      "cvt${mode:base}.satfinite${mode:relu}.e2m1x2.bf16x2 \t%e2m1x2_out, $src; \n\t" #
+      "cvt${mode:base}.satfinite${mode:relu}${mode:pzo}.e2m1x2.bf16x2 \t%e2m1x2_out, $src; \n\t" #
       "cvt.u16.u8 \t$dst, %e2m1x2_out; \n\t" #
       "}}", []>,
       Requires<[hasFP16X2ToNarrowFPConversionSupport]>;

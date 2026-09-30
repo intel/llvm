@@ -2041,7 +2041,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       return std::nullopt;
 
     APValue NameLValue;
-    if (!NameCE->isCXX11ConstantExpr(Context, &NameLValue))
+    if (!NameCE->isCXX11ConstantExpr(Context, NameLValue))
       NameLValue = NameCE->getAPValueResult();
 
     if (!NameLValue.isLValue())
@@ -2147,7 +2147,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       return std::nullopt;
 
     APValue ValueAPV;
-    if (!ValueCE->isCXX11ConstantExpr(Context, &ValueAPV))
+    if (!ValueCE->isCXX11ConstantExpr(Context, ValueAPV))
       ValueAPV = ValueCE->getAPValueResult();
 
     if (!ValueAPV.isLValue())
