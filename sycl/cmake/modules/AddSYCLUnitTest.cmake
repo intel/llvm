@@ -11,7 +11,9 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
 
   # Select which sycl libraries and object to link based
   # on whether this is a preview build.
+  set(sycl_is_debug_crt FALSE)
   if (MSVC AND build_type_lower MATCHES "debug")
+    set(sycl_is_debug_crt TRUE)
     if (${is_preview})
       set(sycl_obj_target "sycl-previewd_object")
       set(sycl_so_target "sycl-previewd")
@@ -133,7 +135,13 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   endif(SYCL_ENABLE_EXTENSION_JIT)
 
   if(WIN32)
-    target_link_libraries(${test_dirname} PRIVATE UnifiedRuntimeLoader ur_win_proxy_loader)
+    # UnifiedRuntimeLoader/ur_win_proxy_loader are release CRT; the debug-CRT
+    # sycl variants above need the matching debug-CRT loader targets.
+    if (sycl_is_debug_crt)
+      target_link_libraries(${test_dirname} PRIVATE UnifiedRuntimeLoaderDebug ur_win_proxy_loaderd)
+    else()
+      target_link_libraries(${test_dirname} PRIVATE UnifiedRuntimeLoader ur_win_proxy_loader)
+    endif()
   endif()
 
   target_include_directories(${test_dirname}
