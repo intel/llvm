@@ -19,9 +19,7 @@
 #include "ur2offload.hpp"
 
 namespace {
-/// Makes \p Queue wait for all events in \p UrEvents before executing any
-/// further work. Events without an underlying offload event (e.g. empty
-/// events that are already complete) are skipped.
+/// Makes \p Queue wait on \p UrEvents, skipping those with no offload event.
 ol_result_t waitOnEvents(ol_queue_handle_t Queue,
                          const ur_event_handle_t *UrEvents, size_t NumEvents) {
   if (NumEvents) {
@@ -40,9 +38,7 @@ ol_result_t waitOnEvents(ol_queue_handle_t Queue,
   return OL_SUCCESS;
 }
 
-/// If \p UrEvent is non-null, creates a new UR event of command type \p Type
-/// belonging to \p UrQueue, backed by an offload event recorded on \p OlQueue,
-/// and stores it in \p UrEvent. Does nothing if \p UrEvent is null.
+/// If \p UrEvent is non-null, stores in it a new event recorded on \p OlQueue.
 ol_result_t makeEvent(ur_command_t Type, ol_queue_handle_t OlQueue,
                       ur_queue_handle_t UrQueue, ur_event_handle_t *UrEvent) {
   if (UrEvent) {
@@ -58,12 +54,8 @@ ol_result_t makeEvent(ur_command_t Type, ol_queue_handle_t OlQueue,
 }
 
 /// Shared implementation of urEnqueueEventsWait and
-/// urEnqueueEventsWaitWithBarrier. Waits on \p phEventWaitList, or on all
-/// previously enqueued work in \p hQueue if the list is empty, and optionally
-/// returns an event in \p phEvent signalled once the wait completes. If
-/// \p Barrier is true, the resulting event is also installed as the queue's
-/// barrier and all other underlying offload queues are made to wait on it, so
-/// that subsequently enqueued work cannot start before it.
+/// urEnqueueEventsWaitWithBarrier. If \p Barrier is true, all later work on
+/// \p hQueue also waits for the wait to complete.
 template <bool Barrier>
 ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
                    const ur_event_handle_t *phEventWaitList,
@@ -252,11 +244,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 }
 
 namespace {
-/// Copies \p size bytes from \p SrcPtr on \p SrcDevice to \p DestPtr on
-/// \p DestDevice after waiting on \p phEventWaitList. If \p blocking is true,
-/// the queue is synchronized and the copy is performed synchronously, and any
-/// returned event is already complete. Otherwise the copy is enqueued and the
-/// returned event (if requested) signals its completion.
+/// Copies \p size bytes from \p SrcPtr to \p DestPtr on \p hQueue, or
+/// synchronously if \p blocking is true.
 ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
                      void *DestPtr, ol_device_handle_t DestDevice,
                      const void *SrcPtr, ol_device_handle_t SrcDevice,
@@ -293,10 +282,7 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   return UR_RESULT_SUCCESS;
 }
 
-/// Stores in \p Device the device that owns the allocation containing \p Ptr,
-/// as tracked by liboffload in the context of \p Queue. Pointers that are not
-/// device allocations (untracked host memory or host allocations) resolve to
-/// the adapter's host device.
+/// Gets the device owning \p Ptr, or the host device if it isn't device memory.
 ol_result_t getDeviceOfAlloc(ur_queue_handle_t Queue, const void *Ptr,
                              ol_device_handle_t &Device) {
   auto Result = olGetMemInfo(Queue->UrContext->OffloadContext, Ptr,
@@ -311,8 +297,7 @@ ol_result_t getDeviceOfAlloc(ur_queue_handle_t Queue, const void *Ptr,
   return Result;
 }
 
-/// Like doMemcpy, but determines the source and destination devices
-/// automatically from the allocations \p SrcPtr and \p DestPtr belong to.
+/// Like doMemcpy, but infers the devices from \p DestPtr and \p SrcPtr.
 ur_result_t doRoutedMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
                            void *DestPtr, const void *SrcPtr, size_t Size,
                            bool Blocking, uint32_t NumEventsInWaitList,
