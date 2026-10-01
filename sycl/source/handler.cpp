@@ -475,7 +475,7 @@ detail::EventImplPtr handler::finalize() {
 
   // TODO checking the size of the events vector and avoiding the call is more
   // efficient here at this point
-  const bool KernelSchedulerBypass =
+  const bool SchedulerBypass =
       (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
        (impl->CGData.MEvents.size() == 0 ||
@@ -485,7 +485,7 @@ detail::EventImplPtr handler::finalize() {
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
   if (type == detail::CGType::Kernel && impl->MKernelData.getKernelFuncPtr() &&
-      (!KernelSchedulerBypass || impl->MKernelData.hasSpecialCaptures())) {
+      (!SchedulerBypass || impl->MKernelData.hasSpecialCaptures())) {
     impl->MKernelData.extractArgsAndReqsFromLambda();
   }
 
@@ -609,7 +609,7 @@ detail::EventImplPtr handler::finalize() {
       }
     }
 
-    if (KernelSchedulerBypass) {
+    if (SchedulerBypass) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -621,6 +621,19 @@ detail::EventImplPtr handler::finalize() {
               MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
       return ResultEvent;
     }
+  }
+
+  // Asynchronous allocations and frees are single backend commands without any
+  // requirements, so they can bypass the scheduler as well. Note that the
+  // allocation itself has already been enqueued by async_malloc, because the
+  // pointer had to be returned to the user immediately.
+  if (SchedulerBypass) {
+    if (type == detail::CGType::AsyncAlloc)
+      return impl->get_queue().submit_async_alloc_scheduler_bypass(
+          impl->MAsyncAllocEvent, impl->CGData.MEvents, impl->MEventNeeded);
+    if (type == detail::CGType::AsyncFree)
+      return impl->get_queue().submit_async_free_scheduler_bypass(
+          impl->MFreePtr, impl->CGData.MEvents, impl->MEventNeeded);
   }
 
   std::unique_ptr<detail::CG> CommandGroup;
@@ -865,7 +878,7 @@ detail::EventImplPtr handler::finalize() {
   // TODO: check if it's possible to discard an event for host task.
   bool DiscardEvent =
       (type != detail::CGType::Kernel &&
-       type != detail::CGType::CodeplayHostTask && KernelSchedulerBypass &&
+       type != detail::CGType::CodeplayHostTask && SchedulerBypass &&
        !impl->MEventNeeded && Queue->isInOrder());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(

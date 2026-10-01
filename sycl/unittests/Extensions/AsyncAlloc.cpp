@@ -208,6 +208,29 @@ TEST_F(AsyncAllocTests, HandlerOverloadDependsOnAfterAlloc) {
   }
 }
 
+// The handler overloads submitted without an event must not request one from
+// the backend either, as nothing would take ownership of it.
+TEST_F(AsyncAllocTests, HandlerOverloadNoEvents) {
+  queue Q = makeQueue(/*InOrder=*/true);
+  constexpr size_t Iterations = 4;
+
+  for (size_t I = 0; I < Iterations; ++I) {
+    void *Ptr = nullptr;
+    oneapiext::submit(Q, [&](handler &CGH) {
+      Ptr = oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+    });
+    oneapiext::submit(Q,
+                      [&](handler &CGH) { oneapiext::async_free(CGH, Ptr); });
+  }
+
+  EXPECT_EQ(CounterAlloc, Iterations);
+  EXPECT_EQ(CounterFree, Iterations);
+  EXPECT_EQ(CounterAllocWithEvent, size_t{0});
+  EXPECT_EQ(CounterFreeWithEvent, size_t{0});
+  EXPECT_EQ(CounterEventsWait, size_t{0});
+  EXPECT_EQ(CounterBarrier, size_t{0});
+}
+
 // A host task dependency cannot be expressed to the backend, so the
 // submission has to fall back to the scheduler. The allocation itself is still
 // enqueued eagerly, as the pointer has to be returned to the caller

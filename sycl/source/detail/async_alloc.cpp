@@ -65,6 +65,13 @@ void checkAsyncMallocKind(sycl::usm::alloc Kind) {
         "Only device backed asynchronous allocations are supported!");
 }
 
+// Returns true if no event should be requested from the backend for an
+// asynchronous allocation: nothing would take ownership of it, and in-order
+// queues do not need it for ordering either.
+bool discardAllocEvent(bool EventNeeded, detail::queue_impl &Queue) {
+  return !EventNeeded && Queue.isInOrder();
+}
+
 void checkNotNativeRecording(detail::queue_impl &Queue, const char *FuncName) {
   // Allocations are not supported in graph native recording mode.
   if (Queue.isNativeRecording())
@@ -97,11 +104,12 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
         getDepGraphNodes(h, h.impl->get_queue_or_null(), Graph, DepEvents);
     alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
   } else {
-    ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
+    detail::queue_impl &Queue = h.impl->get_queue();
     Adapter.call<sycl::errc::runtime,
                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-        Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
-        UREvents.data(), &alloc, &Event);
+        Queue.getHandleRef(), (ur_usm_pool_handle_t)0, size, nullptr,
+        UREvents.size(), UREvents.data(), &alloc,
+        discardAllocEvent(h.eventNeeded(), Queue) ? nullptr : &Event);
   }
 
   // Async malloc must return a void* immediately.
@@ -161,11 +169,12 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
     alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(), DepNodes,
                                        detail::getSyclObjImpl(pool).get());
   } else {
-    ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
+    detail::queue_impl &Queue = h.impl->get_queue();
     Adapter.call<sycl::errc::runtime,
                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-        Q, memPoolImpl.get_handle(), size, nullptr, UREvents.size(),
-        UREvents.data(), &alloc, &Event);
+        Queue.getHandleRef(), memPoolImpl.get_handle(), size, nullptr,
+        UREvents.size(), UREvents.data(), &alloc,
+        discardAllocEvent(h.eventNeeded(), Queue) ? nullptr : &Event);
   }
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the event from the alloc.
