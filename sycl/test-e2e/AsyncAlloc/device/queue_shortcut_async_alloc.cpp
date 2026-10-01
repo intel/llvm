@@ -18,13 +18,16 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 
 constexpr size_t Width = 8;
 
-// Fills the allocation with the global ids and copies it back to Out.
+// Fills the allocation with the global ids and copies it back to Out. The copy
+// depends on the kernel explicitly, as an out-of-order queue does not order the
+// two.
 template <typename KernelName>
 void fillAndCopyBack(sycl::queue &Q, void *Alloc, std::vector<char> &Out) {
-  Q.parallel_for<KernelName>(sycl::range<1>{Width}, [=](sycl::id<1> Id) {
-    static_cast<char *>(Alloc)[Id] = static_cast<char>(Id);
-  });
-  Q.memcpy(Out.data(), Alloc, Width);
+  sycl::event Fill =
+      Q.parallel_for<KernelName>(sycl::range<1>{Width}, [=](sycl::id<1> Id) {
+        static_cast<char *>(Alloc)[Id] = static_cast<char>(Id);
+      });
+  Q.memcpy(Out.data(), Alloc, Width, Fill);
 }
 
 bool validate(const std::vector<char> &Out, const char *Name) {

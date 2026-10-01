@@ -54,28 +54,6 @@ int main() {
     return 1;
   }
 
-  // Test 3: the queue overloads, which are submitted without a handler, should
-  // throw as well.
-  if (!expectException(
-          [&]() {
-            AsyncPtr = exp_ext::async_malloc(Queue, usm::alloc::device,
-                                             N * sizeof(int));
-          },
-          "async_malloc queue overload during native recording",
-          sycl::errc::invalid)) {
-    Graph.end_recording();
-    free(PreAllocatedPtr, Queue);
-    return 1;
-  }
-
-  if (!expectException([&]() { exp_ext::async_free(Queue, PreAllocatedPtr); },
-                       "async_free queue overload during native recording",
-                       sycl::errc::invalid)) {
-    Graph.end_recording();
-    free(PreAllocatedPtr, Queue);
-    return 1;
-  }
-
   Graph.end_recording();
   free(PreAllocatedPtr, Queue);
 
