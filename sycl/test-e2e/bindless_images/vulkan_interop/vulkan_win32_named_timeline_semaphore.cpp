@@ -41,7 +41,7 @@
 #define NOMINMAX
 #include <windows.h>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 
 #include <cstdio>
 #include <iostream>
@@ -112,7 +112,10 @@ static void printWideName(const wchar_t *name) {
 int main() {
   std::cout << "Running SYCL Vulkan Timeline Semaphore by Name Test\n";
 
-  VulkanContext vkCtx = createVulkanContext();
+  // Pick the Vulkan physical device that matches the SYCL device's UUID so
+  // both sides share one adapter; the queue below is created on this device.
+  sycl::device device;
+  VulkanContext vkCtx = createSyclVulkanContext(device);
 
   NamedTimelineSemaphore mainSem = createNamedTimelineSemaphore(
       vkCtx, L"Global\\SYCLTestVulkanTimelineName");
@@ -135,8 +138,7 @@ int main() {
     sycl::property_list qProps{
         sycl::property::queue::in_order{},
         sycl::ext::intel::property::queue::immediate_command_list{}};
-    sycl::queue q{qProps};
-    auto device = q.get_device();
+    sycl::queue q{device, qProps};
     auto context = q.get_context();
 
     std::cout << "[SYCL] Device: "
