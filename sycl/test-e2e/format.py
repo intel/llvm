@@ -382,7 +382,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # Build lines may need device specific flags, so they get the device
         # features too. Such a line is shared by every device the test runs on,
         # hence only the features common to all of them are available.
-        build_conditions = {x: True for x in test.config.available_features}
+        build_conditions = {x: True for x in features_for_test}
         if devices_for_test:
             for feature in set.intersection(
                 *(set(test.config.sycl_dev_features[d]) for d in devices_for_test)
