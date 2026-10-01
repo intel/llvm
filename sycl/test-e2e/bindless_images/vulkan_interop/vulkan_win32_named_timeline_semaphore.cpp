@@ -2,8 +2,7 @@
 // REQUIRES: windows
 // REQUIRES: vulkan
 
-// XFAIL: *
-// XFAIL-TRACKER: GSD-12837
+// REQUIRES-INTEL-DRIVER: lin: 40130
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
@@ -19,6 +18,11 @@
   D3DKMT_OPENSYNCOBJECTNTHANDLEFROMNAME.  Import success proves the name
   survived SYCL -> UR -> L0 -> NEO and that the underlying sync object is
   reachable from L0's opener.
+
+  Only the timeline handle type resolves by name: timeline_win32_nt_handle
+  maps to ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_VK_TIMELINE_SEMAPHORE_WIN32.  The
+  generic win32_nt_handle (ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_OPAQUE_WIN32) is not
+  supported for import by name, so the test also checks that it is rejected.
 
   A second import with a non-ASCII name (\u00E9 + \u6C14) additionally exercises
   the UTF-16 -> UTF-8 -> UTF-16 round-trip through UR's WideCharToMultiByte
@@ -157,6 +161,28 @@ int main() {
         syclexp::import_external_semaphore(utf16SemDesc, device, context);
     syclexp::release_external_semaphore(utf16SyclSem, device, context);
     std::cout << "[SYCL] UTF-16 named timeline round-trip OK\n";
+
+    // Only the timeline handle type resolves by name. win32_nt_handle maps to
+    // L0's OPAQUE_WIN32, which the driver does not support for named import
+    // and the UR adapter rejects up front. Make sure that stays an error.
+    std::cout << "[SYCL] Importing by name as win32_nt_handle (must fail)\n";
+    bool opaqueRejected = false;
+    try {
+      auto opaqueDesc =
+          syclexp::external_semaphore_descriptor<syclexp::resource_win32_name>{
+              {(const void *)mainSem.name.c_str()},
+              syclexp::external_semaphore_handle_type::win32_nt_handle};
+      syclexp::external_semaphore opaqueSem =
+          syclexp::import_external_semaphore(opaqueDesc, device, context);
+      syclexp::release_external_semaphore(opaqueSem, device, context);
+    } catch (const sycl::exception &e) {
+      std::cout << "[SYCL] Got expected exception: " << e.what() << "\n";
+      opaqueRejected = true;
+    }
+    if (!opaqueRejected) {
+      std::cerr << "[FAIL] win32_nt_handle import by name did not throw\n";
+      retCode = 1;
+    }
 
     // Cross-API round-trip: prove Vulkan and SYCL see the same underlying
     // object, not just that a name resolves to something on each side.
