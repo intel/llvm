@@ -418,7 +418,9 @@ ur_result_t urDeviceGetInfo(
              (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
-    if (Device->Platform->zeDriverExtensionMap.count(ZE_FLOAT_ATOMICS_EXT_NAME))
+    if (Device->Platform->zeDriverExtensionMap.count(
+            ZE_FLOAT_ATOMICS_EXT_NAME) &&
+        Device->ZeDeviceFloatAtomicExtProperties->fp16Flags)
       SupportedExtensions += ("cl_ext_float_atomics ");
 
     return ReturnValue(SupportedExtensions.c_str());
@@ -2059,6 +2061,16 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
       [ZeDevice](ze_device_module_properties_t &Properties) {
         ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &Properties));
       };
+
+  if (Platform->zeDriverExtensionMap.count(ZE_FLOAT_ATOMICS_EXT_NAME)) {
+    ZeDeviceFloatAtomicExtProperties.Compute =
+        [ZeDevice](ze_float_atomic_ext_properties_t &Properties) {
+          ze_device_module_properties_t P;
+          P.stype = ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
+          P.pNext = &Properties;
+          ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
+        };
+  }
 
   ZeDeviceMemoryProperties.Compute =
       [ZeDevice](
