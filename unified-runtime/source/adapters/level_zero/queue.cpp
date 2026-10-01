@@ -1646,10 +1646,16 @@ void ur::level_zero::v1::ur_queue_handle_t_::active_barriers::add(
 }
 
 ur_result_t ur::level_zero::v1::ur_queue_handle_t_::active_barriers::clear() {
-  for (const auto &Event : Events)
-    UR_CALL(urEventReleaseInternal(Event));
+  // Drop every entry even if a release fails, so a later clear() cannot
+  // release the same event twice. Report the first error.
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  for (const auto &Event : Events) {
+    ur_result_t Res = urEventReleaseInternal(Event);
+    if (Result == UR_RESULT_SUCCESS)
+      Result = Res;
+  }
   Events.clear();
-  return UR_RESULT_SUCCESS;
+  return Result;
 }
 
 void ur::level_zero::v1::ur_queue_handle_t_::clearEndTimeRecordings() {
@@ -2436,20 +2442,26 @@ ur_result_t ur::level_zero::v1::ur_queue_handle_t_::insertActiveBarriers(
       ActiveBarriers.vector().size(), ActiveBarriers.vector().data(),
       reinterpret_cast<ur_queue_handle_t>(this), UseCopyEngine));
 
+  // The wait list owns its arrays and one reference to each of its events until
+  // it is handed over to the barrier event below. On every other exit (errors,
+  // or an empty list because all barrier events had already completed) free
+  // the arrays and drop those references here.
+  bool WaitListOwned = false;
+  OnScopeExit FreeWaitList([&]() {
+    if (WaitListOwned)
+      return;
+    std::list<ur_event_handle_t> EventsToBeReleased;
+    ActiveBarriersWaitList.collectEventsForReleaseAndDestroyUrZeEventList(
+        EventsToBeReleased);
+    for (ur_event_handle_t E : EventsToBeReleased)
+      urEventReleaseInternal(E);
+  });
+
   // We can now replace active barriers with the ones in the wait list.
   UR_CALL(ActiveBarriers.clear());
 
-  if (ActiveBarriersWaitList.Length == 0) {
-    // createAndRetainUrZeEventList allocates the event arrays up front and can
-    // still end up with a zero length if every barrier event had already
-    // completed. Nothing takes ownership of the list on this path, so free it
-    // here instead of leaking it; there are no retained events to collect.
-    std::list<ur_event_handle_t> EventsToBeReleased;
-    UR_CALL(
-        ActiveBarriersWaitList.collectEventsForReleaseAndDestroyUrZeEventList(
-            EventsToBeReleased));
+  if (ActiveBarriersWaitList.Length == 0)
     return UR_RESULT_SUCCESS;
-  }
 
   for (uint32_t I = 0; I < ActiveBarriersWaitList.Length; ++I) {
     auto &Event = ActiveBarriersWaitList.UrEventList[I];
@@ -2464,6 +2476,7 @@ ur_result_t ur::level_zero::v1::ur_queue_handle_t_::insertActiveBarriers(
     return Res;
 
   Event->WaitList = ActiveBarriersWaitList;
+  WaitListOwned = true;
   Event->OwnNativeHandle = true;
 
   // If there are more active barriers, insert a barrier on the command-list.
