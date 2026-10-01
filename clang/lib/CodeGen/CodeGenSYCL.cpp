@@ -123,3 +123,22 @@ llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
   }
   return RegistrationFunc;
 }
+
+llvm::Function *CodeGenModule::createSYCLRegisterLibFunc() {
+  std::string RegisterFuncName =
+      "__sycl_registerlib_" + LangOpts.SYCLUniquePrefix;
+  llvm::FunctionType *RegisterFTy =
+      llvm::FunctionType::get(VoidTy, /*isVarArg=*/false);
+  // Declare the symbol and emit a global constructor that calls it.
+  llvm::FunctionCallee RegisterFunc =
+      getModule().getOrInsertFunction(RegisterFuncName, RegisterFTy);
+  llvm::Function *SYCLRegisterLibCtor = CreateGlobalInitOrCleanUpFunction(
+      RegisterFTy, "__sycl_registerlib_ctor",
+      getTypes().arrangeNullaryFunction(), SourceLocation());
+  llvm::BasicBlock *Entry =
+      llvm::BasicBlock::Create(getLLVMContext(), "entry", SYCLRegisterLibCtor);
+  llvm::IRBuilder<> Builder(Entry);
+  Builder.CreateCall(RegisterFunc);
+  Builder.CreateRetVoid();
+  return SYCLRegisterLibCtor;
+}
