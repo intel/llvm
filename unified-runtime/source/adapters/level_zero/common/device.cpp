@@ -2065,8 +2065,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   if (Platform->zeDriverExtensionMap.count(ZE_FLOAT_ATOMICS_EXT_NAME)) {
     ZeDeviceFloatAtomicExtProperties.Compute =
         [ZeDevice](ze_float_atomic_ext_properties_t &Properties) {
-          ze_device_module_properties_t P;
-          P.stype = ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
+          ZeStruct<ze_device_module_properties_t> P;
           P.pNext = &Properties;
           ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
         };
