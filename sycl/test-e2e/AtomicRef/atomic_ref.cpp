@@ -3,6 +3,9 @@
 // RUN: %{build}  -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: target-nvidia, target-amd, spirv-backend
+// UNSUPPORTED-INTENDED: only supported by backends with atomic16 support
+
 // This test is prepared with AI assistance
 
 #include <sycl/atomic_ref.hpp>
