@@ -37,6 +37,9 @@ on:
     - 'devops/scripts/benchmarks/**'
     - 'devops/actions/run-tests/benchmark/**'
     - '.github/workflows/sycl-ur-perf-benchmarking.yml'
+    # TEMPORARY (PR #23304): disable all Linux precommit jobs on this branch.
+    # Windows-only validation. Do not merge this paths-ignore entry upstream.
+    - '**'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
