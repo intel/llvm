@@ -2729,16 +2729,15 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           reportError(createStringError(Err));
         });
     bool HasSYCLOffloadKind = false;
-    // First non-SYCL kind in this target group, if any.
-    OffloadKind NonSYCLKind = OFK_None;
+    OffloadKind FirstNonSYCLKind = OFK_None;
     uint16_t ActiveOffloadKindMask = 0u;
     for (const auto &File : Input) {
       OffloadKind Kind = File.getBinary()->getOffloadKind();
       ActiveOffloadKindMask |= Kind;
       if (Kind == OFK_SYCL)
         HasSYCLOffloadKind = true;
-      else if (NonSYCLKind == OFK_None)
-        NonSYCLKind = Kind;
+      else if (FirstNonSYCLKind == OFK_None)
+        FirstNonSYCLKind = Kind;
     }
 
     auto AppendImageToWrapperOutput = [&WrappedOutput,
@@ -2831,11 +2830,11 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         AppendImageToWrapperOutput(*OutputFile);
       }
     }
-    if (NonSYCLKind != OFK_None) {
+    if (FirstNonSYCLKind != OFK_None) {
       // Non-SYCL kinds sharing a triple/arch are linked by one Clang
       // invocation, so only the first kind's scoped options are selected.
       // TODO: link and wrap each kind separately.
-      auto LinkerArgs = getLinkerArgs(Input, BaseArgs, NonSYCLKind);
+      auto LinkerArgs = getLinkerArgs(Input, BaseArgs, FirstNonSYCLKind);
       // Write any remaining device inputs to an output file.
       SmallVector<StringRef> InputFiles;
       for (const OffloadFile &File : Input) {

@@ -64,10 +64,17 @@ For SYCL SPIR targets, device compiler/linker values must carry a
 tool-specific prefix; other values are ignored:
 - JIT: `--device-compiler=sycl:<triple>=--jit-compiler-options=<arg>` and
   `--device-linker=sycl:<triple>=--jit-linker-options=<arg>`.
-- AOT: `--ocloc-options=<arg>` (Intel GPU) or `--opencl-aot-options=<arg>`
-  (Intel CPU), via either option. The Clang driver uses `--device-linker=`.
+- AOT (Intel GPU): `--device-linker=sycl:<triple>=--ocloc-options=<arg>`.
+- AOT (Intel CPU): `--device-linker=sycl:<triple>=--opencl-aot-options=<arg>`.
 
-An architecture name such as `spir64_gen` can replace the full SYCL triple.
+The short target name `spir64_gen` can be used in place of the full SYCL
+triple `spir64_gen-unknown-unknown`. For example, these equivalent Intel GPU
+options pass `-cl-mad-enable` to ocloc:
+
+```console
+--device-linker=sycl:spir64_gen=--ocloc-options=-cl-mad-enable
+--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-cl-mad-enable
+```
 
 The linker wrapper will generate the appropriate runtime calls to register the
 generated device binary with the offloading runtime. To do this step manually we

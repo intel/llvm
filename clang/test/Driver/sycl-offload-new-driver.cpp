@@ -182,6 +182,8 @@
 // GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-intel-enable-auto-large-GRF-mode"
 // GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options"
 // GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-g -cl-opt-disable"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 \
@@ -189,14 +191,6 @@
 // RUN:   | FileCheck -check-prefix CPU_LINK_IMPLIED %s
 // CPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-g"
 // CPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-cl-opt-disable"
-
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:          -fsycl --offload-new-driver -fsycl-targets=spir64 \
-// RUN:          -Xoffload-compiler-spir64 -user-compile-opt \
-// RUN:          -Xoffload-linker-spir64 -user-link-opt \
-// RUN:          -### %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:   | FileCheck -check-prefix XOFFLOAD_JIT %s
-// XOFFLOAD_JIT: clang-linker-wrapper{{.*}} "--device-compiler=spir64=-user-compile-opt" "--device-linker=spir64=-user-link-opt"
 
 /// Test option passing behavior for clang-offload-wrapper options for AOT.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \

@@ -30,13 +30,6 @@
 
 ### Changes that are effective immediately
 
-- With `--offload-new-driver`, unprefixed `-Xoffload-compiler` and
-  `-Xoffload-linker[-<triple>]` options (and direct unprefixed
-  `--device-compiler`/`--device-linker` wrapper options) no longer reach SYCL
-  SPIR JIT, `ocloc`, or `opencl-aot`; the wrapper ignores them.
-  Use `-Xsycl-target-backend`/`-Xsycl-target-linker` or the mapped wrapper
-  forms described in `clang/docs/ClangLinkerWrapper.md` instead.
-
 - Removed ... intel/llvm#pr
 
 ### Deprecations
