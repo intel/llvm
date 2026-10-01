@@ -664,10 +664,14 @@ void enqueueImpKernel(
 /// operation.
 class ExecCGCommand : public Command {
 public:
+  /// \param EventForReuse if set, the event this command signals instead of a
+  /// new one (enqueue_signal_event); it must have been prepared for signaling
+  /// so that its current binding is the one this command produces.
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {},
+      EventImplPtr EventForReuse = nullptr);
 
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
@@ -693,6 +697,11 @@ public:
   // implementation may elect to not produce events (native or SYCL) if this
   // is false.
   bool MEventNeeded = true;
+
+  /// True if this command signals a reusable event handed in by the caller
+  /// (enqueue_signal_event through the scheduler). The backend event is then
+  /// created when the command is enqueued, with the event's own properties.
+  bool MSignalsReusableEvent = false;
 
   bool producesUrEvent() const final;
 

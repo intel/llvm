@@ -495,8 +495,11 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   // (enqueue_signal_event function)
   assert(!EventForReuse || (EventForReuse && BarrierType == CGType::Barrier));
 
-  ur_event_handle_t UREvent =
-      EventForReuse ? EventForReuse->getHandleReusable(*this) : nullptr;
+  ur_event_handle_t UREvent = nullptr;
+  if (EventForReuse) {
+    EventForReuse->prepareForSignal(*this);
+    UREvent = EventForReuse->ensureSignalHandle(getDeviceImpl());
+  }
   std::vector<ur_event_handle_t> RawBarrierDepEvents;
   std::vector<ur_event_handle_t> RawDepEvents;
 
@@ -624,23 +627,6 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
               /*SchedulerBypass*/ true};
     }
 
-    if (EventForReuse || !CallerNeedsEvent) {
-      // Current limitation: reusable events require scheduler bypass so that
-      // the barrier can be submitted directly to the backend with the reusable
-      // event's handle as the output event. Scheduler bypass is not possible
-      // when dependencies include host tasks or cross-context dependencies.
-      //
-      // This limitation applies to both: enqueue_signal_event and
-      // enqueue_wait_event(s).
-      //
-      // The !CallerNeedsEvent condition is used to detect the
-      // enqueue_wait_event(s) function calls.
-      throw sycl::exception(
-          sycl::make_error_code(errc::invalid),
-          "An event cannot be enqueued for signaling or waiting "
-          "behind a command which is not enqueued in the backend.");
-    }
-
     std::unique_ptr<detail::CG> CommandGroup;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
@@ -654,13 +640,27 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
               false};
     }
 
-    CommandGroup.reset(
-        new detail::CGBarrier(std::move(DepEventImpls),
-                              ext::oneapi::experimental::event_mode_enum::none,
-                              std::move(CGData), BarrierType, CodeLoc));
+    // The wait list becomes ordinary command group dependencies, captured now:
+    // the scheduler then enqueues their producers first, waits for host tasks
+    // on the host and bridges other contexts, and the barrier is issued with
+    // these dependencies as its wait list. The host events are registered
+    // above already.
+    for (const EventImplPtr &Event : DepEventImpls)
+      if (!Event->isHost())
+        CGData.MEvents.push_back(capture_dependency(Event));
 
-    return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
-                                                   *this, true),
+    // A signal moves the event on to the binding this barrier command will
+    // produce; the backend event is created when the command is enqueued.
+    if (EventForReuse)
+      EventForReuse->prepareForSignal(*this);
+
+    CommandGroup.reset(new detail::CGBarrier(
+        {}, ext::oneapi::experimental::event_mode_enum::none, std::move(CGData),
+        BarrierType, CodeLoc));
+
+    return {detail::Scheduler::getInstance().addCG(
+                std::move(CommandGroup), *this, /*EventNeeded*/ true,
+                /*CommandBuffer*/ nullptr, /*Dependencies*/ {}, EventForReuse),
             /*SchedulerBypass*/ false};
   };
 

@@ -113,11 +113,22 @@ public:
   /// exists.
   void materializeIPCEvent();
 
-  /// Returns an event UR handle and applies additional logic
-  /// related to reusable events.
+  /// Prepares the event for being enqueued for signaling on \p Queue: decides
+  /// whether the current binding can be used again or the event moves on to a
+  /// new one (see event_binding), and associates the event with the queue.
+  /// Does not create the backend event.
   ///
   /// \param Queue is a queue to be associated with the event
-  ur_event_handle_t getHandleReusable(queue_impl &Queue);
+  void prepareForSignal(queue_impl &Queue);
+
+  /// Makes sure the current binding has a backend event, if the context
+  /// supports reusable events, and returns it (nullptr otherwise, so that the
+  /// backend creates one during the submission).
+  ur_event_handle_t ensureSignalHandle(device_impl &Device);
+
+  /// Creates a backend UR event on \p Device with this event's profiling/IPC
+  /// flags. The context must already be bound.
+  ur_event_handle_t createDeviceUrEvent(device_impl &Device);
 
   /// Sets the event UR handle and applies additional logic
   /// related to reusable events.
@@ -478,9 +489,6 @@ protected:
   // when needed.
   void initContextIfNeeded();
 
-  // Creates a backend UR event on \p Device with this event's profiling/IPC
-  // flags. The context must already be bound.
-  ur_event_handle_t createDeviceUrEvent(device_impl &Device);
   // Event class represents 3 different kinds of operations:
   // | type  | has UR event | MContext | MIsHostTask | MIsDefaultConstructed |
   // | dev   | true         | !nullptr | false       | false                 |

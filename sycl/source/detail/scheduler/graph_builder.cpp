@@ -926,12 +926,14 @@ Command *Scheduler::GraphBuilder::addCG(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue, bool EventNeeded,
     ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies,
+    EventImplPtr EventForReuse) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::captured_dependency> &Events = CommandGroup->getEvents();
 
   auto NewCmd = std::make_unique<ExecCGCommand>(
-      std::move(CommandGroup), Queue, EventNeeded, CommandBuffer, Dependencies);
+      std::move(CommandGroup), Queue, EventNeeded, CommandBuffer, Dependencies,
+      std::move(EventForReuse));
 
   if (!NewCmd)
     throw exception(make_error_code(errc::memory_allocation),

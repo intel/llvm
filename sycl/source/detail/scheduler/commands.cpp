@@ -957,7 +957,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // Otherwise if enqueueImp fails the deferred waiter could sleep forever.
   auto WakeWaitersOnFailure = [this] {
     if (!MEvent->isDiscarded() &&
-        (MEvent->isHost() || MEvent->getHandle() == nullptr))
+        (MEvent->isHost() || MBinding->getHandle() == nullptr))
       MBinding->setComplete();
   };
   ur_result_t Res;
@@ -975,7 +975,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   } else {
     MBinding->setEnqueued();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
-        (MEvent->isHost() || MEvent->getHandle() == nullptr))
+        (MEvent->isHost() || MBinding->getHandle() == nullptr))
       MBinding->setComplete();
 
     // Consider the command is successfully enqueued if return code is
@@ -2026,10 +2026,24 @@ static std::string_view cgTypeToString(detail::CGType Type) {
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
-    : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies,
+    EventImplPtr EventForReuse)
+    : Command(CommandType::RUN_CG, Queue,
+              EventForReuse ? EventForReuse : makeEvent(*CommandGroup, Queue),
               CommandBuffer, Dependencies),
-      MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
+      MEventNeeded(EventNeeded),
+      MSignalsReusableEvent(EventForReuse != nullptr),
+      MCommandGroup(std::move(CommandGroup)) {
+  if (MSignalsReusableEvent) {
+    // What makeEvent does for a new event, on the binding this command
+    // produces. The event's current binding is that binding: the caller
+    // prepared the event for signaling right before.
+    assert(MEvent->getBinding() == MBinding);
+    MBinding->setWorkerQueue(MQueue);
+    MBinding->setSubmittedQueue(Queue);
+    MBinding->setStateIncomplete();
+    MEvent->markAsProfilingTagEvent();
+  }
   emitInstrumentationDataProxy();
 }
 
@@ -3748,6 +3762,16 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (Barrier->MEventMode ==
         ext::oneapi::experimental::event_mode_enum::low_power)
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
+
+    if (MSignalsReusableEvent) {
+      // The barrier signals a reusable event. Its backend event is created
+      // now, into this command's binding, so that it does not exist before
+      // the command is in the backend. An IPC event already carries its
+      // exported one; without reusable-event support UR creates one.
+      UREvent = MBinding->getHandle();
+      if (!UREvent && MQueue->getContextImpl().supportsReusableEvents())
+        UREvent = MEvent->createDeviceUrEvent(MQueue->getDeviceImpl());
+    }
 
     adapter_impl &Adapter = MQueue->getAdapter();
     // User can specify explicit dependencies via depends_on call that we should

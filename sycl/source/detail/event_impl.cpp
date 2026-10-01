@@ -247,8 +247,8 @@ void event_impl::materializeIPCEvent() {
   // Any device in the context works; all support the IPC aspect.
   device_impl &Device = MContext->getDevices().front();
   setHandle(createDeviceUrEvent(Device));
-  // Leaves MIsDefaultConstructed set so a later signal still runs through
-  // getHandleReusable.
+  // Leaves MIsDefaultConstructed set; the first signal clears it in
+  // prepareForSignal and finds the handle already there.
 }
 
 std::pair<void *, size_t> event_impl::getOrCreateIPCHandle() {
@@ -264,7 +264,7 @@ std::pair<void *, size_t> event_impl::getOrCreateIPCHandle() {
   return {MIPCHandleData, MIPCHandleDataSize};
 }
 
-ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
+void event_impl::prepareForSignal(queue_impl &Queue) {
   initContextIfNeeded();
   const bool Supported = MContext->supportsReusableEvents();
   // IPC support implies reusable-event support.
@@ -308,12 +308,13 @@ ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
     }
   }
 
-  if (Supported && !getHandle())
-    setHandle(createDeviceUrEvent(Queue.getDeviceImpl()));
-
   setQueue(Queue);
   MIsDefaultConstructed = false;
+}
 
+ur_event_handle_t event_impl::ensureSignalHandle(device_impl &Device) {
+  if (MContext->supportsReusableEvents() && !getHandle())
+    setHandle(createDeviceUrEvent(Device));
   return getHandle();
 }
 

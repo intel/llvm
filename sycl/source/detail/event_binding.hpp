@@ -49,7 +49,7 @@ enum HostEventState : int { HES_NotComplete = 0, HES_Complete, HES_Discarded };
 /// its event: those dependencies are in the backend already and the list only
 /// serves event::get_wait_list and dependency cleanup, so capturing the signal
 /// there would keep it alive for no reason (and force a new backend event on
-/// the next enqueue_signal_event, see event_impl::getHandleReusable).
+/// the next enqueue_signal_event, see event_impl::prepareForSignal).
 struct captured_dependency {
   std::shared_ptr<event_binding> Binding;
   std::shared_ptr<event_impl> Event;

@@ -381,10 +381,13 @@ public:
   /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion. It can
   /// be a discarded event.
+  /// \param EventForReuse if set, the event the new command signals instead of
+  /// a new one (enqueue_signal_event); see ExecCGCommand.
   EventImplPtr addCG(
       std::unique_ptr<detail::CG> CommandGroup, queue_impl &Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {},
+      EventImplPtr EventForReuse = nullptr);
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -583,7 +586,8 @@ protected:
                    std::vector<Command *> &ToEnqueue, bool EventNeeded,
                    ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
                    const std::vector<ur_exp_command_buffer_sync_point_t>
-                       &Dependencies = {});
+                       &Dependencies = {},
+                   EventImplPtr EventForReuse = nullptr);
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.

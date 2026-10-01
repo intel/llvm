@@ -62,6 +62,9 @@ std::map<ur_event_handle_t, int> ReleaseCounts;
 std::vector<std::vector<ur_event_handle_t>> KernelLaunchWaitLists;
 std::vector<ur_event_handle_t> KernelEvents;
 std::vector<std::vector<ur_event_handle_t>> BarrierWaitLists;
+// The event each barrier call was asked to signal: the handle passed in, or
+// nullptr if the backend was asked to create one.
+std::vector<ur_event_handle_t> BarrierOutEvents;
 std::vector<std::vector<ur_event_handle_t>> CommandBufferWaitLists;
 std::vector<ur_event_handle_t> CommandBufferEvents;
 std::vector<ur_event_handle_t> WaitedEvents;
@@ -160,6 +163,7 @@ ur_result_t redefinedUrEnqueueEventsWaitWithBarrierExt(void *pParams) {
                                     *params.pnumEventsInWaitList);
   // A signal passes the reusable event in; any other barrier asks for a new
   // event.
+  BarrierOutEvents.push_back(*params.pphEvent ? **params.pphEvent : nullptr);
   if (*params.pphEvent && **params.pphEvent == nullptr)
     **params.pphEvent = newFakeEvent();
   return UR_RESULT_SUCCESS;
@@ -258,6 +262,7 @@ protected:
     KernelLaunchWaitLists.clear();
     KernelEvents.clear();
     BarrierWaitLists.clear();
+    BarrierOutEvents.clear();
     CommandBufferWaitLists.clear();
     CommandBufferEvents.clear();
     WaitedEvents.clear();
@@ -601,6 +606,165 @@ TEST_F(ReusableEventsBindingTest,
   EXPECT_EQ(CommandBufferWaitLists[1],
             std::vector<ur_event_handle_t>{CommandBufferEvents[0]});
   EXPECT_EQ(handleOf(E1), Signal);
+}
+
+// A signal may be held in the runtime behind a host task. It is then a barrier
+// command producing the event's new binding; the backend event is created only
+// when the command is enqueued. A dependent captures that binding and waits.
+TEST_F(ReusableEventsBindingTest, SignalBehindHostTaskIsDeferred) {
+  sycl::queue Q = inOrderQueue();
+  sycl::queue Q2 = inOrderQueue();
+  sycl::event E = syclex::make_event(Ctx);
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q, Gate);
+
+  EXPECT_NO_THROW(syclex::enqueue_signal_event(Q, E));
+  EXPECT_TRUE(CreatedEvents.empty());
+  EXPECT_EQ(handleOf(E), nullptr);
+
+  // Depends on the pending signal: held until it is in the backend.
+  Q2.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(E);
+    CGH.single_task<BindingTestKernel>([]() {});
+  });
+  {
+    std::lock_guard<std::mutex> Lock(BackendMutex);
+    EXPECT_TRUE(KernelLaunchWaitLists.empty());
+  }
+
+  Gate->open();
+  Q.wait();
+  Q2.wait();
+
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  ASSERT_EQ(CreatedEvents.size(), 1u);
+  const ur_event_handle_t Signal = CreatedEvents[0];
+  EXPECT_EQ(handleOf(E), Signal);
+  ASSERT_EQ(KernelLaunchWaitLists.size(), 1u);
+  EXPECT_EQ(KernelLaunchWaitLists[0], std::vector<ur_event_handle_t>{Signal});
+  // The barrier was asked to signal the event created for it.
+  EXPECT_NE(std::find(BarrierOutEvents.begin(), BarrierOutEvents.end(), Signal),
+            BarrierOutEvents.end());
+}
+
+// Two signals of the same event, each held behind its own host task, each with
+// a dependent of its own. Every dependent waits for the signal it was
+// submitted with, and both signals reach the backend. (The host tasks run on
+// the runtime's thread pool, which by default has a single thread, so they are
+// released in submission order here.)
+TEST_F(ReusableEventsBindingTest, TwoSignalsBehindTwoHostTasks) {
+  sycl::queue Q1 = inOrderQueue();
+  sycl::queue Q2 = inOrderQueue();
+  sycl::queue Q3 = inOrderQueue();
+  sycl::queue Q4 = inOrderQueue();
+  sycl::event E = syclex::make_event(Ctx);
+
+  auto Gate1 = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate1{Gate1};
+  auto Gate2 = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate2{Gate2};
+
+  blockQueue(Q1, Gate1);
+  syclex::enqueue_signal_event(Q1, E); // S1, pending
+  Q3.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(E);
+    CGH.single_task<BindingTestKernel>([]() {});
+  });
+
+  blockQueue(Q2, Gate2);
+  syclex::enqueue_signal_event(Q2, E); // S2, pending
+  Q4.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(E);
+    CGH.single_task<BindingTestKernel>([]() {});
+  });
+
+  EXPECT_TRUE(CreatedEvents.empty());
+  EXPECT_EQ(handleOf(E), nullptr);
+
+  // The first signal is released: its dependent runs, the other one stays
+  // held, and the event (which represents the second signal) has no backend
+  // event yet.
+  Gate1->open();
+  Q1.wait();
+  Q3.wait();
+  ur_event_handle_t First = nullptr;
+  {
+    std::lock_guard<std::mutex> Lock(BackendMutex);
+    ASSERT_EQ(CreatedEvents.size(), 1u);
+    First = CreatedEvents[0];
+    ASSERT_EQ(KernelLaunchWaitLists.size(), 1u);
+    EXPECT_EQ(KernelLaunchWaitLists[0], std::vector<ur_event_handle_t>{First});
+  }
+  EXPECT_EQ(handleOf(E), nullptr);
+
+  Gate2->open();
+  Q2.wait();
+  Q4.wait();
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  ASSERT_EQ(CreatedEvents.size(), 2u);
+  const ur_event_handle_t Second = CreatedEvents[1];
+  ASSERT_EQ(KernelLaunchWaitLists.size(), 2u);
+  EXPECT_EQ(KernelLaunchWaitLists[1], std::vector<ur_event_handle_t>{Second});
+  EXPECT_EQ(handleOf(E), Second);
+}
+
+// A wait held behind a host task keeps waiting for the signal it was submitted
+// with, although the event has been signaled again since.
+TEST_F(ReusableEventsBindingTest, WaitBehindHostTaskKeepsCapturedSignal) {
+  sycl::queue SignalQueue = inOrderQueue();
+  sycl::queue Q = inOrderQueue();
+  sycl::event E = syclex::make_event(Ctx);
+
+  syclex::enqueue_signal_event(SignalQueue, E);
+  ASSERT_EQ(CreatedEvents.size(), 1u);
+  const ur_event_handle_t First = CreatedEvents[0];
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q, Gate);
+
+  EXPECT_NO_THROW(syclex::enqueue_wait_event(Q, E));
+
+  syclex::enqueue_signal_event(SignalQueue, E);
+  ASSERT_EQ(CreatedEvents.size(), 2u);
+
+  Gate->open();
+  Q.wait();
+  SignalQueue.wait();
+
+  const auto Barriers = barriersWithWaitList();
+  ASSERT_EQ(Barriers.size(), 1u);
+  EXPECT_EQ(Barriers[0], std::vector<ur_event_handle_t>{First});
+}
+
+// A wait for a signal which is itself still held in the runtime is held too,
+// and waits for that signal once it is in the backend.
+TEST_F(ReusableEventsBindingTest, WaitForPendingSignalIsDeferred) {
+  sycl::queue Q1 = inOrderQueue();
+  sycl::queue Q2 = inOrderQueue();
+  sycl::event E = syclex::make_event(Ctx);
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q1, Gate);
+  syclex::enqueue_signal_event(Q1, E); // pending
+
+  EXPECT_NO_THROW(syclex::enqueue_wait_event(Q2, E));
+  EXPECT_TRUE(barriersWithWaitList().empty());
+  EXPECT_TRUE(CreatedEvents.empty());
+
+  Gate->open();
+  Q1.wait();
+  Q2.wait();
+
+  ASSERT_EQ(CreatedEvents.size(), 1u);
+  const ur_event_handle_t Signal = CreatedEvents[0];
+  const auto Barriers = barriersWithWaitList();
+  ASSERT_EQ(Barriers.size(), 1u);
+  EXPECT_EQ(Barriers[0], std::vector<ur_event_handle_t>{Signal});
+  EXPECT_EQ(handleOf(E), Signal);
 }
 
 } // anonymous namespace
