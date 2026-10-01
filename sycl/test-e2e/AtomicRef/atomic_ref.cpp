@@ -21,7 +21,7 @@ constexpr size_t N = 64;
 
 template <typename T>
 using AtomicRefT = atomic_ref<T, memory_order::relaxed, memory_scope::device,
-                               access::address_space::global_space>;
+                              access::address_space::global_space>;
 
 template <typename T> int CheckResult(T result, T expected, T *data, queue &q) {
   bool passed;
@@ -66,8 +66,9 @@ template <typename T> int test_atomic_sub() {
   const T expected = static_cast<T>(static_cast<float>(initial) -
                                     N * static_cast<float>(decrement));
 
-  return test_atomic(initial, [=](item<1>) { return decrement; },
-                      [](auto &a, auto v) { a.fetch_sub(v); }, expected);
+  return test_atomic(
+      initial, [=](item<1>) { return decrement; },
+      [](auto &a, auto v) { a.fetch_sub(v); }, expected);
 }
 
 template <typename T> int test_atomic_add() {
@@ -76,8 +77,9 @@ template <typename T> int test_atomic_add() {
   const T expected = static_cast<T>(static_cast<float>(initial) +
                                     N * static_cast<float>(increment));
 
-  return test_atomic(initial, [=](item<1>) { return increment; },
-                      [](auto &a, auto v) { a.fetch_add(v); }, expected);
+  return test_atomic(
+      initial, [=](item<1>) { return increment; },
+      [](auto &a, auto v) { a.fetch_add(v); }, expected);
 }
 
 template <typename T> int test_atomic_min() {
@@ -86,8 +88,9 @@ template <typename T> int test_atomic_min() {
   const T expected =
       static_cast<float>(initial) < static_cast<float>(other) ? initial : other;
 
-  return test_atomic(initial, [=](item<1>) { return other; },
-                      [](auto &a, auto v) { a.fetch_min(v); }, expected);
+  return test_atomic(
+      initial, [=](item<1>) { return other; },
+      [](auto &a, auto v) { a.fetch_min(v); }, expected);
 }
 
 template <typename T> int test_atomic_max() {
@@ -96,44 +99,46 @@ template <typename T> int test_atomic_max() {
   const T expected =
       static_cast<float>(initial) > static_cast<float>(other) ? initial : other;
 
-  return test_atomic(initial, [=](item<1>) { return other; },
-                      [](auto &a, auto v) { a.fetch_max(v); }, expected);
+  return test_atomic(
+      initial, [=](item<1>) { return other; },
+      [](auto &a, auto v) { a.fetch_max(v); }, expected);
 }
 
 template <typename T> int test_atomic_or() {
   const T initial = static_cast<T>(0);
   const T expected = static_cast<T>(~static_cast<T>(0));
 
-  return test_atomic(initial,
-                      [](item<1> it) {
-                        return static_cast<T>(1 << (it.get_id(0) %
-                                                     (sizeof(T) * 8)));
-                      },
-                      [](auto &a, auto v) { a.fetch_or(v); }, expected);
+  return test_atomic(
+      initial,
+      [](item<1> it) {
+        return static_cast<T>(1 << (it.get_id(0) % (sizeof(T) * 8)));
+      },
+      [](auto &a, auto v) { a.fetch_or(v); }, expected);
 }
 
 template <typename T> int test_atomic_and() {
   const T initial = static_cast<T>(~static_cast<T>(0));
   const T expected = static_cast<T>(0);
 
-  return test_atomic(initial,
-                      [](item<1> it) {
-                        return static_cast<T>(~static_cast<T>(
-                            1 << (it.get_id(0) % (sizeof(T) * 8))));
-                      },
-                      [](auto &a, auto v) { a.fetch_and(v); }, expected);
+  return test_atomic(
+      initial,
+      [](item<1> it) {
+        return static_cast<T>(
+            ~static_cast<T>(1 << (it.get_id(0) % (sizeof(T) * 8))));
+      },
+      [](auto &a, auto v) { a.fetch_and(v); }, expected);
 }
 
 template <typename T> int test_atomic_xor() {
   const T initial = static_cast<T>(0);
   const T expected = initial;
 
-  return test_atomic(initial,
-                      [](item<1> it) {
-                        return static_cast<T>(1 << (it.get_id(0) %
-                                                     (sizeof(T) * 8)));
-                      },
-                      [](auto &a, auto v) { a.fetch_xor(v); }, expected);
+  return test_atomic(
+      initial,
+      [](item<1> it) {
+        return static_cast<T>(1 << (it.get_id(0) % (sizeof(T) * 8)));
+      },
+      [](auto &a, auto v) { a.fetch_xor(v); }, expected);
 }
 
 int main() {
