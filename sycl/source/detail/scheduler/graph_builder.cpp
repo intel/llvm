@@ -1278,7 +1278,7 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
     ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
     std::vector<Requirement *> Requirements,
-    std::vector<detail::EventImplPtr> &Events,
+    std::vector<detail::captured_dependency> &Events,
     std::vector<Command *> &ToEnqueue) {
   auto NewCmd =
       std::make_unique<UpdateCommandBufferCommand>(Queue, Graph, Nodes);
@@ -1342,11 +1342,11 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
   }
 
   // Register all the events as dependencies
-  for (detail::EventImplPtr e : Events) {
-    if (e->getCommand() && e->getCommand() == NewCmd.get()) {
+  for (const detail::captured_dependency &Dep : Events) {
+    if (Dep.Binding->MCommand == NewCmd.get()) {
       continue;
     }
-    if (Command *ConnCmd = NewCmd->addDep(std::move(e), ToCleanUp))
+    if (Command *ConnCmd = NewCmd->addDep(Dep, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
 

@@ -485,7 +485,7 @@ public:
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
       ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
       std::vector<Requirement *> Requirements,
-      std::vector<detail::EventImplPtr> &Events);
+      std::vector<detail::captured_dependency> &Events);
 
   static bool areEventsSafeForSchedulerBypass(events_range DepEvents,
                                               context_impl &Context);
@@ -666,7 +666,7 @@ protected:
         ext::oneapi::experimental::detail::exec_graph_impl *Graph,
         ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
         std::vector<Requirement *> Requirements,
-        std::vector<detail::EventImplPtr> &Events,
+        std::vector<detail::captured_dependency> &Events,
         std::vector<Command *> &ToEnqueue);
 
     std::vector<SYCLMemObjI *> MMemObjs;

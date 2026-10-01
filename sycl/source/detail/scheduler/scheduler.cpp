@@ -654,7 +654,7 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
     ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
     std::vector<Requirement *> Requirements,
-    std::vector<detail::EventImplPtr> &Events) {
+    std::vector<detail::captured_dependency> &Events) {
   std::vector<Command *> AuxiliaryCmds;
   EventImplPtr NewCmdEvent = nullptr;
 

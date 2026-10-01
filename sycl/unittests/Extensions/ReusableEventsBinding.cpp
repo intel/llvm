@@ -62,6 +62,8 @@ std::map<ur_event_handle_t, int> ReleaseCounts;
 std::vector<std::vector<ur_event_handle_t>> KernelLaunchWaitLists;
 std::vector<ur_event_handle_t> KernelEvents;
 std::vector<std::vector<ur_event_handle_t>> BarrierWaitLists;
+std::vector<std::vector<ur_event_handle_t>> CommandBufferWaitLists;
+std::vector<ur_event_handle_t> CommandBufferEvents;
 std::vector<ur_event_handle_t> WaitedEvents;
 std::mutex BackendMutex;
 
@@ -118,6 +120,19 @@ ur_result_t redefinedUrEnqueueKernelLaunchWithArgsExp(void *pParams) {
                                          *params.pnumEventsInWaitList);
   ur_event_handle_t Handle = newFakeEvent();
   KernelEvents.push_back(Handle);
+  if (*params.pphEvent)
+    **params.pphEvent = Handle;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t redefinedUrEnqueueCommandBufferExp(void *pParams) {
+  auto params = *static_cast<ur_enqueue_command_buffer_exp_params_t *>(pParams);
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  CommandBufferWaitLists.emplace_back(*params.pphEventWaitList,
+                                      *params.pphEventWaitList +
+                                          *params.pnumEventsInWaitList);
+  ur_event_handle_t Handle = newFakeEvent();
+  CommandBufferEvents.push_back(Handle);
   if (*params.pphEvent)
     **params.pphEvent = Handle;
   return UR_RESULT_SUCCESS;
@@ -243,6 +258,8 @@ protected:
     KernelLaunchWaitLists.clear();
     KernelEvents.clear();
     BarrierWaitLists.clear();
+    CommandBufferWaitLists.clear();
+    CommandBufferEvents.clear();
     WaitedEvents.clear();
 
     mock::getCallbacks().set_replace_callback("urEventCreateExp",
@@ -260,6 +277,8 @@ protected:
         &redefinedUrEnqueueKernelLaunchWithArgsExp);
     mock::getCallbacks().set_replace_callback("urEnqueueEventsWait",
                                               &redefinedUrEnqueueEventsWait);
+    mock::getCallbacks().set_replace_callback(
+        "urEnqueueCommandBufferExp", &redefinedUrEnqueueCommandBufferExp);
     mock::getCallbacks().set_replace_callback(
         "urEnqueueEventsWaitWithBarrierExt",
         &redefinedUrEnqueueEventsWaitWithBarrierExt);
@@ -531,6 +550,57 @@ TEST_F(ReusableEventsBindingTest, GetWaitListFollowsTheSignal) {
   EXPECT_TRUE(E.get_wait_list().empty());
 
   Q.wait();
+}
+
+// An updatable executable graph remembers its previous executions which went
+// through the scheduler, so that the next execution runs after them. That
+// memory is the execution's signal as it was: re-signaling the event the
+// execution returned does not let the next execution overtake it.
+TEST_F(ReusableEventsBindingTest,
+       GraphExecutionAfterResignalWaitsForPreviousExecution) {
+  sycl::queue Q{Ctx, Dev}; // out-of-order: no implicit in-order dependency
+  sycl::queue SignalQueue = inOrderQueue();
+
+  syclex::command_graph<syclex::graph_state::modifiable> Graph{Ctx, Dev};
+  Graph.add(
+      [&](sycl::handler &CGH) { CGH.single_task<BindingTestKernel>([]() {}); });
+  auto Exec = Graph.finalize(syclex::property::graph::updatable{});
+
+  // The first execution is held behind a host task, so it goes through the
+  // scheduler and is remembered by the executable graph.
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  sycl::event HostTask = blockQueue(Q, Gate);
+  sycl::event E1 = Q.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(HostTask);
+    CGH.ext_oneapi_graph(Exec);
+  });
+  EXPECT_EQ(handleOf(E1), nullptr);
+
+  syclex::enqueue_signal_event(SignalQueue, E1);
+  ASSERT_EQ(CreatedEvents.size(), 1u);
+  const ur_event_handle_t Signal = CreatedEvents[0];
+  EXPECT_EQ(handleOf(E1), Signal);
+
+  // The second execution depends on the first one as recorded, which is still
+  // held, so it is held too. Depending on the signal would let it through.
+  Q.ext_oneapi_graph(Exec);
+  {
+    std::lock_guard<std::mutex> Lock(BackendMutex);
+    EXPECT_TRUE(CommandBufferWaitLists.empty());
+  }
+
+  Gate->open();
+  Q.wait();
+  SignalQueue.wait();
+
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  ASSERT_EQ(CommandBufferWaitLists.size(), 2u);
+  ASSERT_EQ(CommandBufferEvents.size(), 2u);
+  EXPECT_TRUE(CommandBufferWaitLists[0].empty());
+  EXPECT_EQ(CommandBufferWaitLists[1],
+            std::vector<ur_event_handle_t>{CommandBufferEvents[0]});
+  EXPECT_EQ(handleOf(E1), Signal);
 }
 
 } // anonymous namespace

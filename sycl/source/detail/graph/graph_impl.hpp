@@ -789,8 +789,8 @@ public:
   /// @return true if all previous submissions have been completed, false
   /// otherwise.
   bool previousSubmissionCompleted() const {
-    for (auto Event : MSchedulerDependencies) {
-      if (!Event->isCompleted()) {
+    for (const auto &Dep : MSchedulerDependencies) {
+      if (!Dep.Binding->isCompleted()) {
         return false;
       }
     }
@@ -1027,8 +1027,11 @@ private:
   /// all nodes enqueued to the graph.
   std::vector<sycl::detail::AccessorImplHost *> MRequirements;
   /// List of dependencies that enqueue or update commands need to wait on
-  /// when using the scheduler path.
-  std::vector<sycl::detail::EventImplPtr> MSchedulerDependencies;
+  /// when using the scheduler path: the previous executions and updates, each
+  /// as the signal it was when it was recorded, so that a later
+  /// enqueue_signal_event on the event an execution returned does not change
+  /// what the next execution waits for (see captured_dependency).
+  std::vector<sycl::detail::captured_dependency> MSchedulerDependencies;
   /// List of the partitions that compose the exec graph.
   std::vector<std::shared_ptr<partition>> MPartitions;
   /// Storage for copies of nodes from the original modifiable graph.

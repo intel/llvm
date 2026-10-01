@@ -1217,10 +1217,11 @@ exec_graph_impl::~exec_graph_impl() {
 
 // Clean up any execution events which have finished so we don't pass them
 // to the scheduler.
-static void cleanupExecutionEvents(std::vector<EventImplPtr> &ExecutionEvents) {
+static void cleanupExecutionEvents(
+    std::vector<detail::captured_dependency> &ExecutionEvents) {
 
-  auto Predicate = [](EventImplPtr &EventPtr) {
-    return EventPtr->isCompleted();
+  auto Predicate = [](const detail::captured_dependency &Dep) {
+    return Dep.Binding->isCompleted();
   };
 
   ExecutionEvents.erase(
@@ -1422,7 +1423,8 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
       // dependency for the next graph execution. If we don't the next graph
       // execution could end up with the same host-task node executing in
       // parallel.
-      MSchedulerDependencies.push_back(EnqueueEvent);
+      MSchedulerDependencies.push_back(
+          detail::capture_dependency(EnqueueEvent));
       if (EventNeeded) {
         const bool IsLastPartition = (Partition == MPartitions.back());
         if (IsLastPartition) {
@@ -1506,8 +1508,10 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 
   // Command buffer path
   cleanupExecutionEvents(MSchedulerDependencies);
-  for (const detail::EventImplPtr &Event : MSchedulerDependencies)
-    CGData.MEvents.push_back(detail::capture_dependency(Event));
+  // As recorded: the previous execution's signal, not whatever its event may
+  // represent by now.
+  for (const detail::captured_dependency &Dep : MSchedulerDependencies)
+    CGData.MEvents.push_back(Dep);
   bool IsCGDataSafeForSchedulerBypass =
       detail::Scheduler::areEventsSafeForSchedulerBypass(
           CGData.MEvents, Queue.getContextImpl()) &&
@@ -1535,7 +1539,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
       // of command-buffers.
       if (MIsUpdatable) {
         MSchedulerDependencies.push_back(
-            EventNeeded ? SchedulerEvent : std::move(SchedulerEvent));
+            detail::capture_dependency(SchedulerEvent));
       }
 
       if (EventNeeded) {
@@ -1802,8 +1806,8 @@ void exec_graph_impl::update(nodes_range Nodes) {
       // GPU-complete before creating the update command. Otherwise a
       // deferred submit can issue after this update mutates the command
       // list, running with the wrong state.
-      for (const auto &Event : MSchedulerDependencies) {
-        Event->wait();
+      for (const detail::captured_dependency &Dep : MSchedulerDependencies) {
+        sycl::detail::queue_impl::waitForDependency(Dep);
       }
     }
     cleanupExecutionEvents(MSchedulerDependencies);
@@ -1815,7 +1819,7 @@ void exec_graph_impl::update(nodes_range Nodes) {
             this, Nodes, MQueueImpl.get(), std::move(UpdateRequirements),
             MSchedulerDependencies);
 
-    MSchedulerDependencies.push_back(UpdateEvent);
+    MSchedulerDependencies.push_back(detail::capture_dependency(UpdateEvent));
 
     if (MContainsHostTask) {
       // If the graph has HostTasks, the update has to be blocking. This is
