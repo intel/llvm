@@ -603,8 +603,6 @@ private:
   void setArgHelper(int ArgIndex,
                     sycl::ext::oneapi::experimental::raw_kernel_arg &&Arg) {
     auto StoredArg = storeRawArg(Arg);
-    // A pointer argument has to be bound as one: a backend may reach for it
-    // through a different entry point than the one that takes plain bytes.
     addArg(Arg.MIsPointer ? detail::kernel_param_kind_t::kind_pointer
                           : detail::kernel_param_kind_t::kind_std_layout,
            StoredArg, Arg.MArgSize, ArgIndex);

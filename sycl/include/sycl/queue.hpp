@@ -73,17 +73,14 @@ class raw_kernel_arg;
 
 // Launches an already built `sycl::kernel` with an explicit argument list,
 // bypassing the handler and the command group object the same way
-// submit_kernel_direct_* does for kernel function objects. The arguments are
-// passed as a pointer and a count rather than as a view type, so that the
-// spelling the public overloads use is not part of the ABI.
+// submit_kernel_direct_* does for kernel function objects.
+// A pointer and a count rather than a span, so that the span type the public
+// overloads use can change without an ABI break.
 void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
     const kernel &Kernel, const detail::KernelArgView *Args, size_t NumArgs,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-// As above, for an argument list that is already a contiguous sequence of
-// `raw_kernel_arg`, which carries its own kind per element, so the caller needs
-// no conversion step.
 void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
     const kernel &Kernel, const ext::oneapi::experimental::raw_kernel_arg *Args,

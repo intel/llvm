@@ -5,12 +5,9 @@
 // RUN: %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Array %s
 // RUN: %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Span %s
 
-// The overloads that take the arguments of a sycl::kernel as a sequence take a
-// std::span, so they do not exist before C++20. A caller that passes its
-// argument list as a container there would otherwise have the container bound
-// as a single kernel argument, which compiles for any trivially copyable one
-// and only fails once the kernel is launched, so it is diagnosed instead. Each
-// of the five launch functions has to say so, hence the count.
+// Before C++20 a trivially copyable sequence of raw_kernel_arg would bind as
+// one kernel argument, so every launch function rejects a sequence. The queue
+// and handler forms share an instantiation, hence five errors for ten calls.
 
 // CHECK-COUNT-5: Passing the arguments of a sycl::kernel as a sequence requires C++20
 
@@ -49,8 +46,7 @@ void argument_list_as_a_container(sycl::queue Q, sycl::handler &CGH,
 void one_argument_at_a_time(sycl::queue Q, sycl::handler &CGH,
                             sycl::range<1> Range, sycl::nd_range<1> NdRange,
                             const sycl::kernel &Kernel) {
-  // A single raw_kernel_arg and typed arguments are one argument each, so they
-  // are unaffected by the standard in use.
+  // A single raw_kernel_arg and typed arguments are still accepted.
   int Value = 1;
   int *Pointer = nullptr;
   oneapiext::single_task(Q, Kernel,

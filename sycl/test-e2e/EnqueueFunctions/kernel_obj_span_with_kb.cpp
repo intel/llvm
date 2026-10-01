@@ -7,10 +7,7 @@
 
 // Tests the single_task and parallel_for overloads, and the launch_config forms
 // of parallel_for and nd_launch, that take the arguments of a sycl::kernel as a
-// std::span of raw_kernel_arg, i.e. an argument list whose length is only known
-// at run time. Those overloads take a std::span, hence C++20. They have to bind
-// the same arguments in the same order as the parameter pack overloads, on the
-// queue and on the handler alike.
+// std::span of raw_kernel_arg.
 // NOTE: This relies on the availability of an OpenCL C compiler.
 
 #include <span>
@@ -53,8 +50,6 @@ int main() {
   int Count = N;
   int Value = 0;
 
-  // A pointer argument has to say that it is one, since the byte form of a
-  // pointer must not be passed to the byte overload of raw_kernel_arg.
   std::vector<oneapiext::raw_kernel_arg> SingleTaskArgs;
   SingleTaskArgs.emplace_back(&Count, sizeof(Count));
   SingleTaskArgs.emplace_back(&Value, sizeof(Value));
@@ -75,9 +70,7 @@ int main() {
 
   int Failed = 0;
 
-  // Each launch below passes a different value, so a launch that binds a value
-  // left over from an earlier one, or binds the arguments in the wrong order,
-  // shows up as a wrong result.
+  // A different value per launch, so a stale or misordered argument shows up.
   auto Run = [&](int Written, const char *Name, auto &&Launch) {
     Q.memset(Memory, 0, N * sizeof(int));
     Value = Written;
@@ -96,12 +89,11 @@ int main() {
     });
   });
 
-  // The container holding the arguments converts to that span, so passing it
-  // has to bind the arguments it holds rather than the container object.
+  // A container converts to std::span.
   Run(43, "single_task argument list passed as a container",
       [&] { oneapiext::single_task(Q, KernelSingleTask, SingleTaskArgs); });
 
-  // The parameter pack overload has to agree element for element.
+  // The same arguments through the parameter pack overload.
   Run(44, "single_task parameter pack overload", [&] {
     oneapiext::single_task(
         Q, KernelSingleTask, oneapiext::raw_kernel_arg{&Count, sizeof(Count)},
@@ -166,5 +158,5 @@ int main() {
   });
 
   sycl::free(Memory, Q);
-  return Failed;
+  return Failed != 0;
 }

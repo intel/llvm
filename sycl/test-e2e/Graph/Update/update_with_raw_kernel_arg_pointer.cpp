@@ -5,8 +5,7 @@
 
 // REQUIRES: ocloc && level_zero
 
-// Tests updating a raw_kernel_arg that was built as a pointer argument, which
-// has to rebind the pointer rather than the bytes one is made of.
+// Tests updating a raw_kernel_arg built as a pointer argument.
 
 #include "../graph_common.hpp"
 
@@ -52,7 +51,7 @@ int main() {
 
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
-  // PtrA is the one the pointer argument was built from.
+  // Before the update the kernel writes to PtrA only.
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
   std::vector<int> HostDataA(N);

@@ -884,9 +884,6 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 }
 
 namespace {
-// The two argument forms differ only in how one element yields the bytes to
-// bind and their kind: a raw_kernel_arg carries plain bytes unless it was built
-// as a pointer argument.
 inline const sycl::detail::KernelArgView &
 makeKernelArgView(const sycl::detail::KernelArgView &Arg) {
   return Arg;

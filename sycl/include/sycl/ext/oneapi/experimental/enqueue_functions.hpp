@@ -147,37 +147,28 @@ sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
 }
 
 #if __cpp_lib_span
-// Binds an argument list that is held as a sequence, for the overloads that
-// enqueue through a handler.
 inline void setRawKernelArgs(handler &CGH,
                              std::span<const raw_kernel_arg> Args) {
-  // set_arg only takes an rvalue raw_kernel_arg; an lvalue would select the
-  // generic overload and bind the object itself as the argument.
+  // An lvalue would pick the generic set_arg and bind the object itself.
   for (size_t I = 0; I < Args.size(); ++I)
     CGH.set_arg(static_cast<int>(I), raw_kernel_arg{Args[I]});
 }
 #endif
 
-// True when a parameter pack overload was handed the argument list itself, as a
-// container that converts to the span the sibling overload takes. A pack is an
-// exact match and wins overload resolution, so such a call has to be forwarded
-// rather than bound as one argument. Without `std::span` there is no overload
-// taking a sequence, so no call can be one.
 #if __cpp_lib_span
+// A single argument that converts to std::span is the argument list itself. The
+// pack overload is an exact match for it, so it forwards such a call.
 template <typename... ArgsT>
 inline constexpr bool is_arg_list_container_v =
     sizeof...(ArgsT) == 1 &&
     (std::is_convertible_v<ArgsT, std::span<const raw_kernel_arg>> && ...);
 #else
+// Without std::span there is no sequence overload to forward to.
 template <typename... ArgsT>
 inline constexpr bool is_arg_list_container_v = false;
 #endif
 
 #if !__cpp_lib_span
-// A contiguous sequence of `raw_kernel_arg`, recognized without `std::span` so
-// that a caller passing its argument list as a container before C++20 is told
-// so, rather than having the container bound as a single kernel argument, which
-// compiles for any trivially copyable one.
 template <typename T, typename = void>
 inline constexpr bool is_raw_kernel_arg_sequence_v =
     std::is_array_v<T> &&
@@ -195,9 +186,9 @@ inline constexpr bool is_arg_list_sequence_v =
     (is_raw_kernel_arg_sequence_v<unqualified_arg_t<ArgsT>> && ...);
 #endif
 
-// Rejects an argument list passed as a container before C++20. `LaunchT` is the
-// range or launch configuration, `void` for `single_task`, so that each launch
-// function reports its own error.
+// Rejects an argument list passed as a sequence before C++20, where a trivially
+// copyable one would otherwise bind as a single kernel argument. `LaunchT`
+// separates the instantiations, so each launch function reports the error.
 template <typename LaunchT, typename... ArgsT> void diagnoseArgListSequence() {
 #if !__cpp_lib_span
   static_assert(!is_arg_list_sequence_v<ArgsT...>,
@@ -695,19 +686,17 @@ template <int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
                ArgsT &&...Args) {
   detail::diagnoseArgListSequence<nd_range<Dimensions>, ArgsT...>();
-  // A container of raw_kernel_arg is the argument list, not one argument, and
-  // the pack is what overload resolution picks for it, so hand it over to the
-  // overload that takes a span.
+  // A sequence of raw_kernel_arg goes to the std::span overload.
+  // The handler-less path only takes arguments that can be bound directly,
+  // anything else goes through the handler overload above.
   if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
 #if __cpp_lib_span
     nd_launch(std::move(Q), Range, KernelObj,
               std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
 #endif
   } else if constexpr ((detail::is_direct_kernel_arg_v<ArgsT> && ...)) {
-    // The handler-less path only takes arguments that can be bound directly,
-    // anything else goes through the handler overload above. The array is one
-    // element longer than the pack so that a zero-argument kernel stays well
-    // formed.
+    // The array is one element longer than the pack so that a zero-argument
+    // kernel stays well formed.
     const sycl::detail::KernelArgView ArgViews[sizeof...(ArgsT) + 1] = {
         detail::makeKernelArgView(Args)...};
     sycl::detail::tls_code_loc_t TlsCodeLocCapture{
@@ -731,9 +720,6 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
   CGH.parallel_for(Range, KernelObj);
 }
 
-// Takes the kernel arguments as a contiguous sequence instead of a parameter
-// pack, for a caller that only learns its argument list at run time and would
-// otherwise need one instantiation of the pack overload per argument count.
 template <int Dimensions>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
                std::span<const raw_kernel_arg> Args,

@@ -6,10 +6,7 @@
 // RUN: %{run} %t.out
 
 // Tests the nd_launch overloads that take the arguments of a sycl::kernel as a
-// std::span of raw_kernel_arg, i.e. an argument list whose length is only known
-// at run time. Those overloads take a std::span, hence C++20. They have to bind
-// the same arguments in the same order as the parameter pack overloads, on the
-// queue and on the handler alike.
+// std::span of raw_kernel_arg.
 
 #include <span>
 
@@ -23,6 +20,8 @@
 
 #include "common.hpp"
 
+#include <atomic>
+#include <thread>
 #include <vector>
 
 namespace syclext = sycl::ext::oneapi;
@@ -33,8 +32,7 @@ static_assert(SYCL_EXT_ONEAPI_ENQUEUE_FUNCTIONS >= 2,
 constexpr size_t N = 1024;
 constexpr size_t WGSize = 8;
 
-// A mixture of argument sizes, so that a wrong size or a wrong order shows up
-// as a wrong result rather than as a silent pass.
+// A mixture of argument sizes, so that a wrong size or order shows up.
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((oneapiext::nd_range_kernel<1>))
 void addMixed(int *Ptr, int A, long B, float C, char D) {
   size_t I = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
@@ -67,10 +65,6 @@ int main() {
   char D = 4;
   constexpr int Sum = 1 + 20 + 300 + 4;
 
-  // The argument list is built at run time, which is the case these overloads
-  // exist for. A pointer argument has to say that it is one, since the byte
-  // form of a pointer must not be passed to the byte overload of
-  // raw_kernel_arg.
   std::vector<oneapiext::raw_kernel_arg> Args;
   Args.emplace_back(&Memory, oneapiext::pointer_arg);
   Args.emplace_back(&A, sizeof(A));
@@ -81,8 +75,8 @@ int main() {
 
   int Failed = 0;
 
-  // A run of launches through one span, so that an argument bound to storage
-  // that does not outlive a single call would show up.
+  // Several launches through one span before a wait, each of which has to bind
+  // the same arguments.
   constexpr int Launches = 8;
   Q.memset(Memory, 0, N * sizeof(int));
   for (int I = 0; I < Launches; ++I)
@@ -91,7 +85,7 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, Sum * Launches, I, "span overload");
 
-  // The parameter pack overload has to agree element for element.
+  // The same arguments through the parameter pack overload.
   Q.memset(Memory, 0, N * sizeof(int));
   oneapiext::nd_launch(
       Q, Ndr, Kernel,
@@ -104,7 +98,6 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, Sum, I, "parameter pack overload");
 
-  // And so does the handler form of the span overload.
   Q.memset(Memory, 0, N * sizeof(int));
   Q.submit([&](sycl::handler &CGH) {
      oneapiext::nd_launch(CGH, Ndr, Kernel, ArgSpan);
@@ -112,8 +105,7 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, Sum, I, "handler form of the span overload");
 
-  // The container holding the arguments converts to that span, so passing it
-  // has to bind the arguments it holds rather than the container object.
+  // A container converts to std::span.
   Q.memset(Memory, 0, N * sizeof(int));
   oneapiext::nd_launch(Q, Ndr, Kernel, Args);
   Q.wait();
@@ -127,7 +119,6 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, Sum, I, "container through the handler form");
 
-  // A mutable span of the same sequence names the same argument list.
   Q.memset(Memory, 0, N * sizeof(int));
   oneapiext::nd_launch(
       Q, Ndr, Kernel,
@@ -136,8 +127,7 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, Sum, I, "argument list as a mutable span");
 
-  // A one element span is the boundary against the parameter pack overload,
-  // which a single raw_kernel_arg selects instead.
+  // A one element span is still an argument list, not a single argument.
   std::vector<oneapiext::raw_kernel_arg> OneArg{
       {&Memory, oneapiext::pointer_arg}};
   Q.memset(Memory, 0, N * sizeof(int));
@@ -148,21 +138,28 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 1, I, "one element span");
 
-  // A dependency the scheduler has to track forces the command group path,
-  // which the span form has to take as well.
+  // An unfinished host task keeps the launch off the scheduler bypass, so the
+  // arguments have to be copied; they change before the kernel runs.
   {
-    sycl::buffer<int, 1> Buf{sycl::range<1>{N}};
+    std::atomic<bool> Release{false};
     Q.memset(Memory, 0, N * sizeof(int));
     Q.submit([&](sycl::handler &CGH) {
-      sycl::accessor Acc{Buf, CGH, sycl::write_only, sycl::no_init};
-      CGH.fill(Acc, 7);
+      CGH.host_task([&] {
+        while (!Release.load())
+          std::this_thread::yield();
+      });
     });
     oneapiext::nd_launch(Q, Ndr, Kernel, ArgSpan);
+    A = 0;
+    B = 0;
+    C = 0.0f;
+    D = 0;
+    Release = true;
     Q.wait();
     for (size_t I = 0; I < N; ++I)
-      Failed += Check(Memory, Sum, I, "span form behind a buffer dependency");
+      Failed += Check(Memory, Sum, I, "span form behind a host task");
   }
 
   sycl::free(Memory, Q);
-  return Failed;
+  return Failed != 0;
 }
