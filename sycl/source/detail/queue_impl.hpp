@@ -391,6 +391,12 @@ public:
       sycl::span<const sycl::detail::KernelArgView> Args,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
+  void submit_kernel_obj_direct_without_event(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const ext::oneapi::experimental::raw_kernel_arg> Args,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
                                          detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
@@ -1004,6 +1010,13 @@ protected:
   submit_direct(bool CallerNeedsEvent, sycl::span<const event> DepEvents,
                 SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
                 bool InsertBarrierForInOrderCommand);
+
+  template <typename ArgT>
+  void submit_kernel_obj_direct_impl(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const ArgT> Args, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc);
 
   /// Performs barrier submission to the queue.
   ///
