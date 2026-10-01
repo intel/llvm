@@ -1849,7 +1849,7 @@ static bool isSYCLBINInput(const Arg *A) {
          llvm::sys::path::extension(A->getValue()) == ".syclbin";
 }
 
-/// Determine if -fsycl-link is used to link SYCLBIN files. The result of
+/// Determine if -fsycl-link is being used to link SYCLBIN files. The result of
 /// linking SYCLBIN files is a single SYCLBIN file in executable state, so no
 /// host code is involved and SYCLBIN inputs cannot be mixed with any other kind
 /// of input.
