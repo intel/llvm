@@ -325,9 +325,10 @@ The clang-linker-wrapper diagnoses the following as errors:
   code images, since only IR modules can be linked;
 * a link target that none of the input SYCLBIN files can provide device code
   for;
-* SYCL_EXTERNAL functions that are still undefined after the device code has
-  been linked, since the resulting executable-state SYCLBIN file must be
-  self-contained.
+* SYCL_EXTERNAL functions imported by one of the input SYCLBIN files but
+  exported by none of them, according to the `SYCL/imported symbols` and
+  `SYCL/exported symbols` metadata of their abstract modules, since the
+  resulting executable-state SYCLBIN file must be self-contained.
 
 
 ## SYCL runtime library changes

@@ -1858,18 +1858,22 @@ static bool checkForSYCLBINLink(const Driver &D, const DerivedArgList &Args,
   if (!Args.hasArgNoClaim(options::OPT_fsycl_link_EQ))
     return false;
 
-  const auto SYCLBINInput = llvm::find_if(
-      Inputs, [&](const auto &I) { return isSYCLBINInput(I.second); });
-  if (SYCLBINInput == Inputs.end())
+  // Find the first SYCLBIN input and the first input of any other kind.
+  const Arg *SYCLBINArg = nullptr, *OtherArg = nullptr;
+  for (const auto &[Ty, A] : Inputs) {
+    const Arg *&First = isSYCLBINInput(A) ? SYCLBINArg : OtherArg;
+    if (!First)
+      First = A;
+  }
+  if (!SYCLBINArg)
     return false;
 
-  for (const auto &[Ty, A] : Inputs) {
-    if (isSYCLBINInput(A))
-      continue;
+  if (OtherArg) {
     D.Diag(diag::err_drv_syclbin_link_mixed_inputs)
-        << SYCLBINInput->second->getValue()
-        << (A->getOption().matches(options::OPT_INPUT) ? A->getValue()
-                                                       : A->getAsString(Args));
+        << SYCLBINArg->getValue()
+        << (OtherArg->getOption().matches(options::OPT_INPUT)
+                ? OtherArg->getValue()
+                : OtherArg->getAsString(Args));
     return false;
   }
 
@@ -1877,10 +1881,41 @@ static bool checkForSYCLBINLink(const Driver &D, const DerivedArgList &Args,
   // is only used with the new offloading model. It is implied when linking
   // SYCLBIN files, so this only fires if it has been explicitly disabled.
   if (!Args.hasFlag(options::OPT_offload_new_driver,
-                    options::OPT_no_offload_new_driver, false))
+                    options::OPT_no_offload_new_driver, false)) {
     D.Diag(diag::err_drv_syclbin_link_requires_opt) << "--offload-new-driver";
+    return false;
+  }
 
   return true;
+}
+
+/// Linking SYCLBIN files with -fsycl-link is done by the SYCL offloading
+/// toolchain through the clang-linker-wrapper, so imply -fsycl and
+/// --offload-new-driver. These are checked on the input arguments when the
+/// offloading toolchains are set up, so they are added to \p UArgs rather than
+/// to the derived argument list. Explicit -fno-sycl or --no-offload-new-driver
+/// are left alone so they can be diagnosed.
+static void addSYCLBINLinkImpliedArgs(const Driver &D, InputArgList &UArgs) {
+  if (!UArgs.hasArgNoClaim(options::OPT_fsycl_link_EQ) ||
+      llvm::none_of(UArgs, isSYCLBINInput))
+    return;
+
+  SmallVector<const char *> ImpliedArgStrings;
+  if (!UArgs.hasArgNoClaim(options::OPT_fsycl, options::OPT_fno_sycl))
+    ImpliedArgStrings.push_back("-fsycl");
+  if (!UArgs.hasArgNoClaim(options::OPT_offload_new_driver,
+                           options::OPT_no_offload_new_driver))
+    ImpliedArgStrings.push_back("--offload-new-driver");
+  if (ImpliedArgStrings.empty())
+    return;
+
+  bool ImpliedContainsError;
+  auto ImpliedArgList = std::make_unique<InputArgList>(D.ParseArgStrings(
+      ImpliedArgStrings, /*UseDriverMode=*/false, ImpliedContainsError));
+  assert(!ImpliedContainsError &&
+         "failed to parse the options implied by linking SYCLBIN files");
+  for (Arg *Opt : *ImpliedArgList)
+    appendOneArg(UArgs, Opt);
 }
 
 Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
@@ -2167,29 +2202,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     }
   }
 
-  // Linking SYCLBIN files with -fsycl-link is done by the SYCL offloading
-  // toolchain through the clang-linker-wrapper, so imply -fsycl and
-  // --offload-new-driver. These are checked on the input arguments when the
-  // offloading toolchains are set up, so they are added here rather than to
-  // the derived argument list. Explicit -fno-sycl or --no-offload-new-driver
-  // are left alone so they can be diagnosed.
-  if (UArgs->hasArgNoClaim(options::OPT_fsycl_link_EQ) &&
-      llvm::any_of(*UArgs, isSYCLBINInput)) {
-    SmallVector<const char *> ImpliedArgStrings;
-    if (!UArgs->hasArgNoClaim(options::OPT_fsycl, options::OPT_fno_sycl))
-      ImpliedArgStrings.push_back("-fsycl");
-    if (!UArgs->hasArgNoClaim(options::OPT_offload_new_driver,
-                              options::OPT_no_offload_new_driver))
-      ImpliedArgStrings.push_back("--offload-new-driver");
-    if (!ImpliedArgStrings.empty()) {
-      bool ImpliedContainsError;
-      auto ImpliedArgList = std::make_unique<InputArgList>(ParseArgStrings(
-          ImpliedArgStrings, /*UseDriverMode=*/false, ImpliedContainsError));
-      if (!ImpliedContainsError)
-        for (Arg *Opt : *ImpliedArgList)
-          appendOneArg(*UArgs, Opt);
-    }
-  }
+  // Imply the options needed to link SYCLBIN files with -fsycl-link.
+  addSYCLBINLinkImpliedArgs(*this, *UArgs);
 
   // Perform the default argument translations.
   DerivedArgList *TranslatedArgs = TranslateInputArgs(*UArgs);

@@ -9,15 +9,14 @@
 // RUN: %clangxx -fsycl-link \
 // RUN:   --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:   %t/a.syclbin %t/b.syclbin -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHECK_JIT
+// RUN: | FileCheck %s --check-prefix=CHECK_JIT \
+// RUN:   --implicit-check-not=--sycl-device-link
 // CHECK_JIT: clang-linker-wrapper
-// CHECK_JIT-NOT: --sycl-device-link
 // CHECK_JIT-SAME: "--syclbin=executable"
 // CHECK_JIT-SAME: "--syclbin-link-target=spir64-unknown-unknown"
 /// For Linux - the default output name is 'a.syclbin'.
 // CHECK_JIT-SAME: "-o" "a.syclbin"
 // CHECK_JIT-SAME: "{{.*}}a.syclbin" "{{.*}}b.syclbin"
-// CHECK_JIT-NOT: --sycl-device-link
 
 /// The output file can be named with -o.
 // RUN: %clangxx -fsycl-link \
@@ -92,7 +91,8 @@
 // RUN: %clangxx -fsycl --offload-new-driver -fsycl-link \
 // RUN:   --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:   %t/a.syclbin %t/b.syclbin -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHECK_JIT
+// RUN: | FileCheck %s --check-prefix=CHECK_JIT \
+// RUN:   --implicit-check-not=--sycl-device-link
 
 /// Linking SYCLBIN files requires the new offloading model.
 // RUN: not %clangxx --no-offload-new-driver -fsycl-link \

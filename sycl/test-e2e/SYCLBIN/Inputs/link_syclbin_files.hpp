@@ -8,7 +8,10 @@ static constexpr size_t NUM = 10;
 // -fsycl-link and runs the kernel from Inputs/importing_kernel.cpp, which calls
 // the SYCL_EXTERNAL function from Inputs/exporting_function.cpp.
 int main(int argc, char *argv[]) {
-  assert(argc == 2);
+  if (argc != 2) {
+    std::cout << "Usage: " << argv[0] << " <path to SYCLBIN file>\n";
+    return 1;
+  }
 
   sycl::queue Q;
 
@@ -17,7 +20,10 @@ int main(int argc, char *argv[]) {
   auto KBExe = syclexp::get_kernel_bundle<sycl::bundle_state::executable>(
       Q.get_context(), {Q.get_device()}, std::string{argv[1]});
 
-  assert(KBExe.ext_oneapi_has_kernel("TestKernel1"));
+  if (!KBExe.ext_oneapi_has_kernel("TestKernel1")) {
+    std::cout << "Kernel TestKernel1 not found in the SYCLBIN file\n";
+    return 1;
+  }
   sycl::kernel TestKernel1 = KBExe.ext_oneapi_get_kernel("TestKernel1");
 
   int *Ptr = sycl::malloc_shared<int>(NUM, Q);

@@ -306,13 +306,13 @@ checkForCallsToUndefinedFunctions(const Module &M,
                                   bool SuppressUndefinedFuncWarnings) {
   if (AllowDeviceImageDependencies || SuppressUndefinedFuncWarnings)
     return;
-  SmallVector<const Function *> UndefinedFuncs;
-  collectUndefinedUserFunctions(M, UndefinedFuncs);
-  for (const Function *F : UndefinedFuncs)
-    WithColor::warning()
-        << "Undefined function " << F->getName() << " found in " << M.getName()
-        << ". This may result in runtime errors. Use "
-           "-Wno-sycl-undefined-func-in-image to suppress this warning.\n";
+  for (const Function &F : M) {
+    if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
+      WithColor::warning()
+          << "Undefined function " << F.getName() << " found in " << M.getName()
+          << ". This may result in runtime errors. Use "
+             "-Wno-sycl-undefined-func-in-image to suppress this warning.\n";
+  }
 }
 
 // Check "spirv.ExecutionMode" named metadata in the module and remove nodes
@@ -477,13 +477,6 @@ private:
 
 namespace llvm {
 namespace module_split {
-
-void collectUndefinedUserFunctions(const Module &M,
-                                   SmallVectorImpl<const Function *> &Funcs) {
-  for (const Function &F : M)
-    if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
-      Funcs.push_back(&F);
-}
 
 std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
   static const StringMap<IRSplitMode> Values = {{"kernel", SPLIT_PER_KERNEL},

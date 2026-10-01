@@ -20,6 +20,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
@@ -1419,6 +1420,9 @@ struct SYCLBINLinkTarget {
   StringRef Arch;
 };
 
+/// Parses the --syclbin-link-target=<triple>[=<arch>] options in \p Args. The
+/// value is split at the first '=', since an architecture name cannot contain
+/// one.
 static Expected<SmallVector<SYCLBINLinkTarget>>
 getSYCLBINLinkTargets(const ArgList &Args) {
   SmallVector<SYCLBINLinkTarget> Targets;
@@ -1447,16 +1451,38 @@ getSYCLBINProperty(const llvm::util::PropertySetRegistry &Registry,
   return &PropIt->second;
 }
 
+/// The symbols that the SYCLBIN files being linked import from and export to
+/// other device images, as recorded in the "SYCL/imported symbols" and
+/// "SYCL/exported symbols" property sets of their abstract modules.
+struct SYCLBINSymbols {
+  StringSet<> Imported;
+  StringSet<> Exported;
+};
+
+/// Adds the names of the properties in the property set \p SetName of
+/// \p Registry to \p Names.
+static void
+addSYCLBINPropertyNames(const llvm::util::PropertySetRegistry &Registry,
+                        StringRef SetName, StringSet<> &Names) {
+  auto SetIt = Registry.getPropSets().find(SetName);
+  if (SetIt == Registry.end())
+    return;
+  for (const auto &Prop : SetIt->second)
+    Names.insert(Prop.first);
+}
+
 /// Replaces the SYCLBIN files in \p Binaries, extracted from the input file
 /// \p FileName, with the IR modules they contain, so that they can be linked
 /// like any other device input. Each IR module is linked for each of the
 /// \p Targets with the same architecture as the target the IR module was
 /// compiled for, and \p CoveredTargets records the targets that received
 /// device code. If \p Targets is empty, the IR modules are linked for the
-/// target they were compiled for.
+/// target they were compiled for. The symbols imported and exported by the
+/// SYCLBIN files are added to \p Symbols.
 static Error unpackSYCLBINFiles(StringRef FileName,
                                 ArrayRef<SYCLBINLinkTarget> Targets,
                                 BitVector &CoveredTargets,
+                                SYCLBINSymbols &Symbols,
                                 SmallVectorImpl<OffloadFile> &Binaries) {
   if (llvm::none_of(Binaries, [](const OffloadFile &Binary) {
         return Binary.getBinary()->getImageKind() == IMG_SYCLBIN;
@@ -1523,6 +1549,13 @@ static Error unpackSYCLBINFiles(StringRef FileName,
             "cannot be linked",
             FileName.str().c_str());
 
+      addSYCLBINPropertyNames(
+          *AM.Metadata, llvm::util::PropertySetRegistry::SYCL_IMPORTED_SYMBOLS,
+          Symbols.Imported);
+      addSYCLBINPropertyNames(
+          *AM.Metadata, llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS,
+          Symbols.Exported);
+
       for (const SYCLBIN::IRModule &IRM : AM.IRModules) {
         const llvm::util::PropertyValue *TargetProp = getSYCLBINProperty(
             *IRM.Metadata,
@@ -1572,32 +1605,28 @@ static Error unpackSYCLBINFiles(StringRef FileName,
 }
 
 /// Linking SYCLBIN files results in a SYCLBIN file in executable state, which
-/// cannot be linked with other device code at runtime. Diagnose any use of a
-/// function that is defined in none of the SYCLBIN files being linked, such as
-/// a SYCL_EXTERNAL function, in the linked device code in \p LinkedFile.
-static Error checkForUndefinedFunctions(StringRef LinkedFile) {
-  // Nothing has been written in a dry run.
-  if (DryRun)
+/// cannot be linked with other device code at runtime. Diagnose any symbol,
+/// such as a SYCL_EXTERNAL function, that is imported by one of the SYCLBIN
+/// files being linked but exported by none of them. This mirrors how the SYCL
+/// runtime resolves imports when linking SYCLBIN files with sycl::link.
+static Error checkForUndefinedSYCLBINSymbols(const SYCLBINSymbols &Symbols) {
+  SmallVector<StringRef> UndefinedSymbols;
+  for (const auto &Imported : Symbols.Imported) {
+    StringRef Name = Imported.getKey();
+    if (!Symbols.Exported.contains(Name))
+      UndefinedSymbols.push_back(Name);
+  }
+  if (UndefinedSymbols.empty())
     return Error::success();
 
-  LLVMContext Context;
-  SMDiagnostic Diag;
-  std::unique_ptr<Module> M = parseIRFile(LinkedFile, Diag, Context);
-  if (!M)
-    return createStringError("failed to read the linked device code: %s",
-                             Diag.getMessage().str().c_str());
-
-  SmallVector<const Function *> UndefinedFuncs;
-  module_split::collectUndefinedUserFunctions(*M, UndefinedFuncs);
-  if (UndefinedFuncs.empty())
-    return Error::success();
-
+  // StringSet iteration order is unspecified, so sort for stable output.
+  llvm::sort(UndefinedSymbols);
   std::string Msg;
   raw_string_ostream OS(Msg);
   OS << "undefined SYCL_EXTERNAL function"
-     << (UndefinedFuncs.size() > 1 ? "s " : " ");
-  llvm::interleaveComma(UndefinedFuncs, OS, [&](const Function *F) {
-    OS << "'" << llvm::demangle(F->getName()) << "'";
+     << (UndefinedSymbols.size() > 1 ? "s " : " ");
+  llvm::interleaveComma(UndefinedSymbols, OS, [&](StringRef Name) {
+    OS << "'" << llvm::demangle(Name) << "'";
   });
   OS << " in the SYCLBIN files being linked";
   return createStringError(Msg);
@@ -2342,10 +2371,6 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
         sycl::linkDevice(InputModules, LinkerArgs);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
-
-    if (LinkingSYCLBINFiles)
-      if (Error Err = checkForUndefinedFunctions(*OutputOrErr))
-        return std::move(Err);
 
     Modules.push_back(*OutputOrErr);
   }
@@ -3304,6 +3329,7 @@ getDeviceInput(const ArgList &Args) {
   SmallVector<sycl::SYCLBINLinkTarget> &SYCLBINLinkTargets =
       *SYCLBINLinkTargetsOrErr;
   BitVector CoveredSYCLBINLinkTargets(SYCLBINLinkTargets.size());
+  sycl::SYCLBINSymbols SYCLBINSymbols;
 
   // Try to extract device code from the linker input files.
   bool WholeArchive = Args.hasArg(OPT_wholearchive_flag);
@@ -3352,8 +3378,9 @@ getDeviceInput(const ArgList &Args) {
       if (Error Err = sycl::extractBundledObjects(*Filename, Args, Binaries))
         return std::move(Err);
     }
-    if (Error Err = sycl::unpackSYCLBINFiles(
-            *Filename, SYCLBINLinkTargets, CoveredSYCLBINLinkTargets, Binaries))
+    if (Error Err = sycl::unpackSYCLBINFiles(*Filename, SYCLBINLinkTargets,
+                                             CoveredSYCLBINLinkTargets,
+                                             SYCLBINSymbols, Binaries))
       return std::move(Err);
 
     for (auto &Binary : Binaries) {
@@ -3369,13 +3396,16 @@ getDeviceInput(const ArgList &Args) {
     }
   }
 
-  if (LinkingSYCLBINFiles)
+  if (LinkingSYCLBINFiles) {
     for (const auto &[I, Target] : llvm::enumerate(SYCLBINLinkTargets))
       if (!CoveredSYCLBINLinkTargets.test(I))
         return createStringError(
             "none of the SYCLBIN files being linked contains device code "
             "that can be linked for target '%s'",
             Target.TheTriple.str().c_str());
+    if (Error Err = sycl::checkForUndefinedSYCLBINSymbols(SYCLBINSymbols))
+      return std::move(Err);
+  }
 
   // Handle the most specific target-ids first so a generic input merges last.
   llvm::stable_sort(ObjectFilesToExtract,

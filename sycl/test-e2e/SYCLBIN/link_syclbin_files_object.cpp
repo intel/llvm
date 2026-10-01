@@ -3,9 +3,9 @@
 // -- Test for linking object-state SYCLBIN files into an executable-state
 // -- SYCLBIN file with -fsycl-link.
 
-// ptxas currently fails to compile images with unresolved symbols. Disable for
-// other targets than SPIR-V until this has been resolved. (CMPLRLLVM-68810)
-// REQUIRES: target-spir
+// ptxas currently fails to compile images with unresolved symbols.
+// XFAIL: target-nvidia
+// XFAIL-TRACKER: CMPLRLLVM-68810
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
