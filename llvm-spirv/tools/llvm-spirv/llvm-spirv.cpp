@@ -59,7 +59,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/SourceMgr.h"
@@ -560,11 +559,13 @@ static int convertSPIRV() {
 static int regularizeLLVM(SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
 
-  std::unique_ptr<MemoryBuffer> MB =
-      ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFile)));
-  std::unique_ptr<Module> M =
-      ExitOnErr(getOwningLazyBitcodeModule(std::move(MB), Context,
-                                           /*ShouldLazyLoadMetadata=*/true));
+  SMDiagnostic GetIRErr;
+  std::unique_ptr<Module> M = getLazyIRFileModule(
+      InputFile, GetIRErr, Context, /*ShouldLazyLoadMetadata=*/true);
+  if (!M) {
+    ExitOnErr(
+        createStringError(inconvertibleErrorCode(), GetIRErr.getMessage()));
+  }
   ExitOnErr(M->materializeAll());
 
   if (OutputFile.empty()) {
