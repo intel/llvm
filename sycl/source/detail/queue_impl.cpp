@@ -782,7 +782,7 @@ void queue_impl::submit_async_free_direct(
     }
 
     return {submit_async_free_scheduler_bypass(Ptr, CGData.MEvents,
-                                              /*EventNeeded*/ false),
+                                               /*EventNeeded*/ false),
             /*SchedulerBypass*/ true};
   };
 

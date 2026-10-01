@@ -824,9 +824,10 @@ protected:
   /// to the backend through a scheduler bypass path.
   ///
   /// \param UREvent is the handle returned by the backend enqueue call.
-  /// \param DepEvents is the list of event dependencies of the command. They are
-  ///        only adopted by the event of out-of-order queues, which have to keep
-  ///        them alive.
+  /// \param DepEvents is the list of event dependencies of the command. They
+  /// are
+  ///        only adopted by the event of out-of-order queues, which have to
+  ///        keep them alive.
   ///
   /// \return the event representing the enqueued command.
   EventImplPtr makeEnqueuedEvent(ur_event_handle_t UREvent,
