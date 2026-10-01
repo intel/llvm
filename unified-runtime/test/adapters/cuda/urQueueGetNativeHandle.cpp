@@ -36,6 +36,69 @@ TEST_P(urCudaQueueGetNativeHandleTest, OutOfOrder) {
   ASSERT_SUCCESS_CUDA(cuStreamSynchronize(Stream));
 }
 
+TEST_P(urCudaQueueGetNativeHandleTest, UseDefaultStreamAlone) {
+  CUstream Stream;
+  ur_queue_properties_t props = {
+      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+      /*.pNext =*/nullptr,
+      /*.flags =*/UR_QUEUE_FLAG_USE_DEFAULT_STREAM,
+  };
+  ASSERT_SUCCESS(urQueueCreate(context, device, &props, &queue));
+  ASSERT_SUCCESS(
+      urQueueGetNativeHandle(queue, nullptr, (ur_native_handle_t *)&Stream));
+  unsigned int Flags = 0;
+  ASSERT_SUCCESS_CUDA(cuStreamGetFlags(Stream, &Flags));
+  ASSERT_EQ(Flags, static_cast<unsigned int>(CU_STREAM_DEFAULT));
+}
+
+TEST_P(urCudaQueueGetNativeHandleTest, SyncWithDefaultStreamAlone) {
+  CUstream Stream;
+  ur_queue_properties_t props = {
+      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+      /*.pNext =*/nullptr,
+      /*.flags =*/UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM,
+  };
+  ASSERT_SUCCESS(urQueueCreate(context, device, &props, &queue));
+  ASSERT_SUCCESS(
+      urQueueGetNativeHandle(queue, nullptr, (ur_native_handle_t *)&Stream));
+  unsigned int Flags = 0;
+  ASSERT_SUCCESS_CUDA(cuStreamGetFlags(Stream, &Flags));
+  ASSERT_EQ(Flags, static_cast<unsigned int>(CU_STREAM_NON_BLOCKING));
+}
+
+TEST_P(urCudaQueueGetNativeHandleTest, UseDefaultStreamCombinedWithPriority) {
+  CUstream Stream;
+  ur_queue_properties_t props = {
+      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+      /*.pNext =*/nullptr,
+      /*.flags =*/UR_QUEUE_FLAG_USE_DEFAULT_STREAM |
+          UR_QUEUE_FLAG_PRIORITY_HIGH,
+  };
+  ASSERT_SUCCESS(urQueueCreate(context, device, &props, &queue));
+  ASSERT_SUCCESS(
+      urQueueGetNativeHandle(queue, nullptr, (ur_native_handle_t *)&Stream));
+  unsigned int Flags = 0;
+  ASSERT_SUCCESS_CUDA(cuStreamGetFlags(Stream, &Flags));
+  ASSERT_EQ(Flags, static_cast<unsigned int>(CU_STREAM_DEFAULT));
+}
+
+TEST_P(urCudaQueueGetNativeHandleTest,
+       SyncWithDefaultStreamCombinedWithPriority) {
+  CUstream Stream;
+  ur_queue_properties_t props = {
+      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+      /*.pNext =*/nullptr,
+      /*.flags =*/UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM |
+          UR_QUEUE_FLAG_PRIORITY_LOW,
+  };
+  ASSERT_SUCCESS(urQueueCreate(context, device, &props, &queue));
+  ASSERT_SUCCESS(
+      urQueueGetNativeHandle(queue, nullptr, (ur_native_handle_t *)&Stream));
+  unsigned int Flags = 0;
+  ASSERT_SUCCESS_CUDA(cuStreamGetFlags(Stream, &Flags));
+  ASSERT_EQ(Flags, static_cast<unsigned int>(CU_STREAM_NON_BLOCKING));
+}
+
 TEST_P(urCudaQueueGetNativeHandleTest, InteropGuard) {
   CUstream Stream1, Stream2;
   ur_queue_properties_t props = {

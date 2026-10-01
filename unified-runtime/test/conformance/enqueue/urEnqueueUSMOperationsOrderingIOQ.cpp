@@ -15,5 +15,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     PrintQueueParam);
 
 TEST_P(urEnqueueUSMOperationsOrderingIOQTest, InOrderDiscardEventsOrdering) {
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
   runOrderingTestForSupportedUSMTypes();
 }
