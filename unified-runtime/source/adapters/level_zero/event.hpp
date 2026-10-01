@@ -104,6 +104,11 @@ struct ur_ze_event_list_t {
   ur_result_t collectEventsForReleaseAndDestroyUrZeEventList(
       std::list<ur_event_handle_t> &EventsToBeReleased);
 
+  // Release all the events in this object's UrEventList and destroy
+  // ur_ze_event_list_t data structure fields making it look empty. Used to
+  // drop a list that was never handed over to an event, e.g. on error paths.
+  void releaseAndDestroyUrZeEventList();
+
   // Had to create custom assignment operator because the mutex is
   // not assignment copyable. Just field by field copy of the other
   // fields.
