@@ -887,7 +887,7 @@ namespace {
 // The two argument forms differ only in how one element yields the bytes to
 // bind and their kind: a raw_kernel_arg carries plain bytes unless it was built
 // as a pointer argument.
-inline sycl::detail::KernelArgView
+inline const sycl::detail::KernelArgView &
 makeKernelArgView(const sycl::detail::KernelArgView &Arg) {
   return Arg;
 }
@@ -943,7 +943,7 @@ void queue_impl::submit_kernel_obj_direct_impl(
     // so they can be bound where the caller keeps them. Otherwise the command
     // group outlives the call and they have to be copied into its storage.
     for (size_t I = 0; I < Args.size(); ++I) {
-      const sycl::detail::KernelArgView View = makeKernelArgView(Args[I]);
+      const sycl::detail::KernelArgView &View = makeKernelArgView(Args[I]);
       // `ArgDesc` holds a `void *` because the kinds that carry an object
       // rather than bytes hand it out as a mutable pointer. These arguments are
       // bytes and this path only ever reads them, hence the cast.
