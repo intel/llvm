@@ -1,6 +1,6 @@
-// REQUIRES: aspect-ext_oneapi_atomic16
+// REQUIRES: arch-intel_gpu_cri
 
-// RUN: %{build} -o %t.out
+// RUN: %{build}  -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics -o %t.out
 // RUN: %{run} %t.out
 
 // This test is prepared with AI assistance
