@@ -109,8 +109,7 @@ inline constexpr bool check_if_device_copyable_v =
 template <typename T, typename> struct CheckFieldsAreDeviceCopyable;
 template <typename T, typename> struct CheckBasesAreDeviceCopyable;
 
-template <typename T>
-struct is_sycl_accessor : std::false_type {};
+template <typename T> struct is_sycl_accessor : std::false_type {};
 
 template <typename T>
 inline constexpr bool is_sycl_accessor_v = is_sycl_accessor<T>::value;
@@ -121,7 +120,7 @@ inline constexpr bool is_deprecated_device_copyable_v =
     (std::is_trivially_copy_constructible_v<T> &&
      std::is_trivially_destructible_v<T>) ||
     // Per the spec, sycl::accessor and related types are not considered
-    // device copyable, but can be captured in a kernel. Therefore, we 
+    // device copyable, but can be captured in a kernel. Therefore, we
     // add an explicit exception here
     is_sycl_accessor_v<T>;
 

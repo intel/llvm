@@ -2842,26 +2842,25 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
                                       detail::deduceAccessMode<Type4, Type5>()>;
 
 namespace detail {
-  // Add specializations for SYCL accessor types to the is_sycl_accessor trait.
-  // This is needed so that is_device_copyable<accessor> returns false, but
-  // they can still be captured in a kernel.
-  template <typename T>
-  struct is_sycl_accessor;
+// Add specializations for SYCL accessor types to the is_sycl_accessor trait.
+// This is needed so that is_device_copyable<accessor> returns false, but
+// they can still be captured in a kernel.
+template <typename T> struct is_sycl_accessor;
 
-  template <typename DataT, int Dimensions,
-          access::mode AccessMode,
-          access::target AccessTarget,
-          access::placeholder IsPlaceholder,
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
-  struct is_sycl_accessor<accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>> : std::true_type {};
+struct is_sycl_accessor<accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                                 IsPlaceholder, PropertyListT>>
+    : std::true_type {};
 
-  template <typename DataT, int Dimensions>
-  struct is_sycl_accessor<local_accessor<DataT, Dimensions>> : std::true_type {};
+template <typename DataT, int Dimensions>
+struct is_sycl_accessor<local_accessor<DataT, Dimensions>> : std::true_type {};
 
-  template <typename DataT, int Dimensions, access_mode AccessMode> 
-  struct is_sycl_accessor<host_accessor<DataT, Dimensions, AccessMode>> : std::true_type {};
-}
-
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct is_sycl_accessor<host_accessor<DataT, Dimensions, AccessMode>>
+    : std::true_type {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl
 
