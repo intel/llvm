@@ -468,6 +468,63 @@ TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOnWait) {
   ASSERT_FALSE(MSPtr->hasDeferredResources());
 }
 
+class AuxiliaryCleanupScheduler : public MockScheduler {
+public:
+  using MockScheduler::cleanupAuxiliaryResources;
+  using MockScheduler::registerAuxiliaryResources;
+};
+
+TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOutsideMutex) {
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  auto Completed = detail::event_impl::create_completed_host_event();
+  auto Pending = detail::event_impl::create_incomplete_host_event();
+  auto NestedWait = detail::event_impl::create_completed_host_event();
+  bool NestedWaitFinished = false;
+
+  MSPtr->registerAuxiliaryResources(Pending, {});
+  std::shared_ptr<const void> Resource(
+      new int{}, [NestedWait, &NestedWaitFinished](const void *Ptr) {
+        delete static_cast<const int *>(Ptr);
+        NestedWait->wait();
+        NestedWaitFinished = true;
+      });
+  MSPtr->registerAuxiliaryResources(Completed, {Resource});
+  Resource.reset();
+
+  MSPtr->cleanupAuxiliaryResources(detail::NON_BLOCKING);
+  EXPECT_TRUE(NestedWaitFinished);
+  EXPECT_TRUE(MSPtr->hasDeferredResources());
+
+  Pending->setComplete();
+  MSPtr->cleanupAuxiliaryResources(detail::NON_BLOCKING);
+  EXPECT_FALSE(MSPtr->hasDeferredResources());
+}
+
+TEST_F(SchedulerTest, SlowPathWaitReleasesResourcesDeferredByCleanup) {
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  bool ResourceDeleted = false;
+  auto *Cmd =
+      new MockCommandWithCallback(&QueueImpl, getMockRequirement(), [&] {
+        auto Completed = detail::event_impl::create_completed_host_event();
+        MSPtr->registerAuxiliaryResources(
+            Completed, {std::make_shared<MockAuxResource>(ResourceDeleted)});
+      });
+  detail::EventImplPtr Event = Cmd->getEvent();
+  ASSERT_EQ(Event->getHandle(), nullptr);
+
+  Event->wait();
+  EXPECT_TRUE(ResourceDeleted);
+  EXPECT_FALSE(MSPtr->hasDeferredResources());
+}
+
 TEST_F(SchedulerTest, SchedulerAccessWaitsForReplacement) {
   auto *MSPtr = new MockScheduler();
   AttachSchedulerWrapper AttachScheduler{MSPtr};

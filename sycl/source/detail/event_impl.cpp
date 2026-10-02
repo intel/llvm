@@ -406,8 +406,6 @@ void event_impl::wait(bool *Success) {
 #endif
 
   auto EventHandle = getHandle();
-  // Scheduler::waitForEvent() already releases deferred resources.
-  const bool WaitedViaScheduler = !EventHandle && MCommand;
   if (EventHandle)
     // presence of the native handle means the command has been enqueued, so no
     // need to go via the slow path event waiting in the scheduler
@@ -418,12 +416,10 @@ void event_impl::wait(bool *Success) {
   // Deferred resources are otherwise only released by later scheduler
   // activity, i.e. possibly not before runtime shutdown. The check is
   // lock-free so that wait() takes no lock when nothing is deferred.
-  if (!WaitedViaScheduler) {
-    auto SchedAccess = detail::GlobalHandler::getSchedulerAccess();
-    if (detail::Scheduler *Sched = SchedAccess.get()) {
-      if (Sched->hasDeferredResources())
-        Sched->releaseResources(BlockingT::NON_BLOCKING);
-    }
+  auto SchedAccess = detail::GlobalHandler::getSchedulerAccess();
+  if (detail::Scheduler *Sched = SchedAccess.get()) {
+    if (Sched->hasDeferredResources())
+      Sched->releaseResources(BlockingT::NON_BLOCKING);
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

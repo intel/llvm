@@ -631,14 +631,19 @@ void Scheduler::registerAuxiliaryResources(
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
   if (Blocking == BlockingT::NON_BLOCKING) {
-    std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
-    for (auto It = MAuxiliaryResources.begin();
-         It != MAuxiliaryResources.end();) {
-      if (It->first->isCompleted()) {
-        It = MAuxiliaryResources.erase(It);
-        MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
-      } else {
-        ++It;
+    std::vector<decltype(MAuxiliaryResources)::node_type> Released;
+    {
+      std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
+      for (auto It = MAuxiliaryResources.begin();
+           It != MAuxiliaryResources.end();) {
+        if (It->first->isCompleted()) {
+          if (Released.empty())
+            Released.reserve(MAuxiliaryResources.size());
+          Released.push_back(MAuxiliaryResources.extract(It++));
+          MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
+        } else {
+          ++It;
+        }
       }
     }
     return;
