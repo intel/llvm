@@ -1859,6 +1859,81 @@ bool Driver::loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx) {
   return false;
 }
 
+/// SYCLBIN input files are recognized by their .syclbin extension.
+static bool isSYCLBINInput(const Arg *A) {
+  return A->getOption().matches(options::OPT_INPUT) &&
+         llvm::sys::path::extension(A->getValue()) == ".syclbin";
+}
+
+/// Determine if -fsycl-link is being used to link SYCLBIN files. The result of
+/// linking SYCLBIN files is a single SYCLBIN file in executable state, so no
+/// host code is involved and SYCLBIN inputs cannot be mixed with any other kind
+/// of input.
+static bool checkForSYCLBINLink(const Driver &D, const DerivedArgList &Args,
+                                const InputList &Inputs) {
+  if (!Args.hasArgNoClaim(options::OPT_fsycl_link_EQ))
+    return false;
+
+  // Find the first SYCLBIN input and the first input of any other kind.
+  const Arg *SYCLBINArg = nullptr, *OtherArg = nullptr;
+  for (const auto &[Ty, A] : Inputs) {
+    const Arg *&First = isSYCLBINInput(A) ? SYCLBINArg : OtherArg;
+    if (!First)
+      First = A;
+  }
+  if (!SYCLBINArg)
+    return false;
+
+  if (OtherArg) {
+    D.Diag(diag::err_drv_syclbin_link_mixed_inputs)
+        << SYCLBINArg->getValue()
+        << (OtherArg->getOption().matches(options::OPT_INPUT)
+                ? OtherArg->getValue()
+                : OtherArg->getAsString(Args));
+    return false;
+  }
+
+  // SYCLBIN files are unpacked and linked by the clang-linker-wrapper, which
+  // is only used with the new offloading model. It is implied when linking
+  // SYCLBIN files, so this only fires if it has been explicitly disabled.
+  if (!Args.hasFlag(options::OPT_offload_new_driver,
+                    options::OPT_no_offload_new_driver, false)) {
+    D.Diag(diag::err_drv_syclbin_link_requires_opt) << "--offload-new-driver";
+    return false;
+  }
+
+  return true;
+}
+
+/// Linking SYCLBIN files with -fsycl-link is done by the SYCL offloading
+/// toolchain through the clang-linker-wrapper, so imply -fsycl and
+/// --offload-new-driver. These are checked on the input arguments when the
+/// offloading toolchains are set up, so they are added to \p UArgs rather than
+/// to the derived argument list. Explicit -fno-sycl or --no-offload-new-driver
+/// are left alone so they can be diagnosed.
+static void addSYCLBINLinkImpliedArgs(const Driver &D, InputArgList &UArgs) {
+  if (!UArgs.hasArgNoClaim(options::OPT_fsycl_link_EQ) ||
+      llvm::none_of(UArgs, isSYCLBINInput))
+    return;
+
+  SmallVector<const char *> ImpliedArgStrings;
+  if (!UArgs.hasArgNoClaim(options::OPT_fsycl, options::OPT_fno_sycl))
+    ImpliedArgStrings.push_back("-fsycl");
+  if (!UArgs.hasArgNoClaim(options::OPT_offload_new_driver,
+                           options::OPT_no_offload_new_driver))
+    ImpliedArgStrings.push_back("--offload-new-driver");
+  if (ImpliedArgStrings.empty())
+    return;
+
+  bool ImpliedContainsError;
+  auto ImpliedArgList = std::make_unique<InputArgList>(D.ParseArgStrings(
+      ImpliedArgStrings, /*UseDriverMode=*/false, ImpliedContainsError));
+  assert(!ImpliedContainsError &&
+         "failed to parse the options implied by linking SYCLBIN files");
+  for (Arg *Opt : *ImpliedArgList)
+    appendOneArg(UArgs, Opt);
+}
+
 Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   llvm::PrettyStackTraceString CrashInfo("Compilation construction");
 
@@ -2143,6 +2218,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     }
   }
 
+  // Imply the options needed to link SYCLBIN files with -fsycl-link.
+  addSYCLBINLinkImpliedArgs(*this, *UArgs);
+
   // Perform the default argument translations.
   DerivedArgList *TranslatedArgs = TranslateInputArgs(*UArgs);
 
@@ -2221,6 +2299,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Determine if there are any offload static libraries.
   if (checkForOffloadStaticLib(*C, *TranslatedArgs))
     setOffloadStaticLibSeen();
+
+  // Determine if -fsycl-link is used to link SYCLBIN files.
+  if (checkForSYCLBINLink(*this, *TranslatedArgs, Inputs))
+    setSYCLBINLinkSeen();
 
   // Check for any objects/archives that need to be compiled with the default
   // triple.
@@ -10224,10 +10306,12 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
-    // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
-    if ((offloadDeviceOnly() ||
-         C.getArgs().hasArgNoClaim(options::OPT_fsyclbin_EQ)) &&
-        JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
+    // Output to destination for -fsycl-device-only/-fsyclbin/linking of
+    // SYCLBIN files and Windows -o
+    if (((offloadDeviceOnly() ||
+          C.getArgs().hasArgNoClaim(options::OPT_fsyclbin_EQ)) &&
+         JA.getOffloadingDeviceKind() == Action::OFK_SYCL) ||
+        (getSYCLBINLinkSeen() && isa<LinkerWrapperJobAction>(JA)))
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
   }
@@ -10406,11 +10490,12 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   else
     BaseName = llvm::sys::path::filename(BasePath);
 
-  // When compiling with -fsyclbin, maintain a simple output file name for the
-  // resulting image.  A '.syclbin' extension is used to represent the resulting
-  // output file.
-  if (JA.getOffloadingDeviceKind() == Action::OFK_SYCL &&
-      C.getArgs().hasArgNoClaim(options::OPT_fsyclbin_EQ) &&
+  // When compiling with -fsyclbin or linking SYCLBIN files with -fsycl-link,
+  // maintain a simple output file name for the resulting image.  A '.syclbin'
+  // extension is used to represent the resulting output file.
+  if (((JA.getOffloadingDeviceKind() == Action::OFK_SYCL &&
+        C.getArgs().hasArgNoClaim(options::OPT_fsyclbin_EQ)) ||
+       (getSYCLBINLinkSeen() && isa<LinkerWrapperJobAction>(JA))) &&
       JA.getType() == types::TY_Image) {
     SmallString<128> SYCLBinOutput(getDefaultImageName());
     if (IsCLMode())
