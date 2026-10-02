@@ -1,0 +1,118 @@
+//==------ gather_scatter_rgba_typed.cpp - DPC++ ESIMD on-device test ------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// The gather4.typed/scatter4.typed messages exist only before Xe2.
+// REQUIRES: aspect-ext_intel_legacy_image
+// REQUIRES: gpu-intel-gen11 || gpu-intel-gen12 || gpu-intel-dg2
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+//
+// The test checks the functionality of the typed-surface (image) RGBA gather
+// and scatter ESIMD APIs: gather_rgba_typed / scatter_rgba_typed. A kernel
+// reads the pixels of an input image with gather_rgba_typed, adds a per-channel
+// constant and stores the result into an output image with scatter_rgba_typed.
+// The result is then verified on the host.
+
+#include "esimd_test_utils.hpp"
+
+#include <sycl/accessor_image.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+
+#include <iostream>
+#include <vector>
+
+using namespace sycl;
+using namespace sycl::ext::intel::esimd;
+namespace iexp = sycl::ext::intel::experimental::esimd;
+
+// Image dimensions (in pixels) and SIMD width.
+static constexpr unsigned Width = 256;
+static constexpr unsigned Height = 8;
+static constexpr unsigned N = 16;
+
+// Per-channel constants added by the kernel.
+static constexpr uint32_t DR = 1, DG = 2, DB = 3, DA = 4;
+
+int main() {
+  // 4 channels per pixel.
+  std::vector<uint32_t> InBuf(Width * Height * 4);
+  std::vector<uint32_t> OutBuf(Width * Height * 4, 0);
+
+  // Initialize the input image with deterministic per-channel values.
+  for (unsigned y = 0; y < Height; ++y) {
+    for (unsigned x = 0; x < Width; ++x) {
+      unsigned Pixel = y * Width + x;
+      InBuf[Pixel * 4 + 0] = Pixel;       // R
+      InBuf[Pixel * 4 + 1] = Pixel + 100; // G
+      InBuf[Pixel * 4 + 2] = Pixel + 200; // B
+      InBuf[Pixel * 4 + 3] = Pixel + 300; // A
+    }
+  }
+
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  std::cout << "Running on "
+            << q.get_device().get_info<sycl::info::device::name>() << "\n";
+
+  try {
+    image<2> ImgIn(InBuf.data(), image_channel_order::rgba,
+                   image_channel_type::unsigned_int32, range<2>{Width, Height});
+    image<2> ImgOut(OutBuf.data(), image_channel_order::rgba,
+                    image_channel_type::unsigned_int32,
+                    range<2>{Width, Height});
+
+    // Each work-item processes N consecutive pixels of one image row.
+    range<2> GlobalRange{Width / N, Height};
+
+    q.submit([&](handler &cgh) {
+       auto AccIn = ImgIn.get_access<uint4, access::mode::read>(cgh);
+       auto AccOut = ImgOut.get_access<uint4, access::mode::write>(cgh);
+       cgh.parallel_for<class TypedRGBA>(
+           GlobalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
+             uint32_t BaseX = it.get_id(0) * N;
+             uint32_t Y = it.get_id(1);
+
+             // Per-lane pixel coordinates.
+             simd<uint32_t, N> U(BaseX, 1); // BaseX, BaseX+1, ...
+             simd<uint32_t, N> V = Y;
+             simd<uint32_t, N> R = 0;
+
+             // Read all 4 channels; result is laid out channel-major:
+             // [R0..R(N-1) G0..G(N-1) B0..B(N-1) A0..A(N-1)].
+             simd<uint32_t, N * 4> Px =
+                 iexp::gather_rgba_typed<uint32_t, N>(AccIn, U, V);
+
+             Px.select<N, 1>(0 * N) += DR;
+             Px.select<N, 1>(1 * N) += DG;
+             Px.select<N, 1>(2 * N) += DB;
+             Px.select<N, 1>(3 * N) += DA;
+
+             iexp::scatter_rgba_typed<uint32_t, N>(AccOut, U, V, R, Px);
+           });
+     }).wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return 1;
+  }
+
+  // Verify.
+  unsigned NumErrors = 0;
+  for (unsigned Pixel = 0; Pixel < Width * Height && NumErrors < 16; ++Pixel) {
+    uint32_t Exp[4] = {InBuf[Pixel * 4 + 0] + DR, InBuf[Pixel * 4 + 1] + DG,
+                       InBuf[Pixel * 4 + 2] + DB, InBuf[Pixel * 4 + 3] + DA};
+    for (int C = 0; C < 4; ++C) {
+      uint32_t Got = OutBuf[Pixel * 4 + C];
+      if (Got != Exp[C]) {
+        std::cout << "Error at pixel " << Pixel << " channel " << C << ": got "
+                  << Got << " expected " << Exp[C] << "\n";
+        ++NumErrors;
+      }
+    }
+  }
+
+  std::cout << (NumErrors ? "FAILED\n" : "Passed\n");
+  return NumErrors ? 1 : 0;
+}
