@@ -157,7 +157,7 @@ private:
   T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
   static void releaseSchedulerAccess() noexcept;
-  static void stopSchedulerAccess() noexcept;
+  static void stopSchedulerAccess(bool WaitForAccess = true) noexcept;
 
   InstWithLock<Scheduler> MScheduler;
   // Mirror of MScheduler.Inst for lock-free readers. Published with release

@@ -39,6 +39,9 @@ using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 std::atomic<Scheduler *> GlobalHandler::MSchedulerPtr{nullptr};
 std::atomic<uint64_t> GlobalHandler::MSchedulerAccessState{0};
+#ifdef _WIN32
+std::atomic<bool> ProcessTerminating{false};
+#endif
 
 // forward decl
 void shutdown_early(bool);
@@ -185,9 +188,11 @@ void GlobalHandler::releaseSchedulerAccess() noexcept {
   MSchedulerAccessState.fetch_sub(1, std::memory_order_release);
 }
 
-void GlobalHandler::stopSchedulerAccess() noexcept {
+void GlobalHandler::stopSchedulerAccess(bool WaitForAccess) noexcept {
   constexpr uint64_t Closed = uint64_t{1} << 63;
   MSchedulerAccessState.fetch_or(Closed, std::memory_order_acq_rel);
+  if (!WaitForAccess)
+    return;
   while ((MSchedulerAccessState.load(std::memory_order_acquire) & ~Closed) != 0)
     std::this_thread::yield();
 }
@@ -361,6 +366,13 @@ void shutdown_early(bool CanJoinThreads = true) {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
+#ifdef _WIN32
+  // Threads are terminated without unwinding during process shutdown, so
+  // scheduler-access guards held by those threads cannot be released.
+  if (CanJoinThreads)
+    ProcessTerminating.store(true, std::memory_order_release);
+#endif
+
 #if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
   if (xptiTraceEnabled())
     return; // When doing xpti tracing, we can't safely shutdown on Win.
@@ -423,7 +435,12 @@ void shutdown_late() {
 #endif
 
   // First, release resources, that may access adapters.
-  GlobalHandler::RTGlobalObjHandler->stopSchedulerAccess();
+  bool WaitForSchedulerAccess = true;
+#ifdef _WIN32
+  WaitForSchedulerAccess = !ProcessTerminating.load(std::memory_order_acquire);
+#endif
+  GlobalHandler::RTGlobalObjHandler->stopSchedulerAccess(
+      WaitForSchedulerAccess);
   GlobalHandler::RTGlobalObjHandler->MPlatformCache.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MSchedulerPtr.store(
       nullptr, std::memory_order_release);
