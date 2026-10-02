@@ -27,6 +27,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
+namespace iexp = sycl::ext::intel::experimental::esimd;
 
 // Image dimensions (in pixels) and SIMD width.
 static constexpr unsigned Width = 256;
@@ -82,14 +83,14 @@ int main() {
              // Read all 4 channels; result is laid out channel-major:
              // [R0..R(N-1) G0..G(N-1) B0..B(N-1) A0..A(N-1)].
              simd<uint32_t, N * 4> Px =
-                 gather_rgba_typed<uint32_t, N>(AccIn, U, V);
+                 iexp::gather_rgba_typed<uint32_t, N>(AccIn, U, V);
 
              Px.select<N, 1>(0 * N) += DR;
              Px.select<N, 1>(1 * N) += DG;
              Px.select<N, 1>(2 * N) += DB;
              Px.select<N, 1>(3 * N) += DA;
 
-             scatter_rgba_typed<uint32_t, N>(AccOut, U, V, R, Px);
+             iexp::scatter_rgba_typed<uint32_t, N>(AccOut, U, V, R, Px);
            });
      }).wait();
   } catch (sycl::exception const &e) {

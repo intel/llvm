@@ -531,6 +531,7 @@ scatter<float, 8, 2>(ptr, offsets4);
 ## gather_rgba_typed(...) - read RGBA pixels from a typed image surface
 
 ```cpp
+// Namespace: sycl::ext::intel::experimental::esimd
 // Read up to 4 32-bit channels (selected by RGBAMask) of N pixels of the image
 // bound to 'acc', addressing pixels by integer coordinates (u, v, r).
 template <typename T, int N,
@@ -560,6 +561,7 @@ values in the returned vector are undefined.
 ## scatter_rgba_typed(...) - write RGBA pixels to a typed image surface
 
 ```cpp
+// Namespace: sycl::ext::intel::experimental::esimd
 // Write up to 4 32-bit channels (selected by RGBAMask) of N pixels to the image
 // bound to 'acc', addressing pixels by integer coordinates (u, v, r).
 template <typename T, int N,

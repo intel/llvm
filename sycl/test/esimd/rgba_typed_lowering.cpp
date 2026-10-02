@@ -28,12 +28,13 @@ int main() {
       simd<uint32_t, 32> U32(0, 1), V32 = 0;
 
       // CHECK: call <64 x i32> @llvm.genx.gather4.typed.v64i32.v16i1.v16i32(i32 15, <16 x i1> {{[^,]+}}, i32 {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <64 x i32> undef)
-      simd<uint32_t, 64> Abgr = gather_rgba_typed<uint32_t, 16>(In, U16, V16);
+      simd<uint32_t, 64> Abgr =
+          iexp::gather_rgba_typed<uint32_t, 16>(In, U16, V16);
       // CHECK: call <8 x float> @llvm.genx.gather4.typed.v8f32.v8i1.v8i32(i32 1, <8 x i1> {{[^,]+}}, i32 {{[^,]+}}, <8 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, <8 x float> undef)
       simd<float, 8> R =
-          gather_rgba_typed<float, 8, rgba_channel_mask::R>(In, U8);
+          iexp::gather_rgba_typed<float, 8, rgba_channel_mask::R>(In, U8);
       // CHECK: call void @llvm.genx.scatter4.typed.v16i1.v16i32.v32i32(i32 3, <16 x i1> {{[^,]+}}, i32 {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <32 x i32> {{[^)]+}})
-      scatter_rgba_typed<uint32_t, 16, rgba_channel_mask::GR>(
+      iexp::scatter_rgba_typed<uint32_t, 16, rgba_channel_mask::GR>(
           Out, U16, V16, 0, Abgr.select<32, 1>(0));
 
       // CHECK: call <32 x i32> @llvm.genx.lsc.load.merge.quad.typed.bti.v32i32.v16i1.v16i32(<16 x i1> {{[^,]+}}, i8 2, i8 1, i8 9, i32 {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <32 x i32> {{[^)]+}})

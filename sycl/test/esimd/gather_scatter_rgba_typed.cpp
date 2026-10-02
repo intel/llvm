@@ -11,6 +11,7 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace sycl;
 
 // Valid usage: read the RGBA channels of 16 pixels, add a constant and write

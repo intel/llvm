@@ -31,6 +31,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
+namespace iexp = sycl::ext::intel::experimental::esimd;
 
 static constexpr unsigned WIDTH = 512;
 static constexpr unsigned HEIGHT = 512;
@@ -104,7 +105,7 @@ int main(int argc, char *argv[]) {
              Px.select<N, 1>(2 * N) = (m * 3) & 0xff;  // B
              Px.select<N, 1>(3 * N) = 0xff;            // A
 
-             scatter_rgba_typed<uint32_t, N>(Acc, U, V, R, Px);
+             iexp::scatter_rgba_typed<uint32_t, N>(Acc, U, V, R, Px);
            });
      }).wait();
   } catch (sycl::exception const &e) {

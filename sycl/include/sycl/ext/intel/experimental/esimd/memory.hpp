@@ -2586,9 +2586,96 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @addtogroup sycl_esimd_memory
 /// @{
 
+/// @anchor accessor_gather_rgba_typed
+/// Pre-Xe2 typed-surface (image) RGBA gather. Gathers up to 4 32-bit channels
+/// per pixel from the typed image surface accessed through \c acc, addressing
+/// pixels by their integer coordinates \c u (X, in pixels), \c v (Y, in
+/// pixels) and \c r (Z, in pixels). This is the typed-surface counterpart of
+/// @ref usm_gather_rgba - unlike the latter it addresses a bound image by pixel
+/// coordinates rather than a buffer by byte offsets, and the hardware performs
+/// format conversion / out-of-bounds handling as configured for the image. On
+/// Xe2 and later devices use \c lsc_gather_rgba_typed instead.
+///
+/// As an example, reading the R and A channels of \c N pixels returns a vector
+/// laid out channel-major (all \c N R values followed by all \c N A values):
+/// @code{.cpp}
+/// auto x = gather_rgba_typed<int, N, rgba_channel_mask::AR>(img, u, v);
+/// // x == R0 R1 ... R(N-1) A0 A1 ... A(N-1)
+/// @endcode
+///
+/// @tparam T Channel element type. Must be 4 bytes in size.
+/// @tparam N The number of pixels to access. Must be 8, 16 or 32.
+/// @tparam RGBAMask A pixel's channel mask.
+/// @tparam AccessorT The image accessor type. Must be readable.
+/// @param acc The image accessor.
+/// @param u Per-pixel X coordinates, in pixels.
+/// @param v Per-pixel Y coordinates, in pixels (0 for 1D images).
+/// @param r Per-pixel Z coordinates, in pixels (0 for 1D/2D images).
+/// @param mask Memory access mask. Pixels with zero corresponding mask's
+///   predicate are not accessed. Their values in the resulting vector are
+///   undefined.
+/// @return Read data - N*<number of enabled channels> values of type \c T,
+///   laid out channel-major.
+///
+template <typename T, int N,
+          __ESIMD_NS::rgba_channel_mask RGBAMask =
+              __ESIMD_NS::rgba_channel_mask::ABGR,
+          typename AccessorT>
+__ESIMD_API
+    __ESIMD_NS::simd<T, N * __ESIMD_NS::get_num_channels_enabled(RGBAMask)>
+    gather_rgba_typed(AccessorT acc, __ESIMD_NS::simd<uint32_t, N> u,
+                      __ESIMD_NS::simd<uint32_t, N> v = 0,
+                      __ESIMD_NS::simd<uint32_t, N> r = 0,
+                      __ESIMD_NS::simd_mask<N> mask = 1) {
+  __ESIMD_DNS::check_rgba_typed_access<T, N, AccessorT>();
+  const auto SI = __ESIMD_NS::get_surface_index(acc);
+  return __esimd_gather4_typed<__ESIMD_DNS::__raw_t<T>, N, RGBAMask,
+                               decltype(SI)>(mask.data(), SI, u.data(),
+                                             v.data(), r.data());
+}
+
+/// @anchor accessor_scatter_rgba_typed
+/// Pre-Xe2 typed-surface (image) RGBA scatter. Scatters up to 4 32-bit channels
+/// per pixel to the typed image surface accessed through \c acc, addressing
+/// pixels by their integer coordinates \c u (X, in pixels), \c v (Y, in
+/// pixels) and \c r (Z, in pixels). This is the typed-surface counterpart of
+/// @ref usm_scatter_rgba. As with the untyped variant, only channel masks
+/// covering a set of consecutive channels starting from R (i.e. \c R, \c GR,
+/// \c BGR or \c ABGR) are supported. On Xe2 and later devices use
+/// \c lsc_scatter_rgba_typed instead.
+///
+/// @tparam T Channel element type. Must be 4 bytes in size.
+/// @tparam N The number of pixels to access. Must be 8, 16 or 32.
+/// @tparam RGBAMask A pixel's channel mask.
+/// @tparam AccessorT The image accessor type. Must be writable.
+/// @param acc The image accessor.
+/// @param u Per-pixel X coordinates, in pixels.
+/// @param v Per-pixel Y coordinates, in pixels (0 for 1D images).
+/// @param r Per-pixel Z coordinates, in pixels (0 for 1D/2D images).
+/// @param vals The values to write, laid out channel-major.
+/// @param mask Memory access mask. Pixels with zero corresponding mask's
+///   predicate are not written.
+///
+template <typename T, int N,
+          __ESIMD_NS::rgba_channel_mask RGBAMask =
+              __ESIMD_NS::rgba_channel_mask::ABGR,
+          typename AccessorT>
+__ESIMD_API void scatter_rgba_typed(
+    AccessorT acc, __ESIMD_NS::simd<uint32_t, N> u,
+    __ESIMD_NS::simd<uint32_t, N> v, __ESIMD_NS::simd<uint32_t, N> r,
+    __ESIMD_NS::simd<T, N * __ESIMD_NS::get_num_channels_enabled(RGBAMask)>
+        vals,
+    __ESIMD_NS::simd_mask<N> mask = 1) {
+  __ESIMD_DNS::check_rgba_typed_access<T, N, AccessorT>();
+  __ESIMD_DNS::validate_rgba_write_channel_mask<RGBAMask>();
+  const auto SI = __ESIMD_NS::get_surface_index(acc);
+  __esimd_scatter4_typed<__ESIMD_DNS::__raw_t<T>, N, RGBAMask, decltype(SI)>(
+      mask.data(), SI, u.data(), v.data(), r.data(), vals.data());
+}
+
 /// @anchor lsc_gather_rgba_typed
 /// Xe2 and later typed-surface (image) RGBA gather. This is the LSC-message
-/// counterpart of \c esimd::gather_rgba_typed: it reads up to 4 32-bit channels
+/// counterpart of \c gather_rgba_typed: it reads up to 4 32-bit channels
 /// (selected by \c RGBAMask) of \c N pixels of the image bound to \c acc,
 /// addressing pixels by their integer coordinates \c u (X), \c v (Y), \c r (Z)
 /// and a per-pixel level-of-detail \c lod. Unlike the pre-Xe2
@@ -2668,7 +2755,7 @@ __ESIMD_API
 
 /// @anchor lsc_scatter_rgba_typed
 /// Xe2 and later typed-surface (image) RGBA scatter. This is the LSC-message
-/// counterpart of \c esimd::scatter_rgba_typed. It writes up to 4 32-bit
+/// counterpart of \c scatter_rgba_typed. It writes up to 4 32-bit
 /// channels (selected by \c RGBAMask) of \c N pixels to the image bound to
 /// \c acc. As with the other RGBA write APIs, only channel masks covering a set
 /// of consecutive channels starting from R (i.e. \c R, \c GR, \c BGR or
