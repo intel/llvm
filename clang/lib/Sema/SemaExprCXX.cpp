@@ -5976,8 +5976,7 @@ QualType Sema::CheckVectorConditionalTypes(ExprResult &Cond, ExprResult &LHS,
       ResultType = CheckVectorOperands(
           LHS, RHS, QuestionLoc, /*isCompAssign*/ false, /*AllowBothBool*/ true,
           /*AllowBoolConversions*/ false,
-          /*AllowBoolOperation*/ true,
-          /*ReportInvalid*/ true);
+          /*AllowBoolOperation*/ true);
     if (ResultType.isNull())
       return {};
   } else {
@@ -6276,8 +6275,7 @@ QualType Sema::CXXCheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
     return CheckVectorOperands(LHS, RHS, QuestionLoc, /*isCompAssign*/ false,
                                /*AllowBothBool*/ true,
                                /*AllowBoolConversions*/ false,
-                               /*AllowBoolOperation*/ false,
-                               /*ReportInvalid*/ true);
+                               /*AllowBoolOperation*/ false);
 
   //   -- The second and third operands have arithmetic or enumeration type;
   //      the usual arithmetic conversions are performed to bring them to a
