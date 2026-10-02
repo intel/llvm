@@ -11,6 +11,7 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
+#include <atomic>
 #include <memory>
 #include <unordered_map>
 
@@ -128,6 +129,10 @@ private:
   T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
   InstWithLock<Scheduler> MScheduler;
+  // Mirror of MScheduler.Inst for lock-free readers. Published with release
+  // semantics once the Scheduler is fully constructed and cleared before it is
+  // destroyed.
+  std::atomic<Scheduler *> MSchedulerPtr{nullptr};
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
   InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;

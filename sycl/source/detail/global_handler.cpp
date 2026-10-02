@@ -122,7 +122,9 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   // releaseResources will cause dead lock due to host queue release
   if (MScheduler.Inst)
     prepareSchedulerToRelease(true);
+  MSchedulerPtr.store(nullptr, std::memory_order_release);
   MScheduler.Inst.reset(Scheduler);
+  MSchedulerPtr.store(Scheduler, std::memory_order_release);
 }
 
 static void enableOnCrashStackPrinting() {
@@ -135,7 +137,9 @@ static void enableOnCrashStackPrinting() {
 }
 
 Scheduler &GlobalHandler::getScheduler() {
-  getOrCreate(MScheduler);
+  Scheduler &Sched = getOrCreate(MScheduler);
+  if (!MSchedulerPtr.load(std::memory_order_relaxed))
+    MSchedulerPtr.store(&Sched, std::memory_order_release);
   registerSchedulerUsage();
   // On Windows the registration of the signal handler before main function
   // (e.g. from DLLMain or from constructors of program scope objects) doesn't
@@ -144,13 +148,15 @@ Scheduler &GlobalHandler::getScheduler() {
   // 2) first call to getScheduler is likely to be done after main starts.
   // The same is done in getAdapters.
   enableOnCrashStackPrinting();
-  return *MScheduler.Inst;
+  return Sched;
 }
 
-bool GlobalHandler::isSchedulerAlive() const { return MScheduler.Inst.get(); }
+bool GlobalHandler::isSchedulerAlive() const {
+  return getSchedulerIfAlive() != nullptr;
+}
 
 Scheduler *GlobalHandler::getSchedulerIfAlive() const noexcept {
-  return MScheduler.Inst.get();
+  return MSchedulerPtr.load(std::memory_order_acquire);
 }
 
 void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
@@ -385,6 +391,8 @@ void shutdown_late() {
 
   // First, release resources, that may access adapters.
   GlobalHandler::RTGlobalObjHandler->MPlatformCache.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MSchedulerPtr.store(
+      nullptr, std::memory_order_release);
   GlobalHandler::RTGlobalObjHandler->MScheduler.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MProgramManager.Inst.reset(nullptr);
 
