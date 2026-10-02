@@ -137,12 +137,60 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -Xsycl-target-backend -backend-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND %s
-// WRAPPER_OPTIONS_BACKEND: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-backend-opt"
+// WRAPPER_OPTIONS_BACKEND: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-backend-opt"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -Xsycl-target-linker -link-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_LINK %s
-// WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-link-opt"
+// WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-link-opt"
+
+// Clang's generic LTO mode is forwarded to the wrapper, but must not become
+// a JIT runtime option.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=spir64 -foffload-lto=full \
+// RUN:          -Xsycl-target-backend -jit-opt -Xsycl-target-linker -jit-link \
+// RUN:          -### %s 2>&1 | FileCheck -check-prefix WRAPPER_JIT_LTO %s
+// WRAPPER_JIT_LTO: clang-linker-wrapper{{.*}} "--device-compiler=spir64-unknown-unknown=-flto=full"
+// WRAPPER_JIT_LTO-SAME: "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-jit-opt"
+// WRAPPER_JIT_LTO-SAME: "--device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-jit-link"
+
+// Link-only inputs still require the driver's implied native backend options.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl --offload-new-driver -fsycl-targets=spir64 -g -O0 \
+// RUN:          -ftarget-register-alloc-mode=pvc:large \
+// RUN:          -### %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:   | FileCheck -check-prefix JIT_LINK_IMPLIED %s
+// JIT_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-g"
+// JIT_LINK_IMPLIED-SAME: "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
+// RUN:          -g -O0 -ftarget-register-alloc-mode=pvc:large \
+// RUN:          -fsycl-fp64-conv-emu -### %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:   | FileCheck -check-prefix GPU_LINK_IMPLIED %s
+// GPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device_options"
+// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
+// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-opt-large-register-file"
+// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options"
+// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-fp64-gen-conv-emu -g -cl-opt-disable"
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
+// RUN:          -g -O0 -Xsycl-target-backend '-device pvc' \
+// RUN:          -### %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:   | FileCheck -check-prefix GPU_LINK_DEFAULT %s
+// GPU_LINK_DEFAULT: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device_options"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-intel-enable-auto-large-GRF-mode"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-g -cl-opt-disable"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device"
+// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
+
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 \
+// RUN:          -g -O0 -### %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:   | FileCheck -check-prefix CPU_LINK_IMPLIED %s
+// CPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-g"
+// CPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-cl-opt-disable"
 
 /// Test option passing behavior for clang-offload-wrapper options for AOT.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
@@ -152,19 +200,30 @@
 // RUN:          -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND_AOT %s
 // WRAPPER_OPTIONS_BACKEND_AOT: clang-linker-wrapper{{.*}}  "--host-triple=x86_64-unknown-linux-gnu"
-// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown=-backend-gen-opt"
-// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-backend-cpu-opt"
+// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-backend-gen-opt"
+// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=-backend-cpu-opt"
 
-/// -Xsycl-target-backend/-Xsycl-target-linker forward to
-/// --device-compiler=/--device-linker= one token per occurrence; per-arch
-/// routing rides on a "/<arch>" qualifier appended to the triple key.
+/// AOT targets map backend and linker options to native tool syntax, one
+/// token per occurrence; a "/<arch>" qualifier routes multi-arch GPU options.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -fsycl-targets=intel_gpu_pvc \
 // RUN:          -Xsycl-target-backend -opt1 -Xsycl-target-linker -opt2 \
 // RUN:          -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_AOT_SEPARATE %s
-// WRAPPER_OPTIONS_AOT_SEPARATE: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-opt1"
-// WRAPPER_OPTIONS_AOT_SEPARATE-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=-opt2"
+// WRAPPER_OPTIONS_AOT_SEPARATE: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-opt1"
+// WRAPPER_OPTIONS_AOT_SEPARATE-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-opt2"
+
+// Clang's generic LTO mode reaches the wrapper, which drops it before
+// invoking ocloc or opencl-aot.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=spir64_gen,spir64_x86_64 -foffload-lto=full \
+// RUN:          -Xsycl-target-linker=spir64_gen -gpu-link \
+// RUN:          -Xsycl-target-linker=spir64_x86_64 -cpu-link -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_AOT_LTO %s
+// WRAPPER_AOT_LTO: clang-linker-wrapper{{.*}} "--device-compiler=spir64_gen-unknown-unknown=-flto=full"
+// WRAPPER_AOT_LTO-SAME: "--device-compiler=spir64_x86_64-unknown-unknown=-flto=full"
+// WRAPPER_AOT_LTO-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-gpu-link"
+// WRAPPER_AOT_LTO-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=-cpu-link"
 
 /// Two spir64_gen sub-targets on the same triple: each arch's tokens
 /// carry their own "/<arch>" qualifier so options don't cross-contaminate.
@@ -177,8 +236,8 @@
 // RUN:               --implicit-check-not='/skl=-extraopt_pvc' \
 // RUN:               -check-prefix WRAPPER_OPTIONS_MULTI_GEN %s
 // WRAPPER_OPTIONS_MULTI_GEN: clang-linker-wrapper
-// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/pvc=-extraopt_pvc"
-// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown/skl=-extraopt_skl"
+// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown/pvc=--ocloc-options=-extraopt_pvc"
+// WRAPPER_OPTIONS_MULTI_GEN-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown/skl=--ocloc-options=-extraopt_skl"
 
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
