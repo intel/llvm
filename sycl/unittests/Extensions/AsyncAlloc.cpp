@@ -208,6 +208,96 @@ TEST_F(AsyncAllocTests, HandlerOverloadDependsOnAfterAlloc) {
   }
 }
 
+// The handler overloads submitted without an event must not request one from
+// the backend either, as nothing would take ownership of it.
+TEST_F(AsyncAllocTests, HandlerOverloadNoEvents) {
+  queue Q = makeQueue(/*InOrder=*/true);
+  auto Pool = Q.get_context().ext_oneapi_get_default_memory_pool(
+      Q.get_device(), usm::alloc::device);
+  constexpr size_t Iterations = 4;
+
+  for (size_t I = 0; I < Iterations; ++I) {
+    void *Ptr = nullptr;
+    oneapiext::submit(Q, [&](handler &CGH) {
+      Ptr = oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+    });
+    oneapiext::submit(Q,
+                      [&](handler &CGH) { oneapiext::async_free(CGH, Ptr); });
+
+    void *PoolPtr = nullptr;
+    oneapiext::submit(Q, [&](handler &CGH) {
+      PoolPtr = oneapiext::async_malloc_from_pool(CGH, 1024, Pool);
+    });
+    oneapiext::submit(
+        Q, [&](handler &CGH) { oneapiext::async_free(CGH, PoolPtr); });
+  }
+
+  EXPECT_EQ(CounterAlloc, 2 * Iterations);
+  EXPECT_EQ(CounterFree, 2 * Iterations);
+  EXPECT_EQ(CounterAllocWithEvent, size_t{0});
+  EXPECT_EQ(CounterFreeWithEvent, size_t{0});
+  EXPECT_EQ(CounterEventsWait, size_t{0});
+  EXPECT_EQ(CounterBarrier, size_t{0});
+}
+
+// The handler overloads on an out-of-order queue only request the event of the
+// allocation if the submission returns one.
+TEST_F(AsyncAllocTests, OutOfOrderHandlerOverloadNoAllocEvents) {
+  queue Q = makeQueue(/*InOrder=*/false);
+  auto Pool = Q.get_context().ext_oneapi_get_default_memory_pool(
+      Q.get_device(), usm::alloc::device);
+
+  void *Ptr = nullptr;
+  void *PoolPtr = nullptr;
+  oneapiext::submit(Q, [&](handler &CGH) {
+    Ptr = oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+  });
+  oneapiext::submit(Q, [&](handler &CGH) {
+    PoolPtr = oneapiext::async_malloc_from_pool(CGH, 1024, Pool);
+  });
+  Q.ext_oneapi_submit_barrier();
+  oneapiext::submit(Q, [&](handler &CGH) { oneapiext::async_free(CGH, Ptr); });
+  oneapiext::submit(Q,
+                    [&](handler &CGH) { oneapiext::async_free(CGH, PoolPtr); });
+  Q.wait();
+
+  EXPECT_EQ(CounterAlloc, size_t{2});
+  EXPECT_EQ(CounterAllocWithEvent, size_t{0});
+  EXPECT_EQ(CounterFree, size_t{2});
+  // The frees still request their event: on out-of-order queues the adapter
+  // uses it to guard the reuse of the freed memory.
+  EXPECT_EQ(CounterFreeWithEvent, size_t{2});
+}
+
+TEST_F(AsyncAllocTests, OutOfOrderHandlerOverloadEvents) {
+  queue Q = makeQueue(/*InOrder=*/false);
+  auto Pool = Q.get_context().ext_oneapi_get_default_memory_pool(
+      Q.get_device(), usm::alloc::device);
+
+  void *Ptr = nullptr;
+  void *PoolPtr = nullptr;
+  event AllocEvent = oneapiext::submit_with_event(Q, [&](handler &CGH) {
+    Ptr = oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+  });
+  event PoolAllocEvent = oneapiext::submit_with_event(Q, [&](handler &CGH) {
+    PoolPtr = oneapiext::async_malloc_from_pool(CGH, 1024, Pool);
+  });
+  oneapiext::submit(Q, [&](handler &CGH) {
+    CGH.depends_on(AllocEvent);
+    oneapiext::async_free(CGH, Ptr);
+  });
+  oneapiext::submit(Q, [&](handler &CGH) {
+    CGH.depends_on(PoolAllocEvent);
+    oneapiext::async_free(CGH, PoolPtr);
+  });
+  Q.wait();
+
+  EXPECT_EQ(CounterAlloc, size_t{2});
+  EXPECT_EQ(CounterAllocWithEvent, size_t{2});
+  EXPECT_EQ(CounterFree, size_t{2});
+  EXPECT_EQ(CounterFreeWithEvent, size_t{2});
+}
+
 // A host task dependency cannot be expressed to the backend, so the
 // submission has to fall back to the scheduler. The allocation itself is still
 // enqueued eagerly, as the pointer has to be returned to the caller

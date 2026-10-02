@@ -101,7 +101,7 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
     Adapter.call<sycl::errc::runtime,
                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
-        UREvents.data(), &alloc, &Event);
+        UREvents.data(), &alloc, h.eventNeeded() ? &Event : nullptr);
   }
 
   // Async malloc must return a void* immediately.
@@ -165,7 +165,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
     Adapter.call<sycl::errc::runtime,
                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, memPoolImpl.get_handle(), size, nullptr, UREvents.size(),
-        UREvents.data(), &alloc, &Event);
+        UREvents.data(), &alloc, h.eventNeeded() ? &Event : nullptr);
   }
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the event from the alloc.

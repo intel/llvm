@@ -1,9 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests async_malloc, async_malloc_from_pool and async_free when they are
-// called on a queue, without a handler. Each scenario allocates, fills the
-// allocation from a kernel, copies it back and frees it.
+// called on a queue or on a handler, in both cases without requesting an event.
+// Each scenario allocates, fills the allocation from a kernel, copies it back
+// and frees it.
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -45,6 +48,7 @@ class InOrderKernel;
 class InOrderPoolKernel;
 class HostTaskKernel;
 class OutOfOrderKernel;
+class HandlerKernel;
 
 int main() {
   bool Pass = true;
@@ -118,6 +122,26 @@ int main() {
     Q.wait_and_throw();
 
     Pass &= validate(Out, "out-of-order");
+  }
+
+  {
+    // The handler overloads submitted without requesting an event must not
+    // create, and thereby leak, an event either.
+    sycl::queue Q{sycl::property::queue::in_order{}};
+    std::vector<char> Out(Width, 0);
+
+    for (int I = 0; I < 4; ++I) {
+      void *Alloc = nullptr;
+      syclexp::submit(Q, [&](sycl::handler &CGH) {
+        Alloc = syclexp::async_malloc(CGH, sycl::usm::alloc::device, Width);
+      });
+      fillAndCopyBack<HandlerKernel>(Q, Alloc, Out);
+      syclexp::submit(
+          Q, [&](sycl::handler &CGH) { syclexp::async_free(CGH, Alloc); });
+    }
+    Q.wait_and_throw();
+
+    Pass &= validate(Out, "handler");
   }
 
   if (!Pass) {
