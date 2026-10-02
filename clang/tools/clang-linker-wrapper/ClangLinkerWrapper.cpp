@@ -18,8 +18,10 @@
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -30,10 +32,12 @@
 #include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/Frontend/Offloading/Utility.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/IRObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
@@ -163,6 +167,10 @@ static bool LinkingSYCLBINFiles = false;
 
 static SmallString<128> OffloadImageDumpDir;
 
+using TripleAndArch = std::pair<std::string, std::string>;
+using FuncNameSet = SmallSet<std::string, 4>;
+static DenseMap<TripleAndArch, FuncNameSet> SYCLRegisterLibFuncMap;
+
 /// Whether or not to look through symlinks when resolving binaries.
 static bool CanonicalPrefixes = true;
 
@@ -182,6 +190,14 @@ template <> struct DenseMapInfo<OffloadKind> {
 
   static bool isEqual(const OffloadKind &LHS, const OffloadKind &RHS) {
     return LHS == RHS;
+  }
+};
+template <> struct DenseMapInfo<std::string> {
+  static unsigned getHashValue(const std::string &S) {
+    return hash_value(StringRef(S));
+  }
+  static bool isEqual(const std::string &L, const std::string &R) {
+    return L == R;
   }
 };
 } // namespace llvm
@@ -1100,6 +1116,38 @@ runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args,
   return *TempFileOrErr;
 }
 
+/// Define __sycl_registerlib_<unique_prefix> functions defined by the
+/// host compile to force all device code images to be linked in, which
+/// may not happen for static archives with -fsycl-link.
+/// \p Module The module.
+/// \p Args encompasses all arguments required for linking and wrapping device
+/// code.
+static void defineRegisterLibFuncs(Module &M, const ArgList &Args) {
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  const std::string Arch(Args.getLastArgValue(OPT_arch_EQ));
+  // In the case we have a fat object input with multiple device images of
+  // differing triples, and we are not doing -fsycl-link (so multiple linked
+  // device images are allowed), the host object defined a single registerlib
+  // symbol, so we need to make sure to only define the function once, not once
+  // per device image from that fat object. We need to keep track of the triple
+  // through, because in the -fsycl-link case, we may not use one of those
+  // device images if it doesn't match the -fsycl-link triple.
+  static StringSet TotalDefinedFuncs;
+  for (auto Name : SYCLRegisterLibFuncMap[std::make_pair(Triple.str(), Arch)]) {
+    if (TotalDefinedFuncs.find(Name) != TotalDefinedFuncs.end())
+      continue;
+    llvm::FunctionType *FTy = llvm::FunctionType::get(
+        llvm::Type::getVoidTy(M.getContext()), /*isVarArg=*/false);
+    auto *Fn = llvm::Function::Create(FTy, llvm::GlobalValue::WeakAnyLinkage,
+                                      Name, &M);
+    llvm::BasicBlock *Entry =
+        llvm::BasicBlock::Create(M.getContext(), "entry", Fn);
+    llvm::IRBuilder<> Builder(Entry);
+    Builder.CreateRetVoid();
+    TotalDefinedFuncs.insert(Name);
+  }
+}
+
 /// Run AOT compilation for Intel GPU
 /// Calls ocloc tool to generate device code for Intel GPU backend.
 /// \p InputFile is the input SPIR-V file.
@@ -1281,6 +1329,8 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
   Module M("offload.wrapper.object", C);
   M.setTargetTriple(Triple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple())));
+
+  defineRegisterLibFuncs(M, Args);
 
   if (Error E = offloading::wrapSYCLBinaries(M, Images,
                                              offloading::SYCLWrappingOptions()))
@@ -3283,6 +3333,82 @@ Error emitExtractCommands(
   }
   return Error::success();
 }
+static constexpr StringRef SYCLRegisterLibPrefix = "__sycl_registerlib_";
+static Error collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer) {
+  Expected<std::unique_ptr<ObjectFile>> ObjOrErr =
+      ObjectFile::createObjectFile(Buffer);
+  if (!ObjOrErr) {
+    // Not something we can read symbols from; ignore it.
+    consumeError(ObjOrErr.takeError());
+    return Error::success();
+  }
+  SmallSet<std::string, 4> FuncNames;
+  for (const SymbolRef &Sym : (*ObjOrErr)->symbols()) {
+    Expected<uint32_t> FlagsOrErr = Sym.getFlags();
+    if (!FlagsOrErr)
+      return FlagsOrErr.takeError();
+    Expected<StringRef> NameOrErr = Sym.getName();
+    if (!NameOrErr)
+      return NameOrErr.takeError();
+    if (!NameOrErr->starts_with(SYCLRegisterLibPrefix))
+      continue;
+    if (*FlagsOrErr & SymbolRef::SF_Undefined)
+      FuncNames.insert(NameOrErr->str());
+  }
+  if (!FuncNames.empty()) {
+    SmallVector<OffloadFile> Binaries;
+    if (Error Err = extractOffloadBinaries(Buffer, Binaries))
+      return std::move(Err);
+    for (const auto &Binary : Binaries) {
+      std::string Triple = Binary.getBinary()->getTriple().str();
+      std::string Arch = Binary.getBinary()->getArch().str();
+      if (Arch == "generic")
+        Arch = "";
+      SYCLRegisterLibFuncMap[{Triple, Arch}].insert(FuncNames.begin(),
+                                                    FuncNames.end());
+    }
+  }
+  return Error::success();
+}
+
+/// Scan the host input in \p Buffer, as getDeviceInput() reads each one, for
+/// undefined symbols named __sycl_registerlib_<hash> and record them in the
+/// global SYCLRegisterLibFuncMap. Each such reference is satisfied by defining
+/// the symbol in the generated SYCL device-image wrapper object. The references
+/// may live in bare object inputs or in members of a static archive (the latter
+/// is how the objects appear when linking against a static library).
+static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer) {
+  switch (identify_magic(Buffer.getBuffer())) {
+  case file_magic::elf_relocatable:
+  case file_magic::elf_shared_object:
+  case file_magic::elf_executable:
+  case file_magic::coff_object:
+  case file_magic::macho_object:
+    if (Error Err = collectSYCLRegisterLibSymbolsFromObject(Buffer))
+      return Err;
+    break;
+  case file_magic::archive: {
+    Expected<std::unique_ptr<object::Archive>> ArOrErr =
+        object::Archive::create(Buffer);
+    if (!ArOrErr)
+      return ArOrErr.takeError();
+    Error Err = Error::success();
+    for (const object::Archive::Child &Child : (*ArOrErr)->children(Err)) {
+      Expected<MemoryBufferRef> ChildBufOrErr = Child.getMemoryBufferRef();
+      if (!ChildBufOrErr)
+        return ChildBufOrErr.takeError();
+      if (Error E = collectSYCLRegisterLibSymbolsFromObject(*ChildBufOrErr))
+        return E;
+    }
+    if (Err)
+      return Err;
+    break;
+  }
+  default:
+    break;
+  }
+  return Error::success();
+}
 
 /// Search the input files and libraries for embedded device offloading code
 /// and add it to the list of files to be linked. Files coming from static
@@ -3360,6 +3486,8 @@ getDeviceInput(const ArgList &Args) {
     MemoryBufferRef Buffer = **BufferOrErr;
     if (identify_magic(Buffer.getBuffer()) == file_magic::elf_shared_object)
       continue;
+    if (Error Err = collectSYCLRegisterLibSymbols(Buffer))
+      return std::move(Err);
     SmallVector<OffloadFile> Binaries;
     size_t OldSize = Binaries.size();
     if (Error Err = extractOffloadBinaries(Buffer, Binaries))

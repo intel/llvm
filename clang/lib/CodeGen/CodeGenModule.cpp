@@ -50,9 +50,9 @@
 #include "clang/CodeGen/BackendUtil.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaSYCL.h"
-#include "clang/Lex/Preprocessor.h"
 #include "llvm/ABI/IRTypeMapper.h"
 #include "llvm/ABI/TargetInfo.h"
 #include "llvm/ADT/APFloat.h"
@@ -1278,11 +1278,15 @@ void CodeGenModule::Release() {
     if (llvm::Function *CudaCtorFunction = CUDARuntime->finalizeModule())
       AddGlobalCtor(CudaCtorFunction);
   }
-  if (LangOpts.SYCLIsHost && !CodeGenOpts.OffloadBinaryToEmbedFile.empty()) {
-    if (llvm::Function *SYCLCtorFunction = embedSYCLDeviceBinary())
-      // A static initializer may launch a kernel, so the device binary has to
-      // be registered before any of them run, hence a priority.
-      AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
+  if (LangOpts.SYCLIsHost) {
+    if (!CodeGenOpts.OffloadBinaryToEmbedFile.empty()) {
+      if (llvm::Function *SYCLCtorFunction = embedSYCLDeviceBinary())
+        // A static initializer may launch a kernel, so the device binary has to
+        // be registered before any of them run, hence a priority.
+        AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
+    }
+    if (LangOpts.OffloadingNewDriver)
+      AddGlobalCtor(createSYCLRegisterLibFunc());
   }
   if (OpenMPRuntime) {
     OpenMPRuntime->createOffloadEntriesAndInfoMetadata();
