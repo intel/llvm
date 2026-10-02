@@ -28,6 +28,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   USMPrefetch.cpp
   RegisterHostMemory.cpp
   ReusableEvents.cpp
+  AsyncAlloc.cpp
 )
 
 add_subdirectory(BindlessImages)

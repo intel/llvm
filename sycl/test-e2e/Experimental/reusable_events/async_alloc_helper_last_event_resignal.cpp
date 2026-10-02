@@ -4,25 +4,20 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out
 
-// XFAIL: *
-// XFAIL-TRACKER: review-10-02 #7 (ext_oneapi_get_last_event returns the
-// wrong signal)
-
 // tests-10-02 E14: Async malloc/free and pools follow captured original work
 // - queue helpers inferring the last event.
 //
 // On an in-order queue, the async_malloc and async_malloc_from_pool queue
-// helpers order the allocation after ext_oneapi_get_last_event(). Kernel K,
+// helpers order the allocation after the queue's last command. Kernel K,
 // held behind a host task gate, writes an allocation P and returns E; E is
 // re-signaled on another queue and that signal completes. A helper allocation
 // on the same queue must still come after K, and so must the kernel K2 that
 // follows it and copies P.
 //
-// ext_oneapi_get_last_event returns the public event E, which now represents
-// the completed new signal. The helper's allocation command therefore takes
-// the scheduler bypass and becomes the queue's last event, and K2 depends only
-// on it: K2 runs while K is still held and copies P before K writes it. This
-// is deterministic. The "still pending" checks are best effort.
+// The helpers order the allocation through the queue's captured last signal,
+// not through ext_oneapi_get_last_event, so review-10-02 #7 does not apply to
+// them; the last-event query itself is covered by last_event_resignal.cpp.
+// The "still pending" check is best effort.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
@@ -37,7 +32,6 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 
@@ -114,13 +108,6 @@ static void runCase(sycl::queue &Q1, sycl::queue &Q2, syclex::memory_pool &Pool,
   syclex::enqueue_signal_event(Q2, E);
   E.wait();
   check(isComplete(E), Case, "the new signal is not complete");
-
-  // The queue's last command is still the held kernel.
-  std::optional<sycl::event> Last = Q1.ext_oneapi_get_last_event();
-  check(Last.has_value(), Case, "no last event on a nonempty queue");
-  if (Last)
-    check(!isComplete(*Last), Case,
-          "the last event is complete while the kernel is held");
 
   int *P2 = static_cast<int *>(
       FromPool ? syclex::async_malloc_from_pool(Q1, N * sizeof(int), Pool)

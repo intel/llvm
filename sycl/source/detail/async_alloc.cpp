@@ -53,28 +53,35 @@ getDepGraphNodes(sycl::handler &Handler, detail::queue_impl *Queue,
   }
   return DepNodes;
 }
+
+void checkAsyncMallocKind(sycl::usm::alloc Kind) {
+  if (Kind == sycl::usm::alloc::unknown)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Unknown allocation kinds are disallowed!");
+
+  // Non-device allocations are unsupported.
+  if (Kind != sycl::usm::alloc::device)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Only device backed asynchronous allocations are supported!");
+}
+
+void checkNotNativeRecording(detail::queue_impl &Queue, const char *FuncName) {
+  // Allocations are not supported in graph native recording mode.
+  if (Queue.isNativeRecording())
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          std::string(FuncName) +
+                              " is not supported in native recording mode.");
+}
 } // namespace
 
 __SYCL_EXPORT
 void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
 
-  if (kind == sycl::usm::alloc::unknown)
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Unknown allocation kinds are disallowed!");
+  checkAsyncMallocKind(kind);
 
-  // Non-device allocations are unsupported.
-  if (kind != sycl::usm::alloc::device)
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Only device backed asynchronous allocations are supported!");
-
-  // Allocations not supported in graph native recording mode
-  if (auto *Queue = h.impl->get_queue_or_null();
-      Queue && Queue->isNativeRecording()) {
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::invalid),
-        "async_malloc is not supported in native recording mode.");
-  }
+  if (auto *Queue = h.impl->get_queue_or_null(); Queue)
+    checkNotNativeRecording(*Queue, "async_malloc");
 
   detail::adapter_impl &Adapter = h.getContextImpl().getAdapter();
 
@@ -110,34 +117,31 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
 __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
                                  size_t size,
                                  const sycl::detail::code_location &CodeLoc) {
-  void *temp = nullptr;
-  submit(
-      q,
-      [&](sycl::handler &h) {
-        // In order queues must wait on the previous event before calling alloc.
-        // Query the last event once: when the queue has no last event yet, each
-        // call enqueues a fresh marker instead of returning the same one.
-        if (q.is_in_order()) {
-          if (std::optional<sycl::event> LastEvent =
-                  q.ext_oneapi_get_last_event())
-            h.depends_on(*LastEvent);
-        }
-        temp = async_malloc(h, kind, size);
-      },
-      CodeLoc);
-  return temp;
+  detail::queue_impl &Queue = *detail::getSyclObjImpl(q);
+
+  // Allocations recorded to a SYCL command-graph are served from the graph's
+  // own memory pool, which requires a graph node, and therefore a handler. The
+  // check has to be made here rather than inside the submission, as a handler
+  // cannot be created while the queue is locked.
+  if (Queue.hasCommandGraph()) {
+    void *temp = nullptr;
+    submit(
+        q, [&](sycl::handler &h) { temp = async_malloc(h, kind, size); },
+        CodeLoc);
+    return temp;
+  }
+
+  checkAsyncMallocKind(kind);
+  checkNotNativeRecording(Queue, "async_malloc");
+
+  return Queue.submit_async_malloc_direct(/*Pool*/ nullptr, size, CodeLoc);
 }
 
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
 
-  // Allocations not supported in graph native recording mode
-  if (auto *Queue = h.impl->get_queue_or_null();
-      Queue && Queue->isNativeRecording()) {
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::invalid),
-        "async_malloc is not supported in native recording mode.");
-  }
+  if (auto *Queue = h.impl->get_queue_or_null(); Queue)
+    checkNotNativeRecording(*Queue, "async_malloc_from_pool");
 
   detail::adapter_impl &Adapter = h.getContextImpl().getAdapter();
   detail::memory_pool_impl &memPoolImpl = *detail::getSyclObjImpl(pool);
@@ -176,22 +180,23 @@ __SYCL_EXPORT void *
 async_malloc_from_pool(const sycl::queue &q, size_t size,
                        const memory_pool &pool,
                        const sycl::detail::code_location &CodeLoc) {
-  void *temp = nullptr;
-  submit(
-      q,
-      [&](sycl::handler &h) {
-        // In order queues must wait on the previous event before calling alloc.
-        // Query the last event once: when the queue has no last event yet, each
-        // call enqueues a fresh marker instead of returning the same one.
-        if (q.is_in_order()) {
-          if (std::optional<sycl::event> LastEvent =
-                  q.ext_oneapi_get_last_event())
-            h.depends_on(*LastEvent);
-        }
-        temp = async_malloc_from_pool(h, size, pool);
-      },
-      CodeLoc);
-  return temp;
+  detail::queue_impl &Queue = *detail::getSyclObjImpl(q);
+
+  // Allocations recorded to a SYCL command-graph are served from the graph's
+  // own memory pool, which requires a graph node, and therefore a handler.
+  if (Queue.hasCommandGraph()) {
+    void *temp = nullptr;
+    submit(
+        q,
+        [&](sycl::handler &h) { temp = async_malloc_from_pool(h, size, pool); },
+        CodeLoc);
+    return temp;
+  }
+
+  checkNotNativeRecording(Queue, "async_malloc_from_pool");
+
+  return Queue.submit_async_malloc_direct(
+      detail::getSyclObjImpl(pool)->get_handle(), size, CodeLoc);
 }
 
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr) {
@@ -208,13 +213,8 @@ __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr) {
     }
   }
 
-  // Not supported in graph native recording mode
-  if (auto *Queue = h.impl->get_queue_or_null();
-      Queue && Queue->isNativeRecording()) {
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::invalid),
-        "async_free is not supported in native recording mode.");
-  }
+  if (auto *Queue = h.impl->get_queue_or_null(); Queue)
+    checkNotNativeRecording(*Queue, "async_free");
 
   h.impl->MFreePtr = ptr;
   h.setType(detail::CGType::AsyncFree);
@@ -222,7 +222,18 @@ __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr) {
 
 __SYCL_EXPORT void async_free(const sycl::queue &q, void *ptr,
                               const sycl::detail::code_location &CodeLoc) {
-  submit(q, [&](sycl::handler &h) { async_free(h, ptr); }, CodeLoc);
+  detail::queue_impl &Queue = *detail::getSyclObjImpl(q);
+
+  // Frees recorded to a SYCL command-graph operate on the graph's own memory
+  // pool, which requires a graph node, and therefore a handler.
+  if (Queue.hasCommandGraph()) {
+    submit(q, [&](sycl::handler &h) { async_free(h, ptr); }, CodeLoc);
+    return;
+  }
+
+  checkNotNativeRecording(Queue, "async_free");
+
+  Queue.submit_async_free_direct(ptr, CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental

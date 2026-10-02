@@ -1075,8 +1075,10 @@ TEST_F(ReusableEventsGraphTest, GraphRecordingAsyncAllocUsesGraphIdentity) {
 
 // The queue helpers of the asynchronous allocations order an allocation on an
 // in-order queue after the queue's last command: a pending kernel whose
-// returned event is then re-signalled on another queue. The allocation waits
-// for the kernel, not for the later signal.
+// returned event is then re-signalled on another queue. The allocation is
+// ordered after the kernel, not after the later signal. The helpers order it
+// through the queue's captured last signal, not through the last-event query,
+// so review-10-02 #7 does not apply to them.
 template <typename AllocateT>
 void expectHelperWaitsForLastCommand(sycl::queue &Q, sycl::queue &SignalQueue,
                                      AllocateT Allocate) {
@@ -1100,7 +1102,10 @@ void expectHelperWaitsForLastCommand(sycl::queue &Q, sycl::queue &SignalQueue,
   {
     std::lock_guard<std::mutex> Lock(BackendMutex);
     ASSERT_EQ(AsyncAllocWaitLists.size(), 1u);
-    EXPECT_TRUE(contains(AsyncAllocWaitLists[0], KernelHandle));
+    // The kernel is on the same in-order queue, so it may be left out of the
+    // wait list as redundant; nothing else may be in it.
+    for (ur_event_handle_t Handle : AsyncAllocWaitLists[0])
+      EXPECT_EQ(Handle, KernelHandle);
     EXPECT_FALSE(contains(AsyncAllocWaitLists[0], SignalHandle));
   }
   completeAll();
@@ -1109,11 +1114,7 @@ void expectHelperWaitsForLastCommand(sycl::queue &Q, sycl::queue &SignalQueue,
 }
 
 // tests-10-02 U35. Step 3, queue helper of the default-pool allocation.
-// Known defect: review-10-02 #7 (the helper orders the allocation through
-// ext_oneapi_get_last_event, which returns the event, whose current signal is
-// the later one on another queue).
-TEST_F(ReusableEventsGraphTest,
-       DISABLED_AsyncAllocQueueHelperUsesLastCapturedSignal) {
+TEST_F(ReusableEventsGraphTest, AsyncAllocQueueHelperUsesLastCapturedSignal) {
   sycl::queue Q = inOrderQueue();
   sycl::queue SignalQueue = inOrderQueue();
   expectHelperWaitsForLastCommand(Q, SignalQueue, [](sycl::queue &Q) {
@@ -1122,11 +1123,8 @@ TEST_F(ReusableEventsGraphTest,
 }
 
 // tests-10-02 U35. Step 3, queue helper of the pool allocation.
-// Known defect: review-10-02 #7 (the helper orders the allocation through
-// ext_oneapi_get_last_event, which returns the event, whose current signal is
-// the later one on another queue).
 TEST_F(ReusableEventsGraphTest,
-       DISABLED_AsyncPoolAllocQueueHelperUsesLastCapturedSignal) {
+       AsyncPoolAllocQueueHelperUsesLastCapturedSignal) {
   syclex::memory_pool Pool{Ctx, Dev, sycl::usm::alloc::device};
   sycl::queue Q = inOrderQueue();
   sycl::queue SignalQueue = inOrderQueue();

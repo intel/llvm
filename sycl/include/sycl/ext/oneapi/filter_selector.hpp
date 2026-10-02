@@ -34,7 +34,9 @@ namespace detail {
 class filter_selector_impl;
 } // namespace detail
 
-class __SYCL_EXPORT filter_selector : public device_selector {
+class __SYCL_EXPORT __SYCL_DEPRECATED(
+    "filter_selector is deprecated, use a SYCL 2020 device selector callable "
+    "instead") filter_selector : public device_selector {
 public:
   filter_selector(const std::string &filter)
       : filter_selector(sycl::detail::string_view{filter}) {}

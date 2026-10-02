@@ -407,6 +407,26 @@ public:
                                EventForReuse);
   }
 
+  /// Submits an asynchronous USM device allocation to the queue, without
+  /// creating a handler or a command group object.
+  ///
+  /// \param Pool is the memory pool to allocate from, or nullptr to use the
+  ///        default pool of the queue's device.
+  /// \param Size is the number of bytes to allocate.
+  /// \param CodeLoc is the code location of the submit call.
+  ///
+  /// \return the allocated pointer.
+  void *submit_async_malloc_direct(ur_usm_pool_handle_t Pool, size_t Size,
+                                   const detail::code_location &CodeLoc);
+
+  /// Submits an asynchronous USM free to the queue, without creating a handler
+  /// or a command group object.
+  ///
+  /// \param Ptr is the pointer to be freed.
+  /// \param CodeLoc is the code location of the submit call.
+  void submit_async_free_direct(void *Ptr,
+                                const detail::code_location &CodeLoc);
+
   void submit_graph_direct_without_event(
       const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
           &ExecGraph,
@@ -455,6 +475,31 @@ public:
       std::vector<detail::captured_dependency> &DepEvents,
       detail::CGType BarrierType, bool EventNeeded,
       const EventImplPtr &EventForReuse);
+
+  /// Completes the submission of an asynchronous allocation using the scheduler
+  /// bypass fast path. The allocation itself has already been enqueued to the
+  /// backend by the caller, as the pointer has to be returned immediately.
+  ///
+  /// \param UREvent is the event of the enqueued allocation, if one was
+  ///        requested.
+  /// \param DepEvents is the list of event dependencies of the allocation.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  ///
+  /// \return a SYCL event representing the allocation or nullptr.
+  EventImplPtr submit_async_alloc_scheduler_bypass(
+      ur_event_handle_t UREvent,
+      std::vector<detail::captured_dependency> &DepEvents, bool EventNeeded);
+
+  /// Submits an asynchronous free using the scheduler bypass fast path.
+  ///
+  /// \param Ptr is the pointer to be freed.
+  /// \param DepEvents is the list of event dependencies of the free.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  ///
+  /// \return a SYCL event representing the free or nullptr.
+  EventImplPtr submit_async_free_scheduler_bypass(
+      void *Ptr, std::vector<detail::captured_dependency> &DepEvents,
+      bool EventNeeded);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -786,6 +831,20 @@ public:
   void waitForRuntimeLevelCmdsAndClear();
 
 protected:
+  /// Creates the event representing a command which has already been enqueued
+  /// to the backend through a scheduler bypass path.
+  ///
+  /// \param UREvent is the handle returned by the backend enqueue call.
+  /// \param DepEvents is the list of event dependencies of the command. They
+  /// are
+  ///        only adopted by the event of out-of-order queues, which have to
+  ///        keep them alive.
+  ///
+  /// \return the event representing the enqueued command.
+  EventImplPtr
+  makeEnqueuedEvent(ur_event_handle_t UREvent,
+                    std::vector<detail::captured_dependency> &&DepEvents);
+
   EventImplPtr insertHelperBarrier();
 
   template <typename HandlerType = handler>

@@ -570,11 +570,10 @@ TEST_F(ReusableEventsQueueTest, DISABLED_LastEventTracksQueueAfterResignal) {
 }
 
 // tests-10-02 U13. An asynchronous allocation on Q1 follows the last command
-// of Q1, which it finds through the last-event query.
-// Known defect: review-10-02 #7 (getLastEvent hands out the event of the last
-// command, which represents its latest signal, not the captured one).
-TEST_F(ReusableEventsQueueTest,
-       DISABLED_AsyncMallocOrdersAfterQueueAfterResignal) {
+// of Q1, not the later signal of the kernel's event on Q2. The queue helper
+// orders it through the queue's captured last signal, not through the
+// last-event query, so review-10-02 #7 does not apply to it.
+TEST_F(ReusableEventsQueueTest, AsyncMallocOrdersAfterQueueAfterResignal) {
   mock::getCallbacks().set_replace_callback(
       "urEnqueueUSMDeviceAllocExp", &redefinedUrEnqueueUSMDeviceAllocExp);
   {
@@ -595,7 +594,10 @@ TEST_F(ReusableEventsQueueTest,
   {
     std::lock_guard<std::mutex> Lock(BackendMutex);
     ASSERT_EQ(AllocWaitLists.size(), 1u);
-    EXPECT_EQ(AllocWaitLists[0], std::vector<ur_event_handle_t>{K});
+    // K is on the same in-order queue, so it may be left out of the wait list
+    // as redundant; nothing else may be in it.
+    for (ur_event_handle_t Handle : AllocWaitLists[0])
+      EXPECT_EQ(Handle, K);
     EXPECT_EQ(std::find(AllocWaitLists[0].begin(), AllocWaitLists[0].end(), H2),
               AllocWaitLists[0].end());
   }
