@@ -8,7 +8,6 @@
 
 #include <sycl/accessor_image.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
