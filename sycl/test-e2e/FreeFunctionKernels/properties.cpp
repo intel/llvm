@@ -9,6 +9,7 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
+#include <algorithm>
 #include <iostream>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/get_kernel_info.hpp>
@@ -21,7 +22,6 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 
 static constexpr size_t NUM = 1024;
 static constexpr size_t WGSIZE = 64;
-static constexpr size_t SGSIZE = 32;
 
 inline void kernel_code(float start, float *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
@@ -50,12 +50,14 @@ void range_wg_1dsize_hint_before(float start, float *ptr) {
   kernel_code(start, ptr);
 }
 
+template <size_t SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void range_sg_1dsize_before(float start, float *ptr) {
   kernel_code(start, ptr);
 }
 
+template <size_t SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
 void range_sg_1dsize_after(float start, float *ptr) { kernel_code(start, ptr); }
@@ -68,11 +70,13 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::device_has<sycl::aspect::gpu>))
 void range_has_after(float start, float *ptr) { kernel_code(start, ptr); }
 
+template <size_t SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<WGSIZE>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
 void range_several_after(float start, float *ptr) { kernel_code(start, ptr); }
 
+template <size_t SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<WGSIZE>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
@@ -157,6 +161,20 @@ bool test_several_properties(sycl::queue &q, sycl::context &ctxt,
   return ret;
 }
 
+template <size_t SGSIZE>
+int test_sg_properties(sycl::queue &q, sycl::context &ctxt) {
+  int ret = 0;
+  ret |= test<range_sg_1dsize_before<SGSIZE>, float, sg_size_desc>(
+      q, ctxt, "range_sg_1dsize_before");
+  ret |= test<range_sg_1dsize_after<SGSIZE>, float, sg_size_desc>(
+      q, ctxt, "range_sg_1dsize_after");
+  ret |= test_several_properties<range_several_before<SGSIZE>, float>(
+      q, ctxt, "range_several_before");
+  ret |= test_several_properties<range_several_after<SGSIZE>, float>(
+      q, ctxt, "range_several_after");
+  return ret;
+}
+
 int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
@@ -170,15 +188,16 @@ int main() {
       q, ctxt, "range_wg_1dsize_hint_before");
   ret |= test<range_wg_1dsize_hint_after, float, wg_size_desc>(
       q, ctxt, "range_wg_1dsize_hint_after");
-  ret |= test<range_sg_1dsize_before, float, sg_size_desc>(
-      q, ctxt, "range_sg_1dsize_before");
-  ret |= test<range_sg_1dsize_after, float, sg_size_desc>(
-      q, ctxt, "range_sg_1dsize_after");
   ret |= test_has_desc<range_has_before, float>(q, ctxt);
   ret |= test_has_desc<range_has_after, float>(q, ctxt);
-  ret |= test_several_properties<range_several_before, float>(
-      q, ctxt, "range_several_before");
-  ret |= test_several_properties<range_several_after, float>(
-      q, ctxt, "range_several_after");
+
+  // Sub-group size 32 is guaranteed by REQUIRES: sg-32. Size 16 isn't
+  // guaranteed on all devices (e.g. CUDA/HIP only expose 32), so only
+  // exercise it when the device actually reports support for it.
+  ret |= test_sg_properties<32>(q, ctxt);
+  auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
+  if (std::find(SGSizes.begin(), SGSizes.end(), 16) != SGSizes.end())
+    ret |= test_sg_properties<16>(q, ctxt);
+
   return ret;
 }
