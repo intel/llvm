@@ -7558,7 +7558,7 @@ static bool hasParsedAttr(Scope *S, const Declarator &PD,
 }
 
 bool Sema::adjustContextForLocalExternDecl(DeclContext *&DC) {
-  if (!DC->isFunctionOrMethod())
+  if (!DC->getEnclosingNonExpansionStatementContext()->isFunctionOrMethod())
     return false;
 
   // If this is a local extern function or variable declared within a function
@@ -8471,6 +8471,21 @@ NamedDecl *Sema::ActOnVariableDeclarator(
         << Name << computeDeclContext(D.getCXXScopeSpec(), true)
         << D.getCXXScopeSpec().getRange();
       NewVD->setInvalidDecl();
+
+      // if this is a member specialization, we don't have any primary template
+      // to be instantiated from. We set ourselves to a 'fake' clone of this so
+      // that anything that attempts to refer to this invalid declaration can
+      // act as if there IS a primary instantiation.
+      if (NewTemplate && IsMemberSpecialization) {
+        VarDecl *FakeVD =
+            VarDecl::Create(Context, DC, D.getBeginLoc(), D.getIdentifierLoc(),
+                            II, R, TInfo, SC);
+        FakeVD->setInvalidDecl();
+        VarTemplateDecl *FakeInstantiatedFrom = VarTemplateDecl::Create(
+            Context, DC, D.getIdentifierLoc(), Name, TemplateParams, FakeVD);
+        FakeInstantiatedFrom->setInvalidDecl();
+        NewTemplate->setInstantiatedFromMemberTemplate(FakeInstantiatedFrom);
+      }
     }
 
     if (!IsPlaceholderVariable)
@@ -14621,12 +14636,15 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     }
     // C++1z [dcl.dcl]p1 grammar implies that an initializer is mandatory.
     if (isa<DecompositionDecl>(RealDecl)) {
-      // Point the caret to the token immediately after the closing bracket.
-      auto NextLoc = dyn_cast<DecompositionDecl>(RealDecl)->getRSquareLoc();
-      NextLoc =
-          Lexer::findNextToken(NextLoc, PP.getSourceManager(), PP.getLangOpts())
-              ->getLocation();
-      Diag(NextLoc, diag::err_decomp_decl_requires_init) << Var;
+      // Point the caret to the token immediately after the closing bracket if
+      // it can be found; otherwise fall back to the declaration's location.
+      SourceLocation Loc = Var->getLocation();
+      SourceLocation RSquareLoc =
+          dyn_cast<DecompositionDecl>(RealDecl)->getRSquareLoc();
+      if (std::optional<Token> Next = Lexer::findNextToken(
+              RSquareLoc, PP.getSourceManager(), PP.getLangOpts()))
+        Loc = Next->getLocation();
+      Diag(Loc, diag::err_decomp_decl_requires_init) << Var;
       Var->setInvalidDecl();
       return;
     }

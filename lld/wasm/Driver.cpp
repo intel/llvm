@@ -759,6 +759,14 @@ static void setConfigs() {
     if (ctx.arg.sharedMemory)
       error("--cooperative-threading is incompatible with --shared-memory");
     ctx.arg.libcallThreadContext = true;
+
+    // Cooperative threading requires the table is either imported or exported
+    // or otherwise there's no way for embedders to read spawned functions from
+    // the table. If we've gotten this far and the table isn't otherwise
+    // imported (e.g in `isPic` mode) then export the table instead to ensure
+    // that it's visible to the outside world.
+    if (!ctx.arg.importTable)
+      ctx.arg.exportTable = true;
   }
 }
 
@@ -973,9 +981,8 @@ static void createSyntheticSymbols() {
     // TLS symbols are all hidden/dso-local
     auto tls_base_name =
         ctx.arg.libcallThreadContext ? "__init_tls_base" : "__tls_base";
-    ctx.sym.tlsBase =
-        createGlobalVariable(tls_base_name, !ctx.arg.libcallThreadContext,
-                             WASM_SYMBOL_VISIBILITY_HIDDEN);
+    ctx.sym.tlsBase = createGlobalVariable(tls_base_name, true,
+                                           WASM_SYMBOL_VISIBILITY_HIDDEN);
     ctx.sym.tlsSize = createGlobalVariable("__tls_size", false,
                                            WASM_SYMBOL_VISIBILITY_HIDDEN);
     ctx.sym.tlsAlign = createGlobalVariable("__tls_align", false,

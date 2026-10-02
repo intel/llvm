@@ -3236,12 +3236,22 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
       LpadLabel = PreferredLandingPadLabel;
     }
 
-    SmallVector<SDValue, 4> Ops;
+    // Preserve the argument-register and register-mask operands, between
+    // Callee and the optional glue, so the pseudo call still reports its
+    // call-preserved mask to the register allocator.
+    SmallVector<SDValue, 8> Ops;
     Ops.push_back(Node->getOperand(1));
     Ops.push_back(CurDAG->getTargetConstant(LpadLabel, DL, XLenVT));
+
+    unsigned NumOps = Node->getNumOperands();
+    bool HasGlue = Node->getGluedNode() != nullptr;
+    unsigned RegOperandsEnd = HasGlue ? NumOps - 1 : NumOps;
+    for (unsigned I = 2; I != RegOperandsEnd; ++I)
+      Ops.push_back(Node->getOperand(I));
+
     Ops.push_back(Node->getOperand(0));
-    if (Node->getGluedNode())
-      Ops.push_back(Node->getOperand(Node->getNumOperands() - 1));
+    if (HasGlue)
+      Ops.push_back(Node->getOperand(NumOps - 1));
 
     ReplaceNode(Node,
                 CurDAG->getMachineNode(PseudoOpc, DL, Node->getVTList(), Ops));
@@ -3588,6 +3598,8 @@ bool RISCVDAGToDAGISel::SelectAddrRegImm26(SDValue Addr, SDValue &Base,
     // load/store.
     if (isInt<26>(CVal) && !isInt<12>(CVal)) {
       Base = Addr.getOperand(0);
+      if (auto *FIN = dyn_cast<FrameIndexSDNode>(Base))
+        Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), VT);
       Offset = CurDAG->getSignedTargetConstant(CVal, DL, VT);
       return true;
     }
@@ -3696,9 +3708,10 @@ bool RISCVDAGToDAGISel::SelectAddrRegImmLsb00000(SDValue Addr, SDValue &Base,
     int64_t CVal = cast<ConstantSDNode>(Addr.getOperand(1))->getSExtValue();
     assert(!isInt<12>(CVal) && "simm12 not already handled?");
 
-    // Handle immediates in the range [-4096,-2049] or [2017, 4065]. We can save
+    // Handle immediates in the range [-4096,-2049] or [2017, 4063]. We can save
     // one instruction by folding adjustment (-2048 or 2016) into the address.
-    if ((-2049 >= CVal && CVal >= -4096) || (4065 >= CVal && CVal >= 2017)) {
+    // The upper bound keeps CVal - 2016 within simm12 ([−2048, 2047]).
+    if ((-2049 >= CVal && CVal >= -4096) || (4063 >= CVal && CVal >= 2017)) {
       int64_t Adj = CVal < 0 ? -2048 : 2016;
       int64_t AdjustedOffset = CVal - Adj;
       Base =

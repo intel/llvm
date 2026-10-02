@@ -203,6 +203,8 @@ Makes programs 10x faster by doing Special New Thing.
   instead of the ABI names FP and LR. Note that LLVM IR produced by Clang
   always uses the ABI names, but other frontends may not.
   ([#167783](https://github.com/llvm/llvm-project/pull/167783))
+* On AArch64 Windows targets, return address signing now uses the B-key by
+  default because Windows unwind information only supports B-key signing.
 
 ### Changes to the AMDGPU Backend
 
@@ -235,6 +237,34 @@ Makes programs 10x faster by doing Special New Thing.
 
 ### Changes to the Hexagon Backend
 
+* v79 and later targets get code generation support for XQFloat, an
+  extended-precision floating point format, along with an extraneous
+  conversion removal pass and a post-register-allocation compliance checker.
+* IEEE HVX floating point intrinsics are automatically translated to their
+  QFloat equivalents on v79+ targets.
+* `vselect` can now be lowered for HVX.
+* Partial reduction intrinsics are now supported.
+* HVX gained V128i1/V64i1/V32i1 predicate load and store support.
+* The Machine Combiner pass is enabled for Hexagon.
+* A new AggressiveRDF copy propagation pass extends RDF copy propagation
+  with super-register and sub-register handling.
+* The HexagonGlobalScheduler pass was added.
+* ShadowCallStack (`-fsanitize=shadow-call-stack`) is now supported, along
+  with a corresponding multilib.
+* Stack clash protection can use `probe-stack=inline-asm`.
+* KCFI is now supported.
+* The CFI indirect-call sanitizer is now supported.
+* `-ffixed-rXX` can reserve caller-saved registers r16-r28.
+* A new HVX caller-save remark pass diagnoses call sites that force HVX
+  register spills.
+* Several Hexagon IR and MIR passes now emit optimization remarks.
+* XRay custom and typed events are now supported.
+* JITLink gained an ELF backend for Hexagon.
+* The `.reloc` assembler directive is now supported.
+* HVX build-vector lowering now reuses word splats for repeated words.
+* Sign-extend-then-multiply patterns are now recognized and lowered to
+  `vmpyh`.
+
 ### Changes to the LoongArch Backend
 
 * DWARF fission is now compatible with linker relaxations, allowing `-gsplit-dwarf` and `-mrelax`
@@ -249,6 +279,26 @@ Makes programs 10x faster by doing Special New Thing.
   Toolkit versions (11/12/13).
 
 ### Changes to the PowerPC Backend
+
+* Added backend support for partial reductions and cost modeling for length-type
+  VP intrinsic load/store.
+* `vec_rl()` on `v4i32` now generates `xvrlw` when targeting `-mcpu=future`.
+* `v256i1` loads and stores use paired vector instructions (`lxvp`/`stxvp`) on `-mcpu=future`.
+* Added support for the `MSGSNDP` (Message Send Privileged) instruction.
+* Enabled custom lowering for `__builtin_bswap64` on Power8 in 64-bit mode
+  by splitting the 64-bit byte-swap into independent 32-bit high/low swaps
+  for improved instruction-level parallelism. Power9 and later continue to
+  use their existing paths.
+* Added missing `BR_CC` handler in `DAGTypeLegalizer` for soft-promoted half
+  operands, fixing a crash when a half-typed `fcmp` result feeds directly
+  into a conditional branch.
+* Various codegen improvements and bug fixes.
+* AIX: Implemented support for the `ifunc` attribute.
+* AIX: Implemented Function Multi-Versioning using `target_clones`; versioning by cpu only, and diagnosis of invalid feature strings on the `target` attribute.
+* AIX: Added sorting of relocations in the XCOFF object writer.
+* AIX: The default code model for 64-bit targets has been changed from `small`
+  to `large`. This avoids the need for expensive linker fixups (e.g.
+  `-Wl,-bigtoc`) that many applications require with the small code model.
 
 ### Changes to the RISC-V Backend
 
@@ -282,6 +332,44 @@ Makes programs 10x faster by doing Special New Thing.
 * Adds experimental assembler support for dot-product extensions(Zvqwdota8i, Zvqwdota16i, Zvfwdota16bf and Zvfqwdota8f).
 * `-mtune=generic` now uses the scheduling model from SpacemiT X60 instead of an empty scheduling model.
 * The Xqcilo pseudos now emit sequences that can be relaxed.
+
+### Changes to the SystemZ Backend
+
+The SystemZ backend now contains initial support to generate code for z/OS using the XPLINK 64 bit
+ABI and emitting the code into GOFF object files:
+
+* Adds support for writing GOFF object files.
+* Adds new class `SystemZHASMAsmStreamer` to emit assembly in HLASM syntax.
+* The temporary GNU AS assembly output is removed; all assembly output is in
+  HLASM syntax, and all z/OS-specific test cases are updated.
+* Jump tables are now emitted into the text section.
+* PPA1 data is now collected and written at the end of the code generation into
+  the text section.
+* The PPA1 now contains the prologue length and the offset to the stack update
+  symbol.
+* Adds a new attribute to control if the symbol name is emitted into the PPA1.
+* Changed the order of caller-saved registers to match legacy compiler.
+* Register R5 is no longer restored, matching the XPLINK specification.
+* Implements stack guard support for XPLINK
+
+Code-generation changes:
+* Add support for the dataflow sanitizer.
+* Add support for the `-mstack-protector-guard=global` and
+  `-mstack-protector-guard-record` command line options.
+* Fix incorrect code generated for the `vec_insert` intrinsic
+   when used with the `vector float` data type.
+
+Performance enhancements:
+* Added a SystemZ-specific pre-RA scheduling strategy with latency-aware
+   heuristics, liveness-reduction, and a minimum-latency-5 filter.
+* Enabled interleaving for vectorized loops and epilogue loop vectorization.
+* Enabled scalar load rematerialization.
+* Cost model improvements to enable better auto-vectorization
+* Improved codegen for minimum/maximum operations.
+* Allow folding memory accesses across basic-block boundaries.
+* Avoid stack overalignment for vector types.
+* Avoid unaligned vector loads/stores in memcpy/memmove/memset lowering.
+* Avoid redundant zero-extension after VLGV[BHF].
 
 ### Changes to the WebAssembly Backend
 
@@ -401,9 +489,16 @@ Makes programs 10x faster by doing Special New Thing.
 * Fixed `llvm-ar` to correctly handle the `N` count modifier on Windows for archive members whose names differ only
   in case (e.g. `FOO.OBJ` and `foo.obj`). Previously, `-N 2` would fail with "not found" even when two matching members existed.
 * `llvm-readobj` and `llvm-readelf` now support the `--call-graph-section` option to dump the contents of the experimental [call graph section](CallGraphSection.md).
+* `lit` now supports `--unsupported` and `--unsupported-not` command-line
+  options (and corresponding `LIT_UNSUPPORTED` / `LIT_UNSUPPORTED_NOT`
+  environment variables) to mark tests as `UNSUPPORTED` without modifying
+  the test files, mirroring the existing `--xfail` / `LIT_XFAIL` mechanism.
 * Added support for hybrid ARM64X object files to `llvm-ar` and `llvm-lib`. When these files are added to
   an archive, they are automatically split into separate native and EC members. Because the resulting members
   are no longer hybrid object files, consumers of these archives do not need to support the hybrid format themselves.
+* `llvm-ar` now supports reading and writing z/OS archives.
+* `ObjectFile::createObjectFile` now correctly handles GOFF object files,
+  routing them through `createGOFFObjectFile` instead of returning an error.
 
 ### Changes to LLDB
 
@@ -424,6 +519,8 @@ Makes programs 10x faster by doing Special New Thing.
 * A new `diagnostics report` command (aliased `bugreport`) assembles a diagnostics bundle and files
   a pre-filled GitHub issue, pointing at the bundle to attach. The GitHub reporter is built by
   default and can be disabled with the `LLDB_ENABLE_GITHUB_BUG_REPORTER=OFF` CMake option.
+* The script interpreter plugins are now built as shared libraries by default on Darwin and FreeBSD
+  (`LLDB_ENABLE_DYNAMIC_SCRIPTINTERPRETERS=ON`). This can be opted into on Linux also.
 
 #### Deprecated APIs
 
@@ -485,13 +582,41 @@ Makes programs 10x faster by doing Special New Thing.
   from the command-line and in the output window when using lldb-dap.
 * LLDB now uses `lldb-server.exe` to launch and manage the program being debugged,
   instead of running it within LLDB's own process. To revert to the previous behavior, set the environment variable `LLDB_USE_LLDB_SERVER=0`.
+* Support for PDB symbol servers has been added. By default, no symbol servers are used.
+  You can control this either through the [`_NT_SYMBOL_PATH`](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbol-path)
+  environment variable or by setting `plugin.symbol-locator.symstore.urls`
+  (see [`plugin.symbol-locator.symstore`](https://lldb.llvm.org/use/settings.html#symstore) for more info).
+* LLDB no longer depends on the Python private API on Windows. Users are now free to
+  use any Python version they want, as long as it is 3.8 or later and LLDB can find it
+  (i.e. it is on their `PATH`).
 
 
 ### Changes to BOLT
 
+* BOLT supports AArch64 binaries using Pointer Authentication (PAC) and Branch
+  Target Identification (BTI). For PAC-enabled binaries, BOLT preserves pointer
+  authentication CFI state during optimization. For BTI-enabled binaries, BOLT
+  can patch PLT entries or indirect branch targets with BTI landing pads where
+  possible.
+
+* BOLT adds compact-code-model support for Armv9.6-A FEAT_CMPBR
+  compare-and-branch instructions, including support for block reordering,
+  function splitting, branch inversion where legal.
+
+* BOLT supports AArch64 profile data collected with Arm SPE and branch-stack
+  profiles from hardware such as BRBE. LLVM 23 adds pre-parsed perf-script and
+  profile-format support for these workflows.
+
 ### Changes to Sanitizers
 
 * Add a random delay into ThreadSanitizer to help find rare thread interleavings.
+* `sancov` now supports XCOFF object files (used on AIX). The tool strips
+  the `.` prefix that AIX adds to function entry-point symbols (e.g.
+  `.__sanitizer_cov_trace_pc_guard`) so that coverage symbols are
+  correctly identified.
+* The `mmap`/`munmap` memory-mapping interceptors now fail early when the
+  requested address range is not covered by shadow memory, avoiding
+  hard-to-diagnose failures later in the sanitizer runtime.
 
 ### Other Changes
 

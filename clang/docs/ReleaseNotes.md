@@ -116,8 +116,6 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   as being of type `std::size_t` instead of `int`,
   matching the deduction of array sizes from `int(&)[N]`.
   This is a breaking change for code that depended on the previously deduced type. (#GH195033)
-- Clang now rejects C++ declarations that combine the `auto` type specifier
-  with another type specifier, such as `auto int`.
 - Clang now rejects nested local classes defined in a different
   block scope than their parent class. (#GH193472)
 
@@ -161,6 +159,9 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Fixed Itanium mangling for lambdas in default member initializers of local
   classes to use `<local-name>` encoding, preventing mangling collisions between
   distinct local classes.
+- For `x86_64-windows-msvc` targets, Clang now aligns global variables using the MSVC size‑based alignment scheme instead of the x86‑64 psABI "large array" promotion rule.
+  This makes alignment behavior fully compatible with MSVC and fixes incorrect over‑alignment / under‑alignment of globals.
+  `-fclang-abi-compat=22` restores the previous behavior. (#GH196071), (#GH171855)
 
 ### AST Dumping Potentially Breaking Changes
 
@@ -455,6 +456,11 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   necessary. `/d1nodatetime-` can be used to turn this feature off if
   necessary to override the common build settings.
 
+- Added `-mscs-reg=<reg>` on Hexagon to select which callee-saved register
+  (`r16`-`r27`, default `r18`) holds the shadow call stack pointer under
+  `-fsanitize=shadow-call-stack`. The selected register must also be reserved
+  with the matching `-ffixed-<reg>`.
+
 ### Deprecated Compiler Flags
 
 ### Modified Compiler Flags
@@ -587,6 +593,11 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 
 ### Improvements to Clang's diagnostics
 
+- Fixed `-Wunused-parameter` to diagnose coroutine parameters that are only
+  considered during allocation function lookup or promise object
+  initialization, while not diagnosing parameters passed to the selected
+  allocation function or promise constructor. (#GH217501)
+
 - Fixed bug in `-Wdocumentation` so that it correctly handles explicit
   function template instantiations (#64087).
 
@@ -598,11 +609,6 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   This new coverage is added under the subgroup `-Wunused-but-set-global`,
   allowing it to be disabled independently with `-Wno-unused-but-set-global`.
   (#GH148361)
-
-- `-Wunused-template` is now part of `-Wunused` (which is enabled by `-Wall`).
-  It diagnoses unused function and variable templates with internal linkage,
-  which in a header is a latent ODR hazard. It can be disabled with
-  `-Wno-unused-template`. (#GH202945)
 
 - Added `-Wlifetime-safety` to enable lifetime safety analysis,
   a CFG-based intra-procedural analysis that detects use-after-free and related
@@ -834,7 +840,9 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Fixed a crash in the constant evaluator when an ill-formed array new-expression whose bound could not be determined (e.g. `new int[]()`) was used in a constant expression. (#GH200139)
 - Fixed a case where function effect analysis (`nonblocking` etc.) did not visit a destructor invoked from a `delete` expression. (#GH184460)
 - Clang now defines the GCC-compatible predefined macros `__WCHAR_MIN__`, `__WINT_MIN__`, and `__SIG_ATOMIC_MIN__`. (#GH199678)
+- Clang now defines the GCC-compatible predefined macro `__SIG_ATOMIC_TYPE__`. (#GH213895)
 - Fix a crash in addUnsizedArray due assert not verifying we have a Base before doing checks on it. (#GH44212)
+- Fixed an assertion that could occur when rebuilding parenthesized list initialization expressions during template instantiation or AST transformation.
 
 #### Bug Fixes to Compiler Builtins
 
@@ -951,6 +959,9 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Fixed a assertion when `__block` is used on global variables in C mode. (#GH183974)
 - Added missing AST nodes representing the `decltype` specifiers in destructor call to AST.
 - Fixed a missing ODR violation diagnostic introduced by the inline assembly string or clobber list. (#GH198616)
+- Fixed a non-deterministic ordering of unused local typedefs that made
+  serialized PCH/AST files and `-Wunused-local-typedef` diagnostics
+  non-reproducible across runs. (#GH209639)
 
 #### Miscellaneous Bug Fixes
 
@@ -1041,6 +1052,9 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   - Hisilicon hip12 core (hip12).
   - NVIDIA Rigel core (rigel).
 
+- On AArch64 Windows targets, `-mbranch-protection=standard` and `-mbranch-protection=pac-ret`
+  now uses the B-key by default.
+
 #### Android Support
 
 #### Windows Support
@@ -1106,8 +1120,25 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   address of specializations of templated functions that have overloads for both
   host and device. (#GH199299)
 
+#### PowerPC Support
+
+- Added support for AMO load and store builtins.
+- Added DMF crypto builtins for extended mnemonics.
+- Added ISA Future (`-mcpu=future`) builtins for AES encrypt/decrypt/key-generation,
+  Post-Quantum Cryptography Acceleration (`vec_mulh`), Deeply Compressed Weights
+  (`vec_uncompress*`/`vec_unpack_*`), and Elliptic Curve Cryptography.
+- Updated DMR builtin names to remove the `_mma` infix.
+- Added early target feature validation for PowerPC builtins during semantic analysis.
+- Added support for the following PowerPC BCD (Binary-Coded Decimal) builtins
+  for POWER9 targets (requires including `bcd.h`):
+  `__builtin_bcdshift`, `__builtin_bcdshiftround`, `__builtin_bcdtruncate`,
+  `__builtin_bcdunsignedtruncate`, and `__builtin_bcdunsignedshift`.
+
 #### AIX Support
 
+- Implemented the `ifunc` attribute with Function Multi-Versioning (FMV) /
+  `target_clones` (cpu-only) support.
+- Added diagnosis of invalid feature strings on the `target` attribute.
 - The driver default for the linker flag `-bcdtors` now defaults to `mbr`
   (instead of `all`) which only extracts static init from archive members which
   would otherwise be referenced.
@@ -1121,6 +1152,25 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   The string is included in the final executable and loaded into memory at program runtime.
 - The driver relaxes the restrictions on the `OBJECT_MODE` environment
   variable and now silently accepts `32_64` and `any`.
+- Fixed a bug where the `OBJECT_MODE` environment variable could override an
+  explicitly specified `--target` triple. `--target` now takes precedence over
+  `OBJECT_MODE`, ensuring lit tests and other callers that specify an explicit
+  32-bit or 64-bit triple get the correct bit mode regardless of environment.
+- The driver's `-print-search-dirs` output now includes the AIX system library
+  paths (`/usr/lib` and `/lib`), matching GCC behavior and fixing build-tool
+  failures (Meson, CMake) that rely on this output to construct `blibpath`.
+  The `AddFilePathLibArgs()` override also prevents duplicate `-L` flags in
+  linker commands.
+- The `+modern-aix-as` target feature is now automatically enabled when
+  targeting AIX with the integrated assembler (the default, or
+  `-fintegrated-as`). This makes instruction aliases gated on `ModernAs`
+  (e.g. `mfsprg`) available without requiring manual
+  `-Xclang -target-feature -Xclang +modern-aix-as`. The feature is not
+  enabled when `-fno-integrated-as` is specified.
+- The compiler-rt build now detects the RPC XDR header (`tirpc/rpc/xdr.h`
+  on AIX, `rpc/xdr.h` elsewhere). A new `COMPILER_RT_REQUIRE_RPC_XDR_H`
+  CMake option (default `ON` on AIX, `OFF` elsewhere) turns a missing
+  header into a fatal configuration error with an actionable message.
 
 #### NetBSD Support
 
@@ -1137,11 +1187,28 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 
 #### AVR Support
 
+#### Hexagon Support
+
+- `H2` and `QURT` are now recognized as operating systems in the Hexagon
+  target triple. The driver can build against Picolibc for H2, and a
+  `--cstdlib` flag selects Picolibc.
+- RTSan, TySan, and the CFI indirect-call sanitizer now support Hexagon.
+  `-fsanitize=type` is enabled for Hexagon Linux.
+- `-ffixed-rXX` can now reserve caller-saved registers r16-r28.
+- ShadowCallStack (`-fsanitize=shadow-call-stack`) is supported.
+- The driver passes LTO options through to the Hexagon linker invocation.
+- `_GNU_SOURCE` is predefined for Hexagon C++ compilations.
+- `__HVX_IEEE_FP__` is defined when `-mhvx-ieee-fp` is enabled.
+
 #### SystemZ Support
 
 - Add support for `#pragma export` for z/OS. This is a pragma used to export functions and variables
   with external linkage from shared libraries. It provides compatibility with the IBM XL C/C++
   compiler.
+- Add support for variable argument lists on z/OS.
+- Add compare-and-swap builtin functions, as provided by the IBM C/C++ compiler for z/OS.
+- Add new wrapper headers for z/OS to improve compatibility with the system headers.
+- Raised minimal supported target OS level to z/OS 3.1.
 
 ### DWARF Support in Clang
 
@@ -1254,7 +1321,6 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Added a new `check::LifetimeEnd` callback that fires for each `CFGLifetimeEnds` element, which is useful for detecting dangling pointers. (#GH201123)
 - The `unix.StdCLibraryFunctions` standard-library summaries were optimized for binary size. (#GH202662)
 - Fixed the alignment of entries printed by `clang -cc1 -analyzer-print-analyzer-options` / `-analyzer-help`. (#GH190570)
-- Improved the models of `strchr`/`strrchr`/`memchr`/`strstr`/`strpbrk`/`strchrnul`, enabling `core.StackAddressEscape` to catch dangling pointers returned by these functions. (#GH203260)
 - Improved the modeling of symbolic ranges in the engine when calculating the largest and smallest possible values for range sets involving the `+`, `-`, and `*` binary operators. (#GH173113)
 
 #### Moved checkers
@@ -1275,6 +1341,10 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 ### Sanitizers
 
 - UndefinedBehaviorSanitizer now supports `__ubsan_default_suppressions`.
+- UndefinedBehaviorSanitizer now performs null, alignment, and array-bounds
+  checks for aggregate (as opposed to scalar) copy operations in C; for C++,
+  this applies to trivial copy/move operations and some cases remain
+  unchecked. (#GH190739, #GH203737)
 - Sanitizer Special Case Lists (`-fsanitize-ignorelist`) now support
   Version 4 of the Special Case List format, which introduces a transition
   period for leading dot-slash (`./`) canonicalization in path matching.
