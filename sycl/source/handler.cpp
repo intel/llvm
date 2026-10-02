@@ -701,9 +701,8 @@ detail::EventImplPtr handler::finalize() {
   case detail::CGType::Barrier:
   case detail::CGType::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
-      impl->CGData.MEvents.insert(std::end(impl->CGData.MEvents),
-                                  std::begin(impl->MEventsWaitWithBarrier),
-                                  std::end(impl->MEventsWaitWithBarrier));
+      for (const detail::EventImplPtr &Event : impl->MEventsWaitWithBarrier)
+        impl->CGData.MEvents.push_back(detail::capture_dependency(Event));
       // Barrier node is implemented as an empty node in Graph
       // but keep the barrier type to help managing dependencies
       setType(detail::CGType::Barrier);

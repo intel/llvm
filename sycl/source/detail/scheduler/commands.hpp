@@ -147,6 +147,12 @@ public:
   [[nodiscard]] Command *addDep(EventImplPtr Event,
                                 std::vector<Command *> &ToCleanUp);
 
+  /// \param Dep dependency to be added, captured by the caller
+  /// \param ToCleanUp container for commands that can be cleaned up.
+  /// \return an optional connection cmd to enqueue
+  [[nodiscard]] Command *addDep(captured_dependency Dep,
+                                std::vector<Command *> &ToCleanUp);
+
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
   /// \return type of the command, e.g. Allocate, MemoryCopy.
@@ -177,7 +183,7 @@ public:
   // commands depending on it. Regular usage - host task.
   bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
 
-  void addBlockedUserUnique(const EventImplPtr &NewUser) {
+  void addBlockedUserUnique(const std::shared_ptr<event_binding> &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
         MBlockedUsers.end())
       return;
@@ -187,6 +193,9 @@ public:
   queue_impl *getQueue() const { return MQueue.get(); }
 
   const EventImplPtr &getEvent() const { return MEvent; }
+
+  /// The binding of MEvent this command produces.
+  const std::shared_ptr<event_binding> &getBinding() const { return MBinding; }
 
   // Methods needed to support SYCL instrumentation
 
@@ -226,7 +235,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() { MEvent->cleanDepEventsThroughOneLevel(); }
+  virtual ~Command() { MBinding->cleanDependenciesThroughOneLevel(); }
 
   const char *getBlockReason() const;
 
@@ -251,6 +260,15 @@ public:
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand);
 
+  /// The same for captured dependencies: the backend event and the worker
+  /// queue are those of the captured signal.
+  std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<captured_dependency> &Deps) const;
+
+  static std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<captured_dependency> &Deps,
+              queue_impl *CommandQueue, bool IsHostTaskCommand);
+
   /// Returns true iff this command represents a host task. Only ExecCGCommand
   /// can, so the base implementation always returns false: the command type
   /// alone does not imply the dynamic type of the command.
@@ -259,21 +277,25 @@ public:
 protected:
   std::shared_ptr<queue_impl> MQueue;
   EventImplPtr MEvent;
+  /// The binding of MEvent this command produces. MPreparedDepsEvents and
+  /// MPreparedHostDepsEvents refer into it, so it has to be declared before
+  /// them.
+  std::shared_ptr<event_binding> MBinding;
   std::shared_ptr<queue_impl> MWorkerQueue;
 
-  /// Dependency events prepared for waiting by backend.
-  /// See processDepEvent for details.
-  std::vector<EventImplPtr> &MPreparedDepsEvents;
-  std::vector<EventImplPtr> &MPreparedHostDepsEvents;
+  /// Dependencies prepared for waiting by backend, and those waited for on the
+  /// host. See processDepEvent for details.
+  std::vector<captured_dependency> &MPreparedDepsEvents;
+  std::vector<captured_dependency> &MPreparedHostDepsEvents;
 
-  void waitForEvents(queue_impl *Queue, std::vector<EventImplPtr> &RawEvents,
+  void waitForEvents(queue_impl *Queue, std::vector<captured_dependency> &Deps,
                      ur_event_handle_t &Event);
 
   void waitForPreparedHostEvents() const;
 
-  void flushCrossQueueDeps(events_range Events) {
-    for (event_impl &Event : Events) {
-      Event.flushIfNeeded(MWorkerQueue.get());
+  void flushCrossQueueDeps(const std::vector<captured_dependency> &Deps) {
+    for (const captured_dependency &Dep : Deps) {
+      Dep.Binding->flushIfNeeded(MWorkerQueue.get());
     }
   }
 
@@ -288,7 +310,7 @@ protected:
   /// command. Context of this command is fetched via getWorkerContext().
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
-  [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent,
+  [[nodiscard]] Command *processDepEvent(captured_dependency DepEvent,
                                          const DepDesc &Dep,
                                          std::vector<Command *> &ToCleanUp);
 
@@ -303,11 +325,11 @@ protected:
   friend class DispatchHostTask;
 
 public:
-  const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
+  const std::vector<captured_dependency> &getPreparedHostDepsEvents() const {
     return MPreparedHostDepsEvents;
   }
 
-  const std::vector<EventImplPtr> &getPreparedDepsEvents() const {
+  const std::vector<captured_dependency> &getPreparedDepsEvents() const {
     return MPreparedDepsEvents;
   }
 
@@ -392,9 +414,13 @@ public:
   /// Contains list of commands that depends on the host command explicitly (by
   /// depends_on). Not involved in the cleanup process since it is one-way link
   /// and does not hold resources.
-  /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
-  /// intersect with command enqueue.
-  std::vector<EventImplPtr> MBlockedUsers;
+  /// The bindings of the commands blocked by this (host task) command. They are
+  /// enqueued when this command completes. A binding is kept rather than the
+  /// command itself since enqueueUnblockedCommands and event.wait may
+  /// intersect with command enqueue, and rather than the event so that the
+  /// blocked command is found even if its event has moved on to another
+  /// signal.
+  std::vector<std::shared_ptr<event_binding>> MBlockedUsers;
   std::mutex MBlockedUsersMutex;
 
 protected:
@@ -626,7 +652,8 @@ void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, DeviceKernelInfo &DeviceKernelInfo,
-    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
+    std::vector<ur_event_handle_t> &RawEvents,
+    detail::event_binding *OutBinding,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
@@ -637,10 +664,14 @@ void enqueueImpKernel(
 /// operation.
 class ExecCGCommand : public Command {
 public:
+  /// \param EventForReuse if set, the event this command signals instead of a
+  /// new one (enqueue_signal_event); it must have been prepared for signaling
+  /// so that its current binding is the one this command produces.
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {},
+      EventImplPtr EventForReuse = nullptr);
 
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
@@ -666,6 +697,11 @@ public:
   // implementation may elect to not produce events (native or SYCL) if this
   // is false.
   bool MEventNeeded = true;
+
+  /// True if this command signals a reusable event handed in by the caller
+  /// (enqueue_signal_event through the scheduler). The backend event is then
+  /// created when the command is enqueued, with the event's own properties.
+  bool MSignalsReusableEvent = false;
 
   bool producesUrEvent() const final;
 

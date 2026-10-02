@@ -45,13 +45,14 @@ namespace detail {
 /// be nullptr if no associated graph.
 template <bool LockQueue = true>
 void registerEventDependency(
-    const EventImplPtr &EventImpl, std::vector<EventImplPtr> &EventsRegistered,
-    queue_impl *QueueImpl, const context_impl &ContextImpl,
-    const device_impl &DeviceImpl,
+    const captured_dependency &Dep,
+    std::vector<captured_dependency> &EventsRegistered, queue_impl *QueueImpl,
+    const context_impl &ContextImpl, const device_impl &DeviceImpl,
     const ext::oneapi::experimental::detail::graph_impl *GraphImpl) {
 
-  if (!EventImpl)
+  if (!Dep)
     return;
+  const EventImplPtr &EventImpl = Dep.Event;
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
@@ -106,7 +107,21 @@ void registerEventDependency(
           "Graph nodes cannot depend on events from another graph.");
     }
   }
-  EventsRegistered.push_back(EventImpl);
+  EventsRegistered.push_back(Dep);
+}
+
+/// Registers a dependency on \p EventImpl as the signal it represents now.
+template <bool LockQueue = true>
+void registerEventDependency(
+    const EventImplPtr &EventImpl,
+    std::vector<captured_dependency> &EventsRegistered, queue_impl *QueueImpl,
+    const context_impl &ContextImpl, const device_impl &DeviceImpl,
+    const ext::oneapi::experimental::detail::graph_impl *GraphImpl) {
+  if (!EventImpl)
+    return;
+  registerEventDependency<LockQueue>(capture_dependency(EventImpl),
+                                     EventsRegistered, QueueImpl, ContextImpl,
+                                     DeviceImpl, GraphImpl);
 }
 
 } // namespace detail

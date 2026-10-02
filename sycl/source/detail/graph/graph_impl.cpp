@@ -449,7 +449,8 @@ std::set<node_impl *> graph_impl::getCGEdges(
   // Add any nodes specified by event dependencies into the dependency list
   std::set<node_impl *> UniqueDeps;
   for (auto &Dep : CommandGroup->getEvents()) {
-    if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl == MEventsMap.end()) {
+    if (auto NodeImpl = MEventsMap.find(Dep.Event);
+        NodeImpl == MEventsMap.end()) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Event dependency from handler::depends_on does "
                             "not correspond to a node within the graph");
@@ -1216,10 +1217,11 @@ exec_graph_impl::~exec_graph_impl() {
 
 // Clean up any execution events which have finished so we don't pass them
 // to the scheduler.
-static void cleanupExecutionEvents(std::vector<EventImplPtr> &ExecutionEvents) {
+static void cleanupExecutionEvents(
+    std::vector<detail::captured_dependency> &ExecutionEvents) {
 
-  auto Predicate = [](EventImplPtr &EventPtr) {
-    return EventPtr->isCompleted();
+  auto Predicate = [](const detail::captured_dependency &Dep) {
+    return Dep.Binding->isCompleted();
   };
 
   ExecutionEvents.erase(
@@ -1297,7 +1299,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionWithScheduler(
 
 EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
-    std::vector<detail::EventImplPtr> &WaitEvents, bool EventNeeded) {
+    std::vector<detail::captured_dependency> &WaitEvents, bool EventNeeded) {
 
   // Create a list containing all the UR event handles in WaitEvents. WaitEvents
   // is assumed to be safe for scheduler bypass and any host-task events that it
@@ -1305,7 +1307,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
   std::vector<ur_event_handle_t> UrEventHandles{};
   UrEventHandles.reserve(WaitEvents.size());
   for (auto &SyclWaitEvent : WaitEvents) {
-    if (auto URHandle = SyclWaitEvent->getHandle()) {
+    if (auto URHandle = SyclWaitEvent.Binding->getHandle()) {
       UrEventHandles.push_back(URHandle);
     }
   }
@@ -1357,7 +1359,7 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
   // CGData.MEvents gets cleared after every partition enqueue. If we need the
   // original events, a backup needs to be created now. This is only needed when
   // the graph contains more than one root partition.
-  std::vector<detail::EventImplPtr> BackupCGDataEvents;
+  std::vector<detail::captured_dependency> BackupCGDataEvents;
   if (MRootPartitions.size() > 1) {
     BackupCGDataEvents = CGData.MEvents;
   }
@@ -1374,7 +1376,8 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
       // partitions. To enforce this ordering, we need to add these dependencies
       // to CGData.
       for (auto &Predecessor : Partition->MPredecessors) {
-        CGData.MEvents.push_back(Predecessor->MEvent);
+        CGData.MEvents.push_back(
+            detail::capture_dependency(Predecessor->MEvent));
       }
     }
 
@@ -1420,7 +1423,8 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
       // dependency for the next graph execution. If we don't the next graph
       // execution could end up with the same host-task node executing in
       // parallel.
-      MSchedulerDependencies.push_back(EnqueueEvent);
+      MSchedulerDependencies.push_back(
+          detail::capture_dependency(EnqueueEvent));
       if (EventNeeded) {
         const bool IsLastPartition = (Partition == MPartitions.back());
         if (IsLastPartition) {
@@ -1460,7 +1464,7 @@ exec_graph_impl::enqueueNative(sycl::detail::queue_impl &Queue,
   std::vector<ur_event_handle_t> UrEventHandles{};
   UrEventHandles.reserve(WaitEvents.size());
   for (auto &SyclWaitEvent : WaitEvents) {
-    if (auto URHandle = SyclWaitEvent->getHandle()) {
+    if (auto URHandle = SyclWaitEvent.Binding->getHandle()) {
       UrEventHandles.push_back(URHandle);
     }
   }
@@ -1504,8 +1508,10 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 
   // Command buffer path
   cleanupExecutionEvents(MSchedulerDependencies);
-  CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
-                        MSchedulerDependencies.end());
+  // As recorded: the previous execution's signal, not whatever its event may
+  // represent by now.
+  for (const detail::captured_dependency &Dep : MSchedulerDependencies)
+    CGData.MEvents.push_back(Dep);
   bool IsCGDataSafeForSchedulerBypass =
       detail::Scheduler::areEventsSafeForSchedulerBypass(
           CGData.MEvents, Queue.getContextImpl()) &&
@@ -1533,7 +1539,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
       // of command-buffers.
       if (MIsUpdatable) {
         MSchedulerDependencies.push_back(
-            EventNeeded ? SchedulerEvent : std::move(SchedulerEvent));
+            detail::capture_dependency(SchedulerEvent));
       }
 
       if (EventNeeded) {
@@ -1800,8 +1806,8 @@ void exec_graph_impl::update(nodes_range Nodes) {
       // GPU-complete before creating the update command. Otherwise a
       // deferred submit can issue after this update mutates the command
       // list, running with the wrong state.
-      for (const auto &Event : MSchedulerDependencies) {
-        Event->wait();
+      for (const detail::captured_dependency &Dep : MSchedulerDependencies) {
+        sycl::detail::queue_impl::waitForDependency(Dep);
       }
     }
     cleanupExecutionEvents(MSchedulerDependencies);
@@ -1813,7 +1819,7 @@ void exec_graph_impl::update(nodes_range Nodes) {
             this, Nodes, MQueueImpl.get(), std::move(UpdateRequirements),
             MSchedulerDependencies);
 
-    MSchedulerDependencies.push_back(UpdateEvent);
+    MSchedulerDependencies.push_back(detail::capture_dependency(UpdateEvent));
 
     if (MContainsHostTask) {
       // If the graph has HostTasks, the update has to be blocking. This is

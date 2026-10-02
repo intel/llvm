@@ -458,8 +458,6 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
 }
 
 // Cross-context event with wait.
-// Current limitation is that the cross-context wait
-// is not supported.
 TEST_F(ReusableEventsTest, CrossContextEventWait) {
   mock::getCallbacks().set_replace_callback("urDeviceGet",
                                             &redefinedUrDeviceGet);
@@ -483,27 +481,15 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
 
   auto event = syclex::make_event(Ctx1);
 
-  bool exception = false;
-
-  // Current limitation is that an event from different context
-  // cannot be used with enqueue_wait_event
-  try {
-    syclex::enqueue_wait_event(Queue2, event);
-  } catch (sycl::exception const &e) {
-    exception = true;
-    EXPECT_EQ(e.code(), sycl::errc::invalid);
-    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
-  }
-
-  EXPECT_TRUE(exception);
+  // An event from another context can be waited for: the dependency goes
+  // through the scheduler, which bridges contexts.
+  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue2, event); });
 
   Queue1.wait();
   Queue2.wait();
 }
 
 // Cross-context events with wait (multiple events).
-// Current limitation is that the cross-context wait
-// is not supported.
 TEST_F(ReusableEventsTest, CrossContextEventsWait) {
   mock::getCallbacks().set_replace_callback("urDeviceGet",
                                             &redefinedUrDeviceGet);
@@ -524,26 +510,14 @@ TEST_F(ReusableEventsTest, CrossContextEventsWait) {
 
   sycl::queue Queue{Ctx1, Dev1};
 
-  // Check if the exception is thrown if one of the events
-  // has different context than the queue.
+  // One of the events has a different context than the queue; that is allowed
+  // for waiting.
   auto event1 = syclex::make_event(Ctx1);
   auto event2 = syclex::make_event(Ctx2);
 
   std::vector<sycl::event> events{event1, event2};
 
-  bool exception = false;
-
-  // Current limitation is that an event from different context
-  // cannot be used with enqueue_wait_event
-  try {
-    syclex::enqueue_wait_events(Queue, events);
-  } catch (sycl::exception const &e) {
-    exception = true;
-    EXPECT_EQ(e.code(), sycl::errc::invalid);
-    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
-  }
-
-  EXPECT_TRUE(exception);
+  EXPECT_NO_THROW({ syclex::enqueue_wait_events(Queue, events); });
 
   Queue.wait();
 }
