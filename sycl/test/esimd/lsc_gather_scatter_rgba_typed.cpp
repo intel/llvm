@@ -30,6 +30,9 @@ void kernel(accessor<uint4, 2, access::mode::read, access::target::image> accIn,
   px += 1;
   lsc_scatter_rgba_typed<uint32_t, 16>(accOut, u, v, r, lod, px);
 
+  // Pass-through variant: the pixels masked off take their channels from px.
+  px = lsc_gather_rgba_typed<uint32_t, 16>(accIn, u, v, r, lod, u < 8, px);
+
   // Single-channel R variant with N = 8 and explicit cache hints.
   simd<uint32_t, 8> u8(0, 1);
   auto red = lsc_gather_rgba_typed<uint32_t, 8, rgba_channel_mask::R,

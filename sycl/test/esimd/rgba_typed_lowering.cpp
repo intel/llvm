@@ -36,11 +36,16 @@ int main() {
       scatter_rgba_typed<uint32_t, 16, rgba_channel_mask::GR>(
           Out, U16, V16, 0, Abgr.select<32, 1>(0));
 
-      // CHECK: call <32 x i32> @llvm.genx.lsc.load.merge.quad.typed.bti.v32i32.v16i1.v16i32(<16 x i1> {{[^,]+}}, i8 2, i8 1, i8 9, i32 {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <32 x i32> undef)
+      // CHECK: call <32 x i32> @llvm.genx.lsc.load.merge.quad.typed.bti.v32i32.v16i1.v16i32(<16 x i1> {{[^,]+}}, i8 2, i8 1, i8 9, i32 {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <16 x i32> {{[^,]+}}, <32 x i32> {{[^)]+}})
       simd<uint32_t, 32> Ar =
           iexp::lsc_gather_rgba_typed<uint32_t, 16, rgba_channel_mask::AR,
                                       cache_hint::cached, cache_hint::uncached>(
               In, U16, V16);
+      // CHECK: call <8 x i32> @llvm.genx.lsc.load.merge.quad.typed.bti.v8i32.v8i1.v8i32(<8 x i1> {{[^,]+}}, i8 1, i8 2, i8 4, i32 {{[^,]+}}, <8 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, <8 x i32> {{[^)]+}})
+      simd<uint32_t, 8> B =
+          iexp::lsc_gather_rgba_typed<uint32_t, 8, rgba_channel_mask::B,
+                                      cache_hint::uncached, cache_hint::cached>(
+              In, U8, V8, 0, 0, U8 < 4, simd<uint32_t, 8>(7));
       // CHECK: call void @llvm.genx.lsc.store.quad.typed.bti.v32i1.v32i32.v96i32(<32 x i1> {{[^,]+}}, i8 5, i8 3, i8 7, i32 {{[^,]+}}, <32 x i32> {{[^,]+}}, <32 x i32> {{[^,]+}}, <32 x i32> {{[^,]+}}, <32 x i32> {{[^,]+}}, <96 x i32> {{[^)]+}})
       iexp::lsc_scatter_rgba_typed<uint32_t, 32, rgba_channel_mask::BGR,
                                    cache_hint::streaming,
@@ -51,6 +56,7 @@ int main() {
                                     cache_hint::streaming,
                                     cache_hint::uncached>(In, U8, V8);
       (void)R;
+      (void)B;
     });
   });
   return 0;

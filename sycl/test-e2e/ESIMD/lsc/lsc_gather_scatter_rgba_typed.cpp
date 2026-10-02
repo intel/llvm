@@ -15,8 +15,9 @@
 // gather and scatter ESIMD APIs: lsc_gather_rgba_typed / lsc_scatter_rgba_typed
 // (and exercises lsc_prefetch_rgba_typed). A kernel reads the pixels of an
 // input image with lsc_gather_rgba_typed, adds a per-channel constant and
-// stores the result into an output image with lsc_scatter_rgba_typed. The
-// result is then verified on the host.
+// stores the result into an output image with lsc_scatter_rgba_typed. A second
+// gather masks off the odd pixels and checks that their channels are taken from
+// the pass-through argument. The results are then verified on the host.
 
 #include "../esimd_test_utils.hpp"
 
@@ -39,10 +40,16 @@ static constexpr unsigned N = 16;
 // Per-channel constants added by the kernel.
 static constexpr uint32_t DR = 1, DG = 2, DB = 3, DA = 4;
 
+// Pass-through value of channel C of SIMD lane I.
+static constexpr uint32_t passThru(unsigned C, unsigned I) {
+  return 0xF0000000u | (C << 8) | I;
+}
+
 int main() {
   // 4 channels per pixel.
   std::vector<uint32_t> InBuf(Width * Height * 4);
   std::vector<uint32_t> OutBuf(Width * Height * 4, 0);
+  std::vector<uint32_t> MergeBuf(Width * Height * 4, 0);
 
   for (unsigned y = 0; y < Height; ++y) {
     for (unsigned x = 0; x < Width; ++x) {
@@ -64,12 +71,16 @@ int main() {
     image<2> ImgOut(OutBuf.data(), image_channel_order::rgba,
                     image_channel_type::unsigned_int32,
                     range<2>{Width, Height});
+    image<2> ImgMerge(MergeBuf.data(), image_channel_order::rgba,
+                      image_channel_type::unsigned_int32,
+                      range<2>{Width, Height});
 
     range<2> GlobalRange{Width / N, Height};
 
     q.submit([&](handler &cgh) {
        auto AccIn = ImgIn.get_access<uint4, access::mode::read>(cgh);
        auto AccOut = ImgOut.get_access<uint4, access::mode::write>(cgh);
+       auto AccMerge = ImgMerge.get_access<uint4, access::mode::write>(cgh);
        cgh.parallel_for<class LscTypedRGBA>(
            GlobalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
              uint32_t BaseX = it.get_id(0) * N;
@@ -95,6 +106,17 @@ int main() {
 
              iexp::lsc_scatter_rgba_typed<uint32_t, N>(AccOut, U, V, R, LOD,
                                                        Px);
+
+             simd<uint32_t, N * 4> PassThru;
+             for (unsigned C = 0; C < 4; ++C)
+               for (unsigned I = 0; I < N; ++I)
+                 PassThru[C * N + I] = passThru(C, I);
+             simd_mask<N> EvenX = (U & 1) == 0;
+             simd<uint32_t, N * 4> Merged =
+                 iexp::lsc_gather_rgba_typed<uint32_t, N>(AccIn, U, V, R, LOD,
+                                                          EvenX, PassThru);
+             iexp::lsc_scatter_rgba_typed<uint32_t, N>(AccMerge, U, V, R, LOD,
+                                                       Merged);
            });
      }).wait();
   } catch (sycl::exception const &e) {
@@ -111,6 +133,19 @@ int main() {
       if (Got != Exp[C]) {
         std::cout << "Error at pixel " << Pixel << " channel " << C << ": got "
                   << Got << " expected " << Exp[C] << "\n";
+        ++NumErrors;
+      }
+    }
+  }
+
+  for (unsigned Pixel = 0; Pixel < Width * Height && NumErrors < 16; ++Pixel) {
+    unsigned X = Pixel % Width;
+    for (unsigned C = 0; C < 4; ++C) {
+      uint32_t Exp = X % 2 == 0 ? InBuf[Pixel * 4 + C] : passThru(C, X % N);
+      uint32_t Got = MergeBuf[Pixel * 4 + C];
+      if (Got != Exp) {
+        std::cout << "Pass-through error at pixel " << Pixel << " channel " << C
+                  << ": got " << Got << " expected " << Exp << "\n";
         ++NumErrors;
       }
     }

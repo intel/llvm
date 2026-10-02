@@ -616,6 +616,16 @@ template <typename T, int N,
           rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           typename AccessorT>
+/*lsc-ga-ty-2*/ simd<T, N * get_num_channels_enabled(RGBAMask)>
+lsc_gather_rgba_typed(AccessorT acc, simd<uint32_t, N> u, simd<uint32_t, N> v,
+                      simd<uint32_t, N> r, simd<uint32_t, N> lod,
+                      simd_mask<N> mask,
+                      simd<T, N * get_num_channels_enabled(RGBAMask)> pass_thru);
+
+template <typename T, int N,
+          rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename AccessorT>
 /*lsc-sc-ty-1*/ void
 lsc_scatter_rgba_typed(AccessorT acc, simd<uint32_t, N> u, simd<uint32_t, N> v,
                        simd<uint32_t, N> r, simd<uint32_t, N> lod,
@@ -643,6 +653,10 @@ coordinate, and they lower to the LSC typed "quad" messages
 (`llvm.genx.lsc.load.merge.quad.typed.bti`, `llvm.genx.lsc.store.quad.typed.bti`
 and `llvm.genx.lsc.prefetch.quad.typed.bti`). The gathered/scattered data is
 laid out channel-major, exactly like the pre-Xe2 variants.
+
+If some element of `mask` is zero, the corresponding pixel is not accessed. For
+`lsc_gather_rgba_typed`, its channels in the result are copied from `pass_thru`
+(if it is passed) or are undefined (if `pass_thru` is omitted).
 
 As with the other RGBA write APIs, only channel masks covering a set of
 consecutive channels starting from `R` (i.e. `R`, `GR`, `BGR` or `ABGR`) are

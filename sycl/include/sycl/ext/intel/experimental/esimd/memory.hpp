@@ -2628,9 +2628,42 @@ __ESIMD_API
       __ESIMD_DNS::cache_action::load,
       __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>>();
   const auto SI = __ESIMD_NS::get_surface_index(acc);
-  return __esimd_lsc_load_quad_typed_bti<__ESIMD_DNS::__raw_t<T>, N, RGBAMask,
-                                         L1H, L2H, decltype(SI)>(
-      mask.data(), SI, u.data(), v.data(), r.data(), lod.data());
+  __ESIMD_NS::simd<T, N * __ESIMD_NS::get_num_channels_enabled(RGBAMask)>
+      PassThru; // Intentionally undefined.
+  return __esimd_lsc_load_merge_quad_typed_bti<
+      __ESIMD_DNS::__raw_t<T>, N, RGBAMask, L1H, L2H, decltype(SI)>(
+      mask.data(), SI, u.data(), v.data(), r.data(), lod.data(),
+      PassThru.data());
+}
+
+/// Xe2 and later typed-surface (image) RGBA gather with a pass-through value.
+/// Same as the variant above, except that the channels of the pixels with zero
+/// \c mask predicate are copied from \c pass_thru instead of being undefined.
+///
+/// @param pass_thru Channel-major values returned for the pixels that are not
+///   accessed.
+template <typename T, int N,
+          __ESIMD_NS::rgba_channel_mask RGBAMask =
+              __ESIMD_NS::rgba_channel_mask::ABGR,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename AccessorT>
+__ESIMD_API
+    __ESIMD_NS::simd<T, N * __ESIMD_NS::get_num_channels_enabled(RGBAMask)>
+    lsc_gather_rgba_typed(
+        AccessorT acc, __ESIMD_NS::simd<uint32_t, N> u,
+        __ESIMD_NS::simd<uint32_t, N> v, __ESIMD_NS::simd<uint32_t, N> r,
+        __ESIMD_NS::simd<uint32_t, N> lod, __ESIMD_NS::simd_mask<N> mask,
+        __ESIMD_NS::simd<T, N * __ESIMD_NS::get_num_channels_enabled(RGBAMask)>
+            pass_thru) {
+  __ESIMD_DNS::check_rgba_typed_access<T, N, AccessorT>();
+  __ESIMD_DNS::check_cache_hints<
+      __ESIMD_DNS::cache_action::load,
+      __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>>();
+  const auto SI = __ESIMD_NS::get_surface_index(acc);
+  return __esimd_lsc_load_merge_quad_typed_bti<
+      __ESIMD_DNS::__raw_t<T>, N, RGBAMask, L1H, L2H, decltype(SI)>(
+      mask.data(), SI, u.data(), v.data(), r.data(), lod.data(),
+      pass_thru.data());
 }
 
 /// @anchor lsc_scatter_rgba_typed

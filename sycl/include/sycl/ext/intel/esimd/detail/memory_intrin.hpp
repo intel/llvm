@@ -796,26 +796,29 @@ __ESIMD_INTRIN void __esimd_scatter4_typed(
 // @param v - per-pixel Y coordinates in pixels (0 for 1D surfaces)
 // @param r - per-pixel Z coordinates in pixels (0 for 1D/2D surfaces)
 // @param lod - per-pixel level-of-detail (mipmap level; 0 if unused)
-// @return - channel-major data read from the surface; undefined for the
+// @param pass_thru - channel-major values copied to the result for the
 //   disabled pixels
+// @return - channel-major data read from the surface, merged with pass_thru
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
           __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
           typename SurfIndAliasTy>
 __ESIMD_INTRIN
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-    __esimd_lsc_load_quad_typed_bti(
+    __esimd_lsc_load_merge_quad_typed_bti(
         __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
         __ESIMD_DNS::vector_type_t<uint32_t, N> u,
         __ESIMD_DNS::vector_type_t<uint32_t, N> v,
         __ESIMD_DNS::vector_type_t<uint32_t, N> r,
-        __ESIMD_DNS::vector_type_t<uint32_t, N> lod) __ESIMD_INTRIN_END;
+        __ESIMD_DNS::vector_type_t<uint32_t, N> lod,
+        __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
+            pass_thru) __ESIMD_INTRIN_END;
 
 // LSC typed-surface (image) "quad" scatter of up to 4 channels per pixel.
 // Xe2 and later replacement of __esimd_scatter4_typed
 // (`llvm.genx.lsc.store.quad.typed.bti`).
 //
-// See __esimd_lsc_load_quad_typed_bti for the template and formal parameter
-// descriptions.
+// See __esimd_lsc_load_merge_quad_typed_bti for the template and formal
+// parameter descriptions.
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
           __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
           typename SurfIndAliasTy>
@@ -831,8 +834,8 @@ __ESIMD_INTRIN void __esimd_lsc_store_quad_typed_bti(
 // LSC typed-surface (image) "quad" prefetch of up to 4 channels per pixel
 // (`llvm.genx.lsc.prefetch.quad.typed.bti`). Xe2 and later.
 //
-// See __esimd_lsc_load_quad_typed_bti for the template and formal parameter
-// descriptions.
+// See __esimd_lsc_load_merge_quad_typed_bti for the template and formal
+// parameter descriptions.
 template <int N, __ESIMD_NS::rgba_channel_mask Mask, __ESIMD_NS::cache_hint L1H,
           __ESIMD_NS::cache_hint L2H, typename SurfIndAliasTy>
 __ESIMD_INTRIN void __esimd_lsc_prefetch_quad_typed_bti(

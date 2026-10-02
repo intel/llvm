@@ -483,11 +483,11 @@ public:
         // arg6: vXi32 V pixel coordinates
         // arg7: vXi32 R pixel coordinates
         // arg8: vXi32 LOD (mipmap level)
-        // arg9: old value of the data read
-        {"lsc_load_quad_typed_bti",
+        // arg9: pass-through values for the disabled pixels
+        {"lsc_load_merge_quad_typed_bti",
          {"lsc.load.merge.quad.typed.bti",
           {ai1(0), t8(3), t8(4), t8(2), aSI(1), a(2), a(3), a(4), a(5),
-           u(-1)}}},
+           a(6)}}},
 
         // Xe2+ LSC typed (image) surface scatter of up to 4 channels per pixel.
         // arg0: vXi1 predicate (overloaded)
