@@ -3400,7 +3400,7 @@ getDeviceInput(const ArgList &Args) {
     for (const auto &[I, Target] : llvm::enumerate(SYCLBINLinkTargets))
       if (!CoveredSYCLBINLinkTargets.test(I))
         return createStringError(
-            "none of the SYCLBIN files being linked contains device code "
+            "none of the SYCLBIN files being linked contain device code "
             "that can be linked for target '%s'",
             Target.TheTriple.str().c_str());
     if (Error Err = sycl::checkForUndefinedSYCLBINSymbols(SYCLBINSymbols))
