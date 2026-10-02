@@ -542,6 +542,38 @@ TEST_F(SchedulerTest, WaitDoesNotReleaseIncompleteAuxiliaryEvent) {
   EXPECT_TRUE(ResourceDeleted);
 }
 
+TEST_F(SchedulerTest, QueueWaitReleasesCompletedAuxiliaryResources) {
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+
+  auto Completed = detail::event_impl::create_completed_host_event();
+  auto Pending = detail::event_impl::create_incomplete_host_event();
+  bool CompletedResourceDeleted = false;
+  bool PendingResourceDeleted = false;
+  MSPtr->registerAuxiliaryResources(
+      Completed, {std::make_shared<MockAuxResource>(CompletedResourceDeleted)});
+  MSPtr->registerAuxiliaryResources(
+      Pending, {std::make_shared<MockAuxResource>(PendingResourceDeleted)});
+
+  auto Unrelated = detail::event_impl::create_completed_host_event();
+  Unrelated->wait();
+  EXPECT_FALSE(CompletedResourceDeleted);
+
+  Queue.wait();
+  EXPECT_TRUE(CompletedResourceDeleted);
+  EXPECT_FALSE(PendingResourceDeleted);
+  EXPECT_TRUE(MSPtr->hasDeferredResources());
+
+  Pending->setComplete();
+  Queue.wait();
+  EXPECT_TRUE(PendingResourceDeleted);
+  EXPECT_FALSE(MSPtr->hasDeferredResources());
+}
+
 TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOutsideMutex) {
   auto *MSPtr = new AuxiliaryCleanupScheduler();
   AttachSchedulerWrapper AttachScheduler{MSPtr};
