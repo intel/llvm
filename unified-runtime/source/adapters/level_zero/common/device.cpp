@@ -432,6 +432,18 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
+    if (Device->Platform->ZeDriverEuCountExtensionFound) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_eu_count_ext_t EuCountDesc = {};
+      EuCountDesc.stype = ZE_STRUCTURE_TYPE_EU_COUNT_EXT;
+      DeviceProp.pNext = (void *)&EuCountDesc;
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+      if (EuCountDesc.numTotalEUs > 0) {
+        return ReturnValue(uint32_t{EuCountDesc.numTotalEUs});
+      }
+    }
+
     uint32_t MaxComputeUnits =
         Device->ZeDeviceProperties->numEUsPerSubslice *
         Device->ZeDeviceProperties->numSubslicesPerSlice *
