@@ -3766,10 +3766,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (MSignalsReusableEvent) {
       // The barrier signals a reusable event. Its backend event is created
       // now, into this command's binding, so that it does not exist before
-      // the command is in the backend. An IPC event already carries its
-      // exported one; without reusable-event support UR creates one.
-      UREvent = MBinding->getHandle();
-      if (!UREvent && MQueue->getContextImpl().supportsReusableEvents())
+      // the command is in the backend (event_impl::prepareForSignal released
+      // the one of the previous signal). Without reusable-event support UR
+      // creates one. IPC events are never signaled through the scheduler.
+      assert(!MBinding->getHandle() &&
+             "deferred signal with a backend event before enqueue");
+      assert(!MEvent->hasSharedBackendEvent() &&
+             "IPC event signaled through the scheduler");
+      if (MQueue->getContextImpl().supportsReusableEvents())
         UREvent = MEvent->createDeviceUrEvent(MQueue->getDeviceImpl());
     }
 

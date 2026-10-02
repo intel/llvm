@@ -119,7 +119,11 @@ public:
   /// Does not create the backend event.
   ///
   /// \param Queue is a queue to be associated with the event
-  void prepareForSignal(queue_impl &Queue);
+  /// \param Deferred is true if the signal goes through the scheduler: the
+  ///        signal then has no backend event until its command is enqueued,
+  ///        and a backend event kept from the previous signal is released.
+  ///        Never true for an IPC event.
+  void prepareForSignal(queue_impl &Queue, bool Deferred);
 
   /// Makes sure the current binding has a backend event, if the context
   /// supports reusable events, and returns it (nullptr otherwise, so that the
@@ -463,6 +467,14 @@ public:
   bool isIPCEnabled() const noexcept { return MIPCEnabled; }
   bool isOpenedFromIpc() const noexcept { return MOpenedFromIpc; }
   void setIPCEnabled(bool Value) { MIPCEnabled = Value; }
+
+  /// Whether the backend event is shared with another process: exported
+  /// (make_event with enable_ipc) or imported (ipc::event::open). Every signal
+  /// of such an event has to use that backend event, so a signal or wait of it
+  /// cannot be held in the scheduler.
+  bool hasSharedBackendEvent() const noexcept {
+    return MIPCEnabled || MOpenedFromIpc;
+  }
 
   /// Returns the exported IPC handle data for this producer IPC event,
   /// obtaining it from the backend on the first call and caching it on the

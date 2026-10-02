@@ -497,7 +497,7 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
 
   ur_event_handle_t UREvent = nullptr;
   if (EventForReuse) {
-    EventForReuse->prepareForSignal(*this);
+    EventForReuse->prepareForSignal(*this, /*Deferred*/ false);
     UREvent = EventForReuse->ensureSignalHandle(getDeviceImpl());
   }
   std::vector<ur_event_handle_t> RawBarrierDepEvents;
@@ -627,6 +627,22 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
               /*SchedulerBypass*/ true};
     }
 
+    // Limitation: the backend event of an IPC event, exported or imported, is
+    // shared with another process, so a signal of it cannot be held back from
+    // the backend, and a dependency on it cannot keep a signal of its own.
+    // Signals and waits of IPC events therefore need the scheduler bypass. The
+    // !CallerNeedsEvent condition detects enqueue_wait_event(s).
+    auto IsIPCEvent = [](const EventImplPtr &Event) {
+      return Event->hasSharedBackendEvent();
+    };
+    if ((EventForReuse && IsIPCEvent(EventForReuse)) ||
+        (!CallerNeedsEvent &&
+         std::any_of(DepEventImpls.begin(), DepEventImpls.end(), IsIPCEvent)))
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "An IPC event cannot be enqueued for signaling or waiting behind a "
+          "command which is not enqueued in the backend.");
+
     std::unique_ptr<detail::CG> CommandGroup;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
@@ -652,7 +668,7 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
     // A signal moves the event on to the binding this barrier command will
     // produce; the backend event is created when the command is enqueued.
     if (EventForReuse)
-      EventForReuse->prepareForSignal(*this);
+      EventForReuse->prepareForSignal(*this, /*Deferred*/ true);
 
     CommandGroup.reset(new detail::CGBarrier(
         {}, ext::oneapi::experimental::event_mode_enum::none, std::move(CGData),

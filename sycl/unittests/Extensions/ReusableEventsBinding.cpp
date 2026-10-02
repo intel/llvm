@@ -27,8 +27,10 @@
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
+#include <sycl/ext/oneapi/experimental/ipc_event.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
+#include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 
 #include <algorithm>
@@ -97,12 +99,30 @@ ur_result_t redefinedUrEventRelease(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+// The context of the test, for the backend events imported through
+// ipc::event::open (the runtime checks which context they belong to).
+ur_context_handle_t TestContextHandle = nullptr;
+
 ur_result_t redefinedUrEventGetInfo(void *pParams) {
   auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
   if (*params.ppropName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
     auto *Result = reinterpret_cast<ur_event_status_t *>(*params.ppPropValue);
     *Result = UR_EVENT_STATUS_COMPLETE;
+  } else if (*params.ppropName == UR_EVENT_INFO_CONTEXT) {
+    if (*params.ppPropValue)
+      *static_cast<ur_context_handle_t *>(*params.ppPropValue) =
+          TestContextHandle;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_context_handle_t);
   }
+  return UR_RESULT_SUCCESS;
+}
+
+// An imported IPC event gets a distinct fake handle too.
+ur_result_t redefinedUrIPCOpenEventHandleExp(void *pParams) {
+  auto params = *static_cast<ur_ipc_open_event_handle_exp_params_t *>(pParams);
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  **params.pphEvent = newFakeEvent();
   return UR_RESULT_SUCCESS;
 }
 
@@ -171,7 +191,8 @@ ur_result_t redefinedUrEnqueueEventsWaitWithBarrierExt(void *pParams) {
 
 ur_result_t after_urDeviceGetInfo(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
-  if (*params.ppropName == UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP) {
+  if (*params.ppropName == UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP ||
+      *params.ppropName == UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP) {
     if (*params.ppPropSizeRet)
       **params.ppPropSizeRet = sizeof(ur_bool_t);
     if (*params.ppPropValue)
@@ -287,11 +308,14 @@ protected:
     mock::getCallbacks().set_replace_callback(
         "urEnqueueEventsWaitWithBarrierExt",
         &redefinedUrEnqueueEventsWaitWithBarrierExt);
+    mock::getCallbacks().set_replace_callback(
+        "urIPCOpenEventHandleExp", &redefinedUrIPCOpenEventHandleExp);
     mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                             &after_urDeviceGetInfo);
 
     Dev = sycl::platform().get_devices()[0];
     Ctx = sycl::context{Dev};
+    TestContextHandle = sycl::detail::getSyclObjImpl(Ctx)->getHandleRef();
   }
 
   sycl::queue inOrderQueue() {
@@ -765,6 +789,225 @@ TEST_F(ReusableEventsBindingTest, WaitForPendingSignalIsDeferred) {
   ASSERT_EQ(Barriers.size(), 1u);
   EXPECT_EQ(Barriers[0], std::vector<ur_event_handle_t>{Signal});
   EXPECT_EQ(handleOf(E), Signal);
+}
+
+// The event has a backend event from a previous signal, and nothing refers to
+// that signal any more, so the next signal reuses the binding in place. If
+// that signal is held behind a host task, the event must not look like it has
+// the previous, completed backend event while the signal is pending.
+TEST_F(ReusableEventsBindingTest, DeferredResignalHidesPreviousBackendEvent) {
+  sycl::queue SignalQueue = inOrderQueue();
+  sycl::queue Q = inOrderQueue();
+  sycl::queue Q2 = inOrderQueue();
+  sycl::event E = syclex::make_event(Ctx);
+
+  // Through the scheduler bypass: E gets a backend event.
+  syclex::enqueue_signal_event(SignalQueue, E);
+  SignalQueue.wait();
+  ASSERT_EQ(CreatedEvents.size(), 1u);
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q, Gate);
+
+  // Held behind the host task.
+  EXPECT_NO_THROW(syclex::enqueue_signal_event(Q, E));
+
+  // The pending signal has no backend event yet, and is not complete.
+  EXPECT_EQ(handleOf(E), nullptr);
+  EXPECT_NE(E.get_info<sycl::info::event::command_execution_status>(),
+            sycl::info::event_command_status::complete);
+
+  // A dependent is held until the signal is in the backend, not launched
+  // waiting for the previous one.
+  Q2.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(E);
+    CGH.single_task<BindingTestKernel>([]() {});
+  });
+  {
+    std::lock_guard<std::mutex> Lock(BackendMutex);
+    EXPECT_TRUE(KernelLaunchWaitLists.empty());
+  }
+
+  Gate->open();
+  Q.wait();
+  Q2.wait();
+
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  ASSERT_EQ(KernelLaunchWaitLists.size(), 1u);
+  // The kernel waits for the event the second signal's barrier signaled.
+  ASSERT_FALSE(BarrierOutEvents.empty());
+  EXPECT_EQ(KernelLaunchWaitLists[0],
+            std::vector<ur_event_handle_t>{handleOf(E)});
+}
+
+// The backend event of an IPC event is shared with another process, so a
+// signal of it cannot be held behind a host task: enqueue_signal_event throws,
+// and the event keeps its backend event.
+TEST_F(ReusableEventsBindingTest, IpcSignalBehindHostTaskThrows) {
+  sycl::queue SignalQueue = inOrderQueue();
+  sycl::queue Q = inOrderQueue();
+  sycl::event E =
+      syclex::make_event(Ctx, syclex::properties{syclex::enable_ipc{true}});
+
+  // Through the scheduler bypass: E gets its backend event.
+  syclex::enqueue_signal_event(SignalQueue, E);
+  SignalQueue.wait();
+  ASSERT_EQ(CreatedEvents.size(), 1u);
+  const ur_event_handle_t Exported = CreatedEvents[0];
+  ASSERT_EQ(handleOf(E), Exported);
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q, Gate);
+
+  try {
+    syclex::enqueue_signal_event(Q, E);
+    FAIL() << "a deferred signal of an IPC event did not throw";
+  } catch (const sycl::exception &Ex) {
+    EXPECT_EQ(Ex.code(), sycl::make_error_code(sycl::errc::invalid));
+  }
+  EXPECT_EQ(handleOf(E), Exported);
+  EXPECT_EQ(CreatedEvents.size(), 1u);
+  EXPECT_EQ(releases(Exported), 0);
+}
+
+// Neither can a wait for an IPC event be held behind a host task. A wait from
+// a queue with nothing pending still works.
+TEST_F(ReusableEventsBindingTest, IpcWaitBehindHostTaskThrows) {
+  sycl::queue SignalQueue = inOrderQueue();
+  sycl::queue Q = inOrderQueue();
+  sycl::queue Q2 = inOrderQueue();
+  sycl::event E =
+      syclex::make_event(Ctx, syclex::properties{syclex::enable_ipc{true}});
+  sycl::event Plain = syclex::make_event(Ctx);
+  syclex::enqueue_signal_event(SignalQueue, E);
+  syclex::enqueue_signal_event(SignalQueue, Plain);
+  SignalQueue.wait();
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q, Gate);
+
+  try {
+    syclex::enqueue_wait_event(Q, E);
+    FAIL() << "a deferred wait for an IPC event did not throw";
+  } catch (const sycl::exception &Ex) {
+    EXPECT_EQ(Ex.code(), sycl::make_error_code(sycl::errc::invalid));
+  }
+  try {
+    syclex::enqueue_wait_events(Q, {Plain, E});
+    FAIL() << "a deferred wait for a list with an IPC event did not throw";
+  } catch (const sycl::exception &Ex) {
+    EXPECT_EQ(Ex.code(), sycl::make_error_code(sycl::errc::invalid));
+  }
+  // Without the IPC event the wait is simply held.
+  EXPECT_NO_THROW(syclex::enqueue_wait_events(Q, {Plain}));
+
+  EXPECT_NO_THROW(syclex::enqueue_wait_event(Q2, E));
+  Gate->open();
+  Q.wait();
+  Q2.wait();
+}
+
+// The same holds for an event imported from another process: its backend event
+// is the exporting process's signal.
+TEST_F(ReusableEventsBindingTest, ImportedIpcWaitBehindHostTaskThrows) {
+  sycl::queue Q = inOrderQueue();
+  std::byte HandleBytes[8] = {};
+  syclex::ipc::handle_data_t HandleData{HandleBytes,
+                                        HandleBytes + sizeof(HandleBytes)};
+  sycl::event Imported = syclex::ipc::event::open(HandleData, Ctx);
+  ASSERT_NE(handleOf(Imported), nullptr);
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q, Gate);
+
+  try {
+    syclex::enqueue_wait_event(Q, Imported);
+    FAIL() << "a deferred wait for an imported IPC event did not throw";
+  } catch (const sycl::exception &Ex) {
+    EXPECT_EQ(Ex.code(), sycl::make_error_code(sycl::errc::invalid));
+  }
+  Gate->open();
+  Q.wait();
+}
+
+// An imported event can be signaled, but only through the scheduler bypass: a
+// signal held behind a host task would have to give up the imported backend
+// event, which the exporting process waits for.
+TEST_F(ReusableEventsBindingTest, ImportedIpcSignalBehindHostTaskThrows) {
+  sycl::queue Q = inOrderQueue();
+  std::byte HandleBytes[8] = {};
+  syclex::ipc::handle_data_t HandleData{HandleBytes,
+                                        HandleBytes + sizeof(HandleBytes)};
+  sycl::event Imported = syclex::ipc::event::open(HandleData, Ctx);
+  const ur_event_handle_t Shared = handleOf(Imported);
+  ASSERT_NE(Shared, nullptr);
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q, Gate);
+
+  try {
+    syclex::enqueue_signal_event(Q, Imported);
+    FAIL() << "a deferred signal of an imported IPC event did not throw";
+  } catch (const sycl::exception &Ex) {
+    EXPECT_EQ(Ex.code(), sycl::make_error_code(sycl::errc::invalid));
+  }
+  EXPECT_EQ(handleOf(Imported), Shared);
+  EXPECT_EQ(releases(Shared), 0);
+  EXPECT_TRUE(CreatedEvents.empty());
+  Gate->open();
+  Q.wait();
+}
+
+// A signal of an imported event while a dependency still holds the previous
+// signal moves the event on to a new binding. The new binding signals the
+// imported backend event as well, not a new one.
+TEST_F(ReusableEventsBindingTest,
+       ImportedIpcResignalKeepsImportedBackendEvent) {
+  sycl::queue Q = inOrderQueue();
+  sycl::queue SignalQueue = inOrderQueue();
+  std::byte HandleBytes[8] = {};
+  syclex::ipc::handle_data_t HandleData{HandleBytes,
+                                        HandleBytes + sizeof(HandleBytes)};
+  sycl::event Imported = syclex::ipc::event::open(HandleData, Ctx);
+  const ur_event_handle_t Shared = handleOf(Imported);
+  ASSERT_NE(Shared, nullptr);
+
+  auto Gate = std::make_shared<HostTaskGate>();
+  OpenAtScopeExit OpenGate{Gate};
+  blockQueue(Q, Gate);
+
+  // Held behind the host task; captures the current binding.
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(Imported);
+    CGH.single_task<BindingTestKernel>([]() {});
+  });
+
+  // Through the scheduler bypass, onto a new binding.
+  syclex::enqueue_signal_event(SignalQueue, Imported);
+  EXPECT_TRUE(CreatedEvents.empty());
+  EXPECT_EQ(handleOf(Imported), Shared);
+  {
+    std::lock_guard<std::mutex> Lock(BackendMutex);
+    ASSERT_FALSE(BarrierOutEvents.empty());
+    EXPECT_EQ(BarrierOutEvents.back(), Shared);
+    // One reference for each binding.
+    EXPECT_EQ(RetainCounts[Shared], 1);
+  }
+  EXPECT_EQ(releases(Shared), 0);
+
+  Gate->open();
+  Q.wait();
+  SignalQueue.wait();
+
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  ASSERT_EQ(KernelLaunchWaitLists.size(), 1u);
+  EXPECT_EQ(KernelLaunchWaitLists[0], std::vector<ur_event_handle_t>{Shared});
+  EXPECT_TRUE(CreatedEvents.empty());
 }
 
 } // anonymous namespace

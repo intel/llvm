@@ -264,12 +264,17 @@ std::pair<void *, size_t> event_impl::getOrCreateIPCHandle() {
   return {MIPCHandleData, MIPCHandleDataSize};
 }
 
-void event_impl::prepareForSignal(queue_impl &Queue) {
+void event_impl::prepareForSignal(queue_impl &Queue, bool Deferred) {
   initContextIfNeeded();
   const bool Supported = MContext->supportsReusableEvents();
   // IPC support implies reusable-event support.
-  assert((Supported || !MIPCEnabled) &&
+  assert((Supported || !hasSharedBackendEvent()) &&
          "IPC event on a context without reusable-events support");
+  // The backend event of an IPC event, exported or imported, is shared with
+  // another process, so every signal has to use it, from the moment it is
+  // submitted.
+  assert((!Deferred || !hasSharedBackendEvent()) &&
+         "IPC event enqueued for signaling through the scheduler");
 
   // Serializes concurrent signals of the same event. Readers of MBinding do
   // not lock: using an event while another thread enqueues it for signaling
@@ -282,9 +287,13 @@ void event_impl::prepareForSignal(queue_impl &Queue) {
     // command blocked behind it. Nobody can tell the previous signal from the
     // next one, so the binding is reused in place, backend event included.
     MBinding->resetForReuse();
-    if (!Supported) {
+    if (!Supported || Deferred) {
       // Without reusable-event support the backend event cannot be signaled
       // again: release it and let UR create a new one during the submission.
+      // A signal held in the scheduler must not show a backend event before
+      // its command is in the backend either: waits and dependents would take
+      // the previous, completed one for it. Its command creates a new one when
+      // it is enqueued.
       if (ur_event_handle_t Handle = getHandle()) {
         getAdapter().call<UrApiKind::urEventRelease>(Handle);
         MBinding->setHandle(nullptr);
@@ -298,9 +307,9 @@ void event_impl::prepareForSignal(queue_impl &Queue) {
     auto Previous = std::move(MBinding);
     MBinding = std::make_shared<event_binding>();
     MBinding->MAdapter = Previous->MAdapter;
-    if (MIPCEnabled) {
-      // The backend event of an IPC event has been exported to another
-      // process, so every signal has to use it.
+    if (hasSharedBackendEvent()) {
+      // The backend event of an IPC event is shared with another process,
+      // exported to it or imported from it, so every signal has to use it.
       ur_event_handle_t Handle = Previous->getHandle();
       assert(Handle && "IPC event without a backend event");
       getAdapter().call<UrApiKind::urEventRetain>(Handle);
