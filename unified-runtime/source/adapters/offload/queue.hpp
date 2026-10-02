@@ -13,6 +13,7 @@
 #include <unified-runtime/ur_api.h>
 
 #include "common.hpp"
+#include "context.hpp"
 #include "event.hpp"
 
 constexpr size_t OOO_QUEUE_POOL_SIZE = 32;
@@ -69,7 +70,8 @@ struct ur_queue_handle_t_ : RefCounted {
     auto &Slot = OffloadQueues[(QueueOffset++) % OffloadQueues.size()];
 
     if (!Slot) {
-      if (auto Res = olCreateQueue(OffloadDevice, &Slot)) {
+      if (auto Res =
+              olCreateQueue(UrContext->OffloadContext, OffloadDevice, &Slot)) {
         return Res;
       }
 

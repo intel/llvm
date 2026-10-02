@@ -67,6 +67,13 @@
 // CHK-SYCL-RDC-HOST: "-cc1"{{.*}} "-fsycl-is-host" {{.*}} "-fgpu-rdc"
 // CHK-SYCL-NORDC-NOT: "-fgpu-rdc"
 
+/// Conversely, RDC mode embeds unlinked device code via -fembed-offload-object.
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -fgpu-rdc %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-RDC-EMBED %s \
+// RUN:     --implicit-check-not='"-foffload-include-binary"' \
+// RUN:     --implicit-check-not='"--emit-fatbin-only"'
+// CHK-RDC-EMBED: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fembed-offload-object=
+
 // Check that --allow-partial-linkage and --create-library are not passed to
 // clang-linker-wrapper for SYCL (they are spirv-link flags, not clang-sycl-linker flags).
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
@@ -108,6 +115,6 @@
 /// Check for option incompatibility with -fsycl
 // RUN: not %clang -### -fsycl -ffreestanding %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
-// RUN: not %clang --sysroot=%S/Inputs/SYCL -### -fsycl --offload-new-driver -static-libstdc++ %s 2>&1 \
+// RUN: not %clang -### -fsycl -static-libstdc++ %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
 // CHK-INCOMPATIBILITY: error: invalid argument '[[INCOMPATOPT]]' not allowed with '-fsycl'

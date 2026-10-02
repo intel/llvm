@@ -1476,7 +1476,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
                                        options::OPT_mbranch_protection_EQ)
                      : Args.getLastArg(options::OPT_mbranch_protection_EQ);
   if (!A) {
-    if (Triple.isOSOpenBSD() && isAArch64) {
+    if ((Triple.isOSOpenBSD() || Triple.isAndroid()) && isAArch64) {
       CmdArgs.push_back("-msign-return-address=non-leaf");
       CmdArgs.push_back("-msign-return-address-key=a_key");
       CmdArgs.push_back("-mbranch-target-enforce");
@@ -1497,8 +1497,11 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
     if (Scope != "none" && Scope != "non-leaf" && Scope != "all")
       D.Diag(diag::err_drv_unsupported_option_argument)
           << A->getSpelling() << Scope;
-    Key = "a_key";
-    IndirectBranches = Triple.isOSOpenBSD() && isAArch64;
+    // This spelling cannot express a key, and AArch64 Windows only supports
+    // B-key, so default to it there as parseBranchProtection() does.
+    Key = isAArch64 && Triple.isOSWindows() ? "b_key" : "a_key";
+    IndirectBranches =
+        (Triple.isOSOpenBSD() || Triple.isAndroid()) && isAArch64;
     BranchProtectionPAuthLR = false;
     GuardedControlStack = false;
   } else {
@@ -4010,8 +4013,10 @@ static void RenderSCPOptions(const ToolChain &TC, const ArgList &Args,
       !EffectiveTriple.isRISCV() && !EffectiveTriple.isLoongArch())
     return;
 
-  Args.addOptInFlag(CmdArgs, options::OPT_fstack_clash_protection,
-                    options::OPT_fno_stack_clash_protection);
+  if (Args.hasFlag(options::OPT_fstack_clash_protection,
+                   options::OPT_fno_stack_clash_protection,
+                   EffectiveTriple.isAndroid()))
+    CmdArgs.push_back("-fstack-clash-protection");
 }
 
 static void RenderTrivialAutoVarInitOptions(const Driver &D,
@@ -4148,6 +4153,7 @@ static void RenderHLSLOptions(const Driver &D, const ArgList &Args,
       options::OPT_fdx_rootsignature_define,
       options::OPT_fdx_rootsignature_version,
       options::OPT_fhlsl_spv_use_unknown_image_format,
+      options::OPT_fhlsl_spv_use_legacy_buffer_matrix_order,
       options::OPT_fhlsl_spv_enable_maximal_reconvergence,
       options::OPT_fhlsl_spv_preserve_interface};
   if (!types::isHLSL(InputType))
@@ -4391,8 +4397,8 @@ static bool RenderModulesOptions(Compilation &C, const Driver &D,
   if (HaveClangModules)
     Args.AddLastArg(CmdArgs, options::OPT_fmodules_user_build_path);
 
-  // Pass through all -fmodules-ignore-macro arguments.
   Args.AddAllArgs(CmdArgs, options::OPT_fmodules_ignore_macro);
+  Args.AddAllArgs(CmdArgs, options::OPT_fmodules_ignore_search_path);
   Args.AddLastArg(CmdArgs, options::OPT_fmodules_prune_interval);
   Args.AddLastArg(CmdArgs, options::OPT_fmodules_prune_after);
 
@@ -5658,18 +5664,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                  JA.isDeviceOffloading(Action::OFK_Host));
   bool IsHostOffloadingAction =
       JA.isHostOffloading(Action::OFK_OpenMP) ||
-      (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
-       Args.hasFlag(options::OPT_offload_new_driver,
-                    options::OPT_no_offload_new_driver,
-                    (C.getActiveOffloadKinds() != Action::OFK_None &&
-                     C.getActiveOffloadKinds() != Action::OFK_SYCL)));
+      JA.isHostOffloading(Action::OFK_SYCL) ||
+      (JA.isHostOffloading(C.getActiveOffloadKinds()));
 
-  // Do not claim the RDC arg at this point as it is not indicative of proper
-  // support. Not claiming here allows for the 'unused argument' diagnostic to
-  // be emitted depending on actual support when comparing the old and new
-  // offload model paths.
-  bool IsRDCMode = Args.hasFlagNoClaim(options::OPT_fgpu_rdc,
-                                       options::OPT_fno_gpu_rdc, IsSYCL);
+  // SYCL defaults to RDC; CUDA/HIP default to non-RDC.
+  bool IsRDCMode = Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                                /*Default=*/IsSYCL);
   auto LTOMode = TC.getLTOMode(Args, JA.getOffloadingDeviceKind());
   bool IsUsingLTO = LTOMode != LTOK_None;
   const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
@@ -6347,16 +6347,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                           options::OPT_foffload_lto_EQ);
       bool IsDeviceCodeSplitDisabled =
           SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
-      bool IsSYCLLTOSupported =
-          JA.isDeviceOffloading(Action::OFK_SYCL) && IsUsingOffloadNewDriver;
-      if ((IsDeviceOffloadAction &&
-           !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
-           !Triple.isSPIRV() && !IsUsingOffloadNewDriver) ||
-          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported &&
-           LTOArg)) {
+      if (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsUsingOffloadNewDriver &&
+          LTOArg) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << LTOArg->getAsString(Args)
-            << Triple.getTriple();
+            << LTOArg->getAsString(Args) << Triple.getTriple();
       } else if (Triple.isNVPTX() && !IsRDCMode &&
                  JA.isDeviceOffloading(Action::OFK_Cuda)) {
         D.Diag(diag::err_drv_unsupported_opt_for_language_mode)
@@ -8043,18 +8037,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.addOptOutFlag(CmdArgs, options::OPT_fopenmp_extensions,
                        options::OPT_fno_openmp_extensions);
   }
-  // Forward the offload runtime change to code generation, liboffload implies
-  // new driver. Otherwise, check if we should forward the new driver to change
-  // offloading code generation.
+  // Forward '-foffload-via-llvm' to code generation to target the LLVM/Offload
+  // runtime.
   if (Args.hasFlag(options::OPT_foffload_via_llvm,
-                   options::OPT_fno_offload_via_llvm, false)) {
-    CmdArgs.append({"--offload-new-driver", "-foffload-via-llvm"});
-  } else if (Args.hasFlag(options::OPT_offload_new_driver,
-                          options::OPT_no_offload_new_driver,
-                          (C.getActiveOffloadKinds() != Action::OFK_None &&
-                           C.getActiveOffloadKinds() != Action::OFK_SYCL))) {
-    CmdArgs.push_back("--offload-new-driver");
-  }
+                   options::OPT_fno_offload_via_llvm, false))
+    CmdArgs.push_back("-foffload-via-llvm");
 
   const XRayArgs &XRay = TC.getXRayArgs(Args);
   XRay.addArgs(TC, Args, CmdArgs, InputType);
@@ -8977,6 +8964,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT__ssaf_no_extract_from_system_headers);
   Args.AddLastArg(CmdArgs, options::OPT__ssaf_source_transformation);
   Args.AddLastArg(CmdArgs, options::OPT__ssaf_global_scope_analysis_result);
+  Args.AddLastArg(CmdArgs, options::OPT__ssaf_link_unit_id);
   Args.AddLastArg(CmdArgs, options::OPT__ssaf_src_edit_file);
   Args.AddLastArg(CmdArgs, options::OPT__ssaf_transformation_report_file);
 
@@ -9185,9 +9173,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-foffload-include-binary");
     CmdArgs.push_back(CudaDeviceInput->getFilename());
   } else if (!HostOffloadingInputs.empty()) {
-    if ((IsCuda || IsHIP) &&
+    bool UseOffloadIncludeBinary =
+        (IsCuda || IsHIP) &&
         (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi)) &&
-        !UsesLLVMOffloading) {
+        !UsesLLVMOffloading;
+    // The old offloading model, still the default for SYCL, has already
+    // wrapped the device image in clang-offload-wrapper.
+    UseOffloadIncludeBinary |=
+        IsSYCL && !IsRDCMode && D.getUseNewOffloadingDriver();
+    if (UseOffloadIncludeBinary) {
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
       CmdArgs.push_back("-foffload-include-binary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
@@ -9541,7 +9535,8 @@ ObjCRuntime Clang::AddObjCRuntimeArgs(const ArgList &args,
     if ((runtime.getKind() == ObjCRuntime::GNUstep) &&
         (runtime.getVersion() >= VersionTuple(2, 0)))
       if (!getToolChain().getTriple().isOSBinFormatELF() &&
-          !getToolChain().getTriple().isOSBinFormatCOFF()) {
+          !getToolChain().getTriple().isOSBinFormatCOFF() &&
+          !getToolChain().getTriple().isOSBinFormatWasm()) {
         getToolChain().getDriver().Diag(
             diag::err_drv_gnustep_objc_runtime_incompatible_binary)
           << runtime.getVersion().getMajor();
@@ -11276,7 +11271,7 @@ static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
                                             ArgStringList &TranslatorArgs) {
   TranslatorArgs.push_back("-spirv-max-version=1.5");
   bool CreatingSyclSPIRVFatObj =
-      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+      C.getDriver().getFinalPhase(C.getArgs(), {}) != phases::Link &&
       TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
           .equals_insensitive("spirv") &&
       !C.getDriver().offloadDeviceOnly();
@@ -12562,10 +12557,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // We use action type to differentiate two use cases of the linker wrapper.
   // TY_Image for normal linker wrapper work.
-  // TY_HIP_FATBIN for HIP device-only links emitting a fat binary directly.
+  // TY_HIP_FATBIN and TY_SYCL_FATBIN for device-only links emitting a fat
+  // binary directly.
   assert(JA.getType() == types::TY_HIP_FATBIN ||
+         JA.getType() == types::TY_SYCL_FATBIN ||
          JA.getType() == types::TY_Image);
-  if (JA.getType() == types::TY_HIP_FATBIN) {
+  if (JA.getType() != types::TY_Image) {
     CmdArgs.push_back("--emit-fatbin-only");
     CmdArgs.append({"-o", Output.getFilename()});
     for (auto Input : Inputs)

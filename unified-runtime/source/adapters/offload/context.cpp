@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "ur2offload.hpp"
 #include <unified-runtime/ur_api.h>
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
@@ -17,7 +18,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  auto Ctx = new ur_context_handle_t_(*phDevices);
+  ol_context_handle_t OffloadContext = nullptr;
+  ol_device_handle_t OffloadDevice = (*phDevices)->OffloadDevice;
+  if (auto Res = olCreateContext(1, &OffloadDevice, &OffloadContext)) {
+    return offloadResultToUR(Res);
+  }
+
+  auto Ctx = new ur_context_handle_t_(*phDevices, OffloadContext);
   *phContext = Ctx;
   return UR_RESULT_SUCCESS;
 }
@@ -58,7 +65,6 @@ urContextRelease(ur_context_handle_t hContext) {
   return UR_RESULT_SUCCESS;
 }
 
-// Offload currently doesn't have an equivalent to context handles
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetNativeHandle(ur_context_handle_t, ur_native_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
