@@ -406,12 +406,14 @@ void event_impl::wait(bool *Success) {
 #endif
 
   auto EventHandle = getHandle();
+  bool ScanAuxiliaryResources = false;
   if (EventHandle)
     // presence of the native handle means the command has been enqueued, so no
     // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
   else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(*this, Success);
+    ScanAuxiliaryResources =
+        detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
   // Deferred resources are otherwise only released by later scheduler
   // activity, i.e. possibly not before runtime shutdown. The check is
@@ -419,7 +421,7 @@ void event_impl::wait(bool *Success) {
   auto SchedAccess = detail::GlobalHandler::getSchedulerAccess();
   if (detail::Scheduler *Sched = SchedAccess.get()) {
     if (Sched->hasDeferredResources())
-      Sched->releaseResources(BlockingT::NON_BLOCKING);
+      Sched->releaseResourcesAfterWait(*this, ScanAuxiliaryResources);
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

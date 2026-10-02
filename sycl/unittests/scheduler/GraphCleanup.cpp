@@ -474,6 +474,74 @@ public:
   using MockScheduler::registerAuxiliaryResources;
 };
 
+int EventStatusQueries = 0;
+ur_result_t countEventStatusQueries(void *pParams) {
+  auto Params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  if (*Params.ppropName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    ++EventStatusQueries;
+    *static_cast<ur_event_status_t *>(*Params.ppPropValue) =
+        UR_EVENT_STATUS_SUBMITTED;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+TEST_F(SchedulerTest, WaitCleanupDoesNotPollPendingAuxiliaryEvents) {
+  unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urEventGetInfo",
+                                            &countEventStatusQueries);
+  platform Plt = sycl::platform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+
+  std::vector<std::unique_ptr<int>> Handles;
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  constexpr int EventCount = 32;
+  std::vector<detail::EventImplPtr> PendingEvents;
+  std::vector<detail::EventImplPtr> CompletedEvents;
+  int Released = 0;
+  for (int I = 0; I < EventCount; ++I) {
+    auto Pending = detail::event_impl::create_device_event(QueueImpl);
+    Handles.push_back(std::make_unique<int>());
+    Pending->setHandle(
+        reinterpret_cast<ur_event_handle_t>(Handles.back().get()));
+    MSPtr->registerAuxiliaryResources(Pending, {});
+    PendingEvents.push_back(std::move(Pending));
+
+    auto Completed = detail::event_impl::create_completed_host_event();
+    std::shared_ptr<const void> Resource(new int{},
+                                         [&Released](const void *Ptr) {
+                                           delete static_cast<const int *>(Ptr);
+                                           ++Released;
+                                         });
+    MSPtr->registerAuxiliaryResources(Completed, {Resource});
+    CompletedEvents.push_back(std::move(Completed));
+  }
+
+  EventStatusQueries = 0;
+  for (const auto &Event : CompletedEvents)
+    Event->wait();
+  EXPECT_EQ(Released, EventCount);
+  EXPECT_EQ(EventStatusQueries, 0);
+  EXPECT_TRUE(MSPtr->hasDeferredResources());
+}
+
+TEST_F(SchedulerTest, WaitDoesNotReleaseIncompleteAuxiliaryEvent) {
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  auto Pending = detail::event_impl::create_incomplete_host_event();
+  bool ResourceDeleted = false;
+  MSPtr->registerAuxiliaryResources(
+      Pending, {std::make_shared<MockAuxResource>(ResourceDeleted)});
+
+  Pending->wait();
+  EXPECT_FALSE(ResourceDeleted);
+  Pending->setComplete();
+  Pending->wait();
+  EXPECT_TRUE(ResourceDeleted);
+}
+
 TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOutsideMutex) {
   auto *MSPtr = new AuxiliaryCleanupScheduler();
   AttachSchedulerWrapper AttachScheduler{MSPtr};
