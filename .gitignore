@@ -64,6 +64,8 @@ autoconf/autom4te.cache
 /CLAUDE.md
 /instructions.md
 .claude/
+# Allow the SYCL agent skills to be committed; every other .claude/ stays local.
+!sycl/.claude/
 /GEMINI.md
 .gemini/
 AGENTS.md
