@@ -263,10 +263,13 @@ bool NonStdVectorLegalizer::visitBitCast(BitCastInst &BCI) {
   SmallVector<int, 8> LoMask(HalfSrcSize), HiMask(HalfSrcSize);
   std::iota(LoMask.begin(), LoMask.end(), 0);
   std::iota(HiMask.begin(), HiMask.end(), HalfSrcSize);
-  Halves[&BCI] = {Builder.CreateBitCast(
-                      Builder.CreateShuffleVector(Src, LoMask), DstHalfTy),
-                  Builder.CreateBitCast(
-                      Builder.CreateShuffleVector(Src, HiMask), DstHalfTy)};
+  // Separate statements so Lo is always emitted before Hi; MSVC does not
+  // reliably evaluate braced-init-lists left to right.
+  Value *Lo = Builder.CreateBitCast(Builder.CreateShuffleVector(Src, LoMask),
+                                    DstHalfTy);
+  Value *Hi = Builder.CreateBitCast(Builder.CreateShuffleVector(Src, HiMask),
+                                    DstHalfTy);
+  Halves[&BCI] = {Lo, Hi};
   return true;
 }
 
