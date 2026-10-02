@@ -630,18 +630,47 @@ void Scheduler::registerAuxiliaryResources(
 }
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
-  std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  for (auto It = MAuxiliaryResources.begin();
-       It != MAuxiliaryResources.end();) {
-    if (Blocking == BlockingT::BLOCKING) {
-      It->first->waitInternal();
-      It = MAuxiliaryResources.erase(It);
+  if (Blocking == BlockingT::NON_BLOCKING) {
+    std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
+    for (auto It = MAuxiliaryResources.begin();
+         It != MAuxiliaryResources.end();) {
+      if (It->first->isCompleted()) {
+        It = MAuxiliaryResources.erase(It);
+        MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
+      } else {
+        ++It;
+      }
+    }
+    return;
+  }
+
+  while (true) {
+    EventImplPtr Event;
+    std::vector<std::shared_ptr<const void>> Resources;
+    {
+      std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
+      if (MAuxiliaryResources.empty())
+        return;
+
+      auto It = MAuxiliaryResources.begin();
+      Event = It->first;
+      Resources = std::move(It->second);
+      MAuxiliaryResources.erase(It);
       MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
-    } else if (It->first->isCompleted()) {
-      It = MAuxiliaryResources.erase(It);
-      MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
-    } else
-      ++It;
+    }
+
+    try {
+      Event->waitInternal();
+    } catch (...) {
+      std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
+      const bool IsNewEntry =
+          MAuxiliaryResources.find(Event) == MAuxiliaryResources.end();
+      registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Event,
+                                       std::move(Resources));
+      if (IsNewEntry)
+        MDeferredResourcesCount.fetch_add(1, std::memory_order_relaxed);
+      throw;
+    }
   }
 }
 

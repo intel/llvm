@@ -415,18 +415,20 @@ void event_impl::wait(bool *Success) {
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
-#endif
-
   // Deferred resources are otherwise only released by later scheduler
   // activity, i.e. possibly not before runtime shutdown. The check is
   // lock-free so that wait() takes no lock when nothing is deferred.
-  if (!WaitedViaScheduler)
-    if (detail::Scheduler *Sched =
-            detail::GlobalHandler::instance().getSchedulerIfAlive())
+  if (!WaitedViaScheduler) {
+    auto SchedAccess = detail::GlobalHandler::getSchedulerAccess();
+    if (detail::Scheduler *Sched = SchedAccess.get()) {
       if (Sched->hasDeferredResources())
         Sched->releaseResources(BlockingT::NON_BLOCKING);
+    }
+  }
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+#endif
 }
 
 void event_impl::wait_and_throw() {

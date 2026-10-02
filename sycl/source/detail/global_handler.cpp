@@ -24,6 +24,7 @@
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/spinlock.hpp>
 
+#include <thread>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -36,6 +37,8 @@ namespace detail {
 
 using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
+std::atomic<Scheduler *> GlobalHandler::MSchedulerPtr{nullptr};
+std::atomic<uint64_t> GlobalHandler::MSchedulerAccessState{0};
 
 // forward decl
 void shutdown_early(bool);
@@ -122,9 +125,11 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   // releaseResources will cause dead lock due to host queue release
   if (MScheduler.Inst)
     prepareSchedulerToRelease(true);
+  stopSchedulerAccess();
   MSchedulerPtr.store(nullptr, std::memory_order_release);
   MScheduler.Inst.reset(Scheduler);
   MSchedulerPtr.store(Scheduler, std::memory_order_release);
+  MSchedulerAccessState.store(0, std::memory_order_release);
 }
 
 static void enableOnCrashStackPrinting() {
@@ -152,11 +157,39 @@ Scheduler &GlobalHandler::getScheduler() {
 }
 
 bool GlobalHandler::isSchedulerAlive() const {
-  return getSchedulerIfAlive() != nullptr;
+  return MSchedulerPtr.load(std::memory_order_acquire) != nullptr;
 }
 
-Scheduler *GlobalHandler::getSchedulerIfAlive() const noexcept {
-  return MSchedulerPtr.load(std::memory_order_acquire);
+GlobalHandler::SchedulerAccess GlobalHandler::getSchedulerAccess() noexcept {
+  constexpr uint64_t Closed = uint64_t{1} << 63;
+  uint64_t State = MSchedulerAccessState.load(std::memory_order_relaxed);
+  while (!(State & Closed)) {
+    if (MSchedulerAccessState.compare_exchange_weak(
+            State, State + 1, std::memory_order_acquire,
+            std::memory_order_relaxed)) {
+      if (Scheduler *Sched = MSchedulerPtr.load(std::memory_order_acquire))
+        return SchedulerAccess(Sched);
+      releaseSchedulerAccess();
+      return SchedulerAccess();
+    }
+  }
+  return SchedulerAccess();
+}
+
+GlobalHandler::SchedulerAccess::~SchedulerAccess() {
+  if (MScheduler)
+    GlobalHandler::releaseSchedulerAccess();
+}
+
+void GlobalHandler::releaseSchedulerAccess() noexcept {
+  MSchedulerAccessState.fetch_sub(1, std::memory_order_release);
+}
+
+void GlobalHandler::stopSchedulerAccess() noexcept {
+  constexpr uint64_t Closed = uint64_t{1} << 63;
+  MSchedulerAccessState.fetch_or(Closed, std::memory_order_acq_rel);
+  while ((MSchedulerAccessState.load(std::memory_order_acquire) & ~Closed) != 0)
+    std::this_thread::yield();
 }
 
 void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
@@ -390,6 +423,7 @@ void shutdown_late() {
 #endif
 
   // First, release resources, that may access adapters.
+  GlobalHandler::RTGlobalObjHandler->stopSchedulerAccess();
   GlobalHandler::RTGlobalObjHandler->MPlatformCache.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MSchedulerPtr.store(
       nullptr, std::memory_order_release);
