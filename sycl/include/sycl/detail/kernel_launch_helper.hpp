@@ -213,7 +213,7 @@ struct KernelWrapper<
 
   static void wrap([[maybe_unused]] const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
-    detail::CheckDeviceCopyable<KernelType>();
+    detail::CheckKernelParametersAreLegal<KernelType>();
 #endif
     // Note: the static_assert below need to be run on both the host and the
     // device ends to avoid test issues, so don't put it into the #ifdef
