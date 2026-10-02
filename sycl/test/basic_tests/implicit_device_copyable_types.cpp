@@ -97,6 +97,8 @@ int main() {
 #endif
   static_assert(sycl::is_device_copyable_v<const volatile sycl::span<int>>);
 
+  static_assert(sycl::is_device_copyable_v<sycl::id<2>>);
+
   // Extra checks
   static_assert(sycl::is_device_copyable_v<sycl::vec<int, 4>>);
   static_assert(sycl::is_device_copyable_v<sycl::vec<sycl::half, 4>>);
@@ -107,6 +109,25 @@ int main() {
     sycl::vec<int, 4> v;
   };
   static_assert(sycl::is_device_copyable_v<S>);
+
+  static_assert(sycl::is_device_copyable_v<sycl::marray<int, 11>>);
+  static_assert(sycl::is_device_copyable_v<sycl::marray<sycl::half, 11>>);
+  static_assert(sycl::is_device_copyable_v<
+                sycl::marray<sycl::ext::oneapi::bfloat16, 11>>);
+
+  struct S2 {
+    sycl::marray<int, 11> v;
+  };
+  static_assert(sycl::is_device_copyable_v<S2>);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  static_assert(!sycl::is_device_copyable_v<
+                sycl::accessor<int, 1, sycl::access_mode::read_write>>);
+  static_assert(!sycl::is_device_copyable_v<sycl::local_accessor<int, 1>>);
+  static_assert(!sycl::is_device_copyable_v<sycl::host_accessor<int, 1>>);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+  static_assert(sycl::is_device_copyable_v<sycl::image_sampler>);
 
   return 0;
 }

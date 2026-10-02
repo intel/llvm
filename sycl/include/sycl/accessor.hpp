@@ -757,6 +757,10 @@ public:
       : impl({}, detail::InitializedVal<AdjustedDim, range>::template get<0>(),
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
@@ -820,6 +824,10 @@ public:
             /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
             /*IsPlaceH=*/false,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   template <typename, int, access_mode> friend class host_accessor;
 
@@ -2416,6 +2424,10 @@ public:
                                              range>::template get<0>();
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~local_accessor() {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
   local_accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
 #endif
@@ -2582,6 +2594,9 @@ protected:
 
 public:
   host_accessor() : AccessorT() {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~host_accessor() {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // The list of host_accessor constructors with their arguments
   // -------+---------+-------+----+----------+--------------
@@ -2826,6 +2841,26 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
               Type5) -> host_accessor<DataT, Dimensions,
                                       detail::deduceAccessMode<Type4, Type5>()>;
 
+namespace detail {
+// Add specializations for SYCL accessor types to the is_sycl_accessor trait.
+// This is needed so that is_device_copyable<accessor> returns false, but
+// they can still be captured in a kernel.
+template <typename T> struct is_sycl_accessor;
+
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_sycl_accessor<accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                                 IsPlaceholder, PropertyListT>>
+    : std::true_type {};
+
+template <typename DataT, int Dimensions>
+struct is_sycl_accessor<local_accessor<DataT, Dimensions>> : std::true_type {};
+
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct is_sycl_accessor<host_accessor<DataT, Dimensions, AccessMode>>
+    : std::true_type {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl
 
