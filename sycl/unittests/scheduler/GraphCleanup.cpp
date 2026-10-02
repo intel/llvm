@@ -406,6 +406,7 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
   EventCompleted = false;
   MSPtr->cleanupCommands({});
   ASSERT_FALSE(MockAuxResourceDeleted);
+  ASSERT_TRUE(MSPtr->hasDeferredResources());
 
   EventCompleted = true;
   // Acquire lock to keep deferred mem obj from releasing so that they can be
@@ -415,9 +416,51 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
     MSPtr->cleanupCommands({});
     ASSERT_TRUE(MockAuxResourceDeleted);
     ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 1u);
+    ASSERT_TRUE(MSPtr->hasDeferredResources());
   }
 
   MSPtr->cleanupCommands({});
   ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 0u);
+  ASSERT_FALSE(MSPtr->hasDeferredResources());
+}
+
+// Check that event::wait() releases auxiliary resources of completed commands
+// without any further scheduler activity.
+TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOnWait) {
+  unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urEventGetInfo",
+                                            &redefinedEventGetInfo);
+  platform Plt = sycl::platform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+
+  MockScheduler *MSPtr = new MockScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  detail::EventImplPtr EventImplPtr;
+  bool MockAuxResourceDeleted = false;
+  EventCompleted = false;
+  {
+    MockHandlerCustomFinalize MockCGH(QueueImpl,
+                                      /*CallerNeedsEvent=*/true);
+    kernel_bundle KernelBundle =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(
+            QueueImpl.get_context());
+    auto ExecBundle = sycl::build(KernelBundle);
+    MockCGH.use_kernel_bundle(ExecBundle);
+    MockCGH.addReduction(
+        std::make_shared<MockAuxResource>(MockAuxResourceDeleted));
+    MockCGH.single_task<TestKernel>([] {});
+    std::unique_ptr<detail::CG> CG = MockCGH.finalize();
+
+    EventImplPtr = MSPtr->addCG(std::move(CG), QueueImpl, /*EventNeeded=*/true);
+  }
+  ASSERT_FALSE(MockAuxResourceDeleted);
+  ASSERT_TRUE(MSPtr->hasDeferredResources());
+
+  EventCompleted = true;
+  EventImplPtr->wait();
+  ASSERT_TRUE(MockAuxResourceDeleted);
+  ASSERT_FALSE(MSPtr->hasDeferredResources());
 }
 } // anonymous namespace

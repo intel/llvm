@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <detail/cg.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -465,6 +467,14 @@ public:
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
+  /// \return true if there may be deferred cleanup commands, deferred memory
+  /// objects or auxiliary resources waiting to be released. Lock-free and
+  /// best-effort: the result may be momentarily stale under concurrent
+  /// updates.
+  bool hasDeferredResources() const noexcept {
+    return MDeferredResourcesCount.load(std::memory_order_relaxed) != 0;
+  }
+
   void enqueueCommandForCG(event_impl &Event,
                            std::vector<Command *> &AuxilaryCmds,
                            BlockingT Blocking = NON_BLOCKING);
@@ -883,6 +893,11 @@ protected:
   std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
       MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
+
+  // Total number of entries in MDeferredCleanupCommands,
+  // MDeferredMemObjRelease and MAuxiliaryResources. Must be updated under the
+  // mutex guarding the modified container.
+  std::atomic<std::size_t> MDeferredResourcesCount{0};
 
   // Asynchronous exceptions are captured at device-level until flushed, either
   // by queues, events or a synchronization on the device itself.

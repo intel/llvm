@@ -54,6 +54,9 @@ public:
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
   bool isSchedulerAlive() const;
+  /// \return the Scheduler if it has been created, nullptr otherwise. Unlike
+  /// getScheduler(), takes no lock and never creates the Scheduler.
+  Scheduler *getSchedulerIfAlive() const noexcept;
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
